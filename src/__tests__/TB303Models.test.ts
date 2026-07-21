@@ -63,11 +63,14 @@ describe('TB303_MODELS registry', () => {
         }
     });
 
-    it('catalogues the remaining P2 character voices as not yet available', () => {
+    it('ships the P2 character voices as open303-family profiles', () => {
         for (const id of ['mb33-mkii', 'raveolution']) {
             const m = getTB303Model(id);
             expect(m, id).toBeDefined();
-            expect(m!.available, id).toBe(false);
+            expect(m!.available, id).toBe(true);
+            expect(m!.family, id).toBe('open303');
+            // "inspired-by" disclaimer surfaced to the user, not a clone claim.
+            expect(m!.description.toLowerCase(), id).toContain('not a clone');
         }
     });
 
@@ -114,9 +117,9 @@ describe('normalizeTB303Model()', () => {
         expect(normalizeTB303Model('rebirth-2.0')).toBe('rebirth-2.0');
     });
 
-    it('falls back to the family stock voice for catalogued-but-unavailable models', () => {
-        expect(normalizeTB303Model('mb33-mkii')).toBe('stock-open303');    // open303 family
-        expect(normalizeTB303Model('raveolution')).toBe('stock-open303');  // open303 family
+    it('keeps the P2 character voices', () => {
+        expect(normalizeTB303Model('mb33-mkii')).toBe('mb33-mkii');
+        expect(normalizeTB303Model('raveolution')).toBe('raveolution');
     });
 
     it('falls back for unknown ids from future song versions', () => {

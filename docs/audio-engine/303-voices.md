@@ -23,8 +23,8 @@ track without touching the others.
 | `experimental-01` | open303 | ✅ shipped | Scratchpad: hotter resonance feedback (4.15), snappier envelope, harder accent punch, heavier square drive. |
 | `rebirth-338-1.5` | open303 | ✅ shipped | Inspired by ReBirth RB-338 1.5 (not a clone): squishier, self-oscillation-prone filter, gooey slides, big accent lift. |
 | `rebirth-2.0` | open303 | ✅ shipped | Inspired by ReBirth 2.0 (not a clone): cleaner/tighter filter than 1.5, punchier accent, snappier envelope. |
-| `mb33-mkii` | open303 | 🚧 catalogued | MAM MB33 mkII profile. |
-| `raveolution` | open303 | 🚧 catalogued | Quasimidi Raveolution 309 profile. |
+| `mb33-mkii` | open303 | ✅ shipped | Inspired by MAM MB33 mkII (not a clone): boxier digital filter, distinct accent punch, square/saw grit. |
+| `raveolution` | open303 | ✅ shipped | Inspired by Quasimidi Raveolution 309 (not a clone): brighter harsh self-osc, aggressive resonance, snappy envelope, heavy drive. |
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
@@ -58,6 +58,32 @@ tighter and cleaner with a harder, punchier accent and snappier envelope.
 Full ReBirth *song* fidelity is out of scope here (owned by epic #876); these
 voices target instrument character only, validated by A/B render (below), not
 by matching real RB-338 recordings.
+
+### P2 character voices (`mb33-mkii`, `raveolution`)
+
+These are **inspired-by profiles, not bit-perfect or legal clones** of the
+referenced hardware/software emulations — the UI tooltips and this catalog say
+so. They ship no third-party samples or assets; they are coefficient profiles
+on the stock open303 DSP tuned toward each target's *character*.
+
+Coefficient deltas vs `stock-open303`:
+
+| Knob | stock | `mb33-mkii` | `raveolution` |
+|------|-------|-------------|---------------|
+| cutoff base Hz | 20 | 24 (boxier mid) | 18 (brighter low) |
+| cutoff range × | 400 | 360 (narrower sweep) | 440 (brighter top) |
+| resonance feedback | 3.9 | 3.85 (distinct curve) | 4.25 (aggressive self-osc) |
+| accent filter boost | 0.40 | 0.52 (distinct punch) | 0.58 (hard filter hit) |
+| accent VCA boost | 0.30 | 0.38 | 0.48 (aggressive envelope) |
+| decay min / range s | 0.05 / 1.95 | 0.045 / 1.70 | 0.028 / 1.15 (snappy) |
+| slide min / range s | 0.01 / 0.49 | 0.014 / 0.45 | 0.006 / 0.35 (fast) |
+| square drive × | 3.0 | 3.8 (digital grit) | 4.2 (heavy drive) |
+| saw drive | 0.0 | 0.25 (digital grit) | 0.08 |
+
+Character summary: **MB33 mkII** leans into a boxier, more "digital" filter
+feel with a distinct accent punch and waveshaping grit; **Raveolution** is
+brighter and harsher with aggressive resonance/self-oscillation, a snappy
+envelope, and heavier drive for dance-floor character.
 
 ## Architecture
 
@@ -206,19 +232,21 @@ bash emscripten/tests/run_offline_voices_test.sh
 
 What it asserts:
 
-1. `experimental-01`, `1ink303-v1`, `rebirth-338-1.5` and `rebirth-2.0` are
-   registered as open303-family models.
+1. `experimental-01`, `1ink303-v1`, `rebirth-338-1.5`, `rebirth-2.0`,
+   `mb33-mkii` and `raveolution` are registered as open303-family models.
 2. The stock render is **deterministic** (bit-identical across two runs).
 3. **Stock unchanged**: stock → other voice → stock reproduces the exact stock
    buffer (a mid-session switch does not corrupt the stock path).
 4. **Audible difference**: each shipped voice differs from stock by relative
    RMS > 2 % and peak sample delta > 1e-3 (all currently render ~1.0 relative
-   RMS), and the two ReBirth eras are audibly distinct from each other.
+   RMS), the two ReBirth eras are audibly distinct from each other, and the
+   MB33 mkII and Raveolution profiles are audibly distinct from each other.
 5. `open303_set_model()` rejects the jc303-family model and unknown indices.
 6. Switching the model every block mid-render stays finite — no crash, no NaN.
 
 This same fixed pattern is the **shared A/B regression pattern** for both the
-first custom voices (#898) and the ReBirth character voices (#900).
+first custom voices (#898), the ReBirth character voices (#900), and the P2
+character voices (#902).
 
 ### Manual A/B checklist (in-app, after `pnpm run build:emcc`)
 

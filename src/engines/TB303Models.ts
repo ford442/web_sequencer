@@ -111,17 +111,17 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     id: 'mb33-mkii',
     label: 'MB33 mkII',
     shortLabel: 'MB33',
-    description: 'MAM MB33 mkII character profile — coming soon.',
+    description: 'Inspired by MAM MB33 mkII (not a clone) — boxier digital filter feel, distinct accent punch, square/saw grit.',
     family: 'open303',
-    available: false,
+    available: true,
   },
   {
     id: 'raveolution',
     label: 'Raveolution 309',
     shortLabel: 'Rave 309',
-    description: 'Quasimidi Raveolution character profile — coming soon.',
+    description: 'Inspired by Quasimidi Raveolution 309 (not a clone) — brighter harsh self-osc, aggressive resonance, snappy envelope, heavy drive.',
     family: 'open303',
-    available: false,
+    available: true,
   },
 ];
 
