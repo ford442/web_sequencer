@@ -34,10 +34,21 @@ function fakeSubsystem(overrides: Partial<SubsystemReport> = {}): SubsystemRepor
   };
 }
 
+const fakeRuntime = {
+  masterBudgetPercent: 42,
+  totalUnderruns: 3,
+  outputLatencyMs: 12.5,
+  glitches: [],
+  worklets: {
+    clock: { cpuPercent: 5, underruns: 0, lastProcessUs: 100, lastQuantumUs: 2666, lastUpdate: Date.now() },
+  },
+  degradations: [],
+};
+
 describe('serializeEngineReport', () => {
   it('wraps the snapshot + capabilities into a versioned report', () => {
     const snapshot = { synthA: fakeSubsystem() };
-    const parsed = JSON.parse(serializeEngineReport(snapshot, fakeCaps));
+    const parsed = JSON.parse(serializeEngineReport(snapshot, fakeCaps, fakeRuntime));
 
     expect(parsed.version).toBe(1);
     expect(typeof parsed.exportedAt).toBe('string');
@@ -46,10 +57,11 @@ describe('serializeEngineReport', () => {
     expect(parsed.capabilities).toEqual(fakeCaps);
     expect(parsed.subsystems.synthA.resolution.backend).toBe('wasm');
     expect(parsed.subsystems.synthA.p50).toBe(1.2);
+    expect(parsed.runtime.masterBudgetPercent).toBe(42);
   });
 
   it('never leaks a raw userAgent string', () => {
-    const json = serializeEngineReport({ s: fakeSubsystem() }, fakeCaps);
+    const json = serializeEngineReport({ s: fakeSubsystem() }, fakeCaps, fakeRuntime);
     expect(json).not.toContain('"userAgent"');
     const parsed = JSON.parse(json);
     expect('userAgent' in parsed.capabilities).toBe(false);

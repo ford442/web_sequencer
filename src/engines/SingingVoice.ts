@@ -48,8 +48,10 @@ export { midiToFreq, freqToMidi };
  */
 
 // Mixin methods are applied via Object.assign below; this interface exposes them on the class type.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
 export interface SingingVoice extends SingingVoicePublic {}
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class SingingVoice implements SingingVoicePublic {
   audioContext: AudioContext;
   workletNode: AudioWorkletNode | null = null;

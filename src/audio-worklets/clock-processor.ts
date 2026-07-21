@@ -12,6 +12,8 @@
 //   swing = 0 → straight, swing = 1 → maximum shuffle (~66/34 split, classic triplet feel)
 //   The pair duration (even + odd) always equals 2T regardless of swing.
 
+import { WorkletPerfReporter } from './workletPerfReporter';
+
 declare class AudioWorkletProcessor {
     readonly port: MessagePort;
     process(
@@ -36,6 +38,7 @@ class ClockProcessor extends AudioWorkletProcessor {
     private tempo = 120;
     private swing = 0;           // 0–1
     private numSteps = 32;
+    private readonly perf = new WorkletPerfReporter(this.port, 'clock');
 
     // Accumulated sample count since playback start
     private sampleCursor = 0;
@@ -92,33 +95,38 @@ class ClockProcessor extends AudioWorkletProcessor {
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _params: Record<string, Float32Array>): boolean {
         const output = outputs[0]?.[0];
         const blockSize = output?.length ?? 128;
-        if (output) {
-            output.fill(0);
-        }
-
-        if (!this.running) return true;
-
-        for (let i = 0; i < blockSize; i++) {
-            if (this.sampleCursor >= this.nextStepAtSample) {
-                // Exact AudioContext time for this sample (currentTime is the time of
-                // the first sample in the current block).
-                const audioTime = currentTime + i / sampleRate;
-
-                this.port.postMessage({
-                    type: 'step',
-                    step: this.nextStep,
-                    audioTime,
-                });
-
-                // Advance to the next step.
-                const parity = (this.nextStep % 2) as 0 | 1;
-                this.nextStepAtSample += this.stepDurationSamples(parity);
-                this.nextStep = (this.nextStep + 1) % this.numSteps;
+        const endPerf = this.perf.beginProcess(blockSize);
+        try {
+            if (output) {
+                output.fill(0);
             }
-            this.sampleCursor++;
-        }
 
-        return true; // keep processor alive
+            if (!this.running) return true;
+
+            for (let i = 0; i < blockSize; i++) {
+                if (this.sampleCursor >= this.nextStepAtSample) {
+                    // Exact AudioContext time for this sample (currentTime is the time of
+                    // the first sample in the current block).
+                    const audioTime = currentTime + i / sampleRate;
+
+                    this.port.postMessage({
+                        type: 'step',
+                        step: this.nextStep,
+                        audioTime,
+                    });
+
+                    // Advance to the next step.
+                    const parity = (this.nextStep % 2) as 0 | 1;
+                    this.nextStepAtSample += this.stepDurationSamples(parity);
+                    this.nextStep = (this.nextStep + 1) % this.numSteps;
+                }
+                this.sampleCursor++;
+            }
+
+            return true; // keep processor alive
+        } finally {
+            endPerf();
+        }
     }
 }
 

@@ -153,7 +153,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         const encodedSamples: { [k: number]: string } = {};
         await Promise.all(sampleBuffers.map(async (buf, idx) => {
             if (buf) {
-                const wavBlob = audioBufferToWav(buf);
+                const wavBlob = await audioBufferToWav(buf);
                 const b64 = await blobToBase64(wavBlob);
                 encodedSamples[idx] = b64;
             }
@@ -297,7 +297,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         const encodedSamples: { [k: number]: string } = {};
         await Promise.all(sampleBuffers.map(async (buf, idx) => {
             if (buf) {
-                const wavBlob = audioBufferToWav(buf);
+                const wavBlob = await audioBufferToWav(buf);
                 const b64 = await blobToBase64(wavBlob);
                 encodedSamples[idx] = b64;
             }

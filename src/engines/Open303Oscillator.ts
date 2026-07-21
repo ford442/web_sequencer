@@ -1,5 +1,7 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
+import type { TB303ModelId } from './TB303Models';
+import { normalizeTB303Model, stockModelForFamily, tb303ModelFamily } from './TB303Models';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -7,6 +9,7 @@ import {
     logEngineFallback,
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
+import { attachWorkletPerf } from '../utils/workletPerfBridge';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
@@ -29,6 +32,8 @@ export class Open303Oscillator {
     private params: Open303Params = { ...DEFAULT_303_PARAMS };
     /** Persisted engine choice — applied once the worklet is ready. */
     private engine303: 'open303' | 'jc303' = 'open303';
+    /** Persisted 303 voice/model choice — applied once the worklet is ready. */
+    private model303: TB303ModelId = 'stock-open303';
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
@@ -135,6 +140,7 @@ export class Open303Oscillator {
             // Connect and Listen (gainNode is always set before _initWithWasmBytes is reached)
             if (!this.gainNode) throw new Error('gainNode not initialized');
             this.workletNode.connect(this.gainNode);
+            attachWorkletPerf(this.workletNode, 'open303');
 
             // Wait for worklet to confirm initialization
             const initSuccess = await new Promise<boolean>((resolve) => {
@@ -173,7 +179,7 @@ export class Open303Oscillator {
 
             this.isReady = true;
             this.isFallback = false;
-            this.applyEngine303();
+            this.applyModel303();
             this.applyAllParameters();
             try { engineTelemetry.registerResolution('open303', isNative ? 'wasm-native' : 'wasm', 'worklet-ready'); } catch (_) {}
             return true;
@@ -262,12 +268,46 @@ export class Open303Oscillator {
      */
     setEngine303(engine: 'open303' | 'jc303'): void {
         this.engine303 = engine;
+        this.model303 = stockModelForFamily(engine);
         this.applyEngine303();
     }
 
     private applyEngine303(): void {
         if (!this.workletNode) return;
         this.workletNode.port.postMessage({ type: 'set-engine', data: { engine: this.engine303 } });
+        if (this.isReady) {
+            // Params were routed to the previous engine — push them to the new one.
+            this.applyAllParameters();
+        }
+    }
+
+    /**
+     * Select the 303 voice/model for this oscillator (see engines/TB303Models.ts).
+     *
+     * Unknown or not-yet-shipped models normalize to the stock voice of their
+     * engine family. When the loaded WASM predates the model registry the
+     * worklet falls back to plain engine-family switching, so stock voices
+     * always work.
+     */
+    setModel303(model: TB303ModelId | string): void {
+        this.model303 = normalizeTB303Model(model);
+        this.engine303 = tb303ModelFamily(this.model303);
+        this.applyModel303();
+    }
+
+    /** Currently selected 303 voice/model. */
+    getModel303(): TB303ModelId {
+        return this.model303;
+    }
+
+    private applyModel303(): void {
+        if (!this.workletNode) return;
+        this.workletNode.port.postMessage({
+            type: 'set-303-model',
+            // engine is included so the worklet can route correctly even when
+            // the WASM build has no native model registry (pre-voices builds).
+            data: { model: this.model303, engine: this.engine303 },
+        });
         if (this.isReady) {
             // Params were routed to the previous engine — push them to the new one.
             this.applyAllParameters();

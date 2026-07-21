@@ -317,13 +317,13 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
 
                 // Spectral Panning
-                const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-                const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+                const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : params.spectralPanRate;
+                const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : params.spectralPanDepth;
                 const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
                 // Reverb
                 const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                const currentReverbType = noteParams?.reverbType || reverbTypeRef.current;
                 const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
 
                 const baseShift = params.formantShift || 0;
@@ -379,8 +379,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
                 const pTimeStretchEnvDepth = noteParams?.timeStretchEnvDepth !== undefined ? noteParams.timeStretchEnvDepth : params.timeStretchEnvDepth;
                 const pGrainEnvDepth = noteParams?.grainEnvDepth !== undefined ? noteParams.grainEnvDepth : params.grainEnvDepth;
-                const pGrainPitchEnvDepth = (noteParams as any)?.grainPitchEnvDepth !== undefined ? (noteParams as any).grainPitchEnvDepth : params.grainPitchEnvDepth;
-                const pGrainJitter = (noteParams as any)?.grainJitter !== undefined ? (noteParams as any).grainJitter : params.grainJitter;
+                const pGrainPitchEnvDepth = noteParams?.grainPitchEnvDepth !== undefined ? noteParams.grainPitchEnvDepth : params.grainPitchEnvDepth;
+                const pGrainJitter = noteParams?.grainJitter !== undefined ? noteParams.grainJitter : params.grainJitter;
                 const pGrainPitchQuantize = noteParams?.grainPitchQuantize !== undefined ? noteParams.grainPitchQuantize : params.grainPitchQuantize;
 
                 // Effects
@@ -410,9 +410,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     pEnvDecay = getSyncedSeconds(pEnvDecay as number, tempo);
                 }
 
-                const pPitchAttack = (noteParams as any)?.pitchAttack ?? params.pitchAttack ?? 0;
-                const pPitchDecay = (noteParams as any)?.pitchDecay ?? params.pitchDecay ?? 0;
-                const pPitchAmount = (noteParams as any)?.pitchAmount ?? params.pitchAmount ?? 0;
+                const pPitchAttack = noteParams?.pitchAttack ?? params.pitchAttack ?? 0;
+                const pPitchDecay = noteParams?.pitchDecay ?? params.pitchDecay ?? 0;
+                const pPitchAmount = noteParams?.pitchAmount ?? params.pitchAmount ?? 0;
 
                 const pFilterCutoff = noteParams?.filterCutoff !== undefined
                     ? Math.max(20, noteParams.filterCutoff * 20000)
@@ -472,7 +472,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
                             // Setup Reverb Send
                             const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-                            const currentReverbType = (noteParams as any)?.reverbType || reverbTypeRef.current;
+                            const currentReverbType = noteParams?.reverbType || reverbTypeRef.current;
                             const targetReverbNode = reverbNodesRef.current[currentReverbType] || reverbNodesRef.current['plate'];
                             if (reverbSendAmount > 0 && targetReverbNode) {
                                 const reverbGain = context.createGain();
@@ -504,7 +504,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             // Apply Character Morphing
                             const morphAmount = noteParams?.characterMorph !== undefined ? noteParams.characterMorph : (params.characterMorph ?? 0);
                             const morphTarget = params.morphTarget || 'female';
-                            voice.setCharacterMorph(morphAmount, morphTarget as any, 0.05); // Use short ramp time
+                            voice.setCharacterMorph(morphAmount, morphTarget, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (noteParams?.vibratoDepth !== undefined) {
@@ -591,7 +591,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             }
 
                             // Apply Character Morphing
-                            voice.setCharacterMorph(characterMorph, morphTarget as any, 0.05); // Use short ramp time
+                            voice.setCharacterMorph(characterMorph, morphTarget, 0.05); // Use short ramp time
 
                             // Sync other params
                             if (pVibratoDepth !== undefined) voice.setVibratoDepth(pVibratoDepth, triggerTime);
@@ -701,8 +701,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             if (voice.setPitchDecay) {
                                 voice.setPitchDecay(pPitchDecay, triggerTime);
                             }
-                            if ((voice as any).setPitchAmount) {
-                                (voice as any).setPitchAmount(pPitchAmount, triggerTime);
+                            if (voice.setPitchAmount) {
+                                voice.setPitchAmount(pPitchAmount, triggerTime);
                             }
 
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);

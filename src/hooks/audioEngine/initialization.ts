@@ -1,7 +1,39 @@
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
+import { compileAudioGraph } from '../../audio/graph/compileGraph';
+import { CLASSIC_ELECTRIBE_GRAPH } from '../../audio/graph/defaultElectribeGraph';
+import type { MasterChainRefs } from '../../audio/graph';
 
-import { makeDistortionCurve } from './distortion';
+const MASTER_CHAIN_NODE_IDS = new Set([
+    'masterSaturation',
+    'bassSidechainEQ',
+    'sidechainGain',
+    'masterCompressor',
+    'masterGain',
+    'masterPanner',
+    'destination',
+    'masterAnalyser',
+]);
+
+function assignMasterChainRefs(
+    graph: ReturnType<typeof compileAudioGraph>,
+    refs: MasterChainRefs,
+): WaveShaperNode {
+    refs.masterSaturationRef.current = graph.getNode<WaveShaperNode>('masterSaturation');
+    refs.bassSidechainEQBusRef.current = graph.getNode<BiquadFilterNode>('bassSidechainEQ');
+    refs.sidechainGainRef.current = graph.getNode<BiquadFilterNode>('sidechainGain');
+    refs.masterCompressorRef.current = graph.getNode<DynamicsCompressorNode>('masterCompressor');
+    refs.masterGainRef.current = graph.getNode<GainNode>('masterGain');
+
+    const panner = graph.nodes.get('masterPanner');
+    refs.masterPannerRef.current = (panner as StereoPannerNode | undefined) ?? null;
+
+    if (refs.analyserNodeRef) {
+        refs.analyserNodeRef.current = graph.getNode<AnalyserNode>('masterAnalyser');
+    }
+
+    return refs.masterSaturationRef.current;
+}
 
 export function initializeMasterOutput(
     context: AudioContext,
@@ -13,65 +45,26 @@ export function initializeMasterOutput(
     bassSidechainEQBusRef: MutableRefObject<BiquadFilterNode | null>,
     analyserNodeRef?: MutableRefObject<AnalyserNode | null>,
 ): WaveShaperNode {
-    const masterSaturation = context.createWaveShaper();
-    masterSaturation.curve = makeDistortionCurve(0);
-    masterSaturation.oversample = '4x';
-    masterSaturationRef.current = masterSaturation;
+    const masterConfig = {
+        ...CLASSIC_ELECTRIBE_GRAPH,
+        id: 'classic-electribe-master',
+        name: 'Classic Electribe (master chain)',
+        nodes: CLASSIC_ELECTRIBE_GRAPH.nodes.filter((n) => MASTER_CHAIN_NODE_IDS.has(n.id)),
+        edges: CLASSIC_ELECTRIBE_GRAPH.edges.filter(
+            (e) => MASTER_CHAIN_NODE_IDS.has(e.from) && MASTER_CHAIN_NODE_IDS.has(e.to),
+        ),
+    };
 
-    const masterCompressor = context.createDynamicsCompressor();
-    masterCompressor.threshold.setValueAtTime(-15, context.currentTime);
-    masterCompressor.knee.setValueAtTime(30, context.currentTime);
-    masterCompressor.ratio.setValueAtTime(4, context.currentTime);
-    masterCompressor.attack.setValueAtTime(0.03, context.currentTime);
-    masterCompressor.release.setValueAtTime(0.25, context.currentTime);
-    masterCompressorRef.current = masterCompressor;
-
-    const masterGain = context.createGain();
-    masterGain.gain.setValueAtTime(0.8, 0);
-    masterGainRef.current = masterGain;
-
-    // AI Auto-EQ Bus: ducks conflicting frequencies (e.g., 250Hz) when Bass plays
-    const bassSidechainEQBus = context.createBiquadFilter();
-    bassSidechainEQBus.type = 'peaking';
-    bassSidechainEQBus.frequency.setValueAtTime(250, context.currentTime);
-    bassSidechainEQBus.Q.setValueAtTime(1.0, context.currentTime);
-    bassSidechainEQBus.gain.setValueAtTime(0.0, context.currentTime);
-    bassSidechainEQBusRef.current = bassSidechainEQBus;
-
-    // Use a low-shelf filter for sidechaining instead of a broadband gain duck.
-    // This ducks only the low frequencies, leaving the highs intact (Spectral Sidechaining).
-    const sidechainBus = context.createBiquadFilter();
-    sidechainBus.type = 'lowshelf';
-    sidechainBus.frequency.setValueAtTime(250, context.currentTime);
-    sidechainBus.gain.setValueAtTime(0.0, context.currentTime); // 0 dB initially
-    sidechainGainRef.current = sidechainBus;
-
-    masterSaturation.connect(bassSidechainEQBus);
-    bassSidechainEQBus.connect(sidechainBus);
-    sidechainBus.connect(masterCompressor);
-    masterCompressor.connect(masterGain);
-
-    if (context.createStereoPanner) {
-        const masterPanner = context.createStereoPanner();
-        masterPanner.pan.setValueAtTime(0, 0);
-        masterPannerRef.current = masterPanner;
-        masterGain.connect(masterPanner);
-        masterPanner.connect(context.destination);
-    } else {
-        masterGain.connect(context.destination);
-    }
-
-    // Passive analyser tap: connects after masterGain so it monitors the full
-    // output mix. The analyser is not connected to destination — it only reads.
-    if (analyserNodeRef) {
-        const analyser = context.createAnalyser();
-        analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.6;
-        masterGain.connect(analyser);
-        analyserNodeRef.current = analyser;
-    }
-
-    return masterSaturation;
+    const graph = compileAudioGraph(context, masterConfig);
+    return assignMasterChainRefs(graph, {
+        masterGainRef,
+        masterPannerRef,
+        masterSaturationRef,
+        masterCompressorRef,
+        sidechainGainRef,
+        bassSidechainEQBusRef,
+        analyserNodeRef,
+    });
 }
 
 export function initializeHarmonyBus(
@@ -188,22 +181,7 @@ export function createNoiseBuffer(context: AudioContext): AudioBuffer {
     return buffer;
 }
 
-export function createReverbImpulseResponse(context: AudioContext, duration: number = 2.0, decay: number = 2.0): AudioBuffer {
-    const sampleRate = context.sampleRate;
-    const length = sampleRate * duration;
-    const impulse = context.createBuffer(2, length, sampleRate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
-
-    for (let i = 0; i < length; i++) {
-        const n = i / sampleRate;
-        const e = Math.pow(1 - n / duration, decay);
-        left[i] = (Math.random() * 2 - 1) * e;
-        right[i] = (Math.random() * 2 - 1) * e;
-    }
-
-    return impulse;
-}
+export { createReverbImpulseResponse } from '../../audio/impulseResponses';
 
 export function initializeHarmonizer(harmonizerRef: MutableRefObject<Harmonizer | null>): void {
     try {

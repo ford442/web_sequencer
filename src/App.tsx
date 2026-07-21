@@ -12,6 +12,7 @@ import { AISongImportOverlay } from './components/AISongImportOverlay'
 import { CloudLibrary } from './components/CloudLibrary'
 import { AISongModal } from './components/AISongModal'
 import { RbsImportModal } from './components/RbsImportModal'
+import { ExportModal } from './components/ExportModal'
 import { VoiceEditor } from './components/VoiceEditor'
 import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { helpDiscoveryStore, useHelpDiscoveryStore } from './stores/helpDiscoveryStore'
@@ -70,6 +71,8 @@ export const App: React.FC = () => {
         getSongData, getBankData, getPatternData,
         isAISongModalOpen, setIsAISongModalOpen, handleAISongImport,
         isRbsImportModalOpen, setIsRbsImportModalOpen, handleRbsImport,
+        isExportModalOpen, setIsExportModalOpen,
+        synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, pyodide,
         isVoiceEditorOpen, setIsVoiceEditorOpen,
         isShortcutsHelpOpen, setIsShortcutsHelpOpen,
         showGamepadDebug, setShowGamepadDebug,
@@ -166,6 +169,23 @@ export const App: React.FC = () => {
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
+            <ExportModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                onShowToast={showToast}
+                songStructure={songStructure}
+                trackStorage={trackStorage}
+                currentPattern={pattern}
+                tempo={tempo}
+                params={{ synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler }}
+                engines={{
+                    webGpuEngine: audioEngine?.webGpuEngine,
+                    wasmEngine: audioEngine?.wasmEngine,
+                    pyodide,
+                }}
+                sampleBuffers={sampleBuffers}
+                preferredSampleRate={audioEngine?.context?.sampleRate}
+            />
             {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
             {showHelpModal && (<ShortcutsHelp onClose={closeHelpModal} />)}
             {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
@@ -230,6 +250,7 @@ export const App: React.FC = () => {
                 exportRbsToFile={exportRbsToFile}
                 importSongFromFile={importSongFromFile}
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
+                setIsExportModalOpen={setIsExportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}
                 setIsCloudLibraryOpen={setIsCloudLibraryOpen}
                 isAutomationRecording={isAutomationRecording}
