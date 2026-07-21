@@ -133,3 +133,54 @@ read the registry.
   selection callbacks, tooltips, a11y.
 - `src/__tests__/Open303EngineSelect.test.ts` /
   `engine303-roundtrip.test.ts` — legacy engine switch behaviour still intact.
+- `tests/engine303-switch.spec.ts` — Playwright E2E: per-part voice selection,
+  registry-driven tooltip coverage (skipped with the rest of the E2E suite).
+- `emscripten/tests/tb303_voices_offline_test.cpp` — offline DSP buffer test
+  (below).
+
+### Offline voice verification (no emsdk required)
+
+`emscripten/tests/tb303_voices_offline_test.cpp` renders a **fixed pattern**
+through the open303-family DSP via the plain C API and proves the new voices
+are audibly distinct while the stock path is untouched. It compiles with a host
+`g++` using the stubs in `emscripten/tests/emscripten_stub/`:
+
+```bash
+bash emscripten/tests/run_offline_voices_test.sh
+```
+
+**Fixed test pattern** (the documented A/B reference):
+
+| Setting | Value |
+|---------|-------|
+| Sample rate / block | 44100 Hz / 128 frames |
+| Waveform | saw |
+| cutoff / resonance / envMod | 0.35 / 0.70 / 0.55 |
+| decay / accent / volume | 0.50 / 0.70 / 0.80 |
+| Steps | 4 × 0.15 s, notes C2 C2 E♭2 G2 (MIDI 36 36 39 43) |
+| Accent | steps 2 & 4 (velocity 120 vs 90) |
+| Slide | steps 2 & 4 legato (note-on without note-off) |
+
+What it asserts:
+
+1. `experimental-01` and `1ink303-v1` are registered as open303-family models.
+2. The stock render is **deterministic** (bit-identical across two runs).
+3. **Stock unchanged**: stock → other voice → stock reproduces the exact stock
+   buffer (a mid-session switch does not corrupt the stock path).
+4. **Audible difference**: each voice differs from stock by relative RMS > 2 %
+   and peak sample delta > 1e-3 (both currently render ~1.0 relative RMS).
+5. `open303_set_model()` rejects the jc303-family model and unknown indices.
+6. Switching the model every block mid-render stays finite — no crash, no NaN.
+
+### Manual A/B checklist (in-app, after `pnpm run build:emcc`)
+
+Once the WASM is rebuilt so the coefficient profiles are live:
+
+- [ ] Program a simple 303 bassline on BASS 2 (or SYNTH B), moderate cutoff +
+      resonance, a couple of accented steps.
+- [ ] Toggle **303 Voice**: stock-open303 → experimental-01 → 1ink303-v1 while
+      it plays. Each switch should be click-free (held notes released) and
+      audibly change filter/accent character.
+- [ ] Return to stock-open303 — it should sound exactly as before the switch.
+- [ ] Repeat on a second part with a different voice to confirm independent
+      per-part selection.
