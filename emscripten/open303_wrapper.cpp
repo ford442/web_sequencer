@@ -624,6 +624,19 @@ static std::string getAvailable303Models()
     return json;
 }
 
+// Embind cannot bind raw pointers to primitives (const char*). These
+// std::string wrappers are the main-thread module surface; the extern "C"
+// EMSCRIPTEN_KEEPALIVE exports above remain the worklet/ccall path.
+static int open303_find_model_index_str(const std::string& id)
+{
+    return open303_find_model_index(id.c_str());
+}
+
+static int open303_set_model_by_id_str(uintptr_t handle, const std::string& id)
+{
+    return open303_set_model_by_id(handle, id.c_str());
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Embind bindings  (makes the same functions callable from the JS module
 // wrapper / main-thread AudioDSP bridge)
@@ -643,7 +656,7 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_get_model_engine",  &open303_get_model_engine);
     function("open303_set_model",         &open303_set_model);
     function("open303_get_model",         &open303_get_model);
-    function("open303_find_model_index",  &open303_find_model_index);
-    function("open303_set_model_by_id",   &open303_set_model_by_id);
+    function("open303_find_model_index",  &open303_find_model_index_str);
+    function("open303_set_model_by_id",   &open303_set_model_by_id_str);
     function("getAvailable303Models",     &getAvailable303Models);
 }
