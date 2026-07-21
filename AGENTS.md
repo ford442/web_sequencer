@@ -555,6 +555,8 @@ interface Note {
 
 8. **Stale `src/wasm/` directory**: This folder is generated during AssemblyScript builds. If it is missing, AssemblyScript modules will fail to load in dev. It is not committed to git.
 
+9. **Root hygiene**: No new root-level one-off `.py`/`.cjs` patch scripts or `*_plan.md`; helper scripts live under `scripts/`.
+
 ---
 
 ## Cursor Cloud specific instructions

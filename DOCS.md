@@ -1,6 +1,6 @@
 # Documentation index
 
-Single entry point for all **live** Hyphon / web_sequencer documentation. Stale planning scratch and dead one-off patch scripts live under [docs/archive/](docs/archive/) and [tools/archive/](tools/archive/) respectively.
+Single entry point for all **live** Hyphon documentation. Historical planning scratch lives under [docs/archive/](docs/archive/).
 
 ---
 
@@ -21,10 +21,10 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 |------|-------------|
 | [README.md](README.md) | Project overview, features, quick-start, TTS model setup |
 | [AGENTS.md](AGENTS.md) | Agent guide: architecture, Four Worlds build rule, commands, pitfalls |
+| [BUILD_HEALTH.md](BUILD_HEALTH.md) | CI/build health status and known issues |
 | [CHANGELOG.md](CHANGELOG.md) | Release and feature changelog |
 | [claude.md](claude.md) | Claude-specific dev guide: stack, structure, debugging |
-| [agent_plan.md](agent_plan.md) | Living roadmap and prioritized feature backlog |
-| [weekly_plan.md](weekly_plan.md) | Current weekly focus, ideas, and completed tasks |
+| [weekly_plan.md](weekly_plan.md) | Current weekly focus, ideas, and completed tasks (auto-maintained) |
 | [DOCS.md](DOCS.md) | This index |
 
 ---
@@ -147,12 +147,6 @@ Completed sprints, stale planning scratch, and session transcripts. **Not** inde
 
 ---
 
-## `tools/archive/` — dead scripts (do not run)
-
-One-off Python/bash patchers from the `audioPlayback.ts` parse-error incident. See [tools/archive/README.md](tools/archive/README.md).
-
----
-
 ## Build & test (quick reference)
 
 Detailed commands live in [AGENTS.md](AGENTS.md).
@@ -173,4 +167,3 @@ pnpm run build            # Production
 - **Entry point:** this file (`DOCS.md`), then [AGENTS.md](AGENTS.md) for build boundaries and pitfalls.
 - **Four Worlds:** never mix AssemblyScript, Rust, Emscripten, and JC-303 toolchains (see AGENTS.md).
 - **COOP/COEP:** required for threaded WASM (`SharedArrayBuffer`).
-- **Do not run** anything under `tools/archive/`.
