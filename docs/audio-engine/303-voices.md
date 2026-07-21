@@ -51,8 +51,17 @@ open303_get_model_label(i)         → const char* label
 open303_get_model_engine(i)        → 0 = open303 family, 1 = jc303 family
 open303_set_model(handle, i)       → apply profile to an instance (1 = ok)
 open303_get_model(handle)          → currently applied model index
+open303_find_model_index(id)       → registry index for a stable id, or -1
+open303_set_model_by_id(handle,id) → apply profile by stable string id (1 = ok)
 getAvailable303Models()            → JSON list (embind, main-thread module)
 ```
+
+`open303_set_model_by_id` is the future-proof string setter (the issue's
+`set303Model(instanceId, modelName)`). Unknown ids and jc303-family models
+return 0; it is exactly equivalent to resolving the id with
+`open303_find_model_index` and calling `open303_set_model`. The AudioWorklet
+uses the index-based path (it already holds the index from the registry map it
+builds at init and needs the engine family to route jc303 vs open303).
 
 `stock-open303` is row 0 and its coefficients are exactly the constants the
 engine used before the registry existed, so the default sound is unchanged.
@@ -135,6 +144,10 @@ read the registry.
   `engine303-roundtrip.test.ts` — legacy engine switch behaviour still intact.
 - `tests/engine303-switch.spec.ts` — Playwright E2E: per-part voice selection,
   registry-driven tooltip coverage (skipped with the rest of the E2E suite).
+- `emscripten/tests/tb303_factory_smoke_test.cpp` — factory/registry surface:
+  `getAvailable303Models()` JSON, per-model create/process/finite/non-silent,
+  index vs string-id equivalence, unknown-id and jc303 rejection, mid-session
+  switching (below).
 - `emscripten/tests/tb303_voices_offline_test.cpp` — offline DSP buffer test
   (below).
 

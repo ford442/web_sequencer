@@ -150,6 +150,16 @@ static const Open303ModelProfile* find303Model(int index)
     return (index >= 0 && index < k303ModelCount) ? &k303Models[index] : nullptr;
 }
 
+/** Registry index of the model with stable id @p id, or -1 if unknown/null. */
+static int find303ModelIndexById(const char* id)
+{
+    if (!id) return -1;
+    for (int i = 0; i < k303ModelCount; ++i) {
+        if (std::strcmp(k303Models[i].id, id) == 0) return i;
+    }
+    return -1;
+}
+
 
 
 struct MoogFilter {
@@ -558,6 +568,25 @@ int open303_get_model(uintptr_t handle)
     return inst ? inst->modelIndex : -1;
 }
 
+/** Registry index of the model with stable string id @p id, or -1. Lets
+ *  callers resolve a persisted model id without scanning the id table. */
+EMSCRIPTEN_KEEPALIVE
+int open303_find_model_index(const char* id)
+{
+    return find303ModelIndexById(id);
+}
+
+/** Apply a model to an open303 instance by its stable string id (the
+ *  future-proof `set303Model(instanceId, modelName)` surface). Returns 1 on
+ *  success, 0 for an unknown id, a jc303-family model, or a bad handle. */
+EMSCRIPTEN_KEEPALIVE
+int open303_set_model_by_id(uintptr_t handle, const char* id)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    if (!inst) return 0;
+    return inst->setModel(find303ModelIndexById(id));
+}
+
 } // extern "C"
 
 /** JSON list of all registered 303 models for dynamic UI population:
@@ -595,9 +624,11 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_set_param",     &open303_set_param);
     function("open303_process",       &open303_process);
 
-    function("open303_get_model_count",  &open303_get_model_count);
-    function("open303_get_model_engine", &open303_get_model_engine);
-    function("open303_set_model",        &open303_set_model);
-    function("open303_get_model",        &open303_get_model);
-    function("getAvailable303Models",    &getAvailable303Models);
+    function("open303_get_model_count",   &open303_get_model_count);
+    function("open303_get_model_engine",  &open303_get_model_engine);
+    function("open303_set_model",         &open303_set_model);
+    function("open303_get_model",         &open303_get_model);
+    function("open303_find_model_index",  &open303_find_model_index);
+    function("open303_set_model_by_id",   &open303_set_model_by_id);
+    function("getAvailable303Models",     &getAvailable303Models);
 }
