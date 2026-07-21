@@ -214,8 +214,11 @@ pnpm run dev
 # Type check only
 npx tsc -b
 
-# Lint
+# Lint (default — gradual safety rules)
 pnpm run lint
+
+# Lint with full type-safety rule set (for CI gating once all areas are clean)
+pnpm run lint:strict
 ```
 
 ### WASM Builds (Individual)
@@ -339,14 +342,14 @@ server: {
 - **Strict mode enabled** (`strict: true` in `tsconfig.app.json`)
 - **Target**: `ES2022` with modern DOM APIs
 - **JSX transform**: `react-jsx`
-- **Import alias**: `@/` maps to `src/`
+- **Import alias**: `@/` maps to `src/` (configured in `vite.config.ts` and `tsconfig.app.json`)
 - **Module resolution**: `bundler`
 - **`verbatimModuleSyntax`**: `true` — use `import type` for type-only imports
 - **`noUnusedLocals`** and **`noUnusedParameters`**: **disabled** in `tsconfig.app.json` (rely on ESLint instead)
 - **`erasableSyntaxOnly`**: `true` — no enum/namespace emit
 
 ### ESLint Configuration
-The project uses `typescript-eslint` with the flat config format (`eslint.config.js`). Note that **many rules are intentionally disabled** to accommodate the rapid prototyping nature of the project:
+The project uses `typescript-eslint` with the flat config format (`eslint.config.js`) on top of **`recommendedTypeChecked`** (type-aware linting via `tsconfig.eslint.json`). Many stylistic rules remain intentionally disabled for rapid prototyping:
 
 - `@typescript-eslint/no-unused-vars`: **off**
 - `@typescript-eslint/no-explicit-any`: **off**
@@ -356,6 +359,42 @@ The project uses `typescript-eslint` with the flat config format (`eslint.config
 - `react-hooks/rules-of-hooks`: **off**
 - `no-var`: **off**
 - `no-empty`: **off**
+
+#### Gradual type-safety ratchet (`eslint.config.js`)
+
+Nine high-value safety rules live in `gradualTypeRules` and are **off globally** so `pnpm lint` stays green while each surface is cleaned up:
+
+| Rule | Purpose |
+|------|---------|
+| `@typescript-eslint/no-floating-promises` | Catch un-awaited promises (audio/engine paths) |
+| `@typescript-eslint/no-unsafe-assignment` | Block `any` flowing into typed variables |
+| `@typescript-eslint/no-unsafe-member-access` | Block property access on `any` |
+| `@typescript-eslint/no-unsafe-call` | Block calling `any` values |
+| `@typescript-eslint/no-unsafe-return` | Block returning `any` from typed functions |
+| `@typescript-eslint/no-unsafe-argument` | Block passing `any` to typed parameters |
+| `@typescript-eslint/no-misused-promises` | Catch promises in non-async contexts |
+| `@typescript-eslint/require-await` | Flag async functions with no `await` |
+| `@typescript-eslint/no-redundant-type-constituents` | Simplify redundant union/intersection members |
+
+**Rollout order** (enable per-directory overrides in `eslint.config.js` as each area is fixed):
+
+1. `src/utils/**` + `src/engines/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
+2. `src/hooks/**`
+3. `src/stores/**`
+4. `src/components/**`
+
+**Commands:**
+
+| Command | Behaviour |
+|---------|-----------|
+| `pnpm run lint` | Default lint; gradual rules off except in cleaned directories |
+| `pnpm run lint:strict` | Sets `ESLINT_STRICT=1` — enables the full `gradualTypeRules` set project-wide (for future CI gating) |
+
+**Contributor / agent expectations when fixing violations:**
+
+- Prefer narrowing and proper typing over `as` assertions or new `eslint-disable` comments.
+- Any new `eslint-disable` must include an explanatory comment **and** an issue link.
+- When touching files in a cleaned directory, migrate remaining `../` imports to the `@/` path alias.
 
 Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wasm/`, `rubberband/`, `public/`.
 
@@ -588,6 +627,7 @@ Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_
 | Dev server (rebuilds WASM every start) | `pnpm run dev` |
 | Unit tests | `CI=true pnpm exec vitest run --pool forks` |
 | Lint | `pnpm run lint` |
+| Lint (strict / future CI gate) | `pnpm run lint:strict` |
 | Production build | `pnpm run build` |
 
 Only the **Vite dev server on port 5173** is required for interactive development. The FastAPI cloud API (`app.py`, port 7860) and remote storage are optional.

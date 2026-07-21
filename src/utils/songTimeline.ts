@@ -1,6 +1,6 @@
-import { NUM_STEPS } from '../constants';
-import type { Pattern, PartSequence } from '../types';
-import type { TrackKey } from '../constants/appDefaults';
+import { NUM_STEPS } from '@/constants';
+import type { Pattern, PartSequence } from '@/types';
+import type { TrackKey } from '@/constants/appDefaults';
 
 export interface ResolvedTimeline {
     /** Number of 32-step measures in the export. */
@@ -14,7 +14,7 @@ export interface ResolvedTimeline {
 }
 
 function emptyPartSequence(): PartSequence {
-    return { steps: Array(NUM_STEPS).fill(null) };
+    return { steps: Array.from({ length: NUM_STEPS }, (): null => null) };
 }
 
 function concatPartSequences(parts: PartSequence[]): PartSequence {

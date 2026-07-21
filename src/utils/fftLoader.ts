@@ -9,7 +9,7 @@
 
 // Import the WASM module with Vite's ?init query
 import initFFT from '../wasm/fft.wasm?init';
-import { engineTelemetry } from './engineTelemetry';
+import { engineTelemetry } from '@/utils/engineTelemetry';
 
 let wasmInstance: WebAssembly.Instance | null = null;
 let wasmMemory: WebAssembly.Memory | null = null;
@@ -73,8 +73,29 @@ export function getFFTMemory(): WebAssembly.Memory | null {
  * Get the WASM instance exports
  * @returns WebAssembly.Instance exports or null if not loaded
  */
-export function getFFTExports(): any {
-    return wasmInstance?.exports || null;
+/** AssemblyScript FFT module exports used by the FFT bridge. */
+export interface FFTWasmExports {
+    memory: WebAssembly.Memory;
+    __new: (size: number, classId?: number) => number;
+    __pin: (ptr: number) => number;
+    __unpin: (ptr: number) => void;
+    __collect: () => void;
+    fftForward: (
+        realPtr: number,
+        imagPtr: number,
+        size: number,
+        bitReversedIndicesOffset: number,
+        twiddleRealOffset: number,
+        twiddleImagOffset: number,
+    ) => void;
+    computeMagnitude: (realPtr: number, imagPtr: number, magnitudePtr: number, halfSize: number) => void;
+    computePhase: (realPtr: number, imagPtr: number, phasePtr: number, halfSize: number) => void;
+    applyHannWindow: (inputPtr: number, outputPtr: number, size: number) => void;
+}
+
+export function getFFTExports(): FFTWasmExports | null {
+    const exports = wasmInstance?.exports;
+    return exports ? (exports as unknown as FFTWasmExports) : null;
 }
 
 /**

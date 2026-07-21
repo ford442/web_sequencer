@@ -8,15 +8,11 @@ import type {
     Bass2Params,
 } from '../types';
 import { freezeSynthTrack, freezeDrumTrack } from './trackFreezer';
-import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
+import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
 import { getTunedFrequency } from './musicTheory';
 import { stepDurationSeconds } from './songTimeline';
 
-export interface PatternRenderEngines {
-    webGpuEngine?: unknown;
-    wasmEngine?: unknown;
-    pyodide?: unknown;
-}
+export type PatternRenderEngines = RenderSynthEngines;
 
 export interface PatternRenderOptions {
     sequence: PartSequence;
