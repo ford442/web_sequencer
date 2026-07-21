@@ -200,13 +200,23 @@ int main() {
     struct VoiceCase { const char* id; int idx; };
     const int iRb15 = findModelIndex("rebirth-338-1.5");
     const int iRb20 = findModelIndex("rebirth-2.0");
+    const int iMb33 = findModelIndex("mb33-mkii");
+    const int iRave = findModelIndex("raveolution");
     check(iRb15 >= 0, "rebirth-338-1.5 registered");
     check(iRb20 >= 0, "rebirth-2.0 registered");
+    check(iMb33 >= 0, "mb33-mkii registered");
+    check(iRave >= 0, "raveolution registered");
+    check(iMb33 >= 0 && open303_get_model_engine(iMb33) == ENGINE_OPEN303,
+          "mb33-mkii is open303-family");
+    check(iRave >= 0 && open303_get_model_engine(iRave) == ENGINE_OPEN303,
+          "raveolution is open303-family");
     const VoiceCase voices[] = {
         { "experimental-01",  iExp },
         { "1ink303-v1",       i1ink },
         { "rebirth-338-1.5",  iRb15 },
         { "rebirth-2.0",      iRb20 },
+        { "mb33-mkii",        iMb33 },
+        { "raveolution",      iRave },
     };
     for (const VoiceCase& vc : voices) {
         if (vc.idx < 0) { ++g_failures; std::printf("  [FAIL] %s missing\n", vc.id); continue; }
@@ -229,6 +239,15 @@ int main() {
         const double relRms = stockRms > 0.0 ? rmsDiff(rb15, rb20) / stockRms : 0.0;
         std::printf("ReBirth 1.5 vs 2.0 relRMS=%.4f (%.2f%%)\n", relRms, relRms * 100.0);
         check(relRms > 0.02, "rebirth-338-1.5 and rebirth-2.0 are audibly distinct");
+    }
+
+    // 4c. The P2 character voices must be audibly distinct from each other.
+    if (iMb33 >= 0 && iRave >= 0) {
+        const std::vector<float> mb33 = renderVoice(iMb33);
+        const std::vector<float> rave = renderVoice(iRave);
+        const double relRms = stockRms > 0.0 ? rmsDiff(mb33, rave) / stockRms : 0.0;
+        std::printf("MB33 mkII vs Raveolution relRMS=%.4f (%.2f%%)\n", relRms, relRms * 100.0);
+        check(relRms > 0.02, "mb33-mkii and raveolution are audibly distinct");
     }
 
     // 5. Engine-family guard: jc303 is not an open303-family profile.

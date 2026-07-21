@@ -148,6 +148,14 @@ static const Open303ModelProfile k303Models[] = {
     // Inspired-by ReBirth 2.0 (NOT a clone): cleaner/tighter filter than 1.5,
     // punchier accent (VCA + filter), snappier envelope, slightly more drive.
     { "rebirth-2.0",     "ReBirth 2.0",      ENGINE_OPEN303, 20.0f, 410.0f, 3.95f, 0.60f, 0.42f, 0.035f, 1.40f, 0.012f, 0.50f, 3.4f, 0.12f },
+    // Inspired-by MAM MB33 mkII (NOT a clone): boxier, more "digital" filter
+    // feel — narrower cutoff sweep, distinct accent punch, square/saw grit for
+    // the hardware-emulation character.
+    { "mb33-mkii",       "MB33 mkII",        ENGINE_OPEN303, 24.0f, 360.0f, 3.85f, 0.52f, 0.38f, 0.045f, 1.70f, 0.014f, 0.45f, 3.8f, 0.25f },
+    // Inspired-by Quasimidi Raveolution 309 (NOT a clone): brighter/harsher
+    // self-oscillation, aggressive resonance curve, snappy envelope, heavy drive
+    // for dance-floor character.
+    { "raveolution",     "Raveolution 309",  ENGINE_OPEN303, 18.0f, 440.0f, 4.25f, 0.58f, 0.48f, 0.028f, 1.15f, 0.006f, 0.35f, 4.2f, 0.08f },
 };
 
 static constexpr int k303ModelCount = static_cast<int>(sizeof(k303Models) / sizeof(k303Models[0]));
