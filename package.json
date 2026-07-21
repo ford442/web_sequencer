@@ -22,6 +22,7 @@
     "build": "npm run build:wasm && npm run build:emcc && npm run optimize && tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . && node scripts/check-root.mjs",
+    "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",
     "check:root": "node scripts/check-root.mjs",
     "typecheck": "tsc -b",
     "test": "vitest run",

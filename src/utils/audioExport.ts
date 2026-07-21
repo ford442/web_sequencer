@@ -5,7 +5,7 @@
 // conversion when available, falls back to JS on error or if WASM not loaded.
 
 import initAudioExport from '../wasm/audioExport.wasm?init';
-import { engineTelemetry } from './engineTelemetry';
+import { engineTelemetry } from '@/utils/engineTelemetry';
 
 // WASM Module Loader
 interface WasmExports {
@@ -48,7 +48,7 @@ const loadWasm = async () => {
 
 // Initialize WASM in background
 if (typeof window !== 'undefined') {
-    loadWasm();
+    void loadWasm();
 }
 
 // @perf-optimized: Hoist endianness check to module scope to avoid repeated allocation

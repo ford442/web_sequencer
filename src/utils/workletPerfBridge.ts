@@ -3,10 +3,10 @@
  * run glitch detection (context state, output latency spikes, artifact detector).
  */
 
-import type { WorkletPerfMessage } from '../audio-worklets/workletPerfReporter';
-import { WORKLET_PERF_MSG_TYPE } from '../audio-worklets/workletPerfReporter';
-import { engineTelemetry } from './engineTelemetry';
-import { performanceBudget } from './performanceBudget';
+import type { WorkletPerfMessage } from '@/audio-worklets/workletPerfReporter';
+import { WORKLET_PERF_MSG_TYPE } from '@/audio-worklets/workletPerfReporter';
+import { engineTelemetry } from '@/utils/engineTelemetry';
+import { performanceBudget } from '@/utils/performanceBudget';
 
 const LATENCY_SPIKE_MS = 20;
 const GLITCH_POLL_MS = 250;
@@ -50,12 +50,13 @@ export function attachWorkletPerf(node: AudioWorkletNode, name: string): () => v
   engineTelemetry.registerWorklet(name);
 
   const onMessage = (event: MessageEvent): void => {
-    const data = event.data;
+    const data: unknown = event.data;
     if (!data || typeof data !== 'object') return;
-    if (data.type === WORKLET_PERF_MSG_TYPE) {
+    const message = data as Record<string, unknown>;
+    if (message.type === WORKLET_PERF_MSG_TYPE) {
       handlePerfMessage(data as WorkletPerfMessage);
     } else {
-      handleArtifactMessage(data as Record<string, unknown>);
+      handleArtifactMessage(message);
     }
   };
 

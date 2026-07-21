@@ -368,11 +368,11 @@ describe('ArtifactDetector', () => {
             };
             
             const serialized = detector.serializeDetection(detection);
-            const parsed = JSON.parse(serialized);
+            const parsed: unknown = JSON.parse(serialized);
             
-            expect(parsed.detected).toBe(true);
-            expect(parsed.severity).toBe(0.8);
-            expect(parsed.type).toBe('metallic');
+            expect((parsed as ArtifactDetection).detected).toBe(true);
+            expect((parsed as ArtifactDetection).severity).toBe(0.8);
+            expect((parsed as ArtifactDetection).type).toBe('metallic');
         });
 
         it('should serialize metrics for postMessage', () => {
@@ -388,10 +388,10 @@ describe('ArtifactDetector', () => {
             };
             
             const serialized = detector.serializeMetrics(metrics);
-            const parsed = JSON.parse(serialized);
+            const parsed: unknown = JSON.parse(serialized);
             
-            expect(parsed.spectralFlux).toBe(0.5);
-            expect(parsed.quality).toBe(0.9);
+            expect((parsed as QualityMetrics).spectralFlux).toBe(0.5);
+            expect((parsed as QualityMetrics).quality).toBe(0.9);
         });
     });
 });

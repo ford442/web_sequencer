@@ -7,6 +7,7 @@ import {
     type StemExportOptions,
 } from '../utils/stemExport';
 import type { WavBitDepth } from '../utils/audioExport';
+import type { RenderSynthEngines } from '../utils/renderAudio';
 
 export interface ExportModalProps {
     isOpen: boolean;
@@ -26,11 +27,7 @@ export interface ExportModalProps {
         openHat: HatParams;
         sampler: SamplerParams;
     };
-    engines?: {
-        webGpuEngine?: unknown;
-        wasmEngine?: unknown;
-        pyodide?: unknown;
-    };
+    engines?: RenderSynthEngines;
     sampleBuffers: (AudioBuffer | null)[];
     /** Preferred sample rate from the live AudioContext when available. */
     preferredSampleRate?: number;

@@ -7,13 +7,14 @@
 // @perf-bottleneck: Loop analysis in findLoopPoints scans entire buffer
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
 
-import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '../types';
+import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '@/types';
 // @ts-ignore
 const initTrackFreezer = async () => {
     const m = await import('../wasm/trackFreezer.wasm?init');
     return m.default;
 };
-import { engineTelemetry } from './engineTelemetry';
+import { engineTelemetry } from '@/utils/engineTelemetry';
+import type { PyodideLike } from '@/utils/pyodideBuffers';
 
 // WASM Module Loader
 interface WasmExports {
@@ -52,7 +53,7 @@ const loadWasm = async () => {
 
 // Initialize WASM in background
 if (typeof window !== 'undefined') {
-    loadWasm();
+    void loadWasm();
 }
 
 export interface FreezeOptions {
@@ -60,11 +61,28 @@ export interface FreezeOptions {
     sampleRate?: number;
 }
 
+type PyodideResultProxy = {
+    toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
+    destroy: () => void;
+};
+
+function callPyodideFreeze(
+    pyodide: PyodideLike,
+    functionName: string,
+    ...args: unknown[]
+): Float32Array {
+    const freezeFunc = pyodide.globals.get(functionName);
+    const pyResult = freezeFunc(...args) as PyodideResultProxy;
+    const audioData = pyResult.toJs({ array_buffer_type: 'float32' });
+    pyResult.destroy();
+    return audioData;
+}
+
 /**
  * Freezes a synth track using Python's offline rendering
  */
 export const freezeSynthTrack = async (
-    pyodide: any,
+    pyodide: PyodideLike,
     sequence: PartSequence,
     params: SynthParams,
     options: FreezeOptions
@@ -87,10 +105,12 @@ export const freezeSynthTrack = async (
     };
 
     // Call Python freezer
-    const freezeFunc = pyodide.globals.get('freeze_synth_track');
-    const pyResult = freezeFunc(JSON.stringify(sequence.steps), JSON.stringify(pythonParams));
-    const audioData = pyResult.toJs({ array_buffer_type: 'float32' });
-    pyResult.destroy();
+    const audioData = callPyodideFreeze(
+        pyodide,
+        'freeze_synth_track',
+        JSON.stringify(sequence.steps),
+        JSON.stringify(pythonParams),
+    );
 
     // Create AudioBuffer from result
     const audioContext = new OfflineAudioContext(1, audioData.length, sampleRate);
@@ -104,7 +124,7 @@ export const freezeSynthTrack = async (
  * Freezes a drum track using Python's offline rendering
  */
 export const freezeDrumTrack = async (
-    pyodide: any,
+    pyodide: PyodideLike,
     sequence: PartSequence,
     params: KickParams | SnareParams | HatParams,
     drumType: 'kick' | 'snare' | 'closedHat' | 'openHat',
@@ -125,14 +145,13 @@ export const freezeDrumTrack = async (
     };
 
     // Call Python freezer
-    const freezeFunc = pyodide.globals.get('freeze_drum_track');
-    const pyResult = freezeFunc(
+    const audioData = callPyodideFreeze(
+        pyodide,
+        'freeze_drum_track',
         JSON.stringify(sequence.steps),
         JSON.stringify(pythonParams),
-        pyDrumType
+        pyDrumType,
     );
-    const audioData = pyResult.toJs({ array_buffer_type: 'float32' });
-    pyResult.destroy();
 
     // Create AudioBuffer from result
     const audioContext = new OfflineAudioContext(1, audioData.length, sampleRate);

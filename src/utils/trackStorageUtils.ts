@@ -2,14 +2,14 @@
  * Track pattern slot storage (8 → 32 slot migration, ReBirth RBS import).
  */
 
-import type { PartSequence } from '../types';
-import type { TrackKey } from '../constants/appDefaults';
+import type { PartSequence } from '@/types';
+import type { TrackKey } from '@/constants/appDefaults';
 import {
   LEGACY_TRACK_PATTERN_SLOTS,
   MAX_TRACK_PATTERN_SLOTS,
   SAVED_SONG_DATA_VERSION,
   TRACK_KEYS,
-} from '../constants';
+} from '@/constants';
 
 export { MAX_TRACK_PATTERN_SLOTS, LEGACY_TRACK_PATTERN_SLOTS, SAVED_SONG_DATA_VERSION };
 
@@ -28,7 +28,7 @@ export type TrackStorageMap = Record<TrackKey, (PartSequence | PartSequence[] | 
 export function createEmptyTrackStorage(slotCount = MAX_TRACK_PATTERN_SLOTS): TrackStorageMap {
   const storage = {} as TrackStorageMap;
   for (const key of TRACK_KEYS) {
-    storage[key] = Array(slotCount).fill(null);
+    storage[key] = Array.from({ length: slotCount }, (): PartSequence | PartSequence[] | null => null);
   }
   return storage;
 }
