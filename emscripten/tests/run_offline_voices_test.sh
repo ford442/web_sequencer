@@ -27,3 +27,13 @@ build_and_run() {
 # #901 factory/registry surface, then #898 voice audibility.
 build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
+OUT="$(mktemp -d)/tb303_voices_offline_test"
+
+echo "Compiling offline voices test…"
+g++ -std=c++17 -O2 -Wall -Wextra \
+    -I "$SCRIPT_DIR/emscripten_stub" \
+    "$SCRIPT_DIR/tb303_voices_offline_test.cpp" \
+    -o "$OUT"
+
+echo "Running…"
+"$OUT"
