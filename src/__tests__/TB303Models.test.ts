@@ -18,12 +18,14 @@ import {
     getTB303Model,
     getAvailableTB303Models,
     normalizeTB303Model,
+    reportTB303ModelFallback,
     tb303ModelFamily,
     stockModelForFamily,
 } from '../engines/TB303Models';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
+import { DEFAULT_TB303_VOICE_FIELDS } from '../engines/TB303Models';
 import type { SynthParams, TB303ModelId } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -52,11 +54,25 @@ describe('TB303_MODELS registry', () => {
         expect(getTB303Model('1ink303-v1')?.available).toBe(true);
     });
 
-    it('catalogues the P2 character voices as not yet available', () => {
-        for (const id of ['rebirth-338-1.5', 'rebirth-2.0', 'mb33-mkii', 'raveolution']) {
+    it('ships the ReBirth character voices as open303-family profiles', () => {
+        for (const id of ['rebirth-338-1.5', 'rebirth-2.0']) {
             const m = getTB303Model(id);
             expect(m, id).toBeDefined();
-            expect(m!.available, id).toBe(false);
+            expect(m!.available, id).toBe(true);
+            expect(m!.family, id).toBe('open303');
+            // "inspired-by" disclaimer surfaced to the user, not a clone claim.
+            expect(m!.description.toLowerCase(), id).toContain('not a clone');
+        }
+    });
+
+    it('ships the P2 character voices as open303-family profiles', () => {
+        for (const id of ['mb33-mkii', 'raveolution']) {
+            const m = getTB303Model(id);
+            expect(m, id).toBeDefined();
+            expect(m!.available, id).toBe(true);
+            expect(m!.family, id).toBe('open303');
+            // "inspired-by" disclaimer surfaced to the user, not a clone claim.
+            expect(m!.description.toLowerCase(), id).toContain('not a clone');
         }
     });
 
@@ -98,14 +114,30 @@ describe('normalizeTB303Model()', () => {
         expect(normalizeTB303Model('experimental-01', 'jc303')).toBe('experimental-01');
     });
 
-    it('falls back to the family stock voice for catalogued-but-unavailable models', () => {
-        expect(normalizeTB303Model('rebirth-2.0')).toBe('jc303');          // jc303 family
-        expect(normalizeTB303Model('mb33-mkii')).toBe('stock-open303');    // open303 family
+    it('keeps the now-available ReBirth voices', () => {
+        expect(normalizeTB303Model('rebirth-338-1.5')).toBe('rebirth-338-1.5');
+        expect(normalizeTB303Model('rebirth-2.0')).toBe('rebirth-2.0');
+    });
+
+    it('keeps the P2 character voices', () => {
+        expect(normalizeTB303Model('mb33-mkii')).toBe('mb33-mkii');
+        expect(normalizeTB303Model('raveolution')).toBe('raveolution');
     });
 
     it('falls back for unknown ids from future song versions', () => {
         expect(normalizeTB303Model('some-future-voice')).toBe('stock-open303');
         expect(normalizeTB303Model('some-future-voice', 'jc303')).toBe('jc303');
+    });
+
+    it('reportFallback logs and resolves when an unknown id is requested', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const resolved = normalizeTB303Model('wasm-discovered-voice', undefined, {
+            reportFallback: true,
+            subsystem: 'test-model303',
+        });
+        expect(resolved).toBe('stock-open303');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wasm-discovered-voice'));
+        warn.mockRestore();
     });
 });
 
@@ -252,6 +284,11 @@ describe('Open303Manager model selection', () => {
 describe('model303 persistence', () => {
     it('DEFAULT_BASS2_PARAMS carries the stock voice and the legacy mirror', () => {
         expect(DEFAULT_BASS2_PARAMS.model303).toBe('stock-open303');
+        expect(DEFAULT_BASS2_PARAMS.engine303).toBe('open303');
+        expect(DEFAULT_TB303_VOICE_FIELDS).toEqual({
+            model303: 'stock-open303',
+            engine303: 'open303',
+        });
         expect(DEFAULT_BASS2_PARAMS.engine303).toBe('open303');
     });
 

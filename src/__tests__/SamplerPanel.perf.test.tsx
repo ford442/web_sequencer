@@ -68,7 +68,7 @@ describe('SamplerPanel Memoization', () => {
     it('does NOT re-render children when inactive bank params change', () => {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
 
-        // Initial render
+        // Initial render: 48
         expect(Knob).toHaveBeenCalledTimes(48);
         vi.clearAllMocks();
 

@@ -141,6 +141,21 @@ static const Open303ModelProfile k303Models[] = {
     { "1ink303-v1",      "1ink303 v1",       ENGINE_OPEN303, 26.0f, 340.0f, 4.0f, 0.35f, 0.38f,  0.04f, 1.60f, 0.02f, 0.60f, 2.4f, 0.35f },
     // Scratchpad: hotter resonance feedback, snappier envelope, harder accent.
     { "experimental-01", "Experimental 01",  ENGINE_OPEN303, 20.0f, 420.0f, 4.15f, 0.55f, 0.45f, 0.03f, 1.20f, 0.008f, 0.40f, 4.5f, 0.0f },
+    // Inspired-by ReBirth RB-338 1.5 (NOT a clone): "squishier" filter — lower,
+    // darker cutoff base with hotter resonance feedback for a self-oscillation-
+    // prone squish; gooey longer slides; a touch of saw grit. Big accent lift.
+    { "rebirth-338-1.5", "ReBirth RB-338 1.5", ENGINE_OPEN303, 22.0f, 380.0f, 4.10f, 0.50f, 0.32f, 0.04f, 1.60f, 0.02f, 0.60f, 3.0f, 0.20f },
+    // Inspired-by ReBirth 2.0 (NOT a clone): cleaner/tighter filter than 1.5,
+    // punchier accent (VCA + filter), snappier envelope, slightly more drive.
+    { "rebirth-2.0",     "ReBirth 2.0",      ENGINE_OPEN303, 20.0f, 410.0f, 3.95f, 0.60f, 0.42f, 0.035f, 1.40f, 0.012f, 0.50f, 3.4f, 0.12f },
+    // Inspired-by MAM MB33 mkII (NOT a clone): boxier, more "digital" filter
+    // feel — narrower cutoff sweep, distinct accent punch, square/saw grit for
+    // the hardware-emulation character.
+    { "mb33-mkii",       "MB33 mkII",        ENGINE_OPEN303, 24.0f, 360.0f, 3.85f, 0.52f, 0.38f, 0.045f, 1.70f, 0.014f, 0.45f, 3.8f, 0.25f },
+    // Inspired-by Quasimidi Raveolution 309 (NOT a clone): brighter/harsher
+    // self-oscillation, aggressive resonance curve, snappy envelope, heavy drive
+    // for dance-floor character.
+    { "raveolution",     "Raveolution 309",  ENGINE_OPEN303, 18.0f, 440.0f, 4.25f, 0.58f, 0.48f, 0.028f, 1.15f, 0.006f, 0.35f, 4.2f, 0.08f },
 };
 
 static constexpr int k303ModelCount = static_cast<int>(sizeof(k303Models) / sizeof(k303Models[0]));
@@ -148,6 +163,16 @@ static constexpr int k303ModelCount = static_cast<int>(sizeof(k303Models) / size
 static const Open303ModelProfile* find303Model(int index)
 {
     return (index >= 0 && index < k303ModelCount) ? &k303Models[index] : nullptr;
+}
+
+/** Registry index of the model with stable id @p id, or -1 if unknown/null. */
+static int find303ModelIndexById(const char* id)
+{
+    if (!id) return -1;
+    for (int i = 0; i < k303ModelCount; ++i) {
+        if (std::strcmp(k303Models[i].id, id) == 0) return i;
+    }
+    return -1;
 }
 
 
@@ -558,6 +583,25 @@ int open303_get_model(uintptr_t handle)
     return inst ? inst->modelIndex : -1;
 }
 
+/** Registry index of the model with stable string id @p id, or -1. Lets
+ *  callers resolve a persisted model id without scanning the id table. */
+EMSCRIPTEN_KEEPALIVE
+int open303_find_model_index(const char* id)
+{
+    return find303ModelIndexById(id);
+}
+
+/** Apply a model to an open303 instance by its stable string id (the
+ *  future-proof `set303Model(instanceId, modelName)` surface). Returns 1 on
+ *  success, 0 for an unknown id, a jc303-family model, or a bad handle. */
+EMSCRIPTEN_KEEPALIVE
+int open303_set_model_by_id(uintptr_t handle, const char* id)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    if (!inst) return 0;
+    return inst->setModel(find303ModelIndexById(id));
+}
+
 } // extern "C"
 
 /** JSON list of all registered 303 models for dynamic UI population:
@@ -595,9 +639,11 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_set_param",     &open303_set_param);
     function("open303_process",       &open303_process);
 
-    function("open303_get_model_count",  &open303_get_model_count);
-    function("open303_get_model_engine", &open303_get_model_engine);
-    function("open303_set_model",        &open303_set_model);
-    function("open303_get_model",        &open303_get_model);
-    function("getAvailable303Models",    &getAvailable303Models);
+    function("open303_get_model_count",   &open303_get_model_count);
+    function("open303_get_model_engine",  &open303_get_model_engine);
+    function("open303_set_model",         &open303_set_model);
+    function("open303_get_model",         &open303_get_model);
+    function("open303_find_model_index",  &open303_find_model_index);
+    function("open303_set_model_by_id",   &open303_set_model_by_id);
+    function("getAvailable303Models",     &getAvailable303Models);
 }

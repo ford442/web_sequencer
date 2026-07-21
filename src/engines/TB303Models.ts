@@ -36,6 +36,15 @@ export type TB303ModelId =
   | '1ink303-v1'        // in-house
   | 'experimental-01';  // scratchpad
 
+/** Catalog ids plus WASM-discovered voice strings from future builds. */
+export type TB303Model = TB303ModelId | (string & {});
+
+/** Default persisted 303 voice fields for new patterns and RBS imports. */
+export const DEFAULT_TB303_VOICE_FIELDS = {
+  model303: 'stock-open303' as const,
+  engine303: 'open303' as const,
+};
+
 export interface TB303ModelInfo {
   id: TB303ModelId;
   /** Full human-readable name (tooltip / docs). */
@@ -95,33 +104,33 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     id: 'rebirth-338-1.5',
     label: 'ReBirth RB-338 1.5',
     shortLabel: 'RB-338 1.5',
-    description: 'ReBirth 1.5 character profile (filter/env/accent) — coming soon.',
-    family: 'jc303',
-    available: false,
+    description: 'Inspired by ReBirth RB-338 1.5 (not a clone) — squishier, self-oscillation-prone filter, gooey slides, big accent lift.',
+    family: 'open303',
+    available: true,
   },
   {
     id: 'rebirth-2.0',
     label: 'ReBirth 2.0',
     shortLabel: 'RB 2.0',
-    description: 'ReBirth 2.0 character profile — coming soon.',
-    family: 'jc303',
-    available: false,
+    description: 'Inspired by ReBirth 2.0 (not a clone) — cleaner/tighter filter than 1.5, punchier accent, snappier envelope.',
+    family: 'open303',
+    available: true,
   },
   {
     id: 'mb33-mkii',
     label: 'MB33 mkII',
     shortLabel: 'MB33',
-    description: 'MAM MB33 mkII character profile — coming soon.',
+    description: 'Inspired by MAM MB33 mkII (not a clone) — boxier digital filter feel, distinct accent punch, square/saw grit.',
     family: 'open303',
-    available: false,
+    available: true,
   },
   {
     id: 'raveolution',
     label: 'Raveolution 309',
     shortLabel: 'Rave 309',
-    description: 'Quasimidi Raveolution character profile — coming soon.',
+    description: 'Inspired by Quasimidi Raveolution 309 (not a clone) — brighter harsh self-osc, aggressive resonance, snappy envelope, heavy drive.',
     family: 'open303',
-    available: false,
+    available: true,
   },
 ];
 
@@ -150,20 +159,55 @@ export function stockModelForFamily(family: Engine303Family): TB303ModelId {
 }
 
 /**
+ * Report when a requested 303 voice could not be used as-is (HUD + console).
+ * Call sites pass a stable subsystem id (e.g. `synthA-model303`).
+ */
+export function reportTB303ModelFallback(
+  requested: string,
+  resolved: TB303ModelId,
+  reason: string,
+  subsystem = 'tb303-model',
+): void {
+  const msg = `[TB303] Model "${requested}" unavailable (${reason}) — using "${resolved}"`;
+  console.warn(msg);
+  try {
+    // Lazy import avoids pulling DOM code into every unit test.
+    void import('../utils/engineTelemetry').then(({ engineTelemetry }) => {
+      engineTelemetry.registerResolution(subsystem, resolved, `${requested}: ${reason}`);
+    });
+  } catch {
+    /* telemetry optional */
+  }
+}
+
+/**
  * Resolve a persisted model/engine pair to a valid, available model id.
  *
  *  - A known, available `model303` wins.
  *  - A known-but-unavailable model falls back to its family's stock voice.
  *  - Otherwise the legacy `engine303` field decides ('jc303' → 'jc303').
  *  - Default: 'stock-open303'.
+ *
+ * When `reportFallback` is true and the resolved id differs from the requested
+ * string, `reportTB303ModelFallback` is invoked (song load / runtime apply).
  */
 export function normalizeTB303Model(
   model303?: string,
   engine303?: string,
+  options?: { reportFallback?: boolean; subsystem?: string },
 ): TB303ModelId {
-  const model = getTB303Model(model303);
+  const requested = model303?.trim();
+  const model = getTB303Model(requested);
   if (model) {
-    return model.available ? model.id : stockModelForFamily(model.family);
+    const resolved = model.available ? model.id : stockModelForFamily(model.family);
+    if (options?.reportFallback && requested && resolved !== requested) {
+      reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped', options.subsystem);
+    }
+    return resolved;
   }
-  return engine303 === 'jc303' ? 'jc303' : 'stock-open303';
+  const resolved = engine303 === 'jc303' ? 'jc303' : 'stock-open303';
+  if (options?.reportFallback && requested && resolved !== requested) {
+    reportTB303ModelFallback(requested, resolved, 'unknown id', options.subsystem);
+  }
+  return resolved;
 }

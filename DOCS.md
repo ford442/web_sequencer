@@ -47,6 +47,7 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 |------|-------------|
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
+| [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
