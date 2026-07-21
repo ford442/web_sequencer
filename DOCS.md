@@ -1,6 +1,6 @@
 # Documentation index
 
-Single entry point for all **live** Hyphon / web_sequencer documentation. Stale planning scratch and dead one-off patch scripts live under [docs/archive/](docs/archive/) and [tools/archive/](tools/archive/) respectively.
+Single entry point for all **live** Hyphon documentation. Historical planning scratch lives under [docs/archive/](docs/archive/).
 
 ---
 
@@ -15,7 +15,9 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 
 ---
 
-## Root documents (active)
+## Root documents (allowlisted)
+
+Only these markdown files may live at the repository root. `pnpm run check:root` (part of `pnpm lint`) enforces the list.
 
 | File | Description |
 |------|-------------|
@@ -23,8 +25,6 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 | [AGENTS.md](AGENTS.md) | Agent guide: architecture, Four Worlds build rule, commands, pitfalls |
 | [CHANGELOG.md](CHANGELOG.md) | Release and feature changelog |
 | [claude.md](claude.md) | Claude-specific dev guide: stack, structure, debugging |
-| [agent_plan.md](agent_plan.md) | Living roadmap and prioritized feature backlog |
-| [weekly_plan.md](weekly_plan.md) | Current weekly focus, ideas, and completed tasks |
 | [DOCS.md](DOCS.md) | This index |
 
 ---
@@ -35,6 +35,8 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 |------|-------------|
 | [docs/README.md](docs/README.md) | Subsystem doc index (duplicate navigation aid) |
 | [docs/DEVELOPER_CONTEXT.md](docs/DEVELOPER_CONTEXT.md) | Onboarding context and architecture overview |
+| [docs/BUILD_HEALTH.md](docs/BUILD_HEALTH.md) | CI/build health status and known issues |
+| [docs/weekly_plan.md](docs/weekly_plan.md) | Current weekly focus, ideas, and completed tasks (auto-maintained) |
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
@@ -47,6 +49,7 @@ Single entry point for all **live** Hyphon / web_sequencer documentation. Stale 
 |------|-------------|
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
+| [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
@@ -143,12 +146,7 @@ Completed sprints, stale planning scratch, and session transcripts. **Not** inde
 | [lfo_sync_plan.md](docs/archive/lfo_sync_plan.md) | LFO sync feature planning scratch |
 | [grok.md](docs/archive/grok.md) | Grok assistant guide (superseded by AGENTS.md) |
 | [copilot-session-4c69e623-….md](docs/archive/copilot-session-4c69e623-937a-417f-a6f2-f94dc628f01f.md) | Copilot session transcript |
-
----
-
-## `tools/archive/` — dead scripts (do not run)
-
-One-off Python/bash patchers from the `audioPlayback.ts` parse-error incident. See [tools/archive/README.md](tools/archive/README.md).
+| *(removed)* `agent_plan.md` | Parse-error-era agent scratch (deleted; recover via git history) |
 
 ---
 
@@ -172,4 +170,3 @@ pnpm run build            # Production
 - **Entry point:** this file (`DOCS.md`), then [AGENTS.md](AGENTS.md) for build boundaries and pitfalls.
 - **Four Worlds:** never mix AssemblyScript, Rust, Emscripten, and JC-303 toolchains (see AGENTS.md).
 - **COOP/COEP:** required for threaded WASM (`SharedArrayBuffer`).
-- **Do not run** anything under `tools/archive/`.

@@ -1,5 +1,5 @@
-import type { KnobConfig } from '../components/HardwareModule';
-import type { SynthParams, KickParams, SnareParams, SamplerBankParams, Bass2Params } from '../types';
+import type { KnobConfig } from '@/components/HardwareModule';
+import type { SynthParams, KickParams, SnareParams, SamplerBankParams, Bass2Params, HatParams } from '@/types';
 
 export const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
     const filterModeValue = params.filterMode ?? 0;
@@ -50,13 +50,13 @@ export const getSnareControls = (params: SnareParams): KnobConfig[] => [
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];
 
-export const getClosedHatControls = (params: any): KnobConfig[] => [
+export const getClosedHatControls = (params: HatParams): KnobConfig[] => [
     { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: (params.decay ?? 0), valueDisplay: `${(params.decay ?? 0).toFixed(2)}s` },
     { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
 ];
 
-export const getOpenHatControls = (params: any): KnobConfig[] => [
+export const getOpenHatControls = (params: HatParams): KnobConfig[] => [
     { id: 'decay', label: 'DECAY', x: 0.3, y: 0.45, size: 0.13, value: (params.decay ?? 0), valueDisplay: `${(params.decay ?? 0).toFixed(2)}s` },
     { id: 'pitch', label: 'TONE', x: 0.6, y: 0.45, size: 0.13, value: params.pitch / 12000, valueDisplay: `${(params.pitch / 1000).toFixed(1)}kHz` },
     { id: 'volume', label: 'LEVEL', x: 0.9, y: 0.8, size: 0.08, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },

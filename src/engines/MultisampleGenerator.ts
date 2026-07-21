@@ -70,7 +70,7 @@ export class MultisampleGenerator {
     private isWasmLoaded: boolean = false;
 
     constructor(_audioContext: BaseAudioContext) {
-        this.loadWasm();
+        void this.loadWasm();
     }
 
     /**

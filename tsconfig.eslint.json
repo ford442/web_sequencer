@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "tests",
+    "vitest.setup.ts",
+    "playwright.config.ts",
+    "vite.config.ts"
+  ]
+}

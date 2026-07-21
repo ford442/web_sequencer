@@ -41,16 +41,17 @@ if (typeof window !== 'undefined') {
     }),
     createDynamicsCompressor: vi.fn().mockReturnValue({
       connect: vi.fn(),
-      threshold: { value: 0 },
-      knee: { value: 0 },
-      ratio: { value: 0 },
-      attack: { value: 0 },
-      release: { value: 0 },
+      threshold: { value: 0, setValueAtTime: vi.fn() },
+      knee: { value: 0, setValueAtTime: vi.fn() },
+      ratio: { value: 0, setValueAtTime: vi.fn() },
+      attack: { value: 0, setValueAtTime: vi.fn() },
+      release: { value: 0, setValueAtTime: vi.fn() },
     }),
     createBiquadFilter: vi.fn().mockReturnValue({
         connect: vi.fn(),
         frequency: { value: 0, setValueAtTime: vi.fn() },
         Q: { value: 0, setValueAtTime: vi.fn() },
+        gain: { value: 0, setValueAtTime: vi.fn() },
         type: 'lowpass'
     }),
     createAnalyser: vi.fn().mockReturnValue({
@@ -97,6 +98,10 @@ if (typeof window !== 'undefined') {
         connect: vi.fn(),
         curve: null,
         oversample: 'none'
+    }),
+    createConvolver: vi.fn().mockReturnValue({
+        connect: vi.fn(),
+        buffer: null,
     }),
     sampleRate: 44100,
     audioWorklet: {

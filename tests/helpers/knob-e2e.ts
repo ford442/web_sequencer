@@ -1,10 +1,12 @@
-import type { Page, Locator } from '@playwright/test';
+import { expect, type Page, type Locator } from '@playwright/test';
 
 export async function initializeHyphonAudio(page: Page): Promise<void> {
     await page.goto('/');
     const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
     await startBtn.waitFor({ state: 'visible', timeout: 90_000 });
-    await startBtn.click({ force: true });
+    await expect(startBtn).toBeEnabled({ timeout: 90_000 });
+    await page.waitForTimeout(500);
+    await startBtn.click();
     await startBtn.waitFor({ state: 'hidden', timeout: 30_000 });
 }
 

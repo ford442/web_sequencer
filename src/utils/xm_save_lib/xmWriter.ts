@@ -432,7 +432,7 @@ export function createModule(options: {
       flags: XM_CONSTANTS.FLAG_LINEAR_FREQUENCY,
       defaultTempo: options.defaultTempo || 6,
       defaultBPM: options.defaultBPM || 125,
-      patternOrderTable: new Array(XM_CONSTANTS.PATTERN_ORDER_TABLE_SIZE).fill(0),
+      patternOrderTable: Array.from({ length: XM_CONSTANTS.PATTERN_ORDER_TABLE_SIZE }, () => 0),
     },
     patterns: [],
     instruments: [],
@@ -551,7 +551,7 @@ export function addSampleToInstrument(instrument: XMInstrument, sample: XMSample
   if (instrument.samples.length === 0) {
     instrument.extendedHeader = {
       sampleHeaderSize: XM_CONSTANTS.SAMPLE_HEADER_SIZE,
-      sampleNumberForNotes: new Array(XM_CONSTANTS.SAMPLE_NUMBER_FOR_NOTES_SIZE).fill(0),
+      sampleNumberForNotes: Array.from({ length: XM_CONSTANTS.SAMPLE_NUMBER_FOR_NOTES_SIZE }, () => 0),
       volumeEnvelope: createEmptyEnvelope(),
       panningEnvelope: createEmptyEnvelope(),
       vibratoType: 0,

@@ -15,6 +15,17 @@
  * @see RUBBERBAND_ENHANCEMENT_PLAN.md Section 3
  */
 
+/** Remote alignment service response shape. */
+interface AlignmentServicePhoneme {
+    phoneme: string;
+    start: number;
+    end: number;
+}
+
+interface AlignmentServiceResponse {
+    phonemes: AlignmentServicePhoneme[];
+}
+
 /** Phoneme timing information from forced alignment */
 export interface PhonemeSegment {
     /** The phoneme symbol (e.g., 'AH', 'T', 'K') */
@@ -136,11 +147,12 @@ export class PhonemeAligner {
             throw new Error(`Alignment service error: ${response.statusText}`);
         }
         
-        const result = await response.json();
+        const raw: unknown = await response.json();
+        const result = raw as AlignmentServiceResponse;
         
         // Convert service response to our format
         return {
-            phonemes: result.phonemes.map((p: any) => ({
+            phonemes: result.phonemes.map((p) => ({
                 phoneme: p.phoneme,
                 start: p.start,
                 end: p.end,

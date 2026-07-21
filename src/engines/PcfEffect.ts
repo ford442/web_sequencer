@@ -19,7 +19,7 @@
  * ```
  */
 
-import type { PcfSettings } from '../importers/rbs/types';
+import type { PcfSettings } from '@/importers/rbs/types';
 
 /** URL to the PCF processor worklet file */
 const PCF_PROCESSOR_URL = new URL('../audio-worklets/pcf-processor.ts', import.meta.url).href;
@@ -59,7 +59,7 @@ export class PcfEffect {
     private _resonance = 40;
     private _envAmount = 60;
     private _decay = 40;
-    private _pattern: number[] = new Array(16).fill(0);
+    private _pattern: number[] = Array.from({ length: 16 }, () => 0);
 
     constructor(audioContext: AudioContext) {
         this.audioContext = audioContext;

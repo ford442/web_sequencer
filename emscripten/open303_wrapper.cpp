@@ -43,6 +43,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 using namespace emscripten;
@@ -93,6 +94,87 @@ static inline float fastTanh(float x)
 /** Velocity threshold above which a noteOn triggers the accent path. */
 static constexpr float ACCENT_VELOCITY_THRESHOLD = 100.0f;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 303 model registry ("303 Voices")
+//
+// A model is a named sound character. Models in the ENGINE_OPEN303 family are
+// coefficient profiles applied to the Open303Instance DSP below; models in the
+// ENGINE_JC303 family run on the rosic::Open303 engine (jc303_wrapper.cpp) and
+// are selected by the AudioWorklet via the jc303_* multi-instance API.
+//
+// This table is mirrored by TB303_MODELS in src/engines/TB303Models.ts —
+// keep ids in sync. Model ids are persisted in saved songs; never rename.
+//
+// Adding a new open303-family voice = adding one row here (plus the TS mirror
+// entry) and rebuilding with `pnpm run build:emcc`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TB303EngineKind : int {
+    ENGINE_OPEN303 = 0,
+    ENGINE_JC303   = 1,
+};
+
+struct Open303ModelProfile {
+    const char* id;           // stable identifier (persisted in songs)
+    const char* label;        // human-readable name
+    int         engine;       // TB303EngineKind
+
+    // Coefficient profile (ENGINE_OPEN303 family; ignored for ENGINE_JC303):
+    float cutoffBaseHz;      // filter frequency at fcNorm = 0        (stock 20)
+    float cutoffRangeMul;    // exponential range multiplier          (stock 400 → 8 kHz at 1)
+    float resFeedback;       // resonance→feedback gain, ≈4 self-osc  (stock 3.9)
+    float accentFilterBoost; // accent cutoff boost depth             (stock 0.4)
+    float accentGainBoost;   // accent VCA boost depth                (stock 0.3)
+    float decayMinS;         // envelope decay at decay = 0           (stock 0.05)
+    float decayRangeS;       // envelope decay span                   (stock 1.95)
+    float slideMinS;         // portamento time at slideTime = 0      (stock 0.01)
+    float slideRangeS;       // portamento time span                  (stock 0.49)
+    float squareDriveMul;    // square overdrive depth                (stock 3.0)
+    float sawDrive;          // saw waveshaping drive, 0 = pristine   (stock 0.0)
+};
+
+static const Open303ModelProfile k303Models[] = {
+    // id                label               engine          cutBase range  resFb accFlt accGain decMin decRng sldMin sldRng sqDrv sawDrv
+    { "stock-open303",   "Stock Open303",    ENGINE_OPEN303, 20.0f, 400.0f, 3.9f, 0.40f, 0.30f,  0.05f, 1.95f, 0.01f, 0.49f, 3.0f, 0.0f },
+    { "jc303",           "Authentic JC303",  ENGINE_JC303,   20.0f, 400.0f, 3.9f, 0.40f, 0.30f,  0.05f, 1.95f, 0.01f, 0.49f, 3.0f, 0.0f },
+    // In-house: warmer filter base, rounder accent, slower slides.
+    { "1ink303-v1",      "1ink303 v1",       ENGINE_OPEN303, 26.0f, 340.0f, 4.0f, 0.35f, 0.38f,  0.04f, 1.60f, 0.02f, 0.60f, 2.4f, 0.35f },
+    // Scratchpad: hotter resonance feedback, snappier envelope, harder accent.
+    { "experimental-01", "Experimental 01",  ENGINE_OPEN303, 20.0f, 420.0f, 4.15f, 0.55f, 0.45f, 0.03f, 1.20f, 0.008f, 0.40f, 4.5f, 0.0f },
+    // Inspired-by ReBirth RB-338 1.5 (NOT a clone): "squishier" filter — lower,
+    // darker cutoff base with hotter resonance feedback for a self-oscillation-
+    // prone squish; gooey longer slides; a touch of saw grit. Big accent lift.
+    { "rebirth-338-1.5", "ReBirth RB-338 1.5", ENGINE_OPEN303, 22.0f, 380.0f, 4.10f, 0.50f, 0.32f, 0.04f, 1.60f, 0.02f, 0.60f, 3.0f, 0.20f },
+    // Inspired-by ReBirth 2.0 (NOT a clone): cleaner/tighter filter than 1.5,
+    // punchier accent (VCA + filter), snappier envelope, slightly more drive.
+    { "rebirth-2.0",     "ReBirth 2.0",      ENGINE_OPEN303, 20.0f, 410.0f, 3.95f, 0.60f, 0.42f, 0.035f, 1.40f, 0.012f, 0.50f, 3.4f, 0.12f },
+    // Inspired-by MAM MB33 mkII (NOT a clone): boxier, more "digital" filter
+    // feel — narrower cutoff sweep, distinct accent punch, square/saw grit for
+    // the hardware-emulation character.
+    { "mb33-mkii",       "MB33 mkII",        ENGINE_OPEN303, 24.0f, 360.0f, 3.85f, 0.52f, 0.38f, 0.045f, 1.70f, 0.014f, 0.45f, 3.8f, 0.25f },
+    // Inspired-by Quasimidi Raveolution 309 (NOT a clone): brighter/harsher
+    // self-oscillation, aggressive resonance curve, snappy envelope, heavy drive
+    // for dance-floor character.
+    { "raveolution",     "Raveolution 309",  ENGINE_OPEN303, 18.0f, 440.0f, 4.25f, 0.58f, 0.48f, 0.028f, 1.15f, 0.006f, 0.35f, 4.2f, 0.08f },
+};
+
+static constexpr int k303ModelCount = static_cast<int>(sizeof(k303Models) / sizeof(k303Models[0]));
+
+static const Open303ModelProfile* find303Model(int index)
+{
+    return (index >= 0 && index < k303ModelCount) ? &k303Models[index] : nullptr;
+}
+
+/** Registry index of the model with stable id @p id, or -1 if unknown/null. */
+static int find303ModelIndexById(const char* id)
+{
+    if (!id) return -1;
+    for (int i = 0; i < k303ModelCount; ++i) {
+        if (std::strcmp(k303Models[i].id, id) == 0) return i;
+    }
+    return -1;
+}
+
 
 
 struct MoogFilter {
@@ -101,20 +183,17 @@ struct MoogFilter {
     /**
      * Process one sample.
      * @param input      dry sample (±1.0 range)
-     * @param fcNorm     normalised cutoff frequency [0..1]
-     *                   maps exponentially to ~20 Hz … ~8 kHz
-     * @param res        resonance [0..1] (1.0 approaches self-oscillation)
+     * @param freqHz     cutoff frequency in Hz (already curve-mapped by the
+     *                   caller from the active model profile)
+     * @param k          resonance feedback gain (0..≈4, ≈4 self-oscillates)
      * @param sampleRate sample rate in Hz
      */
-    float process(float input, float fcNorm, float res, float sampleRate)
+    float process(float input, float freqHz, float k, float sampleRate)
     {
-        // Exponential frequency mapping: 20 Hz at 0, 8000 Hz at 1
-        float freqHz = 20.0f * std::pow(400.0f, fcNorm);
         freqHz = std::min(freqHz, sampleRate * 0.49f);
 
         const float g  = TWO_PI_F * freqHz / sampleRate;
         const float gp = g / (1.0f + g);       // one-pole coefficient
-        const float k  = res * 3.9f;            // feedback gain (0..≈4)
 
         // Feedback from the last stage
         const float fb   = k * s[3];
@@ -170,6 +249,10 @@ struct Open303Instance {
 
     // ── Filter ───────────────────────────────────────────────────────────────
     MoogFilter filter;
+
+    // ── Active model profile (index into k303Models; 0 = stock-open303) ──────
+    int modelIndex = 0;
+    Open303ModelProfile profile = k303Models[0];
 
     // ── Output buffer (owned, allocated once in init) ────────────────────────
     float* outBuf  = nullptr;
@@ -228,11 +311,25 @@ struct Open303Instance {
 
     void updateDecayRate()
     {
-        // Map [0..1] → [50 ms .. 2 s] decay time
-        float timeS = 0.05f + decay * 1.95f;
+        // Map [0..1] → decay time range from the active model profile
+        // (stock: 50 ms .. 2 s)
+        float timeS = profile.decayMinS + decay * profile.decayRangeS;
         // Accent shortens the decay further
         if (accented) timeS *= (0.05f + accentDecay * 0.95f);
         envDecayRate = std::exp(-1.0f / (sampleRate * timeS));
+    }
+
+    /** Apply a model coefficient profile ("303 voice"). Returns 1 on success.
+     *  Only ENGINE_OPEN303-family models apply here; ENGINE_JC303 models are
+     *  routed to the rosic engine by the AudioWorklet. */
+    int setModel(int index)
+    {
+        const Open303ModelProfile* m = find303Model(index);
+        if (!m || m->engine != ENGINE_OPEN303) return 0;
+        modelIndex = index;
+        profile    = *m;
+        updateDecayRate();
+        return 1;
     }
 
     // ── Note control ─────────────────────────────────────────────────────────
@@ -244,7 +341,7 @@ struct Open303Instance {
 
         if (gateOpen && slideTime > 0.0f && currentFreq > 0.0f) {
             // Portamento: compute per-sample exponential glide coefficient
-            const float slideSeconds = 0.01f + slideTime * 0.49f;
+            const float slideSeconds = profile.slideMinS + slideTime * profile.slideRangeS;
             const float ratio = targetFreq / currentFreq;
             if (ratio > 0.0f && ratio != 1.0f) {
                 slideCoeff = std::pow(ratio, 1.0f / (slideSeconds * sampleRate));
@@ -305,10 +402,15 @@ struct Open303Instance {
             float osc;
             if (waveform < 0.5f) {
                 osc = 2.0f * phase - 1.0f;   // sawtooth
+                // Optional model waveshaping (sawDrive = 0 keeps the stock
+                // path bit-identical — no tanh applied at all)
+                if (profile.sawDrive > 0.0f) {
+                    osc = fastTanh(osc * (1.0f + profile.sawDrive));
+                }
             } else {
                 // Square with soft overdrive controlled by squareDrv
                 const float sq    = (phase < 0.5f) ? 1.0f : -1.0f;
-                const float drive = 1.0f + squareDrv * 3.0f;
+                const float drive = 1.0f + squareDrv * profile.squareDriveMul;
                 osc = fastTanh(sq * drive);
             }
 
@@ -317,15 +419,17 @@ struct Open303Instance {
             if (envLevel < 1.0e-6f) envLevel = 0.0f;
 
             // --- Filter cutoff with envelope modulation ---
-            const float accentBoost = accented ? (accent * 0.4f * envLevel) : 0.0f;
+            const float accentBoost = accented ? (accent * profile.accentFilterBoost * envLevel) : 0.0f;
             const float totalCutoff = std::min(1.0f, cutoff + envMod * envLevel + accentBoost);
 
-            // --- Filter ---
-            const float filtered = filter.process(osc, totalCutoff, resonance, sampleRate);
+            // --- Filter (cutoff curve + feedback gain from the model profile) ---
+            const float freqHz = profile.cutoffBaseHz * std::pow(profile.cutoffRangeMul, totalCutoff);
+            const float k      = resonance * profile.resFeedback;
+            const float filtered = filter.process(osc, freqHz, k, sampleRate);
 
             // --- Output gain ---
             float gain = volume;
-            if (accented) gain *= (1.0f + accent * 0.3f);
+            if (accented) gain *= (1.0f + accent * profile.accentGainBoost);
             output[i] = filtered * gain;
         }
     }
@@ -429,7 +533,96 @@ void open303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
     inst->process(out, numFrames);
 }
 
+// ── 303 model registry API ("303 Voices") ───────────────────────────────────
+
+/** Number of models in the registry (all engine families). */
+EMSCRIPTEN_KEEPALIVE
+int open303_get_model_count()
+{
+    return k303ModelCount;
+}
+
+/** Stable id of the model at @p index (null-terminated static string), or 0. */
+EMSCRIPTEN_KEEPALIVE
+const char* open303_get_model_id(int index)
+{
+    const Open303ModelProfile* m = find303Model(index);
+    return m ? m->id : nullptr;
+}
+
+/** Human-readable label of the model at @p index, or 0. */
+EMSCRIPTEN_KEEPALIVE
+const char* open303_get_model_label(int index)
+{
+    const Open303ModelProfile* m = find303Model(index);
+    return m ? m->label : nullptr;
+}
+
+/** Engine family of the model at @p index (TB303EngineKind), or -1. */
+EMSCRIPTEN_KEEPALIVE
+int open303_get_model_engine(int index)
+{
+    const Open303ModelProfile* m = find303Model(index);
+    return m ? m->engine : -1;
+}
+
+/** Apply the model profile at @p index to an open303 instance. Returns 1 on
+ *  success, 0 for an unknown index, a jc303-family model, or a bad handle. */
+EMSCRIPTEN_KEEPALIVE
+int open303_set_model(uintptr_t handle, int index)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    return inst ? inst->setModel(index) : 0;
+}
+
+/** Currently applied model index for an open303 instance (default 0 = stock). */
+EMSCRIPTEN_KEEPALIVE
+int open303_get_model(uintptr_t handle)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    return inst ? inst->modelIndex : -1;
+}
+
+/** Registry index of the model with stable string id @p id, or -1. Lets
+ *  callers resolve a persisted model id without scanning the id table. */
+EMSCRIPTEN_KEEPALIVE
+int open303_find_model_index(const char* id)
+{
+    return find303ModelIndexById(id);
+}
+
+/** Apply a model to an open303 instance by its stable string id (the
+ *  future-proof `set303Model(instanceId, modelName)` surface). Returns 1 on
+ *  success, 0 for an unknown id, a jc303-family model, or a bad handle. */
+EMSCRIPTEN_KEEPALIVE
+int open303_set_model_by_id(uintptr_t handle, const char* id)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    if (!inst) return 0;
+    return inst->setModel(find303ModelIndexById(id));
+}
+
 } // extern "C"
+
+/** JSON list of all registered 303 models for dynamic UI population:
+ *  [{"id":"stock-open303","label":"Stock Open303","engine":"open303"}, …] */
+static std::string getAvailable303Models()
+{
+    std::string json = "[";
+    for (int i = 0; i < k303ModelCount; ++i) {
+        const Open303ModelProfile& m = k303Models[i];
+        if (i > 0) json += ",";
+        json += "{\"id\":\"";
+        json += m.id;
+        json += "\",\"label\":\"";
+        json += m.label;
+        json += "\",\"engine\":\"";
+        json += (m.engine == ENGINE_JC303) ? "jc303" : "open303";
+        json += "\"}";
+    }
+    json += "]";
+    return json;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Embind bindings  (makes the same functions callable from the JS module
@@ -445,4 +638,12 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_all_notes_off", &open303_all_notes_off);
     function("open303_set_param",     &open303_set_param);
     function("open303_process",       &open303_process);
+
+    function("open303_get_model_count",   &open303_get_model_count);
+    function("open303_get_model_engine",  &open303_get_model_engine);
+    function("open303_set_model",         &open303_set_model);
+    function("open303_get_model",         &open303_get_model);
+    function("open303_find_model_index",  &open303_find_model_index);
+    function("open303_set_model_by_id",   &open303_set_model_by_id);
+    function("getAvailable303Models",     &getAvailable303Models);
 }

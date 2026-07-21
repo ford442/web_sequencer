@@ -9,7 +9,7 @@
  * Implements Cooley-Tukey radix-2 FFT algorithm.
  */
 
-import { loadFFTModule, isFFTModuleLoaded } from './fftLoader';
+import { loadFFTModule, isFFTModuleLoaded, type FFTWasmExports } from '@/utils/fftLoader';
 
 export interface FFTConfig {
     size: number;
@@ -43,7 +43,7 @@ export class FFT {
     private bitReversedIndices: Uint32Array;
     private twiddleReal: Float32Array;
     private twiddleImag: Float32Array;
-    private wasmModule: any = null;
+    private wasmModule: FFTWasmExports | null = null;
     private useWasm: boolean = false;
 
     // WASM memory buffers
@@ -51,6 +51,10 @@ export class FFT {
     private wasmImag: Float32Array | null = null;
     private wasmMagnitude: Float32Array | null = null;
     private wasmPhase: Float32Array | null = null;
+    private realPtr: number | null = null;
+    private imagPtr: number | null = null;
+    private magnitudePtr: number | null = null;
+    private phasePtr: number | null = null;
 
     /**
      * Create a new FFT instance
@@ -69,7 +73,7 @@ export class FFT {
         this.computeTwiddleFactors();
 
         // Try to initialize WASM module
-        this.initWasm();
+        void this.initWasm();
     }
 
     /**
@@ -77,7 +81,8 @@ export class FFT {
      */
     private async initWasm(): Promise<void> {
         try {
-            this.wasmModule = await loadFFTModule();
+            const instance = await loadFFTModule();
+            this.wasmModule = instance.exports as unknown as FFTWasmExports;
             if (this.wasmModule && isFFTModuleLoaded()) {
                 this.useWasm = true;
                 this.allocateWasmBuffers();
@@ -110,10 +115,10 @@ export class FFT {
         this.wasmPhase = new Float32Array(this.wasmModule.memory.buffer, phasePtr, halfSize);
 
         // Store pointers
-        (this as any)._realPtr = realPtr;
-        (this as any)._imagPtr = imagPtr;
-        (this as any)._magnitudePtr = magnitudePtr;
-        (this as any)._phasePtr = phasePtr;
+        this.realPtr = realPtr;
+        this.imagPtr = imagPtr;
+        this.magnitudePtr = magnitudePtr;
+        this.phasePtr = phasePtr;
     }
 
     /**
@@ -122,10 +127,15 @@ export class FFT {
     private freeWasmBuffers(): void {
         if (!this.wasmModule) return;
 
-        if ((this as any)._realPtr) this.wasmModule.__unpin((this as any)._realPtr);
-        if ((this as any)._imagPtr) this.wasmModule.__unpin((this as any)._imagPtr);
-        if ((this as any)._magnitudePtr) this.wasmModule.__unpin((this as any)._magnitudePtr);
-        if ((this as any)._phasePtr) this.wasmModule.__unpin((this as any)._phasePtr);
+        if (this.realPtr !== null) this.wasmModule.__unpin(this.realPtr);
+        if (this.imagPtr !== null) this.wasmModule.__unpin(this.imagPtr);
+        if (this.magnitudePtr !== null) this.wasmModule.__unpin(this.magnitudePtr);
+        if (this.phasePtr !== null) this.wasmModule.__unpin(this.phasePtr);
+
+        this.realPtr = null;
+        this.imagPtr = null;
+        this.magnitudePtr = null;
+        this.phasePtr = null;
 
         this.wasmReal = null;
         this.wasmImag = null;
@@ -204,8 +214,8 @@ export class FFT {
 
         // Call WASM fftForward
         this.wasmModule.fftForward(
-            (this as any)._realPtr,
-            (this as any)._imagPtr,
+            this.realPtr!,
+            this.imagPtr!,
             this.size,
             this.bitReversedIndices.byteOffset,
             this.twiddleReal.byteOffset,
@@ -214,16 +224,16 @@ export class FFT {
 
         // Compute magnitude and phase using WASM
         this.wasmModule.computeMagnitude(
-            (this as any)._realPtr,
-            (this as any)._imagPtr,
-            (this as any)._magnitudePtr,
+            this.realPtr!,
+            this.imagPtr!,
+            this.magnitudePtr!,
             halfSize
         );
 
         this.wasmModule.computePhase(
-            (this as any)._realPtr,
-            (this as any)._imagPtr,
-            (this as any)._phasePtr,
+            this.realPtr!,
+            this.imagPtr!,
+            this.phasePtr!,
             halfSize
         );
 
@@ -369,8 +379,8 @@ export class FFT {
 
         // Apply window using WASM
         this.wasmModule.applyHannWindow(
-            (this as any)._realPtr,
-            (this as any)._realPtr,
+            this.realPtr!,
+            this.realPtr!,
             n
         );
 

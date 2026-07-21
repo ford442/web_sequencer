@@ -1,4 +1,5 @@
 import type { Bass2Params } from '../types';
+import type { TB303ModelId } from './TB303Models';
 import { Open303Oscillator } from './Open303Oscillator';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
@@ -721,5 +722,38 @@ export class Open303Manager {
         if (settings.lead) this.setLead303Engine(settings.lead);
         if (settings.bass1) this.setBass1Engine(settings.bass1);
         if (settings.bass2) this.setBass2Engine(settings.bass2);
+    }
+
+    // -------------------------------------------------------------------------
+    // 303 voice/model selection (see engines/TB303Models.ts)
+    // -------------------------------------------------------------------------
+
+    /** Select the 303 voice/model for the bass1 (SYNTH B / partB) voice. */
+    setBass1Model(model: TB303ModelId): void {
+        this.bass1?.setModel303(model);
+    }
+
+    /** Select the 303 voice/model for the bass2 (BASS 2) voice. */
+    setBass2Model(model: TB303ModelId): void {
+        this.bass2?.setModel303(model);
+    }
+
+    /** Select the 303 voice/model for the lead303 (SYNTH A / LEAD) voice. */
+    setLead303Model(model: TB303ModelId): void {
+        this.lead303?.setModel303(model);
+    }
+
+    /**
+     * Apply persisted per-voice model303 settings after audio init or song load.
+     * The model-aware successor of syncEngine303Settings.
+     */
+    syncModel303Settings(settings: {
+        lead?: TB303ModelId;
+        bass1?: TB303ModelId;
+        bass2?: TB303ModelId;
+    }): void {
+        if (settings.lead) this.setLead303Model(settings.lead);
+        if (settings.bass1) this.setBass1Model(settings.bass1);
+        if (settings.bass2) this.setBass2Model(settings.bass2);
     }
 }

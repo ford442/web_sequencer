@@ -4,8 +4,44 @@
 // The skipFilter logic prevents double-filtering when WASM/Pyodide handle it.
 // See engines directory for the actual performance-critical implementations.
 
-import type { SynthParams, KickParams, SnareParams, HatParams } from '../types';
-import { getTunedFrequency, type ScaleDefinition } from './musicTheory';
+import type { SynthParams, KickParams, SnareParams, HatParams } from '@/types';
+import { getTunedFrequency, type ScaleDefinition } from '@/utils/musicTheory';
+import type { PyodideLike } from '@/utils/pyodideBuffers';
+
+type PyodideResultProxy = {
+    toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
+    destroy: () => void;
+};
+
+interface WebGpuEngineLike {
+    isSupported: boolean;
+    generate(
+        freq: number,
+        dur: number,
+        rate: number,
+        type: 'saw' | 'sqr' | 'tri' | 'sin',
+    ): Float32Array | null | Promise<Float32Array | null>;
+}
+
+interface WasmEngineLike {
+    isReady: boolean;
+    generate(
+        freq: number,
+        dur: number,
+        rate: number,
+        type: 'saw' | 'sqr' | 'tri' | 'sin',
+        cutoff: number,
+        resonance: number,
+    ): Float32Array | null;
+}
+
+interface RenderSynthEngines {
+    webGpuEngine?: WebGpuEngineLike | null;
+    wasmEngine?: WasmEngineLike | null;
+    pyodide?: PyodideLike | null;
+}
+
+export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
 
 /**
  * Renders a synth sound to an AudioBuffer.
@@ -15,11 +51,7 @@ export async function renderSynthToBuffer(
     params: SynthParams,
     note: string = 'C4',
     duration: number = 2.0,
-    engines?: {
-        webGpuEngine?: any,
-        wasmEngine?: any,
-        pyodide?: any
-    }
+    engines?: RenderSynthEngines
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
@@ -80,7 +112,7 @@ export async function renderSynthToBuffer(
                 pyOscType,
                 params.filterCutoff,
                 params.filterResonance
-            );
+            ) as PyodideResultProxy;
             const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
             pyProxy.destroy();
 
@@ -184,8 +216,8 @@ export async function renderSynthToBuffer(
  */
 export async function renderDrumToBuffer(
     sound: 'kick' | 'snare' | 'closedHat' | 'openHat',
-    params: any,
-    pyodide?: any
+    params: KickParams | SnareParams | HatParams,
+    pyodide?: PyodideLike | null
 ): Promise<AudioBuffer> {
     const sampleRate = 44100;
     // Estimate duration based on params or defaults
@@ -199,17 +231,16 @@ export async function renderDrumToBuffer(
     // Try Pyodide Generation first
     if (pyodide) {
         try {
-            let pyProxy;
+            let pyProxy: PyodideResultProxy;
             if (sound === 'kick') {
                 const p = params as KickParams;
-                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume);
+                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume) as PyodideResultProxy;
             } else if (sound === 'snare') {
                 const p = params as SnareParams;
-                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume);
+                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume) as PyodideResultProxy;
             } else {
-                // Hats
                 const p = params as HatParams;
-                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume);
+                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume) as PyodideResultProxy;
             }
 
             const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });

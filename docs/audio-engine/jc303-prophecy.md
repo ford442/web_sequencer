@@ -1,5 +1,8 @@
 # JC303 / Open303 Engine Selection + Prophecy Integration
 
+> **See also:** [303-voices.md](303-voices.md) — the growing selectable 303 voice
+> catalog (`model303`), registry contract, and how to add new voices.
+
 This note documents the current `hyphon_native.wasm` engine layout for TB-303-style synthesis and Korg Prophecy-style formants.
 
 ## 1) Dual 303 engine model in `hyphon_native.wasm`

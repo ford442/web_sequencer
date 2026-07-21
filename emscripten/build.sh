@@ -62,6 +62,14 @@ EXPORTS="[ \
     '_open303_all_notes_off', \
     '_open303_set_param', \
     '_open303_process', \
+    '_open303_get_model_count', \
+    '_open303_get_model_id', \
+    '_open303_get_model_label', \
+    '_open303_get_model_engine', \
+    '_open303_set_model', \
+    '_open303_get_model', \
+    '_open303_find_model_index', \
+    '_open303_set_model_by_id', \
     '_jc303_create', \
     '_jc303_destroy', \
     '_jc303_init_handle', \

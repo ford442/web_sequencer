@@ -10,12 +10,38 @@ const MAX_RESOLUTION_HISTORY = 20;
 // is anecdotal, so we flag it rather than implying false statistical rigor.
 export const P95_MIN_SAMPLES = 128;
 
+type WorkletPerfSample = {
+  cpuPercent: number;
+  underruns: number;
+  processUs: number;
+  quantumUs: number;
+  blockFrames: number;
+  ts: number;
+};
+
+type GlitchEvent = {
+  kind: string;
+  detail?: Record<string, unknown>;
+  ts: number;
+};
+
 type TelemetryData = {
   resolution?: Resolution | null;
   resolutionHistory: Resolution[];
   latencies: number[];
   errors: { count: number; lastError?: string; lastTs?: number | null };
   maxLatencySamples: number;
+  worklet?: WorkletPerfSample;
+  workletCpuHistory: number[];
+};
+
+type RuntimeTelemetry = {
+  worklets: Map<string, WorkletPerfSample>;
+  glitches: GlitchEvent[];
+  outputLatencyMs: number | null;
+  masterBudgetPercent: number;
+  totalUnderruns: number;
+  degradations: Array<{ step: string; active: boolean; reason: string; ts: number }>;
 };
 
 function emptyData(): TelemetryData {
@@ -25,6 +51,7 @@ function emptyData(): TelemetryData {
     latencies: [],
     errors: { count: 0, lastError: undefined, lastTs: null },
     maxLatencySamples: 256,
+    workletCpuHistory: [],
   };
 }
 
@@ -85,6 +112,14 @@ export function getBrowserCapabilities(): BrowserCapabilities {
 
 // ── Report shapes ───────────────────────────────────────────────────────────
 
+export interface WorkletPerfReport {
+  cpuPercent: number;
+  underruns: number;
+  lastProcessUs: number;
+  lastQuantumUs: number;
+  lastUpdate: number | null;
+}
+
 export interface SubsystemReport {
   resolution: Resolution | null;
   p50: number | null;
@@ -94,6 +129,16 @@ export interface SubsystemReport {
   last: number[];
   errors: { count: number; lastError?: string; lastTs?: number | null };
   resolutionHistory: Resolution[];
+  worklet?: WorkletPerfReport;
+}
+
+export interface RuntimeSnapshot {
+  masterBudgetPercent: number;
+  totalUnderruns: number;
+  outputLatencyMs: number | null;
+  glitches: GlitchEvent[];
+  worklets: Record<string, WorkletPerfReport>;
+  degradations: Array<{ step: string; active: boolean; reason: string; ts: number }>;
 }
 
 export interface EngineReport {
@@ -102,6 +147,7 @@ export interface EngineReport {
   sessionDurationMs: number;
   capabilities: BrowserCapabilities;
   subsystems: Record<string, SubsystemReport>;
+  runtime: RuntimeSnapshot;
 }
 
 // ── Download abstraction (injectable so the pure logic stays DOM-free/testable) ─
@@ -139,6 +185,7 @@ export function reportFilename(now: Date = new Date()): string {
 export function serializeEngineReport(
   snapshot: Record<string, SubsystemReport>,
   capabilities: BrowserCapabilities,
+  runtime: RuntimeSnapshot,
 ): string {
   const report: EngineReport = {
     version: 1,
@@ -146,12 +193,105 @@ export function serializeEngineReport(
     sessionDurationMs: typeof performance !== 'undefined' ? Math.round(performance.now()) : 0,
     capabilities,
     subsystems: snapshot,
+    runtime,
   };
   return JSON.stringify(report, null, 2);
 }
 
+const MAX_GLITCH_EVENTS = 64;
+const MAX_DEGRADATION_LOG = 32;
+
 export class EngineTelemetry {
   private data = new Map<string, TelemetryData>();
+  private runtime: RuntimeTelemetry = {
+    worklets: new Map(),
+    glitches: [],
+    outputLatencyMs: null,
+    masterBudgetPercent: 0,
+    totalUnderruns: 0,
+    degradations: [],
+  };
+  private lastUnderrunByWorklet = new Map<string, number>();
+
+  registerWorklet(name: string): void {
+    if (!this.data.has(name)) {
+      this.data.set(name, emptyData());
+    }
+  }
+
+  recordWorkletPerf(
+    name: string,
+    sample: Omit<WorkletPerfSample, 'ts'>,
+  ): void {
+    let s = this.data.get(name);
+    if (!s) {
+      s = emptyData();
+      this.data.set(name, s);
+    }
+
+    const entry: WorkletPerfSample = { ...sample, ts: Date.now() };
+    s.worklet = entry;
+    s.workletCpuHistory.push(sample.cpuPercent);
+    if (s.workletCpuHistory.length > s.maxLatencySamples) {
+      s.workletCpuHistory.shift();
+    }
+
+    const prevUnderruns = this.lastUnderrunByWorklet.get(name) ?? 0;
+    if (sample.underruns > prevUnderruns) {
+      this.runtime.totalUnderruns += sample.underruns - prevUnderruns;
+    }
+    this.lastUnderrunByWorklet.set(name, sample.underruns);
+    this.runtime.worklets.set(name, entry);
+
+    this.recomputeMasterBudget();
+  }
+
+  recordGlitch(kind: string, detail?: Record<string, unknown>): void {
+    this.runtime.glitches.push({ kind, detail, ts: Date.now() });
+    if (this.runtime.glitches.length > MAX_GLITCH_EVENTS) {
+      this.runtime.glitches.shift();
+    }
+  }
+
+  recordOutputLatency(latencyMs: number): void {
+    this.runtime.outputLatencyMs = latencyMs;
+  }
+
+  recordDegradation(step: string, active: boolean, reason: string): void {
+    this.runtime.degradations.push({ step, active, reason, ts: Date.now() });
+    if (this.runtime.degradations.length > MAX_DEGRADATION_LOG) {
+      this.runtime.degradations.shift();
+    }
+  }
+
+  private recomputeMasterBudget(): void {
+    let sum = 0;
+    for (const w of this.runtime.worklets.values()) {
+      sum += w.cpuPercent;
+    }
+    this.runtime.masterBudgetPercent = Math.min(100, sum);
+  }
+
+  getRuntimeSnapshot(): RuntimeSnapshot {
+    const worklets: Record<string, WorkletPerfReport> = {};
+    for (const [name, w] of this.runtime.worklets.entries()) {
+      worklets[name] = {
+        cpuPercent: w.cpuPercent,
+        underruns: w.underruns,
+        lastProcessUs: w.processUs,
+        lastQuantumUs: w.quantumUs,
+        lastUpdate: w.ts,
+      };
+    }
+    return {
+      masterBudgetPercent: this.runtime.masterBudgetPercent,
+      totalUnderruns: this.runtime.totalUnderruns,
+      outputLatencyMs: this.runtime.outputLatencyMs,
+      glitches: this.runtime.glitches.slice(),
+      worklets,
+      degradations: this.runtime.degradations.slice(),
+    };
+  }
 
   registerResolution(subsystem: string, backend: string, reason?: string) {
     let s = this.data.get(subsystem);
@@ -190,7 +330,7 @@ export class EngineTelemetry {
     const out: Record<string, SubsystemReport> = {};
     for (const [k, v] of this.data.entries()) {
       const last = v.latencies.slice(-v.maxLatencySamples);
-      out[k] = {
+      const report: SubsystemReport = {
         resolution: v.resolution || null,
         p50: percentile(last, 50),
         p95: percentile(last, 95),
@@ -200,13 +340,36 @@ export class EngineTelemetry {
         errors: { ...v.errors },
         resolutionHistory: v.resolutionHistory.slice(),
       };
+      if (v.worklet) {
+        report.worklet = {
+          cpuPercent: v.worklet.cpuPercent,
+          underruns: v.worklet.underruns,
+          lastProcessUs: v.worklet.processUs,
+          lastQuantumUs: v.worklet.quantumUs,
+          lastUpdate: v.worklet.ts,
+        };
+      } else if (v.workletCpuHistory.length > 0) {
+        const cpuLast = v.workletCpuHistory.slice(-v.maxLatencySamples);
+        report.worklet = {
+          cpuPercent: percentile(cpuLast, 50) ?? 0,
+          underruns: this.lastUnderrunByWorklet.get(k) ?? 0,
+          lastProcessUs: 0,
+          lastQuantumUs: 0,
+          lastUpdate: null,
+        };
+      }
+      out[k] = report;
     }
     return out;
   }
 
   /** Serialize the current state to a report JSON string. */
   generateReportJSON(): string {
-    return serializeEngineReport(this.snapshot(), getBrowserCapabilities());
+    return serializeEngineReport(
+      this.snapshot(),
+      getBrowserCapabilities(),
+      this.getRuntimeSnapshot(),
+    );
   }
 
   /** Trigger a manual export (download). Provider is injectable for testing. */

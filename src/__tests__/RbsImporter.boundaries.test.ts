@@ -25,6 +25,7 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   delayFeedback: 0,
   delayMix: 0,
   engine303: 'open303',
+  model303: 'stock-open303',
   pitchAttack: 0,
   pitchDecay: 0,
   pitchAmount: 0,
@@ -50,6 +51,7 @@ const BASS2_PARAM_KEYS = new Set(Object.keys({
   pitch: 0,
   pan: 0,
   engine303: 'open303',
+  model303: 'stock-open303',
   slideTime: 0,
   drive: 0,
 } satisfies Record<keyof Bass2Params, unknown>));

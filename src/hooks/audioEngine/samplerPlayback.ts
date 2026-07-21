@@ -8,6 +8,7 @@ import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 import { makeDistortionCurve } from './distortion';
 import { pulseExpressionLed } from '../../audio/expressionLedPulse';
 import { getSyncedLfoHz, getSyncedSeconds, resolveExpressiveness } from './syncUtils';
+import { performanceBudget } from '../../utils/performanceBudget';
 
 
 export interface SamplerVoiceContext {
@@ -625,7 +626,8 @@ const playSamplerVoice = (
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+    const spectralPanDepth = (noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth) *
+      performanceBudget.getSpectralPanMultiplier();
     const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
     // Reverb
@@ -787,7 +789,9 @@ const playSamplerVoice = (
             };
 
         // For each note in the chord
-        notes.forEach((noteStr, _noteIndex) => {
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let n = 0; n < notes.length; n++) {
+            const noteStr = notes[n];
             if (shouldGlitch) {
                 for (let i = 0; i < numStutters; i++) {
                     runVoices(ctx, noteStr, i * glitchStutterLenVoice, glitchStutterLenVoice);
@@ -802,12 +806,14 @@ const playSamplerVoice = (
                     runVoices(ctx, noteStr, offset, subDurationSteps * stepTime);
                 }
             }
-        });
+        }
         return;
     }
 
     // Buffer playback mode (non-stretch)
-    notes.forEach(noteStr => {
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+    for (let n = 0; n < notes.length; n++) {
+        const noteStr = notes[n];
         const midi = noteToMidi(noteStr);
 
         if (shouldGlitch) {
@@ -821,7 +827,7 @@ const playSamplerVoice = (
                 playBufferSource(context, multisampleBank, masterSaturationRef.current, actualTime + offset, subDurationSteps * stepTime, midi, params, noteParams, buffer);
             }
         }
-    });
+    }
 };
 
 // Main playSampler function with harmonizer support
