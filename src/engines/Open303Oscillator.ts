@@ -1,7 +1,7 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
-import { normalizeTB303Model, stockModelForFamily, tb303ModelFamily } from './TB303Models';
+import { normalizeTB303Model, reportTB303ModelFallback, stockModelForFamily, tb303ModelFamily } from './TB303Models';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -290,7 +290,12 @@ export class Open303Oscillator {
      * always work.
      */
     setModel303(model: TB303ModelId | string): void {
-        this.model303 = normalizeTB303Model(model);
+        const requested = typeof model === 'string' ? model.trim() : model;
+        const resolved = normalizeTB303Model(requested);
+        if (requested && resolved !== requested) {
+            reportTB303ModelFallback(requested, resolved, 'runtime apply', 'open303-model');
+        }
+        this.model303 = resolved;
         this.engine303 = tb303ModelFamily(this.model303);
         this.applyModel303();
     }

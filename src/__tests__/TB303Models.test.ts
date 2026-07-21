@@ -18,12 +18,14 @@ import {
     getTB303Model,
     getAvailableTB303Models,
     normalizeTB303Model,
+    reportTB303ModelFallback,
     tb303ModelFamily,
     stockModelForFamily,
 } from '../engines/TB303Models';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
+import { DEFAULT_TB303_VOICE_FIELDS } from '../engines/TB303Models';
 import type { SynthParams, TB303ModelId } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -125,6 +127,17 @@ describe('normalizeTB303Model()', () => {
     it('falls back for unknown ids from future song versions', () => {
         expect(normalizeTB303Model('some-future-voice')).toBe('stock-open303');
         expect(normalizeTB303Model('some-future-voice', 'jc303')).toBe('jc303');
+    });
+
+    it('reportFallback logs and resolves when an unknown id is requested', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const resolved = normalizeTB303Model('wasm-discovered-voice', undefined, {
+            reportFallback: true,
+            subsystem: 'test-model303',
+        });
+        expect(resolved).toBe('stock-open303');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wasm-discovered-voice'));
+        warn.mockRestore();
     });
 });
 
@@ -271,6 +284,11 @@ describe('Open303Manager model selection', () => {
 describe('model303 persistence', () => {
     it('DEFAULT_BASS2_PARAMS carries the stock voice and the legacy mirror', () => {
         expect(DEFAULT_BASS2_PARAMS.model303).toBe('stock-open303');
+        expect(DEFAULT_BASS2_PARAMS.engine303).toBe('open303');
+        expect(DEFAULT_TB303_VOICE_FIELDS).toEqual({
+            model303: 'stock-open303',
+            engine303: 'open303',
+        });
         expect(DEFAULT_BASS2_PARAMS.engine303).toBe('open303');
     });
 

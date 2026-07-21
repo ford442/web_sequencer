@@ -8,7 +8,7 @@ import type { ScaleDefinition } from './utils/musicTheory';
 import type { MultisampleBank } from './engines/MultisampleGenerator';
 export type { MultisampleBank } from './engines/MultisampleGenerator';
 import type { TB303ModelId } from './engines/TB303Models';
-export type { TB303ModelId, TB303ModelInfo, Engine303Family } from './engines/TB303Models';
+export type { TB303ModelId, TB303Model, TB303ModelInfo, Engine303Family } from './engines/TB303Models';
 
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
