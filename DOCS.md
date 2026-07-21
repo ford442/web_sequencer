@@ -15,16 +15,16 @@ Single entry point for all **live** Hyphon documentation. Historical planning sc
 
 ---
 
-## Root documents (active)
+## Root documents (allowlisted)
+
+Only these markdown files may live at the repository root. `pnpm run check:root` (part of `pnpm lint`) enforces the list.
 
 | File | Description |
 |------|-------------|
 | [README.md](README.md) | Project overview, features, quick-start, TTS model setup |
 | [AGENTS.md](AGENTS.md) | Agent guide: architecture, Four Worlds build rule, commands, pitfalls |
-| [BUILD_HEALTH.md](BUILD_HEALTH.md) | CI/build health status and known issues |
 | [CHANGELOG.md](CHANGELOG.md) | Release and feature changelog |
 | [claude.md](claude.md) | Claude-specific dev guide: stack, structure, debugging |
-| [weekly_plan.md](weekly_plan.md) | Current weekly focus, ideas, and completed tasks (auto-maintained) |
 | [DOCS.md](DOCS.md) | This index |
 
 ---
@@ -35,6 +35,8 @@ Single entry point for all **live** Hyphon documentation. Historical planning sc
 |------|-------------|
 | [docs/README.md](docs/README.md) | Subsystem doc index (duplicate navigation aid) |
 | [docs/DEVELOPER_CONTEXT.md](docs/DEVELOPER_CONTEXT.md) | Onboarding context and architecture overview |
+| [docs/BUILD_HEALTH.md](docs/BUILD_HEALTH.md) | CI/build health status and known issues |
+| [docs/weekly_plan.md](docs/weekly_plan.md) | Current weekly focus, ideas, and completed tasks (auto-maintained) |
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
@@ -144,6 +146,7 @@ Completed sprints, stale planning scratch, and session transcripts. **Not** inde
 | [lfo_sync_plan.md](docs/archive/lfo_sync_plan.md) | LFO sync feature planning scratch |
 | [grok.md](docs/archive/grok.md) | Grok assistant guide (superseded by AGENTS.md) |
 | [copilot-session-4c69e623-….md](docs/archive/copilot-session-4c69e623-937a-417f-a6f2-f94dc628f01f.md) | Copilot session transcript |
+| *(removed)* `agent_plan.md` | Parse-error-era agent scratch (deleted; recover via git history) |
 
 ---
 

@@ -177,7 +177,7 @@ Outcome: Planning run. Reconciled: 07-06 escalated Fix First → LANDED (moved t
 - [ ] `pnpm install --frozen-lockfile && pnpm run build:wasm && pnpm run lint && pnpm test`
 - [ ] `main` clean and pushed; optional branch `claude-YYYY-MM-DD` for PR-based output
 - [ ] Prime the lead issue with reproduction notes
-- [ ] Point Claude at: `weekly_plan.md`, lead issue, latest feature merge, `AGENTS.md`
+- [ ] Point Claude at: `docs/weekly_plan.md`, lead issue, latest feature merge, `AGENTS.md`
 
 ## Issue #720 repro notes (paste as issue comment if desired)
 Diagnostics already on `main`: fallback transitions log via `logEngineFallback()` in `src/utils/engineTelemetry.ts` (console prefix `[EngineFallback]`). Runtime HUD: **Ctrl+Shift+E** or `?hud=1` (`EngineHUD.tsx`).
@@ -200,7 +200,7 @@ Diagnostics already on `main`: fallback transitions log via `logEngineFallback()
 ## Context packet for 2026-06-16 run
 | Resource | Why |
 |----------|-----|
-| `weekly_plan.md` (this file) | Sprint scope + backlog state |
+| `docs/weekly_plan.md` (this file) | Sprint scope + backlog state |
 | [Issue #720](https://github.com/ford442/web_sequencer/issues/720) | Oscillator fallback audit — lead task |
 | PR #759 merge (`8234a1e` / `c266138`) | Vocal pitch envelope — params + file map |
 | `AGENTS.md` | Build/test/commit conventions, Four Worlds rule |

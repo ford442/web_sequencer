@@ -1,7 +1,7 @@
 1. **Analyze Requirements:**
    - Goal: Add a "Vocal Formant Envelope" specifically for formants.
    - Purpose: Create plucky or sweeping vocal filter effects on every note by modifying the formant shifting over time (Attack/Decay).
-   - Task mentioned in `agent_plan.md`:
+   - Task mentioned in `agent_plan.md` (removed; see git history):
      `[ ] **Vocal Formant Envelope:** Add a dedicated Attack/Decay envelope specifically for formants to create plucky or sweeping vocal filter effects on every note.`
    - Need to add properties to control Formant Envelope (e.g. Formant Attack, Formant Decay, Formant Envelope Amount).
 
