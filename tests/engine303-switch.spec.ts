@@ -17,8 +17,10 @@ import { test, expect } from '@playwright/test';
  * 3. SYNTH A / SYNTH B / BASS 2 select voices independently
  * 4. Every listed voice carries a tooltip description
  *
- * TODO: Fix Playwright environment setup for full audio context initialisation.
- * Temporarily skipped like other E2E specs until the CI environment is stable.
+ * TODO: Unskip when Playwright browsers are installed in the target environment.
+ * Specs are registry-driven (no hardcoded voice list) and cover multi-voice
+ * independent selection — they run in CI via `.github/workflows/playwright-e2e.yml`
+ * once unskipped.
  */
 
 /** Shared boot sequence: initialise the audio system and wait for the UI. */

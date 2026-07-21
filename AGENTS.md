@@ -8,7 +8,7 @@
 
 ### Key Features
 - **Dual synthesizers** (Lead & Bass / Part A & Part B) with ADSR, filters, delay, and multiple waveform engines
-- **TB-303 engines** with per-voice `engine303` switching (`open303` or authentic `jc303`) plus Prophecy formant waveforms
+- **TB-303 engines** with per-voice `model303` voice selection (growing catalog) and legacy `engine303` family switching (`open303` or authentic `jc303`) plus Prophecy formant waveforms
 - **Drum machine** (Kick, Snare, Open/Closed Hi-Hats)
 - **Sampler with 8 independent banks** and Supertonic TTS integration
 - **Real-time voice designer** with GPU-accelerated DSP (sharpen, echo, tremolo, jitter, geometric transforms)
@@ -54,7 +54,8 @@
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
 - **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp` (see `emscripten/build.sh`)
-- **Per-voice 303 switching**: `SynthParams.engine303` (`'open303' | 'jc303'`) flows through `Open303Manager.setBass1Engine/setBass2Engine/setLead303Engine` into the `open303-processor` `set-engine` message path.
+- **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
+- **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
 - **Current routing**:
   - `partB` / **SYNTH B** 303 waves → `bass1`
   - **BASS 2** 303 waves → `bass2`
@@ -607,6 +608,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 
 ## Resources
 
+- **303 Voices catalog**: [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md) — selectable TB-303 models, WASM registry, migration, tests
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
 - **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`
