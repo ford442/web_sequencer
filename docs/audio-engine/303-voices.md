@@ -15,16 +15,20 @@ track without touching the others.
 
 ## Current catalog
 
-| Id | Family | Status | Character |
-|----|--------|--------|-----------|
-| `stock-open303` | open303 | ✅ shipped | Pristine default — bit-identical to the pre-voices custom engine. |
-| `jc303` | jc303 | ✅ shipped | Authentic rosic::Open303 — identical to the old "Authentic JC303" engine setting. |
-| `1ink303-v1` | open303 | ✅ shipped | In-house: warmer filter base (26 Hz), rounder accent, slower slides, gentle saw shaping. |
-| `experimental-01` | open303 | ✅ shipped | Scratchpad: hotter resonance feedback (4.15), snappier envelope, harder accent punch, heavier square drive. |
-| `rebirth-338-1.5` | open303 | ✅ shipped | Inspired by ReBirth RB-338 1.5 (not a clone): squishier, self-oscillation-prone filter, gooey slides, big accent lift. |
-| `rebirth-2.0` | open303 | ✅ shipped | Inspired by ReBirth 2.0 (not a clone): cleaner/tighter filter than 1.5, punchier accent, snappier envelope. |
-| `mb33-mkii` | open303 | ✅ shipped | Inspired by MAM MB33 mkII (not a clone): boxier digital filter, distinct accent punch, square/saw grit. |
-| `raveolution` | open303 | ✅ shipped | Inspired by Quasimidi Raveolution 309 (not a clone): brighter harsh self-osc, aggressive resonance, snappy envelope, heavy drive. |
+Canonical registry: `src/engines/TB303Models.ts` (`TB303_MODELS`) mirrored by
+`k303Models[]` in `emscripten/open303_wrapper.cpp`. Ids are persisted in saved
+songs — **never rename** a shipped id.
+
+| Id | Label | Base engine | Character | Inspired by |
+|----|-------|-------------|-----------|-------------|
+| `stock-open303` | Stock Open303 | `open303` | Pristine default — bit-identical to the pre-voices custom engine | Hyphon built-in Open303 |
+| `jc303` | Authentic JC303 | `jc303` | Authentic rosic::Open303 DSP — same as the legacy "Authentic JC303" engine | TB-303 (rosic::Open303) |
+| `1ink303-v1` | 1ink303 v1 | `open303` | Warmer filter base, rounder accent, slower slides, gentle saw shaping | In-house Hyphon voice |
+| `experimental-01` | Experimental 01 | `open303` | Hot resonance feedback, snappier envelope, harder accent punch, heavier square drive | Scratchpad / dev voice |
+| `rebirth-338-1.5` | ReBirth RB-338 1.5 | `open303` | Squishier, self-oscillation-prone filter, gooey slides, big accent lift | ReBirth RB-338 1.5 *(not a clone)* |
+| `rebirth-2.0` | ReBirth 2.0 | `open303` | Cleaner/tighter filter than 1.5, punchier accent, snappier envelope | ReBirth RB-338 2.0 *(not a clone)* |
+| `mb33-mkii` | MB33 mkII | `open303` | Boxier digital filter, distinct accent punch, square/saw grit | MAM MB33 mkII *(not a clone)* |
+| `raveolution` | Raveolution 309 | `open303` | Bright harsh self-osc, aggressive resonance, snappy envelope, heavy drive | Quasimidi Raveolution 309 *(not a clone)* |
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
@@ -86,6 +90,63 @@ brighter and harsher with aggressive resonance/self-oscillation, a snappy
 envelope, and heavier drive for dance-floor character.
 
 ## Architecture
+
+End-to-end flow from the C++ factory through the UI:
+
+```mermaid
+flowchart LR
+  subgraph cpp ["C++ factory (open303_wrapper.cpp)"]
+    K303["k303Models[] profiles"]
+    EXP["WASM exports\nopen303_get_model_*\nopen303_set_model*"]
+    K303 --> EXP
+  end
+
+  subgraph wasm ["hyphon_native.wasm"]
+    EXP
+    JC["jc303_* API\n(jc303_wrapper.cpp)"]
+  end
+
+  subgraph worklet ["AudioWorklet"]
+    PROC["open303-processor.ts\nset-303-model message"]
+    EXP --> PROC
+    JC --> PROC
+  end
+
+  subgraph ts ["TypeScript"]
+    OSC["Open303Oscillator\nsetModel303()"]
+    MGR["Open303Manager\nsetBass1/2/Lead303Model"]
+    REG["TB303Models.ts registry"]
+    UI["Voice303Selector"]
+    REG --> UI
+    UI --> MGR
+    MGR --> OSC
+    OSC --> PROC
+  end
+
+  subgraph persist ["Persistence"]
+    SONG["SavedSongData\nmodel303 + engine303 mirror"]
+    NORM["normalizeTB303Model()"]
+    SONG --> NORM --> MGR
+  end
+```
+
+See also [jc303-prophecy.md](jc303-prophecy.md) for the legacy dual-engine
+switch and Prophecy formant routing.
+
+### Per-instance routing
+
+Each 303 track picks its voice independently. Three `Open303Oscillator`
+instances share one `open303-processor` worklet but hold separate model state:
+
+| UI part | Track key | Manager method | Oscillator instance |
+|---------|-----------|----------------|---------------------|
+| SYNTH A (303 waves) | `partA` | `setLead303Model` | `lead303` |
+| SYNTH B (303 waves) | `partB` | `setBass1Model` | `bass1` |
+| BASS 2 | `bass2` | `setBass2Model` | `bass2` |
+
+After audio init or song load, `useAppState` calls
+`Open303Manager.syncModel303Settings({ lead, bass1, bass2 })` with ids from
+`normalizeTB303Model(model303, engine303)` per part.
 
 ### C++ (`emscripten/open303_wrapper.cpp`)
 
@@ -171,17 +232,48 @@ populated from `getAvailableTB303Models()` with the model description as the
 tooltip — new registry entries appear automatically. The old two-way
 `Engine303Selector` is deprecated but kept for compatibility.
 
+## Legacy `engine303` → `model303` migration
+
+Songs saved before the voices architecture carry only `engine303: 'open303' |
+'jc303'`. New songs write **both** fields so older builds still load the
+closest stock voice.
+
+| Saved field(s) | Resolved `model303` | Notes |
+|----------------|---------------------|-------|
+| `model303: 'experimental-01'` | `experimental-01` | Primary field wins |
+| `model303` + conflicting `engine303` | `model303` (if known + available) | `model303` takes precedence |
+| `engine303: 'jc303'` only | `jc303` | Legacy JC path |
+| `engine303: 'open303'` only | `stock-open303` | **`open303` aliases to `stock-open303`** |
+| Unknown future id | `stock-open303` or `jc303` | Falls back via `engine303` hint |
+
+API aliases:
+
+- `setEngine303('open303')` → `stock-open303` (via `stockModelForFamily`)
+- `setEngine303('jc303')` → `jc303`
+- On save, `useHardwarePanels` mirrors each `model303` change into `engine303`
+  via `tb303ModelFamily(model)`.
+
 ## Adding a new voice
 
-1. Add a profile row to `k303Models[]` in `emscripten/open303_wrapper.cpp`
-   (for an `open303`-family coefficient voice — bigger topology changes get a
-   separate DSP class behind the same instance API).
-2. Rebuild the WASM: `pnpm run build:emcc`.
-3. Add the matching entry to `TB303_MODELS` in `src/engines/TB303Models.ts`
-   with `available: true`.
+Checklist — this is the **only** guide needed to ship voice #N:
 
-That's it — the selector, worklet routing, persistence and normalization all
-read the registry.
+1. **C++ coefficient row** — add a profile to `k303Models[]` in
+   `emscripten/open303_wrapper.cpp` (open303-family voices are coefficient
+   profiles; jc303-family voices route to `jc303_wrapper.cpp` instead).
+2. **Registry entry** — add a matching row to `TB303_MODELS` in
+   `src/engines/TB303Models.ts` with `available: true`, `label`,
+   `shortLabel`, and `description` (tooltip text).
+3. **Rebuild emcc** — `pnpm run build:emcc` (or `bash emscripten/build.sh`).
+4. **UI description** — the `description` field in step 2 is the tooltip shown by
+   `Voice303Selector`; no component changes required.
+5. **Test pattern A/B** — run the offline voice test and manual in-app check:
+   - Automated: `bash emscripten/tests/run_offline_voices_test.sh`
+   - Manual: program a 303 bassline, toggle stock → new voice → stock (see
+     [Manual A/B checklist](#manual-ab-checklist-in-app-after-pnpm-run-buildemcc)
+     below).
+
+No other call-site changes — the selector, worklet routing, persistence, and
+normalization all read the registry.
 
 ## Out of scope for v1
 
