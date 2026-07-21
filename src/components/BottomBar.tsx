@@ -185,8 +185,20 @@ export const BottomBar = memo(function BottomBar({
                         onClick={() => setIsAutomationRecording(!isAutomationRecording)}
                         disabled={!isPlaying}
                         aria-pressed={isAutomationRecording}
-                        aria-label="Toggle Automation Recording"
-                        title={isAutomationRecording ? "Stop Automation Recording (saves to song lanes)" : "Record Automation (arm+ capture knob moves while playing)"}
+                        aria-label={
+                            !isPlaying
+                                ? 'Start playback to record automation'
+                                : isAutomationRecording
+                                    ? 'Stop automation recording'
+                                    : 'Record automation'
+                        }
+                        title={
+                            !isPlaying
+                                ? 'Start playback to record automation'
+                                : isAutomationRecording
+                                    ? 'Stop Automation Recording (saves to song lanes)'
+                                    : 'Record Automation (arm+ capture knob moves while playing)'
+                        }
                         className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'bg-zinc-800 text-red-400 border border-red-900/50 hover:bg-red-950 hover:text-red-300'} ${!isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {isAutomationRecording ? '● REC' : 'REC AUTO'}
