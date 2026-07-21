@@ -427,8 +427,15 @@ export function createPlayDrum(
         // Use DrumKitEngine for authentic 808/909 synthesis when available
         const kitEngine = refs.drumKitEngineRef?.current;
         if (kitEngine) {
-            if (sound === 'kick' && refs.sidechainGainRef.current) {
-                triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+            if (sound === 'kick') {
+                if (refs.sidechainGainRef.current) {
+                    triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+                }
+                if (refs.singingVoiceManagerRef?.current) {
+                    refs.singingVoiceManagerRef.current.getAllVoices().forEach(voice => {
+                        voice.triggerFormantSidechainDuck(now, -12, 0.25);
+                    });
+                }
             }
 
             kitEngine.play(context, refs.masterGainRef.current, refs.noiseBufferRef.current, sound, adjustedParams, now);
@@ -439,6 +446,11 @@ export function createPlayDrum(
         if (sound === 'kick') {
                 if (refs.sidechainGainRef.current) {
                     triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+                }
+                if (refs.singingVoiceManagerRef?.current) {
+                    refs.singingVoiceManagerRef.current.getAllVoices().forEach(voice => {
+                        voice.triggerFormantSidechainDuck(now, -12, 0.25);
+                    });
                 }
 
                 const kickParams = params as KickParams;

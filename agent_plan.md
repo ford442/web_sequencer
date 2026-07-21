@@ -245,5 +245,6 @@
 
 
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.
+* [x] **Idea:** "Formant Envelope Sidechaining" - Duck the lead vocal formant shift when the kick drum hits to create rhythmic voweling.
 ## 2026-08-06 - Implemented Granular Pitch Envelope: Completed implementation by adding UI controls to ContextMenuNode and fixing syntax in useAudioEngine. Fulfills "Granular Pitch Envelope" Innovation Lab idea.
 * [x] **Idea:** "Granular Pitch Envelope" - Apply a dedicated pitch envelope explicitly to the granular synthesis engine.

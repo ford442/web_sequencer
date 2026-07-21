@@ -1121,6 +1121,19 @@ export class SingingVoice {
   }
 
   /**
+   * Trigger a sidechain duck on the formant filters.
+   */
+  triggerFormantSidechainDuck(
+    time: number,
+    depth: number,
+    releaseTime: number,
+  ) {
+    if (this.formantShifter && this.config.enableFormantShifting) {
+      this.formantShifter.triggerSidechainDuck(time, depth, releaseTime);
+    }
+  }
+
+  /**
    * Set character morphing amount and target.
    * @param amount Morph amount (0 to 1)
    * @param target Target voice character

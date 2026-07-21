@@ -104,6 +104,10 @@ export class FormantShifter {
     private envNode: ConstantSourceNode | null = null;
     private envGain: GainNode | null = null;
 
+    // Sidechain Duck components
+    private sidechainEnvNode: ConstantSourceNode | null = null;
+    private sidechainEnvGain: GainNode | null = null;
+
     // Envelope Follower components
     private followerWaveshaper: WaveShaperNode | null = null;
     private followerFilter: BiquadFilterNode | null = null;
@@ -216,6 +220,19 @@ export class FormantShifter {
             }
 
             this.envNode.start();
+
+            // Sidechain envelope
+            this.sidechainEnvNode = this.audioContext.createConstantSource();
+            this.sidechainEnvGain = this.audioContext.createGain();
+            this.sidechainEnvGain.gain.value = 0; // Idle state
+
+            this.sidechainEnvNode.connect(this.sidechainEnvGain);
+
+            for (let i = 0; i < formants.length; i++) {
+                this.sidechainEnvGain.connect(filters[i].detune);
+            }
+
+            this.sidechainEnvNode.start();
         }
 
         // Create Envelope Follower components
@@ -592,6 +609,16 @@ export class FormantShifter {
             this.envGain = null;
         }
 
+        if (this.sidechainEnvNode) {
+            this.sidechainEnvNode.stop();
+            this.sidechainEnvNode.disconnect();
+            this.sidechainEnvNode = null;
+        }
+        if (this.sidechainEnvGain) {
+            this.sidechainEnvGain.disconnect();
+            this.sidechainEnvGain = null;
+        }
+
         if (this.followerWaveshaper) {
             this.followerWaveshaper.disconnect();
             this.followerWaveshaper = null;
@@ -651,6 +678,30 @@ export class FormantShifter {
         } else {
             gainParam.setValueAtTime(0, t + attack);
         }
+    }
+
+    /**
+     * Trigger a sidechain duck on the formant filters.
+     * @param time Trigger time
+     * @param depth Duck depth in semitones (usually negative)
+     * @param releaseTime Time to recover back to 0
+     */
+    triggerSidechainDuck(time: number, depth: number, releaseTime: number): void {
+        if (!this.sidechainEnvGain) return;
+
+        const t = time;
+        const gainParam = this.sidechainEnvGain.gain;
+
+        gainParam.cancelScheduledValues(t);
+        gainParam.setValueAtTime(gainParam.value, t);
+
+        const duckAmount = depth * 100; // Map semitones to cents
+
+        // Instant drop (10ms to prevent clicking)
+        gainParam.linearRampToValueAtTime(duckAmount, t + 0.01);
+
+        // Recover
+        gainParam.setTargetAtTime(0.0, t + 0.01, releaseTime / 3);
     }
 
     /**
