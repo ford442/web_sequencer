@@ -194,7 +194,7 @@ export function usePatternHandlers(deps: {
              'filterCutoff' | 'filterResonance' | 'envMod' |
              'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
              'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
-             'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvFollower' | 'formantEnvSync' |
+             'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvFollower' | 'formantSidechainDepth' | 'formantEnvSync' |
              'vibratoDepth' | 'drive' | 'characterMorph' |
              'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
              'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |

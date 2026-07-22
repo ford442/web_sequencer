@@ -119,6 +119,7 @@ export interface SamplerNoteParams {
     formantEnvDecay?: number;
     formantEnvAmount?: number;
     formantEnvFollower?: number;
+    formantSidechainDepth?: number;
     pitchAttack?: number;
     pitchDecay?: number;
     pitchAmount?: number;
@@ -445,6 +446,7 @@ export function createSamplerPlayback(
 
         if (ctx.pEnvAmount !== 0) voice.setFormantEnvelope(ctx.pEnvAmount, ctx.pEnvAttack as number, ctx.pEnvDecay as number, triggerTime);
         voice.setFormantEnvFollower(ctx.pFormantEnvFollower as number, triggerTime);
+        voice.setFormantSidechainDepth(ctx.noteParams?.formantSidechainDepth ?? ctx.params.formantSidechainDepth ?? 0);
 
         // Load buffer only if the voice doesn't already have it
         if (isNewBank) {

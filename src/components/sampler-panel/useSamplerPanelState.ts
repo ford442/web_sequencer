@@ -65,7 +65,7 @@ export function useSamplerPanelState({
       'playbackSpeed', 'volume', 'filterCutoff', 'drive',
       'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower',
+      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower', 'formantSidechainDepth',
       'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
@@ -367,6 +367,7 @@ export function useSamplerPanelState({
   const handleFormantEnvDecayChange = useCallback((v: number) => updateParam('formantEnvDecay', v), [updateParam]);
   const handleFormantEnvAmountChange = useCallback((v: number) => updateParam('formantEnvAmount', v), [updateParam]);
   const handleFormantEnvFollowerChange = useCallback((v: number) => updateParam('formantEnvFollower', v), [updateParam]);
+  const handleFormantSidechainDepthChange = useCallback((v: number) => updateParam('formantSidechainDepth', v), [updateParam]);
 
   return {
     status,
@@ -405,5 +406,6 @@ export function useSamplerPanelState({
     handleFormantEnvDecayChange,
     handleFormantEnvAmountChange,
     handleFormantEnvFollowerChange,
+    handleFormantSidechainDepthChange,
   };
 }

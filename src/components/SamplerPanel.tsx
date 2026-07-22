@@ -134,6 +134,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           onFormantEnvDecayChange={state.handleFormantEnvDecayChange}
           onFormantEnvAmountChange={state.handleFormantEnvAmountChange}
           onFormantEnvFollowerChange={state.handleFormantEnvFollowerChange}
+          onFormantSidechainDepthChange={state.handleFormantSidechainDepthChange}
         />
       </div>
     </div>

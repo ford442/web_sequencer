@@ -67,6 +67,7 @@ export const DEFAULT_BANK_PARAMS: SamplerBankParams = {
   formantEnvDecay: 0.5,
   formantEnvAmount: 0,
   formantEnvFollower: 0,
+  formantSidechainDepth: 0,
   characterMorph: 0,
   morphTarget: 'female',
   attack: 0.05,

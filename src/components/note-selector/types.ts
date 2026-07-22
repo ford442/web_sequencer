@@ -37,6 +37,7 @@ export type PropertyChangeKey =
   | "formantEnvDecay"
   | "formantEnvAmount"
   | "formantEnvFollower"
+  | "formantSidechainDepth"
   | "formantEnvSync"
   | "vibratoDepth"
   | "tremoloDepth"
@@ -105,6 +106,7 @@ export interface NoteSelectorProps {
   currentFormantEnvDecay?: number;
   currentFormantEnvAmount?: number;
   currentFormantEnvFollower?: number;
+  currentFormantSidechainDepth?: number;
   currentFreezeLfoSync?: boolean;
   currentFreezeLfoRate?: number;
   currentFreezeLfoDepth?: number;

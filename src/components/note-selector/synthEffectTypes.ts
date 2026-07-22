@@ -36,6 +36,7 @@ export interface SynthEffectPropertiesProps {
   currentFormantEnvDecay?: number;
   currentFormantEnvAmount?: number;
   currentFormantEnvFollower?: number;
+  currentFormantSidechainDepth?: number;
   currentDrive?: number;
   currentVibratoDepth?: number;
   currentVowel?: number;

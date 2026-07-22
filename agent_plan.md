@@ -283,7 +283,11 @@
 
 ## 2026-08-11 - Implemented Vocal Harmony Envelope: Added `harmonyAttack` and `harmonyRelease` to `HarmonizerConfig` and `HarmonizerPopover` UI. Updated `useAudioEngine.ts` to automatically override base envelope parameters for spawned harmony voices based on the Harmonizer config. Fulfills "Vocal Harmony Envelope" Innovation Lab idea. Added new idea: "Formant Envelope Sidechaining".
 
-* [ ] **Idea:** "Formant Envelope Sidechaining" - Allow ducking the formant shift frequency of the lead vocal when a specific instrument (like the kick drum) hits to create rhythmic voweling.
+* [x] **Idea:** "Formant Envelope Sidechaining" - Allow ducking the formant shift frequency of the lead vocal when a specific instrument (like the kick drum) hits to create rhythmic voweling.
+
+## 2026-08-14 - Implemented Formant Envelope Sidechaining: Added `formantSidechainDepth` to `SamplerBankParams` and `Note` interfaces. Added a dedicated `sidechainGain` node in `FormantShifter.ts` and exposed `triggerSidechainDuck`. Wired it up so kick drums triggered in `audioPlayback.ts` automatically duck the formants of active `SingingVoice` instances. Added UI knobs to `SamplerPanel` and `NoteSelector`. Fulfills "Formant Envelope Sidechaining" Innovation Lab idea. Added new idea: "Filter Ducking Sidechaining".
+
+* [ ] **Idea:** "Filter Ducking Sidechaining" - Allow ducking the cutoff frequency of synthesizer filters via a dedicated sidechain node when a specific instrument hits.
 
 ## 2026-08-09 - Implemented Spectral Resynthesis Mode: Added `spectralResynthesis` mode to `vocoder-processor.ts` which interpolates between Vocoder envelope tracking and true FFT-based magnitude cross-synthesis. Plumbed parameters through the AudioEngine and added UI controls to `NoteSelector`, `SamplerVoicePanel`, and `SamplerPanel`. Fulfills "Spectral Resynthesis Mode" Innovation Lab idea. Added new idea: "Harmonic Content Preserving Time-Stretch".
 

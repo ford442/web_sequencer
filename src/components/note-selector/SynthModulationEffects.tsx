@@ -39,6 +39,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
     currentFormantEnvDecay = 0.5,
     currentFormantEnvAmount = 0,
     currentFormantEnvFollower = 0,
+    currentFormantSidechainDepth = 0,
     currentDrive,
     currentVibratoDepth = 0,
     currentVowel = 0,
@@ -465,6 +466,29 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
               onChange={(e) =>
                 onPropertyChange?.(
                   "formantEnvAmount",
+                  parseFloat(e.target.value),
+                )
+              }
+              className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer accent-indigo-400 hover:accent-indigo-300 transition-all"
+            />
+          </div>
+          <div className="flex flex-col gap-1 mt-2">
+            <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+              <label htmlFor="note-fmt-env-duck">Ducking (Kick)</label>
+              <span className="text-indigo-400 font-mono text-[10px]">
+                {currentFormantSidechainDepth} st
+              </span>
+            </div>
+            <input
+              id="note-fmt-env-duck"
+              type="range"
+              min="0"
+              max="24"
+              step="1"
+              value={currentFormantSidechainDepth}
+              onChange={(e) =>
+                onPropertyChange?.(
+                  "formantSidechainDepth",
                   parseFloat(e.target.value),
                 )
               }
