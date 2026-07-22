@@ -1,6 +1,7 @@
 import type { AlignmentResult } from "../rubberband/PhonemeAligner";
 import type { PhonemeBufferPool } from "../../services/PhonemeBufferPool";
 import { clampStretchRatio } from "./constants";
+import type { PhonemeData } from '../../types';
 import type { SingingVoiceHost } from "./host";
 
 export const PlaybackMixin = {
@@ -269,6 +270,7 @@ export const PlaybackMixin = {
   sendPhonemeDataToWorklet(
     this: SingingVoiceHost,
     targetDuration?: number,
+    userPhonemes?: PhonemeData[],
   ): void {
     if (!this.lastAlignment || !this.phonemeAligner || !this.workletNode) {
       return;
@@ -289,6 +291,7 @@ export const PlaybackMixin = {
     const sharedBuffer = this.phonemeAligner.createSharedPhonemeBuffer(
       phonemes,
       this.audioContext.sampleRate,
+      userPhonemes,
     );
 
     // Send to worklet

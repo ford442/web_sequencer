@@ -27,6 +27,8 @@ interface AlignmentServiceResponse {
 }
 
 /** Phoneme timing information from forced alignment */
+import type { PhonemeData } from '../../types';
+
 export interface PhonemeSegment {
     /** The phoneme symbol (e.g., 'AH', 'T', 'K') */
     phoneme: string;
@@ -474,9 +476,9 @@ export class PhonemeAligner {
      * @param sampleRate Sample rate to convert times to samples
      * @returns SharedArrayBuffer with phoneme data
      */
-    createSharedPhonemeBuffer(phonemes: PhonemeSegment[], sampleRate: number): SharedArrayBuffer {
-        // 1 int for count + 4 floats per phoneme (start, end, isVowel, stretchRatio)
-        const bufferSize = (1 + phonemes.length * 4) * 4; // 4 bytes per float32
+    createSharedPhonemeBuffer(phonemes: PhonemeSegment[], sampleRate: number, userPhonemes?: PhonemeData[]): SharedArrayBuffer {
+        // 1 int for count + 6 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend)
+        const bufferSize = (1 + phonemes.length * 6) * 4; // 4 bytes per float32
         const sharedBuffer = new SharedArrayBuffer(bufferSize);
         const view = new Float32Array(sharedBuffer);
         
@@ -484,11 +486,25 @@ export class PhonemeAligner {
         
         for (let i = 0; i < phonemes.length; i++) {
             const p = phonemes[i];
-            const baseIndex = 1 + i * 4;
+            const baseIndex = 1 + i * 6;
             view[baseIndex] = p.start * sampleRate;     // Start sample
             view[baseIndex + 1] = p.end * sampleRate;   // End sample
             view[baseIndex + 2] = p.isVowel ? 1.0 : 0.0; // Boolean as float
             view[baseIndex + 3] = 1.0;                   // Default stretch ratio
+
+            // Map user phoneme data if available
+            let volume = 1.0;
+            let pitchBend = 0.0;
+            if (userPhonemes && userPhonemes.length > i) {
+                // If userPhonemes are provided, we map them by index.
+                // Alternatively, we could map them by normalized time,
+                // but index matching aligns with how PhonemePainter initializes.
+                const userP = userPhonemes[i];
+                if (userP.volume !== undefined) volume = userP.volume;
+                if (userP.pitchBend !== undefined) pitchBend = userP.pitchBend;
+            }
+            view[baseIndex + 4] = volume;
+            view[baseIndex + 5] = pitchBend;
         }
         
         return sharedBuffer;

@@ -261,21 +261,28 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   /**
    * Determine the stretch ratio for the current sample position based on phoneme data.
    */
-  private getPhonemeStretchRatio(currentSample: number): number {
-    if (!this.phonemeData || !this.phonemeRatios) return 1.0;
+  /**
+   * Determine the phoneme parameters for the current sample position.
+   * Returns [stretchRatio, volume, pitchBend]
+   */
+  private getPhonemeDataAtSample(currentSample: number): [number, number, number] {
+    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0];
 
     const count = this.phonemeData[0];
-    // Phoneme data stride is 4 floats: start, end, isVowel, stretch(unused in buffer, used from ratios array)
+    // Phoneme data stride is 6 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend
     for (let i = 0; i < count; i++) {
-      const baseIndex = 1 + i * 4;
+      const baseIndex = 1 + i * 6;
       const start = this.phonemeData[baseIndex];
       const end = this.phonemeData[baseIndex + 1];
 
       if (currentSample >= start && currentSample < end) {
-        return this.phonemeRatios[i] || 1.0;
+        const ratio = this.phonemeRatios[i] || 1.0;
+        const volume = this.phonemeData[baseIndex + 4] !== undefined ? this.phonemeData[baseIndex + 4] : 1.0;
+        const pitchBend = this.phonemeData[baseIndex + 5] !== undefined ? this.phonemeData[baseIndex + 5] : 0.0;
+        return [ratio, volume, pitchBend];
       }
     }
-    return 1.0;
+    return [1.0, 1.0, 0.0];
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -359,6 +366,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       finalPitch *= pitchShiftRatio;
     }
 
+    // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
+    if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
+        const [_, _vol, pBend] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        if (pBend !== 0.0) {
+            const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
+            finalPitch *= pitchBendRatio;
+        }
+    }
+
     // Granular Pitch Quantization: snap pitch to intervals when active
     const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
     if (grainPitchQuantize > 0.0 && finalPitch > 0.0) {
@@ -375,8 +391,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       if (this.isPlaying && this.fullSampleBuffer) {
         // Calculate dynamic time ratio based on phoneme data
         let ratio = defaultTimeRatio;
+        let phonemeVolume = 1.0;
+        let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          ratio = this.getPhonemeStretchRatio(this.currentSamplePtr);
+          const [pRatio, pVol, pBend] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          ratio = pRatio;
+          phonemeVolume = pVol;
+          phonemePitchBendCents = pBend;
         }
 
         // Apply Time-Stretch Envelope modulation
@@ -534,7 +555,19 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         );
 
         outputChannel.set(outputView);
-        this.expressiveProcessor.process(outputChannel, outputChannel);      // Apply Rhythmic Gating (Trance Gate)
+        this.expressiveProcessor.process(outputChannel, outputChannel);
+
+        // Apply phoneme volume
+        if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
+            const [_, pVol, _pBend] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            if (pVol !== 1.0) {
+                for (let i = 0; i < outputChannel.length; i++) {
+                    outputChannel[i] *= pVol;
+                }
+            }
+        }
+
+        // Apply Rhythmic Gating (Trance Gate)
       const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0.0;
       const gateRate = parameters.gateRate ? parameters.gateRate[0] : 0.0;
 
