@@ -523,7 +523,7 @@ export function createSamplerPlayback(
         // 3. Phoneme Awareness (from Jules branch)
         if (ctx.alignment) {
             voice.setAlignment(ctx.alignment);
-            voice.sendPhonemeDataToWorklet(targetDuration);
+            voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
         // 4. Play
