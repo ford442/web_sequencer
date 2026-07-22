@@ -375,10 +375,12 @@ export const useStepHandler = ({
         }
 
         // === Sampler ===
-        p.sampler.forEach((seq, bankIdx) => {
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let bankIdx = 0; bankIdx < p.sampler.length; bankIdx++) {
+            const seq = p.sampler[bankIdx];
             const stepData = seq.steps[step];
-            if (!stepData) return;
-            if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+            if (!stepData) continue;
+            if (stepData.probability !== undefined && Math.random() > stepData.probability) continue;
 
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
             const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
@@ -440,7 +442,7 @@ export const useStepHandler = ({
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
-        });
+        }
 
         // Visual feedback for phoneme slices
         if (sliceHighlightRef.current && samplerRef.current[activeSamplerBankRef.current]?.sliceMode === 'phoneme') {
