@@ -948,16 +948,20 @@ export function createStopAllNotes(
   >,
 ): NonNullable<AudioEngine["stopAllNotes"]> {
   return () => {
-    refs.activeSynthNotes.current.forEach((note) => note.stop());
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+    for (const note of refs.activeSynthNotes.current) {
+      note.stop();
+    }
     refs.activeSynthNotes.current.clear();
 
-    refs.activeSamplerNotes.current.forEach((note) => {
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+    for (const note of refs.activeSamplerNotes.current) {
       try {
         note.source.stop();
       } catch {
         // Ignore stop() errors from sources that have already stopped or are otherwise invalid.
       }
-    });
+    }
     refs.activeSamplerNotes.current.clear();
 
     refs.voiceManagerARef.current?.stopAll(0);
