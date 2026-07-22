@@ -26,7 +26,7 @@ if (typeof AudioBuffer === 'undefined') {
 }
 
 describe('audioBufferToWav Performance', () => {
-    it('benchmarks execution time', () => {
+    it('benchmarks execution time', async () => {
         const length = 44100 * 5; // 5 seconds
         const buffer = new MockAudioBuffer({
             numberOfChannels: 2,
@@ -46,7 +46,7 @@ describe('audioBufferToWav Performance', () => {
         const iterations = 100;
 
         for (let i = 0; i < iterations; i++) {
-            audioBufferToWav(buffer);
+            await audioBufferToWav(buffer);
         }
 
         const end = performance.now();

@@ -1,5 +1,6 @@
 import processorUrl from "../../audio-worklets/rubberband-processor.ts?worker&url";
 import type { SingingVoiceHost } from "./host";
+import { attachWorkletPerf, registerRubberbandNode } from "../../utils/workletPerfBridge";
 
 export const WorkletSetupMixin = {
   /**
@@ -87,6 +88,8 @@ export const WorkletSetupMixin = {
       });
 
       console.log("SingingVoice: AudioWorklet initialized successfully");
+      attachWorkletPerf(this.workletNode, 'rubberband');
+      registerRubberbandNode(this.workletNode);
     } catch (e) {
       console.error("SingingVoice: AudioWorklet initialization failed:", e);
       this.workletNode = null;

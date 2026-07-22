@@ -29,7 +29,7 @@ describe('audioExport', () => {
                 getChannelData: (channel: number) => channel === 0 ? channel0 : channel1
             } as unknown as AudioBuffer;
 
-            const blob = audioBufferToWav(mockBuffer);
+            const blob = await audioBufferToWav(mockBuffer);
             expect(blob.type).toBe('audio/wav');
 
             const buffer = await blob.arrayBuffer();
@@ -79,6 +79,26 @@ describe('audioExport', () => {
 
             // Sample 3 (0.5) -> 0.5 * 32767 = 16383.5 -> 16383 (floor/trunc)
             expect(view.getInt16(56, true)).toBe(16383);
+        });
+
+        it('should create a valid 24-bit WAV file', async () => {
+            const sampleRate = 48000;
+            const length = 4;
+            const channel0 = new Float32Array([0, 0.5, -0.5, 1]);
+            const mockBuffer = {
+                length,
+                numberOfChannels: 1,
+                sampleRate,
+                getChannelData: () => channel0,
+            } as unknown as AudioBuffer;
+
+            const blob = await audioBufferToWav(mockBuffer, { bitDepth: 24, sampleRate: 48000 });
+            const buffer = await blob.arrayBuffer();
+            const view = new DataView(buffer);
+
+            expect(view.getUint16(34, true)).toBe(24);
+            expect(view.getUint32(24, true)).toBe(48000);
+            expect(view.getUint32(36, true)).toBe(0x61746164);
         });
     });
 });

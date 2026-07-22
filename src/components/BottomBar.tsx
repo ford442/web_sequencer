@@ -24,6 +24,7 @@ interface BottomBarProps {
     exportRbsToFile: () => Promise<void>
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setIsExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsCloudLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>
     handleAutoMix: () => void
@@ -66,6 +67,7 @@ export const BottomBar = memo(function BottomBar({
     exportRbsToFile,
     importSongFromFile,
     setIsRbsImportModalOpen,
+    setIsExportModalOpen,
     setIsAISongModalOpen,
     setIsCloudLibraryOpen,
     handleAutoMix,
@@ -183,8 +185,20 @@ export const BottomBar = memo(function BottomBar({
                         onClick={() => setIsAutomationRecording(!isAutomationRecording)}
                         disabled={!isPlaying}
                         aria-pressed={isAutomationRecording}
-                        aria-label="Toggle Automation Recording"
-                        title={isAutomationRecording ? "Stop Automation Recording (saves to song lanes)" : "Record Automation (arm+ capture knob moves while playing)"}
+                        aria-label={
+                            !isPlaying
+                                ? 'Start playback to record automation'
+                                : isAutomationRecording
+                                    ? 'Stop automation recording'
+                                    : 'Record automation'
+                        }
+                        title={
+                            !isPlaying
+                                ? 'Start playback to record automation'
+                                : isAutomationRecording
+                                    ? 'Stop Automation Recording (saves to song lanes)'
+                                    : 'Record Automation (arm+ capture knob moves while playing)'
+                        }
                         className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'bg-zinc-800 text-red-400 border border-red-900/50 hover:bg-red-950 hover:text-red-300'} ${!isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {isAutomationRecording ? '● REC' : 'REC AUTO'}
@@ -258,6 +272,15 @@ export const BottomBar = memo(function BottomBar({
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
                     💾 Export .rbs
+                </button>
+                <button type="button"
+                    onClick={() => setIsExportModalOpen(true)}
+                    disabled={isImportingAISong}
+                    aria-label="Export dry stems as ZIP"
+                    className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
+                    title={isImportingAISong ? "Cannot export while importing AI song" : "Export dry stems (WAV ZIP)"}
+                >
+                    🎚 Export Stems
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}

@@ -42,6 +42,15 @@ function assertValidNote(note: Note) {
 }
 
 describe('RbsImporter TB-303 fidelity', () => {
+  it('sets stock model303 voice fields on imported 303 synth params', () => {
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const result = importer.convertToHyphonSong(makeRaw());
+    expect(result.song.params.synthA.model303).toBe('stock-open303');
+    expect(result.song.params.synthA.engine303).toBe('open303');
+    expect(result.song.params.synthB.model303).toBe('stock-open303');
+    expect(result.song.params.synthB.engine303).toBe('open303');
+  });
+
   it('16→32 tied note sustains without re-triggering envelope', () => {
     const steps: Tb303Step[] = Array.from({ length: 16 }, (_, i) => {
       if (i === 0) return tb303Step({ index: 0, note: 0, accent: true });

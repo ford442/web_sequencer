@@ -16,7 +16,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
-import type { AutomationTarget } from '../types';
+import type { AutomationTarget, UnifiedAutomationLane } from '../types';
 
 // ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
 const getAutomationValue = (target: AutomationTarget, param: string, step: number): number | undefined => {
@@ -45,23 +45,50 @@ import {
     PLAYBACK_THRESHOLDS,
 } from '../audio/playback/PlaybackHealthMonitor';
 
-function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
-    const notesArray = Array.isArray(notes) ? notes : [notes];
-    if (notesArray.length <= 1) return notes;
+// Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
+const _midiScratch: number[] = [];
+const _noteScratch: string[] = [];
+const _liveValuesScratch: Record<string, number> = {};
+const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
+const _bankParamsScratch: Partial<SamplerBankParams> = {};
 
-    const maxInversions = notesArray.length - 1;
+function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
+    const isArray = Array.isArray(notes);
+    const len = isArray ? (notes as string[]).length : 1;
+    if (len <= 1) return notes;
+
+    const maxInversions = len - 1;
     const numInversions = Math.round(inversionVal * maxInversions);
     if (numInversions === 0) return notes;
 
-    const midiNotes = notesArray.map(noteToMidi);
-    midiNotes.sort((a, b) => a - b);
-
-    for (let i = 0; i < numInversions; i++) {
-        const lowest = midiNotes.shift()!;
-        midiNotes.push(lowest + 12);
+    // Fill + convert in one pass (no .map allocation)
+    _midiScratch.length = len;
+    if (isArray) {
+        for (let i = 0; i < len; i++) {
+            _midiScratch[i] = noteToMidi((notes as string[])[i]);
+        }
+    } else {
+        _midiScratch[0] = noteToMidi(notes as string);
     }
 
-    return midiNotes.map(midiToNote);
+    // Sort ascending in place
+    _midiScratch.sort((a, b) => a - b);
+
+    // Rotate without shift() — O(n) total instead of O(n²)
+    for (let inv = 0; inv < numInversions; inv++) {
+        const lowest = _midiScratch[0];
+        for (let i = 0; i < len - 1; i++) {
+            _midiScratch[i] = _midiScratch[i + 1];
+        }
+        _midiScratch[len - 1] = lowest + 12;
+    }
+
+    // Convert back — return a fresh array so callers can keep it
+    _noteScratch.length = len;
+    for (let i = 0; i < len; i++) {
+        _noteScratch[i] = midiToNote(_midiScratch[i]);
+    }
+    return _noteScratch.slice();
 }
 
 export interface UseStepHandlerOptions {
@@ -348,10 +375,12 @@ export const useStepHandler = ({
         }
 
         // === Sampler ===
-        p.sampler.forEach((seq, bankIdx) => {
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let bankIdx = 0; bankIdx < p.sampler.length; bankIdx++) {
+            const seq = p.sampler[bankIdx];
             const stepData = seq.steps[step];
-            if (!stepData) return;
-            if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+            if (!stepData) continue;
+            if (stepData.probability !== undefined && Math.random() > stepData.probability) continue;
 
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
             const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
@@ -388,19 +417,18 @@ export const useStepHandler = ({
                 }
             }
 
-            const bankParams: SamplerBankParams = {
-                ...samplerRef.current[bankIdx],
-                rootNote: voiceParams.rootNote,
-                coarseTune: voiceParams.coarseTune,
-                fineTune: voiceParams.fineTune,
-                pan: stepData.pan ?? voiceParams.pan,
-                formantShift: voiceParams.formantShift,
-                attack: voiceParams.attack,
-                decay: voiceParams.decay,
-                stretchProfile: voiceParams.stretchProfile,
-                stretchMode: voiceParams.stretchMode,
-                lockToSequencer: voiceParams.lockToSequencer,
-            };
+            const baseSampler = samplerRef.current[bankIdx];
+            const bankParams = Object.assign(_bankParamsScratch, baseSampler);
+            bankParams.rootNote = voiceParams.rootNote;
+            bankParams.coarseTune = voiceParams.coarseTune;
+            bankParams.fineTune = voiceParams.fineTune;
+            bankParams.pan = stepData.pan ?? voiceParams.pan;
+            bankParams.formantShift = voiceParams.formantShift;
+            bankParams.attack = voiceParams.attack;
+            bankParams.decay = voiceParams.decay;
+            bankParams.stretchProfile = voiceParams.stretchProfile;
+            bankParams.stretchMode = voiceParams.stretchMode;
+            bankParams.lockToSequencer = voiceParams.lockToSequencer;
 
             // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
             const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step);
@@ -410,11 +438,11 @@ export const useStepHandler = ({
             const sampVol = getAutomationValue('sampler', 'volume', step);
             if (sampVol !== undefined) (bankParams as any).volume = sampVol;
 
-            audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
+            audioEngine.playSampler(bankParams as SamplerBankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
-        });
+        }
 
         // Visual feedback for phoneme slices
         if (sliceHighlightRef.current && samplerRef.current[activeSamplerBankRef.current]?.sliceMode === 'phoneme') {
@@ -433,10 +461,13 @@ export const useStepHandler = ({
             const rampDuration = Math.max(0.01, stepTime * 0.85);
 
             // Collect live values for UI display (keyed "target:parameter")
-            const liveValues: Record<string, number> = {};
+            const liveValues = _liveValuesScratch;
             let hasLiveValues = false;
+            // Clear scratch object
+            for (const key in liveValues) delete liveValues[key];
 
-            const schedulerLanes = [];
+            const schedulerLanes = _schedulerLanesScratch;
+            schedulerLanes.length = 0;
 
             // First pass: collect scheduler lanes and evaluate active non-scheduler lanes without array methods
             for (let i = 0; i < lanes.length; i++) {

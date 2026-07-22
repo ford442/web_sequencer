@@ -13,7 +13,7 @@ import {
     XMWriter, noteNameToValue, LoopType
 } from './xm_save_lib/index';
 import type { PartSequence, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../types';
-import { renderSynthToBuffer, renderDrumToBuffer } from './renderAudio';
+import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
 
 // WASM module import
 import initXmExport from '../wasm/xmExport.wasm?init';
@@ -488,11 +488,7 @@ export const exportSongToXM = async (
     },
     tempo: number,
     currentPattern?: Pattern,
-    engines?: {
-        webGpuEngine?: unknown,
-        wasmEngine?: unknown,
-        pyodide?: unknown
-    },
+    engines?: RenderSynthEngines,
     sampleBuffers?: (AudioBuffer | null)[]
 ) => {
     console.log("Starting XM Export with engines:", engines);

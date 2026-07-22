@@ -4,6 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Voice, type VoiceEngineDeps } from '../VoiceManager';
+import type { WasmOscillator } from '../WasmOscillator';
+import type { RustOscillator } from '../RustOscillator';
 import type { SynthParams } from '../../types';
 
 // ── Minimal SynthParams fixture ──────────────────────────────────────────────
@@ -156,7 +158,7 @@ describe('Voice.startNote — WAM engine', () => {
         const wasmEngine = { isReady: true, generate: vi.fn(() => float) };
         const bufSrc = makeBufferSourceMock();
         const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ wasmEngine: wasmEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
 
@@ -172,7 +174,7 @@ describe('Voice.startNote — WAM engine', () => {
         const wasmEngine = { isReady: false, generate: vi.fn() };
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
-        const voice = makeVoice({ wasmEngine: wasmEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'wam-sqr' }, 'C4', 0);
 
@@ -187,7 +189,7 @@ describe('Voice.startNote — WAM engine', () => {
         const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const wasmEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
         const ctx = makeContext();
-        const voice = makeVoice({ wasmEngine: wasmEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
 
@@ -217,7 +219,7 @@ describe('Voice.startNote — Rust engine', () => {
         const rustEngine = { isReady: true, generate: vi.fn(() => float) };
         const bufSrc = makeBufferSourceMock();
         const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ rustEngine: rustEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
 
@@ -232,7 +234,7 @@ describe('Voice.startNote — Rust engine', () => {
         const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const rustEngine = { isReady: false, generate: vi.fn() };
         const ctx = makeContext();
-        const voice = makeVoice({ rustEngine: rustEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'rust-sqr' }, 'C4', 0);
 
@@ -258,7 +260,7 @@ describe('Voice.startNote — Rust engine', () => {
         const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
         const rustEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
         const ctx = makeContext();
-        const voice = makeVoice({ rustEngine: rustEngine as any }, undefined, undefined, ctx);
+        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'rust-sqr' }, 'C4', 0);
 

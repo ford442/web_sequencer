@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Engine303Selector } from '../../components/Engine303Selector'
+import { Voice303Selector } from '../../components/Voice303Selector'
+import { normalizeTB303Model, stockModelForFamily, tb303ModelFamily } from '../../engines/TB303Models'
 import { ProphecyPanel } from '../../components/ProphecyPanel'
 import { CppPanel } from '../../components/CppPanel'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
@@ -7,7 +8,7 @@ import { OscillatorVariantSelector } from '../../components/OscillatorVariantSel
 import { SamplerPanel } from '../../components/SamplerPanel'
 import { engineTelemetry } from '../../utils/engineTelemetry'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
-import type { SynthParams, Bass2Params, SamplerParams, OscillatorType } from '../../types'
+import type { SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../types'
 
 export function useHardwarePanels(deps: {
@@ -54,26 +55,32 @@ export function useHardwarePanels(deps: {
     const synthAChild = useMemo(() => {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
         const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
-        const engine = synthA.engine303 ?? 'open303';
-        const currentTypeA: OscillatorType = waveformToOscillatorType(synthA.waveform, synthA.engine303);
+        const modelA = normalizeTB303Model(synthA.model303, synthA.engine303);
+        const currentTypeA: OscillatorType = waveformToOscillatorType(synthA.waveform, tb303ModelFamily(modelA));
         const panelClassesA = getOscillatorPanelClasses(currentTypeA);
 
-        const handleSynthAEngineChange = (e: 'open303' | 'jc303') => {
-            updateSynthA({ engine303: e });
+        const handleSynthAVoiceChange = (m: TB303ModelId) => {
+            // engine303 is mirrored for older builds loading the saved song.
+            updateSynthA({ model303: m, engine303: tb303ModelFamily(m) });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(e);
-            engineTelemetry.registerResolution('synthA-engine303', e, 'user-initiated');
+            if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(m);
+            else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(tb303ModelFamily(m));
+            engineTelemetry.registerResolution('synthA-model303', m, 'user-initiated');
         };
 
         const handleSynthATypeChange = (newType: OscillatorType) => {
             const nextWave = getDefaultWaveformForType(newType);
-            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
             const update: any = { waveform: nextWave };
-            if (nextEngine) update.engine303 = nextEngine;
-            updateSynthA(update);
             if (newType === 'open303' || newType === 'jc303') {
+                const nextModel = stockModelForFamily(newType);
+                update.model303 = nextModel;
+                update.engine303 = newType;
+                updateSynthA(update);
                 const mgr = audioEngine?.open303Engine;
-                if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(nextEngine ?? 'open303');
+                if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(nextModel);
+                else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(newType);
+            } else {
+                updateSynthA(update);
             }
             engineTelemetry.registerResolution('synthA-oscType', newType, 'user-initiated');
         };
@@ -105,7 +112,7 @@ export function useHardwarePanels(deps: {
                     />
                 )}
                 {is303 && (
-                    <Engine303Selector engine={engine} onChange={handleSynthAEngineChange} accentColor="cyan" />
+                    <Voice303Selector model={modelA} onChange={handleSynthAVoiceChange} accentColor="cyan" />
                 )}
                 {isProphecy && (
                     <ProphecyPanel
@@ -121,31 +128,36 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.cppFine, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.cppFine, updateSynthA, audioEngine]);
 
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
-        const engine = synthB.engine303 ?? 'open303';
-        const currentTypeB: OscillatorType = waveformToOscillatorType(synthB.waveform, synthB.engine303);
+        const modelB = normalizeTB303Model(synthB.model303, synthB.engine303);
+        const currentTypeB: OscillatorType = waveformToOscillatorType(synthB.waveform, tb303ModelFamily(modelB));
         const panelClassesB = getOscillatorPanelClasses(currentTypeB);
 
-        const handleSynthBEngineChange = (e: 'open303' | 'jc303') => {
-            updateSynthB({ engine303: e });
+        const handleSynthBVoiceChange = (m: TB303ModelId) => {
+            updateSynthB({ model303: m, engine303: tb303ModelFamily(m) });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(e);
-            engineTelemetry.registerResolution('synthB-engine303', e, 'user-initiated');
+            if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(m);
+            else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(tb303ModelFamily(m));
+            engineTelemetry.registerResolution('synthB-model303', m, 'user-initiated');
         };
 
         const handleSynthBTypeChange = (newType: OscillatorType) => {
             const nextWave = getDefaultWaveformForType(newType);
-            const nextEngine = (newType === 'jc303') ? 'jc303' : (newType === 'open303' ? 'open303' : undefined);
             const update: any = { waveform: nextWave };
-            if (nextEngine) update.engine303 = nextEngine;
-            updateSynthB(update);
             if (newType === 'open303' || newType === 'jc303') {
+                const nextModel = stockModelForFamily(newType);
+                update.model303 = nextModel;
+                update.engine303 = newType;
+                updateSynthB(update);
                 const mgr = audioEngine?.open303Engine;
-                if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(nextEngine ?? 'open303');
+                if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(nextModel);
+                else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(newType);
+            } else {
+                updateSynthB(update);
             }
             engineTelemetry.registerResolution('synthB-oscType', newType, 'user-initiated');
         };
@@ -177,7 +189,7 @@ export function useHardwarePanels(deps: {
                     />
                 )}
                 {is303 && (
-                    <Engine303Selector engine={engine} onChange={handleSynthBEngineChange} accentColor="pink" />
+                    <Voice303Selector model={modelB} onChange={handleSynthBVoiceChange} accentColor="pink" />
                 )}
                 {isProphecy && (
                     <ProphecyPanel
@@ -193,17 +205,18 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.cppFine, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.cppFine, updateSynthB, audioEngine]);
 
     const bass2Child = useMemo(() => {
-        const engine = bass2.engine303 ?? 'open303';
-        const handleBass2EngineChange = (e: 'open303' | 'jc303') => {
-            updateBass2({ engine303: e });
+        const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);
+        const handleBass2VoiceChange = (m: TB303ModelId) => {
+            updateBass2({ model303: m, engine303: tb303ModelFamily(m) });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(e);
-            engineTelemetry.registerResolution('bass2-engine303', e, 'user-initiated');
+            if (mgr && 'setBass2Model' in mgr) (mgr as any).setBass2Model(m);
+            else if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(tb303ModelFamily(m));
+            engineTelemetry.registerResolution('bass2-model303', m, 'user-initiated');
         };
-        const bass2Type: OscillatorType = engine === 'jc303' ? 'jc303' : 'open303';
+        const bass2Type: OscillatorType = tb303ModelFamily(modelB2) === 'jc303' ? 'jc303' : 'open303';
         return (
         <div className="absolute top-4 right-6 pointer-events-none">
             <div className="pointer-events-auto flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20 w-fit">
@@ -213,11 +226,11 @@ export function useHardwarePanels(deps: {
                     onChange={(w) => updateBass2({ waveform: w as '303-saw' | '303-sqr' })}
                     accentColor="pink"
                 />
-                <Engine303Selector engine={engine} onChange={handleBass2EngineChange} accentColor="pink" />
+                <Voice303Selector model={modelB2} onChange={handleBass2VoiceChange} accentColor="pink" />
             </div>
         </div>
         );
-    }, [bass2.waveform, bass2.engine303, updateBass2, audioEngine]);
+    }, [bass2.waveform, bass2.engine303, bass2.model303, updateBass2, audioEngine]);
 
     const samplerChild = useMemo(() => (
         <div className="absolute top-2 left-[10%] right-[10%] max-h-[38%] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-y-auto">

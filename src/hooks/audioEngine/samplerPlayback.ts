@@ -8,6 +8,7 @@ import { noteToMidi, type ScaleDefinition } from '../../utils/musicTheory';
 import { makeDistortionCurve } from './distortion';
 import { pulseExpressionLed } from '../../audio/expressionLedPulse';
 import { getSyncedLfoHz, getSyncedSeconds, resolveExpressiveness } from './syncUtils';
+import { performanceBudget } from '../../utils/performanceBudget';
 
 
 export interface SamplerVoiceContext {
@@ -153,7 +154,20 @@ const playBufferSource = (
         pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
     }
 
-    source.buffer = playbackBuffer;
+    if (noteParams?.reverse) {
+        // Reverse buffer inline for playBufferSource path (non-stretch)
+        const reversedBuffer = context.createBuffer(playbackBuffer.numberOfChannels, playbackBuffer.length, playbackBuffer.sampleRate);
+        for (let i = 0; i < playbackBuffer.numberOfChannels; i++) {
+            const channelData = playbackBuffer.getChannelData(i);
+            const reversedData = reversedBuffer.getChannelData(i);
+            for (let j = 0; j < playbackBuffer.length; j++) {
+                reversedData[j] = channelData[playbackBuffer.length - 1 - j];
+            }
+        }
+        source.buffer = reversedBuffer;
+    } else {
+        source.buffer = playbackBuffer;
+    }
     source.playbackRate.value = pitchRatio;
 
     const gain = context.createGain();
@@ -619,7 +633,9 @@ const playSamplerVoice = (
 
     // --- HOISTED PARAMETERS START ---
     // Vocoder Mix
-    const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+    // ⚡ Bolt: Gate vocoder mix. When 0, downstream effects can bypass processing
+    const _rawVocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+    const vocoderMix = _rawVocoderMix > 0 ? _rawVocoderMix : undefined;
     const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
     const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
     const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
@@ -627,7 +643,9 @@ const playSamplerVoice = (
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-    const spectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+    // ⚡ Bolt: Gate spectral panning. When 0, downstream effects can bypass processing
+    const _rawSpectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+    const spectralPanDepth = _rawSpectralPanDepth !== undefined && _rawSpectralPanDepth > 0 ? _rawSpectralPanDepth : undefined;
     const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
     // Reverb
@@ -789,7 +807,9 @@ const playSamplerVoice = (
             };
 
         // For each note in the chord
-        notes.forEach((noteStr, _noteIndex) => {
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let n = 0; n < notes.length; n++) {
+            const noteStr = notes[n];
             if (shouldGlitch) {
                 for (let i = 0; i < numStutters; i++) {
                     runVoices(ctx, noteStr, i * glitchStutterLenVoice, glitchStutterLenVoice);
@@ -804,12 +824,14 @@ const playSamplerVoice = (
                     runVoices(ctx, noteStr, offset, subDurationSteps * stepTime);
                 }
             }
-        });
+        }
         return;
     }
 
     // Buffer playback mode (non-stretch)
-    notes.forEach(noteStr => {
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+    for (let n = 0; n < notes.length; n++) {
+        const noteStr = notes[n];
         const midi = noteToMidi(noteStr);
 
         if (shouldGlitch) {
@@ -823,7 +845,7 @@ const playSamplerVoice = (
                 playBufferSource(context, multisampleBank, masterSaturationRef.current, actualTime + offset, subDurationSteps * stepTime, midi, params, noteParams, buffer);
             }
         }
-    });
+    }
 };
 
 // Main playSampler function with harmonizer support
@@ -849,8 +871,10 @@ const playSampler = (
         playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
 
         // Play each harmony voice (skip index 0 which is base)
-        voices.forEach((voice) => {
-            if (voice.index === 0) return; // Skip base voice, already played above
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < voices.length; i++) {
+            const voice = voices[i];
+            if (voice.index === 0) continue; // Skip base voice, already played above
 
             // Create modified params for this harmony voice
             const voiceParams: SamplerBankParams = {
@@ -866,7 +890,7 @@ const playSampler = (
             setTimeout(() => {
                 playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
             }, delayMs);
-        });
+        }
         return;
     }
 
