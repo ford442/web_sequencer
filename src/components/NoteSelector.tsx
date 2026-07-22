@@ -136,6 +136,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
             currentTimbre={currentTimbre}
             currentProbability={currentProbability}
             currentMicrotiming={currentMicrotiming}
+            currentReverse={currentReverse}
           />
 
           {onPropertyChange && (
@@ -208,10 +209,10 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentTimeStretchEnvDepth={currentTimeStretchEnvDepth}
                 currentSpectralPanRate={currentSpectralPanRate}
                 currentSpectralPanDepth={currentSpectralPanDepth}
-                currentReverse={currentReverse}
               />
               <p id="note-micro-desc" className="sr-only">
-                Nudges the step earlier or later within the beat. Negative values play ahead; positive values delay.
+                Nudges the step earlier or later within the beat. Negative
+                values play ahead; positive values delay.
               </p>
             </>
           )}
