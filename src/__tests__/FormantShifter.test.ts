@@ -13,11 +13,32 @@ class MockBiquadFilterNode {
     disconnect = vi.fn();
 }
 
+class MockGainNode {
+    gain = { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() };
+    connect = vi.fn().mockReturnThis();
+    disconnect = vi.fn();
+}
+
+class MockConstantSourceNode {
+    connect = vi.fn().mockReturnThis();
+    disconnect = vi.fn();
+    start = vi.fn();
+    stop = vi.fn();
+}
+
 class MockAudioContext {
     currentTime = 0;
     
     createBiquadFilter(): BiquadFilterNode {
         return new MockBiquadFilterNode() as any;
+    }
+
+    createGain(): GainNode {
+        return new MockGainNode() as any;
+    }
+
+    createConstantSource(): ConstantSourceNode {
+        return new MockConstantSourceNode() as any;
     }
 }
 
@@ -195,6 +216,23 @@ describe('FormantShifter', () => {
         });
     });
     
+    describe('triggerSidechainDuck', () => {
+        it('should drop the gain instantly and ramp back to 0', () => {
+            const shift = { f1Shift: 2, f2Shift: 3, f3Shift: 4 };
+            shifter.createFilterChain(shift);
+
+            // @ts-ignore - access private sidechainGain to verify calls
+            const gainParam = shifter.sidechainGain.gain;
+
+            shifter.triggerSidechainDuck(5, 0.25, 1);
+
+            // 5 semitones ducking = -500 cents
+            expect(gainParam.cancelScheduledValues).toHaveBeenCalledWith(1);
+            expect(gainParam.setValueAtTime).toHaveBeenCalledWith(-500, 1);
+            expect(gainParam.linearRampToValueAtTime).toHaveBeenCalledWith(0, 1.25);
+        });
+    });
+
     describe('calculateCompensatoryShift', () => {
         it('should return negative shift for positive pitch shift', () => {
             const shift = shifter.calculateCompensatoryShift(5);

@@ -139,6 +139,13 @@ export class SingingVoiceManager {
         return this.voices;
     }
 
+    /**
+     * Get currently active voices.
+     */
+    getActiveVoices(): SingingVoice[] {
+        return Array.from(this.activeVoices.values()).map(v => v.voice);
+    }
+
     stopAll() {
         this.activeVoices.clear();
         // Reset params on all voices?

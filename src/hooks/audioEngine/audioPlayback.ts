@@ -570,6 +570,7 @@ export function createPlayDrum(
     | "reverbTypeRef"
     | "sidechainGainRef"
     | "drumKitEngineRef"
+    | "singingVoiceManagerRef"
   >,
 ): AudioEngine["playDrum"] {
   return (
@@ -614,8 +615,15 @@ export function createPlayDrum(
     // Use DrumKitEngine for authentic 808/909 synthesis when available
     const kitEngine = refs.drumKitEngineRef?.current;
     if (kitEngine) {
-      if (sound === "kick" && refs.sidechainGainRef.current) {
-        triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+      if (sound === "kick") {
+        if (refs.sidechainGainRef.current) {
+          triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
+        }
+        refs.singingVoiceManagerRef.current?.getActiveVoices().forEach(voice => {
+          if (voice.formantSidechainDepth > 0) {
+            voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+          }
+        });
       }
 
       kitEngine.play(
@@ -634,6 +642,11 @@ export function createPlayDrum(
       if (refs.sidechainGainRef.current) {
         triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
       }
+      refs.singingVoiceManagerRef.current?.getActiveVoices().forEach(voice => {
+        if (voice.formantSidechainDepth > 0) {
+          voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+        }
+      });
 
       const kickParams = params as KickParams;
       const osc = context.createOscillator();

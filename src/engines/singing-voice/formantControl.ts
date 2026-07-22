@@ -160,6 +160,27 @@ export const FormantControlMixin = {
   },
 
   /**
+   * Set formant sidechain depth on the voice.
+   */
+  setFormantSidechainDepth(this: SingingVoiceHost, depth: number): void {
+    (this as any).formantSidechainDepth = depth;
+  },
+
+  /**
+   * Trigger a formant sidechain duck.
+   */
+  triggerFormantSidechainDuck(
+    this: SingingVoiceHost,
+    amount: number,
+    releaseTime: number,
+    triggerTime?: number,
+  ) {
+    if (this.formantShifter && this.config.enableFormantShifting) {
+      this.formantShifter.triggerSidechainDuck(amount, releaseTime, triggerTime);
+    }
+  },
+
+  /**
    * Set character morphing amount and target.
    * @param amount Morph amount (0 to 1)
    * @param target Target voice character

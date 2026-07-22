@@ -85,6 +85,9 @@ export class SingingVoice implements SingingVoicePublic {
   /** Formant shifter for Section 4 implementation */
   formantShifter: FormantShifter | null = null;
 
+  /** Current formant sidechain depth stored for audio playback retrieval */
+  formantSidechainDepth: number = 0;
+
   /** Last alignment result for current audio */
   lastAlignment: AlignmentResult | null = null;
 

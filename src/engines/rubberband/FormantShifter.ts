@@ -110,6 +110,10 @@ export class FormantShifter {
     private followerGain: GainNode | null = null;
     private followerDepth: number = 0;
 
+    // Sidechain Ducking components
+    private sidechainNode: ConstantSourceNode | null = null;
+    private sidechainGain: GainNode | null = null;
+
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
@@ -216,6 +220,21 @@ export class FormantShifter {
             }
 
             this.envNode.start();
+        }
+
+        // Create Sidechain components
+        if (typeof this.audioContext.createConstantSource === 'function') {
+            this.sidechainNode = this.audioContext.createConstantSource();
+            this.sidechainGain = this.audioContext.createGain();
+            this.sidechainGain.gain.value = 0; // Idle state
+
+            this.sidechainNode.connect(this.sidechainGain);
+
+            for (let i = 0; i < formants.length; i++) {
+                this.sidechainGain.connect(filters[i].detune);
+            }
+
+            this.sidechainNode.start();
         }
 
         // Create Envelope Follower components
@@ -592,6 +611,16 @@ export class FormantShifter {
             this.envGain = null;
         }
 
+        if (this.sidechainNode) {
+            this.sidechainNode.stop();
+            this.sidechainNode.disconnect();
+            this.sidechainNode = null;
+        }
+        if (this.sidechainGain) {
+            this.sidechainGain.disconnect();
+            this.sidechainGain = null;
+        }
+
         if (this.followerWaveshaper) {
             this.followerWaveshaper.disconnect();
             this.followerWaveshaper = null;
@@ -660,6 +689,25 @@ export class FormantShifter {
         return this.currentShift;
     }
     
+    /**
+     * Trigger a sidechain ducking effect on the formants.
+     *
+     * @param amount Depth of the duck in semitones
+     * @param releaseTime Recovery time in seconds
+     * @param time Trigger time
+     */
+    triggerSidechainDuck(amount: number, releaseTime: number, time?: number): void {
+        if (!this.sidechainGain) return;
+
+        const t = time || this.audioContext.currentTime;
+        const gainParam = this.sidechainGain.gain;
+        const duckCents = -Math.abs(amount) * 100; // negative = pull formants back
+
+        gainParam.cancelScheduledValues(t);
+        gainParam.setValueAtTime(duckCents, t); // instant (or very short) drop
+        gainParam.linearRampToValueAtTime(0, t + releaseTime); // smooth recovery
+    }
+
     /**
      * Set source formant frequencies (useful for adapting to different voices).
      * 

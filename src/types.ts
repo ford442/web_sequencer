@@ -137,6 +137,7 @@ export interface SamplerBankParams {
   formantEnvDecay?: number;
   formantEnvAmount?: number;
   formantEnvFollower?: number;
+  formantSidechainDepth?: number;
   formantEnvSync?: boolean;
   characterMorph?: number;
   morphTarget?: 'default' | 'male' | 'female' | 'child' | 'deep' | 'bright';
@@ -476,6 +477,7 @@ export interface Note {
   formantEnvDecay?: number;
   formantEnvAmount?: number;
   formantEnvFollower?: number;
+  formantSidechainDepth?: number;
   envMod?: number;
   filterCutoff?: number;
   filterResonance?: number;
