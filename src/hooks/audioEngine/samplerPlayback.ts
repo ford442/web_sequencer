@@ -631,7 +631,9 @@ const playSamplerVoice = (
 
     // --- HOISTED PARAMETERS START ---
     // Vocoder Mix
-    const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+    // ⚡ Bolt: Gate vocoder mix. When 0, downstream effects can bypass processing
+    const _rawVocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
+    const vocoderMix = _rawVocoderMix > 0 ? _rawVocoderMix : undefined;
     const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
     const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
     const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
@@ -639,8 +641,9 @@ const playSamplerVoice = (
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : (params as any).spectralPanRate;
-    const spectralPanDepth = (noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth) *
-      performanceBudget.getSpectralPanMultiplier();
+    // ⚡ Bolt: Gate spectral panning. When 0, downstream effects can bypass processing
+    const _rawSpectralPanDepth = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : (params as any).spectralPanDepth;
+    const spectralPanDepth = _rawSpectralPanDepth !== undefined && _rawSpectralPanDepth > 0 ? _rawSpectralPanDepth : undefined;
     const spectralPanLfoRate = (spectralPanRate || 1) * (tempo / 60);
 
     // Reverb

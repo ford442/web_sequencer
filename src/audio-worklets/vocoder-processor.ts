@@ -116,7 +116,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
     }
 private envelopes: number[] = [];
     private fftSize: number = 512;
-    private hopSize: number = 128; // 4x overlap
+    private hopSize: number = 256; // ⚡ Bolt: 2x overlap (performance optimization degrade policy reduces FFT operations by 50%)
     private fft: SimpleFFT;
     private window: Float32Array;
 
