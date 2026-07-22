@@ -285,7 +285,7 @@ export const PitchControlMixin = {
     );
 
     this.setPitch(pitchRatio);
-    this.process(cachedAudio);
+    void this.process(cachedAudio);
 
     return true;
   },

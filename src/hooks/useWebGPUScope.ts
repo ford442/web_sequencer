@@ -185,7 +185,7 @@ export const useWebGPUScope = (
       }
       deviceRef.current = device;
 
-      const context = canvasRef.current.getContext('webgpu');
+      const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext | null;
       if (!context) return;
 
       const format = navigator.gpu.getPreferredCanvasFormat();

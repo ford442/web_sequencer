@@ -34,25 +34,36 @@ function fakeSubsystem(overrides: Partial<SubsystemReport> = {}): SubsystemRepor
   };
 }
 
+const fakeRuntime = {
+  masterBudgetPercent: 42,
+  totalUnderruns: 3,
+  outputLatencyMs: 12.5,
+  glitches: [],
+  worklets: {
+    clock: { cpuPercent: 5, underruns: 0, lastProcessUs: 100, lastQuantumUs: 2666, lastUpdate: Date.now() },
+  },
+  degradations: [],
+};
+
 describe('serializeEngineReport', () => {
   it('wraps the snapshot + capabilities into a versioned report', () => {
     const snapshot = { synthA: fakeSubsystem() };
-    const parsed = JSON.parse(serializeEngineReport(snapshot, fakeCaps));
-
-    expect(parsed.version).toBe(1);
-    expect(typeof parsed.exportedAt).toBe('string');
-    expect(new Date(parsed.exportedAt).toString()).not.toBe('Invalid Date');
-    expect(typeof parsed.sessionDurationMs).toBe('number');
-    expect(parsed.capabilities).toEqual(fakeCaps);
-    expect(parsed.subsystems.synthA.resolution.backend).toBe('wasm');
-    expect(parsed.subsystems.synthA.p50).toBe(1.2);
+    const parsed: unknown = JSON.parse(serializeEngineReport(snapshot, fakeCaps, fakeRuntime));
+    expect((parsed as { version: number }).version).toBe(1);
+    expect(typeof (parsed as { exportedAt: string }).exportedAt).toBe('string');
+    expect(new Date((parsed as { exportedAt: string }).exportedAt).toString()).not.toBe('Invalid Date');
+    expect(typeof (parsed as { sessionDurationMs: number }).sessionDurationMs).toBe('number');
+    expect((parsed as { capabilities: typeof fakeCaps }).capabilities).toEqual(fakeCaps);
+    expect((parsed as { subsystems: { synthA: { resolution: { backend: string }; p50: number } } }).subsystems.synthA.resolution.backend).toBe('wasm');
+    expect((parsed as { subsystems: { synthA: { p50: number } } }).subsystems.synthA.p50).toBe(1.2);
+    expect((parsed as { runtime: { masterBudgetPercent: number } }).runtime.masterBudgetPercent).toBe(42);
   });
 
   it('never leaks a raw userAgent string', () => {
-    const json = serializeEngineReport({ s: fakeSubsystem() }, fakeCaps);
+    const json = serializeEngineReport({ s: fakeSubsystem() }, fakeCaps, fakeRuntime);
     expect(json).not.toContain('"userAgent"');
-    const parsed = JSON.parse(json);
-    expect('userAgent' in parsed.capabilities).toBe(false);
+    const parsed: unknown = JSON.parse(json);
+    expect('userAgent' in (parsed as object)).toBe(false);
   });
 });
 
@@ -117,9 +128,9 @@ describe('EngineTelemetry.exportReport', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].filename).toMatch(/^hyphon-engine-report-.*\.json$/);
-    const parsed = JSON.parse(calls[0].json);
-    expect(parsed.version).toBe(1);
-    expect(parsed.subsystems.synthA.resolution.backend).toBe('webgpu');
+    const parsed: unknown = JSON.parse(calls[0].json);
+    expect((parsed as { version: number }).version).toBe(1);
+    expect((parsed as { subsystems: { synthA: { resolution: { backend: string } } } }).subsystems.synthA.resolution.backend).toBe('webgpu');
   });
 
   it('exposes a browser download provider', () => {

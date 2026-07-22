@@ -25,6 +25,7 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   delayFeedback: 0,
   delayMix: 0,
   engine303: 'open303',
+  model303: 'stock-open303',
   pitchAttack: 0,
   pitchDecay: 0,
   pitchAmount: 0,
@@ -33,6 +34,9 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   formantShift: 0,
   cppFine: 0,
   drive: 0,
+  formantPitchLink: 0,
+  coarseTune: 0,
+  fineTune: 0,
 } satisfies Record<keyof SynthParams, unknown>));
 
 const BASS2_PARAM_KEYS = new Set(Object.keys({
@@ -47,6 +51,7 @@ const BASS2_PARAM_KEYS = new Set(Object.keys({
   pitch: 0,
   pan: 0,
   engine303: 'open303',
+  model303: 'stock-open303',
   slideTime: 0,
   drive: 0,
 } satisfies Record<keyof Bass2Params, unknown>));

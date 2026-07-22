@@ -7,16 +7,14 @@ import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry } from '../../utils/engineTelemetry';
-import { createTrackMonitor } from '../../audio/trackAnalysers';
+import { startGlitchMonitor } from '../../utils/workletPerfBridge';
+import { buildClassicElectribeGraph } from '../../audio/graph';
 import type { TrackAnalysers } from '../../types';
 import {
     createNoiseBuffer,
-    initializeChoirBuses,
     initializeHarmonizer,
-    initializeMasterOutput,
     initializeSustainProcessor,
     loadWavBuffer,
-    createReverbImpulseResponse,
 } from './initialization';
 
 type AudioWindow = Window & typeof globalThis & {
@@ -83,6 +81,7 @@ export async function initializeAudioContextAndEngines(
     }
     const context = new AudioContextCtor();
     audioWindow.audioContext = context;
+    startGlitchMonitor(context);
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {
@@ -90,56 +89,7 @@ export async function initializeAudioContextAndEngines(
         console.log("AudioContext resumed");
     }
 
-    const masterBusInput = initializeMasterOutput(
-        context,
-        refs.masterGainRef,
-        refs.masterPannerRef,
-        refs.masterSaturationRef,
-        refs.masterCompressorRef,
-        refs.sidechainGainRef,
-        refs.bassSidechainEQBusRef,
-        refs.analyserNodeRef,
-    );
-
-    const synthATap = createTrackMonitor(context, masterBusInput);
-    refs.synthABusRef.current = synthATap.bus;
-    refs.trackAnalysersRef.current.synthA = synthATap.analyser;
-
-    const synthBTap = createTrackMonitor(context, masterBusInput);
-    refs.synthBBusRef.current = synthBTap.bus;
-    refs.trackAnalysersRef.current.synthB = synthBTap.analyser;
-
-    const samplerTap = createTrackMonitor(context, masterBusInput);
-    refs.samplerBusRef.current = samplerTap.bus;
-    refs.trackAnalysersRef.current.sampler = samplerTap.analyser;
-
-    // Initialize Reverb Node
-    // Initialize Reverb Nodes (Room, Plate, Hall)
-    const roomNode = context.createConvolver();
-    roomNode.buffer = createReverbImpulseResponse(context, 0.5, 1.0);
-    roomNode.connect(masterBusInput);
-
-    const plateNode = context.createConvolver();
-    plateNode.buffer = createReverbImpulseResponse(context, 1.5, 2.0);
-    plateNode.connect(masterBusInput);
-
-    const hallNode = context.createConvolver();
-    hallNode.buffer = createReverbImpulseResponse(context, 3.5, 3.0);
-    hallNode.connect(masterBusInput);
-
-    refs.reverbNodesRef.current = { room: roomNode, plate: plateNode, hall: hallNode };
-    refs.reverbNodeRef.current = plateNode; // Fallback
-
-    // Initialize Global Delay Node
-    const delayNode = context.createDelay(2.0);
-    delayNode.delayTime.value = 0.375; // ~1/8th note at typical tempo
-    const delayFeedback = context.createGain();
-    delayFeedback.gain.value = 0.4;
-    delayNode.connect(delayFeedback);
-    delayFeedback.connect(delayNode);
-    delayNode.connect(masterBusInput);
-    refs.delayNodeRef.current = delayNode;
-    refs.delayFeedbackRef.current = delayFeedback;
+    const { masterBusInput } = buildClassicElectribeGraph(context, refs);
 
     // Initialize Engines
     const gpuEngine = new WebGpuOscillator();
@@ -227,15 +177,6 @@ export async function initializeAudioContextAndEngines(
         await manager.init(wasmBinary);
         refs.singingVoiceManagerRef.current = manager;
         try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
-
-        initializeChoirBuses(
-            context,
-            refs.masterGainRef,
-            refs.choirLeftGainRef,
-            refs.choirRightGainRef,
-            refs.choirLeftPannerRef,
-            refs.choirRightPannerRef,
-        );
 
         const samplerDest = refs.samplerBusRef.current ?? refs.masterSaturationRef.current!;
         manager.getAllVoices().forEach(voice => {

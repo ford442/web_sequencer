@@ -5,11 +5,51 @@
  * Provides similar sound characteristics using standard Web Audio API.
  */
 
+type BassOscillatorNode = OscillatorNode & { envGain?: GainNode };
+
+function createStubBiquadFilter(): BiquadFilterNode {
+    return {
+        type: 'lowpass',
+        frequency: {
+            value: 1000,
+            cancelScheduledValues: () => {},
+            setValueAtTime: () => {},
+            setTargetAtTime: () => {},
+        },
+        Q: { value: 10 },
+        connect: () => {},
+        disconnect: () => {},
+    } as unknown as BiquadFilterNode;
+}
+
+function createStubOscillator(): BassOscillatorNode {
+    return {
+        type: 'sawtooth',
+        frequency: { value: 440, setTargetAtTime: () => {} },
+        start: () => {},
+        stop: () => {},
+        connect: () => {},
+        disconnect: () => {},
+    } as unknown as BassOscillatorNode;
+}
+
+function createStubGain(): GainNode {
+    return {
+        gain: {
+            value: 0,
+            setTargetAtTime: () => {},
+            cancelScheduledValues: () => {},
+        },
+        connect: () => {},
+        disconnect: () => {},
+    } as unknown as GainNode;
+}
+
 export class FallbackBassSynth {
     private audioContext: AudioContext;
     private outputNode: GainNode;
     private filterNode: BiquadFilterNode;
-    private currentOscillator: OscillatorNode | null = null;
+    private currentOscillator: BassOscillatorNode | null = null;
     private currentNote: number = -1;
     // private filterEnvAmount: number = 0; // Reserved for future filter envelope
     private isSlide: boolean = false;
@@ -29,7 +69,9 @@ export class FallbackBassSynth {
         this.audioContext = audioContext;
         
         // Create filter
-        this.filterNode = typeof audioContext.createBiquadFilter === 'function' ? audioContext.createBiquadFilter() : { type: 'lowpass', frequency: { value: 1000, cancelScheduledValues: () => {}, setValueAtTime: () => {}, setTargetAtTime: () => {} }, Q: { value: 10 }, connect: () => {}, disconnect: () => {} } as any;
+        this.filterNode = typeof audioContext.createBiquadFilter === 'function'
+            ? audioContext.createBiquadFilter()
+            : createStubBiquadFilter();
         this.filterNode.type = 'lowpass';
         this.filterNode.frequency.value = 1000;
         this.filterNode.Q.value = 10;
@@ -107,12 +149,16 @@ export class FallbackBassSynth {
         
         if (!this.isSlide || !this.currentOscillator) {
             // Create new oscillator
-            const osc = typeof this.audioContext.createOscillator === 'function' ? this.audioContext.createOscillator() : { type: 'sawtooth', frequency: { value: 440, setTargetAtTime: () => {} }, start: () => {}, stop: () => {}, connect: () => {}, disconnect: () => {} } as any;
+            const osc: BassOscillatorNode = typeof this.audioContext.createOscillator === 'function'
+                ? (this.audioContext.createOscillator() as BassOscillatorNode)
+                : createStubOscillator();
             osc.type = this.params.waveform > 0.5 ? 'square' : 'sawtooth';
             osc.frequency.value = freq;
             
             // Create envelope gain
-            const envGain = (typeof this.audioContext.createGain === 'function') ? this.audioContext.createGain() : { gain: { value: 0, setTargetAtTime: () => {}, cancelScheduledValues: () => {} }, connect: () => {}, disconnect: () => {} } as any;
+            const envGain = typeof this.audioContext.createGain === 'function'
+                ? this.audioContext.createGain()
+                : createStubGain();
             envGain.gain.value = 0;
             
             // Connect
@@ -145,7 +191,7 @@ export class FallbackBassSynth {
             this.currentNote = midiNote;
             
             // Store envelope gain for release
-            (osc as any).envGain = envGain;
+            osc.envGain = envGain;
         }
     }
 
@@ -159,7 +205,7 @@ export class FallbackBassSynth {
         if (!this.currentOscillator) return;
         
         const osc = this.currentOscillator;
-        const envGain = (osc as any).envGain as GainNode;
+        const envGain = osc.envGain;
         
         if (envGain) {
             // Quick release

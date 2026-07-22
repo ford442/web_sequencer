@@ -428,7 +428,6 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
-            case 'quality': setLocalQuality(value as typeof quality); break;
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
             case 'vocoderAttack': setLocalVocoderAttack(value as number); break;

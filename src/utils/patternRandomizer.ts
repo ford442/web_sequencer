@@ -5,8 +5,8 @@
 // omitted, `Math.random` is used. This keeps the functions testable and the
 // sequencer replayable when a seed is stored with the song.
 
-import type { PartSequence, Note } from '../types';
-import { SCALE_INTERVALS, NOTES, midiToNote } from './musicTheory';
+import type { PartSequence, Note } from '@/types';
+import { SCALE_INTERVALS, NOTES, midiToNote } from '@/utils/musicTheory';
 
 // ── Seeded RNG (mulberry32) ─────────────────────────────────────────────────
 
@@ -155,7 +155,7 @@ export function randomizeMelodicTrack(
             pool.push((oct + 1) * 12 + ((rootIndex + interval) % 12));
         }
     }
-    if (pool.length === 0) return { steps: Array(steps).fill(null) };
+    if (pool.length === 0) return { steps: Array.from({ length: steps }, (): Note | null => null) };
     pool.sort((a, b) => a - b);
 
     const resultSteps: (Note | null)[] = [];

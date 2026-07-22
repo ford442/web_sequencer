@@ -249,7 +249,7 @@ describe('SamplerPanel TTS per-bank functionality', () => {
     expect(screen.getByLabelText('Harmonization Chord Type')).toBeInTheDocument();
 
     // Check Harm button label
-    expect(screen.getByLabelText('Apply Harmonization')).toBeInTheDocument();
+    expect(screen.getByLabelText('Harmonizer unavailable')).toBeInTheDocument();
   });
 
   it('uses fieldset/legend for BASIC and ENGINE parameter groups', () => {

@@ -40,8 +40,8 @@ describe('SingingVoice - Slice & Granular Features', () => {
             connect: vi.fn()
         };
 
-        voice = new SingingVoice(mockContext as any);
-        voice['workletNode'] = mockWorkletNode; // Inject mock
+        voice = new SingingVoice(mockContext as unknown as AudioContext);
+        voice['workletNode'] = mockWorkletNode as unknown as AudioWorkletNode;
     });
 
     it('sets grainPitchQuantize correctly', () => {

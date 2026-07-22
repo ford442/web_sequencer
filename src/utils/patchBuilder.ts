@@ -7,7 +7,7 @@ import type {
   PartSequence, 
   Note, 
   SamplerBankParams
-} from '../types';
+} from '@/types';
 
 /**
  * PatchBuilder
@@ -36,7 +36,7 @@ export const PatchBuilder = {
 
   createEmptySequence(): PartSequence {
     return {
-      steps: Array(16).fill(null),
+      steps: Array.from({ length: 16 }, (): Note | null => null),
       automation: {}
     };
   },

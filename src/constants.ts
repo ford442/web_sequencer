@@ -2,6 +2,7 @@ import { noteToMidi, applyMicrotonalTuning } from './utils/musicTheory';
 import type { ScaleDefinition } from './utils/musicTheory';
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerBankParams, SamplerParams, AmbianceTrack, DrumKitType } from './types';
 import { DRUM_KIT_PRESETS } from './engines/DrumKitPresets';
+import { DEFAULT_TB303_VOICE_FIELDS } from './engines/TB303Models';
 
 export const NUM_STEPS = 32;
 export const DEFAULT_TEMPO = 120;
@@ -71,7 +72,8 @@ export const DEFAULT_BASS2_PARAMS = {
   accent: 0.7,
   envMod: 0.5,
   volume: 0.45,
-  engine303: 'open303' as const,
+  engine303: DEFAULT_TB303_VOICE_FIELDS.engine303,
+  model303: DEFAULT_TB303_VOICE_FIELDS.model303,
 };
 
 export const DEFAULT_KICK_PARAMS: KickParams = { pitch: 60, decay: 0.4, tone: 0.9, volume: 1 };

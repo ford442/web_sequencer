@@ -52,9 +52,9 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
     const guideRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn" onClick={onClose} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose(); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn" onClick={onClose} >
             <div role="dialog" aria-modal="true" aria-labelledby="keyboard-guide-title" tabIndex={-1} ref={guideRef} className="relative p-8 border-2 border-dashed border-cyan-500/50 rounded-2xl bg-[#0d1015] shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
-                <button type="button" onClick={onClose} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose(); }} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1015] rounded p-1.5" aria-label="Close guide" title="Close Guide"><span aria-hidden="true">✕</span></button>
+                <button type="button" onClick={onClose}  className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1015] rounded p-1.5" aria-label="Close guide" title="Close Guide"><span aria-hidden="true">✕</span></button>
                 <div className="text-center mb-8">
                     <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO KEYBOARD</h3>
                     <p className="text-gray-400 font-mono text-sm">Classic piano layout with 5 black keys and 8 white keys.</p>
@@ -137,7 +137,7 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                 </div>
 
                 <div className="text-center">
-                    <button type="button" onClick={onClose} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose(); }} className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all" aria-label="Acknowledge and close guide" title="Acknowledge and close guide">GOT IT</button>
+                    <button type="button" onClick={onClose}  className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-300 border border-cyan-700/50 rounded font-orbitron text-xs tracking-wider transition-all" aria-label="Acknowledge and close guide" title="Acknowledge and close guide">GOT IT</button>
                 </div>
             </div>
         </div>

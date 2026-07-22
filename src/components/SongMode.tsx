@@ -3,7 +3,8 @@ import { getNoteColor } from '../utils/noteColors';
 import { PatternSelector } from './PatternSelector';
 import { MAX_TRACK_PATTERN_SLOT_INDEX } from '../utils/trackStorageUtils';
 
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
+import type { TrackKey } from '../constants/appDefaults';
+import { SONG_MODE_TRACKS } from '../utils/songModeEditing';
 
 export interface SongModeHandle {
     setHighlight: (step: number) => void;
@@ -22,6 +23,11 @@ interface SongModeProps {
     backgroundImage: string;
     onSetBackgroundImage: (url: string) => void;
     onUpdateStep: (stepIndex: number, track: TrackKey, slotIndex: number | null) => void;
+    onEditStructure?: (updater: (prev: { [key in TrackKey]: number | null }[]) => { [key in TrackKey]: number | null }[]) => void;
+    onUndoSong?: () => void;
+    onRedoSong?: () => void;
+    canUndoSong?: boolean;
+    canRedoSong?: boolean;
     onToggle: () => void;
     onAddMeasure: () => void;
     onRemoveMeasure: () => void;
@@ -30,15 +36,7 @@ interface SongModeProps {
     onSetIsSongModeActive: (active: boolean) => void;
 }
 
-const ROWS: { key: TrackKey, label: string, color: string }[] = [
-    { key: 'partA', label: 'LEAD', color: '#06b6d4' },
-    { key: 'partB', label: 'BASS', color: '#d946ef' },
-    { key: 'kick', label: 'KICK', color: '#f97316' },
-    { key: 'snare', label: 'SNARE', color: '#22c55e' },
-    { key: 'closedHat', label: 'CH', color: '#eab308' },
-    { key: 'openHat', label: 'OH', color: '#eab308' },
-    { key: 'sampler', label: 'SMP', color: '#a855f7' },
-];
+const ROWS = SONG_MODE_TRACKS;
 
 // VISUAL CONSTANTS
 const CELL_WIDTH = 40;

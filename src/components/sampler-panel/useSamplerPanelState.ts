@@ -100,7 +100,7 @@ export function useSamplerPanelState({
         case 'formantShift':
           voice.setFormantShift(value as number);
           break;
-        case 'quality': {
+        case 'stretchProfile': {
           const qualityMap = {
             Fast: 1 | 16,
             Standard: 1 | 32,

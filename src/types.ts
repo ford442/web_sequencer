@@ -7,6 +7,8 @@ import type { Open303Oscillator } from './engines/Open303Oscillator';
 import type { ScaleDefinition } from './utils/musicTheory';
 import type { MultisampleBank } from './engines/MultisampleGenerator';
 export type { MultisampleBank } from './engines/MultisampleGenerator';
+import type { TB303ModelId } from './engines/TB303Models';
+export type { TB303ModelId, TB303Model, TB303ModelInfo, Engine303Family } from './engines/TB303Models';
 
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
@@ -36,8 +38,11 @@ export interface SynthParams {
   delayTime: number; // seconds
   delayFeedback: number; // 0-1
   delayMix: number; // 0-1 (wet/dry)
-  /** Which DSP engine to use when waveform is '303-saw' or '303-sqr'. Defaults to 'open303'. */
+  /** Legacy DSP engine field for '303-saw'/'303-sqr' waveforms. Superseded by
+   *  model303 but still written on save so older builds load songs correctly. */
   engine303?: Engine303;
+  /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
+  model303?: TB303ModelId;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;
@@ -83,7 +88,6 @@ export interface HatParams {
 }
 
 export interface SamplerBankParams {
-  grainPitchEnvDepth?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
@@ -146,8 +150,6 @@ export interface SamplerBankParams {
 
   // Pitch / Voice Controls
   rootNote?: number;
-  coarseTune?: number;
-  fineTune?: number;
   stretchProfile?: 'vocal' | 'harmonic' | 'fast';
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer?: boolean;
@@ -380,8 +382,10 @@ export interface Bass2Params {
   volume: number;
   pitch: number;
   pan?: number;
-  /** Which DSP engine to use for this voice. Defaults to 'open303'. */
+  /** Legacy DSP engine field. Superseded by model303 but still written on save. */
   engine303?: Engine303;
+  /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
+  model303?: TB303ModelId;
   /**
    * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
    * Maps to Open303Params.slideTime for the Devil Fish MOD.
@@ -480,6 +484,13 @@ export interface Note {
   spectralPanRate?: number;
   spectralPanDepth?: number;
   vocoderMix?: number;
+  vocoderFormantShift?: number;
+  vocoderPreservation?: number;
+  vocoderAttack?: number;
+  vocoderRelease?: number;
+  tremoloDepth?: number;
+  tremoloRate?: number;
+  breathIntensity?: number;
   phonemes?: PhonemeData[];
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
@@ -499,6 +510,7 @@ export interface PartSequence {
 export interface Pattern {
   partA: PartSequence;
   partB: PartSequence;
+  bass2: PartSequence;
   kick: PartSequence;
   snare: PartSequence;
   closedHat: PartSequence;

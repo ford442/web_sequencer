@@ -6,7 +6,20 @@
 // - Error handling and fallback paths
 
 import initOscillators from '../wasm/oscillators.wasm?init';
-import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback } from '@/utils/engineTelemetry';
+
+interface OscillatorWasmExports {
+    memory: WebAssembly.Memory;
+    generate: (
+        offset: number,
+        rate: number,
+        freq: number,
+        dur: number,
+        type: number,
+        cutoff: number,
+        resonance: number,
+    ) => number;
+}
 
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
@@ -42,7 +55,7 @@ export class WasmOscillator {
     ): Float32Array | null {
         if (!this.isReady || !this.instance || !this.memory) return null;
 
-        const exports = this.instance.exports as any;
+        const exports = this.instance.exports as unknown as OscillatorWasmExports;
         const typeMap = { saw: 0, sqr: 1, tri: 2, sin: 3 };
 
         // Constraints

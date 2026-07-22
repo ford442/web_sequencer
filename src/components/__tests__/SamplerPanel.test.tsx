@@ -73,7 +73,7 @@ describe('SamplerPanel', () => {
 
     it('renders bank tabs correctly', () => {
         render(<SamplerPanel {...defaultProps} />);
-        expect(screen.getByRole('tab', { name: 'Select sample bank 1' })).toBeDefined();
+        expect(screen.getByRole('tab', { name: 'Select Bank 1' })).toBeDefined();
     });
 
     it('shows loaded status when bank is loaded', () => {
@@ -81,10 +81,10 @@ describe('SamplerPanel', () => {
         render(<SamplerPanel {...defaultProps} loadedBanks={loadedBanks} />);
 
         // Check for (Loaded) in aria-label
-        const bank1 = screen.getByRole('tab', { name: 'Select sample bank 1 (Loaded)' });
+        const bank1 = screen.getByRole('tab', { name: 'Select Bank 1 (Loaded)' });
         expect(bank1).toBeDefined();
 
-        const bank2 = screen.getByRole('tab', { name: 'Select sample bank 2' });
+        const bank2 = screen.getByRole('tab', { name: 'Select Bank 2' });
         expect(bank2).toBeDefined();
     });
 

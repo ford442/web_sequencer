@@ -26,7 +26,7 @@ export function useSamplerVoiceState(deps: {
         vibratoDepth: 0,
         tremoloDepth: 0,
         breathAmount: 0,
-        quality: 'good' as 'preview' | 'good' | 'better' | 'best',
+        stretchProfile: 'vocal' as 'vocal' | 'harmonic' | 'fast',
         stretchMode: 'Time' as 'Time' | 'Pitch' | 'Formant',
         lockToSequencer: false
     });
@@ -104,7 +104,7 @@ export function useSamplerVoiceState(deps: {
             formantShift: bank.formantShift ?? samplerVoiceParamsRef.current.formantShift,
             attack: bank.attack ?? samplerVoiceParamsRef.current.attack,
             decay: bank.decay ?? samplerVoiceParamsRef.current.decay,
-            quality: bank.quality ?? samplerVoiceParamsRef.current.quality,
+            stretchProfile: bank.stretchProfile ?? samplerVoiceParamsRef.current.stretchProfile,
             stretchMode: bank.stretchMode ?? samplerVoiceParamsRef.current.stretchMode,
             lockToSequencer: bank.lockToSequencer ?? samplerVoiceParamsRef.current.lockToSequencer,
             vibratoRate: expressiveness?.vibratoRate ?? samplerVoiceParamsRef.current.vibratoRate,

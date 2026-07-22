@@ -90,3 +90,7 @@ button:hover {
 .font-orbitron {
   font-family: 'Orbitron', 'Roboto Mono', monospace;
 }
+
+.webgpu-active .webgpu-fallback-svg {
+  display: none;
+}

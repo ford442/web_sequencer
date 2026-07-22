@@ -14,6 +14,10 @@ import {
   mapRange,
 } from './parameterCurves';
 import type { ImporterContext } from './importerContext';
+import { DEFAULT_TB303_VOICE_FIELDS } from '../../../engines/TB303Models';
+
+/** Persisted 303 voice defaults for RBS imports (ReBirth hardware → stock Hyphon voice). */
+const RBS_TB303_VOICE_FIELDS = DEFAULT_TB303_VOICE_FIELDS;
 
 /** Convert TB-303 params to Bass2Params (Open303 format). */
 export function convertToBass2Params(
@@ -56,6 +60,7 @@ export function convertToBass2Params(
 
   return {
     waveform: tb303.waveform === 0 ? '303-saw' : '303-sqr',
+    ...RBS_TB303_VOICE_FIELDS,
     pitch: 0,
     cutoff,
     resonance,
@@ -85,6 +90,7 @@ export function mapTb303PatternToSynthParams(
   const portamento = clampNormalized((tb303.slideTime ?? TB303_DEFAULT_SLIDE_TIME) / 127);
   return {
     waveform,
+    ...RBS_TB303_VOICE_FIELDS,
     pitch: 0,
     filterCutoff: cutoffHz,
     filterResonance: resonance,
@@ -273,6 +279,7 @@ export function convertSynthParams(
 
     return {
       waveform,
+      ...RBS_TB303_VOICE_FIELDS,
       pitch: 0,
       filterCutoff: cutoffHz,
       filterResonance: resonance,
