@@ -866,8 +866,10 @@ const playSampler = (
         playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
 
         // Play each harmony voice (skip index 0 which is base)
-        voices.forEach((voice) => {
-            if (voice.index === 0) return; // Skip base voice, already played above
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < voices.length; i++) {
+            const voice = voices[i];
+            if (voice.index === 0) continue; // Skip base voice, already played above
 
             // Create modified params for this harmony voice
             const voiceParams: SamplerBankParams = {
@@ -883,7 +885,7 @@ const playSampler = (
             setTimeout(() => {
                 playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
             }, delayMs);
-        });
+        }
         return;
     }
 
