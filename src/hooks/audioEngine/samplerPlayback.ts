@@ -153,7 +153,20 @@ const playBufferSource = (
         pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
     }
 
-    source.buffer = playbackBuffer;
+    if (noteParams?.reverse) {
+        // Reverse buffer inline for playBufferSource path (non-stretch)
+        const reversedBuffer = context.createBuffer(playbackBuffer.numberOfChannels, playbackBuffer.length, playbackBuffer.sampleRate);
+        for (let i = 0; i < playbackBuffer.numberOfChannels; i++) {
+            const channelData = playbackBuffer.getChannelData(i);
+            const reversedData = reversedBuffer.getChannelData(i);
+            for (let j = 0; j < playbackBuffer.length; j++) {
+                reversedData[j] = channelData[playbackBuffer.length - 1 - j];
+            }
+        }
+        source.buffer = reversedBuffer;
+    } else {
+        source.buffer = playbackBuffer;
+    }
     source.playbackRate.value = pitchRatio;
 
     const gain = context.createGain();
