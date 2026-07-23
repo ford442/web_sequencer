@@ -127,12 +127,6 @@ export const TransportToolbar = memo(function TransportToolbar({
                 {/* Play/Stop Button */}
                 <button type="button"
                     onClick={handlePlayToggle}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handlePlayToggle();
-                        }
-                    }}
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
                     title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
@@ -144,12 +138,6 @@ export const TransportToolbar = memo(function TransportToolbar({
                 {/* Record Button */}
                 <button type="button"
                     onClick={() => setIsRecording(!isRecording)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setIsRecording(!isRecording);
-                        }
-                    }}
                     aria-pressed={isRecording} 
                     aria-label="Toggle Recording" 
                     title={isRecording ? "Stop Recording" : "Toggle Recording"}
@@ -264,12 +252,6 @@ export const TransportToolbar = memo(function TransportToolbar({
                 <HelpTip topicId="song-mode" position="bottom">
                 <button type="button"
                     onClick={() => setIsSongModeOpen(!isSongModeOpen)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setIsSongModeOpen(!isSongModeOpen);
-                        }
-                    }}
                     aria-pressed={isSongModeOpen} 
                     aria-label="Toggle Song Mode" 
                     title={isSongModeOpen ? "Close Song Mode" : "Open Song Mode"}
