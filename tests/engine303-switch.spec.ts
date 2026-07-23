@@ -33,7 +33,7 @@ async function initApp(page: import('@playwright/test').Page): Promise<void> {
     await startBtn.click({ force: true });
     await startBtn.waitFor({ state: 'hidden', timeout: 30000 });
 
-    await expect(page.getByRole('button', { name: 'Start Playback' })).toBeVisible({ timeout: 60000 });
+    await expect(page.getByRole('button', { name: 'Start Playback', exact: true })).toBeVisible({ timeout: 60000 });
 }
 
 test.skip('303 voice switch: SYNTH B toggles between stock and JC303 voices', async ({ page }) => {

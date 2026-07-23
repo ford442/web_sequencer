@@ -30,7 +30,7 @@ test.describe('RBS import E2E', () => {
     await expect(page.getByTestId('cell-partA-0')).toBeVisible();
     await expect(page.getByTestId('cell-partA-1')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Start Playback' }).click();
+    await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
 
     // Transport advances during playback (E2E transport bucket or sequencer playhead).
@@ -64,7 +64,7 @@ test.describe('RBS import E2E', () => {
       .poll(() => getAutomationLaneCount(page), { timeout: 5_000 })
       .toBeGreaterThan(0);
 
-    await page.getByRole('button', { name: 'Start Playback' }).click();
+    await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
 
     await expect
       .poll(async () => {

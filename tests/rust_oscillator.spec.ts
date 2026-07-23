@@ -15,7 +15,7 @@ test.skip('Verify Rust Oscillator loads and Waveform Selector updates', async ({
 
   // 2. Wait for loading to finish (Pyodide can be slow)
   // We look for the "PLAY" button or the disappearance of a loading overlay
-  await expect(page.getByRole('button', { name: 'Start Playback' })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByRole('button', { name: 'Start Playback', exact: true })).toBeVisible({ timeout: 60000 });
 
   // 3. Locate the Waveform Selector for Synth A (Lead)
   // It's in the HardwareModule for "SYNTH A // LEAD"

@@ -35,7 +35,7 @@ export async function initializeHyphonAudio(page: Page): Promise<void> {
   await startBtn.click({ force: true });
   await startBtn.waitFor({ state: 'hidden', timeout: 30_000 });
 
-  await expect(page.getByRole('button', { name: 'Start Playback' })).toBeVisible({
+  await expect(page.getByRole('button', { name: 'Start Playback', exact: true })).toBeVisible({
     timeout: 60_000,
   });
 }
