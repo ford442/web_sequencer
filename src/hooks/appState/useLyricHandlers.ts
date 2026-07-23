@@ -109,24 +109,74 @@ export function useLyricHandlers(deps: {
 
     const handleLyricApply = useCallback(async (text: string) => {
         try {
-            await handleGenerateTTS(text);
+            // Parse pitch tags like (C4) or (C#4)
+            const pitchRegex = /\(([A-G][#b]?[0-9])\)/g;
+            const pitches: string[] = [];
+            let match;
+            while ((match = pitchRegex.exec(text)) !== null) {
+                pitches.push(match[1]);
+            }
+
+            // Clean text for TTS generation
+            const cleanText = text.replace(pitchRegex, '').trim();
+
+            await handleGenerateTTS(cleanText);
 
             const newPhrases = [...ttsPhrases];
-            newPhrases[activeSamplerBankRef.current] = text;
+            newPhrases[activeSamplerBankRef.current] = cleanText;
             setTtsPhrases(newPhrases);
 
             const prev = patternRef.current;
             const bankIdx = activeSamplerBankRef.current;
 
             let noteIndex = 0;
-            const newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
+            let newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
                 if (stepData && stepData.velocity > 0) {
                     const newStep = { ...stepData, sliceIndex: noteIndex };
+                    if (pitches[noteIndex]) {
+                        newStep.note = pitches[noteIndex];
+                    }
                     noteIndex++;
                     return newStep;
                 }
                 return stepData;
             });
+
+            // If no notes exist, auto-generate them based on phoneme timing
+            if (noteIndex === 0) {
+                const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
+                if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
+                    const stepTime = 60 / tempoRef.current / 4;
+                    const newSamplerSequence = { ...newPattern.sampler, steps: [...newPattern.sampler.steps] };
+                    let currentPitchIdx = 0;
+
+                    // Group phonemes into words/syllables based on pauses (simple heuristic)
+
+                    let lastPhonemeEnd = 0;
+
+                    alignment.phonemes.forEach((p: any, i: number) => {
+                        const stepIdx = Math.round(p.start / stepTime);
+
+                        // Treat as new syllable if there's a gap or it's the first phoneme
+                        if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
+                            if (stepIdx >= 0 && stepIdx < 32 && !newSamplerSequence.steps[stepIdx]) {
+                                newSamplerSequence.steps[stepIdx] = {
+                                    note: pitches[currentPitchIdx] || 'C4',
+                                    velocity: 1,
+                                    length: 1,
+                                    sliceIndex: noteIndex,
+                                    bankIndex: bankIdx
+                                };
+                                noteIndex++;
+                                currentPitchIdx++;
+                            }
+                        }
+                        lastPhonemeEnd = p.end;
+                    });
+
+                    newPattern = { ...newPattern, sampler: newSamplerSequence };
+                }
+            }
 
             setPattern(newPattern);
             updateStorageForTrack('sampler', newPattern.sampler);
@@ -151,7 +201,7 @@ export function useLyricHandlers(deps: {
             console.error(e);
             showToast("Failed to generate or map lyrics.", "error");
         }
-    }, [handleGenerateTTS, ttsPhrases, updateStorageForTrack, showToast, patternRef, activeSamplerBankRef, setTtsPhrases, setPattern, setSampler, samplerRef, setIsLyricTrackVisible]);
+    }, [handleGenerateTTS, audioEngine, tempoRef, ttsPhrases, updateStorageForTrack, showToast, patternRef, activeSamplerBankRef, setTtsPhrases, setPattern, setSampler, samplerRef, setIsLyricTrackVisible]);
 
     return {
         handleTtsPhraseChange,
