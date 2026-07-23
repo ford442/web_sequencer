@@ -166,7 +166,6 @@ export function useLyricHandlers(deps: {
                                     velocity: 1,
                                     length: 1,
                                     sliceIndex: noteIndex,
-                                    bankIndex: bankIdx
                                 };
                                 noteIndex++;
                                 currentPitchIdx++;
