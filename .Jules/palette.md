@@ -1,7 +1,3 @@
 ## 2024-05-24 - [Modal Backdrop Accessibility Anti-Pattern]
 **Learning:** Wrapping a dialog inside a focusable button or making an entire modal backdrop container act as a focusable button (`role="button"`, `tabIndex={0}`) is a critical accessibility issue that deeply confuses screen readers and creates unnecessary tab stops. Additionally, applying manual `onKeyDown` handlers for the Enter and Space keys on native `<button>` elements introduces bugs by causing duplicate event firing, as native buttons handle these keys automatically.
 **Action:** When implementing modal backdrops, ensure they are strictly decorative (`aria-hidden="true"`) and use a proper focus trap mechanism. Never override or duplicate native `<button>` semantics with redundant roles or key handlers.
-
-## 2024-07-23 - [Redundant Key Handlers on Native Buttons]
-**Learning:** Adding custom `onKeyDown` handlers for 'Enter' or 'Space' to trigger `onClick` logic on native `<button>` elements is an accessibility anti-pattern. Native buttons already map these keys to the `click` event at the browser level. Custom handlers cause duplicate event firing, muddy React event bubbling, and require overly specific tests (e.g. `fireEvent.keyDown` instead of `fireEvent.click`).
-**Action:** Trust native HTML elements. Remove custom 'Enter' and 'Space' key listeners from native `<button>` elements. When testing these elements in React Testing Library, test the outcome of `fireEvent.click()` rather than manually simulating the keyboard event.
