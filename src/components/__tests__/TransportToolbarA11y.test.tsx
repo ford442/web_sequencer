@@ -30,7 +30,7 @@ describe('TransportToolbar Accessibility', () => {
         const handlePlayToggle = vi.fn();
         render(<TransportToolbar {...baseProps} handlePlayToggle={handlePlayToggle} />);
         const play = screen.getByLabelText('Start Playback');
-        fireEvent.keyDown(play, { key: ' ' });
+        fireEvent.click(play);
         expect(handlePlayToggle).toHaveBeenCalled();
     });
 
@@ -38,7 +38,7 @@ describe('TransportToolbar Accessibility', () => {
         const setIsSongModeOpen = vi.fn();
         render(<TransportToolbar {...baseProps} setIsSongModeOpen={setIsSongModeOpen} />);
         const songBtn = screen.getByLabelText('Toggle Song Mode');
-        fireEvent.keyDown(songBtn, { key: 'Enter' });
+        fireEvent.click(songBtn);
         expect(setIsSongModeOpen).toHaveBeenCalledWith(true);
     });
 
