@@ -147,7 +147,8 @@ export function useLyricHandlers(deps: {
                 const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
                 if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                     const stepTime = 60 / tempoRef.current / 4;
-                    const newSamplerSequence = { ...newPattern.sampler, steps: [...newPattern.sampler.steps] };
+                    const newSamplerSequence = [...newPattern.sampler];
+                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: [...newSamplerSequence[bankIdx].steps] };
                     let currentPitchIdx = 0;
 
                     // Group phonemes into words/syllables based on pauses (simple heuristic)
@@ -159,8 +160,8 @@ export function useLyricHandlers(deps: {
 
                         // Treat as new syllable if there's a gap or it's the first phoneme
                         if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
-                            if (stepIdx >= 0 && stepIdx < 32 && !newSamplerSequence.steps[stepIdx]) {
-                                newSamplerSequence.steps[stepIdx] = {
+                            if (stepIdx >= 0 && stepIdx < 32 && !currentBankSequence.steps[stepIdx]) {
+                                currentBankSequence.steps[stepIdx] = {
                                     note: pitches[currentPitchIdx] || 'C4',
                                     velocity: 1,
                                     length: 1,
@@ -174,6 +175,7 @@ export function useLyricHandlers(deps: {
                         lastPhonemeEnd = p.end;
                     });
 
+                    newSamplerSequence[bankIdx] = currentBankSequence;
                     newPattern = { ...newPattern, sampler: newSamplerSequence };
                 }
             }
