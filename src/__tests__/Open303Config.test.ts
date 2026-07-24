@@ -40,7 +40,9 @@ describe('Open303 Oscillator', () => {
             port: {
                 postMessage: vi.fn(),
                 onmessage: null as ((ev: any) => void) | null,
-                close: vi.fn()
+                close: vi.fn(),
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
             },
             connect: vi.fn(),
             disconnect: vi.fn()
@@ -118,6 +120,7 @@ describe('Open303 Oscillator', () => {
     it('should send noteOn messages', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
+        mockWorkletNode.port.postMessage.mockClear();
 
         engine.noteOn(60, 100);
         expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
@@ -129,6 +132,7 @@ describe('Open303 Oscillator', () => {
     it('should send noteOff messages', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
+        mockWorkletNode.port.postMessage.mockClear();
 
         engine.noteOff(60);
         expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
@@ -140,6 +144,7 @@ describe('Open303 Oscillator', () => {
     it('should send param updates', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
+        mockWorkletNode.port.postMessage.mockClear();
 
         engine.setCutoff(0.5);
         engine.setFilterMode(1);
