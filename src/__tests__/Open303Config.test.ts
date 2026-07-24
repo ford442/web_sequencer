@@ -46,8 +46,7 @@ describe('Open303 Oscillator', () => {
                         setTimeout(() => handler({ data: { type: 'ready' } }), 0);
                     }
                 }),
-                removeEventListener: vi.fn(),
-                start: vi.fn()
+                removeEventListener: vi.fn()
             },
             connect: vi.fn(),
             disconnect: vi.fn()
@@ -120,8 +119,6 @@ describe('Open303 Oscillator', () => {
                 sampleRate: 44100
             })
         }));
-
-        mockWorkletNode.port.postMessage.mockClear();
     });
 
     it('should send noteOn messages', async () => {
