@@ -119,14 +119,45 @@ export function useLyricHandlers(deps: {
             const bankIdx = activeSamplerBankRef.current;
 
             let noteIndex = 0;
-            const newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
-                if (stepData && stepData.velocity > 0) {
-                    const newStep = { ...stepData, sliceIndex: noteIndex };
-                    noteIndex++;
-                    return newStep;
-                }
-                return stepData;
-            });
+            let newPattern;
+            const alignment = audioEngine?.getAlignment?.(bankIdx);
+
+            if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
+                const stepTime = 60 / tempoRef.current / 4;
+                const newSteps = Array(32).fill(null);
+
+                alignment.phonemes.forEach((p: { start: number; end: number; phoneme: string }, i: number) => {
+                    const startStep = Math.round(p.start / stepTime);
+                    if (startStep >= 0 && startStep < 32) {
+                        const durationSteps = Math.max(1, Math.round((p.end - p.start) / stepTime));
+                        newSteps[startStep] = {
+                            note: 'C4',
+                            velocity: 1,
+                            length: durationSteps,
+                            sliceIndex: i
+                        };
+                        noteIndex++;
+                    }
+                });
+
+                newPattern = {
+                    ...prev,
+                    sampler: prev.sampler.map((bank, idx) =>
+                        idx === bankIdx
+                            ? { ...bank, steps: newSteps }
+                            : bank
+                    ),
+                };
+            } else {
+                newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
+                    if (stepData && stepData.velocity > 0) {
+                        const newStep = { ...stepData, sliceIndex: noteIndex };
+                        noteIndex++;
+                        return newStep;
+                    }
+                    return stepData;
+                });
+            }
 
             setPattern(newPattern);
             updateStorageForTrack('sampler', newPattern.sampler);
@@ -151,7 +182,7 @@ export function useLyricHandlers(deps: {
             console.error(e);
             showToast("Failed to generate or map lyrics.", "error");
         }
-    }, [handleGenerateTTS, ttsPhrases, updateStorageForTrack, showToast, patternRef, activeSamplerBankRef, setTtsPhrases, setPattern, setSampler, samplerRef, setIsLyricTrackVisible]);
+    }, [handleGenerateTTS, audioEngine, tempoRef, ttsPhrases, updateStorageForTrack, showToast, patternRef, activeSamplerBankRef, setTtsPhrases, setPattern, setSampler, samplerRef, setIsLyricTrackVisible]);
 
     return {
         handleTtsPhraseChange,
