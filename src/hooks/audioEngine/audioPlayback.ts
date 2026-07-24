@@ -23,8 +23,12 @@ import { makeDistortionCurve } from "./distortion";
 import { engineTelemetry } from "../../utils/engineTelemetry";
 import { pulseExpressionLed } from "../../audio/expressionLedPulse";
 import type { ExpressionLedTarget } from "../../types";
+import type { SingingVoice } from "../../engines/SingingVoice";
 
 export type SynthTrack = "partA" | "partB" | "bass2";
+
+// ⚡ Bolt Optimization: Pre-allocated scratch buffer for retrieving active singing voices without GC overhead
+const _activeSingingVoicesScratch: SingingVoice[] = [];
 
 const SYNTH_TRACK_TO_LED: Record<SynthTrack, ExpressionLedTarget> = {
   partA: "synthA",
@@ -619,11 +623,17 @@ export function createPlayDrum(
         if (refs.sidechainGainRef.current) {
           triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
         }
-        refs.singingVoiceManagerRef.current?.getActiveVoices().forEach(voice => {
-          if (voice.formantSidechainDepth > 0) {
-            voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+        const manager = refs.singingVoiceManagerRef.current;
+        if (manager) {
+          const activeVoices = manager.getActiveVoices(_activeSingingVoicesScratch);
+          // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+          for (let i = 0; i < activeVoices.length; i++) {
+            const voice = activeVoices[i];
+            if (voice.formantSidechainDepth > 0) {
+              voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+            }
           }
-        });
+        }
       }
 
       kitEngine.play(
@@ -642,11 +652,17 @@ export function createPlayDrum(
       if (refs.sidechainGainRef.current) {
         triggerSidechainDuck(context, refs.sidechainGainRef.current, now);
       }
-      refs.singingVoiceManagerRef.current?.getActiveVoices().forEach(voice => {
-        if (voice.formantSidechainDepth > 0) {
-          voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+      const manager = refs.singingVoiceManagerRef.current;
+      if (manager) {
+        const activeVoices = manager.getActiveVoices(_activeSingingVoicesScratch);
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < activeVoices.length; i++) {
+          const voice = activeVoices[i];
+          if (voice.formantSidechainDepth > 0) {
+            voice.triggerFormantSidechainDuck(voice.formantSidechainDepth, 0.25, now);
+          }
         }
-      });
+      }
 
       const kickParams = params as KickParams;
       const osc = context.createOscillator();
