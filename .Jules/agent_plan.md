@@ -5,6 +5,7 @@
 
 ## Innovation Lab
 - [x] Implement Phoneme Envelope shaping per step
-- [ ] Implement Lyric Track parsing
+- [x] Implement Lyric Track parsing
+- [ ] Implement Vowel-Preserving Time Stretch for TTS voices
 
 ## Roadmap
