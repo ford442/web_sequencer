@@ -70,7 +70,26 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
           )}
 
           {mappings.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">No mappings yet. Enable MIDI Learn and touch a control.</p>
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+              <div className="w-12 h-12 rounded-full bg-purple-900/30 flex items-center justify-center mb-4 text-purple-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+              </div>
+              <h3 className="text-gray-300 font-bold mb-2">No mappings yet</h3>
+              <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
+                Enable MIDI Learn and touch a control on the screen, then move a physical knob on your MIDI controller.
+              </p>
+              {!learnMode && (
+                <button type="button"
+                  onClick={() => midiMapStore.toggleLearnMode()}
+                  className="bg-purple-900/30 text-purple-400 border border-purple-800/50 hover:bg-purple-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                  aria-label="Start MIDI Learn"
+                >
+                  Start MIDI Learn
+                </button>
+              )}
+            </div>
           ) : (
             <ul className="space-y-1">
               {mappings.map((m) => {
@@ -106,6 +125,8 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
                 if (window.confirm('Clear all MIDI mappings?')) midiMapStore.clearAllBindings();
               }}
               className="w-full text-[10px] font-bold text-red-400 border border-red-900/40 rounded py-2 hover:bg-red-950/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-500"
+              aria-label="Clear all MIDI mappings"
+              title="Remove all customized MIDI controller mappings"
             >
               CLEAR ALL MAPPINGS
             </button>
