@@ -397,7 +397,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     {/* Harmony Envelope Controls */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Attack</span>
+                            <label htmlFor="harmonizer-harmony-attack" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Attack</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {(localConfig.harmonyAttack ?? 1.5).toFixed(2)}s
                             </span>
@@ -412,6 +412,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 }}
                             />
                             <input
+                                id="harmonizer-harmony-attack"
                                 type="range"
                                 min="0"
                                 max="5"
@@ -427,7 +428,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Release</span>
+                            <label htmlFor="harmonizer-harmony-release" className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">Harmony Release</label>
                             <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800" style={{ color, textShadow: `0 0 8px ${color}40` }}>
                                 {(localConfig.harmonyRelease ?? 3.0).toFixed(2)}s
                             </span>
@@ -442,6 +443,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                 }}
                             />
                             <input
+                                id="harmonizer-harmony-release"
                                 type="range"
                                 min="0"
                                 max="10"
