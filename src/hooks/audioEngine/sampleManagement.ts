@@ -147,6 +147,7 @@ export function applyVoiceParamUpdate({
 }: VoiceParamUpdateOptions): void {
     if (manager) {
         const voices = manager.getAllVoices();
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
         for (let i = 0; i < voices.length; i++) {
             const voice = voices[i];
             switch (key) {
@@ -209,6 +210,7 @@ export function applySamplerVoiceParamUpdate({
     }
 
     const voices = manager.getAllVoices();
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
     for (let i = 0; i < voices.length; i++) {
         const voice = voices[i];
         switch (param) {

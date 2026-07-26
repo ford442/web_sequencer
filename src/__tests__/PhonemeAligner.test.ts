@@ -123,16 +123,23 @@ describe('PhonemeAligner', () => {
             expect(ratios[1]).toBeCloseTo(1.0, 1);
         });
         
-        it('should clamp extreme ratios', () => {
+        it('should clamp extreme ratios for vowels and fallback to stretching consonants', () => {
             const phonemes: PhonemeSegment[] = [
-                { phoneme: 'AH', start: 0, end: 0.1, isVowel: true }
+                { phoneme: 'AH', start: 0, end: 0.1, isVowel: true },
+                { phoneme: 'T', start: 0.1, end: 0.2, isVowel: false }
             ];
             
             const ratios = aligner.calculateStretchRatios(phonemes, 10.0); // Extreme stretch
             
-            // Should be clamped to reasonable range
-            expect(ratios[0]).toBeLessThanOrEqual(3.0);
-            expect(ratios[0]).toBeGreaterThanOrEqual(0.5);
+            // Vowel should be clamped to max
+            expect(ratios[0]).toBe(3.0);
+
+            // Consonant should be stretched heavily to fill the rest of the time
+            // Total time = 10.0
+            // Vowel takes: 0.1 * 3.0 = 0.3s
+            // Consonant needs to take: 10.0 - 0.3 = 9.7s
+            // Consonant stretch ratio: 9.7 / 0.1 = 97.0
+            expect(ratios[1]).toBeCloseTo(97.0, 1);
         });
         
         it('should handle empty phoneme array', () => {
