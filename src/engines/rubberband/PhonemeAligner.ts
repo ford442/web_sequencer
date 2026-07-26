@@ -431,7 +431,9 @@ export class PhonemeAligner {
     
     /**
      * Calculate optimal time ratios for each phoneme to achieve target duration.
-     * Stretches vowels while keeping consonants at natural length.
+     * Stretches vowels while trying to keep consonants at natural length.
+     * If vowel limits are exceeded, gracefully applies stretch/compression to consonants
+     * to ensure the resulting length perfectly aligns with the target duration.
      * 
      * @param phonemes Array of phoneme segments
      * @param targetDuration Target total duration in seconds
@@ -443,29 +445,32 @@ export class PhonemeAligner {
     ): number[] {
         if (phonemes.length === 0) return [];
         
-        // Calculate original duration
         const originalDuration = phonemes.reduce((sum, p) => sum + (p.end - p.start), 0);
+        if (originalDuration <= 0) return phonemes.map(() => 1.0);
         
-        if (originalDuration <= 0) {
-            return phonemes.map(() => 1.0);
+        const vowelDuration = phonemes.filter(p => p.isVowel).reduce((sum, p) => sum + (p.end - p.start), 0);
+        const consonantDuration = originalDuration - vowelDuration;
+
+        if (vowelDuration <= 0 || consonantDuration <= 0) {
+            const uniformRatio = Math.max(0.1, targetDuration / originalDuration);
+            return phonemes.map(() => uniformRatio);
         }
         
-        // Separate vowels and consonants
-        const vowelDuration = phonemes
-            .filter(p => p.isVowel)
-            .reduce((sum, p) => sum + (p.end - p.start), 0);
+        let vowelStretchRatio = (targetDuration - consonantDuration) / vowelDuration;
+        let consonantStretchRatio = 1.0;
         
-        const consonantDuration = originalDuration - vowelDuration;
+        const VOWEL_MIN = 0.5;
+        const VOWEL_MAX = 3.0;
         
-        // Keep consonants at 1.0 ratio, stretch vowels to fill remaining time
-        const remainingTime = targetDuration - consonantDuration;
-        const vowelStretchRatio = vowelDuration > 0 ? remainingTime / vowelDuration : 1.0;
+        if (vowelStretchRatio > VOWEL_MAX) {
+            vowelStretchRatio = VOWEL_MAX;
+            consonantStretchRatio = Math.max(0.1, (targetDuration - (vowelDuration * VOWEL_MAX)) / consonantDuration);
+        } else if (vowelStretchRatio < VOWEL_MIN) {
+            vowelStretchRatio = VOWEL_MIN;
+            consonantStretchRatio = Math.max(0.1, (targetDuration - (vowelDuration * VOWEL_MIN)) / consonantDuration);
+        }
         
-        // Clamp vowel stretch to reasonable range (0.5 to 3.0)
-        const clampedVowelStretch = Math.max(0.5, Math.min(3.0, vowelStretchRatio));
-        
-        // Return ratios for each phoneme
-        return phonemes.map(p => p.isVowel ? clampedVowelStretch : 1.0);
+        return phonemes.map(p => p.isVowel ? vowelStretchRatio : consonantStretchRatio);
     }
     
     /**
