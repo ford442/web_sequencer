@@ -482,8 +482,8 @@ export class PhonemeAligner {
      * @returns SharedArrayBuffer with phoneme data
      */
     createSharedPhonemeBuffer(phonemes: PhonemeSegment[], sampleRate: number, userPhonemes?: PhonemeData[]): SharedArrayBuffer {
-        // 1 int for count + 6 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend)
-        const bufferSize = (1 + phonemes.length * 6) * 4; // 4 bytes per float32
+        // 1 int for count + 8 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend, vibDepth, vibRate)
+        const bufferSize = (1 + phonemes.length * 8) * 4; // 4 bytes per float32
         const sharedBuffer = new SharedArrayBuffer(bufferSize);
         const view = new Float32Array(sharedBuffer);
         
@@ -491,7 +491,7 @@ export class PhonemeAligner {
         
         for (let i = 0; i < phonemes.length; i++) {
             const p = phonemes[i];
-            const baseIndex = 1 + i * 6;
+            const baseIndex = 1 + i * 8;
             view[baseIndex] = p.start * sampleRate;     // Start sample
             view[baseIndex + 1] = p.end * sampleRate;   // End sample
             view[baseIndex + 2] = p.isVowel ? 1.0 : 0.0; // Boolean as float
@@ -500,6 +500,9 @@ export class PhonemeAligner {
             // Map user phoneme data if available
             let volume = 1.0;
             let pitchBend = 0.0;
+            let vibDepth = -1.0; // -1 means use global
+            let vibRate = -1.0;  // -1 means use global
+
             if (userPhonemes && userPhonemes.length > i) {
                 // If userPhonemes are provided, we map them by index.
                 // Alternatively, we could map them by normalized time,
@@ -507,9 +510,13 @@ export class PhonemeAligner {
                 const userP = userPhonemes[i];
                 if (userP.volume !== undefined) volume = userP.volume;
                 if (userP.pitchBend !== undefined) pitchBend = userP.pitchBend;
+                if (userP.vibratoDepth !== undefined) vibDepth = userP.vibratoDepth;
+                if (userP.vibratoRate !== undefined) vibRate = userP.vibratoRate;
             }
             view[baseIndex + 4] = volume;
             view[baseIndex + 5] = pitchBend;
+            view[baseIndex + 6] = vibDepth;
+            view[baseIndex + 7] = vibRate;
         }
         
         return sharedBuffer;
