@@ -1,0 +1,11 @@
+--- src/components/MidiMapPanel.tsx
++++ src/components/MidiMapPanel.tsx
+@@ -107,6 +107,8 @@
+                 if (window.confirm('Clear all MIDI mappings?')) midiMapStore.clearAllBindings();
+               }}
+               className="w-full text-[10px] font-bold text-red-400 border border-red-900/40 rounded py-2 hover:bg-red-950/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-red-500"
++              aria-label="Clear all MIDI mappings"
++              title="Remove all customized MIDI controller mappings"
+             >
+               CLEAR ALL MAPPINGS
+             </button>

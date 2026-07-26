@@ -1,3 +1,6 @@
 ## 2026-07-24 - [CloudLibrary Filtered Empty State]
 **Learning:** When adding a dynamic filtering mechanism (e.g. `type === 'bank'`), it is important to include an empty state that caters specifically to when the filter returns `0` results even when the overall collection has items. Users can easily feel like their library is entirely empty if the UI is completely blank, rather than specifically pointing out that the current *filter* is the reason for the empty results.
 **Action:** When implementing filtered lists, ensure there's a distinction in the empty state between "No items exist in total" and "No items match the current filter", ideally offering a quick one-click action to clear the active filters.
+## 2026-07-26 - Better empty states over redundant labels
+**Learning:** For accessibility and UX tasks, creating meaningful, structured empty states (with icons, explanations, and CTAs) provides much higher value than mass-adding `aria-label` or `title` to text buttons that are already accessible by their content. Also, the app uses a consistent `border-dashed` style with circular icon wrappers for its empty states.
+**Action:** When asked to find a UX win, prioritize creating or improving 'zero-data' states in lists/tables before looking for missing tooltips on obvious text buttons.
