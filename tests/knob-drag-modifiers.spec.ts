@@ -9,6 +9,7 @@ test.describe('knob drag modifiers', () => {
         await expect(cutoff).toBeVisible({ timeout: 30_000 });
 
         const start = await readSliderValue(cutoff);
+        console.log("start:", start);
 
         await verticalDragKnob(page, cutoff, 50);
         const afterNormal = await readSliderValue(cutoff);
