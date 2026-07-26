@@ -4,3 +4,6 @@
 ## 2026-07-26 - Better empty states over redundant labels
 **Learning:** For accessibility and UX tasks, creating meaningful, structured empty states (with icons, explanations, and CTAs) provides much higher value than mass-adding `aria-label` or `title` to text buttons that are already accessible by their content. Also, the app uses a consistent `border-dashed` style with circular icon wrappers for its empty states.
 **Action:** When asked to find a UX win, prioritize creating or improving 'zero-data' states in lists/tables before looking for missing tooltips on obvious text buttons.
+## 2026-07-26 - Better empty states over redundant labels
+**Learning:** For accessibility and UX tasks, creating meaningful, structured empty states (with icons, explanations, and CTAs) provides much higher value than mass-adding `aria-label` or `title` to text buttons that are already accessible by their content. Also, the app uses a consistent `border-dashed` style with circular icon wrappers for its empty states.
+**Action:** When asked to find a UX win, prioritize creating or improving 'zero-data' states in lists/tables before looking for missing tooltips on obvious text buttons.
