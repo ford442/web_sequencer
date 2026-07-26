@@ -46,7 +46,8 @@ describe('Open303 Oscillator', () => {
                         setTimeout(() => handler({ data: { type: 'ready' } }), 0);
                     }
                 }),
-                removeEventListener: vi.fn()
+                removeEventListener: vi.fn(),
+                start: vi.fn()
             },
             connect: vi.fn(),
             disconnect: vi.fn()
