@@ -14,6 +14,7 @@
 ## 2024-05-20 - [Closure Allocations in High Frequency Sequences]
 **Learning:** `forEach` closures on real-time sequencer paths (`useStepHandler`, `samplerPlayback`) continuously allocate memory, leading to main-thread GC spikes during playback. These allocations compound rapidly, especially when iterating over polyphonic voices or per-step sequences on every tick.
 **Action:** Consistently replace `Array.prototype.forEach` (and similar higher-order functions like `.map` or `.filter`) with standard `for` or `for...of` loops in high-frequency loops, Web Audio callbacks, and sequencer logic to eliminate closure instantiation overhead entirely.
-## 2024-05-20 - [Closure Allocations in Voice Management and Lifecycle Hooks]
-**Learning:** In modules managing global voice state (e.g. `src/hooks/audioEngine/sampleManagement.ts` and `src/hooks/audioEngine/engineLifecycle.ts`), applying global parameter changes to all voices via `manager.getAllVoices().forEach(...)` generates transient closures. Since parameter updates (like formant shift, time ratio, or vibrato rate from automation lanes) occur frequently on the hot path, this overhead compounds.
-**Action:** Replace `manager.getAllVoices().forEach(...)` calls with traditional `for` loops in all voice management and lifecycle hooks to completely eliminate closure allocation on these high-frequency parameter update paths.
+
+## 2026-07-25 - Automation Lane Flow Closure Hot Paths
+**Learning:** In the `useStepHandler.ts` step loop, unified automation lane updates continuously call into `applyVoiceParamUpdate` and `applySamplerVoiceParamUpdate` (via `audioEngine.updateSamplerVoiceParams` and `onParamChange`). This means iterating over voices inside these param updaters is also a high-frequency real-time execution path. Previously, they used `manager.getAllVoices().forEach(...)`, which allocates closures every step during playback, contributing to GC spikes.
+**Action:** Always replace `.forEach` with standard `for` loops not just directly inside `useStepHandler`, but in any downstream module (like `sampleManagement.ts`) that is synchronously called by the step sequencer on every tick.
