@@ -444,7 +444,10 @@ export class VoiceManager {
     }
 
     stopAll(time?: number): void {
-        this.voices.forEach(v => v.stop(time ?? v.context.currentTime));
+        // ⚡ Bolt Optimization: Replace forEach with for...of to prevent closure allocations
+        for (const v of this.voices) {
+            v.stop(time ?? v.context.currentTime);
+        }
     }
 
     updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
