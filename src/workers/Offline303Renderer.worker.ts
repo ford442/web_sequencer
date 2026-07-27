@@ -1,5 +1,5 @@
 /**
- * Offline 303 renderer worker (Phase-1 / #974).
+ * Offline 303 renderer worker (Phase-1 / #974 + Phase-2 / #975).
  *
  * Protocol (postMessage):
  *   → { type: 'render', requestId, modelId, pattern, options? }
@@ -7,8 +7,8 @@
  *   ← { type: 'result', requestId, buffer, latencyMs, threadCount, oversample }
  *   ← { type: 'error', requestId, error }
  *
- * Uses the pure-TS OfflineOpen303Engine (oversample 1|2|4). Real-time
- * AudioWorklet path is untouched. Transferable ArrayBuffers carry the result.
+ * Engines: OfflineOpen303Engine (open303-family) and OfflineHighFid303Engine
+ * (`highfid-cpu` diode-ladder). Real-time AudioWorklet path is untouched.
  */
 
 import {
@@ -19,6 +19,10 @@ import {
   type Offline303PatternData,
   type OversampleFactor,
 } from '../audio/offline/OfflineOpen303Engine';
+import {
+  isHighFidCpuModel,
+  renderOfflineHighFid303Pattern,
+} from '../audio/offline/OfflineHighFid303Engine';
 
 export interface Offline303RenderOptions {
   oversample?: OversampleFactor;
@@ -72,6 +76,26 @@ function resolveThreadCount(requested: number | undefined): number {
   return Math.max(1, Math.min(16, Math.floor(n)));
 }
 
+function renderModel(
+  modelId: string,
+  pattern: Offline303PatternData,
+  oversample: OversampleFactor,
+  options: Offline303RenderOptions | undefined,
+): Float32Array {
+  if (isHighFidCpuModel(modelId)) {
+    return renderOfflineHighFid303Pattern(pattern, {
+      oversample,
+      sampleRate: options?.sampleRate,
+      blockSize: options?.blockSize,
+    });
+  }
+  return renderOffline303Pattern(modelId, pattern, {
+    oversample,
+    sampleRate: options?.sampleRate,
+    blockSize: options?.blockSize,
+  });
+}
+
 function renderOne(
   modelId: string,
   pattern: Offline303PatternData,
@@ -79,11 +103,7 @@ function renderOne(
 ): { buffer: Float32Array; oversample: OversampleFactor; threadCount: number } {
   const oversample = clampOversample(options?.oversample);
   const threadCount = resolveThreadCount(options?.threadCount);
-  const buffer = renderOffline303Pattern(modelId, pattern, {
-    oversample,
-    sampleRate: options?.sampleRate,
-    blockSize: options?.blockSize,
-  });
+  const buffer = renderModel(modelId, pattern, oversample, options);
   return { buffer, oversample, threadCount };
 }
 
@@ -106,18 +126,10 @@ self.onmessage = (event: MessageEvent<Inbound>) => {
       oversample = clampOversample(msg.options?.oversample);
       threadCount = resolveThreadCount(msg.options?.threadCount);
 
-      // Each voice uses a fresh engine instance (independent filter/envelope
-      // state) — equivalent to OpenMP-parallel per-voice rendering with
-      // thread-local state. Mixing happens after all voices complete.
       const rendered: Float32Array[] = [];
       const gains: number[] = [];
       for (const voice of msg.voices) {
-        const part = renderOffline303Pattern(voice.modelId, voice.pattern, {
-          oversample,
-          sampleRate: msg.options?.sampleRate,
-          blockSize: msg.options?.blockSize,
-        });
-        rendered.push(part);
+        rendered.push(renderModel(voice.modelId, voice.pattern, oversample, msg.options));
         gains.push(voice.gain ?? 1);
       }
       buffer = mixVoiceBuffersJs(rendered, gains);
@@ -144,7 +156,6 @@ self.onmessage = (event: MessageEvent<Inbound>) => {
       threadCount,
       oversample,
     };
-    // Transfer the underlying ArrayBuffer to avoid a copy.
     (self as unknown as Worker).postMessage(response, [buffer.buffer]);
   } catch (err) {
     const response: Outbound = {

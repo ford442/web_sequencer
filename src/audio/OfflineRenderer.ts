@@ -21,9 +21,14 @@ import {
   type Offline303PatternData,
   type OversampleFactor,
 } from '@/audio/offline/OfflineOpen303Engine';
+import {
+  isHighFidCpuModel,
+  renderOfflineHighFid303Pattern,
+} from '@/audio/offline/OfflineHighFid303Engine';
 
 export type { Offline303PatternData, OversampleFactor };
 export type { Offline303Params, Offline303Step } from '@/audio/offline/OfflineOpen303Engine';
+export { HIGHFID_CPU_MODEL_ID } from '@/audio/offline/OfflineHighFid303Engine';
 
 export interface Offline303VoiceJob {
   modelId: string;
@@ -193,11 +198,17 @@ function syncRender(
     typeof performance !== 'undefined' ? performance.now() : Date.now();
   const oversample = clampOversample(options.oversample);
   const threadCount = Math.max(1, options.threadCount ?? 1);
-  const buffer = renderOffline303Pattern(modelId, pattern, {
-    oversample,
-    sampleRate: options.sampleRate,
-    blockSize: options.blockSize,
-  });
+  const buffer = isHighFidCpuModel(modelId)
+    ? renderOfflineHighFid303Pattern(pattern, {
+        oversample,
+        sampleRate: options.sampleRate,
+        blockSize: options.blockSize,
+      })
+    : renderOffline303Pattern(modelId, pattern, {
+        oversample,
+        sampleRate: options.sampleRate,
+        blockSize: options.blockSize,
+      });
   if (bufferHasNonFinite(buffer)) {
     throw new Error('Non-finite samples in sync offline 303 render');
   }
@@ -280,11 +291,17 @@ export async function render303OfflineMultiWithMeta(
     const oversample = clampOversample(options.oversample);
     const threadCount = Math.max(1, options.threadCount ?? voices.length);
     const rendered = voices.map((v) =>
-      renderOffline303Pattern(v.modelId, v.pattern, {
-        oversample,
-        sampleRate: options.sampleRate,
-        blockSize: options.blockSize,
-      }),
+      isHighFidCpuModel(v.modelId)
+        ? renderOfflineHighFid303Pattern(v.pattern, {
+            oversample,
+            sampleRate: options.sampleRate,
+            blockSize: options.blockSize,
+          })
+        : renderOffline303Pattern(v.modelId, v.pattern, {
+            oversample,
+            sampleRate: options.sampleRate,
+            blockSize: options.blockSize,
+          }),
     );
     const buffer = mixVoiceBuffersJs(
       rendered,

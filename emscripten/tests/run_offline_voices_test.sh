@@ -27,6 +27,7 @@ build_and_run() {
     echo
 }
 
-# #901 factory/registry surface, then #898 voice audibility.
+# #901 factory/registry surface, then #898 voice audibility, then #975 highfid-cpu.
 build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
+build_and_run tb303_highfid_offline_test

@@ -3,9 +3,10 @@
 PNG spectrograms and `baseline_metrics.json` for the canonical pattern renders
 in [`../303-baseline/`](../303-baseline/).
 
-Includes open303-family voices **and** `jc303_canonical` (soft oracle). Metrics
-JSON may contain `vs_reference` deltas (level-matched band errors + accent peak
-timing drift) against the soft oracle or a future hardware WAV.
+Includes open303-family voices, `jc303_canonical` (soft oracle), and
+`highfid-cpu_canonical` (Phase-2 diode-ladder reference). Metrics JSON may
+contain `vs_reference` deltas (level-matched band errors + accent peak timing
+drift) against the soft oracle or a future hardware WAV.
 
 Regenerate:
 
