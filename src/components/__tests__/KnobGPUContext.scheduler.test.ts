@@ -220,7 +220,7 @@ describe('KnobGPUContext idle-static scheduler', () => {
     it('device loss schedules recovery', async () => {
         await registerKnobs(2);
         expect(lostResolve).toBeTypeOf('function');
-        lostResolve!({ reason: 'unknown', message: 'simulated loss' });
+        lostResolve!({ reason: 'unknown', message: 'simulated loss' } as GPUDeviceLostInfo);
 
         await vi.waitFor(() => {
             expect(KnobGPUContext.getStatus()).toBe('degraded');

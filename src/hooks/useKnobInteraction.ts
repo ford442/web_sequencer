@@ -287,25 +287,25 @@ export function useKnobInteraction({
         emitActiveChange();
     }, [arcClick, axis, emitActiveChange, value]);
 
-    const handlePointerEnter = useCallback(() => {
+    const handlePointerEnter = useCallback((_e?: React.PointerEvent) => {
         isHoveringRef.current = true;
         setIsHovering(true);
         emitActiveChange();
     }, [emitActiveChange]);
 
-    const handlePointerLeave = useCallback(() => {
+    const handlePointerLeave = useCallback((_e?: React.PointerEvent) => {
         isHoveringRef.current = false;
         setIsHovering(false);
         emitActiveChange();
     }, [emitActiveChange]);
 
-    const handleFocus = useCallback(() => {
+    const handleFocus = useCallback((_e?: React.FocusEvent) => {
         isFocusedRef.current = true;
         setIsFocused(true);
         emitActiveChange();
     }, [emitActiveChange]);
 
-    const handleBlur = useCallback(() => {
+    const handleBlur = useCallback((_e?: React.FocusEvent) => {
         isFocusedRef.current = false;
         setIsFocused(false);
         emitActiveChange();

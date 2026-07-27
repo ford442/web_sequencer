@@ -389,6 +389,7 @@ class KnobGPUContextClass {
     }
 
     private bumpSnapshot(patch: Partial<KnobSchedulerSnapshot> = {}): void {
+        const prev = this.snapshot;
         this.snapshot = {
             ...this.snapshot,
             ...patch,
@@ -397,7 +398,17 @@ class KnobGPUContextClass {
             isPaused: this.rafId === null,
             version: this.snapshot.version + 1,
         };
-        this.snapshotListeners.forEach((l) => l());
+        // React subscribers only care about status/registry — never markDirty/loop churn.
+        if (this.snapshot.status !== prev.status || this.snapshot.registrySize !== prev.registrySize) {
+            this.snapshotListeners.forEach((l) => l());
+        }
+    }
+
+    /** Update isPaused for debug/snapshot readers without notifying React. */
+    private syncPausedFlag(): void {
+        const paused = this.rafId === null;
+        if (this.snapshot.isPaused === paused) return;
+        this.snapshot = { ...this.snapshot, isPaused: paused };
     }
 
     private setStatus(next: KnobGpuStatus): void {
@@ -791,7 +802,7 @@ class KnobGPUContextClass {
         if (this.rafId !== null) {
             cancelAnimationFrame(this.rafId);
             this.rafId = null;
-            this.bumpSnapshot({ isPaused: true });
+            this.syncPausedFlag();
         }
     }
 
@@ -801,18 +812,17 @@ class KnobGPUContextClass {
         if (typeof document !== 'undefined' && document.hidden) return;
         if (this.slots.size === 0 && this.dirtyIds.size === 0) return;
 
-        const wasPaused = this.rafId === null;
         const loop = () => {
             this.rafId = null;
             const needsAnother = this.renderDirtyFrame();
             if (needsAnother && !(typeof document !== 'undefined' && document.hidden)) {
                 this.rafId = requestAnimationFrame(loop);
             } else {
-                this.bumpSnapshot({ isPaused: true });
+                this.syncPausedFlag();
             }
         };
         this.rafId = requestAnimationFrame(loop);
-        if (wasPaused) this.bumpSnapshot({ isPaused: false });
+        this.syncPausedFlag();
     }
 
     /**
