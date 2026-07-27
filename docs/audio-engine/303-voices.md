@@ -131,6 +131,9 @@ flowchart LR
 ```
 
 See also [jc303-prophecy.md](jc303-prophecy.md) for the legacy dual-engine
+switch notes, and [303-authenticity-gaps.md](303-authenticity-gaps.md) for the
+Phase-0 authenticity audit / baseline WAVs that drive the high-fidelity epic
+(#972).
 switch and Prophecy formant routing.
 
 ### Per-instance routing
@@ -338,7 +341,10 @@ What it asserts:
 
 This same fixed pattern is the **shared A/B regression pattern** for both the
 first custom voices (#898), the ReBirth character voices (#900), and the P2
-character voices (#902).
+character voices (#902). Phase-0 (#973) also dumps the same musical content at
+48 kHz / 24-bit via `bash scripts/generate_303_baselines.sh` — see
+[303-authenticity-gaps.md](303-authenticity-gaps.md) and
+[303-baseline/](303-baseline/).
 
 ### Manual A/B checklist (in-app, after `pnpm run build:emcc`)
 
