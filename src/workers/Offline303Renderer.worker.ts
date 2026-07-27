@@ -1,5 +1,5 @@
 /**
- * Offline 303 renderer worker (Phase-1 / #974 + Phase-2 / #975).
+ * Offline 303 renderer worker (Phase-1 / #974 + Phase-2 / #975 + Phase-3 / #976).
  *
  * Protocol (postMessage):
  *   → { type: 'render', requestId, modelId, pattern, options? }
@@ -8,7 +8,9 @@
  *   ← { type: 'error', requestId, error }
  *
  * Engines: OfflineOpen303Engine (open303-family) and OfflineHighFid303Engine
- * (`highfid-cpu` diode-ladder). Real-time AudioWorklet path is untouched.
+ * (`highfid-cpu` / `gpu-highfid` fallback). Real WebGPU stays on the main
+ * thread via WebGpu303Engine — workers fall back to the CPU diode-ladder.
+ * Real-time AudioWorklet path is untouched.
  */
 
 import {
@@ -23,6 +25,7 @@ import {
   isHighFidCpuModel,
   renderOfflineHighFid303Pattern,
 } from '../audio/offline/OfflineHighFid303Engine';
+import { isGpuHighFidModel } from '../engines/WebGpu303Engine';
 
 export interface Offline303RenderOptions {
   oversample?: OversampleFactor;
@@ -82,7 +85,8 @@ function renderModel(
   oversample: OversampleFactor,
   options: Offline303RenderOptions | undefined,
 ): Float32Array {
-  if (isHighFidCpuModel(modelId)) {
+  // Worker has no reliable WebGPU; gpu-highfid → highfid-cpu diode-ladder.
+  if (isHighFidCpuModel(modelId) || isGpuHighFidModel(modelId)) {
     return renderOfflineHighFid303Pattern(pattern, {
       oversample,
       sampleRate: options?.sampleRate,

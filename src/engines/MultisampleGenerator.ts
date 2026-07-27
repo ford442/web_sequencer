@@ -5,9 +5,19 @@
  * RubberBand time-stretching in an OfflineAudioContext.
  * 
  * This allows zero-CPU playback of pitch-accurate samples in the sequencer.
+ *
+ * Phase-3 (#976): also generates high-fidelity 303 multisamples via
+ * WebGpu303Engine (GPU diode-ladder with highfid-cpu fallback).
  */
 
 import { SingingVoice } from './SingingVoice';
+import {
+  float32ToAudioBuffer,
+  renderGpuHighFid303,
+  type WebGpu303RenderOptions,
+} from './WebGpu303Engine';
+import type { Offline303Params } from '@/audio/offline/OfflineOpen303Engine';
+import { DEFAULT_OFFLINE_303_PARAMS } from '@/audio/offline/OfflineOpen303Engine';
 
 export interface MultisampleBank {
     /** Original sample buffer */
@@ -35,6 +45,19 @@ export interface MultisampleOptions {
     quality?: 'Fast' | 'Standard' | 'Elastic';
     /** Specific pitches to generate (overrides range if provided) */
     onlyPitches?: number[];
+}
+
+export interface Multisample303Options {
+  /** Sustain length in seconds per note (default: 1.0). */
+  durationSec?: number;
+  /** MIDI notes to render (default: C1..C3 chromatic-ish 303 range). */
+  midiNotes?: number[];
+  /** Classic 303 knobs (normalized 0–1 where applicable). */
+  params?: Partial<Offline303Params>;
+  /** Oversample / sample-rate / forceCpuFallback forwarded to WebGpu303Engine. */
+  render?: WebGpu303RenderOptions;
+  /** Velocity for all notes (default 90; use >100 for accent). */
+  velocity?: number;
 }
 
 export type ProgressCallback = (progress: number) => void;
@@ -68,8 +91,10 @@ async function resampleWithPlaybackRate(
 export class MultisampleGenerator {
     private rubberbandWasm: ArrayBuffer | null = null;
     private isWasmLoaded: boolean = false;
+    private audioContext: BaseAudioContext;
 
-    constructor(_audioContext: BaseAudioContext) {
+    constructor(audioContext: BaseAudioContext) {
+        this.audioContext = audioContext;
         void this.loadWasm();
     }
 
@@ -219,6 +244,50 @@ export class MultisampleGenerator {
         voice.disconnectOutput();
 
         return renderedBuffer;
+    }
+
+    /**
+     * Generate high-fidelity 303 note buffers (Phase-3 / #976).
+     *
+     * Uses WebGpu303Engine when available; falls back to highfid-cpu.
+     * Returned AudioBuffers are ready for AudioBufferSourceNode playback —
+     * never schedule the GPU render on the AudioWorklet thread.
+     */
+    async generate303HighFidMultisamples(
+        options: Multisample303Options = {},
+        onProgress: ProgressCallback = () => {},
+    ): Promise<Map<number, AudioBuffer>> {
+        const durationSec = options.durationSec ?? 1.0;
+        const velocity = options.velocity ?? 90;
+        const params = { ...DEFAULT_OFFLINE_303_PARAMS, ...options.params };
+        const midiNotes =
+            options.midiNotes ??
+            [24, 26, 28, 29, 31, 33, 35, 36, 38, 40, 41, 43, 45, 47, 48];
+        const sampleRate =
+            options.render?.sampleRate ?? this.audioContext.sampleRate ?? 44100;
+        const pitchBank = new Map<number, AudioBuffer>();
+        const total = midiNotes.length;
+
+        for (let i = 0; i < midiNotes.length; i++) {
+            const midi = midiNotes[i];
+            const meta = await renderGpuHighFid303(
+                {
+                    steps: [{ note: midi, velocity }],
+                    stepDurationSec: durationSec,
+                    params,
+                },
+                { ...options.render, sampleRate },
+            );
+            const audioBuf = float32ToAudioBuffer(
+                this.audioContext,
+                meta.buffer,
+                sampleRate,
+            );
+            pitchBank.set(midi, audioBuf);
+            onProgress((i + 1) / total);
+        }
+
+        return pitchBank;
     }
 
     /**
