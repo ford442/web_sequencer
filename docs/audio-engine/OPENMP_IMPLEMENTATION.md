@@ -98,11 +98,17 @@ Potential additions to leverage OpenMP further:
 
 ### Phase-1 offline 303 (done)
 
-See [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md):
+See [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) and the umbrella
+guide [303-gpu-highfid.md](./303-gpu-highfid.md):
 
 - Per-instance `OVERSAMPLE_FACTOR` (1|2|4) on Open303
 - `mixVoiceBuffers` / `downsampleBox` OpenMP helpers
 - Worker pool + `render303Offline()` for freeze/export paths
+- High-fid CPU (`highfid-cpu`) reuses the same offline/OpenMP oversample flag
+  for diode-ladder renders; GPU high-fid stays off the audio thread
+
+Real-time AudioWorklet paths keep factor `1` and do **not** call these OpenMP
+helpers from `process()`.
 
 ## Technical Details
 

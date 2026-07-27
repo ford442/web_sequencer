@@ -125,6 +125,7 @@ Before merging high-fid engine changes:
 
 | Doc | Role |
 |-----|------|
+| [303-gpu-highfid.md](./303-gpu-highfid.md) | Architecture, enablement, FAQ, roadmap (Phase-6) |
 | [303-authenticity-gaps.md](./303-authenticity-gaps.md) | Gap catalog G1–G7 + acceptance thresholds |
 | [HIGHFID_CPU_303.md](./HIGHFID_CPU_303.md) | Phase-2 diode-ladder CPU reference |
 | [GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md) | Phase-3 WGSL offline path |

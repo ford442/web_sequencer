@@ -64,7 +64,10 @@ Bump `HELP_WHATS_NEW_VERSION` in the same file to re-show the banner.
 |---------------|--------------|
 | How do I automate a filter? | `automate filter` |
 | Switch to authentic 303? | `jc303` or `authentic 303` |
+| High-fidelity / GPU 303? | `high-fidelity` or `gpu-highfid` |
 | Prophecy vowels? | `prophecy formant` |
 | Record knob movement? | `rec auto` |
 | Import ReBirth? | `rbs` |
 | Sampler speech? | `tts` |
+
+High-fid architecture & badges: [303-gpu-highfid.md](../audio-engine/303-gpu-highfid.md).

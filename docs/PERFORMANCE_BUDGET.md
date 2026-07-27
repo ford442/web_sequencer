@@ -59,19 +59,23 @@ Implementation: `src/utils/performanceBudget.ts` (`DEGRADE_ORDER`).
 
 ## Offline 303 rendering (does not affect audio-thread budget)
 
-Heavy offline jobs (freeze, export, multisample, 4× oversampled 303) run on a
-**worker pool** (`src/audio/OfflineRenderer.ts`). Telemetry fields:
+Heavy offline jobs (freeze, export, multisample, 4× oversampled 303, and
+high-fid CPU/GPU authenticity tiers) run on a **worker pool** /
+`WebGpu303Engine` (`src/audio/OfflineRenderer.ts`). Telemetry fields:
 
 | Field | Meaning |
 |-------|---------|
 | `offlineRenderOversample` | Last render factor (`1` / `2` / `4`) |
 | `offlineRenderThreadCount` | Worker / OpenMP thread hint used |
 | `offlineRenderLatencyMs` | Wall-clock latency of last offline render |
+| `gpuRenderLatencyMs` / `gpuReadbackBytes` / `gpuUsedGpu` | GPU high-fid path (Phase-3) |
+| `gpuFallbackReason` | Why GPU fell back to `highfid-cpu` (null if GPU used) |
 
 These are shown in Engine HUD under **Offline 303**. They never feed
 `masterBudgetPercent` — only AudioWorklet `process()` cost does.
 
-See `docs/audio-engine/OFFLINE_303_OVERSAMPLE.md`.
+See [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) and
+[303-gpu-highfid.md](audio-engine/303-gpu-highfid.md).
 
 ## Synthetic stress test
 

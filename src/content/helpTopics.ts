@@ -40,22 +40,69 @@ export const HELP_CATEGORY_LABELS: Record<HelpCategory, string> = {
 export const HELP_TOPICS: HelpTopic[] = [
   {
     id: 'engine-303-switch',
-    title: 'Switch to authentic JC303',
-    summary: 'Pick a 303 waveform, then choose Authentic JC303 in the Engine panel on the rack overlay.',
+    title: '303 Voice selector (Open303 / JC303 / high-fid)',
+    summary:
+      'Pick a 303 waveform, then choose a voice in the 303 Voice panel — Stock Open303, Authentic JC303, character profiles, or offline high-fidelity.',
     body:
-      'Each 303 voice (SYNTH A lead, SYNTH B, BASS 2) can run the built-in Open303 WASM or the authentic rosic::Open303 engine from jc303_wasm.\n\n' +
-      'Select a 303-* waveform in the oscillator variant selector. The Engine panel appears on the rack module overlay — tap Authentic JC303 for the vintage DSP path.',
+      'Each 303 track (SYNTH A lead, SYNTH B, BASS 2) picks a voice independently via the 303 Voice selector.\n\n' +
+      'Realtime voices: Stock Open303, Authentic JC303, and open303 coefficient profiles (1ink303, Experimental, ReBirth-inspired, MB33, Raveolution).\n\n' +
+      'Offline high-fid voices (amber Offline badge): High-Fidelity CPU and GPU High-Fidelity. Live playback stays on Stock Open303; the selected id is used for freeze / export / multisample. Without WebGPU, a No GPU badge appears and GPU High-Fidelity falls back to High-Fidelity CPU.',
     keywords: [
-      '303', 'jc303', 'open303', 'tb-303', 'authentic', 'engine', 'switch', 'bass', 'synth',
+      '303',
+      'jc303',
+      'open303',
+      'tb-303',
+      'authentic',
+      'engine',
+      'switch',
+      'bass',
+      'synth',
+      'voice',
+      'highfid',
+      'high-fidelity',
+      'gpu',
+      'offline',
+      'hifid',
     ],
     category: 'engine',
     steps: [
       'Select SYNTH A, SYNTH B, or BASS 2 in the rack.',
       'Choose a 303-saw or 303-sqr waveform variant.',
-      'On the overlay panel, open Engine and tap Authentic JC303.',
-      'Play a pattern — each voice keeps its own engine setting.',
+      'In 303 Voice, tap Stock Open303, Authentic JC303, a character profile, or an Offline high-fid voice.',
+      'Play for realtime; use freeze / export / multisample to hear high-fid engines.',
     ],
-    docLink: 'docs/audio-engine/jc303-prophecy.md',
+    docLink: 'docs/audio-engine/303-gpu-highfid.md',
+  },
+  {
+    id: 'highfid-303-offline',
+    title: 'High-fidelity 303 (offline)',
+    summary:
+      'Opt-in High-Fidelity CPU / GPU voices for freeze, export, and multisample — live play stays latency-safe on Stock Open303.',
+    body:
+      'High-fidelity models close authenticity gaps with a diode-ladder topology (CPU OpenMP or WebGPU WGSL). They are offline-only so the AudioWorklet never regresses.\n\n' +
+      'Select High-Fidelity CPU (offline) or GPU High-Fidelity (offline) in 303 Voice. Status shows the effective offline engine; No GPU means WebGPU is missing and GPU selections fall back to CPU. Engine HUD (Ctrl+Shift+E) shows Offline 303 oversample, threads, and GPU telemetry.',
+    keywords: [
+      'highfid',
+      'high-fidelity',
+      'gpu-highfid',
+      'webgpu',
+      'offline',
+      'freeze',
+      'export',
+      'multisample',
+      'oversample',
+      'diode',
+      'ladder',
+      '303',
+    ],
+    category: 'engine',
+    steps: [
+      'Open SYNTH A, SYNTH B, or BASS 2 and select a 303-* waveform.',
+      'In 303 Voice, choose High-Fidelity CPU (offline) or GPU High-Fidelity (offline).',
+      'Confirm the status line (offline engine + live uses Stock Open303).',
+      'Run freeze, WAV export, or 303 multisample generation to use the authenticity tier.',
+    ],
+    docLink: 'docs/audio-engine/303-gpu-highfid.md',
   },
   {
     id: 'prophecy-formants',
@@ -246,7 +293,8 @@ export function searchHelpTopics(query: string): HelpTopic[] {
 
 /** Checklist items shown in the dismissible What's New banner. */
 export const WHATS_NEW_ITEMS = [
-  { id: 'engine-303-switch', label: 'Per-voice authentic JC303 engine' },
+  { id: 'highfid-303-offline', label: 'High-fidelity 303 (offline CPU / GPU)' },
+  { id: 'engine-303-switch', label: '303 Voice selector (Open303 / JC303 / high-fid)' },
   { id: 'prophecy-formants', label: 'Prophecy formant oscillators' },
   { id: 'automation-filter', label: 'Knob automation lanes + REC AUTO' },
   { id: 'rbs-import', label: 'ReBirth .rbs import' },
@@ -256,4 +304,4 @@ export const WHATS_NEW_ITEMS = [
 ] as const;
 
 /** Bump when adding major features to re-show the What's New banner. */
-export const HELP_WHATS_NEW_VERSION = '2026.07';
+export const HELP_WHATS_NEW_VERSION = '2026.07-highfid';

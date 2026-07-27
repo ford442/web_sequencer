@@ -105,6 +105,7 @@ Phase-3 WGSL path: [`GPU_HIGHFID_303.md`](./GPU_HIGHFID_303.md).
 
 ## Related
 
+- [303-gpu-highfid.md](./303-gpu-highfid.md) — architecture / usage / FAQ (Phase-6)
 - [303-authenticity-gaps.md](./303-authenticity-gaps.md) (Phase-0)
 - [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) (Phase-1)
 - [GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md) (Phase-3)
