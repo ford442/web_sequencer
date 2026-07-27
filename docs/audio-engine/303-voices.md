@@ -131,10 +131,9 @@ flowchart LR
 ```
 
 See also [jc303-prophecy.md](jc303-prophecy.md) for the legacy dual-engine
-switch notes, and [303-authenticity-gaps.md](303-authenticity-gaps.md) for the
-Phase-0 authenticity audit / baseline WAVs that drive the high-fidelity epic
-(#972).
-switch and Prophecy formant routing.
+switch and Prophecy formant routing, and
+[303-authenticity-gaps.md](303-authenticity-gaps.md) for the Phase-0
+authenticity audit / baseline WAVs that drive the high-fidelity epic (#972).
 
 ### Per-instance routing
 
