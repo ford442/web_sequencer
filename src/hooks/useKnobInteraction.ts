@@ -40,6 +40,11 @@ export interface UseKnobInteractionOptions {
     formatValue?: (value: number) => string;
     /** Called after each live drag update (e.g. to repaint a 2D canvas). */
     onDragValue?: (value: number) => void;
+    /**
+     * Fired when drag / hover / keyboard-focus active state changes.
+     * Used by holographic knobs to enter/exit the animated material path.
+     */
+    onActiveChange?: (active: boolean) => void;
     /** Opt-in magnetic detent snap during drag. */
     detentSnap?: boolean;
     /** Material used for detent positions / thresholds. */
@@ -83,21 +88,35 @@ export function useKnobInteraction({
     automatedValue,
     formatValue,
     onDragValue,
+    onActiveChange,
     detentSnap = false,
     material = KNOB_MATERIAL,
     detentFeedback = false,
 }: UseKnobInteractionOptions) {
-    const propsRef = useRef({ value, min, max, step, logarithmic, onChange, defaultValue, onDragValue, detentSnap, material, detentFeedback });
-    propsRef.current = { value, min, max, step, logarithmic, onChange, defaultValue, onDragValue, detentSnap, material, detentFeedback };
+    const propsRef = useRef({
+        value, min, max, step, logarithmic, onChange, defaultValue, onDragValue, onActiveChange, detentSnap, material, detentFeedback,
+    });
+    propsRef.current = {
+        value, min, max, step, logarithmic, onChange, defaultValue, onDragValue, onActiveChange, detentSnap, material, detentFeedback,
+    };
 
     const isDraggingRef = useRef(false);
     const dragAnchorRef = useRef<KnobDragAnchor | null>(null);
     const dragLiveValueRef = useRef(value);
     const horizontalRectRef = useRef<DOMRect | null>(null);
     const lastDetentIndexRef = useRef<number | null>(null);
+    const isHoveringRef = useRef(false);
+    const isFocusedRef = useRef(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [isHovering, setIsHovering] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
     const [dragModifier, setDragModifier] = useState<KnobDragModifier | null>(null);
     const [dragValue, setDragValue] = useState<number | null>(null);
+
+    const emitActiveChange = useCallback(() => {
+        const active = isDraggingRef.current || isHoveringRef.current || isFocusedRef.current;
+        propsRef.current.onActiveChange?.(active);
+    }, []);
 
     useEffect(() => {
         if (!isDraggingRef.current) {
@@ -155,7 +174,8 @@ export function useKnobInteraction({
         setIsDragging(false);
         setDragValue(null);
         document.body.style.cursor = 'default';
-    }, []);
+        emitActiveChange();
+    }, [emitActiveChange]);
 
     const handlePointerMove = useCallback((e: PointerEvent) => {
         if (!isDraggingRef.current) return;
@@ -264,7 +284,32 @@ export function useKnobInteraction({
         dragAnchorRef.current = createKnobDragAnchor(e.clientY, startValue, e);
         setDragModifier(dragAnchorRef.current.modifier);
         document.body.style.cursor = getKnobDragCursor(dragAnchorRef.current.modifier, true);
-    }, [arcClick, axis, value]);
+        emitActiveChange();
+    }, [arcClick, axis, emitActiveChange, value]);
+
+    const handlePointerEnter = useCallback((_e?: React.PointerEvent) => {
+        isHoveringRef.current = true;
+        setIsHovering(true);
+        emitActiveChange();
+    }, [emitActiveChange]);
+
+    const handlePointerLeave = useCallback((_e?: React.PointerEvent) => {
+        isHoveringRef.current = false;
+        setIsHovering(false);
+        emitActiveChange();
+    }, [emitActiveChange]);
+
+    const handleFocus = useCallback((_e?: React.FocusEvent) => {
+        isFocusedRef.current = true;
+        setIsFocused(true);
+        emitActiveChange();
+    }, [emitActiveChange]);
+
+    const handleBlur = useCallback((_e?: React.FocusEvent) => {
+        isFocusedRef.current = false;
+        setIsFocused(false);
+        emitActiveChange();
+    }, [emitActiveChange]);
 
     const handleWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault();
@@ -323,10 +368,17 @@ export function useKnobInteraction({
 
     return {
         isDragging,
+        isHovering,
+        isFocused,
+        isActive: isDragging || isHovering || isFocused,
         dragModifier,
         displayValue,
         interactionProps: {
             onPointerDown: handlePointerDown,
+            onPointerEnter: handlePointerEnter,
+            onPointerLeave: handlePointerLeave,
+            onFocus: handleFocus,
+            onBlur: handleBlur,
             onWheel: handleWheel,
             onKeyDown: handleKeyDown,
             onDoubleClick: handleDoubleClick,

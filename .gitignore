@@ -54,3 +54,4 @@ src/wasm/*.wasm
 src/wasm/*.d.ts
 public/audio-worklets/
 public/utils/
+__pycache__/

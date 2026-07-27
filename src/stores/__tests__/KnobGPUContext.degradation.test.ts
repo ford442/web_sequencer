@@ -4,28 +4,7 @@ import { engineDegradationStore } from '../engineDegradationStore';
 
 describe('KnobGPUContext degradation', () => {
     beforeEach(() => {
-        const ctx = KnobGPUContext as unknown as {
-            device: GPUDevice | null;
-            slots: Map<number, unknown>;
-            registrations: Map<number, unknown>;
-            pendingIds: Set<number>;
-            initPromise: Promise<boolean> | null;
-            rafId: number | null;
-            status: string;
-            consecutiveRenderFailures: number;
-            recoverScheduled: boolean;
-            deviceLostHandled: boolean;
-        };
-        ctx.device = null;
-        ctx.slots.clear();
-        ctx.registrations.clear();
-        ctx.pendingIds.clear();
-        ctx.initPromise = null;
-        ctx.rafId = null;
-        ctx.status = 'unavailable';
-        ctx.consecutiveRenderFailures = 0;
-        ctx.recoverScheduled = false;
-        ctx.deviceLostHandled = false;
+        (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         engineDegradationStore.clear('gpu-knobs');
     });
 
