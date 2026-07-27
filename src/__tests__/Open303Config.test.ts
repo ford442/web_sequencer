@@ -40,10 +40,14 @@ describe('Open303 Oscillator', () => {
             port: {
                 postMessage: vi.fn(),
                 onmessage: null as ((ev: any) => void) | null,
-                addEventListener: vi.fn(),
+                close: vi.fn(),
+                addEventListener: vi.fn((event, handler) => {
+                    if (event === 'message') {
+                        setTimeout(() => handler({ data: { type: 'ready' } }), 0);
+                    }
+                }),
                 removeEventListener: vi.fn(),
-                start: vi.fn(),
-                close: vi.fn()
+                start: vi.fn()
             },
             connect: vi.fn(),
             disconnect: vi.fn()
