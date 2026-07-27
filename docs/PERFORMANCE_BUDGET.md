@@ -54,8 +54,24 @@ Implementation: `src/utils/performanceBudget.ts` (`DEGRADE_ORDER`).
 
 - Toggle HUD: **Ctrl+Shift+E** or `?hud=1`
 - **Download Report** / **Copy JSON** include `runtime` block (budget, underruns,
-  glitches, per-worklet CPU)
+  glitches, per-worklet CPU, offline 303 oversample/threads/latency)
 - Dev console: `window.__devtools.exportEngineReport()` when `?devtools` or dev build
+
+## Offline 303 rendering (does not affect audio-thread budget)
+
+Heavy offline jobs (freeze, export, multisample, 4× oversampled 303) run on a
+**worker pool** (`src/audio/OfflineRenderer.ts`). Telemetry fields:
+
+| Field | Meaning |
+|-------|---------|
+| `offlineRenderOversample` | Last render factor (`1` / `2` / `4`) |
+| `offlineRenderThreadCount` | Worker / OpenMP thread hint used |
+| `offlineRenderLatencyMs` | Wall-clock latency of last offline render |
+
+These are shown in Engine HUD under **Offline 303**. They never feed
+`masterBudgetPercent` — only AudioWorklet `process()` cost does.
+
+See `docs/audio-engine/OFFLINE_303_OVERSAMPLE.md`.
 
 ## Synthetic stress test
 

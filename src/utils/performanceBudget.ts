@@ -6,6 +6,12 @@
 import { engineTelemetry } from './engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 
+/**
+ * Soft target for offline 303 render latency (ms). Used by HUD / callers —
+ * not part of the real-time degrade ladder (see OFFLINE_303_OVERSAMPLE.md).
+ */
+export const OFFLINE_303_RENDER_BUDGET_MS = 400;
+
 /** Master budget % above which degradations begin applying (in order). */
 export const BUDGET_OVERLOAD_THRESHOLD = 80;
 /** Master budget % below which recoveries are considered (hysteresis). */

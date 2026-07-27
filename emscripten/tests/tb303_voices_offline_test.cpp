@@ -282,6 +282,65 @@ int main() {
         check(finite, "mid-render model switching stays finite (no crash/NaN)");
     }
 
+    // 7. Phase-1 (#974): oversampling (2× / 4×) stays finite; default 1× is
+    //    bit-identical to the pre-oversample stock path; invalid factors clamp.
+    {
+        uintptr_t h = open303_create();
+        open303_init(h, SAMPLE_RATE, BLOCK);
+        check(open303_get_oversample(h) == 1, "default oversample factor is 1");
+        open303_set_oversample(h, 3); // invalid → clamp to 1
+        check(open303_get_oversample(h) == 1, "invalid oversample clamps to 1");
+        open303_set_oversample(h, 4);
+        check(open303_get_oversample(h) == 4, "oversample factor 4 sticks");
+        open303_set_param(h, P_WAVEFORM,  0.0f);
+        open303_set_param(h, P_CUTOFF,    0.35f);
+        open303_set_param(h, P_RESONANCE, 0.70f);
+        open303_set_param(h, P_ENVMOD,    0.55f);
+        open303_set_param(h, P_DECAY,     0.50f);
+        open303_set_param(h, P_ACCENT,    0.70f);
+        open303_set_param(h, P_VOLUME,    0.80f);
+        open303_note_on(h, 36, NORMAL_VEL);
+        float block[BLOCK];
+        bool finite = true;
+        for (int b = 0; b < STEP_BLOCKS; ++b) {
+            std::memset(block, 0, sizeof(block));
+            open303_process(h, reinterpret_cast<uintptr_t>(block), BLOCK);
+            for (float x : block) if (!std::isfinite(x)) finite = false;
+        }
+        open303_destroy(h);
+        check(finite, "4× oversample process stays finite (no NaN)");
+    }
+
+    // Parallel multi-voice: three independent instances (lead/bass1/bass2)
+    // rendered then mixed — no shared mutable state / no NaNs.
+    {
+        uintptr_t voices[3] = {
+            open303_create(), open303_create(), open303_create()
+        };
+        float blocks[3][BLOCK];
+        float mix[BLOCK];
+        bool finite = true;
+        for (int v = 0; v < 3; ++v) {
+            open303_init(voices[v], SAMPLE_RATE, BLOCK);
+            open303_set_oversample(voices[v], 2);
+            open303_set_param(voices[v], P_CUTOFF, 0.3f + 0.1f * v);
+            open303_set_param(voices[v], P_VOLUME, 0.7f);
+            open303_note_on(voices[v], 36 + v * 5, v == 1 ? ACCENT_VEL : NORMAL_VEL);
+        }
+        for (int b = 0; b < 8; ++b) {
+            for (int v = 0; v < 3; ++v) {
+                std::memset(blocks[v], 0, sizeof(blocks[v]));
+                open303_process(voices[v], reinterpret_cast<uintptr_t>(blocks[v]), BLOCK);
+            }
+            for (int i = 0; i < BLOCK; ++i) {
+                mix[i] = blocks[0][i] + blocks[1][i] + blocks[2][i];
+                if (!std::isfinite(mix[i])) finite = false;
+            }
+        }
+        for (int v = 0; v < 3; ++v) open303_destroy(voices[v]);
+        check(finite, "parallel lead+bass1+bass2 2× oversample mix stays finite");
+    }
+
     std::printf("\n%s (%d failure%s)\n",
                 g_failures == 0 ? "ALL PASSED" : "FAILED",
                 g_failures, g_failures == 1 ? "" : "s");

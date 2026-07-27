@@ -43,6 +43,9 @@ const fakeRuntime = {
     clock: { cpuPercent: 5, underruns: 0, lastProcessUs: 100, lastQuantumUs: 2666, lastUpdate: Date.now() },
   },
   degradations: [],
+  offlineRenderThreadCount: null as number | null,
+  offlineRenderOversample: null as number | null,
+  offlineRenderLatencyMs: null as number | null,
 };
 
 describe('serializeEngineReport', () => {

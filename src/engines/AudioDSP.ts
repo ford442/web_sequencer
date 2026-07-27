@@ -36,8 +36,18 @@ interface AudioDSPModule {
         numFrames: number,
         width: number
     ): void;
+    downsampleBox(inPtr: number, outPtr: number, outFrames: number, factor: number): void;
+    mixVoiceBuffers(
+        outputPtr: number,
+        voicePtrsPtr: number,
+        numVoices: number,
+        numFrames: number,
+        gainsPtr: number
+    ): void;
     getNumThreads(): number;
     setNumThreads(numThreads: number): void;
+    getOversampleFactor(): number;
+    setOversampleFactor(factor: number): void;
 
     // ── Open303 multi-instance API (added via open303_wrapper.cpp) ──────────
     open303_create(): number;
@@ -318,6 +328,83 @@ export class AudioDSP {
         } finally {
             this.free(leftPtr);
             this.free(rightPtr);
+        }
+    }
+
+    /**
+     * Global offline oversample preference (1|2|4) mirrored in audio_dsp.cpp.
+     * Per-voice oversampling is set via open303_set_oversample on each handle.
+     */
+    getOversampleFactor(): number {
+        if (!this.module || typeof this.module.getOversampleFactor !== 'function') {
+            return 1;
+        }
+        return this.module.getOversampleFactor();
+    }
+
+    setOversampleFactor(factor: number): void {
+        if (!this.module || typeof this.module.setOversampleFactor !== 'function') return;
+        const n = factor === 2 || factor === 4 ? factor : 1;
+        this.module.setOversampleFactor(n);
+    }
+
+    /**
+     * Mix independently rendered mono voice buffers (OpenMP on WASM path).
+     */
+    mixVoiceBuffers(voices: Float32Array[], gains?: number[]): Float32Array {
+        if (voices.length === 0) return new Float32Array(0);
+        const numFrames = voices[0].length;
+        const output = new Float32Array(numFrames);
+
+        if (!this.isAvailable() || typeof this.module!.mixVoiceBuffers !== 'function') {
+            for (let v = 0; v < voices.length; v++) {
+                const g = gains?.[v] ?? 1;
+                const voice = voices[v];
+                const n = Math.min(numFrames, voice.length);
+                for (let i = 0; i < n; i++) {
+                    output[i] += voice[i] * g;
+                }
+            }
+            return output;
+        }
+
+        const voicePtrs: number[] = [];
+        let gainsPtr = 0;
+        let voicePtrsPtr = 0;
+        let outputPtr = 0;
+        try {
+            for (const v of voices) {
+                voicePtrs.push(this.copyToHeap(v));
+            }
+            voicePtrsPtr = window.Module!._malloc(voicePtrs.length * 4);
+            const ptrView = new Uint32Array(
+                window.Module!.HEAPF32.buffer,
+                voicePtrsPtr,
+                voicePtrs.length,
+            );
+            for (let i = 0; i < voicePtrs.length; i++) {
+                ptrView[i] = voicePtrs[i];
+            }
+            if (gains && gains.length === voices.length) {
+                const gBuf = new Float32Array(gains);
+                gainsPtr = this.copyToHeap(gBuf);
+            }
+            outputPtr = window.Module!._malloc(numFrames * 4);
+            this.module!.mixVoiceBuffers(
+                outputPtr,
+                voicePtrsPtr,
+                voices.length,
+                numFrames,
+                gainsPtr,
+            );
+            const view = new Float32Array(window.Module!.HEAPF32.buffer, outputPtr, numFrames);
+            output.set(view);
+            return output;
+        } finally {
+            for (const p of voicePtrs) this.free(p);
+            if (voicePtrsPtr) this.free(voicePtrsPtr);
+            if (gainsPtr) this.free(gainsPtr);
+            if (outputPtr) this.free(outputPtr);
         }
     }
 

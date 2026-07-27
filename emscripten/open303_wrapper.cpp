@@ -218,6 +218,11 @@ struct MoogFilter {
 struct Open303Instance {
     // ── Sample rate ──────────────────────────────────────────────────────────
     float sampleRate  = 44100.0f;
+    /** Offline / freeze quality knob. Real-time path keeps 1 (bit-identical).
+     *  Allowed values: 1, 2, 4. Higher factors run the DSP at N× SR then
+     *  box-downsample into the caller buffer. Thread-local filter/envelope
+     *  state stays on this instance — never share one handle across threads. */
+    int   oversampleFactor = 1;
 
     // ── Parameters ───────────────────────────────────────────────────────────
     float waveform    = 0.0f;    // 0 = saw, 1 = square
@@ -284,6 +289,20 @@ struct Open303Instance {
         updateDecayRate();
     }
 
+    /** Effective sample rate including oversampling (offline quality path). */
+    float effectiveSampleRate() const
+    {
+        return sampleRate * static_cast<float>(oversampleFactor > 0 ? oversampleFactor : 1);
+    }
+
+    /** Clamp to {1,2,4}; default 1 keeps the real-time worklet path unchanged. */
+    void setOversample(int factor)
+    {
+        if (factor != 2 && factor != 4) factor = 1;
+        oversampleFactor = factor;
+        updateDecayRate();
+    }
+
     // ── Parameters ───────────────────────────────────────────────────────────
 
     void setParam(int paramId, float value)
@@ -312,11 +331,13 @@ struct Open303Instance {
     void updateDecayRate()
     {
         // Map [0..1] → decay time range from the active model profile
-        // (stock: 50 ms .. 2 s)
+        // (stock: 50 ms .. 2 s). Use effective SR so oversampled renders keep
+        // the same wall-clock decay as 1×.
         float timeS = profile.decayMinS + decay * profile.decayRangeS;
         // Accent shortens the decay further
         if (accented) timeS *= (0.05f + accentDecay * 0.95f);
-        envDecayRate = std::exp(-1.0f / (sampleRate * timeS));
+        const float sr = effectiveSampleRate();
+        envDecayRate = std::exp(-1.0f / (sr * timeS));
     }
 
     /** Apply a model coefficient profile ("303 voice"). Returns 1 on success.
@@ -341,10 +362,12 @@ struct Open303Instance {
 
         if (gateOpen && slideTime > 0.0f && currentFreq > 0.0f) {
             // Portamento: compute per-sample exponential glide coefficient
+            // at the effective (oversampled) rate so wall-clock slide time
+            // stays constant across OVERSAMPLE_FACTOR settings.
             const float slideSeconds = profile.slideMinS + slideTime * profile.slideRangeS;
             const float ratio = targetFreq / currentFreq;
             if (ratio > 0.0f && ratio != 1.0f) {
-                slideCoeff = std::pow(ratio, 1.0f / (slideSeconds * sampleRate));
+                slideCoeff = std::pow(ratio, 1.0f / (slideSeconds * effectiveSampleRate()));
             } else {
                 slideCoeff  = 1.0f;
                 currentFreq = targetFreq;
@@ -377,60 +400,86 @@ struct Open303Instance {
 
     // ── Audio render ─────────────────────────────────────────────────────────
 
+    /** Advance one sub-sample at @p srEff and return the filtered voice sample. */
+    float renderSampleAt(float srEff)
+    {
+        // --- Portamento (exponential slide) ---
+        if (slideCoeff != 1.0f) {
+            currentFreq *= slideCoeff;
+            const bool reached = (slideCoeff > 1.0f)
+                ? (currentFreq >= targetFreq)
+                : (currentFreq <= targetFreq);
+            if (reached) {
+                currentFreq = targetFreq;
+                slideCoeff  = 1.0f;
+            }
+        }
+
+        // --- Oscillator ---
+        const float phaseInc = currentFreq / srEff;
+        phase += phaseInc;
+        if (phase >= 1.0f) phase -= 1.0f;
+
+        float osc;
+        if (waveform < 0.5f) {
+            osc = 2.0f * phase - 1.0f;   // sawtooth
+            // Optional model waveshaping (sawDrive = 0 keeps the stock
+            // path bit-identical — no tanh applied at all)
+            if (profile.sawDrive > 0.0f) {
+                osc = fastTanh(osc * (1.0f + profile.sawDrive));
+            }
+        } else {
+            // Square with soft overdrive controlled by squareDrv
+            const float sq    = (phase < 0.5f) ? 1.0f : -1.0f;
+            const float drive = 1.0f + squareDrv * profile.squareDriveMul;
+            osc = fastTanh(sq * drive);
+        }
+
+        // --- Envelope: always decays (303 behaviour) ---
+        envLevel *= envDecayRate;
+        if (envLevel < 1.0e-6f) envLevel = 0.0f;
+
+        // --- Filter cutoff with envelope modulation ---
+        const float accentBoost = accented ? (accent * profile.accentFilterBoost * envLevel) : 0.0f;
+        const float totalCutoff = std::min(1.0f, cutoff + envMod * envLevel + accentBoost);
+
+        // --- Filter (cutoff curve + feedback gain from the model profile) ---
+        const float freqHz = profile.cutoffBaseHz * std::pow(profile.cutoffRangeMul, totalCutoff);
+        const float k      = resonance * profile.resFeedback;
+        const float filtered = filter.process(osc, freqHz, k, srEff);
+
+        // --- Output gain ---
+        float gain = volume;
+        if (accented) gain *= (1.0f + accent * profile.accentGainBoost);
+        return filtered * gain;
+    }
+
     void process(float* output, int numFrames)
     {
         if (!output) return;
 
+        const int n = (oversampleFactor == 2 || oversampleFactor == 4) ? oversampleFactor : 1;
+        const float srEff = sampleRate * static_cast<float>(n);
+
+        if (n == 1) {
+            // Fast path — identical to pre-oversample behaviour (factor 1).
+            for (int i = 0; i < numFrames; ++i) {
+                output[i] = renderSampleAt(srEff);
+            }
+            return;
+        }
+
+        // Oversampled path: N sub-samples → box-average downsample.
+        // State (filter memory, envelope, phase) advances only on this
+        // instance — safe for OpenMP across *different* instances, not
+        // across concurrent process() calls on the same handle.
+        const float invN = 1.0f / static_cast<float>(n);
         for (int i = 0; i < numFrames; ++i) {
-            // --- Portamento (exponential slide) ---
-            if (slideCoeff != 1.0f) {
-                currentFreq *= slideCoeff;
-                const bool reached = (slideCoeff > 1.0f)
-                    ? (currentFreq >= targetFreq)
-                    : (currentFreq <= targetFreq);
-                if (reached) {
-                    currentFreq = targetFreq;
-                    slideCoeff  = 1.0f;
-                }
+            float acc = 0.0f;
+            for (int s = 0; s < n; ++s) {
+                acc += renderSampleAt(srEff);
             }
-
-            // --- Oscillator ---
-            const float phaseInc = currentFreq / sampleRate;
-            phase += phaseInc;
-            if (phase >= 1.0f) phase -= 1.0f;
-
-            float osc;
-            if (waveform < 0.5f) {
-                osc = 2.0f * phase - 1.0f;   // sawtooth
-                // Optional model waveshaping (sawDrive = 0 keeps the stock
-                // path bit-identical — no tanh applied at all)
-                if (profile.sawDrive > 0.0f) {
-                    osc = fastTanh(osc * (1.0f + profile.sawDrive));
-                }
-            } else {
-                // Square with soft overdrive controlled by squareDrv
-                const float sq    = (phase < 0.5f) ? 1.0f : -1.0f;
-                const float drive = 1.0f + squareDrv * profile.squareDriveMul;
-                osc = fastTanh(sq * drive);
-            }
-
-            // --- Envelope: always decays (303 behaviour) ---
-            envLevel *= envDecayRate;
-            if (envLevel < 1.0e-6f) envLevel = 0.0f;
-
-            // --- Filter cutoff with envelope modulation ---
-            const float accentBoost = accented ? (accent * profile.accentFilterBoost * envLevel) : 0.0f;
-            const float totalCutoff = std::min(1.0f, cutoff + envMod * envLevel + accentBoost);
-
-            // --- Filter (cutoff curve + feedback gain from the model profile) ---
-            const float freqHz = profile.cutoffBaseHz * std::pow(profile.cutoffRangeMul, totalCutoff);
-            const float k      = resonance * profile.resFeedback;
-            const float filtered = filter.process(osc, freqHz, k, sampleRate);
-
-            // --- Output gain ---
-            float gain = volume;
-            if (accented) gain *= (1.0f + accent * profile.accentGainBoost);
-            output[i] = filtered * gain;
+            output[i] = acc * invN;
         }
     }
 
@@ -518,6 +567,25 @@ void open303_set_param(uintptr_t handle, int paramId, float value)
 {
     Open303Instance* inst = lookupInstance(handle);
     if (inst) inst->setParam(paramId, value);
+}
+
+/**
+ * Set offline oversampling factor (1, 2, or 4). Default 1 — real-time path
+ * unchanged. Invalid values clamp to 1.
+ */
+EMSCRIPTEN_KEEPALIVE
+void open303_set_oversample(uintptr_t handle, int factor)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    if (inst) inst->setOversample(factor);
+}
+
+/** Current oversampling factor for @p handle (1 if unknown). */
+EMSCRIPTEN_KEEPALIVE
+int open303_get_oversample(uintptr_t handle)
+{
+    Open303Instance* inst = lookupInstance(handle);
+    return inst ? inst->oversampleFactor : 1;
 }
 
 /**
@@ -650,6 +718,8 @@ EMSCRIPTEN_BINDINGS(open303_module) {
     function("open303_note_off",      &open303_note_off);
     function("open303_all_notes_off", &open303_all_notes_off);
     function("open303_set_param",     &open303_set_param);
+    function("open303_set_oversample",&open303_set_oversample);
+    function("open303_get_oversample",&open303_get_oversample);
     function("open303_process",       &open303_process);
 
     function("open303_get_model_count",   &open303_get_model_count);

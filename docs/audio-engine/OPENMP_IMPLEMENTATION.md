@@ -96,6 +96,14 @@ Potential additions to leverage OpenMP further:
 3. **Granular synthesis** - Parallel grain processing
 4. **Multi-track rendering** - Parallel track mixing in XM export
 
+### Phase-1 offline 303 (done)
+
+See [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md):
+
+- Per-instance `OVERSAMPLE_FACTOR` (1|2|4) on Open303
+- `mixVoiceBuffers` / `downsampleBox` OpenMP helpers
+- Worker pool + `render303Offline()` for freeze/export paths
+
 ## Technical Details
 
 ### SIMD Directives

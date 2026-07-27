@@ -232,6 +232,70 @@ void applyStereoWidth(
 }
 
 /**
+ * Box-filter downsample from an oversampled buffer into @p outPtr.
+ * @param inPtr     Oversampled mono input (outFrames * factor samples)
+ * @param outPtr    Destination at base rate (outFrames samples)
+ * @param outFrames Number of output frames
+ * @param factor    Oversample factor (1, 2, or 4)
+ */
+void downsampleBox(uintptr_t inPtr, uintptr_t outPtr, int outFrames, int factor) {
+    const float* in = reinterpret_cast<const float*>(inPtr);
+    float* out = reinterpret_cast<float*>(outPtr);
+    const int n = (factor == 2 || factor == 4) ? factor : 1;
+    const float invN = 1.0f / static_cast<float>(n);
+
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+    #endif
+    for (int i = 0; i < outFrames; i++) {
+        float acc = 0.0f;
+        const int base = i * n;
+        for (int s = 0; s < n; s++) {
+            acc += in[base + s];
+        }
+        out[i] = acc * invN;
+    }
+}
+
+/**
+ * Mix independently rendered mono voice buffers into one output.
+ * Safe to call from OpenMP: each voice buffer is read-only; output writes
+ * are partitioned by sample index (no shared mutable voice state).
+ *
+ * @param outputPtr   Destination mono buffer
+ * @param voicePtrsPtr Array of pointers to voice buffers (uintptr_t[numVoices])
+ * @param numVoices   Number of voices (typically lead + bass1 + bass2)
+ * @param numFrames   Frames per buffer
+ * @param gainsPtr    Optional per-voice gains (nullptr → 1.0 for all)
+ */
+void mixVoiceBuffers(
+    uintptr_t outputPtr,
+    uintptr_t voicePtrsPtr,
+    int numVoices,
+    int numFrames,
+    uintptr_t gainsPtr
+) {
+    float* output = reinterpret_cast<float*>(outputPtr);
+    uintptr_t* voicePtrs = reinterpret_cast<uintptr_t*>(voicePtrsPtr);
+    const float* gains = gainsPtr
+        ? reinterpret_cast<const float*>(gainsPtr)
+        : nullptr;
+
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+    #endif
+    for (int i = 0; i < numFrames; i++) {
+        float sum = 0.0f;
+        for (int v = 0; v < numVoices; v++) {
+            const float* voice = reinterpret_cast<const float*>(voicePtrs[v]);
+            const float g = gains ? gains[v] : 1.0f;
+            sum += voice[i] * g;
+        }
+        output[i] = sum;
+    }
+}
+
+/**
  * Get number of OpenMP threads available
  * @return Number of threads
  */
@@ -253,6 +317,21 @@ void setNumThreads(int numThreads) {
     #endif
 }
 
+/**
+ * Global offline oversampling preference (1, 2, or 4). Informational for the
+ * JS bridge / EngineHUD; per-engine state lives on open303 instances.
+ */
+static int g_offlineOversampleFactor = 1;
+
+int getOversampleFactor() {
+    return g_offlineOversampleFactor;
+}
+
+void setOversampleFactor(int factor) {
+    if (factor != 2 && factor != 4) factor = 1;
+    g_offlineOversampleFactor = factor;
+}
+
 // Bindings
 EMSCRIPTEN_BINDINGS(audio_dsp_module) {
     function("applyGain", &applyGain);
@@ -262,6 +341,10 @@ EMSCRIPTEN_BINDINGS(audio_dsp_module) {
     function("interleaveStereo", &interleaveStereo);
     function("floatToInt16", &floatToInt16);
     function("applyStereoWidth", &applyStereoWidth);
+    function("downsampleBox", &downsampleBox);
+    function("mixVoiceBuffers", &mixVoiceBuffers);
     function("getNumThreads", &getNumThreads);
     function("setNumThreads", &setNumThreads);
+    function("getOversampleFactor", &getOversampleFactor);
+    function("setOversampleFactor", &setOversampleFactor);
 }
