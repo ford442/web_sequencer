@@ -11,8 +11,9 @@
 - [x] Implement Lyric Track parsing
 - [x] Implement Vowel-Preserving Time Stretch for TTS voices
 - [x] Implement per-phoneme pitch drift/vibrato
-- [ ] Add Formant Modulation LFO
-- [ ] Add Formant Glide per phoneme
+- [x] Add Formant Modulation LFO
+- [x] Add Formant Glide per phoneme
 - [ ] Add granular random jitter per phoneme
+- [ ] Optimize Voice Manager state syncing
 
 ## Roadmap

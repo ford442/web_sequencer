@@ -523,6 +523,9 @@ export function createSamplerPlayback(
         // 3. Phoneme Awareness (from Jules branch)
         if (ctx.alignment) {
             voice.setAlignment(ctx.alignment);
+            if (ctx.noteParams?.phonemes?.length) {
+                voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
+            }
             voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
