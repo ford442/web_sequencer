@@ -637,6 +637,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 <button type="button"
                   onClick={handleImport}
                   disabled={!isComplete || isImporting}
+                  title={!isComplete ? 'Select a valid file first' : isImporting ? 'Importing file...' : 'Import file'}
                   aria-busy={isImporting}
                   className={`px-4 py-2 text-xs font-medium rounded transition-all flex items-center gap-2 ${
                     isComplete && !isImporting
