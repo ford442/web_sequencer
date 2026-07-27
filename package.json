@@ -26,6 +26,7 @@
     "check:root": "node scripts/check-root.mjs",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "benchmark:303": "vite-node scripts/benchmark_offline303.mjs",
     "prepare": "husky",
     "deploy": "python deploy.py",
     "demo": "start svg-demo.html"
