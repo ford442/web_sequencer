@@ -32,7 +32,7 @@ songs — **never rename** a shipped id.
 | `highfid-cpu` | High-Fidelity CPU (offline) | `highfid` | Phase-2 diode-ladder reference @ 4× OS — **offline only** | TB-303 authenticity tier |
 | `gpu-highfid` | GPU High-Fidelity (offline) | `highfid` | Phase-3 WGSL diode-ladder — **offline only**; falls back to CPU without WebGPU | TB-303 authenticity tier |
 
-**Status badges** (Voice303Selector): realtime voices show **OPEN303** / **JC303**; offline high-fid shows **HIFID** + amber **Offline** pill. When WebGPU is unavailable, a **No GPU** badge appears and offline render uses `highfid-cpu`. See [303-A-B-checklist.md](./303-A-B-checklist.md) for manual verification and [303-authenticity-gaps.md](./303-authenticity-gaps.md) for automated thresholds.
+**Status badges** (Voice303Selector): realtime voices show **OPEN303** / **JC303**; offline high-fid shows **HIFID** + amber **Offline** pill. When WebGPU is unavailable, a **No GPU** badge appears and offline render uses `highfid-cpu`. See the architecture guide [303-gpu-highfid.md](./303-gpu-highfid.md), [303-A-B-checklist.md](./303-A-B-checklist.md) for manual verification, and [303-authenticity-gaps.md](./303-authenticity-gaps.md) for automated thresholds.
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
@@ -284,7 +284,8 @@ normalization all read the registry.
 ### Offline-only high-fidelity voices (Phase-2+)
 
 `highfid-cpu` and `gpu-highfid` are special cases: `family: 'highfid'`,
-`offlineOnly: true`.
+`offlineOnly: true`. Full architecture, enablement, FAQ, and roadmap:
+**[303-gpu-highfid.md](./303-gpu-highfid.md)**.
 
 - `highfid-cpu` — C++ / TS diode-ladder oracle ([HIGHFID_CPU_303.md](./HIGHFID_CPU_303.md)).
 - `gpu-highfid` — WGSL WebGPU path with automatic highfid-cpu fallback
@@ -296,6 +297,16 @@ export / multisample; live playback stays on Stock Open303 via
 `resolveRealtimeTB303Model`. Choosing `gpu-highfid` without WebGPU keeps the
 persisted id and falls back offline to `highfid-cpu` through
 `resolveHighFidModelSelection` (Engine HUD + degradation banner).
+
+Tooltip / status copy (must stay aligned with docs):
+
+| Surface | Copy |
+|---------|------|
+| `highfid-cpu` description | Offline only — best for freeze / export / multisample. Diode-ladder CPU reference (Phase-2). Live playback uses Stock Open303. |
+| `gpu-highfid` description | Offline only — best for freeze / export / multisample. WGSL diode-ladder (Phase-3); falls back to High-Fidelity CPU when WebGPU is unavailable. Live playback uses Stock Open303. |
+| **No GPU** badge title | WebGPU unavailable — GPU High-Fidelity falls back to High-Fidelity CPU for offline render |
+| Status (no fallback) | `Offline engine: {id} · live uses Stock Open303` |
+| Status (GPU→CPU) | `WebGPU unavailable — using High-Fidelity CPU for offline render` |
 
 `getAvailableTB303Models()` (no opts) still excludes offline voices for
 realtime-only call sites.

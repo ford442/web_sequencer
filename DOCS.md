@@ -40,6 +40,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
+| [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 
 ---
 
@@ -50,7 +51,9 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
+| [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](docs/audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
+| [303-A-B-checklist.md](docs/audio-engine/303-A-B-checklist.md) | Manual + automated high-fid A/B checklist (Phase-5) |
 | [303-baseline/](docs/audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
 | [303-baseline-spectra/](docs/audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |

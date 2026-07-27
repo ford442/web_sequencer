@@ -651,6 +651,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 ## Resources
 
 - **303 Voices catalog**: [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md) — selectable TB-303 models, WASM registry, migration, tests
+- **High-fid 303 path**: [docs/audio-engine/303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) — offline CPU/GPU authenticity tier, fallback, FAQ (epic #972)
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
 - **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`

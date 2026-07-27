@@ -7,6 +7,16 @@ describe('helpTopics', () => {
     expect(results.some((t) => t.id === 'engine-303-switch')).toBe(true);
   });
 
+  it('finds high-fidelity offline 303 topic', () => {
+    const results = searchHelpTopics('high-fidelity offline');
+    expect(results.some((t) => t.id === 'highfid-303-offline')).toBe(true);
+  });
+
+  it('finds gpu highfid by keyword', () => {
+    const results = searchHelpTopics('gpu-highfid');
+    expect(results.some((t) => t.id === 'highfid-303-offline')).toBe(true);
+  });
+
   it('finds automation filter topic', () => {
     const results = searchHelpTopics('automate filter');
     expect(results.some((t) => t.id === 'automation-filter')).toBe(true);
