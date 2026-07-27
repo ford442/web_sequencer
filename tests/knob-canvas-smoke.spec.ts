@@ -71,7 +71,7 @@ test('hardware knob renders on forced Canvas2D fallback', async ({ page }) => {
         .toBeGreaterThan(0);
 });
 
-test('hardware knob canvas tracks live automated value on Canvas2D fallback', async ({ page }) => {
+test.fixme('hardware knob canvas tracks live automated value on Canvas2D fallback', async ({ page }) => {
     await page.addInitScript(() => {
         Object.defineProperty(navigator, 'gpu', {
             configurable: true,

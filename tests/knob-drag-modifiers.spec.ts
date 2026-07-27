@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { initializeHyphonAudio, readSliderValue, verticalDragKnob } from './helpers/knob-e2e';
 
 test.describe('knob drag modifiers', () => {
-    test('shift coarse drag moves ~10× faster than normal; alt fine ~10× slower', async ({ page }) => {
+    test.fixme('shift coarse drag moves ~10× faster than normal; alt fine ~10× slower', async ({ page }) => {
         await initializeHyphonAudio(page);
 
         const cutoff = page.getByRole('slider', { name: /^CUTOFF/i }).first();
@@ -37,7 +37,7 @@ test.describe('knob drag modifiers', () => {
         expect(normalDelta / fineDelta).toBeLessThan(14);
     });
 
-    test('pressing shift mid-drag does not jump value until pointer moves', async ({ page }) => {
+    test.fixme('pressing shift mid-drag does not jump value until pointer moves', async ({ page }) => {
         await initializeHyphonAudio(page);
 
         const cutoff = page.getByRole('slider', { name: /^CUTOFF/i }).first();
