@@ -9,7 +9,21 @@
     "peak_dbfs": -3.7426715032444506,
     "rms": 0.18380343914031982,
     "rms_dbfs": -14.71292733607215,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        -8.229166666666666,
+        -7.208333333333333
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 8.229166666666666,
+      "band_200_800_error_db": -3.864791764133649,
+      "band_2k_4k_error_db": 36.13104054510595,
+      "band_4k_8k_error_db": 75.89733714268422,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.737221388942798
+    }
   },
   "experimental-01_canonical": {
     "band_200_800_dbfs": -53.79344208049502,
@@ -21,6 +35,32 @@
     "peak_dbfs": -3.276894971467454,
     "rms": 0.18308202922344208,
     "rms_dbfs": -14.747085652701239,
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        6.145833333333333,
+        5.166666666666667
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 6.145833333333333,
+      "band_200_800_error_db": -2.1815085154841327,
+      "band_2k_4k_error_db": 37.220204697762455,
+      "band_4k_8k_error_db": 75.5149080557726,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.703063072313709
+    }
+  },
+  "jc303_canonical": {
+    "band_200_800_dbfs": -56.31499665270872,
+    "band_2k_4k_dbfs": -112.72777139403453,
+    "band_4k_8k_dbfs": -140.4842328429986,
+    "duration_s": 0.608,
+    "num_samples": 29184,
+    "peak": 0.6252796649932861,
+    "peak_dbfs": -4.07851389959336,
+    "rms": 0.10653506219387054,
+    "rms_dbfs": -19.450148725014948,
     "sample_rate": 48000
   },
   "mb33-mkii_canonical": {
@@ -33,7 +73,21 @@
     "peak_dbfs": -3.9873334114392662,
     "rms": 0.18244357407093048,
     "rms_dbfs": -14.777428570314692,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        5.9375,
+        -8.25
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 8.25,
+      "band_200_800_error_db": -4.153809354008295,
+      "band_2k_4k_error_db": 36.06941239717271,
+      "band_4k_8k_error_db": 74.00100839544454,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.672720154700256
+    }
   },
   "raveolution_canonical": {
     "band_200_800_dbfs": -54.7610221962981,
@@ -45,7 +99,21 @@
     "peak_dbfs": -2.9493660531108628,
     "rms": 0.17475786805152893,
     "rms_dbfs": -15.15126524160969,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        7.145833333333333,
+        5.770833333333333
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 7.145833333333333,
+      "band_200_800_error_db": -2.7449088650302826,
+      "band_2k_4k_error_db": 37.905008955826986,
+      "band_4k_8k_error_db": 75.91354566140757,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.298883483405259
+    }
   },
   "rebirth-2.0_canonical": {
     "band_200_800_dbfs": -55.48217542920888,
@@ -57,7 +125,21 @@
     "peak_dbfs": -3.280586129441545,
     "rms": 0.17390777170658112,
     "rms_dbfs": -15.193620190438537,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        5.979166666666667,
+        5.25
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 5.979166666666667,
+      "band_200_800_error_db": -3.4237069841874046,
+      "band_2k_4k_error_db": 36.536449286617994,
+      "band_4k_8k_error_db": 73.8497589475718,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.256528534576411
+    }
   },
   "rebirth-338-1.5_canonical": {
     "band_200_800_dbfs": -56.13211015813284,
@@ -69,7 +151,21 @@
     "peak_dbfs": -3.757219624452239,
     "rms": 0.17823362350463867,
     "rms_dbfs": -14.980207271407107,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        -8.125,
+        5.458333333333333
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 8.125,
+      "band_200_800_error_db": -4.287055174819507,
+      "band_2k_4k_error_db": 36.467256470862026,
+      "band_4k_8k_error_db": 76.28049161260878,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.4699414536078415
+    }
   },
   "stock-open303_canonical": {
     "band_200_800_dbfs": -54.975769008277524,
@@ -81,6 +177,20 @@
     "peak_dbfs": -3.6426057571212764,
     "rms": 0.1700829416513443,
     "rms_dbfs": -15.38678482924028,
-    "sample_rate": 48000
+    "sample_rate": 48000,
+    "vs_reference": {
+      "accent_peak_timing_drift_ms": [
+        6.3125,
+        -7.166666666666667
+      ],
+      "accent_peak_timing_drift_ms_abs_max": 7.166666666666667,
+      "band_200_800_error_db": -2.7241358340483615,
+      "band_2k_4k_error_db": 37.55233611746482,
+      "band_4k_8k_error_db": 73.77172764909994,
+      "reference": "level-matched bands; absolute RMS before match",
+      "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
+      "reference_role": "soft-oracle-jc303",
+      "rms_error_db_unmatched": 4.063363895774668
+    }
   }
 }

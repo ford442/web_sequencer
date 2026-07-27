@@ -1,0 +1,12 @@
+# Phase-0 jc303 soft-oracle baseline render
+sample_rate_hz=48000
+bit_depth=24
+channels=1
+block_size=128
+step_blocks=57
+pattern=MIDI 36,36,39,43 accent on 2+4 legato on 2+4
+params=cutoff=0.35 resonance=0.70 envMod=0.55 decay=0.50 accent=0.70 volume=0.80 waveform=saw
+voice=jc303
+role=soft-oracle (provisional until hardware-tb303_canonical.wav)
+source=emscripten/tests/tb303_jc303_baseline_dump.cpp
+engine=rosic Open303 via emscripten/jc303_wrapper.cpp

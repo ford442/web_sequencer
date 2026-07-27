@@ -12,9 +12,10 @@ for the high-fidelity TB-303 epic ([#972](https://github.com/ford442/web_sequenc
 | File | Description |
 |------|-------------|
 | `*_canonical.wav` | open303-family engines, 48 kHz / 24-bit mono, canonical pattern |
-| `baseline_manifest.txt` | Sample rate, pattern, params (machine-readable) |
+| `jc303_canonical.wav` | **Soft oracle** — authentic rosic/Open303 family via host dump |
+| `baseline_manifest.txt` | open303-family sample rate, pattern, params |
+| `jc303_baseline_manifest.txt` | jc303 soft-oracle provenance |
 | `hardware-tb303_canonical.wav` | **Optional / pending** — real TB-303 or Roland Cloud export |
-| `jc303_canonical.wav` | **Optional / pending** — authentic family soft oracle (see below) |
 
 Spectrograms: [`../303-baseline-spectra/`](../303-baseline-spectra/).  
 Gap analysis: [`../303-authenticity-gaps.md`](../303-authenticity-gaps.md).
@@ -25,7 +26,7 @@ Gap analysis: [`../303-authenticity-gaps.md`](../303-authenticity-gaps.md).
 bash scripts/generate_303_baselines.sh
 ```
 
-Requires host `g++` and Python 3 with `numpy` + `matplotlib`.
+Requires host `g++`, the `jc303_wasm` submodule, and Python 3 with `numpy` + `matplotlib`.
 
 ## Canonical pattern (must match hardware capture)
 
@@ -42,6 +43,17 @@ rendered here at **48 kHz**:
 - Dry mono, no master FX / reverb / delay
 - File format: **≥ 48 kHz, 24-bit PCM WAV**, mono preferred
 
+## Soft oracle vs hardware
+
+Until a hardware / Roland Cloud capture is committed:
+
+- Treat **`jc303_canonical.wav`** as the provisional absolute reference for
+  level-normalized band-error and accent-timing metrics.
+- `scripts/303_spectrogram.py --reference …/jc303_canonical.wav` writes
+  `vs_reference` blocks into `baseline_metrics.json`.
+- When `hardware-tb303_canonical.wav` lands, re-run with
+  `--reference …/hardware-tb303_canonical.wav` and update the gaps doc.
+
 ## Hardware / Roland Cloud acquisition protocol
 
 1. Program the pattern above on a real TB-303, Boutique, or Roland Cloud TB-303.
@@ -49,26 +61,16 @@ rendered here at **48 kHz**:
 3. Record dry, digital if possible (Cloud export or interface at 48 kHz / 24-bit).
 4. Trim to the four-step phrase with ~0 ms pre-roll silence (or document offset).
 5. Save as `hardware-tb303_canonical.wav` in this directory.
-6. Re-run `python3 scripts/303_spectrogram.py` so a matching PNG appears under
-   `303-baseline-spectra/`.
+6. Re-run `bash scripts/generate_303_baselines.sh` (or spectrogram script with
+   `--reference` pointing at the hardware file).
 7. Update the “Hardware reference status” note in `303-authenticity-gaps.md`.
 
 Do **not** commit copyrighted factory demos unrelated to this pattern. The
 reference must be a capture **you** produced of the canonical phrase.
 
-## jc303 soft-oracle capture (optional)
-
-The host dump tool only drives the open303-family C API. To add `jc303`:
-
-1. In the Hyphon UI, set SYNTH B (or any 303 track) to voice **Authentic JC303**.
-2. Program the canonical pattern / params, disable master FX.
-3. Export via the app WAV export (or OfflineAudioContext harness) at 48 kHz / 24-bit.
-4. Save as `jc303_canonical.wav` here and regenerate spectrograms.
-
-A future WASM CLI may automate this; tracked under Phase-1/5 tooling.
-
 ## License / provenance
 
-Engine baselines are generated from Hyphon’s own DSP and may be redistributed
-with the repository. Hardware / Cloud captures are the responsibility of the
-contributor who adds them — ensure you have rights to commit the file.
+Engine baselines (open303 family + jc303 soft oracle) are generated from Hyphon’s
+own DSP / the jc303_wasm submodule and may be redistributed with the repository.
+Hardware / Cloud captures are the responsibility of the contributor who adds
+them — ensure you have rights to commit the file.
