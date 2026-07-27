@@ -277,6 +277,14 @@ Checklist — this is the **only** guide needed to ship voice #N:
 No other call-site changes — the selector, worklet routing, persistence, and
 normalization all read the registry.
 
+### Offline-only high-fidelity voices (Phase-2+)
+
+`highfid-cpu` is a special case: `family: 'highfid'`, `offlineOnly: true`.
+It ships its own C++ module (`emscripten/highfid303_wrapper.cpp`) rather than
+an open303 coefficient row. Keep it out of the real-time selector
+(`getAvailableTB303Models()` excludes `offlineOnly` by default). See
+[`HIGHFID_CPU_303.md`](./HIGHFID_CPU_303.md).
+
 ## Out of scope for v1
 
 - Per-pattern model automation
