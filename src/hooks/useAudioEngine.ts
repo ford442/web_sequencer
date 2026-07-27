@@ -752,7 +752,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         };
 
                     // For each note in the chord
-                    notes.forEach((noteStr, _noteIndex) => {
+                    // ⚡ Bolt Optimization: Replacing forEach with for...of to prevent closure allocations on hot path
+                    for (const noteStr of notes) {
                         if (shouldGlitch) {
                             const numStutters = Math.floor(Math.random() * 3) + 2;
                             const totalDur = durationSteps * stepTime;
@@ -771,7 +772,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                                 runVoices(noteStr, offset, subDurationSteps * stepTime);
                             }
                         }
-                    });
+                    }
                     return;
                 }
 
@@ -838,7 +839,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     }
                 };
 
-                notes.forEach(noteStr => {
+                // ⚡ Bolt Optimization: Replacing forEach with for...of to prevent closure allocations on hot path
+                for (const noteStr of notes) {
                     const midi = noteToMidi(noteStr);
 
                     if (shouldGlitch) {
@@ -855,7 +857,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             playBufferSource(actualTime + offset, subDurationSteps * stepTime, midi);
                         }
                     }
-                });
+                }
             };
 
             // Main playSampler function with harmonizer support
@@ -876,8 +878,9 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                     playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
 
                     // Play each harmony voice (skip index 0 which is base)
-                    voices.forEach((voice) => {
-                        if (voice.index === 0) return; // Skip base voice, already played above
+                    // ⚡ Bolt Optimization: Replacing forEach with for...of to prevent closure allocations on hot path
+                    for (const voice of voices) {
+                        if (voice.index === 0) continue; // Skip base voice, already played above
 
                         // Create modified params for this harmony voice
                         const config = harmonizer.getConfig();
@@ -900,7 +903,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                         setTimeout(() => {
                             playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
                         }, delayMs);
-                    });
+                    }
                     return;
                 }
 
