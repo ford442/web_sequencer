@@ -341,7 +341,8 @@ What it asserts:
 This same fixed pattern is the **shared A/B regression pattern** for both the
 first custom voices (#898), the ReBirth character voices (#900), and the P2
 character voices (#902). Phase-0 (#973) also dumps the same musical content at
-48 kHz / 24-bit via `bash scripts/generate_303_baselines.sh` — see
+48 kHz / 24-bit for open303-family voices **and** the `jc303` soft oracle via
+`bash scripts/generate_303_baselines.sh` — see
 [303-authenticity-gaps.md](303-authenticity-gaps.md) and
 [303-baseline/](303-baseline/).
 

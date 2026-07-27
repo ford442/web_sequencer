@@ -3,12 +3,17 @@
 PNG spectrograms and `baseline_metrics.json` for the canonical pattern renders
 in [`../303-baseline/`](../303-baseline/).
 
+Includes open303-family voices **and** `jc303_canonical` (soft oracle). Metrics
+JSON may contain `vs_reference` deltas (level-matched band errors + accent peak
+timing drift) against the soft oracle or a future hardware WAV.
+
 Regenerate:
 
 ```bash
 python3 scripts/303_spectrogram.py \
   --input-dir docs/audio-engine/303-baseline \
-  --output-dir docs/audio-engine/303-baseline-spectra
+  --output-dir docs/audio-engine/303-baseline-spectra \
+  --reference docs/audio-engine/303-baseline/jc303_canonical.wav
 ```
 
 Or via the combined script:
