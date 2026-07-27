@@ -146,7 +146,10 @@ export function applyVoiceParamUpdate({
     rampTime
 }: VoiceParamUpdateOptions): void {
     if (manager) {
-        manager.getAllVoices().forEach((voice) => {
+        const voices = manager.getAllVoices();
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < voices.length; i++) {
+            const voice = voices[i];
             switch (key) {
                 case 'timeRatio':
                     voice.setTimeRatio(value);
@@ -179,7 +182,7 @@ export function applyVoiceParamUpdate({
                     voice.setRelease(value);
                     break;
             }
-        });
+        }
     }
 
     if (key === 'choir') {
@@ -206,7 +209,10 @@ export function applySamplerVoiceParamUpdate({
         return;
     }
 
-    manager.getAllVoices().forEach((voice) => {
+    const voices = manager.getAllVoices();
+    // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+    for (let i = 0; i < voices.length; i++) {
+        const voice = voices[i];
         switch (param) {
             case 'vibratoRate':
                 voice.setVibratoRate(value as number);
@@ -253,5 +259,5 @@ export function applySamplerVoiceParamUpdate({
                 voice.setCharacterMorph(value as number, 'female', 0.05);
                 break;
         }
-    });
+    }
 }

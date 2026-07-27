@@ -12,6 +12,8 @@ if (typeof window !== 'undefined') {
         onmessage: null,
         start: vi.fn(),
         close: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       } as any;
     }
     connect() {}

@@ -77,12 +77,13 @@ export class SingingVoiceManager {
         let oldestTime = Infinity;
         let oldestIndex = -1;
 
-        this.activeVoices.forEach((v, index) => {
+        // ⚡ Bolt Optimization: Replacing forEach with a block loop to prevent closure allocations
+        for (const [index, v] of this.activeVoices.entries()) {
             if (v.startTime < oldestTime) {
                 oldestTime = v.startTime;
                 oldestIndex = index;
             }
-        });
+        }
 
         if (oldestIndex !== -1) {
             const stolen = this.activeVoices.get(oldestIndex);
@@ -141,8 +142,16 @@ export class SingingVoiceManager {
 
     /**
      * Get currently active voices.
+     * @param outArray Optional array to populate, avoiding transient array allocation.
      */
-    getActiveVoices(): SingingVoice[] {
+    getActiveVoices(outArray?: SingingVoice[]): SingingVoice[] {
+        if (outArray) {
+            outArray.length = 0;
+            for (const activeVoice of this.activeVoices.values()) {
+                outArray.push(activeVoice.voice);
+            }
+            return outArray;
+        }
         return Array.from(this.activeVoices.values()).map(v => v.voice);
     }
 

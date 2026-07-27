@@ -6,7 +6,11 @@
 ## Innovation Lab
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
-- [ ] Implement Lyric Track parsing
 - [ ] Implement Expressive Note Transitions for Vowels
+
+- [x] Implement Lyric Track parsing
+- [x] Implement Vowel-Preserving Time Stretch for TTS voices
+- [ ] Implement per-phoneme pitch drift/vibrato
+- [ ] Add Formant Modulation LFO
 
 ## Roadmap

@@ -118,6 +118,7 @@ export function useKnobInteraction({
     const valueText = formatValue ? formatValue(displayValue) : `${displayValue}`;
 
     const emitChange = useCallback((next: number) => {
+        // console.log("emitChange", next);
         dragLiveValueRef.current = next;
         setDragValue(next);
         propsRef.current.onDragValue?.(next);

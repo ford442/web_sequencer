@@ -109,10 +109,21 @@ export function useLyricHandlers(deps: {
 
     const handleLyricApply = useCallback(async (text: string) => {
         try {
-            await handleGenerateTTS(text);
+            // Parse pitch tags like (C4) or (C#4)
+            const pitchRegex = /\(([A-G][#b]?[0-9])\)/g;
+            const pitches: string[] = [];
+            let match;
+            while ((match = pitchRegex.exec(text)) !== null) {
+                pitches.push(match[1]);
+            }
+
+            // Clean text for TTS generation
+            const cleanText = text.replace(pitchRegex, '').trim();
+
+            await handleGenerateTTS(cleanText);
 
             const newPhrases = [...ttsPhrases];
-            newPhrases[activeSamplerBankRef.current] = text;
+            newPhrases[activeSamplerBankRef.current] = cleanText;
             setTtsPhrases(newPhrases);
 
             const prev = patternRef.current;
@@ -157,6 +168,43 @@ export function useLyricHandlers(deps: {
                     }
                     return stepData;
                 });
+            }
+
+            // If no notes exist, auto-generate them based on phoneme timing
+            if (noteIndex === 0) {
+                const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
+                if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
+                    const stepTime = 60 / tempoRef.current / 4;
+                    const newSamplerSequence = [...newPattern.sampler];
+                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: [...newSamplerSequence[bankIdx].steps] };
+                    let currentPitchIdx = 0;
+
+                    // Group phonemes into words/syllables based on pauses (simple heuristic)
+
+                    let lastPhonemeEnd = 0;
+
+                    alignment.phonemes.forEach((p: any, i: number) => {
+                        const stepIdx = Math.round(p.start / stepTime);
+
+                        // Treat as new syllable if there's a gap or it's the first phoneme
+                        if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
+                            if (stepIdx >= 0 && stepIdx < 32 && !currentBankSequence.steps[stepIdx]) {
+                                currentBankSequence.steps[stepIdx] = {
+                                    note: pitches[currentPitchIdx] || 'C4',
+                                    velocity: 1,
+                                    length: 1,
+                                    sliceIndex: noteIndex,
+                                };
+                                noteIndex++;
+                                currentPitchIdx++;
+                            }
+                        }
+                        lastPhonemeEnd = p.end;
+                    });
+
+                    newSamplerSequence[bankIdx] = currentBankSequence;
+                    newPattern = { ...newPattern, sampler: newSamplerSequence };
+                }
             }
 
             setPattern(newPattern);

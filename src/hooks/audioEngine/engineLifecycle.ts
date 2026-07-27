@@ -179,15 +179,20 @@ export async function initializeAudioContextAndEngines(
         try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
         const samplerDest = refs.samplerBusRef.current ?? refs.masterSaturationRef.current!;
-        manager.getAllVoices().forEach(voice => {
-            voice.connectOutput(samplerDest);
-        });
+        const voices = manager.getAllVoices();
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < voices.length; i++) {
+            voices[i].connectOutput(samplerDest);
+        }
 
         // Initialise the phoneme buffer pool and wire it to every voice
         const pool = new PhonemeBufferPool();
         pool.init(context);
         refs.phonemeBufferPoolRef.current = pool;
-        manager.getAllVoices().forEach(voice => voice.setPool(pool));
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (let i = 0; i < voices.length; i++) {
+            voices[i].setPool(pool);
+        }
 
         if (refs.pyodideRef.current) {
             // Pre-cache logic

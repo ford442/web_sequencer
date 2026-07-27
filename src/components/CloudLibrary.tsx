@@ -287,6 +287,17 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         Share Your Creation
                                     </button>
                                 </div>
+                            ) : filteredSongs.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+                                    <h3 className="text-gray-400 font-bold mb-2">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                    <button type="button"
+                                        onClick={() => setFilterType('all')}
+                                        className="mt-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-600 px-4 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                                        aria-label="Clear filter"
+                                    >
+                                        Clear Filter
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="grid gap-3">
                                     {filteredSongs.map(item => (
