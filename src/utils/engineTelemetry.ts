@@ -42,6 +42,9 @@ type RuntimeTelemetry = {
   masterBudgetPercent: number;
   totalUnderruns: number;
   degradations: Array<{ step: string; active: boolean; reason: string; ts: number }>;
+  offlineRenderThreadCount: number | null;
+  offlineRenderOversample: number | null;
+  offlineRenderLatencyMs: number | null;
 };
 
 function emptyData(): TelemetryData {
@@ -139,6 +142,12 @@ export interface RuntimeSnapshot {
   glitches: GlitchEvent[];
   worklets: Record<string, WorkletPerfReport>;
   degradations: Array<{ step: string; active: boolean; reason: string; ts: number }>;
+  /** Last offline 303 render thread count (Phase-1 / #974). */
+  offlineRenderThreadCount: number | null;
+  /** Last offline 303 oversample factor (1|2|4). */
+  offlineRenderOversample: number | null;
+  /** Last offline 303 render wall latency in ms. */
+  offlineRenderLatencyMs: number | null;
 }
 
 export interface EngineReport {
@@ -210,6 +219,9 @@ export class EngineTelemetry {
     masterBudgetPercent: 0,
     totalUnderruns: 0,
     degradations: [],
+    offlineRenderThreadCount: null,
+    offlineRenderOversample: null,
+    offlineRenderLatencyMs: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -264,6 +276,26 @@ export class EngineTelemetry {
     }
   }
 
+  /**
+   * Record metrics from an offline 303 render (worker pool / freeze / export).
+   * Does not affect the real-time audio-thread budget.
+   */
+  recordOfflineRender(meta: {
+    threadCount: number;
+    oversample: number;
+    latencyMs: number;
+  }): void {
+    this.runtime.offlineRenderThreadCount = meta.threadCount;
+    this.runtime.offlineRenderOversample = meta.oversample;
+    this.runtime.offlineRenderLatencyMs = meta.latencyMs;
+    this.recordLatency('offline303', meta.latencyMs);
+    this.registerResolution(
+      'offline303',
+      `os×${meta.oversample}`,
+      `threads=${meta.threadCount}`,
+    );
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -290,6 +322,9 @@ export class EngineTelemetry {
       glitches: this.runtime.glitches.slice(),
       worklets,
       degradations: this.runtime.degradations.slice(),
+      offlineRenderThreadCount: this.runtime.offlineRenderThreadCount,
+      offlineRenderOversample: this.runtime.offlineRenderOversample,
+      offlineRenderLatencyMs: this.runtime.offlineRenderLatencyMs,
     };
   }
 

@@ -62,6 +62,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [OPEN303_FALLBACK_MODES.md](docs/audio-engine/OPEN303_FALLBACK_MODES.md) | Open303 fallback synthesis modes |
 | [OPEN303_STACK_OVERFLOW_FIX.md](docs/audio-engine/OPEN303_STACK_OVERFLOW_FIX.md) | Open303 C++ stack overflow fix |
 | [OPENMP_IMPLEMENTATION.md](docs/audio-engine/OPENMP_IMPLEMENTATION.md) | OpenMP threading for Emscripten |
+| [OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [OPENMP_RUBBERBAND_PATCHES.md](docs/audio-engine/OPENMP_RUBBERBAND_PATCHES.md) | Rubberband OpenMP patches |
 | [RBS_IMPORT_PIPELINE.md](docs/audio-engine/RBS_IMPORT_PIPELINE.md) | RBS import pipeline documentation |
 | [RUBBERBAND_ANALYSIS.md](docs/audio-engine/RUBBERBAND_ANALYSIS.md) | Rubberband library integration analysis |

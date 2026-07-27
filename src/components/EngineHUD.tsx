@@ -68,6 +68,14 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
 
+    const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
+    const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
+    const offlineLat = runtime.offlineRenderLatencyMs != null ? `${runtime.offlineRenderLatencyMs.toFixed(1)} ms` : '—';
+    const offlineSection = `<div class="subheader">Offline 303</div>
+      <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
+      <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
+      <div class="row"><div style="flex:1">Last render</div><div style="min-width:72px;text-align:right">${offlineLat}</div></div>`;
+
     const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
       const w = runtime.worklets[name];
@@ -91,7 +99,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${offlineSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render

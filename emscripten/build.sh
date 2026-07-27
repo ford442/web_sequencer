@@ -61,6 +61,8 @@ EXPORTS="[ \
     '_open303_note_off', \
     '_open303_all_notes_off', \
     '_open303_set_param', \
+    '_open303_set_oversample', \
+    '_open303_get_oversample', \
     '_open303_process', \
     '_open303_get_model_count', \
     '_open303_get_model_id', \
