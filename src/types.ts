@@ -416,6 +416,8 @@ export interface PhonemeData {
   start: number;
   end: number;
   pitchBend: number;
+  vibratoDepth?: number;
+  vibratoRate?: number;
   volume?: number;
 }
 

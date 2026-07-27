@@ -10,7 +10,9 @@
 
 - [x] Implement Lyric Track parsing
 - [x] Implement Vowel-Preserving Time Stretch for TTS voices
-- [ ] Implement per-phoneme pitch drift/vibrato
+- [x] Implement per-phoneme pitch drift/vibrato
 - [ ] Add Formant Modulation LFO
+- [ ] Add Formant Glide per phoneme
+- [ ] Add granular random jitter per phoneme
 
 ## Roadmap
