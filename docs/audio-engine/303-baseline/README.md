@@ -13,8 +13,10 @@ for the high-fidelity TB-303 epic ([#972](https://github.com/ford442/web_sequenc
 |------|-------------|
 | `*_canonical.wav` | open303-family engines, 48 kHz / 24-bit mono, canonical pattern |
 | `jc303_canonical.wav` | **Soft oracle** — authentic rosic/Open303 family via host dump |
+| `highfid-cpu_canonical.wav` | **Phase-2** diode-ladder CPU reference (4× oversample) |
 | `baseline_manifest.txt` | open303-family sample rate, pattern, params |
 | `jc303_baseline_manifest.txt` | jc303 soft-oracle provenance |
+| `highfid_baseline_manifest.txt` | highfid-cpu topology / oversample provenance |
 | `hardware-tb303_canonical.wav` | **Optional / pending** — real TB-303 or Roland Cloud export |
 
 Spectrograms: [`../303-baseline-spectra/`](../303-baseline-spectra/).  

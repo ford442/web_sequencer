@@ -20,6 +20,7 @@ const EXPECTED_VOICES = [
   'mb33-mkii',
   'raveolution',
   'jc303',
+  'highfid-cpu', // Phase-2 diode-ladder reference
 ] as const;
 
 function assertWav48k24(wav: string, label: string) {
@@ -86,6 +87,15 @@ describe('303 Phase-0 authenticity baselines', () => {
     );
     // Soft oracle itself is the reference — no self-delta required.
     expect(metrics['jc303_canonical'].vs_reference).toBeUndefined();
+
+    // Phase-2 highfid-cpu must carry soft-oracle deltas + stay finite-level.
+    const hf = metrics['highfid-cpu_canonical'];
+    expect(hf.vs_reference).toBeDefined();
+    expect(hf.vs_reference?.reference_role).toBe('soft-oracle-jc303');
+    expect(typeof hf.vs_reference?.band_2k_4k_error_db).toBe('number');
+    expect(typeof hf.vs_reference?.accent_peak_timing_drift_ms_abs_max).toBe(
+      'number',
+    );
 
     const pngs = readdirSync(SPECTRA_DIR).filter((f) => f.endsWith('.png'));
     expect(pngs.length).toBeGreaterThanOrEqual(EXPECTED_VOICES.length);

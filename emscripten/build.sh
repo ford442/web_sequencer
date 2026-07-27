@@ -72,6 +72,17 @@ EXPORTS="[ \
     '_open303_get_model', \
     '_open303_find_model_index', \
     '_open303_set_model_by_id', \
+    '_highfid303_create', \
+    '_highfid303_destroy', \
+    '_highfid303_init', \
+    '_highfid303_note_on', \
+    '_highfid303_note_off', \
+    '_highfid303_all_notes_off', \
+    '_highfid303_set_param', \
+    '_highfid303_set_oversample', \
+    '_highfid303_get_oversample', \
+    '_highfid303_process', \
+    '_highfid303_engine_id', \
     '_jc303_create', \
     '_jc303_destroy', \
     '_jc303_init_handle', \
@@ -170,6 +181,9 @@ compile_cpp "$SCRIPT_DIR/audio_dsp.cpp"
 
 # 4. Compile custom Open303 TB-303 synthesizer engine
 compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
+
+# 4b. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
+compile_cpp "$SCRIPT_DIR/highfid303_wrapper.cpp"
 
 # 5. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
 for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do

@@ -1,0 +1,8 @@
+# Phase-2 highfid-cpu diode-ladder baseline
+model=highfid-cpu
+sample_rate=48000
+bit_depth=24
+oversample=4
+topology=diode-ladder (mystran/kunn) + feedback HP 150 Hz + diode shape + PolyBLEP
+related_test=emscripten/tests/tb303_highfid_offline_test.cpp
+role=high-fidelity CPU reference (Phase-2)

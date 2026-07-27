@@ -231,11 +231,15 @@ Listening / spectrogram review of committed baselines:
 |------|------|
 | `emscripten/tests/tb303_baseline_dump.cpp` | Host g++ open303-family → 48 kHz / 24-bit WAVs |
 | `emscripten/tests/tb303_jc303_baseline_dump.cpp` | Host g++ rosic jc303 soft oracle → WAV |
+| `emscripten/tests/tb303_highfid_baseline_dump.cpp` | Phase-2 highfid-cpu diode-ladder → WAV (4× OS) |
+| `emscripten/tests/tb303_highfid_offline_test.cpp` | Phase-2 fuzz / determinism / oversample |
 | `emscripten/tests/tb303_voices_offline_test.cpp` | Existing A/B regression (44.1 kHz, stdout) |
-| `scripts/generate_303_baselines.sh` | One-shot dump (both families) + spectrograms |
+| `scripts/generate_303_baselines.sh` | One-shot dump (open303 + jc303 + highfid) + spectrograms |
+| `scripts/benchmark_highfid303.sh` | highfid-cpu wall-time numbers |
 | `scripts/303_spectrogram.py` | Spectrogram PNGs + `baseline_metrics.json` (+ `--reference`) |
 | `docs/audio-engine/303-baseline/` | Committed engine WAVs + acquisition protocol |
 | `docs/audio-engine/303-baseline-spectra/` | Committed PNG spectra + metrics |
+| `docs/audio-engine/HIGHFID_CPU_303.md` | Phase-2 diode-ladder reference docs |
 
 `assets/` is gitignored (TTS models); baselines live under `docs/audio-engine/`
 per the Phase-0 “or preferred” path.
@@ -244,8 +248,8 @@ per the Phase-0 “or preferred” path.
 
 ## Next phases (blocked on this audit)
 
-1. **#974 Phase-1** — OpenMP oversampling + offline worker pool (closes G5 infrastructure).
-2. **#975 Phase-2** — Diode-ladder CPU reference (closes G1–G3 core).
+1. **#974 Phase-1** — OpenMP oversampling + offline worker pool (closes G5 infrastructure). **Done.**
+2. **#975 Phase-2** — Diode-ladder CPU reference (closes G1–G3 core). **In progress / see HIGHFID_CPU_303.md.**
 3. **#976 Phase-3** — WGSL full voice (GPU path for G1–G4).
 4. **#977–#979** — Registry/UI, automated regression against these thresholds, docs/rollout.
 
