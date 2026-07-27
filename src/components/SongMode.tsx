@@ -495,6 +495,8 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                         }}
                         disabled={isExporting}
                         aria-label="Export as XM file"
+                        title={isExporting ? "Exporting XM file..." : "Export as XM file"}
+                        aria-busy={isExporting}
                         className={`ml-2 px-4 py-1.5 flex items-center justify-center min-w-[100px] bg-gradient-to-r text-cyan-400 text-xs font-bold border border-cyan-700/50 rounded-lg shadow-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
                             isExporting
                             ? 'from-cyan-900/20 to-cyan-800/20 opacity-70 cursor-wait'

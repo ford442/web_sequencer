@@ -146,6 +146,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
                     <button type="button"
                         onClick={handleApply}
                         disabled={isApplying}
+                        title={isApplying ? "Applying changes..." : "Apply changes"}
                         className={`px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.3)] font-mono text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-white disabled:opacity-50 disabled:cursor-wait`}
                         aria-busy={isApplying}
                     >
