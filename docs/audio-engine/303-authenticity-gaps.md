@@ -240,6 +240,7 @@ Listening / spectrogram review of committed baselines:
 | `docs/audio-engine/303-baseline/` | Committed engine WAVs + acquisition protocol |
 | `docs/audio-engine/303-baseline-spectra/` | Committed PNG spectra + metrics |
 | `docs/audio-engine/HIGHFID_CPU_303.md` | Phase-2 diode-ladder reference docs |
+| `docs/audio-engine/GPU_HIGHFID_303.md` | Phase-3 WGSL gpu-highfid docs |
 
 `assets/` is gitignored (TTS models); baselines live under `docs/audio-engine/`
 per the Phase-0 “or preferred” path.
@@ -249,8 +250,8 @@ per the Phase-0 “or preferred” path.
 ## Next phases (blocked on this audit)
 
 1. **#974 Phase-1** — OpenMP oversampling + offline worker pool (closes G5 infrastructure). **Done.**
-2. **#975 Phase-2** — Diode-ladder CPU reference (closes G1–G3 core). **In progress / see HIGHFID_CPU_303.md.**
-3. **#976 Phase-3** — WGSL full voice (GPU path for G1–G4).
+2. **#975 Phase-2** — Diode-ladder CPU reference (closes G1–G3 core). **Done** — see HIGHFID_CPU_303.md.
+3. **#976 Phase-3** — WGSL full voice (GPU path for G1–G4). **See GPU_HIGHFID_303.md.**
 4. **#977–#979** — Registry/UI, automated regression against these thresholds, docs/rollout.
 
 When the hardware WAV arrives, re-run spectrograms with that `--reference`, fill

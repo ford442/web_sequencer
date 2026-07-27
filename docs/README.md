@@ -25,6 +25,8 @@ For a quick-start overview see the root [README.md](../README.md).
 | [303-authenticity-gaps.md](audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
 | [303-baseline/](audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
 | [303-baseline-spectra/](audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
+| [HIGHFID_CPU_303.md](audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
+| [GPU_HIGHFID_303.md](audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
 | [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
 | [PLAYBACK_STABILITY.md](audio-engine/PLAYBACK_STABILITY.md) | Jitter thresholds, scheduler guards, and stress-test guidance for song-mode playback |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Design notes for the multisample generator |

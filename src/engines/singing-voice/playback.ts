@@ -267,6 +267,79 @@ export const PlaybackMixin = {
    *
    * @param targetDuration Optional target duration for stretch calculation
    */
+  schedulePhonemeFormantGlides(
+    this: SingingVoiceHost,
+    targetDuration: number,
+    triggerTime: number,
+    baseFormantShift: number,
+    userPhonemes?: PhonemeData[],
+  ): void {
+    if (
+      !this.config.enableFormantShifting ||
+      !this.lastAlignment ||
+      !this.phonemeAligner ||
+      !userPhonemes ||
+      userPhonemes.length === 0
+    ) {
+      return;
+    }
+
+    const phonemes = this.lastAlignment.phonemes;
+    const sampleRate = this.audioContext.sampleRate;
+
+    // We only care if there is any user phoneme with a formant shift
+    const hasFormantShift = userPhonemes.some(
+      (p) => p.formantShift !== undefined && p.formantShift !== 0,
+    );
+    if (!hasFormantShift) {
+      return;
+    }
+
+    // Calculate absolute stretch map
+    const ratios = this.phonemeAligner.calculateStretchRatios(
+      phonemes,
+      targetDuration,
+    );
+
+    let currentTimeSeconds = triggerTime;
+    let prevShift = baseFormantShift;
+
+    for (let i = 0; i < phonemes.length; i++) {
+      const p = phonemes[i];
+      const ratio = ratios[i] || 1.0;
+      const originalDurationSec = (p.end - p.start) / sampleRate;
+      const stretchedDurationSec = originalDurationSec * ratio;
+
+      const userP = userPhonemes[i];
+      let targetShift = baseFormantShift;
+      if (userP && userP.formantShift !== undefined) {
+        targetShift += userP.formantShift;
+      }
+
+      if (prevShift !== targetShift) {
+        // Ramp duration bounded by the segment length
+        // We use a quick ramp, but bounded to the phoneme length so it doesn't bleed too far
+        const rampDuration = Math.min(0.05, stretchedDurationSec);
+
+        // Using existing setFormantGlide:
+        // Note setFormantGlide ramps from startSemitones to endSemitones over duration.
+        // If we want it to glide during this phoneme segment:
+        this.setFormantGlide(
+          prevShift,
+          targetShift,
+          currentTimeSeconds,
+          rampDuration
+        );
+      } else {
+        // Ensure we hold the target shift
+        this.setFormantShift(targetShift, currentTimeSeconds, 0);
+      }
+
+      prevShift = targetShift;
+      currentTimeSeconds += stretchedDurationSec;
+    }
+  },
+
   sendPhonemeDataToWorklet(
     this: SingingVoiceHost,
     targetDuration?: number,

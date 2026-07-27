@@ -45,6 +45,14 @@ type RuntimeTelemetry = {
   offlineRenderThreadCount: number | null;
   offlineRenderOversample: number | null;
   offlineRenderLatencyMs: number | null;
+  /** Phase-3 / #976 — last GPU 303 render wall latency (ms). */
+  gpuRenderLatencyMs: number | null;
+  /** Phase-3 — bytes read back from GPU on last successful gpu-highfid render. */
+  gpuReadbackBytes: number | null;
+  /** Phase-3 — why GPU path fell back to highfid-cpu (null if GPU used). */
+  gpuFallbackReason: string | null;
+  /** Phase-3 — whether the last gpu-highfid attempt used the WGSL path. */
+  gpuUsedGpu: boolean | null;
 };
 
 function emptyData(): TelemetryData {
@@ -148,6 +156,14 @@ export interface RuntimeSnapshot {
   offlineRenderOversample: number | null;
   /** Last offline 303 render wall latency in ms. */
   offlineRenderLatencyMs: number | null;
+  /** Last GPU 303 render latency in ms (Phase-3 / #976). */
+  gpuRenderLatencyMs: number | null;
+  /** Last GPU 303 readback size in bytes. */
+  gpuReadbackBytes: number | null;
+  /** Why GPU 303 fell back to highfid-cpu (null if GPU succeeded). */
+  gpuFallbackReason: string | null;
+  /** Whether last gpu-highfid render used WebGPU. */
+  gpuUsedGpu: boolean | null;
 }
 
 export interface EngineReport {
@@ -222,6 +238,10 @@ export class EngineTelemetry {
     offlineRenderThreadCount: null,
     offlineRenderOversample: null,
     offlineRenderLatencyMs: null,
+    gpuRenderLatencyMs: null,
+    gpuReadbackBytes: null,
+    gpuFallbackReason: null,
+    gpuUsedGpu: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -296,6 +316,23 @@ export class EngineTelemetry {
     );
   }
 
+  /**
+   * Record metrics from a GPU high-fid 303 render (Phase-3 / #976).
+   * Does not affect the real-time audio-thread budget.
+   */
+  recordGpu303Render(meta: {
+    latencyMs: number;
+    readbackBytes: number;
+    fallbackReason: string | null;
+    usedGpu: boolean;
+  }): void {
+    this.runtime.gpuRenderLatencyMs = meta.latencyMs;
+    this.runtime.gpuReadbackBytes = meta.readbackBytes;
+    this.runtime.gpuFallbackReason = meta.fallbackReason;
+    this.runtime.gpuUsedGpu = meta.usedGpu;
+    this.recordLatency('gpu-highfid', meta.latencyMs);
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -325,6 +362,10 @@ export class EngineTelemetry {
       offlineRenderThreadCount: this.runtime.offlineRenderThreadCount,
       offlineRenderOversample: this.runtime.offlineRenderOversample,
       offlineRenderLatencyMs: this.runtime.offlineRenderLatencyMs,
+      gpuRenderLatencyMs: this.runtime.gpuRenderLatencyMs,
+      gpuReadbackBytes: this.runtime.gpuReadbackBytes,
+      gpuFallbackReason: this.runtime.gpuFallbackReason,
+      gpuUsedGpu: this.runtime.gpuUsedGpu,
     };
   }
 

@@ -279,11 +279,15 @@ normalization all read the registry.
 
 ### Offline-only high-fidelity voices (Phase-2+)
 
-`highfid-cpu` is a special case: `family: 'highfid'`, `offlineOnly: true`.
-It ships its own C++ module (`emscripten/highfid303_wrapper.cpp`) rather than
-an open303 coefficient row. Keep it out of the real-time selector
-(`getAvailableTB303Models()` excludes `offlineOnly` by default). See
-[`HIGHFID_CPU_303.md`](./HIGHFID_CPU_303.md).
+`highfid-cpu` and `gpu-highfid` are special cases: `family: 'highfid'`,
+`offlineOnly: true`.
+
+- `highfid-cpu` — C++ / TS diode-ladder oracle ([HIGHFID_CPU_303.md](./HIGHFID_CPU_303.md)).
+- `gpu-highfid` — WGSL WebGPU path with automatic highfid-cpu fallback
+  ([GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md)).
+
+Keep both out of the real-time selector (`getAvailableTB303Models()` excludes
+`offlineOnly` by default). See Phase-4 for freeze/export UI selection.
 
 ## Out of scope for v1
 
