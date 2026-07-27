@@ -502,7 +502,6 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                             ? 'from-cyan-900/20 to-cyan-800/20 opacity-70 cursor-wait'
                             : 'from-cyan-900/40 to-cyan-800/40 hover:from-cyan-800/60 hover:to-cyan-700/60'
                         }`}
-                        aria-busy={isExporting}
                     >
                         {isExporting ? (
                             <span className="flex items-center gap-2">
