@@ -36,7 +36,7 @@ async function initApp(page: import('@playwright/test').Page): Promise<void> {
     await expect(page.getByRole('button', { name: 'Start Playback', exact: true })).toBeVisible({ timeout: 60000 });
 }
 
-test.skip('303 voice switch: SYNTH B toggles between stock and JC303 voices', async ({ page }) => {
+test('303 voice switch: SYNTH B toggles between stock and JC303 voices', async ({ page }) => {
     await initApp(page);
 
     // 1. Open the SYNTH B module (the Voice303Selector only appears when a
@@ -75,7 +75,7 @@ test.skip('303 voice switch: SYNTH B toggles between stock and JC303 voices', as
     await expect(voiceGroup.getByLabel('Open303 engine family active')).toBeVisible();
 });
 
-test.skip('303 voice switch: BASS 2 shows the Voice303Selector always', async ({ page }) => {
+test('303 voice switch: BASS 2 shows the Voice303Selector always', async ({ page }) => {
     await initApp(page);
 
     // 1. BASS 2 always shows the Voice303Selector (no waveform prerequisite)
@@ -96,7 +96,7 @@ test.skip('303 voice switch: BASS 2 shows the Voice303Selector always', async ({
     await expect(statusPill).toContainText('JC303');
 });
 
-test.skip('303 voice switch: SYNTH A, SYNTH B and BASS 2 select independently', async ({ page }) => {
+test('303 voice switch: SYNTH A, SYNTH B and BASS 2 select independently', async ({ page }) => {
     await initApp(page);
 
     // 1. Put SYNTH A and SYNTH B on 303 waveforms so all three voice lists show
@@ -129,7 +129,7 @@ test.skip('303 voice switch: SYNTH A, SYNTH B and BASS 2 select independently', 
         .toHaveAttribute('aria-pressed', 'true');
 });
 
-test.skip('303 voice list: every voice exposes a tooltip description', async ({ page }) => {
+test('303 voice list: every voice exposes a tooltip description', async ({ page }) => {
     await initApp(page);
 
     const bass2Module = page.locator('[class*="rounded"]', { hasText: 'BASS 2' }).first();
@@ -147,7 +147,7 @@ test.skip('303 voice list: every voice exposes a tooltip description', async ({ 
     }
 });
 
-test.skip('Prophecy engine: status pill appears when prophecy-saw waveform is selected', async ({ page }) => {
+test('Prophecy engine: status pill appears when prophecy-saw waveform is selected', async ({ page }) => {
     await initApp(page);
 
     // 1. Select prophecy-saw waveform on SYNTH A

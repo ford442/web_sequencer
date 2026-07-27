@@ -1,0 +1,109 @@
+name: 303 Quality & Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  spectrogram-quality:
+    name: Spectrogram / stress Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.51
+          no-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python metrics deps
+        run: pip install numpy
+
+      - name: Build WASM artifacts
+        run: pnpm run build:wasm
+
+      - name: Run spectrogram quality + stress tests
+        run: |
+          pnpm exec vitest run \
+            src/__tests__/TB303SpectrogramQuality.test.ts \
+            src/__tests__/Offline303Stress.test.ts \
+            src/utils/__tests__/tb303AuthenticityMetrics.test.ts \
+            --pool forks
+        env:
+          CI: true
+
+  offline-benchmark:
+    name: Offline render benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.51
+          no-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python metrics deps
+        run: pip install numpy
+
+      - name: Build WASM artifacts
+        run: pnpm run build:wasm
+
+      - name: Run offline 303 benchmark
+        run: pnpm exec vite-node scripts/benchmark_offline303.mjs --json benchmark-303-offline.json
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-303-offline
+          path: benchmark-303-offline.json
+          retention-days: 30

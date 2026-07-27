@@ -194,7 +194,9 @@ present; until then, compare against **`jc303` soft oracle**.
 | Peak sample finite / no NaN | Required | Any knob setting in offline sweep |
 | Real-time AudioWorklet latency | **No regression** | High-fid models offline-only |
 
-Phase-5 (#978) automates these as spectrogram-diff / timing tests.
+Phase-5 (#978) automates these as spectrogram-diff / timing tests in
+`src/__tests__/TB303SpectrogramQuality.test.ts` and `src/utils/tb303AuthenticityMetrics.ts`.
+Manual sign-off: [303-A-B-checklist.md](./303-A-B-checklist.md).
 
 ---
 
@@ -235,7 +237,16 @@ Listening / spectrogram review of committed baselines:
 | `emscripten/tests/tb303_highfid_offline_test.cpp` | Phase-2 fuzz / determinism / oversample |
 | `emscripten/tests/tb303_voices_offline_test.cpp` | Existing A/B regression (44.1 kHz, stdout) |
 | `scripts/generate_303_baselines.sh` | One-shot dump (open303 + jc303 + highfid) + spectrograms |
-| `scripts/benchmark_highfid303.sh` | highfid-cpu wall-time numbers |
+| `scripts/303_metrics_lib.py` | Numpy-only metrics (band RMS, vs-reference, spectrogram MSE) |
+| `scripts/303_metrics_cli.py` | JSON metrics CLI for Vitest / CI |
+| `scripts/benchmark_offline303.mjs` | Offline render wall-time + GPU telemetry JSON |
+| `src/utils/tb303AuthenticityMetrics.ts` | TS WAV helpers + threshold constants |
+| `src/utils/tb303MetricsRunner.ts` | Python CLI bridge for exact rFFT parity |
+| `src/__tests__/TB303SpectrogramQuality.test.ts` | Phase-5 spectrogram-diff gates |
+| `src/__tests__/Offline303Stress.test.ts` | Concurrent offline render stress |
+| `tests/highfid-engine-matrix.spec.ts` | Playwright cross-browser high-fid matrix |
+| `docs/audio-engine/303-A-B-checklist.md` | Manual A/B sign-off checklist |
+| `scripts/benchmark_highfid303.sh` | highfid-cpu host g++ wall-time numbers |
 | `scripts/303_spectrogram.py` | Spectrogram PNGs + `baseline_metrics.json` (+ `--reference`) |
 | `docs/audio-engine/303-baseline/` | Committed engine WAVs + acquisition protocol |
 | `docs/audio-engine/303-baseline-spectra/` | Committed PNG spectra + metrics |
