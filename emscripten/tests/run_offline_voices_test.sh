@@ -6,6 +6,9 @@
 # experimental-01 and 1ink303-v1 voices, asserting an audible difference vs
 # stock while the stock path stays bit-identical. Requires no emsdk.
 #
+# For Phase-0 (#973) 48 kHz / 24-bit WAV dumps + spectrograms, use:
+#   bash scripts/generate_303_baselines.sh
+#
 # Usage: bash emscripten/tests/run_offline_voices_test.sh
 set -euo pipefail
 
@@ -27,13 +30,3 @@ build_and_run() {
 # #901 factory/registry surface, then #898 voice audibility.
 build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
-OUT="$(mktemp -d)/tb303_voices_offline_test"
-
-echo "Compiling offline voices test…"
-g++ -std=c++17 -O2 -Wall -Wextra \
-    -I "$SCRIPT_DIR/emscripten_stub" \
-    "$SCRIPT_DIR/tb303_voices_offline_test.cpp" \
-    -o "$OUT"
-
-echo "Running…"
-"$OUT"

@@ -50,6 +50,9 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
+| [303-authenticity-gaps.md](docs/audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
+| [303-baseline/](docs/audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
+| [303-baseline-spectra/](docs/audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
