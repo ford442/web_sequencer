@@ -1,7 +1,13 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
-import { normalizeTB303Model, reportTB303ModelFallback, stockModelForFamily, tb303ModelFamily } from './TB303Models';
+import {
+    legacyEngine303ForModel,
+    normalizeTB303Model,
+    reportTB303ModelFallback,
+    resolveRealtimeTB303Model,
+    stockModelForFamily,
+} from './TB303Models';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -291,12 +297,21 @@ export class Open303Oscillator {
      */
     setModel303(model: TB303ModelId | string): void {
         const requested = typeof model === 'string' ? model.trim() : model;
-        const resolved = normalizeTB303Model(requested);
+        // Persist the catalog id when known; AudioWorklet only receives realtime-safe voices.
+        const persisted = normalizeTB303Model(requested);
+        const resolved = resolveRealtimeTB303Model(persisted, undefined, { reportFallback: false });
         if (requested && resolved !== requested) {
-            reportTB303ModelFallback(requested, resolved, 'runtime apply', 'open303-model');
+            reportTB303ModelFallback(
+                requested,
+                resolved,
+                persisted !== requested
+                    ? 'runtime apply'
+                    : 'offline-only high-fid voice (realtime uses stock)',
+                'open303-model',
+            );
         }
         this.model303 = resolved;
-        this.engine303 = tb303ModelFamily(this.model303);
+        this.engine303 = legacyEngine303ForModel(this.model303);
         this.applyModel303();
     }
 

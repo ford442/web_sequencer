@@ -144,6 +144,29 @@ class EngineDegradationStore {
         });
     }
 
+    /**
+     * Phase-4: user selected GPU high-fid (or similar) but the offline path
+     * must degrade (e.g. no WebGPU → highfid-cpu).
+     */
+    reportHighFidFallback(meta: {
+        requested: string;
+        active: string;
+        reason: string;
+        gpuAvailable: boolean;
+    }): void {
+        this.report({
+            id: 'gpu-highfid-selection',
+            subsystem: 'gpu-highfid',
+            category: 'gpu',
+            message: `High-fid 303 using ${meta.active}`,
+            reason: meta.reason,
+            status: 'active',
+            activeBackend: meta.active,
+            requestedBackend: meta.requested,
+            retryable: !meta.gpuAvailable,
+        });
+    }
+
     private maybeToast(issue: DegradationIssue, type: 'info' | 'warning' | 'error' = 'warning'): void {
         if (!this.toastHandler) return;
         const now = Date.now();

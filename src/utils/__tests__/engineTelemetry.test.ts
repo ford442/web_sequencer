@@ -50,6 +50,11 @@ const fakeRuntime = {
   gpuReadbackBytes: null as number | null,
   gpuFallbackReason: null as string | null,
   gpuUsedGpu: null as boolean | null,
+  gpuAvailable: null as boolean | null,
+  highFidRequested: null as string | null,
+  highFidActiveEngine: null as string | null,
+  highFidRealtimeModel: null as string | null,
+  highFidFallbackReason: null as string | null,
 };
 
 describe('serializeEngineReport', () => {
@@ -117,6 +122,23 @@ describe('EngineTelemetry.snapshot', () => {
     const t = new EngineTelemetry();
     for (let i = 0; i < 300; i++) t.recordLatency('sampler', i);
     expect(t.snapshot().sampler.sampleCount).toBe(256);
+  });
+
+  it('records high-fid selection into the runtime snapshot (Phase-4)', () => {
+    const t = new EngineTelemetry();
+    t.recordHighFidSelection({
+      requested: 'gpu-highfid',
+      activeOffline: 'highfid-cpu',
+      realtime: 'stock-open303',
+      gpuAvailable: false,
+      fallbackReason: 'WebGPU unavailable',
+    });
+    const runtime = t.getRuntimeSnapshot();
+    expect(runtime.gpuAvailable).toBe(false);
+    expect(runtime.highFidRequested).toBe('gpu-highfid');
+    expect(runtime.highFidActiveEngine).toBe('highfid-cpu');
+    expect(runtime.highFidRealtimeModel).toBe('stock-open303');
+    expect(runtime.highFidFallbackReason).toBe('WebGPU unavailable');
   });
 });
 

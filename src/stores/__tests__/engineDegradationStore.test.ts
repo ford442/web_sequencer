@@ -72,4 +72,19 @@ describe('engineDegradationStore', () => {
         expect(issue?.activeBackend).toBe('js-fallback');
         expect(issue?.requestedBackend).toBe('wasm');
     });
+
+    it('reports high-fid selection fallback (Phase-4)', () => {
+        engineDegradationStore.clear('gpu-highfid-selection');
+        engineDegradationStore.reportHighFidFallback({
+            requested: 'gpu-highfid',
+            active: 'highfid-cpu',
+            reason: 'WebGPU unavailable — using High-Fidelity CPU for offline render',
+            gpuAvailable: false,
+        });
+        const issue = engineDegradationStore.getIssue('gpu-highfid-selection');
+        expect(issue?.category).toBe('gpu');
+        expect(issue?.activeBackend).toBe('highfid-cpu');
+        expect(issue?.requestedBackend).toBe('gpu-highfid');
+        expect(issue?.retryable).toBe(true);
+    });
 });
