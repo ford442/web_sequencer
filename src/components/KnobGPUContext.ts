@@ -1,3 +1,19 @@
+/**
+ * Shared holographic-knob GPU context.
+ *
+ * Ceiling note: a texture-atlas / single-canvas approach would make active GPU
+ * cost fully independent of N, but moves layout/z-order/scroll/drag-hit-testing/a11y
+ * out of the DOM. Deferred — not worth it for quads + a bloom pass. This module
+ * keeps per-knob canvases and collapses cost via dirty-tracking + idle-static
+ * material (time uniform locked when not actively interacting).
+ *
+ * React integration: `subscribe` / `getSnapshot` are useSyncExternalStore-compatible
+ * for pause/status. `markDirty` mutates the dirty-set only and does NOT notify
+ * React subscribers — the rAF loop reads the store/refs directly.
+ */
+
+export type KnobGpuStatus = 'unavailable' | 'initializing' | 'active' | 'degraded' | 'recovering';
+
 export interface SlotHandle {
     id: number;
 }
@@ -10,16 +26,45 @@ interface Slot {
     bindGroup: GPUBindGroup;
     width: number;
     height: number;
+    dirty: boolean;
+    /** Drag / hover / keyboard-focus — only this knob advances the time uniform. */
+    animated: boolean;
+    inViewport: boolean;
+    observer: IntersectionObserver | null;
+}
+
+interface Registration {
+    canvas: HTMLCanvasElement;
+    getValue: () => number;
+    animated: boolean;
+}
+
+/** Snapshot for useSyncExternalStore — bumped only on pause/status/registry size. */
+export interface KnobSchedulerSnapshot {
+    isPaused: boolean;
+    status: KnobGpuStatus;
+    registrySize: number;
+    version: number;
+}
+
+/** Test/debug counters — not for production UI. */
+export interface KnobGpuDebugStats {
+    submitCount: number;
+    frameCount: number;
+    isLoopRunning: boolean;
+    registrySize: number;
+    dirtyCount: number;
+    animatedCount: number;
 }
 
 import { KNOB_MATERIAL, rgbToWgsl, resolveTickPositions, resolveDetentPositions, tickAnglesToWgslArray, tickMajorFlagsToWgslArray, detentAnglesToWgslArray, usesHardwarePointer } from './knobMaterial';
 import type { KnobMaterial } from './knobMaterial';
+import { getPrefersReducedMotion, resolveKnobTimeUniform, shouldAnimateKnob, subscribeReducedMotion } from './knobMotion';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
 
-export type KnobGpuStatus = 'unavailable' | 'initializing' | 'active' | 'degraded' | 'recovering';
-
 type StatusListener = (status: KnobGpuStatus) => void;
+type SnapshotListener = () => void;
 
 // --- HOLOGRAPHIC SHADER ---
 // Features: Scanlines, Rim Glow, Data Ring, "Projected" floating feel
@@ -231,16 +276,58 @@ class KnobGPUContextClass {
     private pipeline: GPURenderPipeline | null = null;
     private format: GPUTextureFormat | null = null;
     private slots = new Map<number, Slot>();
-    private registrations = new Map<number, { canvas: HTMLCanvasElement; getValue: () => number }>();
+    private registrations = new Map<number, Registration>();
     private pendingIds = new Set<number>();
     private nextId = 1;
     private rafId: number | null = null;
     private initPromise: Promise<boolean> | null = null;
     private status: KnobGpuStatus = 'unavailable';
     private statusListeners = new Set<StatusListener>();
+    private snapshotListeners = new Set<SnapshotListener>();
+    private snapshot: KnobSchedulerSnapshot = {
+        isPaused: true,
+        status: 'unavailable',
+        registrySize: 0,
+        version: 0,
+    };
     private consecutiveRenderFailures = 0;
     private recoverScheduled = false;
     private deviceLostHandled = false;
+    private consecutiveLosses = 0;
+    private visibilityListening = false;
+    private dprListening = false;
+    private reducedMotionUnsub: (() => void) | null = null;
+    private submitCount = 0;
+    private frameCount = 0;
+    /** Ids pending a render this frame (also includes animated knobs that stay dirty). */
+    private dirtyIds = new Set<number>();
+
+    /** @internal Reset singleton state between unit tests. */
+    __resetForTests(): void {
+        this.teardownDevice();
+        this.registrations.clear();
+        this.pendingIds.clear();
+        this.dirtyIds.clear();
+        this.nextId = 1;
+        this.initPromise = null;
+        this.status = 'unavailable';
+        this.consecutiveRenderFailures = 0;
+        this.recoverScheduled = false;
+        this.deviceLostHandled = false;
+        this.consecutiveLosses = 0;
+        this.submitCount = 0;
+        this.frameCount = 0;
+        this.snapshot = {
+            isPaused: true,
+            status: 'unavailable',
+            registrySize: 0,
+            version: 0,
+        };
+    }
+
+    constructor() {
+        this.ensureEnvironmentListeners();
+    }
 
     getStatus(): KnobGpuStatus {
         return this.status;
@@ -251,16 +338,73 @@ class KnobGPUContextClass {
         return this.slots.has(handle.id);
     }
 
+    /** useSyncExternalStore subscribe — notified on pause/status/registry, NOT markDirty. */
+    subscribe = (listener: SnapshotListener): (() => void) => {
+        this.snapshotListeners.add(listener);
+        return () => {
+            this.snapshotListeners.delete(listener);
+        };
+    };
+
+    getSnapshot = (): KnobSchedulerSnapshot => this.snapshot;
+
     onStatusChange(listener: StatusListener): () => void {
         this.statusListeners.add(listener);
         listener(this.status);
-        return () => this.statusListeners.delete(listener);
+        return () => {
+            this.statusListeners.delete(listener);
+        };
+    }
+
+    getDebugStats(): KnobGpuDebugStats {
+        let animatedCount = 0;
+        for (const slot of this.slots.values()) {
+            if (slot.animated) animatedCount++;
+        }
+        return {
+            submitCount: this.submitCount,
+            frameCount: this.frameCount,
+            isLoopRunning: this.rafId !== null,
+            registrySize: this.registrations.size,
+            dirtyCount: this.countDirtySlots(),
+            animatedCount,
+        };
+    }
+
+    resetDebugStats(): void {
+        this.submitCount = 0;
+        this.frameCount = 0;
+    }
+
+    getRegistrySize(): number {
+        return this.registrations.size;
+    }
+
+    private countDirtySlots(): number {
+        let n = 0;
+        for (const [id, slot] of this.slots) {
+            if (slot.dirty || this.dirtyIds.has(id) || shouldAnimateKnob(slot.animated)) n++;
+        }
+        return n;
+    }
+
+    private bumpSnapshot(patch: Partial<KnobSchedulerSnapshot> = {}): void {
+        this.snapshot = {
+            ...this.snapshot,
+            ...patch,
+            status: this.status,
+            registrySize: this.registrations.size,
+            isPaused: this.rafId === null,
+            version: this.snapshot.version + 1,
+        };
+        this.snapshotListeners.forEach((l) => l());
     }
 
     private setStatus(next: KnobGpuStatus): void {
         if (this.status === next) return;
         this.status = next;
         this.statusListeners.forEach((l) => l(next));
+        this.bumpSnapshot({ status: next });
     }
 
     private reportDegradation(reason: string, recovering = false): void {
@@ -282,7 +426,44 @@ class KnobGPUContextClass {
         loadingProgressStore.clearRuntimeDegradation('gpu-knobs');
     }
 
+    private ensureEnvironmentListeners(): void {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+        if (!this.visibilityListening) {
+            this.visibilityListening = true;
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    this.pauseLoop();
+                } else {
+                    this.markAllDirty();
+                    this.kickLoop();
+                }
+            });
+        }
+
+        if (!this.dprListening) {
+            this.dprListening = true;
+            // media query for resolution changes when dragging across monitors
+            const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+            const onDpr = () => this.markAllDirty();
+            if (typeof mq.addEventListener === 'function') {
+                mq.addEventListener('change', onDpr);
+            } else {
+                window.addEventListener('resize', onDpr);
+            }
+        }
+
+        if (!this.reducedMotionUnsub) {
+            this.reducedMotionUnsub = subscribeReducedMotion(() => {
+                // Policy change: all knobs need a static (or newly animated) frame.
+                this.markAllDirty();
+            });
+        }
+    }
+
     register(canvas: HTMLCanvasElement, getValue: () => number): SlotHandle | null {
+        this.ensureEnvironmentListeners();
+
         if (!navigator.gpu) {
             this.setStatus('unavailable');
             this.reportDegradation('navigator.gpu unavailable');
@@ -290,9 +471,10 @@ class KnobGPUContextClass {
         }
 
         const id = this.nextId++;
-        this.registrations.set(id, { canvas, getValue });
+        this.registrations.set(id, { canvas, getValue, animated: false });
         this.pendingIds.add(id);
         this.setStatus('initializing');
+        this.bumpSnapshot();
 
         this.ensureInit().then((success) => {
             if (!this.pendingIds.has(id) && !this.registrations.has(id)) return;
@@ -307,10 +489,34 @@ class KnobGPUContextClass {
                 this.setStatus('active');
                 this.resolveDegradation();
                 this.consecutiveRenderFailures = 0;
+                this.markDirty(id);
             }
         });
 
         return { id };
+    }
+
+    private observeViewport(id: number, slot: Slot): void {
+        if (typeof IntersectionObserver === 'undefined') {
+            slot.inViewport = true;
+            return;
+        }
+        slot.observer?.disconnect();
+        slot.observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    const was = slot.inViewport;
+                    slot.inViewport = entry.isIntersecting;
+                    if (slot.inViewport && !was) {
+                        this.markDirty(id);
+                    }
+                }
+            },
+            { root: null, threshold: 0 },
+        );
+        slot.observer.observe(slot.canvas);
+        // Assume visible until first callback (avoids missing initial paint).
+        slot.inViewport = true;
     }
 
     private attachSlot(id: number, canvas: HTMLCanvasElement, getValue: () => number): boolean {
@@ -335,7 +541,8 @@ class KnobGPUContextClass {
                 entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
             });
 
-            this.slots.set(id, {
+            const reg = this.registrations.get(id);
+            const slot: Slot = {
                 canvas,
                 context,
                 getValue,
@@ -343,9 +550,16 @@ class KnobGPUContextClass {
                 bindGroup,
                 width: canvas.width,
                 height: canvas.height,
-            });
-
-            this.startRAF();
+                dirty: true,
+                animated: reg?.animated ?? false,
+                inViewport: true,
+                observer: null,
+            };
+            this.slots.set(id, slot);
+            this.observeViewport(id, slot);
+            this.dirtyIds.add(id);
+            this.kickLoop();
+            this.bumpSnapshot();
             return true;
         } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
@@ -359,18 +573,89 @@ class KnobGPUContextClass {
 
         this.pendingIds.delete(handle.id);
         this.registrations.delete(handle.id);
+        this.dirtyIds.delete(handle.id);
 
         const slot = this.slots.get(handle.id);
         if (slot) {
+            slot.observer?.disconnect();
+            slot.observer = null;
             if (slot.uniformBuffer && typeof slot.uniformBuffer.destroy === 'function') {
                 slot.uniformBuffer.destroy();
             }
             this.slots.delete(handle.id);
         }
 
-        if (this.slots.size === 0 && this.rafId !== null) {
-            cancelAnimationFrame(this.rafId);
-            this.rafId = null;
+        if (this.slots.size === 0) {
+            this.pauseLoop();
+        }
+        this.bumpSnapshot();
+        // Sweep guard: drop any stale dirty ids that no longer map to registrations.
+        for (const id of [...this.dirtyIds]) {
+            if (!this.registrations.has(id)) this.dirtyIds.delete(id);
+        }
+    }
+
+    /**
+     * Mark a knob dirty. Kick-starts the shared loop when dormant.
+     * Does NOT notify React subscribers (loop reads dirty-set directly).
+     *
+     * Modulation (LFO → cutoff, etc.): prefer push — call markDirty from the
+     * audio/automation change notification rather than polling DSP in the rAF
+     * loop, so idle cost stays zero.
+     */
+    markDirty(handleOrId: SlotHandle | number | null | undefined): void {
+        if (handleOrId == null) return;
+        const id = typeof handleOrId === 'number' ? handleOrId : handleOrId.id;
+        if (!this.registrations.has(id) && !this.slots.has(id)) return;
+        this.dirtyIds.add(id);
+        const slot = this.slots.get(id);
+        if (slot) slot.dirty = true;
+        this.kickLoop();
+    }
+
+    /** Mark every registered knob dirty (device restore, visibility resume, DPR, theme). */
+    markAllDirty(): void {
+        for (const id of this.registrations.keys()) {
+            this.dirtyIds.add(id);
+            const slot = this.slots.get(id);
+            if (slot) slot.dirty = true;
+        }
+        this.kickLoop();
+    }
+
+    /**
+     * Enter/exit the animated state (drag / hover / keyboard-focus).
+     * Only the actively-interacting knob advances the time uniform.
+     */
+    setAnimated(handleOrId: SlotHandle | number | null | undefined, animated: boolean): void {
+        if (handleOrId == null) return;
+        const id = typeof handleOrId === 'number' ? handleOrId : handleOrId.id;
+        const reg = this.registrations.get(id);
+        if (reg) reg.animated = animated;
+        const slot = this.slots.get(id);
+        if (slot) slot.animated = animated;
+        this.markDirty(id);
+    }
+
+    /**
+     * Render one knob immediately (pointermove path) so input-to-photon latency
+     * is one frame, not "next shared pass".
+     */
+    renderImmediate(handleOrId: SlotHandle | number | null | undefined): void {
+        if (handleOrId == null) return;
+        if (!this.device || !this.pipeline || document.hidden) return;
+        const id = typeof handleOrId === 'number' ? handleOrId : handleOrId.id;
+        const slot = this.slots.get(id);
+        if (!slot || !slot.inViewport) return;
+        this.renderSlots([id], performance.now() / 1000, /*priorityOnly*/ true);
+        // Keep animated knobs dirty so the shared loop continues advancing time.
+        if (shouldAnimateKnob(slot.animated)) {
+            slot.dirty = true;
+            this.dirtyIds.add(id);
+            this.kickLoop();
+        } else {
+            slot.dirty = false;
+            this.dirtyIds.delete(id);
         }
     }
 
@@ -398,6 +683,8 @@ class KnobGPUContextClass {
         if (attached > 0) {
             this.setStatus('active');
             this.resolveDegradation();
+            this.consecutiveLosses = 0;
+            this.markAllDirty();
             return true;
         }
 
@@ -409,14 +696,13 @@ class KnobGPUContextClass {
     private teardownDevice(): void {
         for (const slot of this.slots.values()) {
             try {
+                slot.observer?.disconnect();
                 slot.uniformBuffer?.destroy?.();
             } catch { /* noop */ }
         }
         this.slots.clear();
-        if (this.rafId !== null) {
-            cancelAnimationFrame(this.rafId);
-            this.rafId = null;
-        }
+        this.dirtyIds.clear();
+        this.pauseLoop();
         try {
             this.device?.destroy?.();
         } catch { /* noop */ }
@@ -428,12 +714,20 @@ class KnobGPUContextClass {
     private scheduleRecovery(reason: string): void {
         if (this.recoverScheduled) return;
         this.recoverScheduled = true;
+        this.consecutiveLosses++;
         this.setStatus('degraded');
         this.reportDegradation(reason);
+        // After repeated losses, stay on Canvas2D fallback (status degraded).
+        if (this.consecutiveLosses >= 3) {
+            this.recoverScheduled = false;
+            this.reportDegradation(`${reason} (giving up after ${this.consecutiveLosses} losses)`);
+            return;
+        }
+        const backoff = 400 * this.consecutiveLosses;
         window.setTimeout(() => {
             this.recoverScheduled = false;
             void this.retryInit();
-        }, 1200);
+        }, backoff);
     }
 
     private async ensureInit(): Promise<boolean> {
@@ -493,27 +787,121 @@ class KnobGPUContextClass {
         }
     }
 
-    private startRAF(): void {
-        if (this.rafId !== null) return;
-        const loop = () => {
-            this.renderAll();
-            this.rafId = requestAnimationFrame(loop);
-        };
-        this.rafId = requestAnimationFrame(loop);
+    private pauseLoop(): void {
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+            this.bumpSnapshot({ isPaused: true });
+        }
     }
 
-    private renderAll(): void {
-        if (!this.device || !this.pipeline || this.slots.size === 0) return;
+    /** Kick-start the shared loop when dormant. Self-terminates when nothing is dirty. */
+    private kickLoop(): void {
+        if (this.rafId !== null) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+        if (this.slots.size === 0 && this.dirtyIds.size === 0) return;
+
+        const wasPaused = this.rafId === null;
+        const loop = () => {
+            this.rafId = null;
+            const needsAnother = this.renderDirtyFrame();
+            if (needsAnother && !(typeof document !== 'undefined' && document.hidden)) {
+                this.rafId = requestAnimationFrame(loop);
+            } else {
+                this.bumpSnapshot({ isPaused: true });
+            }
+        };
+        this.rafId = requestAnimationFrame(loop);
+        if (wasPaused) this.bumpSnapshot({ isPaused: false });
+    }
+
+    /**
+     * Render dirty + in-viewport knobs. Animated knobs stay dirty so time advances.
+     * Returns true if the loop should continue.
+     */
+    private renderDirtyFrame(): boolean {
+        this.frameCount++;
+        if (!this.device || !this.pipeline || this.slots.size === 0) return false;
+        if (typeof document !== 'undefined' && document.hidden) return false;
+
+        const reduced = getPrefersReducedMotion();
+        const now = performance.now() / 1000;
+
+        // Collect work: dirty ids + animated knobs that must keep ticking.
+        const ids: number[] = [];
+        const animatedFirst: number[] = [];
+
+        for (const [id, slot] of this.slots) {
+            const animate = shouldAnimateKnob(slot.animated);
+            if (animate) {
+                slot.dirty = true;
+                this.dirtyIds.add(id);
+            }
+            if ((slot.dirty || this.dirtyIds.has(id)) && slot.inViewport) {
+                if (slot.animated) animatedFirst.push(id);
+                else ids.push(id);
+            }
+        }
+
+        // Drag priority: actively-interacting knobs render first.
+        const ordered = animatedFirst.concat(ids);
+        if (ordered.length === 0) return false;
+
+        this.renderSlots(ordered, now, false);
+
+        // Clear dirty for static knobs; keep animated dirty for next frame.
+        let stillDirty = false;
+        for (const id of ordered) {
+            const slot = this.slots.get(id);
+            if (!slot) {
+                this.dirtyIds.delete(id);
+                continue;
+            }
+            if (shouldAnimateKnob(slot.animated) && !reduced) {
+                slot.dirty = true;
+                this.dirtyIds.add(id);
+                stillDirty = true;
+            } else {
+                slot.dirty = false;
+                this.dirtyIds.delete(id);
+            }
+        }
+
+        // Any remaining dirty (e.g. offscreen that became relevant) keeps loop alive.
+        if (!stillDirty) {
+            for (const id of this.dirtyIds) {
+                const slot = this.slots.get(id);
+                if (slot?.dirty) {
+                    stillDirty = true;
+                    break;
+                }
+            }
+        }
+
+        return stillDirty;
+    }
+
+    private renderSlots(ids: number[], nowSeconds: number, _priorityOnly: boolean): void {
+        if (!this.device || !this.pipeline || ids.length === 0) return;
 
         const encoder = this.device.createCommandEncoder();
-        const now = performance.now() / 1000;
         let hasPass = false;
         let frameFailures = 0;
+        const reduced = getPrefersReducedMotion();
 
-        for (const slot of this.slots.values()) {
+        for (const id of ids) {
+            const slot = this.slots.get(id);
+            if (!slot || !slot.inViewport) continue;
             try {
+                // Sync canvas buffer size if DPR/layout changed.
+                if (slot.canvas.width !== slot.width || slot.canvas.height !== slot.height) {
+                    slot.width = slot.canvas.width;
+                    slot.height = slot.canvas.height;
+                }
+
                 const value = slot.getValue();
-                const uniforms = new Float32Array([now, value, slot.width, slot.height]);
+                const time = resolveKnobTimeUniform(nowSeconds, slot.animated, reduced);
+                const uniforms = new Float32Array([time, value, slot.width, slot.height]);
                 this.device.queue.writeBuffer(slot.uniformBuffer, 0, uniforms);
 
                 const pass = encoder.beginRenderPass({
@@ -538,6 +926,7 @@ class KnobGPUContextClass {
         if (hasPass) {
             try {
                 this.device.queue.submit([encoder.finish()]);
+                this.submitCount++;
                 this.consecutiveRenderFailures = 0;
             } catch {
                 frameFailures++;

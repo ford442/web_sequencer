@@ -124,6 +124,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const gpuHandleRef = useRef<ReturnType<typeof KnobGPUContext.register>>(null);
+    const renderValueRef = useRef(0);
     const isHolographic = mode === 'holographic';
     const isRotary = mode === 'classic' || isHolographic;
     const axis = mode === 'horizontal' ? 'horizontal' : 'vertical';
@@ -138,12 +139,34 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
         [valueLabel, max, min, mode, unit]
     );
 
-    const repaintCanvas = useCallback((liveValue: number) => {
+    const repaintCanvas2D = useCallback((liveValue: number) => {
         const canvas = canvasRef.current;
-        if (!canvas || gpuHandleRef.current) return;
+        if (!canvas || (gpuHandleRef.current && KnobGPUContext.isSlotActive(gpuHandleRef.current))) return;
         const normalized = knobValueToNormalized(liveValue, min, max);
         renderKnob2D(canvas, getKnobCanvasValue({ value: normalized, isAutomated, automatedValue }), material);
     }, [automatedValue, isAutomated, max, min, material]);
+
+    const handleActiveChange = useCallback((active: boolean) => {
+        const handle = gpuHandleRef.current;
+        if (!handle) return;
+        KnobGPUContext.setAnimated(handle, active);
+    }, []);
+
+    const handleDragValue = useCallback((liveValue: number) => {
+        const normalized = knobValueToNormalized(liveValue, min, max);
+        renderValueRef.current = getKnobCanvasValue({
+            value: normalized,
+            isAutomated,
+            automatedValue,
+        });
+        const handle = gpuHandleRef.current;
+        if (handle && KnobGPUContext.isSlotActive(handle)) {
+            KnobGPUContext.markDirty(handle);
+            KnobGPUContext.renderImmediate(handle);
+        } else {
+            repaintCanvas2D(liveValue);
+        }
+    }, [automatedValue, isAutomated, max, min, repaintCanvas2D]);
 
     const {
         isDragging,
@@ -164,7 +187,8 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
         isAutomated,
         automatedValue,
         formatValue: formatReadout,
-        onDragValue: isHolographic ? repaintCanvas : undefined,
+        onDragValue: isHolographic ? handleDragValue : undefined,
+        onActiveChange: isHolographic ? handleActiveChange : undefined,
         detentSnap,
         material,
         detentFeedback,
@@ -175,22 +199,26 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
         isAutomated,
         automatedValue,
     });
+    renderValueRef.current = canvasRenderValue;
 
+    // Register once per holographic mount; value flows via renderValueRef + markDirty.
     useEffect(() => {
         if (!isHolographic) return;
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const handle = KnobGPUContext.register(canvas, () => canvasRenderValue);
+        const handle = KnobGPUContext.register(canvas, () => renderValueRef.current);
         gpuHandleRef.current = handle;
         if (!handle || !KnobGPUContext.isSlotActive(handle)) {
-            renderKnob2D(canvas, canvasRenderValue, material);
+            renderKnob2D(canvas, renderValueRef.current, material);
+        } else {
+            KnobGPUContext.markDirty(handle);
         }
         return () => {
             KnobGPUContext.unregister(handle);
             gpuHandleRef.current = null;
         };
-    }, [canvasRenderValue, isHolographic, min, max, material]);
+    }, [isHolographic, material]);
 
     useEffect(() => {
         if (!isHolographic) return;
@@ -199,13 +227,19 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
             if (!canvas) return;
             const h = gpuHandleRef.current;
             if (!h || !KnobGPUContext.isSlotActive(h)) {
-                renderKnob2D(canvas, canvasRenderValue, material);
+                renderKnob2D(canvas, renderValueRef.current, material);
             }
         });
-    }, [canvasRenderValue, isHolographic, material]);
+    }, [isHolographic, material]);
 
+    // Value / palette / automation changes: mark dirty (static idle path re-renders once).
     useEffect(() => {
-        if (!isHolographic || (gpuHandleRef.current && KnobGPUContext.isSlotActive(gpuHandleRef.current))) return;
+        if (!isHolographic) return;
+        const handle = gpuHandleRef.current;
+        if (handle && KnobGPUContext.isSlotActive(handle)) {
+            KnobGPUContext.markDirty(handle);
+            return;
+        }
         const canvas = canvasRef.current;
         if (canvas) renderKnob2D(canvas, canvasRenderValue, material);
     }, [canvasRenderValue, isHolographic, material]);

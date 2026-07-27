@@ -106,7 +106,22 @@ export interface KnobMaterial {
         /** Final RGB multiplier in the WGSL fragment shader. */
         intensity: number;
     };
+    /**
+     * Animation policy for the holographic time uniform.
+     * `timeScale` of 0 freezes decorative motion (idle + prefers-reduced-motion).
+     * Active interaction uses timeScale 1 unless reduced-motion is on.
+     */
+    animation?: {
+        /** Multiplier applied to wall-clock time. 0 = static frame. @default 1 */
+        timeScale?: number;
+    };
 }
+
+/**
+ * Locked time uniform for idle / prefers-reduced-motion static frames.
+ * Byte-identical path for both policies — see resolveKnobTimeUniform in knobMotion.ts.
+ */
+export const KNOB_STATIC_TIME = 0;
 
 export const KNOB_MATERIAL: KnobMaterial = {
     palette: {

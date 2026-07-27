@@ -12,6 +12,13 @@ import {
 import type { KnobMaterial } from './knobMaterial';
 import { drawKnobAutomationOverlay, type KnobAutomationOverlayState } from './knobAutomationOverlay';
 
+export {
+    getPrefersReducedMotion,
+    subscribeReducedMotion,
+    resolveKnobTimeUniform,
+    shouldAnimateKnob,
+} from './knobMotion';
+
 export interface Knob2DDimensions {
     w: number;
     h: number;
@@ -296,7 +303,10 @@ export function replayKnob2DDrawCalls(
     }
 }
 
-/** Render a holographic knob face on a canvas (2D fallback when WebGPU is unavailable). */
+/** Render a holographic knob face on a canvas (2D fallback when WebGPU is unavailable).
+ * Canvas2D has no time-based decoration — it is inherently the static-frame path
+ * shared with prefers-reduced-motion / idle GPU knobs (locked time uniform).
+ */
 export function renderKnob2D(
     canvas: HTMLCanvasElement,
     value: number,
