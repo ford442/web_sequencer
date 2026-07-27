@@ -46,6 +46,10 @@ const fakeRuntime = {
   offlineRenderThreadCount: null as number | null,
   offlineRenderOversample: null as number | null,
   offlineRenderLatencyMs: null as number | null,
+  gpuRenderLatencyMs: null as number | null,
+  gpuReadbackBytes: null as number | null,
+  gpuFallbackReason: null as string | null,
+  gpuUsedGpu: null as boolean | null,
 };
 
 describe('serializeEngineReport', () => {

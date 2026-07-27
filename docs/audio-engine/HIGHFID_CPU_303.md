@@ -100,9 +100,12 @@ Numbers live in `303-baseline-spectra/baseline_metrics.json`.
 GPU high-fid  →  highfid-cpu (this module)  →  stock Open303 / JC-303  →  JS
 ```
 
+Phase-3 WGSL path: [`GPU_HIGHFID_303.md`](./GPU_HIGHFID_303.md).
+
 ## Related
 
 - [303-authenticity-gaps.md](./303-authenticity-gaps.md) (Phase-0)
 - [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) (Phase-1)
+- [GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md) (Phase-3)
 - [303-voices.md](./303-voices.md)
-- Epic #972 / Phase-2 #975
+- Epic #972 / Phase-2 #975 / Phase-3 #976

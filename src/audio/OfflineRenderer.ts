@@ -1,15 +1,16 @@
 /**
- * Thin API + worker pool for offline 303 rendering (Phase-1 / #974).
+ * Thin API + worker pool for offline 303 rendering
+ * (Phase-1 / #974 + Phase-2 / #975 + Phase-3 / #976).
  *
  * ```ts
- * const buf = await render303Offline('stock-open303', pattern, {
+ * const buf = await render303Offline('gpu-highfid', pattern, {
  *   oversample: 4,
- *   threadCount: 4,
  * });
  * ```
  *
  * Real-time AudioWorklet path is never used. Telemetry records
- * offlineRenderThreadCount / offlineRenderOversample / offlineRenderLatencyMs.
+ * offlineRenderThreadCount / offlineRenderOversample / offlineRenderLatencyMs
+ * and (for gpu-highfid) gpuRenderLatencyMs / gpuReadbackBytes / gpuFallbackReason.
  */
 
 import { engineTelemetry } from '@/utils/engineTelemetry';
@@ -25,10 +26,15 @@ import {
   isHighFidCpuModel,
   renderOfflineHighFid303Pattern,
 } from '@/audio/offline/OfflineHighFid303Engine';
+import {
+  isGpuHighFidModel,
+  renderGpuHighFid303,
+} from '@/engines/WebGpu303Engine';
 
 export type { Offline303PatternData, OversampleFactor };
 export type { Offline303Params, Offline303Step } from '@/audio/offline/OfflineOpen303Engine';
 export { HIGHFID_CPU_MODEL_ID } from '@/audio/offline/OfflineHighFid303Engine';
+export { GPU_HIGHFID_MODEL_ID } from '@/engines/WebGpu303Engine';
 
 export interface Offline303VoiceJob {
   modelId: string;
@@ -198,17 +204,19 @@ function syncRender(
     typeof performance !== 'undefined' ? performance.now() : Date.now();
   const oversample = clampOversample(options.oversample);
   const threadCount = Math.max(1, options.threadCount ?? 1);
-  const buffer = isHighFidCpuModel(modelId)
-    ? renderOfflineHighFid303Pattern(pattern, {
-        oversample,
-        sampleRate: options.sampleRate,
-        blockSize: options.blockSize,
-      })
-    : renderOffline303Pattern(modelId, pattern, {
-        oversample,
-        sampleRate: options.sampleRate,
-        blockSize: options.blockSize,
-      });
+  // gpu-highfid sync path uses highfid-cpu (WebGPU is async-only here).
+  const buffer =
+    isHighFidCpuModel(modelId) || isGpuHighFidModel(modelId)
+      ? renderOfflineHighFid303Pattern(pattern, {
+          oversample,
+          sampleRate: options.sampleRate,
+          blockSize: options.blockSize,
+        })
+      : renderOffline303Pattern(modelId, pattern, {
+          oversample,
+          sampleRate: options.sampleRate,
+          blockSize: options.blockSize,
+        });
   if (bufferHasNonFinite(buffer)) {
     throw new Error('Non-finite samples in sync offline 303 render');
   }
@@ -236,6 +244,24 @@ export async function render303OfflineWithMeta(
   pattern: Offline303PatternData,
   options: Render303OfflineOptions = {},
 ): Promise<Offline303RenderMeta> {
+  // GPU path prefers main-thread WebGPU (workers may lack navigator.gpu).
+  // Falls back to highfid-cpu inside WebGpu303Engine when unavailable.
+  if (isGpuHighFidModel(modelId) && !options.sync) {
+    const oversample = clampOversample(options.oversample);
+    const meta = await renderGpuHighFid303(pattern, {
+      oversample,
+      sampleRate: options.sampleRate,
+    });
+    const out: Offline303RenderMeta = {
+      buffer: meta.buffer,
+      latencyMs: meta.latencyMs,
+      threadCount: meta.usedGpu ? 1 : Math.max(1, options.threadCount ?? 1),
+      oversample: meta.oversample,
+    };
+    recordTelemetry(out);
+    return out;
+  }
+
   if (options.sync || typeof Worker === 'undefined') {
     const meta = syncRender(modelId, pattern, options);
     recordTelemetry(meta);
@@ -291,7 +317,7 @@ export async function render303OfflineMultiWithMeta(
     const oversample = clampOversample(options.oversample);
     const threadCount = Math.max(1, options.threadCount ?? voices.length);
     const rendered = voices.map((v) =>
-      isHighFidCpuModel(v.modelId)
+      isHighFidCpuModel(v.modelId) || isGpuHighFidModel(v.modelId)
         ? renderOfflineHighFid303Pattern(v.pattern, {
             oversample,
             sampleRate: options.sampleRate,

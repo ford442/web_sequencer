@@ -71,10 +71,23 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
     const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
     const offlineLat = runtime.offlineRenderLatencyMs != null ? `${runtime.offlineRenderLatencyMs.toFixed(1)} ms` : '—';
+    const gpuLat = runtime.gpuRenderLatencyMs != null ? `${runtime.gpuRenderLatencyMs.toFixed(1)} ms` : '—';
+    const gpuBackend =
+      runtime.gpuUsedGpu === true
+        ? 'webgpu'
+        : runtime.gpuUsedGpu === false
+          ? 'cpu-fb'
+          : '—';
+    const gpuFb =
+      runtime.gpuFallbackReason != null
+        ? runtime.gpuFallbackReason.slice(0, 42)
+        : '—';
     const offlineSection = `<div class="subheader">Offline 303</div>
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
-      <div class="row"><div style="flex:1">Last render</div><div style="min-width:72px;text-align:right">${offlineLat}</div></div>`;
+      <div class="row"><div style="flex:1">Last render</div><div style="min-width:72px;text-align:right">${offlineLat}</div></div>
+      <div class="row"><div style="flex:1">GPU 303</div><div style="min-width:72px;text-align:right">${gpuBackend} ${gpuLat}</div></div>
+      <div class="row" title="${runtime.gpuFallbackReason ?? ''}"><div style="flex:1">GPU fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${gpuFb}</div></div>`;
 
     const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
