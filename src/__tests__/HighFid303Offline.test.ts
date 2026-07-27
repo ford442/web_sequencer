@@ -43,8 +43,8 @@ describe('highfid-cpu registry', () => {
     ).toBe(true);
   });
 
-  it('normalizeTB303Model falls back to stock for offline-only voices', () => {
-    expect(normalizeTB303Model('highfid-cpu')).toBe('stock-open303');
+  it('normalizeTB303Model preserves offline-only high-fid ids', () => {
+    expect(normalizeTB303Model('highfid-cpu')).toBe('highfid-cpu');
   });
 });
 

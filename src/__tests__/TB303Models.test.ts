@@ -19,6 +19,9 @@ import {
     getAvailableTB303Models,
     normalizeTB303Model,
     reportTB303ModelFallback,
+    resolveHighFidModelSelection,
+    resolveRealtimeTB303Model,
+    legacyEngine303ForModel,
     tb303ModelFamily,
     stockModelForFamily,
 } from '../engines/TB303Models';
@@ -80,6 +83,15 @@ describe('TB303_MODELS registry', () => {
         const available = getAvailableTB303Models();
         expect(available.length).toBeGreaterThanOrEqual(4);
         expect(available.every((m) => m.available)).toBe(true);
+        expect(available.every((m) => !m.offlineOnly)).toBe(true);
+    });
+
+    it('includeOfflineOnly exposes highfid-cpu and gpu-highfid', () => {
+        const withOffline = getAvailableTB303Models({ includeOfflineOnly: true });
+        expect(withOffline.some((m) => m.id === 'highfid-cpu')).toBe(true);
+        expect(withOffline.some((m) => m.id === 'gpu-highfid')).toBe(true);
+        expect(getTB303Model('highfid-cpu')?.label).toContain('offline');
+        expect(getTB303Model('gpu-highfid')?.label).toContain('offline');
     });
 
     it('every model has a label and a description (used for UI tooltips)', () => {
@@ -124,6 +136,11 @@ describe('normalizeTB303Model()', () => {
         expect(normalizeTB303Model('raveolution')).toBe('raveolution');
     });
 
+    it('preserves available offline-only high-fid ids for persistence', () => {
+        expect(normalizeTB303Model('highfid-cpu')).toBe('highfid-cpu');
+        expect(normalizeTB303Model('gpu-highfid')).toBe('gpu-highfid');
+    });
+
     it('falls back for unknown ids from future song versions', () => {
         expect(normalizeTB303Model('some-future-voice')).toBe('stock-open303');
         expect(normalizeTB303Model('some-future-voice', 'jc303')).toBe('jc303');
@@ -141,10 +158,55 @@ describe('normalizeTB303Model()', () => {
     });
 });
 
+describe('resolveRealtimeTB303Model()', () => {
+    it('maps offline high-fid voices to stock for AudioWorklet', () => {
+        expect(resolveRealtimeTB303Model('highfid-cpu')).toBe('stock-open303');
+        expect(resolveRealtimeTB303Model('gpu-highfid')).toBe('stock-open303');
+    });
+
+    it('passes through realtime voices', () => {
+        expect(resolveRealtimeTB303Model('experimental-01')).toBe('experimental-01');
+        expect(resolveRealtimeTB303Model('jc303')).toBe('jc303');
+    });
+});
+
+describe('resolveHighFidModelSelection()', () => {
+    it('falls back gpu-highfid → highfid-cpu when WebGPU is missing', () => {
+        const sel = resolveHighFidModelSelection('gpu-highfid', undefined, {
+            gpuAvailable: false,
+            report: false,
+        });
+        expect(sel.persisted).toBe('gpu-highfid');
+        expect(sel.realtime).toBe('stock-open303');
+        expect(sel.offlineEngine).toBe('highfid-cpu');
+        expect(sel.fallbackReason).toMatch(/WebGPU unavailable/i);
+    });
+
+    it('keeps gpu-highfid offline engine when WebGPU is available', () => {
+        const sel = resolveHighFidModelSelection('gpu-highfid', undefined, {
+            gpuAvailable: true,
+            report: false,
+        });
+        expect(sel.offlineEngine).toBe('gpu-highfid');
+        expect(sel.fallbackReason).toBeNull();
+        expect(sel.realtime).toBe('stock-open303');
+    });
+
+    it('selects highfid-cpu without GPU fallback noise', () => {
+        const sel = resolveHighFidModelSelection('highfid-cpu', undefined, {
+            gpuAvailable: false,
+            report: false,
+        });
+        expect(sel.offlineEngine).toBe('highfid-cpu');
+        expect(sel.fallbackReason).toBeNull();
+    });
+});
+
 describe('family helpers', () => {
     it('tb303ModelFamily resolves families and defaults to open303', () => {
         expect(tb303ModelFamily('jc303')).toBe('jc303');
         expect(tb303ModelFamily('experimental-01')).toBe('open303');
+        expect(tb303ModelFamily('highfid-cpu')).toBe('highfid');
         expect(tb303ModelFamily('nope')).toBe('open303');
         expect(tb303ModelFamily(undefined)).toBe('open303');
     });
@@ -152,6 +214,13 @@ describe('family helpers', () => {
     it('stockModelForFamily returns the stock voice per family', () => {
         expect(stockModelForFamily('open303')).toBe('stock-open303');
         expect(stockModelForFamily('jc303')).toBe('jc303');
+        expect(stockModelForFamily('highfid')).toBe('highfid-cpu');
+    });
+
+    it('legacyEngine303ForModel mirrors highfid → open303 for old song readers', () => {
+        expect(legacyEngine303ForModel('gpu-highfid')).toBe('open303');
+        expect(legacyEngine303ForModel('jc303')).toBe('jc303');
+        expect(legacyEngine303ForModel('1ink303-v1')).toBe('open303');
     });
 });
 
@@ -194,6 +263,15 @@ describe('Open303Oscillator.setModel303()', () => {
 
     it('normalizes unknown model ids to stock-open303', () => {
         oscillator.setModel303('definitely-not-a-voice');
+        expect(mockPostMessage).toHaveBeenCalledWith({
+            type: 'set-303-model',
+            data: { model: 'stock-open303', engine: 'open303' },
+        });
+        expect(oscillator.getModel303()).toBe('stock-open303');
+    });
+
+    it('maps offline high-fid voices to stock on the worklet', () => {
+        oscillator.setModel303('gpu-highfid');
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-303-model',
             data: { model: 'stock-open303', engine: 'open303' },
@@ -323,10 +401,18 @@ describe('model303 persistence', () => {
         expect(normalizeTB303Model(undefined, (legacyB as { engine303?: string }).engine303)).toBe('stock-open303');
     });
 
-    it('every available model id round-trips as a TB303ModelId', () => {
+    it('every available realtime model id round-trips as a TB303ModelId', () => {
         for (const m of getAvailableTB303Models()) {
             const restored = JSON.parse(JSON.stringify({ model303: m.id })) as { model303: TB303ModelId };
             expect(normalizeTB303Model(restored.model303)).toBe(m.id);
+        }
+    });
+
+    it('offline high-fid ids survive JSON round-trip and normalize', () => {
+        for (const id of ['highfid-cpu', 'gpu-highfid'] as const) {
+            const restored = JSON.parse(JSON.stringify({ model303: id })) as { model303: TB303ModelId };
+            expect(normalizeTB303Model(restored.model303)).toBe(id);
+            expect(resolveRealtimeTB303Model(restored.model303)).toBe('stock-open303');
         }
     });
 });

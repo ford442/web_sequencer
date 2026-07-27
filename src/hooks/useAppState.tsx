@@ -12,7 +12,7 @@ import { SupertonicService } from '../services/Supertonic'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import type { PcfEffect } from '../engines/PcfEffect';
-import { normalizeTB303Model } from '../engines/TB303Models';
+import { resolveRealtimeTB303Model } from '../engines/TB303Models';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
 import {
@@ -219,19 +219,19 @@ export function useAppState() {
     useEffect(() => {
         const mgr = (audioEngine as any)?.open303Engine;
         if (!mgr) return;
-        // normalizeTB303Model resolves the persisted model303, falling back to
-        // the legacy engine303 field for songs saved before the voices update.
+        // normalize + realtime resolve: persist high-fid ids in song state, but
+        // AudioWorklet always gets a realtime-safe voice (stock for offline-only).
         if (typeof mgr.syncModel303Settings === 'function') {
             mgr.syncModel303Settings({
-                lead: normalizeTB303Model(synthA.model303, synthA.engine303, {
+                lead: resolveRealtimeTB303Model(synthA.model303, synthA.engine303, {
                     reportFallback: true,
                     subsystem: 'synthA-model303',
                 }),
-                bass1: normalizeTB303Model(synthB.model303, synthB.engine303, {
+                bass1: resolveRealtimeTB303Model(synthB.model303, synthB.engine303, {
                     reportFallback: true,
                     subsystem: 'synthB-model303',
                 }),
-                bass2: normalizeTB303Model(bass2.model303, bass2.engine303, {
+                bass2: resolveRealtimeTB303Model(bass2.model303, bass2.engine303, {
                     reportFallback: true,
                     subsystem: 'bass2-model303',
                 }),

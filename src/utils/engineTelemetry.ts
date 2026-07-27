@@ -53,6 +53,16 @@ type RuntimeTelemetry = {
   gpuFallbackReason: string | null;
   /** Phase-3 — whether the last gpu-highfid attempt used the WGSL path. */
   gpuUsedGpu: boolean | null;
+  /** Phase-4 — navigator.gpu (or last selection probe) availability. */
+  gpuAvailable: boolean | null;
+  /** Phase-4 — last requested high-fid / model303 selection. */
+  highFidRequested: string | null;
+  /** Phase-4 — effective offline engine after fallback (gpu-highfid | highfid-cpu | …). */
+  highFidActiveEngine: string | null;
+  /** Phase-4 — realtime worklet model used while a high-fid voice is selected. */
+  highFidRealtimeModel: string | null;
+  /** Phase-4 — selection-time fallback reason (distinct from last render). */
+  highFidFallbackReason: string | null;
 };
 
 function emptyData(): TelemetryData {
@@ -164,6 +174,16 @@ export interface RuntimeSnapshot {
   gpuFallbackReason: string | null;
   /** Whether last gpu-highfid render used WebGPU. */
   gpuUsedGpu: boolean | null;
+  /** Whether WebGPU was available at last high-fid selection / probe. */
+  gpuAvailable: boolean | null;
+  /** Last requested high-fid / model303 id. */
+  highFidRequested: string | null;
+  /** Effective offline high-fid engine after selection fallback. */
+  highFidActiveEngine: string | null;
+  /** Realtime worklet model while high-fid is selected. */
+  highFidRealtimeModel: string | null;
+  /** Selection-time high-fid fallback reason. */
+  highFidFallbackReason: string | null;
 }
 
 export interface EngineReport {
@@ -242,6 +262,11 @@ export class EngineTelemetry {
     gpuReadbackBytes: null,
     gpuFallbackReason: null,
     gpuUsedGpu: null,
+    gpuAvailable: null,
+    highFidRequested: null,
+    highFidActiveEngine: null,
+    highFidRealtimeModel: null,
+    highFidFallbackReason: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -333,6 +358,34 @@ export class EngineTelemetry {
     this.recordLatency('gpu-highfid', meta.latencyMs);
   }
 
+  /**
+   * Record a high-fid model selection (Phase-4 / #977) — GPU availability,
+   * requested vs effective offline engine, and realtime fallback target.
+   */
+  recordHighFidSelection(meta: {
+    requested: string;
+    activeOffline: string;
+    realtime: string;
+    gpuAvailable: boolean;
+    fallbackReason: string | null;
+  }): void {
+    this.runtime.gpuAvailable = meta.gpuAvailable;
+    this.runtime.highFidRequested = meta.requested;
+    this.runtime.highFidActiveEngine = meta.activeOffline;
+    this.runtime.highFidRealtimeModel = meta.realtime;
+    this.runtime.highFidFallbackReason = meta.fallbackReason;
+    this.registerResolution(
+      'highfid-selection',
+      meta.activeOffline,
+      meta.fallbackReason
+        ? `${meta.requested}: ${meta.fallbackReason}`
+        : meta.requested,
+    );
+    if (meta.fallbackReason) {
+      this.recordDegradation('highfid-selection', true, meta.fallbackReason);
+    }
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -366,6 +419,11 @@ export class EngineTelemetry {
       gpuReadbackBytes: this.runtime.gpuReadbackBytes,
       gpuFallbackReason: this.runtime.gpuFallbackReason,
       gpuUsedGpu: this.runtime.gpuUsedGpu,
+      gpuAvailable: this.runtime.gpuAvailable,
+      highFidRequested: this.runtime.highFidRequested,
+      highFidActiveEngine: this.runtime.highFidActiveEngine,
+      highFidRealtimeModel: this.runtime.highFidRealtimeModel,
+      highFidFallbackReason: this.runtime.highFidFallbackReason,
     };
   }
 

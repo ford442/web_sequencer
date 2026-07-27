@@ -286,8 +286,15 @@ normalization all read the registry.
 - `gpu-highfid` — WGSL WebGPU path with automatic highfid-cpu fallback
   ([GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md)).
 
-Keep both out of the real-time selector (`getAvailableTB303Models()` excludes
-`offlineOnly` by default). See Phase-4 for freeze/export UI selection.
+`Voice303Selector` lists them with an **Offline** badge (Phase-4 /
+`includeOfflineOnly: true`). Tooltips explain they are best for freeze /
+export / multisample; live playback stays on Stock Open303 via
+`resolveRealtimeTB303Model`. Choosing `gpu-highfid` without WebGPU keeps the
+persisted id and falls back offline to `highfid-cpu` through
+`resolveHighFidModelSelection` (Engine HUD + degradation banner).
+
+`getAvailableTB303Models()` (no opts) still excludes offline voices for
+realtime-only call sites.
 
 ## Out of scope for v1
 
