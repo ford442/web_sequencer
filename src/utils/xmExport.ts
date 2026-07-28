@@ -372,32 +372,24 @@ const findSynthLoopPoints = (buffer: Float32Array, sampleRate: number = 44100, a
     // 2. Find Loop Start (Zero Crossing)
     const searchWindow = Math.floor(sampleRate * 0.2);
 
-    const findCross = (start: number, end: number, step: number): number => {
-        if (step > 0) {
-            for (let i = start; i < end; i += step) {
-                if (i < 1 || i >= len - 1) continue;
-                if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
-            }
-        } else {
-            for (let i = start; i > end; i += step) {
-                if (i < 1 || i >= len - 1) continue;
-                if (buffer[i] >= 0 && buffer[i - 1] < 0) return i;
-            }
-        }
-        return -1;
-    };
+    const isPositiveGoingCrossing = (buf: Float32Array, idx: number) =>
+        idx >= 1 && idx < buf.length && buf[idx] >= 0 && buf[idx - 1] < 0;
 
-    let loopStart = findCross(steadyStateStart, Math.min(steadyStateStart + searchWindow, len-1), 1);
+    // ⚡ Bolt Optimization: Replace JS findCross loop with WASM-accelerated findZeroCrossing
+    const loopStartCross = findZeroCrossing(buffer, steadyStateStart, 1, searchWindow);
 
-    if (loopStart === -1) {
-        loopStart = steadyStateStart;
-    }
+    // findZeroCrossing returns the original position if no crossing is found
+    const loopStart = isPositiveGoingCrossing(buffer, loopStartCross) ? loopStartCross : steadyStateStart;
 
     // 3. Find Loop End (Matching Start)
-    let loopEnd = -1;
-
     const endSearchLimit = Math.max(loopStart + minLoopLength, steadyStateEnd - searchWindow);
-    loopEnd = findCross(steadyStateEnd, endSearchLimit, -1);
+    const backwardMaxSearch = Math.max(1, steadyStateEnd - endSearchLimit);
+
+    let loopEnd = findZeroCrossing(buffer, steadyStateEnd, -1, backwardMaxSearch);
+
+    if (!isPositiveGoingCrossing(buffer, loopEnd)) {
+        loopEnd = -1;
+    }
 
     if (loopEnd === -1) {
         const targetVal = buffer[loopStart];
