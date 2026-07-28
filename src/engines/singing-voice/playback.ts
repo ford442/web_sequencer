@@ -289,7 +289,7 @@ export const PlaybackMixin = {
 
     // We only care if there is any user phoneme with a formant shift
     const hasFormantShift = userPhonemes.some(
-(p) => false,
+      (p) => false,
     );
     if (!hasFormantShift) {
       return;
