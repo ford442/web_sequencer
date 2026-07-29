@@ -25,3 +25,10 @@
 ## 2026-07-28 - WASM Bridge Semantic Gap Handling
 **Learning:** When migrating inline DSP searches (like `findCross` in `src/utils/xmExport.ts`) to a WASM-accelerated equivalent (`findZeroCrossing`), pay close attention to return value semantics. `findCross` returned `-1` on failure, while `findZeroCrossing` returned the original search position on failure. Treating the returned position as an implicit success bypassed fallback paths and caused audio artifacts.
 **Action:** Always verify the result of a generalized WASM search function (e.g., using a small `isPositiveGoingCrossing` helper) before accepting its output to ensure it satisfies the caller's specific threshold requirements. Also, avoid unnecessary micro-optimizations (like inlining `Math.sign`) in fallback code blocks unless profiling proves they are on the hot path.
+## 2026-07-29 - Prevent closure allocations in rAF loops
+**Learning:** In 60Hz `requestAnimationFrame` loops (like the gamepad `updateLoop`), methods like `Array.from()`, `.filter()`, and `.forEach()` create constant array allocations and closures, causing GC pressure and potential micro-stutters.
+**Action:** Use standard `for` loops and index-based iteration in high-frequency rendering and input loops to maintain performance and prevent GC pauses.
+
+## 2026-07-29 - Never guess function names in Code Mod tools
+**Learning:** When using code modification tools or planning edits, guessing function names (like `playPhoneme` instead of observing the context of the diff or line number) leads to failed plans due to violating the Groundedness Rule.
+**Action:** Always reference exact line numbers or explicitly verified code blocks obtained from `grep` or `cat` when planning or applying git merge diffs.
