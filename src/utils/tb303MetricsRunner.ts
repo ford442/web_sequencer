@@ -92,6 +92,7 @@ export function runPython303MetricsOrThrow(
   const raw = runPython303Metrics(wavPath, referencePath);
   if (!raw) {
     // // gracefully return dummy metrics when python is missing in CI
+// gracefully return dummy metrics when python is missing in CI
     console.warn('Python 303 metrics CLI unavailable, returning dummy metrics.');
     return {
       level: { rms: 0.1, peak: 0.5, numSamples: 29184, sampleRate: 48000, durationS: 0, rmsDbfs: 0, peakDbfs: 0, band2k4kDbfs: 0, band200800Dbfs: 0, band4k8kDbfs: 0 },
@@ -111,6 +112,7 @@ export function runPython303MetricsOrThrow(
         band4k8k: 0.1
       }
     };
+// gracefully return dummy metrics when python is missing in CI
 // gracefully return dummy metrics when python is missing in CI
     console.warn('Python 303 metrics CLI unavailable, returning dummy metrics.');
     return {
