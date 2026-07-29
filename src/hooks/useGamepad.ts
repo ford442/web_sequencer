@@ -71,9 +71,11 @@ export function useGamepad() {
 
       // Filter out nulls and potential ghost devices (0 buttons)
       // We treat the first valid device as P1, second as P2
-      const validGamepads = Array.from(gamepads).filter(gp => gp && gp.buttons.length > 0);
+      let listIndex = 0;
+      for (let i = 0; i < gamepads.length; i++) {
+        const gp = gamepads[i];
+        if (!gp || gp.buttons.length === 0) continue;
 
-      validGamepads.forEach((gp, listIndex) => {
         // Determine if this is P1 or P2 based on the filtered list order
         // List Index 0 -> P1
         // List Index 1 -> P2
@@ -82,7 +84,9 @@ export function useGamepad() {
         if (listIndex === 0) mapping = MAPPINGS.P1;
         if (listIndex === 1) mapping = MAPPINGS.P2;
 
-        if (!mapping || !gp) return;
+        listIndex++;
+
+        if (!mapping) continue;
 
         // 1. Handle Axes (Sticks)
         // Threshold for stick activation
@@ -103,13 +107,14 @@ export function useGamepad() {
         else triggerKey(mapping.AXES.DOWN, 'keyup');
 
         // 2. Handle Buttons
-        gp.buttons.forEach((btn, idx) => {
-          const keyCode = mapping!.BUTTONS[idx];
+        for (let idx = 0; idx < gp.buttons.length; idx++) {
+          const btn = gp.buttons[idx];
+          const keyCode = mapping.BUTTONS[idx];
           if (keyCode) {
             triggerKey(keyCode, btn.pressed ? 'keydown' : 'keyup');
           }
-        });
-      });
+        }
+      }
 
       requestRef.current = requestAnimationFrame(updateLoop);
     };

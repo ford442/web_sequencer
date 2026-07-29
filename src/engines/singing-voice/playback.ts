@@ -132,7 +132,10 @@ export const PlaybackMixin = {
         const source = this.audioContext.createBufferSource();
         source.buffer = poolBuffer;
         // Connect to every output destination the worklet is currently wired to
-        this.outputDestinations.forEach((dest) => source.connect(dest));
+        // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
+        for (const dest of this.outputDestinations) {
+          source.connect(dest);
+        }
         source.start(when);
         source.stop(when + targetDuration);
         return;

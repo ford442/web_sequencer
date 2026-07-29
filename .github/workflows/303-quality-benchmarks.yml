@@ -46,7 +46,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Python metrics deps
-        run: pip install numpy
+        run: pip install numpy scipy
 
       - name: Build WASM artifacts
         run: pnpm run build:wasm
@@ -93,7 +93,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Python metrics deps
-        run: pip install numpy
+        run: pip install numpy scipy
 
       - name: Build WASM artifacts
         run: pnpm run build:wasm
