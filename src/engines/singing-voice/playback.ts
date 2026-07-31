@@ -290,11 +290,15 @@ export const PlaybackMixin = {
     const phonemes = this.lastAlignment.phonemes;
     const sampleRate = this.audioContext.sampleRate;
 
-    // We only care if there is any user phoneme with a formant shift
+    // We only care if there is any user phoneme with a formant shift, or if there are vowel transitions to smooth out
     const hasFormantShift = userPhonemes.some(
-      (p) => false,
+      (p) => (p as any).formantShift !== undefined || p.pitchBend !== 0,
     );
-    if (!hasFormantShift) {
+
+    // We also want to run the loop to check for consecutive vowels for expressive transitions
+    const hasVowelTransitions = phonemes.filter(p => p.isVowel).length > 1;
+
+    if (!hasFormantShift && !hasVowelTransitions) {
       return;
     }
 
@@ -319,6 +323,36 @@ export const PlaybackMixin = {
         targetShift += (userP as any).formantShift;
       }
 
+      // Expressive Note Transitions for Vowels
+      // If this is a vowel, and the next phoneme is also a vowel, we can add a subtle portamento/glide
+      if (p.isVowel && i < phonemes.length - 1) {
+        const nextP = phonemes[i + 1];
+        if (nextP.isVowel) {
+          // Calculate a subtle formant transition to smooth out the vowel boundary
+          const rampDuration = Math.min(0.1, stretchedDurationSec * 0.5);
+          const transitionTime = currentTimeSeconds + stretchedDurationSec - rampDuration;
+
+          if (prevShift === targetShift) {
+             // If there's no user formant shift, we can still apply a micro-glide for expressiveness
+             // Just a slight scoop to simulate vocal tract adjustments between vowels
+             const scoopAmount = 0.5; // semitones
+             (this.formantShifter as any)?.setFormantGlide?.(
+                targetShift,
+                targetShift + scoopAmount,
+                transitionTime,
+                rampDuration
+             );
+             // Return to baseline at the start of next vowel
+             (this.formantShifter as any)?.setFormantGlide?.(
+                targetShift + scoopAmount,
+                targetShift,
+                currentTimeSeconds + stretchedDurationSec,
+                rampDuration
+             );
+          }
+        }
+      }
+
       if (prevShift !== targetShift) {
         // Ramp duration bounded by the segment length
         // We use a quick ramp, but bounded to the phoneme length so it doesn't bleed too far
@@ -334,8 +368,10 @@ export const PlaybackMixin = {
           rampDuration
         );
       } else {
-        // Ensure we hold the target shift
-        (this.formantShifter as any)?.setFormantShift?.(targetShift, currentTimeSeconds, 0);
+        // Ensure we hold the target shift (only if we didn't just schedule an expressive scoop above)
+        if (!(p.isVowel && i < phonemes.length - 1 && phonemes[i+1].isVowel && prevShift === targetShift)) {
+           (this.formantShifter as any)?.setFormantShift?.(targetShift, currentTimeSeconds, 0);
+        }
       }
 
       prevShift = targetShift;
