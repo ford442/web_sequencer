@@ -482,8 +482,8 @@ export class PhonemeAligner {
      * @returns SharedArrayBuffer with phoneme data
      */
     createSharedPhonemeBuffer(phonemes: PhonemeSegment[], sampleRate: number, userPhonemes?: PhonemeData[]): SharedArrayBuffer {
-        // 1 int for count + 8 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend, vibDepth, vibRate)
-        const bufferSize = (1 + phonemes.length * 8) * 4; // 4 bytes per float32
+        // 1 int for count + 9 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend, vibDepth, vibRate, grainJitter)
+        const bufferSize = (1 + phonemes.length * 9) * 4; // 4 bytes per float32
         const sharedBuffer = new SharedArrayBuffer(bufferSize);
         const view = new Float32Array(sharedBuffer);
         
@@ -491,7 +491,7 @@ export class PhonemeAligner {
         
         for (let i = 0; i < phonemes.length; i++) {
             const p = phonemes[i];
-            const baseIndex = 1 + i * 8;
+            const baseIndex = 1 + i * 9;
             view[baseIndex] = p.start * sampleRate;     // Start sample
             view[baseIndex + 1] = p.end * sampleRate;   // End sample
             view[baseIndex + 2] = p.isVowel ? 1.0 : 0.0; // Boolean as float
@@ -502,6 +502,7 @@ export class PhonemeAligner {
             let pitchBend = 0.0;
             let vibDepth = -1.0; // -1 means use global
             let vibRate = -1.0;  // -1 means use global
+            let grainJitter = -1.0; // -1 means use global
 
             if (userPhonemes && userPhonemes.length > i) {
                 // If userPhonemes are provided, we map them by index.
@@ -512,11 +513,13 @@ export class PhonemeAligner {
                 if (userP.pitchBend !== undefined) pitchBend = userP.pitchBend;
                 if (userP.vibratoDepth !== undefined) vibDepth = userP.vibratoDepth;
                 if (userP.vibratoRate !== undefined) vibRate = userP.vibratoRate;
+                if (userP.grainJitter !== undefined) grainJitter = userP.grainJitter;
             }
             view[baseIndex + 4] = volume;
             view[baseIndex + 5] = pitchBend;
             view[baseIndex + 6] = vibDepth;
             view[baseIndex + 7] = vibRate;
+            view[baseIndex + 8] = grainJitter;
         }
         
         return sharedBuffer;
