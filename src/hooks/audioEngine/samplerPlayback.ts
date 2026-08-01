@@ -61,6 +61,7 @@ export interface SamplerVoiceContext {
 }
 
 export interface SamplerNoteParams {
+    portamento?: number;
     timbre?: number;
     microtiming?: number;
     reverse?: boolean;
@@ -503,33 +504,35 @@ export function createSamplerPlayback(
         const timeRatio = targetDuration / originalDuration;
         voice.setTimeRatio(timeRatio, triggerTime);
 
-        // 2. Pitch Shift (with offset for harmonizer and slide support)
-        const targetMidi = noteToMidi(noteStr) + ctx.pitchOffsetSemitones;
-        if (ctx.noteParams?.slideFromMidi !== undefined) {
-            const startMidi = ctx.noteParams.slideFromMidi + ctx.pitchOffsetSemitones;
-            voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, ctx.tuning);
-            // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
-            const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
-
-            if (ctx.noteParams?.slideType === 'exponential' || ctx.params.portamentoType === 'exponential') {
-                voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, ctx.tuning);
-            } else {
-                voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, ctx.tuning);
-            }
-        } else {
-            voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, ctx.tuning);
-        }
-
-        // 3. Phoneme Awareness (from Jules branch)
+        // 2. Setup Phonemes
         if (ctx.alignment) {
             voice.setAlignment(ctx.alignment);
-            if (ctx.noteParams?.phonemes?.length) {
-                voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
-            }
             voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
-        // 4. Play
+        // 3. Trigger
+        const targetMidi = noteToMidi(noteStr) + ctx.pitchOffsetSemitones;
+        const currentPhonemeData = ctx.noteParams?.phonemes?.[0]; // Get the active phoneme for the note
+        voice.trigger({
+            startTime: triggerTime,
+            targetMidi: targetMidi + pitchOffset,
+            baseMidi: 60,
+            tuning: ctx.tuning,
+            duration: targetDuration,
+            legato: true,
+            slideFromMidi: ctx.noteParams?.slideFromMidi !== undefined ? ctx.noteParams.slideFromMidi + ctx.pitchOffsetSemitones + pitchOffset : undefined,
+            portamento: ctx.noteParams?.portamento ?? (ctx.params as any).portamento ?? undefined,
+            slideType: ctx.noteParams?.slideType || ctx.params.portamentoType,
+            formantShift: finalFormantShift,
+            slideFromFormant: ctx.noteParams?.slideFromFormant,
+            reverse: ctx.noteParams?.reverse,
+            phonemeData: currentPhonemeData
+        });
+
+        // 4. Phoneme Formant Glides (Post-trigger)
+        if (ctx.alignment && ctx.noteParams?.phonemes?.length) {
+            voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
+        }
 
         // Pitch Envelope
         if (voice.setPitchAttack) {
@@ -542,17 +545,9 @@ export function createSamplerPlayback(
             (voice as any).setPitchAmount(ctx.pPitchAmount, triggerTime);
         }
 
-        voice.play(undefined, undefined, 1.0, ctx.noteParams?.reverse);
-
         const releaseTime = triggerTime + targetDuration;
-        const delayMs = (releaseTime - context.currentTime) * 1000;
-        if (delayMs > 0) {
-            setTimeout(() => {
-                voice.noteOff();
-            }, delayMs);
-        } else {
-            voice.noteOff();
-        }
+        // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet-scheduled noteOff
+        voice.noteOff(releaseTime);
     };
 
     const runVoices = (ctx: SamplerVoiceContext, noteStr: string, timeOffset: number, duration: number) => {

@@ -37,17 +37,48 @@ export const PitchControlMixin = {
   },
 
   /**
+   * Set the pitch scale ratio exactly at the given time.
+   * @param ratio Pitch multiplier
+   * @param time Time to apply the change
+   */
+  setPitchAtTime(this: SingingVoiceHost, ratio: number, time: number): void {
+    if (this.workletNode) {
+      const param = this.workletNode.parameters.get("pitchScale")!;
+      param.cancelScheduledValues(time);
+      param.setValueAtTime(ratio, time);
+    }
+  },
+
+  /**
+   * Glide pitch from a starting ratio to a target ratio over a duration.
+   */
+  glidePitchTo(
+    this: SingingVoiceHost,
+    targetRatio: number,
+    startTime: number,
+    glideTime: number,
+    currentRatio: number,
+    curve: 'linear' | 'exponential' = 'linear'
+  ): void {
+    if (this.workletNode) {
+      const param = this.workletNode.parameters.get("pitchScale")!;
+      param.cancelScheduledValues(startTime);
+      param.setValueAtTime(currentRatio, startTime);
+      if (curve === 'exponential') {
+        param.exponentialRampToValueAtTime(targetRatio, startTime + glideTime);
+      } else {
+        param.linearRampToValueAtTime(targetRatio, startTime + glideTime);
+      }
+    }
+  },
+
+  /**
    * Set the pitch scale ratio.
    * @param ratio Pitch multiplier (e.g., 2.0 = one octave up, 0.5 = one octave down)
    * @param time Optional time to apply the change (default: now)
    */
   setPitch(this: SingingVoiceHost, ratio: number, time?: number): void {
-    if (this.workletNode) {
-      const t = time || this.audioContext.currentTime;
-      const param = this.workletNode.parameters.get("pitchScale")!;
-      param.cancelScheduledValues(t);
-      param.setValueAtTime(ratio, t);
-    }
+    this.setPitchAtTime(ratio, time || this.audioContext.currentTime);
   },
 
   /**

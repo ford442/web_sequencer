@@ -708,14 +708,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                             voice.play(undefined, undefined, 1.0, noteParams?.reverse);
 
                             const releaseTime = triggerTime + targetDuration;
-                            const delayMs = (releaseTime - context.currentTime) * 1000;
-                            if (delayMs > 0) {
-                                setTimeout(() => {
-                                    voice.noteOff();
-                                }, delayMs);
-                            } else {
-                                voice.noteOff();
-                            }
+                            // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet-scheduled noteOff
+                            voice.noteOff(releaseTime);
                         };
 
                         const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
