@@ -264,6 +264,7 @@ export const EffectsControlMixin = {
         },
       });
     }
+    this.isActive = false;
   },
 
   /**
