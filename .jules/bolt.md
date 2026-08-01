@@ -32,3 +32,6 @@
 ## 2026-07-29 - Never guess function names in Code Mod tools
 **Learning:** When using code modification tools or planning edits, guessing function names (like `playPhoneme` instead of observing the context of the diff or line number) leads to failed plans due to violating the Groundedness Rule.
 **Action:** Always reference exact line numbers or explicitly verified code blocks obtained from `grep` or `cat` when planning or applying git merge diffs.
+## 2026-07-31 - Eliminate main-thread `setTimeout` for audio scheduling
+**Learning:** During real-time high-frequency execution (e.g., sampler playback triggered by the 16th-note step sequencer), utilizing `setTimeout` to trigger `noteOff` closures introduces significant closure allocation and timer creation overhead on the main thread, especially when polyphony and choir effects are active. This competes with audio scheduling and causes GC pressure.
+**Action:** Always prefer utilizing native or worklet-scheduled target time parameters directly on the web audio nodes or processor interfaces (e.g., `voice.noteOff(releaseTime)`) instead of wrapping immediate triggers in a Javascript `setTimeout`. This delegates scheduling away from the main thread timer pool.

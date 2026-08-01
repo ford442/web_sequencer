@@ -545,14 +545,8 @@ export function createSamplerPlayback(
         voice.play(undefined, undefined, 1.0, ctx.noteParams?.reverse);
 
         const releaseTime = triggerTime + targetDuration;
-        const delayMs = (releaseTime - context.currentTime) * 1000;
-        if (delayMs > 0) {
-            setTimeout(() => {
-                voice.noteOff();
-            }, delayMs);
-        } else {
-            voice.noteOff();
-        }
+        // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet-scheduled noteOff
+        voice.noteOff(releaseTime);
     };
 
     const runVoices = (ctx: SamplerVoiceContext, noteStr: string, timeOffset: number, duration: number) => {
