@@ -510,19 +510,7 @@ export function createSamplerPlayback(
             voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
-        // 3. Resolve Formant Shift
-        let finalFormantShift = ctx.noteParams?.formantShift ?? ctx.params.formantShift ?? 0;
-        const formantLinkRatio = ctx.noteParams?.formantPitchLink ?? ctx.params.formantPitchLink ?? 0.0;
-        if (formantLinkRatio !== 0.0) {
-            const rootNote = ctx.params.rootNote ?? 60;
-            const coarse = (ctx.noteParams?.coarseTune ?? ctx.params.coarseTune ?? 0);
-            const fine = (ctx.noteParams?.fineTune ?? ctx.params.fineTune ?? 0) / 100;
-            const noteMidi = noteToMidi(noteStr) + ctx.pitchOffsetSemitones + coarse + fine;
-            const pitchDeltaSemitones = noteMidi - rootNote;
-            finalFormantShift += (pitchDeltaSemitones * formantLinkRatio);
-        }
-
-        // 4. Trigger
+        // 3. Trigger
         const targetMidi = noteToMidi(noteStr) + ctx.pitchOffsetSemitones;
         const currentPhonemeData = ctx.noteParams?.phonemes?.[0]; // Get the active phoneme for the note
         voice.trigger({
@@ -533,7 +521,7 @@ export function createSamplerPlayback(
             duration: targetDuration,
             legato: true,
             slideFromMidi: ctx.noteParams?.slideFromMidi !== undefined ? ctx.noteParams.slideFromMidi + ctx.pitchOffsetSemitones + pitchOffset : undefined,
-            portamento: ctx.noteParams?.portamento ?? ctx.params.portamento ?? undefined,
+            portamento: ctx.noteParams?.portamento ?? (ctx.params as any).portamento ?? undefined,
             slideType: ctx.noteParams?.slideType || ctx.params.portamentoType,
             formantShift: finalFormantShift,
             slideFromFormant: ctx.noteParams?.slideFromFormant,
@@ -541,7 +529,7 @@ export function createSamplerPlayback(
             phonemeData: currentPhonemeData
         });
 
-        // 5. Phoneme Formant Glides (Post-trigger)
+        // 4. Phoneme Formant Glides (Post-trigger)
         if (ctx.alignment && ctx.noteParams?.phonemes?.length) {
             voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
         }
