@@ -9,7 +9,7 @@
 import type { SamplerBankParams } from '../types';
 
 /** Harmony type presets for common musical intervals */
-export type HarmonyType = 'octave' | 'fifth' | 'third' | 'cluster' | 'custom';
+export type HarmonyType = 'octave' | 'fifth' | 'third' | 'cluster' | 'custom' | 'unison';
 
 /** Configuration for the harmonizer */
 export interface HarmonizerConfig {
@@ -77,7 +77,8 @@ const HARMONY_INTERVALS: Record<HarmonyType, number[]> = {
     fifth: [7, -7],            // +Fifth, -Fourth (no 0 - base is always added separately)
     third: [4, 3, -3, -4],     // Major 3rd, Minor 3rd, -Minor 3rd, -Major 3rd
     cluster: [2, -2, 1, -1],   // Dense cluster around root
-    custom: [4, 7, 12]         // Default custom (major triad extensions)
+    custom: [4, 7, 12],        // Default custom (major triad extensions)
+    unison: [0, 0, 0, 0]       // Same pitch, relying purely on detune/formant spread
 };
 
 /** Voice panning distribution for stereo spread */
@@ -269,7 +270,8 @@ export class Harmonizer {
             fifth: '5TH',
             third: '3RD',
             cluster: 'CLU',
-            custom: 'CUST'
+            custom: 'CUST',
+            unison: 'UNI'
         };
         
         return `${this.config.voiceCount}V ${typeLabels[this.config.harmonyType]}`;
@@ -386,6 +388,24 @@ export const HARMONIZE_PRESETS = {
         envRelease: 0.3,
         harmonyAttack: 0.8,
         harmonyRelease: 1.5
+    }),
+
+    /** Multi-voice unison with wide detune */
+    unison: (): HarmonizerConfig => ({
+        voiceCount: 4,
+        harmonyType: 'unison',
+        detuneSpread: 20,
+        formantSpread: 4,
+        busGain: 0.85,
+        busCompressorThreshold: -15,
+        busEqGain: -2.0,
+        busWidener: 0.8,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3,
+        harmonyAttack: 0.1,
+        harmonyRelease: 0.4
     })
 };
 
