@@ -183,14 +183,14 @@ export class ProphecyOscillator {
 
     // ── MIDI ──────────────────────────────────────────────────────────────────
 
-    noteOn(midiNote: number, velocity: number = 100): void {
+    noteOn(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+        this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity, audioTime } });
     }
 
-    noteOff(midiNote: number): void {
+    noteOff(midiNote: number, audioTime?: number): void {
         if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+        this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
     }
 
     allNotesOff(): void {

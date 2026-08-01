@@ -592,7 +592,13 @@ class Open303Processor extends AudioWorkletProcessor {
         const now = getTime();
 
         // Rate limit check
-        this.noteOnTimes = this.noteOnTimes.filter(t => now - t < 1000);
+        let keepCount = 0;
+        for (let i = 0; i < this.noteOnTimes.length; i++) {
+            if (now - this.noteOnTimes[i] < 1000) {
+                this.noteOnTimes[keepCount++] = this.noteOnTimes[i];
+            }
+        }
+        this.noteOnTimes.length = keepCount;
         if (this.noteOnTimes.length >= Open303Processor.MAX_NOTES_PER_SECOND) {
             console.warn(`[Open303] Rate limit exceeded, dropping note ${note}`);
             return;

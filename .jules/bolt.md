@@ -32,3 +32,10 @@
 ## 2026-07-29 - Never guess function names in Code Mod tools
 **Learning:** When using code modification tools or planning edits, guessing function names (like `playPhoneme` instead of observing the context of the diff or line number) leads to failed plans due to violating the Groundedness Rule.
 **Action:** Always reference exact line numbers or explicitly verified code blocks obtained from `grep` or `cat` when planning or applying git merge diffs.
+## 2026-08-01 - Prevent state leakage with module level object reuse
+**Learning:** Reusing module-level scratch objects using  or loops to clear keys is a fast method to avoid object allocations in hot paths like . However, when dealing with nested structures like  in , simply copying over properties dynamically into a scratch object without clearing out previous parameters creates state leakage which results in bugs.
+**Action:** When manually managing module-level objects, track keys being set using a secondary string array list. Loop over this list to explicitly set properties to  before populating new data into the object to safely and performantly reset state without invoking V8 garbage collection through the `delete` keyword.
+
+## 2026-08-01 - Prevent state leakage with module level object reuse
+**Learning:** Reusing module-level scratch objects using `Object.assign()` or loops to clear keys is a fast method to avoid object allocations in hot paths like `useStepHandler`. However, when dealing with nested structures like `SynthParams` in `audioPlayback.ts`, simply copying over properties dynamically into a scratch object without clearing out previous parameters creates state leakage which results in bugs.
+**Action:** When manually managing module-level objects, track keys being set using a secondary string array list. Loop over this list to explicitly set properties to `undefined` before populating new data into the object to safely and performantly reset state without invoking V8 garbage collection through the `delete` keyword.
