@@ -101,6 +101,9 @@ export class SingingVoice implements SingingVoicePublic {
    */
   outputDestinations: Set<AudioNode> = new Set();
 
+  isActive: boolean = false;
+  currentPitch: number | null = null;
+
   constructor(audioContext: AudioContext, config: SingingVoiceConfig = {}) {
     this.audioContext = audioContext;
     this.config = {
