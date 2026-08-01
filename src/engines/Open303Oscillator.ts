@@ -215,7 +215,7 @@ export class Open303Oscillator {
         this.fallbackSynth.setVolume(this.params.volume);
     }
 
-    noteOn(midiNote: number, velocity: number = 100): void {
+    noteOn(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
@@ -225,13 +225,13 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity, audioTime } });
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
     }
 
-    noteOff(midiNote: number): void {
+    noteOff(midiNote: number, audioTime?: number): void {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
@@ -241,7 +241,7 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }

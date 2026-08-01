@@ -1,3 +1,5 @@
+const _synthParamsScratchKeys: string[] = [];
+const _synthParamsScratch: SynthParams = {} as SynthParams;
 import type { MutableRefObject } from "react";
 import type {
   AudioEngine,
@@ -166,6 +168,7 @@ export function createPlaySynth(
     const actualTime =
       time + (noteParams?.microtiming ? noteParams.microtiming * stepTime : 0);
     let effectiveParams = params;
+
     if (
       noteParams?.pan !== undefined ||
       noteParams?.timbre !== undefined ||
@@ -176,7 +179,16 @@ export function createPlaySynth(
       noteParams?.portamento !== undefined ||
       noteParams?.formantShift !== undefined
     ) {
-      effectiveParams = { ...params };
+      for (let i = 0; i < _synthParamsScratchKeys.length; i++) {
+        (_synthParamsScratch as any)[_synthParamsScratchKeys[i]] = undefined;
+      }
+      _synthParamsScratchKeys.length = 0;
+      effectiveParams = _synthParamsScratch;
+      // Reuse a module-level object to prevent allocations on hot path
+      for (const k in params) {
+        (effectiveParams as any)[k] = (params as any)[k];
+        _synthParamsScratchKeys.push(k);
+      }
 
       if (noteParams?.timbre !== undefined) {
         const mod = 0.5 + noteParams.timbre;
@@ -285,33 +297,18 @@ export function createPlaySynth(
             noteDuration,
           );
 
+          const driveAmount =
+            noteParams?.drive !== undefined
+              ? noteParams.drive
+              : params.drive || 0;
           setTimeout(() => {
-            const t0 = performance.now();
-            const driveAmount =
-              noteParams?.drive !== undefined
-                ? noteParams.drive
-                : params.drive || 0;
             refs.open303ManagerRef.current?.setBass2Drive(driveAmount);
-            refs.open303ManagerRef.current?.noteOnBass2(midi, velocity);
-            const t1 = performance.now();
-            try {
-              engineTelemetry.recordLatency("jc303", t1 - t0);
-            } catch (_) {}
           }, startDelay * 1000);
+          refs.open303ManagerRef.current?.noteOnBass2(midi, velocity, noteTime);
 
-          setTimeout(
-            () => {
-              if (slideFromFreq === undefined) {
-                const t0 = performance.now();
-                refs.open303ManagerRef.current?.noteOffBass2(midi);
-                const t1 = performance.now();
-                try {
-                  engineTelemetry.recordLatency("jc303", t1 - t0);
-                } catch (_) {}
-              }
-            },
-            (startDelay + noteDuration) * 1000,
-          );
+          if (slideFromFreq === undefined) {
+            refs.open303ManagerRef.current?.noteOffBass2(midi, noteTime + noteDuration);
+          }
         }
         continue;
       }
@@ -332,33 +329,18 @@ export function createPlaySynth(
             noteDuration,
           );
 
+          const driveAmount =
+            noteParams?.drive !== undefined
+              ? noteParams.drive
+              : params.drive || 0;
           setTimeout(() => {
-            const t0 = performance.now();
-            const driveAmount =
-              noteParams?.drive !== undefined
-                ? noteParams.drive
-                : params.drive || 0;
             refs.open303ManagerRef.current?.setBass1Drive(driveAmount);
-            refs.open303ManagerRef.current?.noteOnBass1(midi, velocity);
-            const t1 = performance.now();
-            try {
-              engineTelemetry.recordLatency("jc303", t1 - t0);
-            } catch (_) {}
           }, startDelay * 1000);
+          refs.open303ManagerRef.current?.noteOnBass1(midi, velocity, noteTime);
 
-          setTimeout(
-            () => {
-              if (slideFromFreq === undefined) {
-                const t0 = performance.now();
-                refs.open303ManagerRef.current?.noteOffBass1(midi);
-                const t1 = performance.now();
-                try {
-                  engineTelemetry.recordLatency("jc303", t1 - t0);
-                } catch (_) {}
-              }
-            },
-            (startDelay + noteDuration) * 1000,
-          );
+          if (slideFromFreq === undefined) {
+            refs.open303ManagerRef.current?.noteOffBass1(midi, noteTime + noteDuration);
+          }
 
           continue;
         }
@@ -373,33 +355,18 @@ export function createPlaySynth(
           const startDelay = Math.max(0, noteTime - now);
           const noteDuration = subDuration;
 
+          const driveAmount =
+            noteParams?.drive !== undefined
+              ? noteParams.drive
+              : params.drive || 0;
           setTimeout(() => {
-            const t0 = performance.now();
-            const driveAmount =
-              noteParams?.drive !== undefined
-                ? noteParams.drive
-                : params.drive || 0;
             refs.open303ManagerRef.current?.setLead303Drive(driveAmount);
-            refs.open303ManagerRef.current?.noteOnLead303(midi, velocity);
-            const t1 = performance.now();
-            try {
-              engineTelemetry.recordLatency("jc303", t1 - t0);
-            } catch (_) {}
           }, startDelay * 1000);
+          refs.open303ManagerRef.current?.noteOnLead303(midi, velocity, noteTime);
 
-          setTimeout(
-            () => {
-              if (slideFromFreq === undefined) {
-                const t0 = performance.now();
-                refs.open303ManagerRef.current?.noteOffLead303(midi);
-                const t1 = performance.now();
-                try {
-                  engineTelemetry.recordLatency("jc303", t1 - t0);
-                } catch (_) {}
-              }
-            },
-            (startDelay + noteDuration) * 1000,
-          );
+          if (slideFromFreq === undefined) {
+            refs.open303ManagerRef.current?.noteOffLead303(midi, noteTime + noteDuration);
+          }
 
           continue;
         }
@@ -419,23 +386,11 @@ export function createPlaySynth(
             noteDuration,
           );
 
-          setTimeout(() => {
-            const t0 = performance.now();
-            refs.prophecyManagerRef?.current?.noteOnPartB(midi, 100);
-            const t1 = performance.now();
-            try {
-              engineTelemetry.recordLatency("prophecy", t1 - t0);
-            } catch (_) {}
-          }, startDelay * 1000);
+          refs.prophecyManagerRef?.current?.noteOnPartB(midi, 100, noteTime);
 
-          setTimeout(
-            () => {
-              if (slideFromFreq === undefined) {
-                refs.prophecyManagerRef?.current?.noteOffPartB(midi);
-              }
-            },
-            (startDelay + noteDuration) * 1000,
-          );
+          if (slideFromFreq === undefined) {
+            refs.prophecyManagerRef?.current?.noteOffPartB(midi, noteTime + noteDuration);
+          }
 
           continue;
         }
@@ -447,23 +402,11 @@ export function createPlaySynth(
           const startDelay = Math.max(0, noteTime - now);
           const noteDuration = subDuration;
 
-          setTimeout(() => {
-            const t0 = performance.now();
-            refs.prophecyManagerRef?.current?.noteOnPartA(midi, 100);
-            const t1 = performance.now();
-            try {
-              engineTelemetry.recordLatency("prophecy", t1 - t0);
-            } catch (_) {}
-          }, startDelay * 1000);
+          refs.prophecyManagerRef?.current?.noteOnPartA(midi, 100, noteTime);
 
-          setTimeout(
-            () => {
-              if (slideFromFreq === undefined) {
-                refs.prophecyManagerRef?.current?.noteOffPartA(midi);
-              }
-            },
-            (startDelay + noteDuration) * 1000,
-          );
+          if (slideFromFreq === undefined) {
+            refs.prophecyManagerRef?.current?.noteOffPartA(midi, noteTime + noteDuration);
+          }
 
           continue;
         }

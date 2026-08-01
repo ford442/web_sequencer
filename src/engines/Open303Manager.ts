@@ -262,54 +262,54 @@ export class Open303Manager {
     /**
      * Trigger note on bass1
      */
-    noteOnBass1(midiNote: number, velocity: number = 100): void {
+    noteOnBass1(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (this.bass1Ready && this.bass1) {
-            this.bass1.noteOn(midiNote, velocity);
+            this.bass1.noteOn(midiNote, velocity, audioTime);
         }
     }
 
     /**
      * Release note on bass1
      */
-    noteOffBass1(midiNote: number): void {
+    noteOffBass1(midiNote: number, audioTime?: number): void {
         if (this.bass1Ready && this.bass1) {
-            this.bass1.noteOff(midiNote);
+            this.bass1.noteOff(midiNote, audioTime);
         }
     }
 
     /**
      * Trigger note on bass2
      */
-    noteOnBass2(midiNote: number, velocity: number = 100): void {
+    noteOnBass2(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (this.bass2Ready && this.bass2) {
-            this.bass2.noteOn(midiNote, velocity);
+            this.bass2.noteOn(midiNote, velocity, audioTime);
         }
     }
 
     /**
      * Release note on bass2
      */
-    noteOffBass2(midiNote: number): void {
+    noteOffBass2(midiNote: number, audioTime?: number): void {
         if (this.bass2Ready && this.bass2) {
-            this.bass2.noteOff(midiNote);
+            this.bass2.noteOff(midiNote, audioTime);
         }
     }
 
     /**
      * Trigger note on lead303 (partA / SYNTH A LEAD)
      */
-    noteOnLead303(midiNote: number, velocity: number = 100): void {
+    noteOnLead303(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (this.lead303Ready && this.lead303) {
-            this.lead303.noteOn(midiNote, velocity);
+            this.lead303.noteOn(midiNote, velocity, audioTime);
         }
     }
 
     /**
      * Release note on lead303 (partA / SYNTH A LEAD)
      */
-    noteOffLead303(midiNote: number): void {
+    noteOffLead303(midiNote: number, audioTime?: number): void {
         if (this.lead303Ready && this.lead303) {
-            this.lead303.noteOff(midiNote);
+            this.lead303.noteOff(midiNote, audioTime);
         }
     }
 
@@ -429,8 +429,8 @@ export class Open303Manager {
     setEnvMod(v: number) { this.bass1?.setEnvMod(v); }
     setAccent(v: number) { this.bass1?.setAccent(v); }
     setVolume(v: number) { this.bass1?.setVolume(v); }
-    noteOn(note: number, velocity: number = 100) { this.noteOnBass1(note, velocity); }
-    noteOff(note: number) { this.noteOffBass1(note); }
+    noteOn(note: number, velocity: number = 100, audioTime?: number) { this.noteOnBass1(note, velocity, audioTime); }
+    noteOff(note: number, audioTime?: number) { this.noteOffBass1(note, audioTime); }
 
     /**
      * Get bass1 ready state

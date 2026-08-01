@@ -213,9 +213,9 @@ export function noteOffSampler(ctx: SamplerPlaybackContext, state: SamplerState,
 }
 
 export function stopAllSamplerNotes(state: SamplerState): void {
-    state.activeNotes.forEach(n => {
+    for (const n of state.activeNotes.values()) {
         try { n.source.stop(); } catch {}
-    });
+    }
     state.activeNotes.clear();
 }
 

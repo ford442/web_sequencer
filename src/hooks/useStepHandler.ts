@@ -48,6 +48,7 @@ import {
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
 const _noteScratch: string[] = [];
+const _liveValuesKeys: string[] = [];
 const _liveValuesScratch: Record<string, number> = {};
 const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
 const _bankParamsScratch: Partial<SamplerBankParams> = {};
@@ -88,7 +89,7 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     for (let i = 0; i < len; i++) {
         _noteScratch[i] = midiToNote(_midiScratch[i]);
     }
-    return _noteScratch.slice();
+    return _noteScratch;
 }
 
 export interface UseStepHandlerOptions {
@@ -204,7 +205,7 @@ export const useStepHandler = ({
                 } else {
                     const nextM = songMeasureRef.current + 1;
                     songMeasureRef.current = nextM < songStructureRef.current.length ? nextM : 0;
-                    setTimeout(() => setCurrentSongMeasure(songMeasureRef.current), 0);
+                    requestAnimationFrame(() => setCurrentSongMeasure(songMeasureRef.current));
                 }
 
                 // Schedule sub-step trakEvents for the current bar (RBS imported songs).
@@ -351,7 +352,7 @@ export const useStepHandler = ({
             const b2Drive = getAutomationValue('bass2', 'drive', step);
             if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
 
-            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, Object.keys(bass2NoteParams).length ? bass2NoteParams : undefined);
+            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
         };
 
         // Trigger synths
@@ -464,7 +465,10 @@ export const useStepHandler = ({
             const liveValues = _liveValuesScratch;
             let hasLiveValues = false;
             // Clear scratch object
-            for (const key in liveValues) delete liveValues[key];
+            for (let i = 0; i < _liveValuesKeys.length; i++) {
+                liveValues[_liveValuesKeys[i]] = undefined as any;
+            }
+            _liveValuesKeys.length = 0;
 
             const schedulerLanes = _schedulerLanesScratch;
             schedulerLanes.length = 0;
@@ -486,7 +490,9 @@ export const useStepHandler = ({
                 if (normVal === null) continue;
 
                 // Track for UI automation indicators
-                liveValues[`${lane.target}:${lane.parameter}`] = normVal;
+                const cacheKey = `${lane.target}:${lane.parameter}`;
+                if (liveValues[cacheKey] === undefined) _liveValuesKeys.push(cacheKey);
+                liveValues[cacheKey] = normVal;
                 hasLiveValues = true;
 
                 // Denormalize using originalRange if present (from RBS import), else heuristics for voice params
@@ -529,7 +535,9 @@ export const useStepHandler = ({
                     const lane = schedulerLanes[i];
                     const normVal = automationStore.getValueAtStep(lane, step);
                     if (normVal === null) continue;
-                    liveValues[`${lane.target}:${lane.parameter}`] = normVal;
+                    const cacheKey = `${lane.target}:${lane.parameter}`;
+                if (liveValues[cacheKey] === undefined) _liveValuesKeys.push(cacheKey);
+                liveValues[cacheKey] = normVal;
                     hasLiveValues = true;
                 }
             }

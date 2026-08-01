@@ -86,8 +86,8 @@ export function playSynth(
             const startDelay = Math.max(0, time - now);
             const duration = durationSteps * stepTime;
 
-            setTimeout(() => open303Engine.noteOn(midi, 100), startDelay * 1000);
-            setTimeout(() => open303Engine.noteOff(midi), (startDelay + duration) * 1000);
+            open303Engine.noteOn(midi, 100, now + startDelay);
+            open303Engine.noteOff(midi, now + startDelay + duration);
             return;
         }
     }
@@ -103,8 +103,8 @@ export function playSynth(
             const startDelay = Math.max(0, time - now);
             const duration = durationSteps * stepTime;
 
-            setTimeout(() => prophecyEngine.noteOn(midi, 100), startDelay * 1000);
-            setTimeout(() => prophecyEngine.noteOff(midi), (startDelay + duration) * 1000);
+            prophecyEngine.noteOn(midi, 100, now + startDelay);
+            prophecyEngine.noteOff(midi, now + startDelay + duration);
             return;
         }
     }
@@ -285,6 +285,6 @@ export function noteOffSynth(state: SynthNoteState, id: number): void {
  * Stop all active synth notes
  */
 export function stopAllSynthNotes(state: SynthNoteState): void {
-    state.activeNotes.forEach(n => n.stop());
+    for (const n of state.activeNotes.values()) n.stop();
     state.activeNotes.clear();
 }

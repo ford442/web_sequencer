@@ -143,19 +143,19 @@ export class ProphecyManager {
 
     // ── Note control ─────────────────────────────────────────────────────────
 
-    noteOnPartA(midiNote: number, velocity: number = 100): void {
+    noteOnPartA(midiNote: number, velocity: number = 100, audioTime?: number): void {
         this.partA?.noteOn(midiNote, velocity);
     }
 
-    noteOffPartA(midiNote: number): void {
+    noteOffPartA(midiNote: number, audioTime?: number): void {
         this.partA?.noteOff(midiNote);
     }
 
-    noteOnPartB(midiNote: number, velocity: number = 100): void {
+    noteOnPartB(midiNote: number, velocity: number = 100, audioTime?: number): void {
         this.partB?.noteOn(midiNote, velocity);
     }
 
-    noteOffPartB(midiNote: number): void {
+    noteOffPartB(midiNote: number, audioTime?: number): void {
         this.partB?.noteOff(midiNote);
     }
 
