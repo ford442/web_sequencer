@@ -83,7 +83,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
@@ -265,13 +264,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
    * Determine the phoneme parameters for the current sample position.
    * Returns [stretchRatio, volume, pitchBend, vibDepth, vibRate]
    */
-  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number] {
-    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0];
+  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number] {
+    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0];
 
     const count = this.phonemeData[0];
-    // Phoneme data stride is 8 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate
+    // Phoneme data stride is 9 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate, grainJitter
     for (let i = 0; i < count; i++) {
-      const baseIndex = 1 + i * 8;
+      const baseIndex = 1 + i * 9;
       const start = this.phonemeData[baseIndex];
       const end = this.phonemeData[baseIndex + 1];
 
@@ -281,10 +280,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const pitchBend = this.phonemeData[baseIndex + 5] !== undefined ? this.phonemeData[baseIndex + 5] : 0.0;
         const vibDepth = this.phonemeData[baseIndex + 6] !== undefined ? this.phonemeData[baseIndex + 6] : -1.0;
         const vibRate = this.phonemeData[baseIndex + 7] !== undefined ? this.phonemeData[baseIndex + 7] : -1.0;
-        return [ratio, volume, pitchBend, vibDepth, vibRate];
+        const grainJitter = this.phonemeData[baseIndex + 8] !== undefined ? this.phonemeData[baseIndex + 8] : -1.0;
+        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter];
       }
     }
-    return [1.0, 1.0, 0.0, -1.0, -1.0];
+    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0];
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -333,7 +333,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     let currentVibDepth = vibDepth;
     let currentVibRate = vibRate;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, _pBend, pVibDepth, pVibRate] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
     }
@@ -378,7 +378,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, pBend, _vDepth, _vRate] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
@@ -404,7 +404,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         let phonemeVolume = 1.0;
         let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          const [pRatio, pVol, pBend, _vDepth, _vRate] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
           ratio = pRatio;
           phonemeVolume = pVol;
           phonemePitchBendCents = pBend;
@@ -466,7 +466,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             // Modulate grain size with envelope: louder = smaller grains for more texture
             const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
 
-            const grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
+            let grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
+
+            // Check for per-phoneme grainJitter override
+            if (this.phonemeData && this.phonemeRatios) {
+                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                if (pGrainJitter !== -1.0) {
+                    grainJitter = pGrainJitter;
+                }
+            }
+
             // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
             const jitterOffset = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
@@ -569,7 +578,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Apply phoneme volume
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-            const [_, pVol, _pBend, _vDepth, _vRate] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const [_, pVol, _pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
             if (pVol !== 1.0) {
                 for (let i = 0; i < outputChannel.length; i++) {
                     outputChannel[i] *= pVol;
