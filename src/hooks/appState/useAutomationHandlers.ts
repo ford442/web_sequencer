@@ -84,7 +84,8 @@ export function useAutomationHandlers(deps: {
 
     useEffect(() => {
         if (isAutomationRecording && schedPlaying) {
-            GLOBAL_ARM_PARAMS.forEach(({ target, param }) => {
+            for (let i = 0; i < GLOBAL_ARM_PARAMS.length; i++) {
+                const { target, param } = GLOBAL_ARM_PARAMS[i];
                 if (!automationStore.isParameterArmed(target, param)) {
                     automationStore.armParameter(target, param);
                 }
@@ -92,16 +93,17 @@ export function useAutomationHandlers(deps: {
                 if (!buf) {
                     automationStore.startRecording(target, param);
                 }
-            });
+            }
         } else if (!isAutomationRecording || !schedPlaying) {
-            GLOBAL_ARM_PARAMS.forEach(({ target, param }) => {
+            for (let i = 0; i < GLOBAL_ARM_PARAMS.length; i++) {
+                const { target, param } = GLOBAL_ARM_PARAMS[i];
                 if (automationStore.isParameterArmed(target, param)) {
                     const scope: 'pattern' | 'song' = isSongModeActive ? 'song' : 'pattern';
                     const patternIdx = isSongModeActive ? undefined : (activeTrackSlotsRef.current['partA'] ?? 0);
                     automationStore.stopRecording(target, param, { scope, patternIndex: patternIdx, name: `${target}.${param} (recorded)` });
                     automationStore.disarmParameter(target, param);
                 }
-            });
+            }
         }
     }, [isAutomationRecording, schedPlaying, isSongModeActive, activeTrackSlotsRef]);
 

@@ -75,7 +75,8 @@ export function useLyricHandlers(deps: {
             newCH.steps = Array(32).fill(null);
             newOH.steps = Array(32).fill(null);
             const stepTime = 60 / tempoRef.current / 4;
-            alignment.phonemes.forEach((p: any) => {
+            for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+                const p = alignment.phonemes[_i] as any;
                 const stepIdx = Math.round(p.start / stepTime);
                 if (stepIdx >= 0 && stepIdx < 32) {
                     const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
@@ -89,7 +90,7 @@ export function useLyricHandlers(deps: {
                     else if (isHat) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
                     else newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
                 }
-            });
+            }
             newPattern.kick = newKick;
             newPattern.snare = newSnare;
             newPattern.closedHat = newCH;
@@ -137,7 +138,8 @@ export function useLyricHandlers(deps: {
                 const stepTime = 60 / tempoRef.current / 4;
                 const newSteps = Array(32).fill(null);
 
-                alignment.phonemes.forEach((p: { start: number; end: number; phoneme: string }, i: number) => {
+                for (let i = 0; i < alignment.phonemes.length; i++) {
+                    const p = alignment.phonemes[i] as { start: number; end: number; phoneme: string };
                     const startStep = Math.round(p.start / stepTime);
                     if (startStep >= 0 && startStep < 32) {
                         const durationSteps = Math.max(1, Math.round((p.end - p.start) / stepTime));
@@ -149,7 +151,7 @@ export function useLyricHandlers(deps: {
                         };
                         noteIndex++;
                     }
-                });
+                }
 
                 newPattern = {
                     ...prev,
@@ -183,7 +185,8 @@ export function useLyricHandlers(deps: {
 
                     let lastPhonemeEnd = 0;
 
-                    alignment.phonemes.forEach((p: any, i: number) => {
+                    for (let i = 0; i < alignment.phonemes.length; i++) {
+                        const p = alignment.phonemes[i] as any;
                         const stepIdx = Math.round(p.start / stepTime);
 
                         // Treat as new syllable if there's a gap or it's the first phoneme
@@ -200,7 +203,7 @@ export function useLyricHandlers(deps: {
                             }
                         }
                         lastPhonemeEnd = p.end;
-                    });
+                    }
 
                     newSamplerSequence[bankIdx] = currentBankSequence;
                     newPattern = { ...newPattern, sampler: newSamplerSequence };
