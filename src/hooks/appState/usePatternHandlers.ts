@@ -261,10 +261,12 @@ export function usePatternHandlers(deps: {
             setPattern(emptyPattern);
             setTrackStorage(prevStorage => {
                 const storageCopy = { ...prevStorage };
-                (Object.keys(storageCopy) as TrackKey[]).forEach(key => {
+                const keys = Object.keys(storageCopy) as TrackKey[];
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
                     storageCopy[key] = [...storageCopy[key]];
                     storageCopy[key][activeTrackSlotsRef.current[key]] = emptyPattern[key];
-                });
+                }
                 return storageCopy;
             });
         }

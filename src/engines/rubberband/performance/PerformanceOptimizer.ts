@@ -527,9 +527,9 @@ export class PerformanceOptimizer {
      * Terminate all workers in the pool.
      */
     terminateWorkers(): void {
-        this.workers.forEach(status => {
-            status.worker.terminate();
-        });
+        for (let i = 0; i < this.workers.length; i++) {
+            this.workers[i].worker.terminate();
+        }
         this.workers = [];
         this.taskQueue = [];
     }
@@ -608,13 +608,13 @@ export class PerformanceOptimizer {
             const status = this.getCpuLoadStatus();
 
             if (status.isOverloaded) {
-                this.overloadCallbacks.forEach(cb => {
+                for (let i = 0; i < this.overloadCallbacks.length; i++) {
                     try {
-                        cb(status);
+                        this.overloadCallbacks[i](status);
                     } catch (e) {
                         console.error('Error in overload callback:', e);
                     }
-                });
+                }
             }
         }, this.config.cpuMonitorIntervalMs);
     }
@@ -641,13 +641,13 @@ export class PerformanceOptimizer {
 
             console.log(`PerformanceOptimizer: Quality adjusted ${oldQuality} -> ${this.currentQuality} (load: ${(status.load * 100).toFixed(1)}%)`);
 
-            this.qualityChangeCallbacks.forEach(cb => {
+            for (let i = 0; i < this.qualityChangeCallbacks.length; i++) {
                 try {
-                    cb(this.currentQuality);
+                    this.qualityChangeCallbacks[i](this.currentQuality);
                 } catch (e) {
                     console.error('Error in quality change callback:', e);
                 }
-            });
+            }
         }
     }
 
@@ -709,13 +709,13 @@ export class PerformanceOptimizer {
     setQuality(level: QualityLevel): void {
         if (this.currentQuality !== level) {
             this.currentQuality = level;
-            this.qualityChangeCallbacks.forEach(cb => {
+            for (let i = 0; i < this.qualityChangeCallbacks.length; i++) {
                 try {
-                    cb(level);
+                    this.qualityChangeCallbacks[i](level);
                 } catch (e) {
                     console.error('Error in quality change callback:', e);
                 }
-            });
+            }
         }
     }
 
