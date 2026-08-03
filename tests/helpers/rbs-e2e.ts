@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { initializeHyphonAudio as bootHyphon } from './boot';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,22 +28,18 @@ declare global {
 
 /** Dismiss StartOverlay and wait for transport controls. */
 export async function initializeHyphonAudio(page: Page): Promise<void> {
-  await page.goto('/?e2e=1');
-
-  const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
-  await startBtn.waitFor({ state: 'visible', timeout: 90_000 });
-  await expect(startBtn).toBeEnabled({ timeout: 90_000 });
-  await startBtn.click({ force: true });
-  await startBtn.waitFor({ state: 'hidden', timeout: 30_000 });
-
-  await expect(page.getByRole('button', { name: 'Start Playback', exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
+  await bootHyphon(page);
 }
 
 /** Open import modal, load fixture, import, verify report panel. */
 export async function importRbsFixture(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /import.*\.rbs/i }).click();
+  // BottomBar uses an explicit aria-label; scroll into view for compact layouts.
+  const importTrigger = page.getByRole('button', {
+    name: /Import ReBirth RB-338 \.rbs file/i,
+  });
+  await expect(importTrigger).toBeVisible({ timeout: 30_000 });
+  await importTrigger.scrollIntoViewIfNeeded();
+  await importTrigger.click();
   await expect(page.getByRole('dialog', { name: /import rebirth/i })).toBeVisible();
 
   await page.getByLabel('Upload .rbs file').setInputFiles(E2E_RBS_FIXTURE);

@@ -48,7 +48,11 @@ test.describe('RBS import E2E', () => {
   }) => {
     await initializeHyphonAudio(page);
 
-    await page.getByRole('button', { name: /import.*\.rbs/i }).click();
+    const importTrigger = page.getByRole('button', {
+      name: /Import ReBirth RB-338 \.rbs file/i,
+    });
+    await importTrigger.scrollIntoViewIfNeeded();
+    await importTrigger.click();
     await page.getByLabel('Upload .rbs file').setInputFiles(E2E_RBS_FIXTURE);
     const importBtn = page.getByRole('button', { name: /import song/i });
     await expect(importBtn).toBeEnabled({ timeout: 30_000 });

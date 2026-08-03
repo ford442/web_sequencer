@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { initializeHyphonAudio } from './helpers/knob-e2e';
+import { initializeHyphonAudio } from './helpers/boot';
 
 // Mirrors KNOB_MATERIAL.palette.background (#0d0f13); kept literal so evaluate() stays browser-serializable.
 const KNOB_BACKGROUND_RGB = [13, 15, 19] as const;
@@ -51,12 +51,10 @@ test('hardware knob renders on forced Canvas2D fallback', async ({ page }) => {
         });
     });
 
-    await page.goto('/');
-
     await initializeHyphonAudio(page);
 
     const knobCanvas = page.locator('[data-testid^="hardware-knob-canvas-"]').first();
-    await expect(knobCanvas).toBeVisible({ timeout: 30000 });
+    await expect(knobCanvas).toBeVisible({ timeout: 30_000 });
 
     await expect
         .poll(
@@ -66,7 +64,7 @@ test('hardware knob renders on forced Canvas2D fallback', async ({ page }) => {
                     deltaTolerance: NON_BACKGROUND_DELTA_TOLERANCE,
                     gridDivisor: PIXEL_SAMPLE_GRID_DIVISOR,
                 }),
-            { timeout: 10000 }
+            { timeout: 10_000 }
         )
         .toBeGreaterThan(0);
 });
@@ -79,11 +77,10 @@ test.fixme('hardware knob canvas tracks live automated value on Canvas2D fallbac
         });
     });
 
-    await page.goto('/?e2e=1');
     await initializeHyphonAudio(page);
 
     const cutoffCanvas = page.getByTestId('hardware-knob-canvas-filterCutoff');
-    await expect(cutoffCanvas).toBeVisible({ timeout: 30000 });
+    await expect(cutoffCanvas).toBeVisible({ timeout: 30_000 });
 
     await page.evaluate(() => {
         const hooks = (window as unknown as {
@@ -92,7 +89,7 @@ test.fixme('hardware knob canvas tracks live automated value on Canvas2D fallbac
         hooks?.setLiveAutomatedValue('synthA', 'filterCutoff', 0.15);
     });
 
-    await expect(page.getByText('AUTO').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('AUTO').first()).toBeVisible({ timeout: 5_000 });
 
     await expect
         .poll(
@@ -102,7 +99,7 @@ test.fixme('hardware knob canvas tracks live automated value on Canvas2D fallbac
                     deltaTolerance: NON_BACKGROUND_DELTA_TOLERANCE,
                     gridDivisor: PIXEL_SAMPLE_GRID_DIVISOR,
                 }),
-            { timeout: 10000 }
+            { timeout: 10_000 }
         )
         .toBeGreaterThan(0);
 
@@ -129,7 +126,7 @@ test.fixme('hardware knob canvas tracks live automated value on Canvas2D fallbac
                 });
                 return high !== lowSample;
             },
-            { timeout: 10000 }
+            { timeout: 10_000 }
         )
         .toBe(true);
 });
