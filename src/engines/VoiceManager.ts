@@ -4,7 +4,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
 import type { WasmOscillator } from './WasmOscillator';
 import type { RustOscillator } from './RustOscillator';
-import { logEngineFallback } from '../utils/engineTelemetry';
+import { logEngineFallback, logWaveformSubstitution } from '../utils/engineTelemetry';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import {
     PYODIDE_REF_FREQ,
@@ -203,7 +203,20 @@ export class Voice implements PoolableVoice {
                 // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
                 // defined as valid Rust waveforms in types.ts so this is a guard.
                 if (this.engineDeps?.rustEngine?.isReady) {
-                    const rustShape = (parsed.shape === 'tri' || parsed.shape === 'sin') ? 'saw' : parsed.shape as 'saw' | 'sqr';
+                    // The Rust kernel only implements saw/sqr. Mapping tri/sin onto
+                    // saw changes the wave family the user hears, so it is reported
+                    // (HUD + telemetry) instead of being applied silently.
+                    const needsSubstitution = parsed.shape === 'tri' || parsed.shape === 'sin';
+                    const rustShape = needsSubstitution ? 'saw' : (parsed.shape as 'saw' | 'sqr');
+                    if (needsSubstitution) {
+                        logWaveformSubstitution(
+                            'rust',
+                            'rust',
+                            parsed.shape,
+                            rustShape,
+                            'Rust oscillator implements saw/sqr only',
+                        );
+                    }
                     const float = this.engineDeps.rustEngine.generate(
                         REF_FREQ,
                         2.0,

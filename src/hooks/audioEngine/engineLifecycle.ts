@@ -1,6 +1,15 @@
 import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
+import { RustOscillator } from '../../engines/RustOscillator';
+import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
+import {
+    JsOscillatorBackend,
+    RustWasmBackend,
+    WamWasmBackend,
+    WavPcmBackend,
+    WebGpuBackend,
+} from '../../engines/backends/adapters';
 import { Open303Manager } from '../../engines/Open303Manager';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { VoiceManager } from '../../engines/VoiceManager';
@@ -90,14 +99,29 @@ export async function initializeAudioContextAndEngines(
 
     const { masterBusInput } = buildClassicElectribeGraph(context, refs);
 
-    // Initialize Engines
-    const gpuEngine = new WebGpuOscillator();
-    await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
-    refs.gpuEngineRef.current = gpuEngine;
+    // Initialize oscillator backends through the shared registry. Every engine
+    // is wrapped in an OscillatorBackend adapter so readiness is typed and the
+    // fallback chain (WebGPU → AS WASM → Rust → WAV PCM → JS) lives in one place.
+    const registry = new BackendRegistry();
+    const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
+    const wamBackend = new WamWasmBackend(new WasmOscillator());
+    const rustBackend = new RustWasmBackend(new RustOscillator());
+    const wavBackend = new WavPcmBackend();
+    registry.register(webGpuBackend);
+    registry.register(wamBackend);
+    registry.register(rustBackend);
+    registry.register(wavBackend);
+    registry.register(new JsOscillatorBackend());
+    setOscillatorRegistry(registry);
 
-    const wasmEngine = new WasmOscillator();
-    await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
-    refs.wasmEngineRef.current = wasmEngine;
+    // The WAV backend only becomes supported once its tables are decoded, so it
+    // is initialized further down; the GPU/WASM/Rust backends init here.
+    await webGpuBackend.init(context);
+    await wamBackend.init(context);
+    await rustBackend.init(context);
+
+    refs.gpuEngineRef.current = webGpuBackend.raw;
+    refs.wasmEngineRef.current = wamBackend.raw;
 
     // Initialize Open303 Manager
     const open303Manager = new Open303Manager();
@@ -135,22 +159,27 @@ export async function initializeAudioContextAndEngines(
     refs.wavSawBufferRef.current = sawBuf;
     refs.wavSqrBufferRef.current = sqrBuf;
 
-    // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
-    try {
-        let oscillatorBackend = 'js';
-        if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
-        else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
-        else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
-        engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
-    } catch (e) {
-        console.warn('Engine telemetry registration failed for oscillators', e);
-    }
+    // Resolve the active oscillator backend from the ordered chain. The result
+    // is published to telemetry + the degradation store, so any fallback is
+    // logged and shows up in EngineHUD rather than degrading silently.
+    wavBackend.setBuffers({ saw: sawBuf, sqr: sqrBuf });
+    await wavBackend.init(context);
+    registry.resolveAndPublish();
 
     // Initialize Voice Managers (routed through per-track monitor buses for expression LEDs)
     const synthADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
     const synthBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
     refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
     refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
+
+    // Hand the initialized backends to the voices so rust-*/wam-* waveforms
+    // reach a real engine instead of dropping straight to the JS oscillator.
+    const voiceEngineDeps = {
+        wasmEngine: wamBackend.raw,
+        rustEngine: rustBackend.raw,
+    };
+    refs.voiceManagerARef.current.updateEngineDeps(voiceEngineDeps);
+    refs.voiceManagerBRef.current.updateEngineDeps(voiceEngineDeps);
 
     await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
 

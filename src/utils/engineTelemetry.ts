@@ -686,6 +686,42 @@ export function emitUserEngineFallbackWarning(
   }
 }
 
+/**
+ * Report that a backend rendered a *different waveform family* than the one
+ * requested (e.g. a triangle request serviced as a saw).
+ *
+ * This is the one degradation a user hears but cannot see, so it is never
+ * allowed to be silent: console, telemetry resolution history and the
+ * degradation store (which drives the banner and EngineHUD) all get it.
+ */
+export function logWaveformSubstitution(
+  subsystem: string,
+  backendId: string,
+  requestedShape: string,
+  substitutedShape: string,
+  reason: string,
+): void {
+  const detail = `${backendId} cannot render "${requestedShape}", using "${substitutedShape}" (${reason})`;
+  console.warn(`[WaveformSubstitution] ${subsystem}: ${detail}`);
+  try {
+    engineTelemetry.registerResolution(subsystem, `${backendId}:${substitutedShape}`, detail);
+    engineTelemetry.recordDegradation(subsystem, true, detail);
+    engineDegradationStore.report({
+      id: `waveform-substitution-${subsystem}-${requestedShape}`,
+      subsystem,
+      category: 'audio',
+      message: `"${requestedShape}" waveform is being played as "${substitutedShape}"`,
+      reason: detail,
+      status: 'active',
+      activeBackend: `${backendId}:${substitutedShape}`,
+      requestedBackend: `${backendId}:${requestedShape}`,
+      retryable: false,
+    });
+  } catch {
+    /* telemetry must never break audio */
+  }
+}
+
 export function logEngineFallback(
   subsystem: string,
   requestedBackend: string,
