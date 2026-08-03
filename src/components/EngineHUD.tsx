@@ -1,5 +1,6 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
@@ -65,8 +66,25 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const summary = `<div class="subheader">Audio thread</div>
       <div class="row"><div style="flex:1">Master budget</div><div class="${budgetClass}" style="min-width:72px;text-align:right">${runtime.masterBudgetPercent.toFixed(1)}%</div></div>
       <div class="row"><div style="flex:1">Underruns</div><div style="min-width:72px;text-align:right">${runtime.totalUnderruns}</div></div>
+      <div class="row"><div style="flex:1">Sample rate</div><div style="min-width:72px;text-align:right">${runtime.sampleRate != null ? runtime.sampleRate + ' Hz' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Base latency</div><div style="min-width:72px;text-align:right">${runtime.baseLatencyMs != null ? runtime.baseLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Latency hint (active)</div><div style="min-width:72px;text-align:right">${runtime.latencyHint ?? '—'}</div></div>
       <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
+
+    const storedMode = getStoredLatencyMode();
+    const modeButtons = LATENCY_MODES.map((mode) => {
+      const active = mode === storedMode;
+      const style = active
+        ? 'background:#0ea5e9;border-color:#0ea5e9;'
+        : '';
+      return `<button type="button" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}</button>`;
+    }).join('');
+    const modeAppliesNote = storedMode === runtime.latencyHint
+      ? ''
+      : '<div style="font-size:10px;opacity:0.7;margin-top:4px">Restart audio (reload) to apply</div>';
+    const latencySection = `<div class="subheader">Latency mode</div>
+      <div class="row" style="gap:4px">${modeButtons}</div>${modeAppliesNote}`;
 
     const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
     const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
@@ -124,7 +142,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${offlineSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${latencySection}${offlineSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -134,6 +152,12 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     if (!target) return;
     if (target.id === 'hud-export-btn') {
       engineTelemetry.exportReport();
+    } else if (target.classList.contains('hud-latency-btn')) {
+      const mode = target.getAttribute('data-mode') as LatencyMode | null;
+      if (mode) {
+        setStoredLatencyMode(mode);
+        render();
+      }
     } else if (target.id === 'hud-copy-btn') {
       const json = engineTelemetry.generateReportJSON();
       if (navigator.clipboard?.writeText) {

@@ -57,6 +57,28 @@ Simulates 32 steps × 8 automation lanes + TRAK burst + voice steals without exc
 3. Lower sampler choir width under heavy polyphony.
 4. Use `pnpm exec vitest run src/__tests__/AutomationScheduler.test.ts` after scheduler changes.
 
+## AudioContext latency mode & sample-rate policy (#1033)
+
+Live playback creates its `AudioContext` with an explicit `latencyHint`
+(`interactive` | `balanced` | `playback`), never the browser default. The
+mode is user-selectable in the Engine HUD (`Ctrl+Shift+E`, or `?hud=1`) and
+persisted in `localStorage` under `hyphon.audioLatencyMode` via
+`src/utils/audioLatencyMode.ts`; construction itself is centralized in
+`src/hooks/audioEngine/audioContextFactory.ts` so it stays independently
+testable. A mode change only takes effect on the next context construction
+(app reload) — it is not hot-swapped into a running context.
+
+Sample rate: prefer the device's native rate (no `sampleRate` override in
+`AudioContextOptions`). Engines that load fixed-rate assets (sampler banks,
+TTS phoneme buffers, WAV oscillators) must convert once on load against
+`context.sampleRate`, not re-resample per voice-trigger. Offline export
+paths are unaffected — they keep constructing `OfflineAudioContext` at a
+fixed 44100/48000 regardless of the live-playback latency mode.
+
+The negotiated `sampleRate`, `baseLatency`, and `outputLatency` are logged
+to `engineTelemetry` (`recordAudioContextInfo` / `recordOutputLatency`) and
+surfaced in the Engine HUD's "Audio thread" section.
+
 ## Related
 
 - [automation.md](../automation.md) — lane model

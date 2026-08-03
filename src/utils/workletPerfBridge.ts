@@ -91,13 +91,19 @@ function pollOutputLatency(): void {
 }
 
 /** Start monitoring AudioContext state + output latency (idempotent). */
-export function startGlitchMonitor(context: AudioContext): void {
+export function startGlitchMonitor(context: AudioContext, latencyHint?: string | null): void {
   if (glitchMonitorStarted && monitoredContext === context) return;
   stopGlitchMonitor();
 
   monitoredContext = context;
   glitchMonitorStarted = true;
   lastOutputLatencyMs = null;
+
+  engineTelemetry.recordAudioContextInfo({
+    sampleRate: context.sampleRate,
+    baseLatencyMs: (context.baseLatency ?? 0) * 1000,
+    latencyHint: latencyHint ?? null,
+  });
 
   context.addEventListener('statechange', onContextStateChange);
   pollOutputLatency();
