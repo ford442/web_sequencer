@@ -5,6 +5,7 @@ import {
   getAutomationLaneCount,
   getAutomationPlaybackStep,
   hasSequencerPlayhead,
+  startPlaybackAndAwaitClock,
   E2E_RBS_FIXTURE,
 } from './helpers/rbs-e2e';
 
@@ -30,8 +31,7 @@ test.describe('RBS import E2E', () => {
     await expect(page.getByTestId('cell-partA-0')).toBeVisible();
     await expect(page.getByTestId('cell-partA-1')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
+    await startPlaybackAndAwaitClock(page);
 
     // Transport advances during playback (E2E transport bucket or sequencer playhead).
     await expect
@@ -68,7 +68,7 @@ test.describe('RBS import E2E', () => {
       .poll(() => getAutomationLaneCount(page), { timeout: 5_000 })
       .toBeGreaterThan(0);
 
-    await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
+    await startPlaybackAndAwaitClock(page);
 
     await expect
       .poll(async () => {

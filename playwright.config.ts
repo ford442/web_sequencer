@@ -16,6 +16,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './tests/global-setup.ts',
   timeout: 120_000,
   expect: { timeout: 15_000 },
   // CI gets one retry for transient WASM/CDN warm-up; local stays strict.

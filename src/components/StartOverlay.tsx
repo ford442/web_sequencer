@@ -26,9 +26,10 @@ function isE2EQuery(): boolean {
  * before `initializeAudio` constructs AudioContext — `await context.resume()`
  * then hangs forever on a suspended context (LoadingOverlay never clears).
  *
- * For `?e2e=1` only: make `resume()` non-blocking so engine init can finish.
- * Nodes/worklets still construct while suspended; E2E asserts UI, not audible output.
- * Also reuse a gesture-created context when possible.
+ * For `?e2e=1` only:
+ * 1. Make `resume()` non-blocking so engine init can finish (nodes construct while suspended).
+ * 2. On any real pointerdown/click, call the native resume under that gesture so
+ *    transport/`currentTime` can advance (RBS playhead assertions, etc.).
  */
 function installE2EAudioUnlock(): void {
     if (!isE2EQuery()) return;
@@ -40,10 +41,12 @@ function installE2EAudioUnlock(): void {
     const Orig = w.AudioContext ?? w.webkitAudioContext;
     if (!Orig) return;
 
-    const origResume = Orig.prototype.resume;
+    // Capture native before replacing — gesture unlock must call the real resume.
+    const nativeResumeFn = Orig.prototype.resume;
+
     Orig.prototype.resume = function (this: AudioContext, ...args: unknown[]) {
         try {
-            const result = origResume.apply(this, args as []);
+            const result = nativeResumeFn.apply(this, args as []);
             // Do not await — Firefox may never resolve when activation was lost.
             void Promise.resolve(result).catch(() => undefined);
         } catch {
@@ -63,22 +66,34 @@ function installE2EAudioUnlock(): void {
 
     Object.setPrototypeOf(reuse, Orig);
     reuse.prototype = Orig.prototype;
-    // Keep patched resume on instances from either constructor.
     reuse.prototype.resume = Orig.prototype.resume;
     w.AudioContext = reuse;
     if (w.webkitAudioContext) {
         w.webkitAudioContext = reuse;
     }
+
+    // Capture-phase: Start Playback / any click restores a running clock for E2E.
+    const unlockFromGesture = () => {
+        const ctx = w.audioContext;
+        if (!ctx || ctx.state === 'closed' || ctx.state === 'running') return;
+        try {
+            void nativeResumeFn.call(ctx);
+        } catch {
+            // ignore
+        }
+    };
+    document.addEventListener('pointerdown', unlockFromGesture, true);
+    document.addEventListener('click', unlockFromGesture, true);
 }
 
 function gestureResumeForE2E(): void {
     if (!isE2EQuery()) return;
     const w = window as AudioWindow;
-    const Orig = w.AudioContext ?? w.webkitAudioContext;
-    if (!Orig) return;
+    const Ctor = w.AudioContext ?? w.webkitAudioContext;
+    if (!Ctor) return;
     try {
         if (!w.audioContext || w.audioContext.state === 'closed') {
-            w.audioContext = new Orig();
+            w.audioContext = new Ctor();
         }
         void w.audioContext.resume();
     } catch {

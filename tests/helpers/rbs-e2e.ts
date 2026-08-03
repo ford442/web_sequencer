@@ -72,3 +72,23 @@ export async function getAutomationPlaybackStep(page: Page): Promise<number> {
 export async function hasSequencerPlayhead(page: Page): Promise<boolean> {
   return page.locator('.is-current').count().then((n) => n > 0);
 }
+
+/**
+ * Click Start Playback and confirm the audio clock is running.
+ * Relies on PulseAudio (see tests/global-setup.ts) so Firefox/WebKit can
+ * leave `suspended`; StartOverlay ?e2e=1 also resumes on gesture.
+ */
+export async function startPlaybackAndAwaitClock(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const w = window as Window & { audioContext?: AudioContext };
+          return w.audioContext?.state ?? 'missing';
+        }),
+      { timeout: 15_000, intervals: [50, 100, 250] },
+    )
+    .toBe('running');
+}
