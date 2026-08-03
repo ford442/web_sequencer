@@ -1,5 +1,6 @@
 import { SingingVoice, type SingingVoiceConfig } from './SingingVoice';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
+import { VoicePool } from './base/VoicePool';
 
 interface ActiveVoice {
     voice: SingingVoice;
@@ -8,17 +9,15 @@ interface ActiveVoice {
     source?: AudioBufferSourceNode; // For fallback mode
 }
 
-export class SingingVoiceManager {
+export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private audioContext: AudioContext;
-    private voices: SingingVoice[] = [];
     private activeVoices: Map<number, ActiveVoice> = new Map();
     private loadedBanks: Map<number, string> = new Map();
     private config: SingingVoiceConfig;
-    private maxVoices: number;
 
     constructor(audioContext: AudioContext, maxVoices: number = 12, config: SingingVoiceConfig = {}) {
+        super(maxVoices);
         this.audioContext = audioContext;
-        this.maxVoices = maxVoices;
         this.config = {
             useHighQuality: false,
             preserveFormants: true,
@@ -55,50 +54,37 @@ export class SingingVoiceManager {
      * Prioritizes voices that already have the requested bank loaded to avoid redundant buffer transfers.
      * @returns The allocated SingingVoice, its index, and whether a new bank load is required.
      */
+    protected override getAffinityKey(index: number): string | undefined {
+        return this.loadedBanks.get(index);
+    }
+
+    protected override onStolen(voice: SingingVoice, index: number, time?: number): void {
+        super.onStolen(voice, index, time);
+        playbackHealthMonitor.recordVoiceSteal('singingVoice');
+        this.activeVoices.delete(index);
+    }
+
+    protected override stopVoice(voice: SingingVoice, time?: number): void {
+        voice.noteOff(time ?? this.audioContext.currentTime);
+    }
+
+    /**
+     * Acquire a free voice or steal the oldest one.
+     * Prioritizes voices that already have the requested bank loaded to avoid redundant buffer transfers.
+     * @returns The allocated SingingVoice, its index, and whether a new bank load is required.
+     */
     acquireVoiceForBank(bankId: string): { voice: SingingVoice; index: number; isNewBank: boolean } {
-        const activeIndices = new Set(this.activeVoices.keys());
+        const result = this.acquire({ affinityKey: bankId, steal: 'oldest' });
 
-        // 1. Find a free voice that already has this bank loaded
-        for (let i = 0; i < this.maxVoices; i++) {
-            if (!activeIndices.has(i) && this.loadedBanks.get(i) === bankId) {
-                return { voice: this.voices[i], index: i, isNewBank: false };
-            }
+        if (!result.affinityHit) {
+            this.loadedBanks.set(result.index, bankId);
         }
 
-        // 2. Find any free voice
-        for (let i = 0; i < this.maxVoices; i++) {
-            if (!activeIndices.has(i)) {
-                this.loadedBanks.set(i, bankId);
-                return { voice: this.voices[i], index: i, isNewBank: true };
-            }
-        }
-
-        // 3. Steal oldest voice
-        let oldestTime = Infinity;
-        let oldestIndex = -1;
-
-        // ⚡ Bolt Optimization: Replacing forEach with a block loop to prevent closure allocations
-        for (const [index, v] of this.activeVoices.entries()) {
-            if (v.startTime < oldestTime) {
-                oldestTime = v.startTime;
-                oldestIndex = index;
-            }
-        }
-
-        if (oldestIndex !== -1) {
-            const stolen = this.activeVoices.get(oldestIndex);
-            if (stolen) {
-                stolen.voice.noteOff(this.audioContext.currentTime);
-                this.activeVoices.delete(oldestIndex);
-                playbackHealthMonitor.recordVoiceSteal('singingVoice');
-            }
-            this.loadedBanks.set(oldestIndex, bankId);
-            return { voice: this.voices[oldestIndex], index: oldestIndex, isNewBank: true };
-        }
-
-        // Fallback
-        this.loadedBanks.set(0, bankId);
-        return { voice: this.voices[0], index: 0, isNewBank: true };
+        return {
+            voice: result.voice,
+            index: result.index,
+            isNewBank: !result.affinityHit
+        };
     }
 
     /**
@@ -112,6 +98,7 @@ export class SingingVoiceManager {
      * Register a voice as active.
      */
     registerActiveVoice(index: number, note: string, startTime: number) {
+        this.markActive(index, startTime);
         this.activeVoices.set(index, {
             voice: this.voices[index],
             note,
@@ -123,6 +110,7 @@ export class SingingVoiceManager {
      * Release a specific voice index.
      */
     releaseVoice(index: number) {
+        this.markInactive(index);
         this.activeVoices.delete(index);
     }
 
@@ -131,13 +119,6 @@ export class SingingVoiceManager {
      */
     getVoice(index: number): SingingVoice | undefined {
         return this.voices[index];
-    }
-
-    /**
-     * Get all voices (active or not)
-     */
-    getAllVoices(): SingingVoice[] {
-        return this.voices;
     }
 
     /**
@@ -155,11 +136,8 @@ export class SingingVoiceManager {
         return Array.from(this.activeVoices.values()).map(v => v.voice);
     }
 
-    stopAll() {
-        for (const activeVoice of this.activeVoices.values()) {
-            activeVoice.voice.noteOff(this.audioContext.currentTime);
-        }
+    override stopAll(time?: number) {
+        super.stopAll(time ?? this.audioContext.currentTime);
         this.activeVoices.clear();
-        // Reset params on all voices?
     }
 }
