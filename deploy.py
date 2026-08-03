@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Deploy the built frontend to storage.noahcohn.com.
 
-Zips the contents of dist/ and POSTs the archive to the deploy endpoint,
-which extracts it into the remote target folder.
+Zips the contents of dist/ and POSTs it as multipart form field 'archive'
+to the deploy endpoint, which extracts it into the remote target folder.
 
 Requires DEPLOY_TOKEN in the environment; the script fails closed if it is
 unset. Never hardcode the token here -- this repository is public.
@@ -20,6 +20,7 @@ import argparse
 import io
 import os
 import sys
+import uuid
 import urllib.error
 import urllib.request
 import zipfile
@@ -54,21 +55,43 @@ def build_archive(files: list[Path], root: Path) -> bytes:
     return buf.getvalue()
 
 
+def _multipart_body(field_name: str, filename: str, data: bytes, content_type: str) -> tuple[bytes, str]:
+    """Build a multipart/form-data body. Returns (body_bytes, content_type_header)."""
+    boundary = f"----HyphonDeploy{uuid.uuid4().hex}"
+    preamble = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n"
+        f"\r\n"
+    ).encode("utf-8")
+    epilogue = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    body = preamble + data + epilogue
+    return body, f"multipart/form-data; boundary={boundary}"
+
+
 def upload(archive: bytes, token: str) -> None:
+    # API expects multipart form upload with field name archive|bundle|file
+    # (not a raw application/zip body).
+    body, content_type = _multipart_body(
+        field_name="archive",
+        filename="bundle.zip",
+        data=archive,
+        content_type="application/zip",
+    )
     request = urllib.request.Request(
         ENDPOINT,
-        data=archive,
+        data=body,
         method="POST",
         headers={
             # Server expects X-Deploy-Token (not Authorization: Bearer).
             "X-Deploy-Token": token,
-            "Content-Type": "application/zip",
-            "Content-Length": str(len(archive)),
+            "Content-Type": content_type,
+            "Content-Length": str(len(body)),
         },
     )
     with urllib.request.urlopen(request, timeout=600) as response:
-        body = response.read().decode("utf-8", "replace").strip()
-        print(f"HTTP {response.status} {body}")
+        body_text = response.read().decode("utf-8", "replace").strip()
+        print(f"HTTP {response.status} {body_text}")
 
 
 def main() -> int:
