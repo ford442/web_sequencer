@@ -1,14 +1,7 @@
 import { expect, type Page, type Locator } from '@playwright/test';
+import { initializeHyphonAudio } from './boot';
 
-export async function initializeHyphonAudio(page: Page): Promise<void> {
-    await page.goto('/');
-    const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
-    await startBtn.waitFor({ state: 'visible', timeout: 90_000 });
-    await expect(startBtn).toBeEnabled({ timeout: 90_000 });
-    await page.waitForTimeout(500);
-    await startBtn.click();
-    await startBtn.waitFor({ state: 'hidden', timeout: 30_000 });
-}
+export { initializeHyphonAudio, rackModule } from './boot';
 
 export async function readSliderValue(slider: Locator): Promise<number> {
     const raw = await slider.getAttribute('aria-valuenow');
@@ -42,4 +35,9 @@ export async function verticalDragKnob(
 
     if (options.alt) await page.keyboard.up('Alt');
     if (options.shift) await page.keyboard.up('Shift');
+}
+
+/** @deprecated Prefer importing initializeHyphonAudio from `./boot` directly. */
+export async function bootAndInit(page: Page): Promise<void> {
+    await initializeHyphonAudio(page);
 }
