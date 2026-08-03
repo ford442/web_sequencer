@@ -321,12 +321,17 @@ export class NoteScheduler {
      */
     getNotesToTrigger(currentTime: number, lookahead: number): ScheduledNote[] {
         const windowEnd = currentTime + lookahead;
+        const result: ScheduledNote[] = [];
         
-        return this.scheduledNotes.filter(note => 
-            !note.triggered && 
-            note.startTime >= currentTime && 
-            note.startTime < windowEnd
-        );
+        // ⚡ Bolt Optimization: Replace filter with traditional for loop to avoid closure allocation
+        for (let i = 0; i < this.scheduledNotes.length; i++) {
+            const note = this.scheduledNotes[i];
+            if (!note.triggered && note.startTime >= currentTime && note.startTime < windowEnd) {
+                result.push(note);
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -356,7 +361,17 @@ export class NoteScheduler {
      */
     cancelNote(noteId: number): boolean {
         const initialLength = this.scheduledNotes.length;
-        this.scheduledNotes = this.scheduledNotes.filter(n => n.id !== noteId || n.triggered);
+        const result: ScheduledNote[] = [];
+
+        // ⚡ Bolt Optimization: Replace filter with traditional for loop to avoid closure allocation
+        for (let i = 0; i < this.scheduledNotes.length; i++) {
+            const note = this.scheduledNotes[i];
+            if (note.id !== noteId || note.triggered) {
+                result.push(note);
+            }
+        }
+
+        this.scheduledNotes = result;
         return this.scheduledNotes.length < initialLength;
     }
 
@@ -383,7 +398,15 @@ export class NoteScheduler {
      */
     getAverageDrift(): number {
         if (this.driftHistory.length === 0) return 0;
-        return this.driftHistory.reduce((a, b) => a + b, 0) / this.driftHistory.length;
+
+        let sum = 0;
+
+        // ⚡ Bolt Optimization: Replace reduce with traditional for loop to avoid closure allocation
+        for (let i = 0; i < this.driftHistory.length; i++) {
+            sum += this.driftHistory[i];
+        }
+
+        return sum / this.driftHistory.length;
     }
 
     /**
@@ -392,9 +415,17 @@ export class NoteScheduler {
      * @param beforeTime Remove notes before this time
      */
     clearOldNotes(beforeTime: number): void {
-        this.scheduledNotes = this.scheduledNotes.filter(
-            note => note.startTime + note.duration >= beforeTime
-        );
+        const result: ScheduledNote[] = [];
+
+        // ⚡ Bolt Optimization: Replace filter with traditional for loop to avoid closure allocation
+        for (let i = 0; i < this.scheduledNotes.length; i++) {
+            const note = this.scheduledNotes[i];
+            if (note.startTime + note.duration >= beforeTime) {
+                result.push(note);
+            }
+        }
+
+        this.scheduledNotes = result;
     }
 
     /**
@@ -408,16 +439,33 @@ export class NoteScheduler {
      * Get count of pending (non-triggered) notes.
      */
     getPendingCount(): number {
-        return this.scheduledNotes.filter(n => !n.triggered).length;
+        let count = 0;
+
+        // ⚡ Bolt Optimization: Replace filter with traditional for loop to avoid closure allocation
+        for (let i = 0; i < this.scheduledNotes.length; i++) {
+            if (!this.scheduledNotes[i].triggered) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /**
      * Get the earliest scheduled start time.
      */
     getEarliestStartTime(): number | null {
-        const pending = this.scheduledNotes.filter(n => !n.triggered);
-        if (pending.length === 0) return null;
-        return Math.min(...pending.map(n => n.startTime));
+        let earliest = Infinity;
+
+        // ⚡ Bolt Optimization: Replace filter and map with a single loop to avoid closure and array allocations
+        for (let i = 0; i < this.scheduledNotes.length; i++) {
+            const note = this.scheduledNotes[i];
+            if (!note.triggered && note.startTime < earliest) {
+                earliest = note.startTime;
+            }
+        }
+
+        return earliest === Infinity ? null : earliest;
     }
 }
 

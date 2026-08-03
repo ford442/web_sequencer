@@ -532,9 +532,11 @@ export class HybridNeuralPipeline {
         }
 
         // Convert to FFT bin indices
-        const binPoints = melPoints.map(mel =>
-            Math.floor((nBins * melToHz(mel)) / (config.sampleRate / 2))
-        );
+        const binPoints: number[] = new Array<number>(melPoints.length);
+        // ⚡ Bolt Optimization: Replace map with traditional for loop to avoid closure allocation
+        for (let i = 0; i < melPoints.length; i++) {
+            binPoints[i] = Math.floor((nBins * melToHz(melPoints[i])) / (config.sampleRate / 2));
+        }
 
         // Create triangular filters
         for (let i = 0; i < config.nMels; i++) {
@@ -723,7 +725,14 @@ export class HybridNeuralPipeline {
             const audio = new Float32Array(outputTensor.data as Float32Array);
 
             // Normalize output
-            const maxAmp = Math.max(...Array.from(audio).map(Math.abs));
+            let maxAmp = 0;
+            // ⚡ Bolt Optimization: Replace Array.from.map with traditional for loop to avoid array allocation
+            for (let i = 0; i < audio.length; i++) {
+                const absAmp = Math.abs(audio[i]);
+                if (absAmp > maxAmp) {
+                    maxAmp = absAmp;
+                }
+            }
             if (maxAmp > 0) {
                 for (let i = 0; i < audio.length; i++) {
                     audio[i] /= maxAmp;
