@@ -75,10 +75,10 @@ export async function initializeHyphonAudio(
  */
 export const RACK_TRACK_SELECT = {
   'SYNTH A': /Select Lead track/i,
-  'SYNTH B': /Select Bass track(?!,)/i,
+  'SYNTH B': /Select Bass track/i,
   'BASS 2': /Select Bass2 track/i,
   Lead: /Select Lead track/i,
-  Bass: /Select Bass track(?!,)/i,
+  Bass: /Select Bass track/i,
   Bass2: /Select Bass2 track/i,
 } as const;
 
