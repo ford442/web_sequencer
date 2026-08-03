@@ -10,6 +10,9 @@ import { defineConfig, devices } from '@playwright/test';
  * webServer owns the Vite (or preview) lifecycle so tests do not race a
  * manually-started server. CI already serves `dist/` via `pnpm preview` on
  * :5173 — reuseExistingServer picks that up; locally Playwright starts Vite.
+ *
+ * StartOverlay `?e2e=1` unlocks AudioContext inside the click turn (Firefox/
+ * WebKit otherwise hang forever on suspended resume after React setState).
  */
 export default defineConfig({
   testDir: './tests',
@@ -44,7 +47,18 @@ export default defineConfig({
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        launchOptions: {
+          // Belt-and-suspenders with StartOverlay ?e2e=1 unlock.
+          firefoxUserPrefs: {
+            'media.autoplay.default': 0,
+            'media.autoplay.enabled.user-gestures-needed': false,
+            'media.autoplay.blocking_policy': 0,
+            'media.block-autoplay-until-in-foreground': false,
+          },
+        },
+      },
     },
     {
       name: 'webkit',

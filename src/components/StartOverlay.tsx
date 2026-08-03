@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { LoadingButton } from './LoadingButton';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -7,16 +7,106 @@ interface StartOverlayProps {
     isReady: boolean;
 }
 
+type AudioWindow = Window & typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+    audioContext?: AudioContext;
+    __HYPHON_E2E_AUDIO_PATCHED__?: boolean;
+};
+
+function isE2EQuery(): boolean {
+    try {
+        return new URLSearchParams(window.location.search).has('e2e');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Firefox/WebKit drop transient user activation across React setState + await
+ * before `initializeAudio` constructs AudioContext — `await context.resume()`
+ * then hangs forever on a suspended context (LoadingOverlay never clears).
+ *
+ * For `?e2e=1` only: make `resume()` non-blocking so engine init can finish.
+ * Nodes/worklets still construct while suspended; E2E asserts UI, not audible output.
+ * Also reuse a gesture-created context when possible.
+ */
+function installE2EAudioUnlock(): void {
+    if (!isE2EQuery()) return;
+
+    const w = window as AudioWindow;
+    if (w.__HYPHON_E2E_AUDIO_PATCHED__) return;
+    w.__HYPHON_E2E_AUDIO_PATCHED__ = true;
+
+    const Orig = w.AudioContext ?? w.webkitAudioContext;
+    if (!Orig) return;
+
+    const origResume = Orig.prototype.resume;
+    Orig.prototype.resume = function (this: AudioContext, ...args: unknown[]) {
+        try {
+            const result = origResume.apply(this, args as []);
+            // Do not await — Firefox may never resolve when activation was lost.
+            void Promise.resolve(result).catch(() => undefined);
+        } catch {
+            // ignore
+        }
+        return Promise.resolve();
+    };
+
+    const reuse = function (this: unknown) {
+        if (w.audioContext && w.audioContext.state !== 'closed') {
+            return w.audioContext;
+        }
+        const ctx = new Orig();
+        w.audioContext = ctx;
+        return ctx;
+    } as unknown as typeof AudioContext;
+
+    Object.setPrototypeOf(reuse, Orig);
+    reuse.prototype = Orig.prototype;
+    // Keep patched resume on instances from either constructor.
+    reuse.prototype.resume = Orig.prototype.resume;
+    w.AudioContext = reuse;
+    if (w.webkitAudioContext) {
+        w.webkitAudioContext = reuse;
+    }
+}
+
+function gestureResumeForE2E(): void {
+    if (!isE2EQuery()) return;
+    const w = window as AudioWindow;
+    const Orig = w.AudioContext ?? w.webkitAudioContext;
+    if (!Orig) return;
+    try {
+        if (!w.audioContext || w.audioContext.state === 'closed') {
+            w.audioContext = new Orig();
+        }
+        void w.audioContext.resume();
+    } catch {
+        // ignore
+    }
+}
+
 /**
  * Click-to-start audio unlock gate.
  *
  * E2E-only additions (no visual change): data-testid hooks so Playwright can
  * wait for / click the initialize button reliably across Chromium/Firefox/WebKit.
- * Boot helpers navigate with ?e2e=1 (introspection) and perform a real click —
- * do not auto-dismiss here; AudioContext resume requires a user gesture on WebKit.
+ * Boot helpers navigate with ?e2e=1; resume() is patched so Firefox/WebKit do
+ * not hang after the gesture is consumed by React's async init path.
  */
 export const StartOverlay: React.FC<StartOverlayProps> = React.memo(({ onStart, isReady }) => {
     const trapRef = useFocusTrap<HTMLDivElement>(true);
+
+    useEffect(() => {
+        installE2EAudioUnlock();
+    }, []);
+
+    const handleStart = useCallback(() => {
+        // Same synchronous turn as the click — best-effort real resume + start.
+        gestureResumeForE2E();
+        onStart();
+    }, [onStart]);
+
     return (
         <div
             ref={trapRef}
@@ -39,7 +129,7 @@ export const StartOverlay: React.FC<StartOverlayProps> = React.memo(({ onStart, 
                 <LoadingButton
                     data-testid="initialize-system"
                     aria-label="Initialize System"
-                    onClick={onStart}
+                    onClick={handleStart}
                     isLoading={!isReady}
                     loadingText="LOADING RESOURCES..."
                     spinnerColor="text-gray-500"
