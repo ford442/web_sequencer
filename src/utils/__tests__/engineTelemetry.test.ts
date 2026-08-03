@@ -55,6 +55,9 @@ const fakeRuntime = {
   highFidActiveEngine: null as string | null,
   highFidRealtimeModel: null as string | null,
   highFidFallbackReason: null as string | null,
+  sampleRate: null as number | null,
+  baseLatencyMs: null as number | null,
+  latencyHint: null as string | null,
 };
 
 describe('serializeEngineReport', () => {
@@ -139,6 +142,18 @@ describe('EngineTelemetry.snapshot', () => {
     expect(runtime.highFidActiveEngine).toBe('highfid-cpu');
     expect(runtime.highFidRealtimeModel).toBe('stock-open303');
     expect(runtime.highFidFallbackReason).toBe('WebGPU unavailable');
+  });
+
+  it('records AudioContext sample rate, base latency, and latencyHint into the runtime snapshot', () => {
+    const t = new EngineTelemetry();
+    expect(t.getRuntimeSnapshot().sampleRate).toBeNull();
+
+    t.recordAudioContextInfo({ sampleRate: 48000, baseLatencyMs: 5.8, latencyHint: 'playback' });
+
+    const runtime = t.getRuntimeSnapshot();
+    expect(runtime.sampleRate).toBe(48000);
+    expect(runtime.baseLatencyMs).toBe(5.8);
+    expect(runtime.latencyHint).toBe('playback');
   });
 });
 

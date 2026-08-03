@@ -10,6 +10,8 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import type { TrackAnalysers } from '../../types';
+import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
+import { createAudioContext } from './audioContextFactory';
 import {
     createNoiseBuffer,
     initializeHarmonizer,
@@ -73,15 +75,12 @@ export interface EngineLifecycleResult {
 export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
+    latencyHint: LatencyMode = getStoredLatencyMode(),
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
-    const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-    if (!AudioContextCtor) {
-        throw new Error('AudioContext is not available in this browser');
-    }
-    const context = new AudioContextCtor();
+    const context = createAudioContext(latencyHint);
     audioWindow.audioContext = context;
-    startGlitchMonitor(context);
+    startGlitchMonitor(context, latencyHint);
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {

@@ -63,6 +63,12 @@ type RuntimeTelemetry = {
   highFidRealtimeModel: string | null;
   /** Phase-4 — selection-time fallback reason (distinct from last render). */
   highFidFallbackReason: string | null;
+  /** P0 audio foundation — live AudioContext.sampleRate at construction. */
+  sampleRate: number | null;
+  /** P0 audio foundation — live AudioContext.baseLatency, in ms. */
+  baseLatencyMs: number | null;
+  /** P0 audio foundation — latencyHint requested when the context was created. */
+  latencyHint: string | null;
 };
 
 function emptyData(): TelemetryData {
@@ -184,6 +190,12 @@ export interface RuntimeSnapshot {
   highFidRealtimeModel: string | null;
   /** Selection-time high-fid fallback reason. */
   highFidFallbackReason: string | null;
+  /** Live AudioContext.sampleRate at construction (Hz). */
+  sampleRate: number | null;
+  /** Live AudioContext.baseLatency at construction, in ms. */
+  baseLatencyMs: number | null;
+  /** latencyHint requested when the context was created. */
+  latencyHint: string | null;
 }
 
 export interface EngineReport {
@@ -267,6 +279,9 @@ export class EngineTelemetry {
     highFidActiveEngine: null,
     highFidRealtimeModel: null,
     highFidFallbackReason: null,
+    sampleRate: null,
+    baseLatencyMs: null,
+    latencyHint: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -312,6 +327,21 @@ export class EngineTelemetry {
 
   recordOutputLatency(latencyMs: number): void {
     this.runtime.outputLatencyMs = latencyMs;
+  }
+
+  /**
+   * Record the negotiated AudioContext identity at construction time
+   * (P0 audio foundation / #1033). Sample rate and base latency are fixed
+   * for the life of the context, so this is called once on init.
+   */
+  recordAudioContextInfo(info: {
+    sampleRate: number;
+    baseLatencyMs: number;
+    latencyHint: string | null;
+  }): void {
+    this.runtime.sampleRate = info.sampleRate;
+    this.runtime.baseLatencyMs = info.baseLatencyMs;
+    this.runtime.latencyHint = info.latencyHint;
   }
 
   recordDegradation(step: string, active: boolean, reason: string): void {
@@ -424,6 +454,9 @@ export class EngineTelemetry {
       highFidActiveEngine: this.runtime.highFidActiveEngine,
       highFidRealtimeModel: this.runtime.highFidRealtimeModel,
       highFidFallbackReason: this.runtime.highFidFallbackReason,
+      sampleRate: this.runtime.sampleRate,
+      baseLatencyMs: this.runtime.baseLatencyMs,
+      latencyHint: this.runtime.latencyHint,
     };
   }
 
