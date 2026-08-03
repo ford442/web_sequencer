@@ -3,37 +3,49 @@ import { initializeHyphonAudio } from './helpers/boot';
 
 /**
  * Note length / auto-delete on overlapping steps.
- * Previously skipped due to StartOverlay flake (#1036).
+ *
+ * When a note's length spans later steps, MainSequencer skips rendering those
+ * covered step cells (skipCount) — so step-partA-2 leaves the DOM rather than
+ * flipping aria-pressed.
  */
 test('verify note length controls and auto-delete', async ({ page }) => {
     await initializeHyphonAudio(page);
 
-    await expect(page.getByText('HYPHON').first()).toBeVisible();
-
-    const step0 = page.getByRole('button', { name: 'Lead step 1', exact: true });
-    const step2 = page.getByRole('button', { name: 'Lead step 3', exact: true });
+    const step0 = page.getByTestId('step-partA-0');
+    const step2 = page.getByTestId('step-partA-2');
 
     await step0.waitFor({ state: 'visible', timeout: 30_000 });
+    await step0.scrollIntoViewIfNeeded();
 
-    await step0.click();
-    await step2.click();
-
-    await expect(step0.locator('.step-glow')).toBeVisible();
-    await expect(step2.locator('.step-glow')).toBeVisible();
+    for (const step of [step0, step2]) {
+        if ((await step.getAttribute('aria-pressed')) !== 'true') {
+            await step.click();
+        }
+        await expect(step).toHaveAttribute('aria-pressed', 'true');
+    }
 
     await step0.click({ button: 'right' });
 
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(page.getByText('NOTE PROPERTIES')).toBeVisible();
+    const dialog = page.getByRole('dialog').filter({ hasText: 'NOTE PROPERTIES' });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-    const slider = dialog.locator('input[type="range"]');
-    await slider.fill('4');
-    await slider.dispatchEvent('input');
-    await slider.dispatchEvent('change');
+    const duration = dialog.locator('#note-duration');
+    await expect(duration).toBeVisible();
 
-    await expect(page.getByText('4 Steps')).toBeVisible();
+    await duration.evaluate((el) => {
+        const input = el as HTMLInputElement;
+        const proto = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            'value',
+        );
+        proto?.set?.call(input, '4');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
 
-    await expect(step2.locator('.step-glow')).not.toBeVisible();
-    await expect(step0.locator('.step-glow')).toBeVisible();
+    // Covered steps are omitted from the SVG grid when length > 1.
+    await expect(page.getByTestId('step-partA-2')).toHaveCount(0, { timeout: 10_000 });
+    await expect(step0).toHaveAttribute('aria-pressed', 'true');
+    // Length badge rendered on the extended step cell.
+    await expect(step0.locator('text')).toContainText('4x');
 });
