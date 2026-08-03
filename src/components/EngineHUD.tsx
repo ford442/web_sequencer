@@ -1,6 +1,7 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
+import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
@@ -29,6 +30,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-wasm { background:#0ea5e9; }
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
+  #${CONTAINER_ID} .backend-wam { background:#0ea5e9; }
+  #${CONTAINER_ID} .backend-rust { background:#b45309; }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
   #${CONTAINER_ID} .cpu-ok { color:#86efac; }
   #${CONTAINER_ID} .cpu-warn { color:#fde047; }
@@ -119,6 +122,28 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">GPU 303</div><div style="min-width:72px;text-align:right">${gpuBackend} ${gpuLat}</div></div>
       <div class="row" title="${runtime.gpuFallbackReason ?? ''}"><div style="flex:1">GPU fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${gpuFb}</div></div>`;
 
+    // Oscillator backend chain (#1034): shows every backend in preference order,
+    // which one is active, and why the higher-preference ones were skipped.
+    const registry = getOscillatorRegistry();
+    const resolution = registry?.getLastResolution() ?? null;
+    const backendSection = (() => {
+      if (!resolution) return '';
+      const attemptRows = resolution.attempts.map((a) => {
+        const active = a.id === resolution.active;
+        const state = active ? 'ACTIVE' : a.reason ?? (a.ready ? 'ready' : 'not ready');
+        const color = active ? '#86efac' : a.reason ? '#f87171' : '#9ca3af';
+        return `<div class="row" title="${a.reason ?? ''}">
+          <div class="badge backend-${a.id}">${a.id}</div>
+          <div style="flex:1"></div>
+          <div style="color:${color};font-size:10px;text-align:right;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state}</div>
+        </div>`;
+      }).join('');
+      const header = resolution.degraded
+        ? `<div style="font-size:11px;color:#fde047" title="${resolution.reason ?? ''}">fallback: ${resolution.requested} → ${resolution.active}</div>`
+        : `<div style="font-size:11px;opacity:0.7">preferred backend active (${resolution.active})</div>`;
+      return `<div class="subheader">Oscillator backends</div>${header}${attemptRows}`;
+    })();
+
     const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
       const w = runtime.worklets[name];
@@ -142,7 +167,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${latencySection}${offlineSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
