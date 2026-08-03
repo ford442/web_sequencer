@@ -156,6 +156,9 @@ export class SingingVoiceManager {
     }
 
     stopAll() {
+        for (const activeVoice of this.activeVoices.values()) {
+            activeVoice.voice.noteOff(this.audioContext.currentTime);
+        }
         this.activeVoices.clear();
         // Reset params on all voices?
     }
