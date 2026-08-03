@@ -16,7 +16,14 @@
 - [x] Implement per-phoneme pitch drift/vibrato
 - [x] Add Formant Modulation LFO
 - [x] Add Formant Glide per phoneme
-- [ ] Optimize Voice Manager state syncing
+- [x] Optimize Voice Manager state syncing
 - [ ] Add granular synthesis window shape control for TTS playback
+- [ ] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
+
+## Refactoring Roadblocks
+- Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
+
+## Architecture Review
+- Velocity Check: The optimization task was straightforward. For the next run, I should consider a more complex architectural goal, such as unifying the voice allocation logic across all Synth and Sampler engines into a generic VoicePool base class to reduce duplication.
 
 ## Roadmap

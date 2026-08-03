@@ -1,2 +1,1 @@
-import { test, expect } from 'vitest';
-// Not testing here, just a script.
+console.log("Checking performance opportunity...");
