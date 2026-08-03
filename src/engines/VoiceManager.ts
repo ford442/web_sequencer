@@ -11,6 +11,7 @@ import {
     generatePyodideLoopBuffer,
     type PyodideLike,
 } from '../utils/pyodideBuffers';
+import { VoicePool, type PoolableVoice } from './base/VoicePool';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
@@ -20,7 +21,7 @@ export interface VoiceEngineDeps {
     pyodideBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
 }
 
-export class Voice {
+export class Voice implements PoolableVoice {
     context: AudioContext;
     destination: AudioNode;
 
@@ -387,9 +388,7 @@ export class Voice {
     }
 }
 
-export class VoiceManager {
-    private voices: Voice[];
-    private currentIndex: number = 0;
+export class VoiceManager extends VoicePool<Voice> {
     private monophonic: boolean;
 
     constructor(
@@ -402,10 +401,20 @@ export class VoiceManager {
         globalDelayNode?: DelayNode,
         engineDeps?: VoiceEngineDeps,
     ) {
+        super(polyphony);
         this.monophonic = monophonic;
-        this.voices = Array.from({ length: Math.max(1, polyphony) }, () =>
+        this.voices = Array.from({ length: this.maxVoices }, () =>
             new Voice(context, destination, wavSaw, wavSqr, globalDelayNode, engineDeps)
         );
+    }
+
+    protected override onStolen(voice: Voice, index: number, time?: number): void {
+        super.onStolen(voice, index, time);
+        playbackHealthMonitor.recordVoiceSteal(this.monophonic ? 'voiceManager-monophonic' : 'voiceManager');
+    }
+
+    protected override stopVoice(voice: Voice, time?: number): void {
+        voice.stop(time ?? voice.context.currentTime);
     }
 
     playNote(
@@ -435,19 +444,18 @@ export class VoiceManager {
     }
 
     noteOff(note: string, time: number, params: SynthParams): void {
-        for (const voice of this.voices) {
+        for (let i = 0; i < this.voices.length; i++) {
+            const voice = this.voices[i]!;
             if (voice.isActive && voice.currentNote === note) {
                 voice.stopNote(time, params);
+                this.markInactive(i);
                 break;
             }
         }
     }
 
-    stopAll(time?: number): void {
-        // ⚡ Bolt Optimization: Replace forEach with for...of to prevent closure allocations
-        for (const v of this.voices) {
-            v.stop(time ?? v.context.currentTime);
-        }
+    override stopAll(time?: number): void {
+        super.stopAll(time ?? this.voices[0]?.context.currentTime ?? 0);
     }
 
     updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
@@ -458,30 +466,23 @@ export class VoiceManager {
 
     /** Prefer idle voices; stop and steal the round-robin victim when saturated. */
     private pickVoice(time: number): Voice {
-        if (this.monophonic) {
-            const voice = this.voices[0]!;
-            if (voice.isActive) {
-                voice.stop(time);
-                playbackHealthMonitor.recordVoiceSteal('voiceManager-monophonic');
-            }
-            return voice;
-        }
-
+        // We can optionally clean up `activeIndices` if `voice.isActive` went false externally.
+        // E.g., Voice has an internal timeout for release. Let's sync `activeIndices` with real `isActive`.
         for (let i = 0; i < this.voices.length; i++) {
-            const idx = (this.currentIndex + i) % this.voices.length;
-            const candidate = this.voices[idx]!;
-            if (!candidate.isActive) {
-                this.currentIndex = (idx + 1) % this.voices.length;
-                return candidate;
+            if (!this.voices[i]!.isActive && this.activeIndices.has(i)) {
+                this.markInactive(i);
             }
         }
 
-        const victim = this.voices[this.currentIndex]!;
-        this.currentIndex = (this.currentIndex + 1) % this.voices.length;
-        if (victim.isActive) {
-            victim.stop(time);
-            playbackHealthMonitor.recordVoiceSteal('voiceManager');
+        if (this.monophonic) {
+            const result = this.acquire({ steal: 'round-robin', time });
+            // Since it's monophonic, maxVoices is 1, so index is always 0.
+            this.markActive(result.index, time);
+            return result.voice;
         }
-        return victim;
+
+        const result = this.acquire({ steal: 'round-robin', time });
+        this.markActive(result.index, time);
+        return result.voice;
     }
 }
