@@ -445,15 +445,34 @@ export class PhonemeAligner {
     ): number[] {
         if (phonemes.length === 0) return [];
         
-        const originalDuration = phonemes.reduce((sum, p) => sum + (p.end - p.start), 0);
-        if (originalDuration <= 0) return phonemes.map(() => 1.0);
+        let originalDuration = 0;
+        for (let i = 0; i < phonemes.length; i++) {
+            originalDuration += (phonemes[i].end - phonemes[i].start);
+        }
+        if (originalDuration <= 0) {
+            const ratios: number[] = new Array<number>(phonemes.length);
+            for (let i = 0; i < phonemes.length; i++) {
+                ratios[i] = 1.0;
+            }
+            return ratios;
+        }
         
-        const vowelDuration = phonemes.filter(p => p.isVowel).reduce((sum, p) => sum + (p.end - p.start), 0);
+        let vowelDuration = 0;
+        // ⚡ Bolt Optimization: Replace filter + reduce with traditional for loop to avoid closure allocation
+        for (let i = 0; i < phonemes.length; i++) {
+            if (phonemes[i].isVowel) {
+                vowelDuration += (phonemes[i].end - phonemes[i].start);
+            }
+        }
         const consonantDuration = originalDuration - vowelDuration;
 
         if (vowelDuration <= 0 || consonantDuration <= 0) {
             const uniformRatio = Math.max(0.1, targetDuration / originalDuration);
-            return phonemes.map(() => uniformRatio);
+            const ratios: number[] = new Array<number>(phonemes.length);
+            for (let i = 0; i < phonemes.length; i++) {
+                ratios[i] = uniformRatio;
+            }
+            return ratios;
         }
         
         let vowelStretchRatio = (targetDuration - consonantDuration) / vowelDuration;
@@ -470,7 +489,12 @@ export class PhonemeAligner {
             consonantStretchRatio = Math.max(0.1, (targetDuration - (vowelDuration * VOWEL_MIN)) / consonantDuration);
         }
         
-        return phonemes.map(p => p.isVowel ? vowelStretchRatio : consonantStretchRatio);
+        const ratios: number[] = new Array<number>(phonemes.length);
+        // ⚡ Bolt Optimization: Replace map with traditional for loop to avoid closure allocation
+        for (let i = 0; i < phonemes.length; i++) {
+            ratios[i] = phonemes[i].isVowel ? vowelStretchRatio : consonantStretchRatio;
+        }
+        return ratios;
     }
     
     /**
