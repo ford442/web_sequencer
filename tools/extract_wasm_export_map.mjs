@@ -9,32 +9,49 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const input = process.argv[2];
-const output = process.argv[3];
+/**
+ * Parse Emscripten glue and return { bareName: minifiedName }.
+ * Exported so tools/check_wasm_export_map.mjs can re-derive the map from the
+ * glue and diff it against the committed JSON.
+ */
+export function parseExportMap(js) {
+  const map = {};
 
-if (!input || !output) {
-  console.error('Usage: extract_wasm_export_map.mjs <hyphon_native.js> <out.json>');
-  process.exit(1);
-}
+  // Emscripten glue formats (release builds minify export names):
+  //   Module["_open303_create"]=wasmExports["da"];
+  //   _open303_destroy=Module["_open303_destroy"]=wasmExports["ea"];
+  const patterns = [
+    /Module\["(_[^"]+)"\]=wasmExports\["([^"]+)"\]/g,
+    /(_[a-zA-Z0-9_]+)=Module\["\1"\]=wasmExports\["([^"]+)"\]/g,
+  ];
 
-const js = fs.readFileSync(input, 'utf8');
-const map = {};
-
-// Emscripten glue formats (release builds minify export names):
-//   Module["_open303_create"]=wasmExports["da"];
-//   _open303_destroy=Module["_open303_destroy"]=wasmExports["ea"];
-const patterns = [
-  /Module\["(_[^"]+)"\]=wasmExports\["([^"]+)"\]/g,
-  /(_[a-zA-Z0-9_]+)=Module\["\1"\]=wasmExports\["([^"]+)"\]/g,
-];
-
-for (const re of patterns) {
-  let match;
-  while ((match = re.exec(js)) !== null) {
-    map[match[1].slice(1)] = match[2];
+  for (const re of patterns) {
+    let match;
+    while ((match = re.exec(js)) !== null) {
+      map[match[1].slice(1)] = match[2];
+    }
   }
+
+  return map;
 }
 
-fs.mkdirSync(path.dirname(output), { recursive: true });
-fs.writeFileSync(output, JSON.stringify(map, null, 2) + '\n');
-console.log(`Wrote ${Object.keys(map).length} export mappings to ${output}`);
+function main() {
+  const input = process.argv[2];
+  const output = process.argv[3];
+
+  if (!input || !output) {
+    console.error('Usage: extract_wasm_export_map.mjs <hyphon_native.js> <out.json>');
+    process.exit(1);
+  }
+
+  const map = parseExportMap(fs.readFileSync(input, 'utf8'));
+
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  fs.writeFileSync(output, JSON.stringify(map, null, 2) + '\n');
+  console.log(`Wrote ${Object.keys(map).length} export mappings to ${output}`);
+}
+
+// Only run when invoked directly, not when imported by the checker.
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+  main();
+}

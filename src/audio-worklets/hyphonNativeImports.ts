@@ -2,7 +2,28 @@
 // Open303 and Prophecy both instantiate the same threaded WASM module; memory
 // imports use the minified namespace "a" / name "a", not env.memory.
 
-export const HYPHON_NATIVE_MIN_MEMORY_PAGES = 8192;
+/** WebAssembly page size (64 KiB). */
+const WASM_PAGE_BYTES = 65536;
+
+/**
+ * Initial memory of the threaded hyphon_native.wasm build, in 64 KiB pages.
+ *
+ * MUST equal `hyphonNative.initialMemoryMb` in emscripten/wasm_memory_budget.json
+ * (the value emscripten/build.sh passes as -s INITIAL_MEMORY): the worklets
+ * instantiate the module with an *imported* memory, and a memory whose `initial`
+ * is below the module's declared minimum fails instantiation outright.
+ * src/__tests__/wasmMemoryBudget.test.ts enforces the match in CI.
+ *
+ * 128 MB rather than the previous 512 MB — see
+ * docs/wasm/BUILD_NOTES.md#four-worlds-memory-budget. A 512 MB `shared: true`
+ * allocation is a frequent SharedArrayBuffer failure on mobile Safari and low-RAM
+ * Chromebooks even with correct COOP/COEP; the module grows on demand up to
+ * HYPHON_NATIVE_MAX_MEMORY_PAGES.
+ */
+export const HYPHON_NATIVE_MIN_MEMORY_PAGES = (128 * 1024 * 1024) / WASM_PAGE_BYTES; // 2048
+
+/** Growth ceiling, matching -s MAXIMUM_MEMORY in emscripten/build.sh (1 GB). */
+export const HYPHON_NATIVE_MAX_MEMORY_PAGES = (1024 * 1024 * 1024) / WASM_PAGE_BYTES; // 16384
 
 export type WasmExportMap = Record<string, string>;
 
@@ -57,7 +78,7 @@ export function createHyphonMemory(
   logPrefix = '[HyphonNative]',
 ): WebAssembly.Memory {
   const memoryImportPages = Math.max(pages ?? 0, HYPHON_NATIVE_MIN_MEMORY_PAGES);
-  const maxMemoryPages = 16384;
+  const maxMemoryPages = HYPHON_NATIVE_MAX_MEMORY_PAGES;
 
   if (shared) {
     try {
@@ -66,9 +87,20 @@ export function createHyphonMemory(
         maximum: maxMemoryPages,
         shared: true,
       });
-    } catch {
+    } catch (err) {
+      // Distinguish "no SAB at all" (COOP/COEP) from "SAB exists but this
+      // reservation is too large for the device" — the latter is the common
+      // mobile failure and is worth reporting with the actual sizes.
+      const sizesMb = `initial=${(memoryImportPages * WASM_PAGE_BYTES) / 1048576}MB, ` +
+        `maximum=${(maxMemoryPages * WASM_PAGE_BYTES) / 1048576}MB`;
+      if (typeof SharedArrayBuffer === 'undefined') {
+        throw new Error(
+          `${logPrefix} SharedArrayBuffer not available. Ensure COOP/COEP headers are configured.`,
+        );
+      }
       throw new Error(
-        `${logPrefix} SharedArrayBuffer not available. Ensure COOP/COEP headers are configured.`,
+        `${logPrefix} shared WebAssembly.Memory allocation failed (${sizesMb}): ` +
+        `${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
