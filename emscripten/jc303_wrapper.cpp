@@ -235,8 +235,19 @@ EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process_handle(uintptr_t handle, int numFra
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Single-instance legacy API (powers open303-processor.ts with authentic tone)
+// Single-instance legacy API
+//
+// Only reachable from the standalone jc303-single.wasm code path in
+// open303-processor.ts (the fallback taken when open303_* is absent).
+// hyphon_native.wasm always exposes open303_*, so release builds compile this
+// block out — set HYPHON_LEGACY_JC303=1 (the default for the debug profile) to
+// keep it. See emscripten/build.sh and docs/wasm/BUILD_NOTES.md.
 // ─────────────────────────────────────────────────────────────────────────────
+#ifndef HYPHON_LEGACY_JC303
+#define HYPHON_LEGACY_JC303 0
+#endif
+
+#if HYPHON_LEGACY_JC303
 
 static Jc303Instance* g_jcDefault = nullptr;
 static int g_jcDefaultBufSz = 128;
@@ -270,6 +281,8 @@ EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process(int numFrames)
     return reinterpret_cast<uintptr_t>(buf);
 }
 
+#endif // HYPHON_LEGACY_JC303
+
 } // extern "C"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,6 +299,7 @@ EMSCRIPTEN_BINDINGS(jc303_module) {
     emscripten::function("jc303_set_param",        &jc303_set_param);
     emscripten::function("jc303_process_handle",   &jc303_process_handle);
 
+#if HYPHON_LEGACY_JC303
     emscripten::function("jc303_init",             &jc303_init);
     emscripten::function("jc303_noteOn",           &jc303_noteOn);
     emscripten::function("jc303_noteOff",          &jc303_noteOff);
@@ -299,4 +313,5 @@ EMSCRIPTEN_BINDINGS(jc303_module) {
     emscripten::function("jc303_setVolume",        &jc303_setVolume);
     emscripten::function("jc303_setFilterMode",    &jc303_setFilterMode);
     emscripten::function("jc303_process",          &jc303_process);
+#endif
 }

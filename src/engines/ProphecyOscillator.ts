@@ -21,13 +21,15 @@ import {
     logEngineFallback,
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
+import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
 
 // hyphon_native.wasm bundles all engines (Open303, JC303, Prophecy, Rubberband)
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 
-/** Minimum WebAssembly memory pages for the threaded hyphon_native.wasm build (512 MB).
- *  Must stay in sync with PROPHECY_MIN_MEMORY_PAGES in prophecy-processor.ts. */
-const PROPHECY_MIN_MEMORY_PAGES = 8192;
+/** Minimum WebAssembly memory pages for the threaded hyphon_native.wasm build.
+ *  Derived from emscripten/wasm_memory_budget.json via hyphonNativeImports so the
+ *  worklet, the engine and the emcc link flags cannot drift apart. */
+const PROPHECY_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 /** Milliseconds to wait for the Prophecy worklet to signal readiness. */
 const PROPHECY_INIT_TIMEOUT_MS = 8000;
