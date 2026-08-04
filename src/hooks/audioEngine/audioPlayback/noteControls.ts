@@ -1,5 +1,6 @@
 import type { AudioEngine } from "../../../types";
 import { noteToMidi } from "../../../utils/musicTheory";
+import { getPitchOffsetSemitones, transposeMidi } from "../../../utils/pitchOffset";
 import { PROPHECY_WAVEFORM_SUFFIX } from "../../../engines/ProphecyParams";
 import { engineTelemetry } from "../../../utils/engineTelemetry";
 import { pulseExpressionLed } from "../../../audio/expressionLedPulse";
@@ -33,7 +34,7 @@ export function createNoteOnSynth(
 
     if (track === "bass2") {
       if (refs.open303ManagerRef.current?.isBass2Ready()) {
-        const midi = noteToMidi(note);
+        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
         triggerBassEQDuck(
           context,
           refs.bassSidechainEQBusRef.current,
@@ -65,7 +66,7 @@ export function createNoteOnSynth(
           params,
           params.waveform === "303-sqr" ? "sqr" : "saw",
         );
-        const midi = noteToMidi(note);
+        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
         triggerBassEQDuck(
           context,
           refs.bassSidechainEQBusRef.current,
@@ -96,7 +97,7 @@ export function createNoteOnSynth(
           params,
           params.waveform === "303-sqr" ? "sqr" : "saw",
         );
-        const midi = noteToMidi(note);
+        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
         const t0 = performance.now();
         refs.open303ManagerRef.current.setLead303Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnLead303(midi, 100);
@@ -120,7 +121,7 @@ export function createNoteOnSynth(
           params,
           prophecyWaveTypeNoteOn,
         );
-        const midi = noteToMidi(note);
+        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
         triggerBassEQDuck(
           context,
           refs.bassSidechainEQBusRef.current,
@@ -147,7 +148,7 @@ export function createNoteOnSynth(
           params,
           prophecyWaveTypeNoteOn,
         );
-        const midi = noteToMidi(note);
+        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartA(midi, 100);
         const t1 = performance.now();

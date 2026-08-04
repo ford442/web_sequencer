@@ -10,6 +10,7 @@
 import type { SynthParams } from '../../types';
 import { tunedNoteToFrequency } from '../../constants';
 import { noteToMidi } from '../../utils/musicTheory';
+import { getPitchOffsetSemitones, transposeMidi, transposeFrequency } from '../../utils/pitchOffset';
 import type { ScaleDefinition } from '../../utils/musicTheory';
 import type { Open303Oscillator } from '../../engines/Open303Oscillator';
 import type { ProphecyOscillator } from '../../engines/ProphecyOscillator';
@@ -81,7 +82,7 @@ export function playSynth(
         if (open303Engine) {
             apply303Params(open303Engine, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-            const midi = noteToMidi(note);
+            const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
             const now = context.currentTime;
             const startDelay = Math.max(0, time - now);
             const duration = durationSteps * stepTime;
@@ -98,7 +99,7 @@ export function playSynth(
         if (prophecyEngine) {
             applyProphecyParams(prophecyEngine, params, prophecyWaveType);
 
-            const midi = noteToMidi(note);
+            const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
             const now = context.currentTime;
             const startDelay = Math.max(0, time - now);
             const duration = durationSteps * stepTime;
@@ -110,7 +111,7 @@ export function playSynth(
     }
 
     // === Frequency with Microtonal Tuning ===
-    const freq = tunedNoteToFrequency(note, tuning);
+    const freq = transposeFrequency(tunedNoteToFrequency(note, tuning), getPitchOffsetSemitones(params));
 
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
@@ -240,7 +241,7 @@ export function noteOnSynth(
         if (ctx.open303Engine) {
             apply303Params(ctx.open303Engine, params, params.waveform === '303-sqr' ? 'sqr' : 'saw');
 
-            const midi = noteToMidi(note);
+            const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
             ctx.open303Engine.noteOn(midi, 100);
 
             const id = state.nextNoteId++;
@@ -256,7 +257,7 @@ export function noteOnSynth(
         if (ctx.prophecyEngine) {
             applyProphecyParams(ctx.prophecyEngine, params, prophecyWaveType);
 
-            const midi = noteToMidi(note);
+            const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
             ctx.prophecyEngine.noteOn(midi, 100);
 
             const id = state.nextNoteId++;
