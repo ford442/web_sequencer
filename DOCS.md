@@ -137,6 +137,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 |------|-------------|
 | [APP_REFACTORING_SUMMARY.md](docs/refactoring/APP_REFACTORING_SUMMARY.md) | App.tsx extraction refactor summary |
 | [PERFORMANCE_MIGRATION_STRATEGY.md](docs/refactoring/PERFORMANCE_MIGRATION_STRATEGY.md) | WebGPU/WASM performance migration |
+| [module-size-budget.md](docs/refactoring/module-size-budget.md) | Module size budget: tracked hot-module status, merge-artifact gate, remaining over-budget inventory |
 | [REFACTORING_SUMMARY.md](docs/refactoring/REFACTORING_SUMMARY.md) | General refactoring notes |
 | [SECTIONS_3_4_SUMMARY.md](docs/refactoring/SECTIONS_3_4_SUMMARY.md) | Rubberband sections 3 & 4 summary |
 | [streamlining.md](docs/refactoring/streamlining.md) | Build and dev workflow streamlining |
