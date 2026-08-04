@@ -49,7 +49,8 @@ export function playDrum(
         const osc = context.createOscillator();
         const gain = context.createGain();
 
-        osc.frequency.setValueAtTime(150, now);
+        // TUNE knob sets the kick's base pitch in Hz
+        osc.frequency.setValueAtTime(Math.max(20, p.pitch || 150), now);
         osc.frequency.exponentialRampToValueAtTime(0.01, now + p.decay);
 
         gain.gain.setValueAtTime(p.volume, now);
@@ -66,8 +67,9 @@ export function playDrum(
         const osc = context.createOscillator();
         const oscGain = context.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(250, now);
-        oscGain.gain.setValueAtTime(p.tone * p.volume, now);
+        // TUNE knob sets the body tone frequency in Hz
+        osc.frequency.setValueAtTime(Math.max(20, p.tone || 250), now);
+        oscGain.gain.setValueAtTime(p.volume * 0.6, now);
         oscGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay); // Using decay for tone too
 
         // Noise
@@ -76,9 +78,10 @@ export function playDrum(
             noise.buffer = noiseBuffer;
             const noiseFilter = context.createBiquadFilter();
             noiseFilter.type = 'highpass';
+            // SNAPPY knob is a Hz-valued amount (~1000-8000); normalize to gain
             noiseFilter.frequency.value = 1000;
             const noiseGain = context.createGain();
-            noiseGain.gain.setValueAtTime(p.noise * p.volume, now);
+            noiseGain.gain.setValueAtTime(Math.min(1, p.noise / 5000) * p.volume, now);
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);
 
             noise.connect(noiseFilter);
@@ -101,7 +104,7 @@ export function playDrum(
             src.buffer = noiseBuffer;
             const filter = context.createBiquadFilter();
             filter.type = 'highpass';
-            filter.frequency.value = 5000; // Metallic
+            filter.frequency.value = Math.max(20, p.pitch || 5000); // Metallic (TONE knob)
             const gain = context.createGain();
             gain.gain.setValueAtTime(p.volume, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + p.decay);

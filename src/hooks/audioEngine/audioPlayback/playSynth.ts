@@ -1,5 +1,6 @@
 import type { SynthParams } from "../../../types";
 import { noteToMidi } from "../../../utils/musicTheory";
+import { getPitchOffsetSemitones, transposeMidi } from "../../../utils/pitchOffset";
 import { PROPHECY_WAVEFORM_SUFFIX } from "../../../engines/ProphecyParams";
 import type { Voice } from "../../../engines/VoiceManager";
 import { pulseExpressionLed } from "../../../audio/expressionLedPulse";
@@ -111,6 +112,9 @@ export function createPlaySynth(
       pulseExpressionLed(SYNTH_TRACK_TO_LED[track], noteStr);
     }
     const midi = noteToMidi(noteStr);
+    // TUNE (module pitch offset, semitones) applies to the engine-driven voices.
+    // The VoiceManager path applies it itself from params, so it is not used there.
+    const engineMidi = transposeMidi(midi, getPitchOffsetSemitones(effectiveParams));
     const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
     const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
 
@@ -177,10 +181,10 @@ export function createPlaySynth(
           setTimeout(() => {
             refs.open303ManagerRef.current?.setBass2Drive(driveAmount);
           }, startDelay * 1000);
-          refs.open303ManagerRef.current?.noteOnBass2(midi, velocity, noteTime);
+          refs.open303ManagerRef.current?.noteOnBass2(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
-            refs.open303ManagerRef.current?.noteOffBass2(midi, noteTime + noteDuration);
+            refs.open303ManagerRef.current?.noteOffBass2(engineMidi, noteTime + noteDuration);
           }
         }
         continue;
@@ -209,10 +213,10 @@ export function createPlaySynth(
           setTimeout(() => {
             refs.open303ManagerRef.current?.setBass1Drive(driveAmount);
           }, startDelay * 1000);
-          refs.open303ManagerRef.current?.noteOnBass1(midi, velocity, noteTime);
+          refs.open303ManagerRef.current?.noteOnBass1(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
-            refs.open303ManagerRef.current?.noteOffBass1(midi, noteTime + noteDuration);
+            refs.open303ManagerRef.current?.noteOffBass1(engineMidi, noteTime + noteDuration);
           }
 
           continue;
@@ -235,10 +239,10 @@ export function createPlaySynth(
           setTimeout(() => {
             refs.open303ManagerRef.current?.setLead303Drive(driveAmount);
           }, startDelay * 1000);
-          refs.open303ManagerRef.current?.noteOnLead303(midi, velocity, noteTime);
+          refs.open303ManagerRef.current?.noteOnLead303(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
-            refs.open303ManagerRef.current?.noteOffLead303(midi, noteTime + noteDuration);
+            refs.open303ManagerRef.current?.noteOffLead303(engineMidi, noteTime + noteDuration);
           }
 
           continue;
@@ -259,10 +263,10 @@ export function createPlaySynth(
             noteDuration,
           );
 
-          refs.prophecyManagerRef?.current?.noteOnPartB(midi, 100, noteTime);
+          refs.prophecyManagerRef?.current?.noteOnPartB(engineMidi, 100, noteTime);
 
           if (slideFromFreq === undefined) {
-            refs.prophecyManagerRef?.current?.noteOffPartB(midi, noteTime + noteDuration);
+            refs.prophecyManagerRef?.current?.noteOffPartB(engineMidi, noteTime + noteDuration);
           }
 
           continue;
@@ -275,10 +279,10 @@ export function createPlaySynth(
           const startDelay = Math.max(0, noteTime - now);
           const noteDuration = subDuration;
 
-          refs.prophecyManagerRef?.current?.noteOnPartA(midi, 100, noteTime);
+          refs.prophecyManagerRef?.current?.noteOnPartA(engineMidi, 100, noteTime);
 
           if (slideFromFreq === undefined) {
-            refs.prophecyManagerRef?.current?.noteOffPartA(midi, noteTime + noteDuration);
+            refs.prophecyManagerRef?.current?.noteOffPartA(engineMidi, noteTime + noteDuration);
           }
 
           continue;

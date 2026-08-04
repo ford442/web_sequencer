@@ -12,6 +12,7 @@ import {
     type PyodideLike,
 } from '../utils/pyodideBuffers';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
+import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
 
 export interface VoiceEngineDeps {
     wasmEngine?: WasmOscillator | null;
@@ -121,7 +122,14 @@ export class Voice implements PoolableVoice {
         }
 
         const now = time;
-        const freq = tunedNoteToFrequency(note, tuning);
+        // Module TUNE knob (semitones) transposes the sounding pitch.
+        const pitchSemis = getPitchOffsetSemitones(params);
+        const freq = transposeFrequency(tunedNoteToFrequency(note, tuning), pitchSemis);
+        // Slide source frequencies are computed from the untransposed note, so
+        // shift them by the same amount to keep glides in tune.
+        const slideFrom = slideFromFreq !== undefined
+            ? transposeFrequency(slideFromFreq, pitchSemis)
+            : undefined;
 
         const waveform = params.waveform;
         const parsed = parseWaveform(waveform);
@@ -135,11 +143,11 @@ export class Voice implements PoolableVoice {
             // === LEGATO / SLIDE ===
             if (this.source instanceof OscillatorNode) {
                 this.source.frequency.cancelScheduledValues(now);
-                this.source.frequency.setValueAtTime(slideFromFreq!, now);
+                this.source.frequency.setValueAtTime(slideFrom!, now);
                 this.source.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
             } else if (this.source instanceof AudioBufferSourceNode) {
                 const baseFreq = 261.63; // C4
-                const startRate = slideFromFreq! / baseFreq;
+                const startRate = slideFrom! / baseFreq;
                 const endRate = freq / baseFreq;
                 this.source.playbackRate.cancelScheduledValues(now);
                 this.source.playbackRate.setValueAtTime(startRate, now);
