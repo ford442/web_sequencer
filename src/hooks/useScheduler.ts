@@ -83,7 +83,14 @@ export const useScheduler = (
     }, [swing]);
 
     const startClock = useCallback(async () => {
-        if (!context || !isAudioReady) return;
+        if (!context || !isAudioReady) {
+            console.warn(
+                '[useScheduler] startClock called before the audio engine was ready — ' +
+                `context: ${context ? 'present' : 'null'}, isAudioReady: ${isAudioReady}. ` +
+                'Transport will not advance until the engine finishes initializing.',
+            );
+            return;
+        }
 
         if (context.state === 'suspended') {
             try {
@@ -148,6 +155,12 @@ export const useScheduler = (
         if (isPlaying && isAudioReady) {
             startClock();
         } else {
+            if (isPlaying && !isAudioReady) {
+                console.warn(
+                    '[useScheduler] Play was requested but the audio engine is not ready yet — ' +
+                    'the clock will start automatically once it is.',
+                );
+            }
             stopClock();
         }
         return () => stopClock();
