@@ -85,7 +85,10 @@ export function useAppState() {
     } = useTransportMixState();
 
     const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef, prophecyManagerRef } = useAudioEngine(pyodide, tempo)
-    const isEngineReady = isReady && isPyodideReady
+    // Core sequencer transport only needs the Web Audio engine — it never touches
+    // Pyodide ("Spectral Puppet"), so gating playback on Python readiness left the
+    // clock permanently blocked whenever Pyodide was slow or failed to load.
+    const isEngineReady = isReady
 
     useTTSPreloader()
 
