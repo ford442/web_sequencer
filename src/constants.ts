@@ -233,7 +233,13 @@ const noteFrequencies: { [key: string]: number } = {
 };
 
 export const noteToFrequency = (note: string): number => {
-  return noteFrequencies[note] || 440.00; // Default to A4 if not found
+  const table = noteFrequencies[note];
+  if (table) return table;
+  // Outside the C2-B5 table (e.g. the live keyboard shifted up or down an
+  // octave): derive from MIDI rather than silently collapsing to A4.
+  const midi = noteToMidi(note);
+  if (midi > 0) return 440.00 * Math.pow(2, (midi - 69) / 12);
+  return 440.00;
 };
 
 

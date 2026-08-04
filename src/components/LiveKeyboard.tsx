@@ -1,24 +1,31 @@
 import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import {
+    clampOctave, noteForOffset, loadStoredOctave, storeOctave,
+    MIN_KEYBOARD_OCTAVE, MAX_KEYBOARD_OCTAVE,
+} from '../utils/keyboardOctave';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
 
-// PC Key Mapping for Classic Piano Layout
-// Top row: 5 black keys (C#5, D#5, F#5, G#5, A#5) - mapped to keys 9, 8, 6, 5, 4
-// Bottom row: 8 white keys (C5, D5, E5, F5, G5, A5, B5, C6) - mapped to F8-F1
-const PC_KEY_MAPPING: Record<string, string> = {
+// PC Key Mapping for Classic Piano Layout.
+// Values are semitone offsets from the C of the current base octave, so the
+// whole layout follows the octave shift. At the default octave (5) these are
+// C5..C6 with black keys C#5, D#5, F#5, G#5, A#5.
+// Top row: 5 black keys - mapped to keys 9, 8, 6, 5, 4
+// Bottom row: 8 white keys - mapped to F8-F1
+const PC_KEY_MAPPING: Record<string, number> = {
     // F-key row (bottom) - White keys
-    'F8': 'C5',   'F7': 'D5',   'F6': 'E5',   'F5': 'F5',
-    'F4': 'G5',   'F3': 'A5',   'F2': 'B5',   'F1': 'C6',
+    'F8': 0,   'F7': 2,   'F6': 4,   'F5': 5,
+    'F4': 7,   'F3': 9,   'F2': 11,  'F1': 12,
     // Digit row (top) - Black keys (staggered between white keys)
-    'Digit9': 'C#5',  'Digit8': 'D#5',  'Digit6': 'F#5',  'Digit5': 'G#5',  'Digit4': 'A#5',
+    'Digit9': 1,  'Digit8': 3,  'Digit6': 6,  'Digit5': 8,  'Digit4': 10,
 };
 
-const NOTE_TO_KEY = Object.entries(PC_KEY_MAPPING).reduce((acc, [keyCode, note]) => {
-    acc[note] = keyCode;
-    return acc;
-}, {} as Record<string, string>);
+// Octave shift shortcuts. Chosen to avoid the F-key and digit-row piano
+// mapping above: [ shifts down, ] shifts up.
+const OCTAVE_DOWN_CODE = 'BracketLeft';
+const OCTAVE_UP_CODE = 'BracketRight';
 
 const formatKeyLabel = (code: string) => {
     if (code.startsWith('Digit')) return code.replace('Digit', '');
@@ -58,6 +65,7 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
                 <div className="text-center mb-8">
                     <h3 id="keyboard-guide-title" className="text-2xl font-orbitron font-bold text-cyan-400 mb-2 tracking-widest">PIANO KEYBOARD</h3>
                     <p className="text-gray-400 font-mono text-sm">Classic piano layout with 5 black keys and 8 white keys.</p>
+                    <p className="text-gray-500 font-mono text-xs mt-2">Press <span className="text-cyan-400">[</span> and <span className="text-cyan-400">]</span> to shift the keyboard down or up an octave.</p>
                 </div>
 
                 {/* Visual Schematic — two groups: {C D E F} and {G A B C} */}
@@ -147,6 +155,8 @@ const KeyboardGuide = ({ onClose }: { onClose: () => void }) => {
 // --- PIANO KEY COMPONENT ---
 interface PianoKeyProps {
     note: string;
+    /** Semitone offset from the base octave's C — what the handlers receive. */
+    offset: number;
     x: number;
     y: number;
     width: number;
@@ -156,13 +166,13 @@ interface PianoKeyProps {
     isActive: boolean;
     isHeldByMouse: boolean;
     activeColor: string;
-    onMouseDown: (note: string) => void;
-    onMouseEnter: (note: string) => void;
+    onMouseDown: (offset: number) => void;
+    onMouseEnter: (offset: number) => void;
     onStopMouse: () => void;
 }
 
 const PianoKey = memo(({
-    note, x, y, width, height, label, isBlack,
+    note, offset, x, y, width, height, label, isBlack,
     isActive, activeColor, onMouseDown, onMouseEnter, onStopMouse
 }: PianoKeyProps) => {
     const noteBase = getNoteBase(note);
@@ -175,7 +185,7 @@ const PianoKey = memo(({
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onMouseDown(note);
+            onMouseDown(offset);
         } else if (e.key === 'Escape') {
             e.preventDefault();
             onStopMouse();
@@ -189,11 +199,11 @@ const PianoKey = memo(({
             aria-label={`Play ${note}`}
             aria-pressed={isActive}
             tabIndex={0}
-            onMouseDown={(e) => { if (e.button === 0) onMouseDown(note); }}
-            onMouseEnter={(e) => { if (e.buttons === 1) onMouseEnter(note); else onStopMouse(); }}
+            onMouseDown={(e) => { if (e.button === 0) onMouseDown(offset); }}
+            onMouseEnter={(e) => { if (e.buttons === 1) onMouseEnter(offset); else onStopMouse(); }}
             onMouseUp={onStopMouse}
             onMouseLeave={onStopMouse}
-            onTouchStart={(e) => { e.preventDefault(); onMouseDown(note); }}
+            onTouchStart={(e) => { e.preventDefault(); onMouseDown(offset); }}
             onTouchEnd={(e) => { e.preventDefault(); onStopMouse(); }}
             onKeyDown={handleKeyDown}
             cursor="pointer"
@@ -297,20 +307,31 @@ const PianoKey = memo(({
 });
 
 export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _activeTrackColor }: LiveKeyboardProps) => {
-    const [heldByKeys, setHeldByKeys] = useState<Set<string>>(new Set());
-    const [heldByMouse, setHeldByMouse] = useState<string | null>(null);
+    // Held keys are tracked as semitone offsets, not note names, so shifting
+    // the octave re-derives every sounding note. The diffing effect below then
+    // stops the old pitches and starts the new ones.
+    const [heldByKeys, setHeldByKeys] = useState<Set<number>>(new Set());
+    const [heldByMouse, setHeldByMouse] = useState<number | null>(null);
     const [showGuide, setShowGuide] = useState(false);
+    const [octave, setOctave] = useState(() => loadStoredOctave());
 
     const heldByMouseRef = useRef(heldByMouse);
     useEffect(() => { heldByMouseRef.current = heldByMouse; }, [heldByMouse]);
 
     const playingNotesRef = useRef<Set<string>>(new Set());
 
+    useEffect(() => { storeOctave(octave); }, [octave]);
+
+    const shiftOctave = useCallback((delta: number) => {
+        setOctave(prev => clampOctave(prev + delta));
+    }, []);
+
     const targetActiveNotes = useMemo(() => {
-        const active = new Set(heldByKeys);
-        if (heldByMouse) active.add(heldByMouse);
+        const active = new Set<string>();
+        heldByKeys.forEach(offset => active.add(noteForOffset(offset, octave)));
+        if (heldByMouse !== null) active.add(noteForOffset(heldByMouse, octave));
         return active;
-    }, [heldByKeys, heldByMouse]);
+    }, [heldByKeys, heldByMouse, octave]);
 
     useEffect(() => {
         const currentlyPlaying = playingNotesRef.current;
@@ -335,20 +356,29 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-            const note = PC_KEY_MAPPING[e.code];
-            if (note && !e.repeat) {
+            if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
+
+            if (e.code === OCTAVE_DOWN_CODE || e.code === OCTAVE_UP_CODE) {
                 e.preventDefault();
-                setHeldByKeys(prev => new Set(prev).add(note));
+                if (!e.repeat) shiftOctave(e.code === OCTAVE_UP_CODE ? 1 : -1);
+                return;
+            }
+
+            const offset = PC_KEY_MAPPING[e.code];
+            if (offset !== undefined && !e.repeat) {
+                e.preventDefault();
+                setHeldByKeys(prev => new Set(prev).add(offset));
             }
         };
         const handleKeyUp = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-            const note = PC_KEY_MAPPING[e.code];
-            if (note) {
+            if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
+            const offset = PC_KEY_MAPPING[e.code];
+            if (offset !== undefined) {
                 e.preventDefault();
                 setHeldByKeys(prev => {
                     const next = new Set(prev);
-                    next.delete(note);
+                    next.delete(offset);
                     return next;
                 });
             }
@@ -364,12 +394,12 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             window.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('blur', handleBlur);
         };
-    }, []);
+    }, [shiftOctave]);
 
     // --- MOUSE EVENT HANDLERS ---
-    const handleMouseDownStable = useCallback((note: string) => setHeldByMouse(note), []);
-    const handleMouseEnterStable = useCallback((note: string) => {
-        if (heldByMouseRef.current !== null) setHeldByMouse(note);
+    const handleMouseDownStable = useCallback((offset: number) => setHeldByMouse(offset), []);
+    const handleMouseEnterStable = useCallback((offset: number) => {
+        if (heldByMouseRef.current !== null) setHeldByMouse(offset);
     }, []);
     const handleStopMouseStable = useCallback(() => setHeldByMouse(null), []);
 
@@ -384,19 +414,19 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     const blackKeyHeight = whiteKeyHeight * 0.75; // Increased from 0.65 to 0.75
     const rowGap = 5;
 
-    // White keys (bottom row)
-    const whiteNotes = ['C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5', 'C6'];
+    // White keys (bottom row) — semitone offsets from the base octave's C
+    const whiteOffsets = [0, 2, 4, 5, 7, 9, 11, 12];
     const whiteKeyCodes = ['F8', 'F7', 'F6', 'F5', 'F4', 'F3', 'F2', 'F1'];
 
     // Black keys (top row) - positioned between specific white keys
     // C# between C-D, D# between D-E, F# between F-G, G# between G-A, A# between A-B
     // Positions: after key 0 (C), after key 1 (D), after key 3 (F), after key 4 (G), after key 5 (A)
     const blackKeyData = [
-        { note: 'C#5', keyCode: 'Digit9', position: 0 }, // Between C and D
-        { note: 'D#5', keyCode: 'Digit8', position: 1 }, // Between D and E
-        { note: 'F#5', keyCode: 'Digit6', position: 3 }, // Between F and G
-        { note: 'G#5', keyCode: 'Digit5', position: 4 }, // Between G and A
-        { note: 'A#5', keyCode: 'Digit4', position: 5 }, // Between A and B
+        { offset: 1,  keyCode: 'Digit9', position: 0 }, // C# between C and D
+        { offset: 3,  keyCode: 'Digit8', position: 1 }, // D# between D and E
+        { offset: 6,  keyCode: 'Digit6', position: 3 }, // F# between F and G
+        { offset: 8,  keyCode: 'Digit5', position: 4 }, // G# between G and A
+        { offset: 10, keyCode: 'Digit4', position: 5 }, // A# between A and B
     ];
 
     const whiteRowY = blackKeyHeight + rowGap;
@@ -404,7 +434,36 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
 
     return (
         <div className="w-full max-w-[820px] mx-auto mt-4 select-none relative">
-            {/* PIANO LAYOUT INFO Banner */}
+            {/* OCTAVE CONTROLS + PIANO LAYOUT INFO Banner */}
+            <div className="absolute -top-7 left-0 flex items-center gap-1 z-40">
+                <button
+                    type="button"
+                    onClick={() => shiftOctave(-1)}
+                    disabled={octave <= MIN_KEYBOARD_OCTAVE}
+                    aria-label="Octave down"
+                    title="Octave down ( [ )"
+                    className="text-[10px] text-cyan-500/80 hover:text-cyan-400 disabled:text-gray-700 disabled:hover:text-gray-700 font-mono px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 disabled:bg-black/10 transition-all"
+                >
+                    <span aria-hidden="true">−</span>
+                </button>
+                <span className="text-[10px] font-mono tracking-wider text-cyan-400 px-2 py-1 rounded border border-cyan-900/30 bg-black/30 tabular-nums">
+                    OCT {octave}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => shiftOctave(1)}
+                    disabled={octave >= MAX_KEYBOARD_OCTAVE}
+                    aria-label="Octave up"
+                    title="Octave up ( ] )"
+                    className="text-[10px] text-cyan-500/80 hover:text-cyan-400 disabled:text-gray-700 disabled:hover:text-gray-700 font-mono px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 disabled:bg-black/10 transition-all"
+                >
+                    <span aria-hidden="true">+</span>
+                </button>
+                <span role="status" aria-live="polite" className="sr-only">
+                    {`Octave ${octave}, keys ${noteForOffset(0, octave)} to ${noteForOffset(12, octave)}`}
+                </span>
+            </div>
+
             <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
                 <button type="button" onClick={() => setShowGuide(true)} aria-label="Show Keyboard Layout Guide" title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
                     <span className="text-xs" aria-hidden="true">⌨</span> PIANO LAYOUT INFO
@@ -416,34 +475,40 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             {/* Piano Keyboard SVG */}
             <svg aria-hidden="true" viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
                 {/* White keys (bottom row) — group 1: C D E F (i=0–3), group 2: G A B C (i=4–7) */}
-                {whiteNotes.map((note, i) => (
-                    <PianoKey
-                        key={note}
-                        note={note}
-                        x={i < 4 ? i * whiteKeyWidth : i * whiteKeyWidth + fKeyGap}
-                        y={whiteRowY}
-                        width={whiteKeyWidth - 2}
-                        height={whiteKeyHeight}
-                        label={whiteKeyCodes[i].replace('F', 'F')}
-                        isBlack={false}
-                        isActive={targetActiveNotes.has(note)}
-                        isHeldByMouse={heldByMouse === note}
-                        activeColor={getNoteColor(note)}
-                        onMouseDown={handleMouseDownStable}
-                        onMouseEnter={handleMouseEnterStable}
-                        onStopMouse={handleStopMouseStable}
-                    />
-                ))}
+                {whiteOffsets.map((offset, i) => {
+                    const note = noteForOffset(offset, octave);
+                    return (
+                        <PianoKey
+                            key={offset}
+                            note={note}
+                            offset={offset}
+                            x={i < 4 ? i * whiteKeyWidth : i * whiteKeyWidth + fKeyGap}
+                            y={whiteRowY}
+                            width={whiteKeyWidth - 2}
+                            height={whiteKeyHeight}
+                            label={whiteKeyCodes[i]}
+                            isBlack={false}
+                            isActive={targetActiveNotes.has(note)}
+                            isHeldByMouse={heldByMouse === offset}
+                            activeColor={getNoteColor(note)}
+                            onMouseDown={handleMouseDownStable}
+                            onMouseEnter={handleMouseEnterStable}
+                            onStopMouse={handleStopMouseStable}
+                        />
+                    );
+                })}
 
                 {/* Black keys (top row) - positioned between white keys */}
                 {/* positions 0,1 → left group (C#,D#); positions 3,4,5 → right group (F#,G#,A#) */}
-                {blackKeyData.map(({ note, keyCode, position }) => {
+                {blackKeyData.map(({ offset, keyCode, position }) => {
+                    const note = noteForOffset(offset, octave);
                     // Shift right-group black keys by fKeyGap to align with the offset white keys
                     const x = (position + 1) * whiteKeyWidth - (blackKeyWidth / 2) + (position >= 3 ? fKeyGap : 0);
                     return (
                         <PianoKey
-                            key={note}
+                            key={offset}
                             note={note}
+                            offset={offset}
                             x={x}
                             y={0}
                             width={blackKeyWidth}
@@ -451,7 +516,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             label={keyCode.replace('Digit', '')}
                             isBlack={true}
                             isActive={targetActiveNotes.has(note)}
-                            isHeldByMouse={heldByMouse === note}
+                            isHeldByMouse={heldByMouse === offset}
                             activeColor={getNoteColor(note)}
                             onMouseDown={handleMouseDownStable}
                             onMouseEnter={handleMouseEnterStable}
