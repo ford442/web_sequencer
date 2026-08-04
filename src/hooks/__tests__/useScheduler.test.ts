@@ -30,6 +30,11 @@ function makeContext(state: AudioContextState = 'running'): AudioContext {
 
 describe('useScheduler', () => {
     let originalWorkletNode: unknown;
+    // Tracked explicitly (rather than via `vi.restoreAllMocks()`) because that
+    // would also wipe the shared `window.AudioContext` mock from
+    // vitest.setup.ts — it's a plain `vi.fn()`, not a spy, so "restoring" it
+    // clears its implementation and breaks every later test in this file.
+    let warnSpy: ReturnType<typeof vi.spyOn> | null = null;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -40,10 +45,12 @@ describe('useScheduler', () => {
 
     afterEach(() => {
         (window as unknown as { AudioWorkletNode: unknown }).AudioWorkletNode = originalWorkletNode;
+        warnSpy?.mockRestore();
+        warnSpy = null;
     });
 
     it('does not start the AudioWorklet clock and logs a clear warning when the engine is not ready', async () => {
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const context = makeContext();
         const onStep = vi.fn();
 
