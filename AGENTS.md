@@ -433,9 +433,37 @@ Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wa
 5. **Accessibility Tests**: `AppAccessibility.test.tsx`, `AutomationStepA11y.test.tsx`, `LiveKeyboardA11y.test.tsx`, `SongModeA11y.test.tsx`, `VoiceEditorA11y.test.tsx`
 
 ### E2E Tests (Playwright)
-- **Location**: `tests/*.spec.ts` (~2 spec files)
-- **Config**: `playwright.config.ts`
-- **Base URL**: `http://localhost:5173`
+- **Location**: `tests/*.spec.ts`
+- **Config**: `playwright.config.ts` (owns the dev/preview server via `webServer`)
+- **Base URL**: `http://127.0.0.1:5173`
+- **Shared helpers**: `tests/helpers/boot.ts` — use these instead of hand-rolling
+  a boot sequence per spec.
+
+#### E2E smoke path (how to drive the UI)
+
+1. **Boot** — `initializeHyphonAudio(page)`. Navigates with `?e2e=1`, waits for
+   `INITIALIZE SYSTEM` to be *enabled* (it stays disabled until the Pyodide
+   bootstrap reports ready), clicks it with a real gesture (required to unlock
+   the AudioContext, especially on WebKit), then waits out the LoadingOverlay
+   and dismisses HelpTip pins / toasts that would steal clicks.
+2. **The rack mounts ONE module at a time** — `Rack` renders
+   `modules[selectedTrack]`, so `SYNTH B` / `BASS 2` do not exist in the DOM
+   until their track is selected. Use `openRackModule(page, 'BASS 2')`, which
+   clicks the sequencer row header and returns the mounted module.
+3. **Waveform selection is two-level** — oscillator family
+   (`selectOscillatorFamily(module, 'open303')`, addressed by badge text) and
+   then the shape (`Select Rust SAW waveform`).
+4. **Clicking module controls** — use `clickControl(locator)`. The knob REC
+   overlay can cover the *centre* of a compact selector button; `clickControl`
+   probes for a point the control actually owns instead of force-clicking
+   through to the REC button. Prefer it over `domClick`, which dispatches an
+   event no real user can produce.
+5. **Status pills** — the header holds several `role="status"` nodes; use
+   `engineStatusIndicators(page)`, not a bare `getByRole('status')`.
+
+**Browser launch flags are per-project.** `--autoplay-policy` is Chromium-only;
+putting it in the shared `use` block aborts WebKit at launch ("Cannot parse
+arguments"). Firefox takes `firefoxUserPrefs` instead.
 
 ### Mocking
 - `AudioContext` fully mocked in `vitest.setup.ts`
@@ -651,6 +679,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 ## Resources
 
 - **303 Voices catalog**: [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md) — selectable TB-303 models, WASM registry, migration, tests
+- **High-fid 303 path**: [docs/audio-engine/303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) — offline CPU/GPU authenticity tier, fallback, FAQ (epic #972)
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
 - **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`

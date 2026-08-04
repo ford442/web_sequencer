@@ -1,5 +1,7 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
+import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
@@ -28,6 +30,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-wasm { background:#0ea5e9; }
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
+  #${CONTAINER_ID} .backend-wam { background:#0ea5e9; }
+  #${CONTAINER_ID} .backend-rust { background:#b45309; }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
   #${CONTAINER_ID} .cpu-ok { color:#86efac; }
   #${CONTAINER_ID} .cpu-warn { color:#fde047; }
@@ -65,8 +69,25 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const summary = `<div class="subheader">Audio thread</div>
       <div class="row"><div style="flex:1">Master budget</div><div class="${budgetClass}" style="min-width:72px;text-align:right">${runtime.masterBudgetPercent.toFixed(1)}%</div></div>
       <div class="row"><div style="flex:1">Underruns</div><div style="min-width:72px;text-align:right">${runtime.totalUnderruns}</div></div>
+      <div class="row"><div style="flex:1">Sample rate</div><div style="min-width:72px;text-align:right">${runtime.sampleRate != null ? runtime.sampleRate + ' Hz' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Base latency</div><div style="min-width:72px;text-align:right">${runtime.baseLatencyMs != null ? runtime.baseLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Latency hint (active)</div><div style="min-width:72px;text-align:right">${runtime.latencyHint ?? '—'}</div></div>
       <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
+
+    const storedMode = getStoredLatencyMode();
+    const modeButtons = LATENCY_MODES.map((mode) => {
+      const active = mode === storedMode;
+      const style = active
+        ? 'background:#0ea5e9;border-color:#0ea5e9;'
+        : '';
+      return `<button type="button" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}</button>`;
+    }).join('');
+    const modeAppliesNote = storedMode === runtime.latencyHint
+      ? ''
+      : '<div style="font-size:10px;opacity:0.7;margin-top:4px">Restart audio (reload) to apply</div>';
+    const latencySection = `<div class="subheader">Latency mode</div>
+      <div class="row" style="gap:4px">${modeButtons}</div>${modeAppliesNote}`;
 
     const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
     const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
@@ -82,12 +103,48 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       runtime.gpuFallbackReason != null
         ? runtime.gpuFallbackReason.slice(0, 42)
         : '—';
+    const gpuAvail =
+      runtime.gpuAvailable === true ? 'yes' : runtime.gpuAvailable === false ? 'no' : '—';
+    const hfReq = runtime.highFidRequested ?? '—';
+    const hfActive = runtime.highFidActiveEngine ?? '—';
+    const hfSelFb =
+      runtime.highFidFallbackReason != null
+        ? runtime.highFidFallbackReason.slice(0, 42)
+        : '—';
     const offlineSection = `<div class="subheader">Offline 303</div>
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
       <div class="row"><div style="flex:1">Last render</div><div style="min-width:72px;text-align:right">${offlineLat}</div></div>
       <div class="row"><div style="flex:1">GPU 303</div><div style="min-width:72px;text-align:right">${gpuBackend} ${gpuLat}</div></div>
       <div class="row" title="${runtime.gpuFallbackReason ?? ''}"><div style="flex:1">GPU fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${gpuFb}</div></div>`;
+      <div class="row"><div style="flex:1">WebGPU</div><div style="min-width:72px;text-align:right">${gpuAvail}</div></div>
+      <div class="row"><div style="flex:1">HiFi select</div><div style="min-width:72px;text-align:right;font-size:10px" title="${runtime.highFidRequested ?? ''}">${hfReq}</div></div>
+      <div class="row"><div style="flex:1">HiFi active</div><div style="min-width:72px;text-align:right;font-size:10px">${hfActive}</div></div>
+      <div class="row" title="${runtime.highFidFallbackReason ?? ''}"><div style="flex:1">HiFi fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${hfSelFb}</div></div>
+      <div class="row"><div style="flex:1">GPU 303</div><div style="min-width:72px;text-align:right">${gpuBackend} ${gpuLat}</div></div>
+      <div class="row" title="${runtime.gpuFallbackReason ?? ''}"><div style="flex:1">GPU fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${gpuFb}</div></div>`;
+
+    // Oscillator backend chain (#1034): shows every backend in preference order,
+    // which one is active, and why the higher-preference ones were skipped.
+    const registry = getOscillatorRegistry();
+    const resolution = registry?.getLastResolution() ?? null;
+    const backendSection = (() => {
+      if (!resolution) return '';
+      const attemptRows = resolution.attempts.map((a) => {
+        const active = a.id === resolution.active;
+        const state = active ? 'ACTIVE' : a.reason ?? (a.ready ? 'ready' : 'not ready');
+        const color = active ? '#86efac' : a.reason ? '#f87171' : '#9ca3af';
+        return `<div class="row" title="${a.reason ?? ''}">
+          <div class="badge backend-${a.id}">${a.id}</div>
+          <div style="flex:1"></div>
+          <div style="color:${color};font-size:10px;text-align:right;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state}</div>
+        </div>`;
+      }).join('');
+      const header = resolution.degraded
+        ? `<div style="font-size:11px;color:#fde047" title="${resolution.reason ?? ''}">fallback: ${resolution.requested} → ${resolution.active}</div>`
+        : `<div style="font-size:11px;opacity:0.7">preferred backend active (${resolution.active})</div>`;
+      return `<div class="subheader">Oscillator backends</div>${header}${attemptRows}`;
+    })();
 
     const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
@@ -112,7 +169,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${offlineSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -122,6 +179,12 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     if (!target) return;
     if (target.id === 'hud-export-btn') {
       engineTelemetry.exportReport();
+    } else if (target.classList.contains('hud-latency-btn')) {
+      const mode = target.getAttribute('data-mode') as LatencyMode | null;
+      if (mode) {
+        setStoredLatencyMode(mode);
+        render();
+      }
     } else if (target.id === 'hud-copy-btn') {
       const json = engineTelemetry.generateReportJSON();
       if (navigator.clipboard?.writeText) {

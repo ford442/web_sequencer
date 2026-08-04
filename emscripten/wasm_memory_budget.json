@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Single source of truth for hyphon_native.wasm memory sizing.",
+    "Consumed by emscripten/build.sh (-s INITIAL_MEMORY / -s MAXIMUM_MEMORY) and by",
+    "src/audio-worklets/hyphonNativeImports.ts, which allocates the imported",
+    "WebAssembly.Memory for the AudioWorklet instantiation path. The two MUST agree:",
+    "an imported memory whose `initial` is below the module's declared minimum fails",
+    "instantiation, and one far above it wastes address space (and can fail outright",
+    "on mobile Safari / low-end Chromebooks when `shared: true`).",
+    "See docs/wasm/BUILD_NOTES.md#four-worlds-memory-budget for the derivation."
+  ],
+  "pageSizeBytes": 65536,
+  "hyphonNative": {
+    "initialMemoryMb": 128,
+    "maximumMemoryMb": 1024,
+    "stackSizeMb": 8,
+    "pthreadPoolSize": 4
+  },
+  "assemblyScript": {
+    "$comment": "--initialMemory is in 64 KiB pages, not MB.",
+    "oscillatorsPages": 384,
+    "fftPages": 256,
+    "freezerPages": 128,
+    "audioExportPages": 128,
+    "xmExportPages": 128
+  }
+}

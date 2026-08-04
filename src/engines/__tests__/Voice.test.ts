@@ -7,6 +7,7 @@ import { Voice, type VoiceEngineDeps } from '../VoiceManager';
 import type { WasmOscillator } from '../WasmOscillator';
 import type { RustOscillator } from '../RustOscillator';
 import type { SynthParams } from '../../types';
+import { engineDegradationStore } from '../../stores/engineDegradationStore';
 
 // ── Minimal SynthParams fixture ──────────────────────────────────────────────
 
@@ -266,6 +267,24 @@ describe('Voice.startNote — Rust engine', () => {
 
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('rust-sqr'));
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('returned empty'));
+        warn.mockRestore();
+    });
+
+    it('reports the tri → saw wave-family substitution instead of applying it silently', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const rustEngine = { isReady: true, generate: vi.fn(() => new Float32Array(512).fill(0.2)) };
+        const ctx = makeContext(makeOscillatorMock(), makeBufferSourceMock());
+        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
+
+        // 'rust-tri' is outside the Waveform union; the cast exercises the
+        // runtime guard that maps unsupported Rust shapes onto saw.
+        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-tri' as SynthParams['waveform'] }, 'C4', 0);
+
+        expect(rustEngine.generate).toHaveBeenCalledWith(
+            261.63, 2.0, 44100, 'saw', expect.any(Number), expect.any(Number),
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
+        expect(engineDegradationStore.getIssue('waveform-substitution-rust-tri')?.status).toBe('active');
         warn.mockRestore();
     });
 });

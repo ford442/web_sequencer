@@ -1,6 +1,13 @@
 import { useMemo } from 'react'
 import { Voice303Selector } from '../../components/Voice303Selector'
-import { normalizeTB303Model, stockModelForFamily, tb303ModelFamily } from '../../engines/TB303Models'
+import {
+    legacyEngine303ForModel,
+    normalizeTB303Model,
+    resolveHighFidModelSelection,
+    resolveRealtimeTB303Model,
+    stockModelForFamily,
+    tb303ModelFamily,
+} from '../../engines/TB303Models'
 import { ProphecyPanel } from '../../components/ProphecyPanel'
 import { CppPanel } from '../../components/CppPanel'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
@@ -56,16 +63,27 @@ export function useHardwarePanels(deps: {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
         const isProphecy = synthA.waveform?.startsWith('prophecy-') ?? false;
         const modelA = normalizeTB303Model(synthA.model303, synthA.engine303);
-        const currentTypeA: OscillatorType = waveformToOscillatorType(synthA.waveform, tb303ModelFamily(modelA));
+        const realtimeA = resolveRealtimeTB303Model(modelA, synthA.engine303, { reportFallback: false });
+        const currentTypeA: OscillatorType = waveformToOscillatorType(
+            synthA.waveform,
+            legacyEngine303ForModel(realtimeA),
+        );
         const panelClassesA = getOscillatorPanelClasses(currentTypeA);
 
         const handleSynthAVoiceChange = (m: TB303ModelId) => {
-            // engine303 is mirrored for older builds loading the saved song.
-            updateSynthA({ model303: m, engine303: tb303ModelFamily(m) });
+            const selection = resolveHighFidModelSelection(m, undefined, {
+                report: true,
+                subsystem: 'synthA-model303',
+            });
+            // Persist requested id (incl. offline high-fid); mirror legacy engine303.
+            updateSynthA({
+                model303: selection.persisted,
+                engine303: legacyEngine303ForModel(selection.persisted),
+            });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(m);
-            else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(tb303ModelFamily(m));
-            engineTelemetry.registerResolution('synthA-model303', m, 'user-initiated');
+            if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(selection.realtime);
+            else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(legacyEngine303ForModel(selection.realtime));
+            engineTelemetry.registerResolution('synthA-model303', selection.persisted, 'user-initiated');
         };
 
         const handleSynthATypeChange = (newType: OscillatorType) => {
@@ -134,15 +152,26 @@ export function useHardwarePanels(deps: {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
         const isProphecy = synthB.waveform?.startsWith('prophecy-') ?? false;
         const modelB = normalizeTB303Model(synthB.model303, synthB.engine303);
-        const currentTypeB: OscillatorType = waveformToOscillatorType(synthB.waveform, tb303ModelFamily(modelB));
+        const realtimeB = resolveRealtimeTB303Model(modelB, synthB.engine303, { reportFallback: false });
+        const currentTypeB: OscillatorType = waveformToOscillatorType(
+            synthB.waveform,
+            legacyEngine303ForModel(realtimeB),
+        );
         const panelClassesB = getOscillatorPanelClasses(currentTypeB);
 
         const handleSynthBVoiceChange = (m: TB303ModelId) => {
-            updateSynthB({ model303: m, engine303: tb303ModelFamily(m) });
+            const selection = resolveHighFidModelSelection(m, undefined, {
+                report: true,
+                subsystem: 'synthB-model303',
+            });
+            updateSynthB({
+                model303: selection.persisted,
+                engine303: legacyEngine303ForModel(selection.persisted),
+            });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(m);
-            else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(tb303ModelFamily(m));
-            engineTelemetry.registerResolution('synthB-model303', m, 'user-initiated');
+            if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(selection.realtime);
+            else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(legacyEngine303ForModel(selection.realtime));
+            engineTelemetry.registerResolution('synthB-model303', selection.persisted, 'user-initiated');
         };
 
         const handleSynthBTypeChange = (newType: OscillatorType) => {
@@ -210,11 +239,18 @@ export function useHardwarePanels(deps: {
     const bass2Child = useMemo(() => {
         const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);
         const handleBass2VoiceChange = (m: TB303ModelId) => {
-            updateBass2({ model303: m, engine303: tb303ModelFamily(m) });
+            const selection = resolveHighFidModelSelection(m, undefined, {
+                report: true,
+                subsystem: 'bass2-model303',
+            });
+            updateBass2({
+                model303: selection.persisted,
+                engine303: legacyEngine303ForModel(selection.persisted),
+            });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass2Model' in mgr) (mgr as any).setBass2Model(m);
-            else if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(tb303ModelFamily(m));
-            engineTelemetry.registerResolution('bass2-model303', m, 'user-initiated');
+            if (mgr && 'setBass2Model' in mgr) (mgr as any).setBass2Model(selection.realtime);
+            else if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(legacyEngine303ForModel(selection.realtime));
+            engineTelemetry.registerResolution('bass2-model303', selection.persisted, 'user-initiated');
         };
         const bass2Type: OscillatorType = tb303ModelFamily(modelB2) === 'jc303' ? 'jc303' : 'open303';
         return (

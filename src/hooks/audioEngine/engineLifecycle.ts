@@ -1,15 +1,30 @@
 import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
+import { RustOscillator } from '../../engines/RustOscillator';
+import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
+import {
+    JsOscillatorBackend,
+    RustWasmBackend,
+    WamWasmBackend,
+    WavPcmBackend,
+    WebGpuBackend,
+} from '../../engines/backends/adapters';
 import { Open303Manager } from '../../engines/Open303Manager';
+import { ProphecyManager } from '../../engines/ProphecyManager';
+import { DrumKitEngine } from '../../engines/DrumKitEngine';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
+import { DEFAULT_DRUM_KIT } from '../../constants';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry } from '../../utils/engineTelemetry';
+import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import type { TrackAnalysers } from '../../types';
+import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
+import { createAudioContext } from './audioContextFactory';
 import {
     createNoiseBuffer,
     initializeHarmonizer,
@@ -43,6 +58,8 @@ export interface EngineLifecycleRefs {
     gpuEngineRef: MutableRefObject<WebGpuOscillator | null>;
     wasmEngineRef: MutableRefObject<WasmOscillator | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
+    prophecyManagerRef: MutableRefObject<ProphecyManager | null>;
+    drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
     voiceManagerARef: MutableRefObject<VoiceManager | null>;
     voiceManagerBRef: MutableRefObject<VoiceManager | null>;
     sustainNodeRef: MutableRefObject<AudioWorkletNode | null>;
@@ -63,6 +80,7 @@ export interface EngineLifecycleRefs {
 export interface EngineLifecycleUrls {
     sustainProcessorUrl: string;
     open303ProcessorUrl: string;
+    prophecyProcessorUrl: string;
 }
 
 export interface EngineLifecycleResult {
@@ -73,15 +91,14 @@ export interface EngineLifecycleResult {
 export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
+    latencyHint: LatencyMode = getStoredLatencyMode(),
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
-    const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-    if (!AudioContextCtor) {
-        throw new Error('AudioContext is not available in this browser');
-    }
-    const context = new AudioContextCtor();
+    loadingProgressStore.startStep('audioContext');
+    const context = createAudioContext(latencyHint);
+    loadingProgressStore.completeStep('audioContext');
     audioWindow.audioContext = context;
-    startGlitchMonitor(context);
+    startGlitchMonitor(context, latencyHint);
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {
@@ -89,18 +106,41 @@ export async function initializeAudioContextAndEngines(
         console.log("AudioContext resumed");
     }
 
+    loadingProgressStore.startStep('masterChain');
     const { masterBusInput } = buildClassicElectribeGraph(context, refs);
+    loadingProgressStore.completeStep('masterChain');
 
-    // Initialize Engines
-    const gpuEngine = new WebGpuOscillator();
-    await gpuEngine.init().catch(e => console.warn("GPU Engine init failed", e));
-    refs.gpuEngineRef.current = gpuEngine;
+    // Initialize oscillator backends through the shared registry. Every engine
+    // is wrapped in an OscillatorBackend adapter so readiness is typed and the
+    // fallback chain (WebGPU → AS WASM → Rust → WAV PCM → JS) lives in one place.
+    const registry = new BackendRegistry();
+    const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
+    const wamBackend = new WamWasmBackend(new WasmOscillator());
+    const rustBackend = new RustWasmBackend(new RustOscillator());
+    const wavBackend = new WavPcmBackend();
+    registry.register(webGpuBackend);
+    registry.register(wamBackend);
+    registry.register(rustBackend);
+    registry.register(wavBackend);
+    registry.register(new JsOscillatorBackend());
+    setOscillatorRegistry(registry);
 
-    const wasmEngine = new WasmOscillator();
-    await wasmEngine.init().catch(e => console.warn("WASM Engine init failed", e));
-    refs.wasmEngineRef.current = wasmEngine;
+    // The WAV backend only becomes supported once its tables are decoded, so it
+    // is initialized further down; the GPU/WASM/Rust backends init here.
+    loadingProgressStore.startStep('webGpuEngine');
+    await webGpuBackend.init(context);
+    loadingProgressStore.completeStep('webGpuEngine');
+
+    loadingProgressStore.startStep('wasmEngine');
+    await wamBackend.init(context);
+    await rustBackend.init(context);
+    loadingProgressStore.completeStep('wasmEngine');
+
+    refs.gpuEngineRef.current = webGpuBackend.raw;
+    refs.wasmEngineRef.current = wamBackend.raw;
 
     // Initialize Open303 Manager
+    loadingProgressStore.startStep('open303Engine');
     const open303Manager = new Open303Manager();
     let open303Ready = false;
 
@@ -127,25 +167,57 @@ export async function initializeAudioContextAndEngines(
 
     if (!open303Ready) {
         console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
+        loadingProgressStore.failStep('open303Engine', new Error('Open303 not ready'), true);
+    } else {
+        loadingProgressStore.completeStep('open303Engine');
     }
 
+    // Initialize Prophecy formant engine (SYNTH A / SYNTH B prophecy-* waveforms)
+    loadingProgressStore.startStep('prophecyEngine');
+    const prophecyManager = new ProphecyManager();
+    try {
+        const prophecyReady = await prophecyManager.init(context, urls.prophecyProcessorUrl);
+        if (prophecyReady) {
+            const partADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
+            const partBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
+            prophecyManager.connectBuses(partADest, partBDest);
+            refs.prophecyManagerRef.current = prophecyManager;
+            console.log('[useAudioEngine] ProphecyManager Ready');
+            try { engineTelemetry.registerResolution('prophecy', 'wasm-worklet', 'ready'); } catch (e) { /* noop */ }
+        } else {
+            console.warn('[useAudioEngine] ProphecyManager failed to initialize');
+            try { engineTelemetry.registerResolution('prophecy', 'fallback', 'notReady'); } catch (e) { /* noop */ }
+        }
+    } catch (e) {
+        console.error('[useAudioEngine] ProphecyManager crashed during init:', e);
+        loadingProgressStore.failStep(
+            'prophecyEngine',
+            e instanceof Error ? e : new Error(String(e)),
+            true,
+        );
+        try { engineTelemetry.registerResolution('prophecy', 'fallback', String(e)); } catch (err) { /* noop */ }
+    }
+    if (refs.prophecyManagerRef.current) {
+        loadingProgressStore.completeStep('prophecyEngine');
+    } else if (loadingProgressStore.getState().steps.prophecyEngine.status === 'active') {
+        loadingProgressStore.failStep('prophecyEngine', new Error('Prophecy not ready'), true);
+    }
+
+    loadingProgressStore.startStep('wavFiles');
     const [sawBuf, sqrBuf] = await Promise.all([
         loadWavBuffer(context, './assets/saw.wav'),
         loadWavBuffer(context, './assets/square.wav')
     ]);
     refs.wavSawBufferRef.current = sawBuf;
     refs.wavSqrBufferRef.current = sqrBuf;
+    loadingProgressStore.completeStep('wavFiles');
 
-    // Register oscillator backend decision (webgpu -> wasm -> wav -> js)
-    try {
-        let oscillatorBackend = 'js';
-        if (gpuEngine && (gpuEngine as any).isSupported) oscillatorBackend = 'webgpu';
-        else if (wasmEngine && (wasmEngine as any).isReady) oscillatorBackend = 'wasm';
-        else if (sawBuf || sqrBuf) oscillatorBackend = 'wav';
-        engineTelemetry.registerResolution('oscillators', oscillatorBackend, 'init-decision');
-    } catch (e) {
-        console.warn('Engine telemetry registration failed for oscillators', e);
-    }
+    // Resolve the active oscillator backend from the ordered chain. The result
+    // is published to telemetry + the degradation store, so any fallback is
+    // logged and shows up in EngineHUD rather than degrading silently.
+    wavBackend.setBuffers({ saw: sawBuf, sqr: sqrBuf });
+    await wavBackend.init(context);
+    registry.resolveAndPublish();
 
     // Initialize Voice Managers (routed through per-track monitor buses for expression LEDs)
     const synthADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
@@ -153,9 +225,19 @@ export async function initializeAudioContextAndEngines(
     refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
     refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
 
+    // Hand the initialized backends to the voices so rust-*/wam-* waveforms
+    // reach a real engine instead of dropping straight to the JS oscillator.
+    const voiceEngineDeps = {
+        wasmEngine: wamBackend.raw,
+        rustEngine: rustBackend.raw,
+    };
+    refs.voiceManagerARef.current.updateEngineDeps(voiceEngineDeps);
+    refs.voiceManagerBRef.current.updateEngineDeps(voiceEngineDeps);
+
     await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
 
     // --- Singing Voice Manager Init ---
+    loadingProgressStore.startStep('singingVoice');
     try {
         let wasmBinary: ArrayBuffer | undefined = undefined;
         try {
@@ -197,14 +279,21 @@ export async function initializeAudioContextAndEngines(
         if (refs.pyodideRef.current) {
             // Pre-cache logic
         }
+        loadingProgressStore.completeStep('singingVoice');
     } catch (e) {
         try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
         console.warn('SingingVoiceManager failed to init:', e);
+        loadingProgressStore.failStep(
+            'singingVoice',
+            e instanceof Error ? e : new Error(String(e)),
+            true,
+        );
     }
 
     initializeHarmonizer(refs.harmonizerRef);
     refs.noiseBufferRef.current = createNoiseBuffer(context);
     refs.multisampleGeneratorRef.current = new MultisampleGenerator(context);
+    refs.drumKitEngineRef.current = new DrumKitEngine(DEFAULT_DRUM_KIT);
 
     return { context, masterBusInput };
 }

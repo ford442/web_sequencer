@@ -47,11 +47,12 @@ Parameter IDs match `Open303Param` / `Open303Params.ts`.
 | `available` | `true` |
 | `offlineOnly` | `true` |
 
-`getAvailableTB303Models()` hides it from the real-time selector.
-`getAvailableTB303Models({ includeOfflineOnly: true })` exposes it for
-freeze/export UIs (Phase-4).
-`normalizeTB303Model('highfid-cpu')` → `stock-open303` so song load never
-routes it onto AudioWorklet.
+`getAvailableTB303Models()` hides it from realtime-only call sites.
+`getAvailableTB303Models({ includeOfflineOnly: true })` exposes it in
+`Voice303Selector` (Phase-4) with an Offline badge.
+`normalizeTB303Model('highfid-cpu')` keeps the id for song persistence;
+`resolveRealtimeTB303Model('highfid-cpu')` → `stock-open303` so AudioWorklet
+never receives it.
 
 ## Offline worker
 
@@ -104,6 +105,7 @@ Phase-3 WGSL path: [`GPU_HIGHFID_303.md`](./GPU_HIGHFID_303.md).
 
 ## Related
 
+- [303-gpu-highfid.md](./303-gpu-highfid.md) — architecture / usage / FAQ (Phase-6)
 - [303-authenticity-gaps.md](./303-authenticity-gaps.md) (Phase-0)
 - [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) (Phase-1)
 - [GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md) (Phase-3)

@@ -34,15 +34,15 @@ export const WhatsNewBanner = memo(() => {
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             {WHATS_NEW_ITEMS.map((item) => (
               <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => openTopic(item.id)}
+                <div
                   className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] sm:text-xs text-gray-300 hover:bg-cyan-950/40 hover:text-cyan-200 border border-transparent hover:border-cyan-900/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                 >
+                  <button type="button" onClick={() => openTopic(item.id)} className="flex-1 text-left flex items-center gap-2 focus:outline-none">
                   <span className="text-cyan-500" aria-hidden="true">→</span>
                   {item.label}
+                  </button>
                   <HelpIconButton topicId={item.id} className="ml-auto shrink-0" />
-                </button>
+                </div>
               </li>
             ))}
           </ul>

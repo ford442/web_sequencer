@@ -419,6 +419,7 @@ export interface PhonemeData {
   vibratoDepth?: number;
   vibratoRate?: number;
   volume?: number;
+  grainJitter?: number;
 }
 
 export interface Note {

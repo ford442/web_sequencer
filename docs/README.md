@@ -12,6 +12,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | File | Summary |
 |------|---------|
 | [automation.md](automation.md) | Current automation scheduler + RBS import architecture and testing touchpoints |
+| [PERFORMANCE_BUDGET.md](PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 
 ---
 
@@ -22,9 +23,12 @@ For a quick-start overview see the root [README.md](../README.md).
 | [HARMONIZER_IMPLEMENTATION.md](audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design and implementation details |
 | [JC303_STACK_OVERFLOW_FIX.md](audio-engine/JC303_STACK_OVERFLOW_FIX.md) | Fix for stack overflow in the JC-303 TB-303 clone WASM build |
 | [303-voices.md](audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
+| [303-gpu-highfid.md](audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
+| [303-A-B-checklist.md](audio-engine/303-A-B-checklist.md) | Manual + automated high-fid A/B checklist (Phase-5) |
 | [303-baseline/](audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
 | [303-baseline-spectra/](audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
+| [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
 | [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |

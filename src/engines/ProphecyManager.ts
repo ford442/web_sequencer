@@ -55,6 +55,12 @@ export class ProphecyManager {
         this.partB?.connect(dest);
     }
 
+    /** Route partA → SYNTH A bus and partB → SYNTH B bus. */
+    connectBuses(partADest: AudioNode, partBDest: AudioNode): void {
+        this.partA?.connect(partADest);
+        this.partB?.connect(partBDest);
+    }
+
     /** Disconnect both instances. */
     disconnect(): void {
         this.partA?.disconnect();
@@ -143,19 +149,19 @@ export class ProphecyManager {
 
     // ── Note control ─────────────────────────────────────────────────────────
 
-    noteOnPartA(midiNote: number, velocity: number = 100): void {
+    noteOnPartA(midiNote: number, velocity: number = 100, audioTime?: number): void {
         this.partA?.noteOn(midiNote, velocity);
     }
 
-    noteOffPartA(midiNote: number): void {
+    noteOffPartA(midiNote: number, audioTime?: number): void {
         this.partA?.noteOff(midiNote);
     }
 
-    noteOnPartB(midiNote: number, velocity: number = 100): void {
+    noteOnPartB(midiNote: number, velocity: number = 100, audioTime?: number): void {
         this.partB?.noteOn(midiNote, velocity);
     }
 
-    noteOffPartB(midiNote: number): void {
+    noteOffPartB(midiNote: number, audioTime?: number): void {
         this.partB?.noteOff(midiNote);
     }
 

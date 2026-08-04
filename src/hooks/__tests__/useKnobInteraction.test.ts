@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import type React from 'react';
 import { useKnobInteraction } from '../useKnobInteraction';
 
 describe('useKnobInteraction', () => {
@@ -49,5 +50,40 @@ describe('useKnobInteraction', () => {
 
         expect(result.current.interactionProps['aria-label']).toBe('Level (automated)');
         expect(result.current.interactionProps['aria-description']).toContain('automation lane');
+    });
+
+    it('notifies onActiveChange for drag / hover / focus', () => {
+        const onChange = vi.fn();
+        const onActiveChange = vi.fn();
+        const { result } = renderHook(() =>
+            useKnobInteraction({
+                value: 0.5,
+                min: 0,
+                max: 1,
+                onChange,
+                onActiveChange,
+            })
+        );
+
+        act(() => {
+            result.current.interactionProps.onPointerEnter?.({} as React.PointerEvent);
+        });
+        expect(onActiveChange).toHaveBeenLastCalledWith(true);
+        expect(result.current.isActive).toBe(true);
+
+        act(() => {
+            result.current.interactionProps.onPointerLeave?.({} as React.PointerEvent);
+        });
+        expect(onActiveChange).toHaveBeenLastCalledWith(false);
+
+        act(() => {
+            result.current.interactionProps.onFocus?.({} as React.FocusEvent);
+        });
+        expect(onActiveChange).toHaveBeenLastCalledWith(true);
+
+        act(() => {
+            result.current.interactionProps.onBlur?.({} as React.FocusEvent);
+        });
+        expect(onActiveChange).toHaveBeenLastCalledWith(false);
     });
 });

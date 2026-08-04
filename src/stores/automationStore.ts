@@ -502,15 +502,26 @@ class AutomationStore {
     this.notify();
   }
 
+  // Keep track of pending rAF to debounce UI updates for live values
+  private _liveValuesRaf: number | null = null;
+
   /**
    * Update live automated values for UI display.
    * Called once per step tick with all values collected during that step.
    * Merges into existing map so stale entries remain visible until cleared.
+   * Employs rAF coalescing to prevent main-thread UI contention.
    */
   setLiveValues(values: Record<string, number>): void {
     const merged = Object.assign({}, this.state.liveAutomatedValues, values);
     this.state = { ...this.state, liveAutomatedValues: merged };
-    this.notify();
+
+    // Coalesce React notify() into the next animation frame
+    if (this._liveValuesRaf === null) {
+      this._liveValuesRaf = requestAnimationFrame(() => {
+        this.notify();
+        this._liveValuesRaf = null;
+      });
+    }
   }
 
   /**
@@ -520,6 +531,10 @@ class AutomationStore {
   clearLiveValues(): void {
     if (Object.keys(this.state.liveAutomatedValues).length === 0) return;
     this.state = { ...this.state, liveAutomatedValues: {} };
+    if (this._liveValuesRaf !== null) {
+      cancelAnimationFrame(this._liveValuesRaf);
+      this._liveValuesRaf = null;
+    }
     this.notify();
   }
 

@@ -82,6 +82,12 @@ await multisampleGenerator.generate303HighFidMultisamples({
 `getAvailableTB303Models()` hides it from the real-time selector.
 `normalizeTB303Model('gpu-highfid')` → `stock-open303` so song load never
 routes it onto AudioWorklet.
+`getAvailableTB303Models()` hides it from realtime-only call sites.
+`Voice303Selector` includes it via `{ includeOfflineOnly: true }` (Phase-4).
+`normalizeTB303Model('gpu-highfid')` keeps the id for persistence;
+`resolveRealtimeTB303Model` / `resolveHighFidModelSelection` map realtime to
+stock and, without WebGPU, offline render to `highfid-cpu` with user-visible
+feedback.
 
 ## Fallback chain
 
@@ -124,6 +130,7 @@ OfflineRenderer wiring, telemetry fields.
 
 ## Related
 
+- [303-gpu-highfid.md](./303-gpu-highfid.md) — architecture / usage / FAQ (Phase-6)
 - [HIGHFID_CPU_303.md](./HIGHFID_CPU_303.md) (Phase-2)
 - [303-authenticity-gaps.md](./303-authenticity-gaps.md) (Phase-0 thresholds)
 - [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) (Phase-1)

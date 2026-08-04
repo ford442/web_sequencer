@@ -13,6 +13,8 @@ export interface SingingVoiceMixinMethods {
     reverse?: boolean,
   ): Promise<void>;
   setPitch(ratio: number, time?: number): void;
+  setPitchAtTime(ratio: number, time: number): void;
+  glidePitchTo(targetRatio: number, startTime: number, glideTime: number, currentRatio: number, curve?: 'linear' | 'exponential'): void;
   setTimeRatio(timeRatio: number, time?: number): void;
   linearRampToPitch(ratio: number, time: number): void;
   exponentialRampToPitch(ratio: number, time: number): void;
@@ -27,6 +29,7 @@ export interface SingingVoiceMixinMethods {
     targetMidiNote: number,
     tuning?: import("../../utils/musicTheory").ScaleDefinition | null,
   ): keyof PitchCache;
+  trigger(opts: import("./playback").SingingVoiceTriggerOptions): void;
 }
 
 /**
@@ -52,4 +55,6 @@ export interface SingingVoiceHost extends SingingVoiceMixinMethods {
   lastAlignment: AlignmentResult | null;
   bufferPool: PhonemeBufferPool | null;
   outputDestinations: Set<AudioNode>;
+  isActive: boolean;
+  currentPitch: number | null;
 }

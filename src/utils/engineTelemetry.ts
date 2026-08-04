@@ -53,6 +53,22 @@ type RuntimeTelemetry = {
   gpuFallbackReason: string | null;
   /** Phase-3 — whether the last gpu-highfid attempt used the WGSL path. */
   gpuUsedGpu: boolean | null;
+  /** Phase-4 — navigator.gpu (or last selection probe) availability. */
+  gpuAvailable: boolean | null;
+  /** Phase-4 — last requested high-fid / model303 selection. */
+  highFidRequested: string | null;
+  /** Phase-4 — effective offline engine after fallback (gpu-highfid | highfid-cpu | …). */
+  highFidActiveEngine: string | null;
+  /** Phase-4 — realtime worklet model used while a high-fid voice is selected. */
+  highFidRealtimeModel: string | null;
+  /** Phase-4 — selection-time fallback reason (distinct from last render). */
+  highFidFallbackReason: string | null;
+  /** P0 audio foundation — live AudioContext.sampleRate at construction. */
+  sampleRate: number | null;
+  /** P0 audio foundation — live AudioContext.baseLatency, in ms. */
+  baseLatencyMs: number | null;
+  /** P0 audio foundation — latencyHint requested when the context was created. */
+  latencyHint: string | null;
 };
 
 function emptyData(): TelemetryData {
@@ -164,6 +180,22 @@ export interface RuntimeSnapshot {
   gpuFallbackReason: string | null;
   /** Whether last gpu-highfid render used WebGPU. */
   gpuUsedGpu: boolean | null;
+  /** Whether WebGPU was available at last high-fid selection / probe. */
+  gpuAvailable: boolean | null;
+  /** Last requested high-fid / model303 id. */
+  highFidRequested: string | null;
+  /** Effective offline high-fid engine after selection fallback. */
+  highFidActiveEngine: string | null;
+  /** Realtime worklet model while high-fid is selected. */
+  highFidRealtimeModel: string | null;
+  /** Selection-time high-fid fallback reason. */
+  highFidFallbackReason: string | null;
+  /** Live AudioContext.sampleRate at construction (Hz). */
+  sampleRate: number | null;
+  /** Live AudioContext.baseLatency at construction, in ms. */
+  baseLatencyMs: number | null;
+  /** latencyHint requested when the context was created. */
+  latencyHint: string | null;
 }
 
 export interface EngineReport {
@@ -242,6 +274,14 @@ export class EngineTelemetry {
     gpuReadbackBytes: null,
     gpuFallbackReason: null,
     gpuUsedGpu: null,
+    gpuAvailable: null,
+    highFidRequested: null,
+    highFidActiveEngine: null,
+    highFidRealtimeModel: null,
+    highFidFallbackReason: null,
+    sampleRate: null,
+    baseLatencyMs: null,
+    latencyHint: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -289,6 +329,21 @@ export class EngineTelemetry {
     this.runtime.outputLatencyMs = latencyMs;
   }
 
+  /**
+   * Record the negotiated AudioContext identity at construction time
+   * (P0 audio foundation / #1033). Sample rate and base latency are fixed
+   * for the life of the context, so this is called once on init.
+   */
+  recordAudioContextInfo(info: {
+    sampleRate: number;
+    baseLatencyMs: number;
+    latencyHint: string | null;
+  }): void {
+    this.runtime.sampleRate = info.sampleRate;
+    this.runtime.baseLatencyMs = info.baseLatencyMs;
+    this.runtime.latencyHint = info.latencyHint;
+  }
+
   recordDegradation(step: string, active: boolean, reason: string): void {
     this.runtime.degradations.push({ step, active, reason, ts: Date.now() });
     if (this.runtime.degradations.length > MAX_DEGRADATION_LOG) {
@@ -333,6 +388,34 @@ export class EngineTelemetry {
     this.recordLatency('gpu-highfid', meta.latencyMs);
   }
 
+  /**
+   * Record a high-fid model selection (Phase-4 / #977) — GPU availability,
+   * requested vs effective offline engine, and realtime fallback target.
+   */
+  recordHighFidSelection(meta: {
+    requested: string;
+    activeOffline: string;
+    realtime: string;
+    gpuAvailable: boolean;
+    fallbackReason: string | null;
+  }): void {
+    this.runtime.gpuAvailable = meta.gpuAvailable;
+    this.runtime.highFidRequested = meta.requested;
+    this.runtime.highFidActiveEngine = meta.activeOffline;
+    this.runtime.highFidRealtimeModel = meta.realtime;
+    this.runtime.highFidFallbackReason = meta.fallbackReason;
+    this.registerResolution(
+      'highfid-selection',
+      meta.activeOffline,
+      meta.fallbackReason
+        ? `${meta.requested}: ${meta.fallbackReason}`
+        : meta.requested,
+    );
+    if (meta.fallbackReason) {
+      this.recordDegradation('highfid-selection', true, meta.fallbackReason);
+    }
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -366,6 +449,14 @@ export class EngineTelemetry {
       gpuReadbackBytes: this.runtime.gpuReadbackBytes,
       gpuFallbackReason: this.runtime.gpuFallbackReason,
       gpuUsedGpu: this.runtime.gpuUsedGpu,
+      gpuAvailable: this.runtime.gpuAvailable,
+      highFidRequested: this.runtime.highFidRequested,
+      highFidActiveEngine: this.runtime.highFidActiveEngine,
+      highFidRealtimeModel: this.runtime.highFidRealtimeModel,
+      highFidFallbackReason: this.runtime.highFidFallbackReason,
+      sampleRate: this.runtime.sampleRate,
+      baseLatencyMs: this.runtime.baseLatencyMs,
+      latencyHint: this.runtime.latencyHint,
     };
   }
 
@@ -592,6 +683,42 @@ export function emitUserEngineFallbackWarning(
     } catch {
       /* DOM may be unavailable in tests */
     }
+  }
+}
+
+/**
+ * Report that a backend rendered a *different waveform family* than the one
+ * requested (e.g. a triangle request serviced as a saw).
+ *
+ * This is the one degradation a user hears but cannot see, so it is never
+ * allowed to be silent: console, telemetry resolution history and the
+ * degradation store (which drives the banner and EngineHUD) all get it.
+ */
+export function logWaveformSubstitution(
+  subsystem: string,
+  backendId: string,
+  requestedShape: string,
+  substitutedShape: string,
+  reason: string,
+): void {
+  const detail = `${backendId} cannot render "${requestedShape}", using "${substitutedShape}" (${reason})`;
+  console.warn(`[WaveformSubstitution] ${subsystem}: ${detail}`);
+  try {
+    engineTelemetry.registerResolution(subsystem, `${backendId}:${substitutedShape}`, detail);
+    engineTelemetry.recordDegradation(subsystem, true, detail);
+    engineDegradationStore.report({
+      id: `waveform-substitution-${subsystem}-${requestedShape}`,
+      subsystem,
+      category: 'audio',
+      message: `"${requestedShape}" waveform is being played as "${substitutedShape}"`,
+      reason: detail,
+      status: 'active',
+      activeBackend: `${backendId}:${substitutedShape}`,
+      requestedBackend: `${backendId}:${requestedShape}`,
+      retryable: false,
+    });
+  } catch {
+    /* telemetry must never break audio */
   }
 }
 

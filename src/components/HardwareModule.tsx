@@ -368,26 +368,34 @@ export const HardwareModule = memo(
             renderKnob2D(canvas, getCanvasValueAt(index), KNOB_MATERIAL, getAutomationOverlayAt(index));
         }, [getCanvasValueAt, getAutomationOverlayAt]);
 
-        // Sync controls ref and drive 2D fallback re-renders when values change
+        // Sync controls ref and drive re-renders when values change
         useEffect(() => {
             controlsRef.current = controls;
             const prev = prevControlsRef.current;
             const handles = knobHandlesRef.current;
             controls.forEach((ctrl, i) => {
-                if (handles[i] === null) {
-                    const prevCtrl = prev[i];
-                    if (prevCtrl && prevCtrl.id === ctrl.id) {
-                        const prevRender = getKnobCanvasValue(
-                            prevCtrl,
-                            activeKnobIndex.current === i ? dragLiveValueRef.current : null
-                        );
-                        const nextRender = getKnobCanvasValue(
-                            ctrl,
-                            activeKnobIndex.current === i ? dragLiveValueRef.current : null
-                        );
-                        if (prevRender !== nextRender) {
+                const prevCtrl = prev[i];
+                if (prevCtrl && prevCtrl.id === ctrl.id) {
+                    const prevRender = getKnobCanvasValue(
+                        prevCtrl,
+                        activeKnobIndex.current === i ? dragLiveValueRef.current : null
+                    );
+                    const nextRender = getKnobCanvasValue(
+                        ctrl,
+                        activeKnobIndex.current === i ? dragLiveValueRef.current : null
+                    );
+                    if (prevRender !== nextRender) {
+                        const handle = handles[i];
+                        if (handle && KnobGPUContext.isSlotActive(handle)) {
+                            KnobGPUContext.markDirty(handle);
+                        } else {
                             renderCanvasAt(i);
                         }
+                    }
+                } else if (!handles[i] || !KnobGPUContext.isSlotActive(handles[i])) {
+                    // New / remapped control — paint 2D fallback if GPU inactive.
+                    if (handles[i] === null || handles[i] === undefined) {
+                        renderCanvasAt(i);
                     }
                 }
             });
@@ -424,7 +432,12 @@ export const HardwareModule = memo(
 
                 if (dirty) {
                     controlsRef.current.forEach((_, i) => {
-                        if (knobHandlesRef.current[i] === null) renderCanvasAt(i);
+                        const handle = knobHandlesRef.current[i];
+                        if (handle && KnobGPUContext.isSlotActive(handle)) {
+                            KnobGPUContext.markDirty(handle);
+                        } else {
+                            renderCanvasAt(i);
+                        }
                     });
                 }
                 raf = requestAnimationFrame(tick);
@@ -476,6 +489,11 @@ export const HardwareModule = memo(
                 sliderRefs.current[hitIndex]?.focus();
                 onMidiTouch?.(ctrl.id);
 
+                const handle = knobHandlesRef.current[hitIndex];
+                if (handle) {
+                    KnobGPUContext.setAnimated(handle, true);
+                }
+
                 if (ctrl.isAutomated && !event.altKey) {
                     onAutomationPunchIn?.(ctrl.id);
                 }
@@ -526,6 +544,22 @@ export const HardwareModule = memo(
 
             const handlePointerDown = (e: PointerEvent) => {
                 if (e.button !== 0) return;
+                // The oscillator/voice selectors, REC buttons and HelpTip pins are DOM
+                // overlays stacked above the knob canvas, and their hit areas can sit on
+                // top of a knob's canvas region. Capturing the pointer here would
+                // preventDefault() the click before it reached them, so those controls
+                // looked live but did nothing for a real user (E2E had to fall back to
+                // synthetic DOM clicks to drive them). Only the canvas itself may start
+                // a knob drag. The a11y slider overlay is pointer-events:none, so knob
+                // dragging is unaffected.
+                const target = e.target as Element | null;
+                if (
+                    target &&
+                    target !== container &&
+                    target.closest('button, input, select, textarea, a, [role="button"]')
+                ) {
+                    return;
+                }
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
                     container.setPointerCapture(e.pointerId);
@@ -573,7 +607,13 @@ export const HardwareModule = memo(
                 }
                 setDragHud(modifier);
                 document.body.style.cursor = getKnobDragCursor(modifier, true);
-                renderCanvasAt(activeKnobIndex.current);
+                const activeHandle = knobHandlesRef.current[activeKnobIndex.current];
+                if (activeHandle && KnobGPUContext.isSlotActive(activeHandle)) {
+                    KnobGPUContext.markDirty(activeHandle);
+                    KnobGPUContext.renderImmediate(activeHandle);
+                } else {
+                    renderCanvasAt(activeKnobIndex.current);
+                }
                 const paramId = controlsRef.current[activeKnobIndex.current].id;
                 if (dragNudgeRef.current && onAutomationNudge) {
                     const step = automationStore.getState().playbackStep;
@@ -598,6 +638,10 @@ export const HardwareModule = memo(
                 try {
                     container.releasePointerCapture(e.pointerId);
                 } catch { /* already released */ }
+                const handle = knobHandlesRef.current[activeKnobIndex.current];
+                if (handle) {
+                    KnobGPUContext.setAnimated(handle, false);
+                }
                 activeKnobIndex.current = null;
                 dragAnchorRef.current = null;
                 lastDetentIndexRef.current = null;
@@ -702,6 +746,8 @@ export const HardwareModule = memo(
             knobHandlesRef.current[index] = handle;
             if (!handle || !KnobGPUContext.isSlotActive(handle)) {
                 renderCanvasAt(index);
+            } else {
+                KnobGPUContext.markDirty(handle);
             }
         }, [getCanvasValueAt, renderCanvasAt]);
 

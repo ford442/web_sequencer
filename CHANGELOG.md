@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### High-fidelity TB-303 offline path (epic #972 / Phase-6 #979)
+- **Multi-core offline rendering**: OpenMP oversampling (`1` / `2` / `4`) and a worker pool for freeze / export / multisample — real-time AudioWorklet latency unchanged ([OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md)).
+- **High-Fidelity CPU** (`highfid-cpu`): diode-ladder offline reference with PolyBLEP oscillators and coupled accent ([HIGHFID_CPU_303.md](docs/audio-engine/HIGHFID_CPU_303.md)).
+- **GPU High-Fidelity** (`gpu-highfid`): WGSL WebGPU authenticity tier with automatic fallback to CPU when WebGPU is unavailable ([GPU_HIGHFID_303.md](docs/audio-engine/GPU_HIGHFID_303.md)).
+- **UI**: Voice303Selector lists offline voices with **HIFID** / **Offline** / **No GPU** badges; live play stays on Stock Open303 while the selected id is persisted for export.
+- **Quality gates**: spectrogram / RMS tests, offline benchmarks, cross-browser Playwright matrix, and stress tests ([303-A-B-checklist.md](docs/audio-engine/303-A-B-checklist.md)).
+- **Docs**: architecture & FAQ — [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md).
+
 ### In-app discoverability (closes #632, #633, #634)
 - Searchable **Help** modal (`?` key): Search · Guides · Shortcuts tabs
 - Dismissible **What's New** checklist for major workflows

@@ -1,5 +1,7 @@
 /**
  * @deprecated Use `HardwareKnob` with `mode="holographic"` and `bezel` instead.
+ * Holographic animation is driven by the shared idle-static scheduler in KnobGPUContext
+ * (no per-instance rAF). Idle / prefers-reduced-motion knobs share the locked time uniform.
  */
 import React from 'react';
 import { HardwareKnob } from './HardwareKnob';

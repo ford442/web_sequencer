@@ -66,6 +66,7 @@ const LaneRow = memo(({
       {/* Enable/Disable toggle */}
       <button type="button"
         aria-label={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
+        title={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
         className={`w-4 h-4 rounded-sm border flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
           lane.enabled ? 'bg-cyan-500 border-cyan-400' : 'bg-transparent border-gray-500'
         }`}
@@ -113,6 +114,7 @@ const LaneRow = memo(({
       {/* Remove button */}
       <button type="button"
         aria-label={`Remove lane ${lane.name}`}
+        title={`Remove lane ${lane.name}`}
         className="text-gray-500 hover:text-red-400 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] rounded"
         onClick={(e) => { e.stopPropagation(); onRemove(lane.id); }}
       >
@@ -144,8 +146,16 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
 
   if (state.lanes.length === 0) {
     return (
-      <div className="text-xs text-gray-500 italic px-2 py-4 text-center">
-        No automation lanes. Record knob movements or import an .rbs file.
+      <div className="flex flex-col items-center justify-center py-8 px-4 text-center bg-[#1a1d24]/50 border border-dashed border-gray-700 rounded-lg m-2">
+        <div className="w-10 h-10 rounded-full bg-cyan-900/30 flex items-center justify-center mb-3 text-cyan-500">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <h3 className="text-gray-300 font-bold mb-1 text-xs">No automation lanes</h3>
+        <p className="text-gray-500 text-[10px] max-w-[200px]">
+          Record knob movements or import an .rbs file to see automation here.
+        </p>
       </div>
     );
   }

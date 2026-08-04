@@ -158,9 +158,9 @@ export class SupertonicService {
             // Load Default Style
             try {
                 await this.loadStyle(getAssetUrl('assets/voice_styles/F1.json'));
-                console.log("✓ Loaded default voice style: M1");
+                console.log('✓ Loaded default voice style: F1');
             } catch (e) {
-                console.warn("Could not load default style M1.json", e);
+                console.warn('Could not load default style F1.json', e);
             }
 
             this.isReady = true;

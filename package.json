@@ -18,6 +18,8 @@
     "build:wasm:rust": "cd rust-audio && wasm-pack build --target web --out-dir ../public/rust-wasm",
     "build:wasm:jc303": "bash tools/build_jc303_omp.sh release both",
     "build:emcc": "bash emscripten/build.sh",
+    "build:emcc:debug": "bash emscripten/build.sh debug",
+    "check:exports": "node tools/check_wasm_export_map.mjs",
     "optimize": "bash tools/optimize.sh",
     "build": "npm run build:wasm && npm run build:emcc && npm run optimize && tsc -b && vite build",
     "preview": "vite preview",
@@ -26,6 +28,8 @@
     "check:root": "node scripts/check-root.mjs",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "benchmark:303": "vite-node scripts/benchmark_offline303.mjs",
     "prepare": "husky",
     "deploy": "python deploy.py",
     "demo": "start svg-demo.html"

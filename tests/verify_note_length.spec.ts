@@ -1,56 +1,51 @@
 import { test, expect } from '@playwright/test';
+import { initializeHyphonAudio } from './helpers/boot';
 
-// TODO: Fix Playwright flakiness with StartOverlay dismissal and SVG step hitboxes.
-// Temporarily skipped during React.memo optimization PR.
-test.skip('verify note length controls and auto-delete', async ({ page }) => {
-    // 1. Load Page
-    await page.goto('/');
-  // Dismiss StartOverlay
-  const startBtn = page.getByRole('button', { name: 'INITIALIZE SYSTEM' });
-  await startBtn.waitFor({ state: 'visible', timeout: 90000 });
-  await expect(startBtn).toBeEnabled({ timeout: 90000 });
-  await startBtn.click({ force: true });
-  await startBtn.waitFor({ state: 'hidden', timeout: 30000 });
-    await expect(page.getByText('HYPHON').first()).toBeVisible();
+/**
+ * Note length / auto-delete on overlapping steps.
+ *
+ * When a note's length spans later steps, MainSequencer skips rendering those
+ * covered step cells (skipCount) — so step-partA-2 leaves the DOM rather than
+ * flipping aria-pressed.
+ */
+test('verify note length controls and auto-delete', async ({ page }) => {
+    await initializeHyphonAudio(page);
 
-    // 2. Setup: Create notes on Step 0 and Step 2
-    // Use exact match to avoid matching "Lead step 10", "11", etc.
-    const step0 = page.getByRole('button', { name: 'Lead step 1', exact: true });
-    const step2 = page.getByRole('button', { name: 'Lead step 3', exact: true });
+    const step0 = page.getByTestId('step-partA-0');
+    const step2 = page.getByTestId('step-partA-2');
 
-    // Wait for hydration/rendering
-    await step0.waitFor();
+    await step0.waitFor({ state: 'visible', timeout: 30_000 });
+    await step0.scrollIntoViewIfNeeded();
 
-    await step0.click();
-    await step2.click();
+    for (const step of [step0, step2]) {
+        if ((await step.getAttribute('aria-pressed')) !== 'true') {
+            await step.click();
+        }
+        await expect(step).toHaveAttribute('aria-pressed', 'true');
+    }
 
-    // Verify both are active
-    await expect(step0.locator('.step-glow')).toBeVisible();
-    await expect(step2.locator('.step-glow')).toBeVisible();
-
-    // 3. Open Context Menu on Step 0
     await step0.click({ button: 'right' });
 
-    // Verify Menu Open
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(page.getByText('NOTE PROPERTIES')).toBeVisible();
+    const dialog = page.getByRole('dialog').filter({ hasText: 'NOTE PROPERTIES' });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-    // 4. Change Duration to 4
-    const slider = dialog.locator('input[type="range"]');
-    // Using fill to set value directly
-    await slider.fill('4');
-    // Also dispatch input/change to ensure React state updates
-    await slider.dispatchEvent('input');
-    await slider.dispatchEvent('change');
+    const duration = dialog.locator('#note-duration');
+    await expect(duration).toBeVisible();
 
-    // 5. Verify Step 0 expanded text updates
-    await expect(page.getByText('4 Steps')).toBeVisible();
+    await duration.evaluate((el) => {
+        const input = el as HTMLInputElement;
+        const proto = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            'value',
+        );
+        proto?.set?.call(input, '4');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
 
-    // 6. Verify Step 2 is DELETED (no glow)
-    // The auto-delete logic should have cleared step 2 because length 4 covers steps 0, 1, 2, 3.
-    await expect(step2.locator('.step-glow')).not.toBeVisible();
-
-    // 7. Verify Step 0 is still active
-    await expect(step0.locator('.step-glow')).toBeVisible();
+    // Covered steps are omitted from the SVG grid when length > 1.
+    await expect(page.getByTestId('step-partA-2')).toHaveCount(0, { timeout: 10_000 });
+    await expect(step0).toHaveAttribute('aria-pressed', 'true');
+    // Length badge rendered on the extended step cell.
+    await expect(step0.locator('text')).toContainText('4x');
 });

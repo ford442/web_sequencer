@@ -8,11 +8,17 @@
  *    Models in this family are coefficient profiles applied to the same DSP
  *    topology (filter curves, envelope ranges, accent punch, waveshaping).
  *  - 'jc303' family — authentic rosic::Open303 (emscripten/jc303_wrapper.cpp).
+ *  - 'highfid' family — offline-only diode-ladder engines (highfid-cpu /
+ *    gpu-highfid). Never routed to AudioWorklet; used for freeze / export /
+ *    multisample (Phase-2+).
  *
- * This registry is mirrored by `k303Models[]` in emscripten/open303_wrapper.cpp.
+ * This registry is mirrored by `k303Models[]` in emscripten/open303_wrapper.cpp
+ * for open303-family coefficient profiles. High-fid engines live in separate
+ * wrappers (`highfid303_wrapper.cpp` / WGSL) and are catalogued here only.
+ *
  * Adding a new voice:
  *   1. Add a profile row to `k303Models[]` in open303_wrapper.cpp and rebuild
- *      the WASM (`pnpm run build:emcc`).
+ *      the WASM (`pnpm run build:emcc`) — open303-family only.
  *   2. Add a matching entry here with `available: true`.
  * Every call site (UI selector, worklet routing, song load/save) picks the new
  * voice up from this list — no other changes required.
@@ -23,8 +29,14 @@
  * with the exact stock sound they were saved with.
  */
 
-/** Which WASM API family a model is built on. Matches the legacy Engine303 type. */
+import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
+
+/** Which WASM API family a model is built on. Matches the legacy Engine303 type (+ highfid). */
 export type Engine303Family = 'open303' | 'jc303' | 'highfid';
+
+/** Legacy persisted mirror — only open303 | jc303 (older song readers). */
+export type LegacyEngine303 = 'open303' | 'jc303';
 
 export type TB303ModelId =
   | 'stock-open303'
@@ -67,6 +79,8 @@ export interface TB303ModelInfo {
    * When true, the voice is intended for offline / freeze / export only
    * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Excluded from the real-time
    * Voice303Selector.
+   * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Realtime AudioWorklet falls
+   * back via `resolveRealtimeTB303Model`; offline renderers use the id as-is.
    */
   offlineOnly?: boolean;
 }
@@ -142,10 +156,20 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
   },
   {
     id: 'highfid-cpu',
-    label: 'High-Fidelity CPU',
+    label: 'High-Fidelity CPU (offline)',
     shortLabel: 'HiFi CPU',
     description:
-      'Offline diode-ladder reference (Phase-2) — feedback HP, per-loop soft diodes, PolyBLEP osc, coupled accent. Not for real-time AudioWorklet.',
+      'Offline only — best for freeze / export / multisample. Diode-ladder CPU reference (Phase-2). Live playback uses Stock Open303.',
+    family: 'highfid',
+    available: true,
+    offlineOnly: true,
+  },
+  {
+    id: 'gpu-highfid',
+    label: 'GPU High-Fidelity (offline)',
+    shortLabel: 'HiFi GPU',
+    description:
+      'Offline only — best for freeze / export / multisample. WGSL diode-ladder (Phase-3); falls back to High-Fidelity CPU when WebGPU is unavailable. Live playback uses Stock Open303.',
     family: 'highfid',
     available: true,
     offlineOnly: true,
@@ -171,11 +195,18 @@ export function getTB303Model(id: string | undefined): TB303ModelInfo | undefine
   return id ? MODEL_BY_ID.get(id) : undefined;
 }
 
+export function isOfflineOnlyTB303Model(id: string | undefined): boolean {
+  return !!getTB303Model(id)?.offlineOnly;
+}
+
 /**
  * Models selectable in the UI (DSP profile shipped).
  * By default excludes `offlineOnly` voices (highfid-cpu, gpu-highfid) so the
  * real-time selector stays latency-safe. Pass `{ includeOfflineOnly: true }`
  * for freeze / export / offline renderer UIs (Phase-4).
+ * By default excludes `offlineOnly` voices so callers that only drive the
+ * AudioWorklet stay latency-safe. Pass `{ includeOfflineOnly: true }` for the
+ * voice selector / freeze / export UIs (Phase-4).
  */
 export function getAvailableTB303Models(opts?: {
   includeOfflineOnly?: boolean;
@@ -188,6 +219,14 @@ export function getAvailableTB303Models(opts?: {
 /** The engine family a model runs on ('open303' for anything unknown). */
 export function tb303ModelFamily(id: string | undefined): Engine303Family {
   return getTB303Model(id)?.family ?? 'open303';
+}
+
+/**
+ * Legacy `engine303` mirror for song save. High-fid voices map to `open303`
+ * so older builds still load a valid realtime engine field.
+ */
+export function legacyEngine303ForModel(id: string | undefined): LegacyEngine303 {
+  return tb303ModelFamily(id) === 'jc303' ? 'jc303' : 'open303';
 }
 
 /** Stock (default) model id for an engine family. */
@@ -210,10 +249,7 @@ export function reportTB303ModelFallback(
   const msg = `[TB303] Model "${requested}" unavailable (${reason}) — using "${resolved}"`;
   console.warn(msg);
   try {
-    // Lazy import avoids pulling DOM code into every unit test.
-    void import('../utils/engineTelemetry').then(({ engineTelemetry }) => {
-      engineTelemetry.registerResolution(subsystem, resolved, `${requested}: ${reason}`);
-    });
+    engineTelemetry.registerResolution(subsystem, resolved, `${requested}: ${reason}`);
   } catch {
     /* telemetry optional */
   }
@@ -222,10 +258,13 @@ export function reportTB303ModelFallback(
 /**
  * Resolve a persisted model/engine pair to a valid, available model id.
  *
- *  - A known, available `model303` wins.
+ *  - A known, available `model303` wins (including offline-only high-fid ids).
  *  - A known-but-unavailable model falls back to its family's stock voice.
  *  - Otherwise the legacy `engine303` field decides ('jc303' → 'jc303').
  *  - Default: 'stock-open303'.
+ *
+ * Offline-only ids are preserved for persistence / UI / offline render.
+ * Use `resolveRealtimeTB303Model` before posting to AudioWorklet.
  *
  * When `reportFallback` is true and the resolved id differs from the requested
  * string, `reportTB303ModelFallback` is invoked (song load / runtime apply).
@@ -238,20 +277,6 @@ export function normalizeTB303Model(
   const requested = model303?.trim();
   const model = getTB303Model(requested);
   if (model) {
-    // Offline-only high-fid voices are not routed to AudioWorklet yet (Phase-4).
-    // Song load / realtime apply falls back to stock so latency stays unchanged.
-    if (model.offlineOnly) {
-      const resolved: TB303ModelId = 'stock-open303';
-      if (options?.reportFallback && requested && resolved !== requested) {
-        reportTB303ModelFallback(
-          requested,
-          resolved,
-          'offline-only high-fid voice',
-          options.subsystem,
-        );
-      }
-      return resolved;
-    }
     const resolved = model.available ? model.id : stockModelForFamily(model.family);
     if (options?.reportFallback && requested && resolved !== requested) {
       reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped', options.subsystem);
@@ -263,4 +288,135 @@ export function normalizeTB303Model(
     reportTB303ModelFallback(requested, resolved, 'unknown id', options.subsystem);
   }
   return resolved;
+}
+
+/**
+ * Map a (possibly offline-only) model to one safe for AudioWorklet routing.
+ * Offline high-fid voices → stock-open303 so realtime latency is unchanged.
+ */
+export function resolveRealtimeTB303Model(
+  model303?: string,
+  engine303?: string,
+  options?: { reportFallback?: boolean; subsystem?: string },
+): TB303ModelId {
+  const normalized = normalizeTB303Model(model303, engine303);
+  const info = getTB303Model(normalized);
+  if (info?.offlineOnly) {
+    const resolved: TB303ModelId = 'stock-open303';
+    if (options?.reportFallback !== false) {
+      reportTB303ModelFallback(
+        normalized,
+        resolved,
+        'offline-only high-fid voice (realtime uses stock)',
+        options?.subsystem ?? 'tb303-realtime',
+      );
+    }
+    return resolved;
+  }
+  return normalized;
+}
+
+export type HighFidOfflineEngine = 'gpu-highfid' | 'highfid-cpu' | 'stock-open303';
+
+export interface HighFidModelSelection {
+  /** User / song requested id (after normalize). */
+  requested: TB303ModelId;
+  /** Id to persist in SynthParams.model303. */
+  persisted: TB303ModelId;
+  /** Id for AudioWorklet (never offline-only). */
+  realtime: TB303ModelId;
+  /** Effective offline render engine after capability checks. */
+  offlineEngine: HighFidOfflineEngine;
+  /** Why offlineEngine differs from a GPU request (null if no degradation). */
+  fallbackReason: string | null;
+  gpuAvailable: boolean;
+}
+
+function detectWebGpuAvailable(): boolean {
+  try {
+    return typeof navigator !== 'undefined' && !!(navigator as Navigator & { gpu?: unknown }).gpu;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Central factory for high-fid / general model selection + fallback.
+ *
+ * Choosing `gpu-highfid` without WebGPU → offline path uses `highfid-cpu`
+ * (persisted id stays `gpu-highfid` so songs round-trip). Realtime always
+ * uses stock for offline-only voices.
+ */
+export function resolveHighFidModelSelection(
+  model303?: string,
+  engine303?: string,
+  options?: {
+    gpuAvailable?: boolean;
+    report?: boolean;
+    subsystem?: string;
+  },
+): HighFidModelSelection {
+  const requested = normalizeTB303Model(model303, engine303);
+  const gpuAvailable = options?.gpuAvailable ?? detectWebGpuAvailable();
+  const realtime = resolveRealtimeTB303Model(requested, engine303, {
+    reportFallback: false,
+    subsystem: options?.subsystem,
+  });
+
+  let offlineEngine: HighFidOfflineEngine = 'stock-open303';
+  let fallbackReason: string | null = null;
+
+  if (requested === 'gpu-highfid') {
+    if (gpuAvailable) {
+      offlineEngine = 'gpu-highfid';
+    } else {
+      offlineEngine = 'highfid-cpu';
+      fallbackReason = 'WebGPU unavailable — using High-Fidelity CPU for offline render';
+    }
+  } else if (requested === 'highfid-cpu') {
+    offlineEngine = 'highfid-cpu';
+  }
+  // Non-highfid models: offlineEngine stays stock-open303 as a sentinel;
+  // OfflineRenderer still uses the persisted model id for open303/jc303 paths.
+
+  const selection: HighFidModelSelection = {
+    requested,
+    persisted: requested,
+    realtime,
+    offlineEngine,
+    fallbackReason,
+    gpuAvailable,
+  };
+
+  if (options?.report !== false) {
+    try {
+      engineTelemetry.recordHighFidSelection({
+        requested: selection.requested,
+        activeOffline: selection.offlineEngine,
+        realtime: selection.realtime,
+        gpuAvailable: selection.gpuAvailable,
+        fallbackReason: selection.fallbackReason,
+      });
+      if (selection.fallbackReason) {
+        engineDegradationStore.reportHighFidFallback({
+          requested: selection.requested,
+          active: selection.offlineEngine,
+          reason: selection.fallbackReason,
+          gpuAvailable: selection.gpuAvailable,
+        });
+        reportTB303ModelFallback(
+          selection.requested,
+          selection.offlineEngine === 'highfid-cpu' ? 'highfid-cpu' : selection.realtime,
+          selection.fallbackReason,
+          options?.subsystem ?? 'gpu-highfid',
+        );
+      } else if (selection.requested === 'gpu-highfid' || selection.requested === 'highfid-cpu') {
+        engineDegradationStore.resolve('gpu-highfid-selection');
+      }
+    } catch {
+      /* telemetry optional */
+    }
+  }
+
+  return selection;
 }

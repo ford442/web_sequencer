@@ -1,7 +1,13 @@
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
-import { normalizeTB303Model, reportTB303ModelFallback, stockModelForFamily, tb303ModelFamily } from './TB303Models';
+import {
+    legacyEngine303ForModel,
+    normalizeTB303Model,
+    reportTB303ModelFallback,
+    resolveRealtimeTB303Model,
+    stockModelForFamily,
+} from './TB303Models';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -10,14 +16,15 @@ import {
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
 import { attachWorkletPerf } from '../utils/workletPerfBridge';
+import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 
 /** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
- *  The module declares initial: 8192 (512 MB). Must stay in sync with
- *  open303-processor.ts OPEN303_MIN_MEMORY_PAGES. */
-const OPEN303_MIN_MEMORY_PAGES = 8192;
+ *  Derived from emscripten/wasm_memory_budget.json via hyphonNativeImports so the
+ *  worklet, the engine and the emcc link flags cannot drift apart. */
+const OPEN303_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 /** Maximum milliseconds to wait for the Open303 worklet to signal readiness. */
 const OPEN303_INIT_TIMEOUT_MS = 8000;
@@ -121,7 +128,7 @@ export class Open303Oscillator {
 
             console.log(`[Open303Oscillator] WASM variant: ${variant}, native=${isNative}`);
 
-            // hyphon_native.wasm requires at least OPEN303_MIN_MEMORY_PAGES (512 MB).
+            // hyphon_native.wasm requires at least OPEN303_MIN_MEMORY_PAGES.
             // Pass this as the floor so the worklet's createMemory() allocates enough.
             const memoryPages = isThreaded ? OPEN303_MIN_MEMORY_PAGES : undefined;
 
@@ -209,7 +216,7 @@ export class Open303Oscillator {
         this.fallbackSynth.setVolume(this.params.volume);
     }
 
-    noteOn(midiNote: number, velocity: number = 100): void {
+    noteOn(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
@@ -219,13 +226,13 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity } });
+            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity, audioTime } });
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
     }
 
-    noteOff(midiNote: number): void {
+    noteOff(midiNote: number, audioTime?: number): void {
         if (!this.isReady) return;
         
         if (this.isFallback && this.fallbackSynth) {
@@ -235,7 +242,7 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote } });
+            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
@@ -291,12 +298,21 @@ export class Open303Oscillator {
      */
     setModel303(model: TB303ModelId | string): void {
         const requested = typeof model === 'string' ? model.trim() : model;
-        const resolved = normalizeTB303Model(requested);
+        // Persist the catalog id when known; AudioWorklet only receives realtime-safe voices.
+        const persisted = normalizeTB303Model(requested);
+        const resolved = resolveRealtimeTB303Model(persisted, undefined, { reportFallback: false });
         if (requested && resolved !== requested) {
-            reportTB303ModelFallback(requested, resolved, 'runtime apply', 'open303-model');
+            reportTB303ModelFallback(
+                requested,
+                resolved,
+                persisted !== requested
+                    ? 'runtime apply'
+                    : 'offline-only high-fid voice (realtime uses stock)',
+                'open303-model',
+            );
         }
         this.model303 = resolved;
-        this.engine303 = tb303ModelFamily(this.model303);
+        this.engine303 = legacyEngine303ForModel(this.model303);
         this.applyModel303();
     }
 

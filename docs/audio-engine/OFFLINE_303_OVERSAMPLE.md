@@ -84,6 +84,7 @@ a typical multi-core laptop (sync path). Worker overhead is small relative to DS
 
 ## Related
 
+- [303-gpu-highfid.md](./303-gpu-highfid.md) — architecture / usage / FAQ (Phase-6)
 - [OPENMP_IMPLEMENTATION.md](./OPENMP_IMPLEMENTATION.md)
 - [303-voices.md](./303-voices.md)
 - [303-authenticity-gaps.md](./303-authenticity-gaps.md) (Phase-0)

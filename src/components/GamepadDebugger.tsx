@@ -45,8 +45,14 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
         </h2>
 
         {gamepads.length === 0 ? (
-           <div id="gamepad-debugger-desc" className="text-center py-12 text-slate-500 border-2 border-dashed border-slate-800 rounded-lg">
-             No Gamepads Detected. Press a button to wake them up.
+           <div id="gamepad-debugger-desc" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-800/20 border-2 border-dashed border-slate-800 rounded-lg">
+             <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500 text-2xl" aria-hidden="true">
+               🎮
+             </div>
+             <h3 className="text-slate-300 font-bold mb-2 text-sm">No gamepads detected</h3>
+             <p className="text-slate-500 text-xs">
+               Connect a gamepad and press any button to wake it up.
+             </p>
            </div>
         ) : (
           <>
