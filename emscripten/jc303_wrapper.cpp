@@ -36,6 +36,37 @@ using namespace emscripten;
 // Parameter IDs (keep in sync with Open303Params.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Output level calibration
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// LEVEL (JC303_VOLUME, 0-1) must behave as a *linear* amplitude control, matching
+// open303_wrapper.cpp / highfid303_wrapper.cpp (`gain = volume`) and the non-303
+// oscillators (VoiceManager ramps its GainNode straight to params.volume). It
+// previously went through `setVolume(linToLin(v, 0, 1, -60, 0))`, i.e. rosic's
+// master level in *decibels* — an exponential law that left jc303 14-18 dB below
+// every other oscillator at the default LEVELs (0.40-0.50) while overshooting to
+// +7.9 dBFS (hard clipping) at LEVEL=1.0. The two laws happened to cross near
+// LEVEL≈0.80, which is where the canonical baselines were rendered, so the
+// mismatch never showed up in docs/audio-engine/303-baseline/.
+//
+// rosic's own master level is therefore pinned to 0 dB (unity) and LEVEL is
+// applied as a linear gain on the way out, scaled by the constant below.
+//
+// JC303_OUTPUT_NORMALIZE brings the rosic engine's hot unity output onto the
+// shared 303 reference level: peak 0.822 at LEVEL=1.0 under the canonical
+// pattern (cutoff 0.35 / res 0.70 / envMod 0.55 / decay 0.50 / accent 0.70, saw),
+// which is what the open303 model family produces. Measured rosic peak at 0 dB
+// under that pattern is 2.489, so 0.822 / 2.489 = 0.330.
+//
+// Calibrating a new 303 engine: render the canonical pattern at LEVEL=1.0 and
+// pick a constant that lands peak on TB303_REFERENCE_PEAK. The offline test
+// emscripten/tests/tb303_level_alignment_test.cpp asserts every engine stays
+// within tolerance of it.
+static constexpr float TB303_REFERENCE_PEAK      = 0.822f;
+static constexpr float JC303_UNITY_PEAK          = 2.489f;
+static constexpr float JC303_OUTPUT_NORMALIZE    = TB303_REFERENCE_PEAK / JC303_UNITY_PEAK;
+
 enum Jc303Param : int {
     JC303_WAVEFORM      = 0,
     JC303_TUNING        = 1,
@@ -62,6 +93,9 @@ struct Jc303Instance {
     float*   outBuf  = nullptr;
     int      bufSize = 128;
     float    sampleRate = 44100.0f;
+    // LEVEL as a linear 0-1 amplitude, applied in process(). Mirrors the
+    // `volume` member in open303_wrapper.cpp / highfid303_wrapper.cpp.
+    float    volume  = 0.75f;
 
     Jc303Instance() = default;
 
@@ -94,6 +128,10 @@ struct Jc303Instance {
         synth->setAmpSustain(0.0);
         synth->setSlideTime(60.0);
         synth->setTanhShaperDrive(0.0);
+
+        // Pin rosic's dB master level to unity; LEVEL is applied linearly in
+        // process() so the law matches the other 303 engines and oscillators.
+        synth->setVolume(0.0);
     }
 
     void setParam(int paramId, float value)
@@ -123,7 +161,9 @@ struct Jc303Instance {
                 synth->setAccent(value * 100.0);
                 break;
             case JC303_VOLUME:
-                synth->setVolume(linToLin(value, 0.0, 1.0, -60.0, 0.0));
+                // Linear amplitude control — applied in process(), not through
+                // rosic's dB master level (which stays pinned at unity in init()).
+                volume = std::max(0.0f, std::min(1.0f, value));
                 break;
             case JC303_FILTER_MODE:
                 synth->setFeedbackHighpass(linToExp(value, 0.0, 1.0, 20.0, 500.0));
@@ -152,8 +192,9 @@ struct Jc303Instance {
     void process(float* output, int numFrames)
     {
         if (!synth || !output) return;
+        const float gain = volume * JC303_OUTPUT_NORMALIZE;
         for (int i = 0; i < numFrames; ++i) {
-            output[i] = static_cast<float>(synth->getSample());
+            output[i] = static_cast<float>(synth->getSample()) * gain;
         }
     }
 

@@ -84,3 +84,10 @@ jobs:
         run: pnpm exec vitest run --pool forks
         env:
           CI: true
+
+      - name: Test (offline 303 engines, host g++)
+        # Renders the 303 engines natively via the emscripten stubs — no emsdk
+        # needed. Covers the TB-303 output-level alignment gate, which has to
+        # sweep LEVEL through the real DSP and so cannot run from Vitest against
+        # the committed baselines (those are all rendered at a single LEVEL).
+        run: bash emscripten/tests/run_offline_voices_test.sh
