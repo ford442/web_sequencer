@@ -55,6 +55,12 @@ export class ProphecyManager {
         this.partB?.connect(dest);
     }
 
+    /** Route partA → SYNTH A bus and partB → SYNTH B bus. */
+    connectBuses(partADest: AudioNode, partBDest: AudioNode): void {
+        this.partA?.connect(partADest);
+        this.partB?.connect(partBDest);
+    }
+
     /** Disconnect both instances. */
     disconnect(): void {
         this.partA?.disconnect();

@@ -12,6 +12,7 @@ import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
+import { loadingProgressStore } from '../stores/loadingProgressStore';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import type { MultisampleBank } from '../types';
 import {
@@ -44,6 +45,7 @@ export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 // URLs for worklets
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
+import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
@@ -156,6 +158,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const initializeAudio = useCallback(async () => {
         if (audioEngine || isInitializing.current) return;
         isInitializing.current = true;
+        loadingProgressStore.startLoading();
 
         try {
             const lifecycleRefs: EngineLifecycleRefs = {
@@ -179,6 +182,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 gpuEngineRef,
                 wasmEngineRef,
                 open303ManagerRef,
+                prophecyManagerRef,
+                drumKitEngineRef,
                 voiceManagerARef,
                 voiceManagerBRef,
                 sustainNodeRef,
@@ -199,6 +204,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             const { context } = await initializeAudioContextAndEngines(lifecycleRefs, {
                 sustainProcessorUrl,
                 open303ProcessorUrl,
+                prophecyProcessorUrl,
             });
 
             // --- Helper: warm the phoneme pool for all phonemes in a bank ---
@@ -350,11 +356,19 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 isMultisampleReady,
             }));
 
-            setIsReady(true);
-        } catch (e) {
-            console.error("CRITICAL AUDIO INIT FAILURE", e);
+            loadingProgressStore.completeStep('complete');
+            loadingProgressStore.finishLoading();
             setIsReady(true);
             isInitializing.current = false;
+        } catch (e) {
+            console.error("CRITICAL AUDIO INIT FAILURE", e);
+            loadingProgressStore.addError(
+                e instanceof Error ? e.message : String(e),
+            );
+            loadingProgressStore.finishLoading();
+            setIsReady(false);
+            isInitializing.current = false;
+            throw e;
         }
     }, [audioEngine, playbackRefs, tempo]);
 
@@ -385,6 +399,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         initializeAudio,
         onParamChange: updateVoiceParams,
         updateSamplerVoiceParams,
-        drumKitEngineRef
+        drumKitEngineRef,
+        prophecyManagerRef,
     }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };

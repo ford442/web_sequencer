@@ -9,6 +9,7 @@ import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
+import { loadingProgressStore } from '../stores/loadingProgressStore'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import type { PcfEffect } from '../engines/PcfEffect';
@@ -83,8 +84,8 @@ export function useAppState() {
         reverbType, setReverbType,
     } = useTransportMixState();
 
-    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef } = useAudioEngine(pyodide, tempo)
-    const isEngineReady = isReady && (isPyodideReady || !!pyodideStatus)
+    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef, prophecyManagerRef } = useAudioEngine(pyodide, tempo)
+    const isEngineReady = isReady && isPyodideReady
 
     useTTSPreloader()
 
@@ -117,11 +118,20 @@ export function useAppState() {
             await initializeAudio();
             setIsInitialized(true);
             console.log("Audio Engine Initialized");
-            SupertonicService.getInstance().init().catch((e: unknown) => {
+            loadingProgressStore.startStep('ttsEngine');
+            SupertonicService.getInstance().init().then(() => {
+                loadingProgressStore.completeStep('ttsEngine');
+            }).catch((e: unknown) => {
                 console.warn('Supertonic TTS failed to init:', e);
+                loadingProgressStore.failStep(
+                    'ttsEngine',
+                    e instanceof Error ? e : new Error(String(e)),
+                    true,
+                );
             });
         } catch (e) {
             console.error("Failed to start system:", e);
+            setIsInitialized(false);
         }
     };
 
@@ -213,8 +223,9 @@ export function useAppState() {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
             automationSchedulerRef.current.setPcfEffect(pcf);
+            automationSchedulerRef.current.setProphecyManager(prophecyManagerRef.current ?? null);
         }
-    }, [audioEngine]);
+    }, [audioEngine, prophecyManagerRef]);
 
     useEffect(() => {
         const mgr = (audioEngine as any)?.open303Engine;

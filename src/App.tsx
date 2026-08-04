@@ -64,7 +64,7 @@ export const App: React.FC = () => {
         synthAChild, synthBChild, bass2Child, samplerChild,
         samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig,
         handleHarmonizerConfigChange, isHarmonizeActive,
-        toast, setToast, hasStarted, handleStart, isPyodideReady, isInitialized,
+        toast, setToast, hasStarted, handleStart, isPyodideReady, pyodideStatus, isInitialized,
         isImportingAISong, aiImportStage, aiImportProgress, aiImportError,
         setIsImportingAISong, setAiImportStage, setAiImportProgress, showToast,
         isCloudLibraryOpen, setIsCloudLibraryOpen, loadCloudData,
@@ -151,7 +151,19 @@ export const App: React.FC = () => {
             <style>{SEQUENCER_STYLES}</style>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
-            {!hasStarted && <StartOverlay onStart={handleStart} isReady={isPyodideReady} />}
+            {!hasStarted && (
+                <StartOverlay
+                    onStart={handleStart}
+                    isPyodideReady={isPyodideReady}
+                    pyodideStatus={pyodideStatus}
+                    hasWebGpu={typeof navigator !== 'undefined' && 'gpu' in navigator}
+                    hasNativeModule={
+                        typeof globalThis !== 'undefined'
+                        && !!(globalThis as { Module?: unknown }).Module
+                        || !!(globalThis as { hyphonPyodideReady?: boolean }).hyphonPyodideReady
+                    }
+                />
+            )}
             <LoadingOverlay isVisible={hasStarted && !isInitialized} />
 
 

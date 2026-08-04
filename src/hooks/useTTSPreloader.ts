@@ -6,8 +6,10 @@ interface TTSPreloaderState {
     isPreloading: boolean;
 }
 
+const TTS_READY_POLL_MS = 500;
+
 /**
- * Custom hook to schedule TTS preload tasks asynchronously via requestIdleCallback, ensuring UI responsiveness.
+ * Schedules TTS ONNX warmup after Supertonic.init() completes (post audio boot).
  */
 export const useTTSPreloader = (): TTSPreloaderState => {
     const [state, setState] = useState<TTSPreloaderState>({
@@ -18,14 +20,14 @@ export const useTTSPreloader = (): TTSPreloaderState => {
 
     useEffect(() => {
         const service = SupertonicService.getInstance();
-        if (!service.isServiceReady() || scheduledRef.current) {
-            return;
-        }
-
-        scheduledRef.current = true;
-        setState(prev => ({ ...prev, isPreloading: true }));
 
         const runPreload = async () => {
+            if (scheduledRef.current || !service.isServiceReady()) {
+                return;
+            }
+            scheduledRef.current = true;
+            setState(prev => ({ ...prev, isPreloading: true }));
+
             try {
                 await service.preload();
             } catch (e) {
@@ -38,17 +40,18 @@ export const useTTSPreloader = (): TTSPreloaderState => {
             }
         };
 
-        if (typeof requestIdleCallback !== 'undefined') {
-            const id = requestIdleCallback(runPreload, { timeout: 2000 });
-            return () => {
-                cancelIdleCallback(id);
-            };
-        } else {
-            const timeoutId = setTimeout(runPreload, 200);
-            return () => {
-                clearTimeout(timeoutId);
-            };
-        }
+        runPreload();
+
+        const intervalId = window.setInterval(() => {
+            if (!scheduledRef.current && service.isServiceReady()) {
+                runPreload();
+                window.clearInterval(intervalId);
+            }
+        }, TTS_READY_POLL_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
     }, []);
 
     return state;

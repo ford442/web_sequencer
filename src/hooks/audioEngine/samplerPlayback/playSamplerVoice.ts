@@ -3,6 +3,8 @@ import { noteToMidi } from "../../../utils/musicTheory";
 import { getSyncedSeconds, getSyncedLfoHz } from "../syncUtils";
 import { makeDistortionCurve } from "../distortion";
 import { resolveExpressiveness } from "./expressiveness";
+import { releaseStretchFxRouting, wireStretchFxRouting } from "./samplerStretchFx";
+import { performanceBudget } from "../../../utils/performanceBudget";
 import type { PlaySamplerVoiceFn, SamplerPlaybackRefs } from "./types";
 
 export function createPlaySamplerVoice(
@@ -171,59 +173,55 @@ export function createPlaySamplerVoice(
         const originalDuration = buffer.duration;
         const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
 
-        // Ensure voice connected to correct output
+        // Ensure voice connected to correct output (reuse FX strip — no per-trigger node leak)
         voice.disconnectOutput();
-        let finalDest = destination || refs.masterSaturationRef.current!;
+        releaseStretchFxRouting(voice);
 
-        // Apply Drive/Distortion if present
-        const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive;
-        if (driveAmount !== undefined && driveAmount > 0) {
-          const shaper = context.createWaveShaper();
-          shaper.curve = makeDistortionCurve(driveAmount * 100);
-          shaper.connect(finalDest);
-          finalDest = shaper;
-        }
+        const mainDest = destination || refs.masterSaturationRef.current!;
+        const driveAmount = noteParams?.drive !== undefined ? noteParams.drive : params.drive ?? 0;
+        const stretchReverbNode =
+          reverbSendAmount > 0 && targetReverbNode ? targetReverbNode : null;
+        const stretchDelayNode =
+          delaySendAmount > 0 && refs.delayNodeRef.current ? refs.delayNodeRef.current : null;
 
-        // Apply Per-Step Filter if present, or fallback to global filter settings
-        if (noteParams?.filterCutoff !== undefined || noteParams?.filterResonance !== undefined || params.filterCutoff !== undefined || params.filterResonance !== undefined) {
-          const filter = context.createBiquadFilter();
-          filter.type = 'lowpass';
+        const { strip, voiceEntry } = wireStretchFxRouting(
+          voice,
+          context,
+          mainDest,
+          stretchReverbNode,
+          stretchDelayNode,
+          driveAmount,
+          makeDistortionCurve,
+        );
 
-          const cutoff = noteParams?.filterCutoff !== undefined
+        const filterCutoff =
+          noteParams?.filterCutoff !== undefined
             ? Math.max(20, noteParams.filterCutoff * 20000)
-            : (params.filterCutoff ?? 20000);
-          filter.frequency.value = cutoff;
-
-          const resonance = noteParams?.filterResonance !== undefined
+            : (params.filterCutoff !== undefined ? Math.max(20, params.filterCutoff * 20000) : 20000);
+        const filterResonance =
+          noteParams?.filterResonance !== undefined
             ? noteParams.filterResonance * 20
             : (params.filterResonance ?? 0);
-          filter.Q.value = resonance;
+        strip.updateFilter(filterCutoff, filterResonance, triggerTime);
 
-          filter.connect(finalDest);
-          finalDest = filter;
-        }
+        const rawSpectralDepth =
+          noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : spectralPanDepth;
+        const spectralDepth =
+          rawSpectralDepth !== undefined && rawSpectralDepth > 0
+            ? rawSpectralDepth * performanceBudget.getSpectralPanMultiplier()
+            : 0;
+        strip.updateSpectralPanning(spectralDepth, spectralPanLfoRate, triggerTime);
 
-        voice.connectOutput(finalDest);
+        strip.updateReverbSend(
+          reverbSendAmount,
+          revLfoRate,
+          revLfoDepth,
+          reverbEqCutoff,
+          triggerTime,
+        );
+        strip.updateDelaySend(delaySendAmount, triggerTime);
 
-        // Setup Reverb Send
-        const reverbSendAmount = noteParams?.reverbSend !== undefined ? noteParams.reverbSend : 0;
-        const currentReverbType = noteParams?.reverbType || refs.reverbTypeRef.current;
-        const targetReverbNode = refs.reverbNodesRef.current[currentReverbType] || refs.reverbNodesRef.current['plate'];
-        if (reverbSendAmount > 0 && targetReverbNode) {
-          const reverbGain = context.createGain();
-          reverbGain.gain.value = reverbSendAmount;
-          reverbGain.connect(targetReverbNode);
-          voice.connectOutput(reverbGain); // connectOutput appends to existing connections
-        }
-
-        // Setup Delay Send
-        const delaySendAmount = noteParams?.delaySend !== undefined ? noteParams.delaySend : (params.delaySend || 0);
-        if (delaySendAmount > 0 && refs.delayNodeRef.current) {
-          const delayGain = context.createGain();
-          delayGain.gain.value = delaySendAmount;
-          delayGain.connect(refs.delayNodeRef.current);
-          voice.connectOutput(delayGain);
-        }
+        voice.connectOutput(voiceEntry);
 
         // Apply Timbre Modulation (Formant Shift)
         const baseShift = params.formantShift || 0;
