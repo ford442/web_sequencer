@@ -2,6 +2,7 @@ import { makeDistortionCurve } from '../../hooks/audioEngine/distortion';
 import { createReverbImpulseResponse } from '../impulseResponses';
 import { WamSlotPorts } from '../wam/WamSlotPorts';
 import { assertSafeGraphCycles } from './cycleCheck';
+import { edgeKey, validateGraph } from './graphOps';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -36,11 +37,19 @@ export interface CompileGraphOptions {
      * destination, so a browser that cannot register the worklet still plays.
      */
     createMasterLimiterNode?: (context: AudioContext) => AudioNode | null;
+    /**
+     * Reject configs that fail `validateGraph` (cycles, dangling edges,
+     * duplicate ids) instead of compiling them. On by default: a user-authored
+     * patch must not be able to wire a runaway loop into the audio thread.
+     * Disable only for tests that compile a deliberately partial subgraph.
+     */
+    validate?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
+    validate: true,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
             case 'room':
@@ -223,8 +232,18 @@ export function compileAudioGraph(
 ): CompiledAudioGraph {
     assertSafeGraphCycles(config);
     const resolved = { ...DEFAULT_OPTIONS, ...options };
+
+    if (resolved.validate) {
+        const validation = validateGraph(config);
+        if (!validation.valid) {
+            const detail = validation.issues.map((issue) => issue.message).join('; ');
+            throw new Error(`AudioGraph compile failed: ${detail}`);
+        }
+    }
+
     const nodes = new Map<GraphNodeId, AudioNode>();
     const ports = new Map<GraphNodeId, GraphPortPair>();
+    const sendGains = new Map<string, GainNode>();
     const analysers = new Map<GraphNodeId, AnalyserNode>();
     const roles = new Map<GraphNodeRole, GraphNodeId | GraphNodeId[]>();
     const connectionLog: GraphConnectionRecord[] = [];
@@ -282,7 +301,18 @@ export function compileAudioGraph(
                 `AudioGraph compile failed: missing node for edge ${edge.from} → ${edge.to}`,
             );
         }
-        fromNode.connect(toNode);
+        if (edge.gain !== undefined && edge.gain !== 1) {
+            // Web Audio connections carry no level, so a send amount becomes an
+            // implicit GainNode. It is kept in `sendGains` so the patch bay can
+            // ride the fader without recompiling the graph.
+            const send = context.createGain();
+            send.gain.setValueAtTime(edge.gain, context.currentTime);
+            fromNode.connect(send);
+            send.connect(toNode);
+            sendGains.set(edgeKey(edge.from, edge.to), send);
+        } else {
+            fromNode.connect(toNode);
+        }
         connectionLog.push({
             from: edge.from,
             to: edge.to,
@@ -298,6 +328,7 @@ export function compileAudioGraph(
         analysers,
         roles,
         connectionLog,
+        sendGains,
         getNode<T extends AudioNode = AudioNode>(id: GraphNodeId): T {
             const node = nodes.get(id);
             if (!node) {

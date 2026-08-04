@@ -152,6 +152,9 @@ describe('compileAudioGraph', () => {
                         e.from === 'masterGain' && e.to === 'masterAnalyser',
                 ),
             },
+            // Deliberately partial subgraph: its edges reference the limiter
+            // node that this slice leaves out, so structural validation is off.
+            { validate: false },
         );
 
         const masterConnections = extractMasterChainConnections(graph.connectionLog);

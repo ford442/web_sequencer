@@ -20,6 +20,12 @@ import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
 import { migrateSavedSongSession } from '../session/migrate';
 import { getWamHost } from '../audio/wam';
+import {
+    DEFAULT_PRESET_ID,
+    GRAPH_SCHEMA_VERSION,
+    getActivePatchController,
+    restorePatchFromSong,
+} from '../audio/graph';
 
 // ---- Types for the hook parameters ----
 
@@ -197,6 +203,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 const payload = host.exportSongState();
                 return payload.plugins.length > 0 ? { wam2: payload } : {};
             })(),
+            audioGraph: getActivePatchController()?.serialize() ?? {
+                schemaVersion: GRAPH_SCHEMA_VERSION,
+                presetId: DEFAULT_PRESET_ID,
+            },
         } as SavedSongData;
     }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
 
@@ -299,6 +309,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             if (wamHost) {
                 await wamHost.restore(songData.wam2);
             }
+            restorePatchFromSong(songData.audioGraph);
             if (isE2eMode()) {
                 setE2eLaneCount(automationStore.getState().lanes.length);
             }

@@ -22,6 +22,12 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
+import {
+    PatchController,
+    buildPreset,
+    getActivePatchController,
+    setActivePatchController,
+} from '../../audio/graph';
 import { WamHost, setWamHost } from '../../audio/wam';
 import {
     createMasterLoudnessStage,
@@ -117,8 +123,17 @@ export async function initializeAudioContextAndEngines(
     // load the graph is compiled without it and playback continues unmetered.
     const loudnessStage = await createMasterLoudnessStage(context);
     setMasterLoudnessStage(loudnessStage);
+    // The patch bay edits this controller's config; the engine compiles it.
+    // Until a song load supplies a saved patch, it holds the stock preset.
+    // A song loaded before the engine started may already have published a
+    // controller holding its saved patch; otherwise start from the preset.
+    const patchController =
+        getActivePatchController() ?? new PatchController(buildPreset(undefined));
+    setActivePatchController(patchController);
+
     const { masterBusInput, graph } = buildClassicElectribeGraph(context, refs, {
         masterLimiterNode: loudnessStage?.node ?? null,
+        patchController,
     });
     const wamHost = new WamHost(context);
     wamHost.attachCompiledGraph(graph);

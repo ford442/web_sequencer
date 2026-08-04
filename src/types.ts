@@ -838,6 +838,11 @@ export interface SavedSongData {
   wam2?: import('./audio/wam').Wam2SongPayload;
   /** Session / clip launcher document (v3+). Absent on v1/v2 songs — migrated on load. */
   session?: import('./session/types').SessionDocument;
+  /**
+   * Patch bay routing. Holds only the preset id when the routing is stock, so
+   * songs that never touched the patch bay do not grow.
+   */
+  audioGraph?: import('./audio/graph').SerializedAudioGraph;
 }
 export interface AmbianceTrack {
   id: string;
