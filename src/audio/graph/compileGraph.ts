@@ -10,6 +10,7 @@ import type {
     DynamicsCompressorConfig,
     GainConfig,
     GraphConnectionRecord,
+    GraphEdgeSpec,
     GraphNodeFactory,
     GraphNodeId,
     GraphNodeRole,
@@ -23,10 +24,20 @@ export interface CompileGraphOptions {
     /** When false, skip masterPanner and connect masterGain → destination directly. */
     useStereoPanner?: boolean;
     createReverbImpulse?: (context: AudioContext, preset: 'room' | 'plate' | 'hall') => AudioBuffer;
+    /**
+     * Supplies the master true-peak limiter / loudness-meter node.
+     *
+     * The stage is an AudioWorklet, so its module has to be loaded before the
+     * graph is compiled — see `createMasterLoudnessStage`. Returning `null`
+     * (the default) omits the node and bridges the chain straight to the
+     * destination, so a browser that cannot register the worklet still plays.
+     */
+    createMasterLimiterNode?: (context: AudioContext) => AudioNode | null;
 }
 
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
+    createMasterLimiterNode: () => null,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
             case 'room':
@@ -135,11 +146,41 @@ function createNode(
             analysers.set(id, analyser);
             return bus;
         }
+        case 'masterLimiter':
+            return options.createMasterLimiterNode(context);
         case 'destination':
             return context.destination;
         default:
             throw new Error(`Unknown graph node factory: ${factory}`);
     }
+}
+
+/**
+ * Remove edges through nodes that were not compiled, splicing predecessor to
+ * successor so the chain stays connected (used for the optional master limiter).
+ * Edge order is preserved: the bridged edge takes the slot of the incoming one.
+ */
+function bridgeAbsentNodes(
+    edges: readonly GraphEdgeSpec[],
+    present: ReadonlySet<GraphNodeId>,
+    optionalIds: readonly GraphNodeId[],
+): GraphEdgeSpec[] {
+    let result = [...edges];
+    for (const id of optionalIds) {
+        if (present.has(id)) continue;
+        const successors = result.filter((edge) => edge.from === id).map((edge) => edge.to);
+        const bridged: GraphEdgeSpec[] = [];
+        for (const edge of result) {
+            if (edge.from === id) continue;
+            if (edge.to === id) {
+                for (const to of successors) bridged.push({ from: edge.from, to });
+                continue;
+            }
+            bridged.push(edge);
+        }
+        result = bridged;
+    }
+    return result;
 }
 
 function registerRole(
@@ -186,7 +227,9 @@ export function compileAudioGraph(
 
     // When stereo panner node was not created, reroute masterGain → destination
     const hasStereoPanner = nodes.has('masterPanner');
-    const edges = config.edges.filter((edge) => {
+    const optionalEdges = bridgeAbsentNodes(config.edges, new Set(nodes.keys()), ['masterLimiter']);
+
+    const edges = optionalEdges.filter((edge) => {
         if (hasStereoPanner) return true;
         if (edge.from === 'masterGain' && edge.to === 'masterPanner') return false;
         if (edge.from === 'masterPanner') return false;
@@ -195,11 +238,12 @@ export function compileAudioGraph(
 
     if (!hasStereoPanner) {
         const masterGain = nodes.get('masterGain');
+        const limiter = nodes.get('masterLimiter');
         if (masterGain) {
-            masterGain.connect(context.destination);
+            masterGain.connect(limiter ?? context.destination);
             connectionLog.push({
                 from: 'masterGain',
-                to: 'destination',
+                to: limiter ? 'masterLimiter' : 'destination',
                 order: connectionLog.length,
             });
         }
@@ -258,6 +302,7 @@ export function extractMasterChainConnections(
     log: readonly GraphConnectionRecord[],
 ): Array<{ from: string; to: string }> {
     const masterIds = new Set([
+        'masterLimiter',
         'masterSaturation',
         'bassSidechainEQ',
         'sidechainGain',

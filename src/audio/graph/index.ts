@@ -86,14 +86,27 @@ export interface BuildElectribeGraphResult {
     masterBusInput: WaveShaperNode;
 }
 
+export interface BuildElectribeGraphOptions {
+    /**
+     * Master true-peak limiter / loudness-meter node, already constructed via
+     * `createMasterLoudnessStage`. Omit it and the chain runs panner →
+     * destination exactly as before.
+     */
+    masterLimiterNode?: AudioNode | null;
+}
+
 /**
  * Build the default Classic Electribe routing graph and populate engine refs.
  */
 export function buildClassicElectribeGraph(
     context: AudioContext,
     refs: ElectribeGraphRefs,
+    options: BuildElectribeGraphOptions = {},
 ): BuildElectribeGraphResult {
-    const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH);
+    const limiterNode = options.masterLimiterNode ?? null;
+    const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, {
+        createMasterLimiterNode: () => limiterNode,
+    });
     const masterBusInput = assignMasterChainRefs(graph, refs);
     assignTrackBusRefs(graph, refs);
     assignAuxSendRefs(graph, refs);
@@ -101,8 +114,14 @@ export function buildClassicElectribeGraph(
     return { graph, masterBusInput };
 }
 
-export { CLASSIC_ELECTRIBE_GRAPH, MASTER_CHAIN_ORDER, MASTER_CHAIN_CONNECTIONS } from './defaultElectribeGraph';
+export {
+    CLASSIC_ELECTRIBE_GRAPH,
+    MASTER_CHAIN_ORDER,
+    MASTER_CHAIN_ORDER_WITH_LIMITER,
+    MASTER_CHAIN_CONNECTIONS,
+} from './defaultElectribeGraph';
 export { compileAudioGraph, extractMasterChainConnections } from './compileGraph';
+export type { CompileGraphOptions } from './compileGraph';
 export type {
     AudioGraphConfig,
     CompiledAudioGraph,

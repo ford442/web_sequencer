@@ -10,6 +10,7 @@ export type GraphNodeRole =
     | 'masterFxInput'
     | 'masterDryInput'
     | 'masterOutput'
+    | 'masterLimiter'
     | 'trackBus'
     | 'trackAnalyser'
     | 'auxReturn'
@@ -26,6 +27,7 @@ export type GraphNodeFactory =
     | 'convolver'
     | 'delay'
     | 'trackMonitor'
+    | 'masterLimiter'
     | 'destination';
 
 export interface BiquadFilterConfig {

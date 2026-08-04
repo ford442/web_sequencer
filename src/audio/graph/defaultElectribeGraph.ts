@@ -45,6 +45,16 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
             role: 'masterOutput',
             config: { pan: 0 },
         },
+        {
+            // True-peak limiter + BS.1770 meter. Last insert before the
+            // destination so it protects (and measures) everything upstream,
+            // including the choir buses that bypass the master FX chain.
+            // Compiled only when the host supplies a worklet node — otherwise
+            // the chain bridges straight to `destination`.
+            id: 'masterLimiter',
+            factory: 'masterLimiter',
+            role: 'masterLimiter',
+        },
         { id: 'destination', factory: 'destination' },
         {
             id: 'masterAnalyser',
@@ -129,7 +139,8 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
         { from: 'sidechainGain', to: 'masterCompressor' },
         { from: 'masterCompressor', to: 'masterGain' },
         { from: 'masterGain', to: 'masterPanner' },
-        { from: 'masterPanner', to: 'destination' },
+        { from: 'masterPanner', to: 'masterLimiter' },
+        { from: 'masterLimiter', to: 'destination' },
 
         // Passive master analyser tap (read-only)
         { from: 'masterGain', to: 'masterAnalyser' },
@@ -156,6 +167,18 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
         { from: 'choirRightPanner', to: 'masterGain' },
     ],
 };
+
+/** Ordered master-chain node ids when the limiter stage is compiled in. */
+export const MASTER_CHAIN_ORDER_WITH_LIMITER: readonly string[] = [
+    'masterSaturation',
+    'bassSidechainEQ',
+    'sidechainGain',
+    'masterCompressor',
+    'masterGain',
+    'masterPanner',
+    'masterLimiter',
+    'destination',
+];
 
 /** Ordered master-chain node ids for test assertions. */
 export const MASTER_CHAIN_ORDER: readonly string[] = [

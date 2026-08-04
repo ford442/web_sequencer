@@ -13,6 +13,7 @@ fixed order until headroom recovers below **60%** (hysteresis).
 | TB-303       | `open303-processor`    | `open303`     |
 | Rubber Band  | `RubberBandProcessor`  | `rubberband`  |
 | Vocoder STFT | `vocoder-processor`    | `vocoder`     |
+| Master loudness | `master-loudness-processor` | `masterLoudness` |
 
 Metrics are throttled to the main thread at ~10 Hz via `MessagePort` (`worklet-perf`
 messages). Underruns are counted when `process()` wall time exceeds the quantum
@@ -26,6 +27,28 @@ masterBudgetPercent = min(100, Σ workletCpuPercent)
 
 All worklets share the same audio rendering thread; their CPU costs add within each
 quantum.
+
+## Master loudness / true-peak limiter
+
+`master-loudness-processor` runs the BS.1770-5 meters and the true-peak limiter for
+the single stereo master pair (post-panner, pre-destination). Measured cost of one
+128-frame quantum — limiter plus meter, the same code path the worklet runs — is
+**~0.35 ms**, i.e. **~13 % of the 2.67 ms budget** at 48 kHz. The figure comes from
+the `audio-thread budget` case in
+`src/audio/loudness/__tests__/exportLoudness.test.ts`, which fails above 0.5 ms.
+
+Where the cost goes: the limiter detects inter-sample peaks at 8× and the meter at
+4× (ITU minimum), so each frame costs ~384 FIR taps per channel. Two knobs exist if
+this budget ever needs reclaiming, in order of preference:
+
+1. drop the limiter's detection to 4× (costs ~0.2 dB of ceiling accuracy on
+   near-Nyquist transients, which the internal headroom already absorbs);
+2. move the DSP to a SharedArrayBuffer-backed worker — deliberately **deferred**,
+   since a single stereo pair does not justify the lock-free ring buffers and the
+   COOP/COEP-safe, zero-network posture is easier to keep inside one worklet.
+
+Bypassing the limiter (`enabled: false`) makes the stage a near-free pass-through,
+but the meters stop as well.
 
 ## Glitch detection
 
