@@ -51,9 +51,19 @@ const MAX_SPREAD_DB = 2.0;
  * (see the header of emscripten/highfid303_wrapper.cpp) and so never plays into
  * the realtime mix. It carries a deliberate output trim that leaves it below the
  * realtime family; this is asserted rather than ignored so the gap stays tracked
- * and cannot drift further unnoticed. See docs/audio-engine/303-voices.md.
+ * and cannot drift unnoticed in *either* direction. See
+ * docs/audio-engine/303-voices.md.
  */
-const HIGHFID_MAX_BELOW_DB = 5.0;
+const HIGHFID_EXPECTED_BELOW_DB = 4.3;
+const HIGHFID_OFFSET_TOLERANCE_DB = 1.0;
+
+/**
+ * Peak ceiling for "not clipped". `readWavMonoFromBuffer` normalizes PCM to full
+ * scale, so a clipped render lands at (or a hair under) 1.0 and would sail past
+ * a `<= 1.0` check. These baselines render at LEVEL=0.80 with ~3.6 dB of
+ * headroom, so anything approaching full scale means something has gone wrong.
+ */
+const NO_CLIP_PEAK_DB = 20 * Math.log10(0.99);
 
 function peakDbOf(id: string): number {
   const buf = readFileSync(join(BASELINE_DIR, `${id}_canonical.wav`));
@@ -84,7 +94,10 @@ describe('TB-303 catalog level alignment', () => {
 
   it('no baseline clips', () => {
     for (const id of [...REALTIME_VOICES, 'highfid-cpu']) {
-      expect(peakDbOf(id), `${id} clips`).toBeLessThanOrEqual(0);
+      const db = peakDbOf(id);
+      expect(db, `${id} peaks at ${db.toFixed(2)} dBFS`).toBeLessThanOrEqual(
+        NO_CLIP_PEAK_DB,
+      );
     }
   });
 
@@ -105,9 +118,14 @@ describe('TB-303 catalog level alignment', () => {
   it('tracks the offline-only highfid-cpu level offset', () => {
     const hf = peakDbOf('highfid-cpu');
     const stock = peakDbOf('stock-open303');
+    const below = stock - hf;
+    // Two-sided on purpose: if highfid-cpu is ever re-levelled onto the
+    // realtime reference (see 303-voices.md), that should be a deliberate
+    // change that updates this expectation, not something that slips through.
     expect(
-      stock - hf,
-      `highfid-cpu is ${(stock - hf).toFixed(2)} dB below stock-open303`,
-    ).toBeLessThanOrEqual(HIGHFID_MAX_BELOW_DB);
+      Math.abs(below - HIGHFID_EXPECTED_BELOW_DB),
+      `highfid-cpu is ${below.toFixed(2)} dB below stock-open303, ` +
+        `expected ${HIGHFID_EXPECTED_BELOW_DB} dB`,
+    ).toBeLessThanOrEqual(HIGHFID_OFFSET_TOLERANCE_DB);
   });
 });

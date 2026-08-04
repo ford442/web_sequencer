@@ -53,12 +53,33 @@ float peakOf(const float* v, int n) {
 
 float toDb(float v) { return v > 1e-12f ? 20.0f * std::log10(v) : -999.0f; }
 
+/** Registry index of an open303-*family* model, or -1.
+ *
+ *  open303_get_model_count() also enumerates jc303-family entries, which
+ *  open303_set_model() deliberately rejects (they are rendered by the rosic
+ *  engine instead). Selecting one silently leaves the instance on its previous
+ *  profile, so filtering here keeps a rejected id from being measured — and
+ *  reported — as if it were its own voice. */
+int findOpen303FamilyModel(const char* modelId) {
+    for (int i = 0; i < open303_get_model_count(); ++i) {
+        if (open303_get_model_engine(i) != ENGINE_OPEN303) continue;
+        const char* mid = open303_get_model_id(i);
+        if (mid && std::strcmp(mid, modelId) == 0) return i;
+    }
+    return -1;
+}
+
+/** Renders @p modelId, or returns 0 frames when it is not a selectable
+ *  open303-family model (callers treat that as a failure, never as silence). */
 int renderOpen303(const char* modelId, float volume, float* out) {
+    const int index = findOpen303FamilyModel(modelId);
+    if (index < 0) return 0;
+
     uintptr_t h = open303_create();
     open303_init(h, TB303_SAMPLE_RATE, TB303_BLOCK);
-    for (int i = 0; i < open303_get_model_count(); ++i) {
-        const char* mid = open303_get_model_id(i);
-        if (mid && std::strcmp(mid, modelId) == 0) { open303_set_model(h, i); break; }
+    if (open303_set_model(h, index) != 1) {
+        open303_destroy(h);
+        return 0;
     }
     open303_set_param(h, TB303_P_WAVEFORM,  0.0f);
     open303_set_param(h, TB303_P_CUTOFF,    0.35f);
@@ -107,6 +128,8 @@ int main() {
     const float refDb = toDb(kReferencePeak);
 
     for (int i = 0; i < open303_get_model_count(); ++i) {
+        // jc303-family entries are rendered by the rosic engine, checked below.
+        if (open303_get_model_engine(i) != ENGINE_OPEN303) continue;
         const char* id = open303_get_model_id(i);
         if (!id) continue;
         const int n = renderOpen303(id, 1.0f, buf.data());
@@ -114,7 +137,7 @@ int main() {
         char msg[192];
         std::snprintf(msg, sizeof(msg), "%-18s peak %.4f (%+.2f dB vs reference)",
                       id, pk, toDb(pk) - refDb);
-        check(std::fabs(toDb(pk) - refDb) <= kToleranceDb, msg);
+        check(n > 0 && std::fabs(toDb(pk) - refDb) <= kToleranceDb, msg);
     }
     {
         const int n = tb303_render_jc303(1.0f, buf.data());
@@ -128,13 +151,14 @@ int main() {
     // ── 2. No voice clips at maximum LEVEL ───────────────────────────────────
     std::printf("\nNo clipping at LEVEL=1.0:\n");
     for (int i = 0; i < open303_get_model_count(); ++i) {
+        if (open303_get_model_engine(i) != ENGINE_OPEN303) continue;
         const char* id = open303_get_model_id(i);
         if (!id) continue;
         const int n = renderOpen303(id, 1.0f, buf.data());
         const float pk = peakOf(buf.data(), n);
         char msg[192];
         std::snprintf(msg, sizeof(msg), "%-18s peak %.4f <= 1.0", id, pk);
-        check(pk <= 1.0f, msg);
+        check(n > 0 && pk <= 1.0f, msg);
     }
     {
         const int n = tb303_render_jc303(1.0f, buf.data());
