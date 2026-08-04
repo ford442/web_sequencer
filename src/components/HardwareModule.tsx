@@ -544,6 +544,22 @@ export const HardwareModule = memo(
 
             const handlePointerDown = (e: PointerEvent) => {
                 if (e.button !== 0) return;
+                // The oscillator/voice selectors, REC buttons and HelpTip pins are DOM
+                // overlays stacked above the knob canvas, and their hit areas can sit on
+                // top of a knob's canvas region. Capturing the pointer here would
+                // preventDefault() the click before it reached them, so those controls
+                // looked live but did nothing for a real user (E2E had to fall back to
+                // synthetic DOM clicks to drive them). Only the canvas itself may start
+                // a knob drag. The a11y slider overlay is pointer-events:none, so knob
+                // dragging is unaffected.
+                const target = e.target as Element | null;
+                if (
+                    target &&
+                    target !== container &&
+                    target.closest('button, input, select, textarea, a, [role="button"]')
+                ) {
+                    return;
+                }
                 const hitIndex = findHitKnob(e.clientX, e.clientY);
                 if (hitIndex !== -1) {
                     container.setPointerCapture(e.pointerId);
