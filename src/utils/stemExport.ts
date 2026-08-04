@@ -18,6 +18,14 @@ import {
     type PatternRenderEngines,
 } from './patternRenderer';
 import { createZipBlob } from './zipStore';
+import {
+    analyzeLoudness,
+    normalizeToTarget,
+    DEFAULT_LIMITER_SETTINGS,
+    type LoudnessReport,
+    type LoudnessTargetKey,
+    type NormalizeResult,
+} from '../audio/loudness';
 
 export type StemExportSampleRate = 44100 | 48000;
 
@@ -28,6 +36,28 @@ export interface StemExportOptions {
     useSongMode?: boolean;
     signal?: AbortSignal;
     onProgress?: (progress: number, label: string) => void;
+    /**
+     * Loudness handling for the master stem.
+     *
+     * The report is always computed (and written into metadata.json); passing
+     * `normalizeTo` additionally gain-matches the master stem to that target
+     * and re-limits it so the ceiling still holds.
+     */
+    loudness?: {
+        normalizeTo?: number | LoudnessTargetKey;
+        ceilingDbtp?: number;
+        /** Oversampling for the offline true-peak measurement. Default 8×. */
+        truePeakFactor?: number;
+    };
+}
+
+/** Channel data of an AudioBuffer, mutable in place. */
+function bufferChannels(buffer: AudioBuffer): Float32Array[] {
+    const channels: Float32Array[] = [];
+    for (let ch = 0; ch < buffer.numberOfChannels; ch += 1) {
+        channels.push(buffer.getChannelData(ch));
+    }
+    return channels;
 }
 
 export interface StemExportParams {
@@ -250,6 +280,22 @@ export async function exportStemsToZip(
     }
 
     throwIfAborted(signal);
+
+    // Measure (and optionally normalise) the master stem with the same DSP the
+    // real-time master bus runs, so the exported file and the live meters agree.
+    const masterStem = stems.get('master');
+    let masterLoudness: LoudnessReport | NormalizeResult | null = null;
+    if (masterStem) {
+        const channels = bufferChannels(masterStem);
+        const target = options.loudness?.normalizeTo;
+        masterLoudness =
+            target === undefined
+                ? analyzeLoudness(channels, sampleRate, options.loudness?.truePeakFactor ?? 8)
+                : normalizeToTarget(channels, sampleRate, target, {
+                      ceilingDbtp: options.loudness?.ceilingDbtp ?? DEFAULT_LIMITER_SETTINGS.ceilingDbtp,
+                  });
+    }
+
     onProgress?.(0.95, 'Encoding WAV files…');
 
     const wavOptions = { sampleRate, bitDepth };
@@ -264,6 +310,7 @@ export async function exportStemsToZip(
 
     const metadata = {
         tempo: input.tempo,
+        loudness: masterLoudness,
         measureCount: timeline.measureCount,
         totalSteps: timeline.totalSteps,
         sampleRate,

@@ -22,6 +22,10 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
+import {
+    createMasterLoudnessStage,
+    setMasterLoudnessStage,
+} from '../../audio/loudness';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { createAudioContext } from './audioContextFactory';
@@ -107,7 +111,14 @@ export async function initializeAudioContextAndEngines(
     }
 
     loadingProgressStore.startStep('masterChain');
-    const { masterBusInput } = buildClassicElectribeGraph(context, refs);
+    // The master true-peak limiter / loudness meter is an AudioWorklet, so its
+    // module has to be registered before the graph is compiled. If it fails to
+    // load the graph is compiled without it and playback continues unmetered.
+    const loudnessStage = await createMasterLoudnessStage(context);
+    setMasterLoudnessStage(loudnessStage);
+    const { masterBusInput } = buildClassicElectribeGraph(context, refs, {
+        masterLimiterNode: loudnessStage?.node ?? null,
+    });
     loadingProgressStore.completeStep('masterChain');
 
     // Initialize oscillator backends through the shared registry. Every engine

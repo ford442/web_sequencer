@@ -26,6 +26,7 @@ import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { SongMode } from './components/SongMode'
 import { MobileTransportDock } from './components/MobileTransportDock'
+import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
@@ -241,6 +242,12 @@ export const App: React.FC = () => {
                     <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
                         <RackNode />
                     </div>
+                </div>
+
+                {/* Master true-peak limiter + BS.1770 loudness meters, sitting
+                    with the rack because it measures the master bus output. */}
+                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                    <MasterLoudnessMeter />
                 </div>
 
                 <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
