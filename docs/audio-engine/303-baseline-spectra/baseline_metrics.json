@@ -16,13 +16,13 @@
         -7.208333333333333
       ],
       "accent_peak_timing_drift_ms_abs_max": 8.229166666666666,
-      "band_200_800_error_db": -3.864791764133649,
-      "band_2k_4k_error_db": 36.13104054510595,
-      "band_4k_8k_error_db": 75.89733714268422,
+      "band_200_800_error_db": -3.864791753073348,
+      "band_2k_4k_error_db": 36.131050986680805,
+      "band_4k_8k_error_db": 75.89772247630052,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.737221388942798
+      "rms_error_db_unmatched": 4.298483389686579
     }
   },
   "experimental-01_canonical": {
@@ -42,13 +42,13 @@
         5.166666666666667
       ],
       "accent_peak_timing_drift_ms_abs_max": 6.145833333333333,
-      "band_200_800_error_db": -2.1815085154841327,
-      "band_2k_4k_error_db": 37.220204697762455,
-      "band_4k_8k_error_db": 75.5149080557726,
+      "band_200_800_error_db": -2.181508704242056,
+      "band_2k_4k_error_db": 37.22021494960434,
+      "band_4k_8k_error_db": 75.51529323442912,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.703063072313709
+      "rms_error_db_unmatched": 4.26432507305749
     }
   },
   "highfid-cpu_canonical": {
@@ -68,25 +68,25 @@
         4.541666666666667
       ],
       "accent_peak_timing_drift_ms_abs_max": 5.1875,
-      "band_200_800_error_db": -6.351385225355806,
-      "band_2k_4k_error_db": 43.023448908115796,
-      "band_4k_8k_error_db": 58.983200260543825,
+      "band_200_800_error_db": -6.351384977585745,
+      "band_2k_4k_error_db": 43.02345953771794,
+      "band_4k_8k_error_db": 58.98358575062187,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 1.3818450309145192
+      "rms_error_db_unmatched": 0.9431070316583003
     }
   },
   "jc303_canonical": {
-    "band_200_800_dbfs": -56.31499665270872,
-    "band_2k_4k_dbfs": -112.72777139403453,
-    "band_4k_8k_dbfs": -140.4842328429986,
+    "band_200_800_dbfs": -55.876258839596325,
+    "band_2k_4k_dbfs": -112.28904398803907,
+    "band_4k_8k_dbfs": -140.04588036854048,
     "duration_s": 0.608,
     "num_samples": 29184,
-    "peak": 0.6252796649932861,
-    "peak_dbfs": -4.07851389959336,
-    "rms": 0.10653506219387054,
-    "rms_dbfs": -19.450148725014948,
+    "peak": 0.6576747894287109,
+    "peak_dbfs": -3.6397761116317695,
+    "rms": 0.11205454170703888,
+    "rms_dbfs": -19.01141072575873,
     "sample_rate": 48000
   },
   "mb33-mkii_canonical": {
@@ -106,13 +106,13 @@
         -8.25
       ],
       "accent_peak_timing_drift_ms_abs_max": 8.25,
-      "band_200_800_error_db": -4.153809354008295,
-      "band_2k_4k_error_db": 36.06941239717271,
-      "band_4k_8k_error_db": 74.00100839544454,
+      "band_200_800_error_db": -4.153809526576389,
+      "band_2k_4k_error_db": 36.069422672655364,
+      "band_4k_8k_error_db": 74.00139358079034,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.672720154700256
+      "rms_error_db_unmatched": 4.233982155444037
     }
   },
   "raveolution_canonical": {
@@ -132,13 +132,13 @@
         5.770833333333333
       ],
       "accent_peak_timing_drift_ms_abs_max": 7.145833333333333,
-      "band_200_800_error_db": -2.7449088650302826,
-      "band_2k_4k_error_db": 37.905008955826986,
-      "band_4k_8k_error_db": 75.91354566140757,
+      "band_200_800_error_db": -2.7449091486772943,
+      "band_2k_4k_error_db": 37.90501911817333,
+      "band_4k_8k_error_db": 75.91393070824546,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.298883483405259
+      "rms_error_db_unmatched": 3.86014548414904
     }
   },
   "rebirth-2.0_canonical": {
@@ -158,13 +158,13 @@
         5.25
       ],
       "accent_peak_timing_drift_ms_abs_max": 5.979166666666667,
-      "band_200_800_error_db": -3.4237069841874046,
-      "band_2k_4k_error_db": 36.536449286617994,
-      "band_4k_8k_error_db": 73.8497589475718,
+      "band_200_800_error_db": -3.4237074099433826,
+      "band_2k_4k_error_db": 36.53645925026437,
+      "band_4k_8k_error_db": 73.85014384399632,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.256528534576411
+      "rms_error_db_unmatched": 3.817790535320192
     }
   },
   "rebirth-338-1.5_canonical": {
@@ -184,13 +184,13 @@
         5.458333333333333
       ],
       "accent_peak_timing_drift_ms_abs_max": 8.125,
-      "band_200_800_error_db": -4.287055174819507,
-      "band_2k_4k_error_db": 36.467256470862026,
-      "band_4k_8k_error_db": 76.28049161260878,
+      "band_200_800_error_db": -4.287055138907178,
+      "band_2k_4k_error_db": 36.46726686293745,
+      "band_4k_8k_error_db": 76.28087695088962,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.4699414536078415
+      "rms_error_db_unmatched": 4.031203454351623
     }
   },
   "stock-open303_canonical": {
@@ -210,13 +210,13 @@
         -7.166666666666667
       ],
       "accent_peak_timing_drift_ms_abs_max": 7.166666666666667,
-      "band_200_800_error_db": -2.7241358340483615,
-      "band_2k_4k_error_db": 37.55233611746482,
-      "band_4k_8k_error_db": 73.77172764909994,
+      "band_200_800_error_db": -2.72413573721456,
+      "band_2k_4k_error_db": 37.55234660667837,
+      "band_4k_8k_error_db": 73.77211309016057,
       "reference": "level-matched bands; absolute RMS before match",
       "reference_file": "docs/audio-engine/303-baseline/jc303_canonical.wav",
       "reference_role": "soft-oracle-jc303",
-      "rms_error_db_unmatched": 4.063363895774668
+      "rms_error_db_unmatched": 3.624625896518449
     }
   }
 }

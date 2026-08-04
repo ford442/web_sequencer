@@ -31,3 +31,27 @@ build_and_run() {
 build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
 build_and_run tb303_highfid_offline_test
+
+# Output-level alignment across the realtime 303 voices. Needs the rosic sources
+# from the jc303_wasm submodule, so it is skipped when that is not checked out.
+OPEN303_DSP="$SCRIPT_DIR/../../jc303_wasm/src/dsp/open303"
+if compgen -G "$OPEN303_DSP/*.cpp" > /dev/null; then
+    echo "Compiling tb303_level_alignment_test…"
+    # Suppress third-party rosic warning noise; our own sources stay -Wall -Wextra.
+    g++ -std=c++17 -O2 -Wall -Wextra \
+        -Wno-strict-aliasing -Wno-unused-parameter -Wno-aggressive-loop-optimizations \
+        -I "$SCRIPT_DIR/emscripten_stub" \
+        -I "$OPEN303_DSP" \
+        -I "$SCRIPT_DIR/../../jc303_wasm/src/dsp" \
+        "$SCRIPT_DIR/tb303_level_alignment_test.cpp" \
+        "$SCRIPT_DIR/tb303_level_alignment_jc303_tu.cpp" \
+        "$OPEN303_DSP"/*.cpp \
+        -o "$TMP/tb303_level_alignment_test"
+    echo "Running tb303_level_alignment_test…"
+    "$TMP/tb303_level_alignment_test"
+    echo
+else
+    echo "Skipping tb303_level_alignment_test (jc303_wasm submodule not checked out)."
+    echo "  Run: git submodule update --init jc303_wasm"
+    echo
+fi

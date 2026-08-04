@@ -281,6 +281,56 @@ Checklist — this is the **only** guide needed to ship voice #N:
 No other call-site changes — the selector, worklet routing, persistence, and
 normalization all read the registry.
 
+## Output level calibration
+
+Every realtime-selectable voice must sit at the same output level, so switching
+voices at a fixed track LEVEL does not change how loud the track sits in a mix.
+
+**The rules:**
+
+1. **LEVEL (`P_VOLUME`, param id 7) is a linear amplitude control.** Multiply it
+   straight into the output — `gain = volume` — as `open303_wrapper.cpp` and
+   `highfid303_wrapper.cpp` do. This matches the non-303 oscillators, where
+   `VoiceManager` ramps its `GainNode` directly to `params.volume`. Do **not**
+   route LEVEL through a dB curve: a control that is linear on one engine and
+   exponential on another cannot be reconciled by any makeup constant, and the
+   error is worst exactly where the track defaults sit (LEVEL 0.40–0.50).
+2. **Reference level: peak `0.822` at LEVEL=1.0** under the canonical pattern
+   (cutoff 0.35 / resonance 0.70 / envMod 0.55 / decay 0.50 / accent 0.70, saw)
+   — what the open303 model family produces. Named `TB303_REFERENCE_PEAK` in
+   `emscripten/jc303_wrapper.cpp`.
+3. **Calibrating a new engine:** render the canonical pattern at LEVEL=1.0,
+   measure peak, and pick a normalization constant that lands it on the
+   reference. `JC303_OUTPUT_NORMALIZE` is exactly this — the rosic engine runs
+   hot (peak 2.489 at its own unity), so it carries `0.822 / 2.489 = 0.330`.
+   Coefficient-profile voices in `k303Models[]` need no constant; they inherit
+   the family level and only differ by voicing (~1 dB spread, which is fine).
+4. **Never exceed 1.0 at LEVEL=1.0.** Headroom is not optional — a voice that
+   clips at full LEVEL leaves users no way to make it loud enough cleanly.
+
+**Enforced by:**
+
+- `emscripten/tests/tb303_level_alignment_test.cpp` — sweeps LEVEL across every
+  realtime voice and asserts the reference level, linear scaling, silence at
+  LEVEL=0, and no clipping at LEVEL=1.0. Run via
+  `bash emscripten/tests/run_offline_voices_test.sh` (also runs in CI).
+- `src/__tests__/TB303LevelAlignment.test.ts` — peak spread across the committed
+  baselines. The baselines are all rendered at a single LEVEL, so this catches
+  catalog drift but *not* a control-law error; the sweep above is the real gate.
+
+**Known offset — `highfid-cpu`:** it carries an output trim (`* 0.55f`) that
+leaves it ~4.3 dB below the realtime family. That trim was originally chosen to
+match jc303's RMS back when jc303 applied LEVEL on a −60..0 dB curve and so ran
+far too quiet. `highfid-cpu` is offline-only (no AudioWorklet path), so it never
+plays into the realtime mix and the offset is not user-visible; it is left as-is
+because the Phase-5 gate in `TB303SpectrogramQuality.test.ts` asserts its
+*absolute* RMS against the jc303 oracle, and jc303 and highfid have materially
+different crest factors (15.4 dB vs 10.0 dB) — matching peak and matching
+absolute RMS cannot both hold. Re-levelling it means retargeting that gate to
+the reference peak, which is a Phase-5 authenticity decision, not a mixing one.
+The offset is asserted (not ignored) in `TB303LevelAlignment.test.ts` so it
+cannot drift further unnoticed.
+
 ### Offline-only high-fidelity voices (Phase-2+)
 
 `highfid-cpu` and `gpu-highfid` are special cases: `family: 'highfid'`,
