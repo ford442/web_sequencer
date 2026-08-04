@@ -5,13 +5,13 @@ import {
   selectOscillatorFamily,
   select303Voice,
   engineStatusIndicators,
-  domClick,
+  clickControl,
 } from './helpers/boot';
 
 /**
  * E2E: 303 voice selection ("303 Voices" architecture).
- * Oscillator family + voice clicks use force:true — knob REC hitboxes overlap
- * the compact selectors inside HardwareModule.
+ * Oscillator family + voice clicks are real user clicks; the knob canvas used to
+ * capture the pointer and cancel them (fixed in #1035).
  */
 
 test('303 voice switch: SYNTH B toggles between stock and JC303 voices', async ({ page }) => {
@@ -29,7 +29,7 @@ test('303 voice switch: SYNTH B toggles between stock and JC303 voices', async (
     await expect(voiceGroup.getByLabel('JC303 engine family active')).toBeVisible();
     await expect(engineStatusIndicators(page)).toContainText('JC303');
 
-    await domClick(stockBtn);
+    await clickControl(stockBtn);
     await expect(stockBtn).toHaveAttribute('aria-pressed', 'true');
     await expect(jc303Btn).toHaveAttribute('aria-pressed', 'false');
     await expect(voiceGroup.getByLabel('Open303 engine family active')).toBeVisible();

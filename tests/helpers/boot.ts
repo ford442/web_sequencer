@@ -103,7 +103,14 @@ export async function dismissHelpTips(page: Page): Promise<void> {
   }
 }
 
-/** Native DOM click — bypasses Playwright hit-testing and overlay interception. */
+/**
+ * Native DOM click — bypasses Playwright hit-testing entirely.
+ *
+ * Kept for the rare control that is genuinely occluded, but prefer a real
+ * `click()`: HardwareModule no longer swallows pointerdowns aimed at its DOM
+ * overlays (#1035), so module controls respond to real user input and the specs
+ * should exercise that path rather than a synthetic event a user cannot produce.
+ */
 export async function domClick(locator: Locator): Promise<void> {
   await locator.evaluate((el) => {
     if (el instanceof HTMLElement) el.click();
@@ -166,11 +173,49 @@ export async function openRackModule(page: Page, track: RackTrackKey) {
 }
 
 /**
+ * Click a point on `target` that the element actually owns.
+ *
+ * HardwareModule stacks the knob REC ("R") buttons in an absolute overlay that
+ * can land on the *centre* of a compact selector button — so a plain click is
+ * (correctly) refused as intercepted, while `force: true` would silently
+ * deliver the click to the REC button instead. A real user can still hit the
+ * uncovered part of the control, so we probe across the target and click there.
+ *
+ * Throws if the target is covered edge to edge — that is a UI hit-target bug
+ * worth failing on, not something to paper over.
+ */
+export async function clickControl(target: Locator): Promise<void> {
+  await target.waitFor({ state: 'visible', timeout: 15_000 });
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  if (!box) throw new Error('clickControl: target has no bounding box');
+
+  const clearFraction = await target.evaluate(
+    (el, { b, fracs }) => {
+      for (const f of fracs) {
+        const hit = document.elementFromPoint(b.x + b.width * f, b.y + b.height / 2);
+        if (hit && (hit === el || el.contains(hit))) return f;
+      }
+      return null;
+    },
+    { b: box, fracs: [0.5, 0.2, 0.8, 0.1, 0.9] },
+  );
+
+  if (clearFraction === null) {
+    throw new Error(
+      'clickControl: no unobstructed point on target — an overlay covers it entirely',
+    );
+  }
+  await target.click({ position: { x: box.width * clearFraction, y: box.height / 2 } });
+}
+
+/**
  * Select an oscillator family via OscillatorTypeSelector (replaces legacy
  * `Select 303-saw waveform` buttons).
  *
- * Uses a native DOM click because HardwareModule's absolute knob overlay
- * (REC "R" hitboxes) and HelpTip pins intercept Playwright pointer hits.
+ * Uses a real click: the knob canvas used to capture the pointer and cancel
+ * these clicks, which is fixed in HardwareModule (#1035). HelpTip pins are
+ * dismissed first, and `clickControl` steers around the REC overlay.
  */
 export async function selectOscillatorFamily(
   module: Locator,
@@ -182,11 +227,11 @@ export async function selectOscillatorFamily(
   await expect(group).toBeVisible({ timeout: 15_000 });
   const badge = OSC_FAMILY_BADGE[family];
   const btn = group.getByRole('button', { name: badge, exact: true });
-  await domClick(btn);
+  await clickControl(btn);
   await expect(btn).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
 }
 
-/** Click a Voice303Selector option via native DOM click. */
+/** Click a Voice303Selector option with a real user click. */
 export async function select303Voice(module: Locator, voiceName: RegExp): Promise<void> {
   const page = module.page();
   await dismissHelpTips(page);
@@ -195,7 +240,7 @@ export async function select303Voice(module: Locator, voiceName: RegExp): Promis
   // First-use HelpTip pins when the selector mounts — dismiss again.
   await dismissHelpTips(page);
   const btn = voiceGroup.getByRole('button', { name: voiceName });
-  await domClick(btn);
+  await clickControl(btn);
   await expect(btn).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
 }
 
