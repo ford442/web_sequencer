@@ -593,8 +593,8 @@ const activeFallbacks = new Map<string, { requestedBackend: string; reason: stri
 export function parseHyphonGlueExportMap(glueSource: string): Record<string, string> {
   const map: Record<string, string> = {};
   const patterns = [
-    /Module\["(_[^"]+)"\]=wasmExports\["([^"]+)"\]/g,
-    /(_[a-zA-Z0-9_]+)=Module\["\1"\]=wasmExports\["([^"]+)"\]/g,
+    /Module\["(_[^"]+)"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
+    /(_[a-zA-Z0-9_]+)\s*=\s*Module\["\1"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
   ];
   for (const re of patterns) {
     let match: RegExpExecArray | null;
