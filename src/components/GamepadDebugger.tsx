@@ -45,14 +45,27 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
         </h2>
 
         {gamepads.length === 0 ? (
-           <div id="gamepad-debugger-desc" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-800/20 border-2 border-dashed border-slate-800 rounded-lg">
-             <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500 text-2xl" aria-hidden="true">
-               🎮
+           <div id="gamepad-debugger-desc" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+             <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zm10 0a1 1 0 11-2 0 1 1 0 012 0zm2-4a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2V7z" />
+                </svg>
              </div>
-             <h3 className="text-slate-300 font-bold mb-2 text-sm">No gamepads detected</h3>
-             <p className="text-slate-500 text-xs">
+             <h3 className="text-gray-300 font-bold mb-2">No gamepads detected</h3>
+             <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
                Connect a gamepad and press any button to wake it up.
              </p>
+             <button
+               type="button"
+               onClick={() => {
+                 const gps = navigator.getGamepads();
+                 setGamepads(Array.from(gps).filter((gp): gp is Gamepad => gp !== null));
+               }}
+               className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+               aria-label="Scan for connected gamepads"
+             >
+               Scan for Gamepads
+             </button>
            </div>
         ) : (
           <>
