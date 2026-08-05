@@ -22,7 +22,7 @@ describe.skipIf(!hasNativeJs)('hyphon_native export map (Open303 / JC303 / Proph
     const map = parseHyphonGlueExportMap(glue);
     expect(map.open303_create).toBeTruthy();
     expect(map.prophecy_process).toBeTruthy();
-    expect(map.jc303_init).toBeTruthy();
+    expect(map.jc303_init_handle).toBeTruthy();
 
     const fakeExports = {
       [map.open303_create!]: () => 1,
