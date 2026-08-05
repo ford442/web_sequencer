@@ -115,6 +115,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
       <div class="row"><div style="flex:1">Last render</div><div style="min-width:72px;text-align:right">${offlineLat}</div></div>
+      <div class="row"><div style="flex:1">GPU 303</div><div style="min-width:72px;text-align:right">${gpuBackend} ${gpuLat}</div></div>
+      <div class="row" title="${runtime.gpuFallbackReason ?? ''}"><div style="flex:1">GPU fallback</div><div style="min-width:72px;text-align:right;font-size:10px">${gpuFb}</div></div>`;
       <div class="row"><div style="flex:1">WebGPU</div><div style="min-width:72px;text-align:right">${gpuAvail}</div></div>
       <div class="row"><div style="flex:1">HiFi select</div><div style="min-width:72px;text-align:right;font-size:10px" title="${runtime.highFidRequested ?? ''}">${hfReq}</div></div>
       <div class="row"><div style="flex:1">HiFi active</div><div style="min-width:72px;text-align:right;font-size:10px">${hfActive}</div></div>

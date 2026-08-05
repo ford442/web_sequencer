@@ -77,6 +77,8 @@ export interface TB303ModelInfo {
   available: boolean;
   /**
    * When true, the voice is intended for offline / freeze / export only
+   * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Excluded from the real-time
+   * Voice303Selector.
    * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Realtime AudioWorklet falls
    * back via `resolveRealtimeTB303Model`; offline renderers use the id as-is.
    */
@@ -172,6 +174,16 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     available: true,
     offlineOnly: true,
   },
+  {
+    id: 'gpu-highfid',
+    label: 'High-Fidelity GPU',
+    shortLabel: 'HiFi GPU',
+    description:
+      'Offline WGSL diode-ladder authenticity tier (Phase-3) — same topology as highfid-cpu, WebGPU compute with CPU fallback. Not for real-time AudioWorklet.',
+    family: 'highfid',
+    available: true,
+    offlineOnly: true,
+  },
 ];
 
 const MODEL_BY_ID: ReadonlyMap<string, TB303ModelInfo> = new Map(
@@ -189,6 +201,9 @@ export function isOfflineOnlyTB303Model(id: string | undefined): boolean {
 
 /**
  * Models selectable in the UI (DSP profile shipped).
+ * By default excludes `offlineOnly` voices (highfid-cpu, gpu-highfid) so the
+ * real-time selector stays latency-safe. Pass `{ includeOfflineOnly: true }`
+ * for freeze / export / offline renderer UIs (Phase-4).
  * By default excludes `offlineOnly` voices so callers that only drive the
  * AudioWorklet stay latency-safe. Pass `{ includeOfflineOnly: true }` for the
  * voice selector / freeze / export UIs (Phase-4).

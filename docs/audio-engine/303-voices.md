@@ -334,6 +334,7 @@ cannot drift further unnoticed.
 ### Offline-only high-fidelity voices (Phase-2+)
 
 `highfid-cpu` and `gpu-highfid` are special cases: `family: 'highfid'`,
+`offlineOnly: true`.
 `offlineOnly: true`. Full architecture, enablement, FAQ, and roadmap:
 **[303-gpu-highfid.md](./303-gpu-highfid.md)**.
 
@@ -341,6 +342,8 @@ cannot drift further unnoticed.
 - `gpu-highfid` — WGSL WebGPU path with automatic highfid-cpu fallback
   ([GPU_HIGHFID_303.md](./GPU_HIGHFID_303.md)).
 
+Keep both out of the real-time selector (`getAvailableTB303Models()` excludes
+`offlineOnly` by default). See Phase-4 for freeze/export UI selection.
 `Voice303Selector` lists them with an **Offline** badge (Phase-4 /
 `includeOfflineOnly: true`). Tooltips explain they are best for freeze /
 export / multisample; live playback stays on Stock Open303 via

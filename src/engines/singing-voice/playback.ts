@@ -382,6 +382,11 @@ export const PlaybackMixin = {
     const phonemes = this.lastAlignment.phonemes;
     const sampleRate = this.audioContext.sampleRate;
 
+    // We only care if there is any user phoneme with a formant shift
+    const hasFormantShift = userPhonemes.some(
+      (p) => p.formantShift !== undefined && p.formantShift !== 0,
+    );
+    if (!hasFormantShift) {
     // We only care if there is any user phoneme with a formant shift, or if there are vowel transitions to smooth out
     const hasFormantShift = userPhonemes.some(
       (p) => (p as any).formantShift !== undefined || p.pitchBend !== 0,
@@ -411,6 +416,8 @@ export const PlaybackMixin = {
 
       const userP = userPhonemes[i];
       let targetShift = baseFormantShift;
+      if (userP && userP.formantShift !== undefined) {
+        targetShift += userP.formantShift;
       if (userP && (userP as any).formantShift !== undefined) {
         targetShift += (userP as any).formantShift;
       }
@@ -453,6 +460,7 @@ export const PlaybackMixin = {
         // Using existing setFormantGlide:
         // Note setFormantGlide ramps from startSemitones to endSemitones over duration.
         // If we want it to glide during this phoneme segment:
+        this.setFormantGlide(
         (this.formantShifter as any)?.setFormantGlide?.(
           prevShift,
           targetShift,
@@ -460,6 +468,8 @@ export const PlaybackMixin = {
           rampDuration
         );
       } else {
+        // Ensure we hold the target shift
+        this.setFormantShift(targetShift, currentTimeSeconds, 0);
         // Ensure we hold the target shift (only if we didn't just schedule an expressive scoop above)
         if (!(p.isVowel && i < phonemes.length - 1 && phonemes[i+1].isVowel && prevShift === targetShift)) {
            (this.formantShifter as any)?.setFormantShift?.(targetShift, currentTimeSeconds, 0);

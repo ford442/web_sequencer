@@ -16,6 +16,8 @@
 - [x] Implement per-phoneme pitch drift/vibrato
 - [x] Add Formant Modulation LFO
 - [x] Add Formant Glide per phoneme
+- [ ] Add granular random jitter per phoneme
+- [ ] Optimize Voice Manager state syncing
 - [x] Optimize Voice Manager state syncing
 - [ ] Add granular synthesis window shape control for TTS playback
 - [ ] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?

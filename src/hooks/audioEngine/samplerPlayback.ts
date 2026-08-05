@@ -507,6 +507,9 @@ export function createSamplerPlayback(
         // 2. Setup Phonemes
         if (ctx.alignment) {
             voice.setAlignment(ctx.alignment);
+            if (ctx.noteParams?.phonemes?.length) {
+                voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
+            }
             voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
