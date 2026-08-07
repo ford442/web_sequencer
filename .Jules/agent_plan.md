@@ -20,7 +20,7 @@
 - [ ] Optimize Voice Manager state syncing
 - [x] Optimize Voice Manager state syncing
 - [ ] Add granular synthesis window shape control for TTS playback
-- [ ] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
+- [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
 
 ## Refactoring Roadblocks
 - Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
