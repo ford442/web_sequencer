@@ -475,11 +475,12 @@ export class VoiceManager extends VoicePool<Voice> {
         }
     }
 
-    stopAll(time?: number): void {
+    override stopAll(time?: number): void {
         // ⚡ Bolt Optimization: Replace forEach with for...of to prevent closure allocations
         for (const v of this.voices) {
             v.stop(time ?? v.context.currentTime);
         }
+        super.stopAll(time ?? this.voices[0]?.context.currentTime ?? 0);
     }
 
     updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
