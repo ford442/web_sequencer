@@ -480,8 +480,6 @@ export class VoiceManager extends VoicePool<Voice> {
         for (const v of this.voices) {
             v.stop(time ?? v.context.currentTime);
         }
-    override stopAll(time?: number): void {
-        super.stopAll(time ?? this.voices[0]?.context.currentTime ?? 0);
     }
 
     updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
