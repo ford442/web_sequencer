@@ -888,9 +888,8 @@ const playSampler = (
 
             // Play this voice with pitch offset and slight delay for natural ensemble effect
             const delayMs = voice.index * 5;
-            setTimeout(() => {
-                playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
-            }, delayMs);
+            // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet/API-scheduled delayed start time
+            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
         }
         return;
     }
