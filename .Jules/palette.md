@@ -23,3 +23,6 @@
 ## 2026-08-08 - Better empty states over plain text
 **Learning:** For empty states, specifically in components like the Phoneme Painter where users expect interactions, providing a clear CTA with standardized styling (dashed borders, colored icons) is better UX than plain textual notes, as it clarifies what is missing and immediately provides a path to resolve it.
 **Action:** When asked for UX enhancements, look for unstyled or plain text empty states across the application and update them to use the consistent dashed-border empty state pattern.
+## 2026-08-04 - Consistent Empty States for Filtered Lists
+**Learning:** When creating empty states for search or filter results (like in CloudLibrary where `filteredSongs.length === 0`), it's not enough to just add text. Following the standardized empty state pattern (dashed border, circular background with an SVG icon, clear text, and a CTA) significantly improves the UX and maintains visual consistency across the app, especially in contrast to completely blank empty states.
+**Action:** When asked to improve a zero-data or filtered list state, look for the standard components: `<div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center">` surrounding an SVG, along with the `border-dashed` container style.
