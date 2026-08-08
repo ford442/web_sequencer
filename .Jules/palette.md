@@ -20,3 +20,6 @@
 ## 2026-08-03 - Consistent Empty States in Modals
 **Learning:** Empty states within tabbed modals (like the AI Song Import preview) should follow the same visual design language as empty states in larger overlay panels (like CloudLibrary and MidiMapPanel). Using emojis and unstyled blocks breaks immersion. Utilizing the standard dashed-border container, a circular colored SVG icon wrapper, and specific text hierarchy (`text-gray-300 font-bold mb-2` for title, `text-gray-500 text-xs max-w-[250px]` for description) ensures the application feels polished and intentional everywhere.
 **Action:** Always replace plain text or emoji-based empty states with the standardized `border-dashed` pattern, even in smaller embedded views like modal tabs.
+## 2026-08-08 - Better empty states over plain text
+**Learning:** For empty states, specifically in components like the Phoneme Painter where users expect interactions, providing a clear CTA with standardized styling (dashed borders, colored icons) is better UX than plain textual notes, as it clarifies what is missing and immediately provides a path to resolve it.
+**Action:** When asked for UX enhancements, look for unstyled or plain text empty states across the application and update them to use the consistent dashed-border empty state pattern.
