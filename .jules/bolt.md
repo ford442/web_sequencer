@@ -50,3 +50,7 @@
 ## 2024-05-22 - State update coalescing with shallow equality checks
 **Learning:** In state stores managing high-frequency updates that trigger UI re-renders (like `AutomationStore.setLiveValues` running every 16th-note step), unconditionally assigning new objects using `Object.assign({}, state, values)` forces a state change reference update even if the actual data hasn't changed. This causes downstream `requestAnimationFrame` loops and React subscribers to fire unnecessarily.
 **Action:** When pushing merged updates to global stores from high-frequency sequencers, manually iterate over the incoming keys to perform a shallow equality check against the existing state before allowing the mutation and broadcast to occur.
+
+## 2024-05-23 - Float32Array Max Value Computation
+**Learning:** Using `Math.max(...buffer.map(Math.abs))` on large `Float32Array` buffers allocates an intermediate array and uses the spread operator, which can cause significant garbage collection spikes and "Maximum call stack size exceeded" errors.
+**Action:** Always use standard `for` loops to iterate over array elements when finding minimum or maximum values in `Float32Array` and avoid using `.map()` followed by the spread operator.
