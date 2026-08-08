@@ -304,25 +304,6 @@ export function createPlaySamplerVoice(
           voice.setTranceGate(noteParams.tranceGate, triggerTime);
         }
 
-        // Apply Formant LFO
-        if (noteParams?.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
-        } else if (params.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
-        }
-        if (noteParams?.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
-        } else if (params.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
-        }
-        if (noteParams?.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(noteParams.formantLfoShape);
-        } else if (params.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(params.formantLfoShape);
-        } else {
-          voice.setFormantLfoShape(undefined);
-        }
-
         // Apply Character Morphing
         voice.setCharacterMorph(characterMorph, morphTarget, 0.05); // Use short ramp time
 
