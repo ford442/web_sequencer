@@ -453,15 +453,13 @@ export const PlaybackMixin = {
         // Using existing setFormantGlide:
         // Note setFormantGlide ramps from startSemitones to endSemitones over duration.
         // If we want it to glide during this phoneme segment:
-        this.setFormantGlide(
+        (this.formantShifter as any)?.setFormantGlide?.(
           prevShift,
           targetShift,
           currentTimeSeconds,
           rampDuration
         );
       } else {
-        // Ensure we hold the target shift
-        this.setFormantShift(targetShift, currentTimeSeconds, 0);
         // Ensure we hold the target shift (only if we didn't just schedule an expressive scoop above)
         if (!(p.isVowel && i < phonemes.length - 1 && phonemes[i+1].isVowel && prevShift === targetShift)) {
            (this.formantShifter as any)?.setFormantShift?.(targetShift, currentTimeSeconds, 0);
