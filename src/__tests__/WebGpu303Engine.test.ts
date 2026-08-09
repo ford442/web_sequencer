@@ -53,8 +53,8 @@ describe('gpu-highfid registry', () => {
     ).toBe(true);
   });
 
-  it('normalizeTB303Model falls back to stock for offline-only voices', () => {
-    expect(normalizeTB303Model('gpu-highfid')).toBe('stock-open303');
+  it('normalizeTB303Model preserves offline-only voices without automatically falling back', () => {
+    expect(normalizeTB303Model('gpu-highfid')).toBe('gpu-highfid');
   });
 
   it('normalizeTB303Model preserves gpu-highfid for persistence', () => {
