@@ -61,11 +61,15 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     protected override onStolen(voice: SingingVoice, index: number, time?: number): void {
         super.onStolen(voice, index, time);
         playbackHealthMonitor.recordVoiceSteal('singingVoice');
-        this.activeVoices.delete(index);
     }
 
     protected override stopVoice(voice: SingingVoice, time?: number): void {
         voice.noteOff(time ?? this.audioContext.currentTime);
+    }
+
+    protected override markInactive(index: number): void {
+        super.markInactive(index);
+        this.activeVoices.delete(index);
     }
 
     /**
@@ -111,7 +115,6 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
      */
     releaseVoice(index: number) {
         this.markInactive(index);
-        this.activeVoices.delete(index);
     }
 
     /**
@@ -138,6 +141,5 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
 
     override stopAll(time?: number) {
         super.stopAll(time ?? this.audioContext.currentTime);
-        this.activeVoices.clear();
     }
 }
