@@ -50,6 +50,10 @@ const _midiScratch: number[] = [];
 const _noteScratch: string[] = [];
 const _liveValuesKeys: string[] = [];
 const _liveValuesScratch: Record<string, number> = {};
+const _continuousSamplerParams = new Set([
+    'formantShift', 'vibratoRate', 'rootNote', 'coarseTune', 'fineTune',
+    'pitchAttack', 'pitchDecay', 'vibratoDepth', 'tremoloDepth', 'breathAmount', 'characterMorph'
+]);
 const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
 const _bankParamsScratch: Partial<SamplerBankParams> = {};
 const _chordScratch: string[] = [];
@@ -538,18 +542,22 @@ export const useStepHandler = ({
                     realVal = normVal; // assume 0-1 or pass-through
                 }
 
-                if (lane.target === 'sampler' && audioEngine.updateSamplerVoiceParams) {
-                    // Apply to the currently active sampler bank during playback (MVP; future: bank-specific lanes)
-                    try {
-                        audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, lane.parameter, realVal);
-                    } catch (e) {
-                        // ignore per-param errors
+                if (lane.target === 'sampler') {
+                    if (!_continuousSamplerParams.has(lane.parameter)) continue;
+
+                    if (audioEngine.updateSamplerVoiceParams) {
+                        // Apply to the currently active sampler bank during playback (MVP; future: bank-specific lanes)
+                        try {
+                            audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, lane.parameter, realVal);
+                        } catch (e) {
+                            // ignore per-param errors
+                        }
+                    } else if (onParamChange) {
+                        // Fallback to singing voice path for formant etc if no direct sampler updater
+                        try {
+                            onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
+                        } catch (e) {}
                     }
-                } else if (onParamChange && lane.target === 'sampler') {
-                    // Fallback to singing voice path for formant etc if no direct sampler updater
-                    try {
-                        onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
-                    } catch (e) {}
                 }
             }
 
