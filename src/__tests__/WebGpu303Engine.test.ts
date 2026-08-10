@@ -61,6 +61,10 @@ describe('gpu-highfid registry', () => {
   it('normalizeTB303Model preserves gpu-highfid for persistence', () => {
     expect(normalizeTB303Model('gpu-highfid', undefined, { reportFallback: false })).toBe('gpu-highfid');
   });
+
+  it('normalizeTB303Model preserves gpu-highfid for persistence', () => {
+    expect(normalizeTB303Model('gpu-highfid', undefined, { reportFallback: false })).toBe('gpu-highfid');
+  });
 });
 
 describe('WGSL 303 shader source', () => {

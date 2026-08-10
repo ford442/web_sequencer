@@ -174,16 +174,6 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     available: true,
     offlineOnly: true,
   },
-  {
-    id: 'gpu-highfid',
-    label: 'High-Fidelity GPU',
-    shortLabel: 'HiFi GPU',
-    description:
-      'Offline WGSL diode-ladder authenticity tier (Phase-3) — same topology as highfid-cpu, WebGPU compute with CPU fallback. Not for real-time AudioWorklet.',
-    family: 'highfid',
-    available: true,
-    offlineOnly: true,
-  },
 ];
 
 const MODEL_BY_ID: ReadonlyMap<string, TB303ModelInfo> = new Map(
