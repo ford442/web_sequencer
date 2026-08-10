@@ -24,7 +24,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
     currentBitcrush = 0,
     currentDownsample = 1,
     currentTranceGate = 0,
-    currentFormantShift,
+    currentFormantShift = 0,
     currentSlideFormant = false,
     currentFormantLfoSync,
     currentFormantLfoRate = 0,
