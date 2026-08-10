@@ -52,6 +52,7 @@ const _liveValuesKeys: string[] = [];
 const _liveValuesScratch: Record<string, number> = {};
 const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
 const _bankParamsScratch: Partial<SamplerBankParams> = {};
+const _chordScratch: string[] = [];
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const isArray = Array.isArray(notes);
@@ -260,7 +261,15 @@ export const useStepHandler = ({
 
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
             const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
@@ -316,7 +325,15 @@ export const useStepHandler = ({
             if (!stepData) return;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
             const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
@@ -386,7 +403,15 @@ export const useStepHandler = ({
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
             const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
 
             // Lock to sequencer logic
             let finalNotes = rawNotes;
@@ -411,9 +436,16 @@ export const useStepHandler = ({
                 if (targetStep !== -1) {
                     const targetData = seq.steps[targetStep];
                     if (targetData?.note) {
-                        finalNotes = targetData.chord
-                            ? [targetData.note, ...targetData.chord]
-                            : targetData.note;
+                        if (targetData.chord) {
+                            _chordScratch.length = 0;
+                            _chordScratch.push(targetData.note);
+                            for (let i = 0; i < targetData.chord.length; i++) {
+                                _chordScratch.push(targetData.chord[i]);
+                            }
+                            finalNotes = _chordScratch;
+                        } else {
+                            finalNotes = targetData.note;
+                        }
                     }
                 }
             }
