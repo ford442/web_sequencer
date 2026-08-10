@@ -59,7 +59,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
     <>
       {/* Formant Shift Control */}
       {(trackType === "voice" || trackType === "synth") &&
-        currentFormantShift !== undefined && (
+        (currentFormantShift !== undefined || trackType === "voice") && (
           <div className="flex flex-col gap-1 mb-2">
             <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
               <label htmlFor="note-fmt-shift">Formant Shift</label>
@@ -115,7 +115,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
           </div>
         )}
       {/* Formant LFO Rate Control */}
-      {trackType === "synth" && (
+      {(trackType === "voice" || trackType === "synth") && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
             <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
@@ -183,7 +183,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
         </div>
       )}
        {/* Formant LFO Depth Control */}
-      {trackType === "synth" && (
+      {(trackType === "voice" || trackType === "synth") && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
             <label htmlFor="note-fmt-depth">Fmt LFO Depth</label>
@@ -337,7 +337,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
         </div>
       </fieldset>
        {/* Formant Envelope Controls */}
-      {trackType === "synth" && (
+      {(trackType === "voice" || trackType === "synth") && (
         <div className="flex flex-col gap-1 mt-2 p-2 bg-gray-800/40 rounded border border-indigo-900/30">
           <div className="flex justify-between items-center text-[10px] text-cyan-200/70 font-bold uppercase mb-1">
             <label htmlFor="note-fmt-env-sync">Formant Env Sync</label>
