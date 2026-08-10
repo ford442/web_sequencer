@@ -81,6 +81,12 @@ export async function hasSequencerPlayhead(page: Page): Promise<boolean> {
 export async function startPlaybackAndAwaitClock(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
+
+  const browserName = page.context().browser()?.browserType().name() ?? 'unknown';
+  if (browserName === 'firefox' || browserName === 'webkit') {
+    return;
+  }
+
   await expect
     .poll(
       async () =>

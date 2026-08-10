@@ -149,7 +149,7 @@ export async function selectRackTrack(page: Page, track: RackTrackKey): Promise<
   const row = page.getByRole('rowheader', { name: pattern });
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.scrollIntoViewIfNeeded();
-  await row.click();
+  await domClick(row);
 }
 
 /** Locate a rack HardwareModule by title fragment (e.g. `SYNTH B`, `BASS 2`). */
