@@ -50,3 +50,7 @@
 ## 2024-05-22 - State update coalescing with shallow equality checks
 **Learning:** In state stores managing high-frequency updates that trigger UI re-renders (like `AutomationStore.setLiveValues` running every 16th-note step), unconditionally assigning new objects using `Object.assign({}, state, values)` forces a state change reference update even if the actual data hasn't changed. This causes downstream `requestAnimationFrame` loops and React subscribers to fire unnecessarily.
 **Action:** When pushing merged updates to global stores from high-frequency sequencers, manually iterate over the incoming keys to perform a shallow equality check against the existing state before allowing the mutation and broadcast to occur.
+
+## 2026-08-02 - AudioWorklet Parameter Automation Pitfalls
+**Learning:** High frequency audio sequencing loops (e.g., `useStepHandler.ts`) must only continuously stream true numeric parameters (like cutoff, pitch) to AudioWorklets via `postMessage`. Streaming discrete configuration strings (like `stretchProfile`) triggers full WASM memory re-allocation (`_malloc`/`_free`) and module re-instantiation on the audio thread every tick, leading to catastrophic audio drops.
+**Action:** Classify and isolate discrete AudioWorklet configuration parameters from continuous automation streams. Ensure updates to these configurations are deduped on the main thread and skip the fast-path loop to prevent audio thread stalls.
