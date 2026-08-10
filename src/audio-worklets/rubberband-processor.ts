@@ -88,7 +88,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 }
+      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
     ];
   }
 
@@ -424,6 +425,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeLfoDepth = parameters.freezeLfoDepth ? parameters.freezeLfoDepth[0] : 0.0;
         const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
         const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
+        const windowShape = parameters.windowShape ? parameters.windowShape[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -487,8 +489,25 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             if (actualGrainSize > 0) {
               for (let i = 0; i < samplesToFeed; i++) {
-                // Apply a simple Hann window to the grain to avoid buzzing/clicks at the loop boundaries
-                const windowVal = 0.5 * (1 - Math.cos((2 * Math.PI * this.freezePhase) / (actualGrainSize - 1)));
+                // Apply a window to the grain to avoid buzzing/clicks at the loop boundaries
+                const phase = this.freezePhase / (actualGrainSize - 1);
+                let windowVal = 1.0;
+
+                // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                if (windowShape < 0.5) {
+                    // Hann
+                    windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                } else if (windowShape < 1.5) {
+                    // Hamming
+                    windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                } else if (windowShape < 2.5) {
+                    // Blackman
+                    windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                } else {
+                    // Rectangular / None
+                    windowVal = 1.0;
+                }
+
                 heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;
 
                 this.freezePhase++;
