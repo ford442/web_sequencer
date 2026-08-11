@@ -29,6 +29,7 @@
 - Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.
 
 ## Architecture Review
-- Velocity Check: The optimization task was straightforward. For the next run, I should consider a more complex architectural goal, such as unifying the voice allocation logic across all Synth and Sampler engines into a generic VoicePool base class to reduce duplication.
+- Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
+- Velocity Check: Refactoring went smoothly. The architecture is much cleaner without duplicate voice maps. Next step might involve looking into `VoiceManager` to see if there are similar optimizations, or picking a new feature from the Innovation Lab.
 
 ## Roadmap

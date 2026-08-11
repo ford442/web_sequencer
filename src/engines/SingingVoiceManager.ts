@@ -2,16 +2,8 @@ import { SingingVoice, type SingingVoiceConfig } from './SingingVoice';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { VoicePool } from './base/VoicePool';
 
-interface ActiveVoice {
-    voice: SingingVoice;
-    note: string;
-    startTime: number;
-    source?: AudioBufferSourceNode; // For fallback mode
-}
-
 export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private audioContext: AudioContext;
-    private activeVoices: Map<number, ActiveVoice> = new Map();
     private loadedBanks: Map<number, string> = new Map();
     private config: SingingVoiceConfig;
 
@@ -103,11 +95,6 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
      */
     registerActiveVoice(index: number, note: string, startTime: number) {
         this.markActive(index, startTime);
-        this.activeVoices.set(index, {
-            voice: this.voices[index],
-            note,
-            startTime
-        });
     }
 
     /**
@@ -131,12 +118,12 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     getActiveVoices(outArray?: SingingVoice[]): SingingVoice[] {
         if (outArray) {
             outArray.length = 0;
-            for (const activeVoice of this.activeVoices.values()) {
-                outArray.push(activeVoice.voice);
+            for (const index of this.activeIndices) {
+                outArray.push(this.voices[index]!);
             }
             return outArray;
         }
-        return Array.from(this.activeVoices.values()).map(v => v.voice);
+        return Array.from(this.activeIndices).map(index => this.voices[index]!);
     }
 
     override stopAll(time?: number) {

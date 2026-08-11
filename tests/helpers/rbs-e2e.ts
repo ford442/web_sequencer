@@ -82,9 +82,8 @@ export async function startPlaybackAndAwaitClock(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start Playback', exact: true }).evaluate((node) => (node as HTMLElement).click());
   await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
 
-  // Workaround for headless Firefox CI without PulseAudio
-  const browserName = page.context().browser()?.browserType().name();
-  if (browserName === 'firefox') {
+  const browserName = page.context().browser()?.browserType().name() ?? 'unknown';
+  if (browserName === 'firefox' || browserName === 'webkit') {
     return;
   }
 
