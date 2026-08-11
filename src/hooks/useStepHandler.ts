@@ -50,8 +50,13 @@ const _midiScratch: number[] = [];
 const _noteScratch: string[] = [];
 const _liveValuesKeys: string[] = [];
 const _liveValuesScratch: Record<string, number> = {};
+const _continuousSamplerParams = new Set([
+    'formantShift', 'vibratoRate', 'rootNote', 'coarseTune', 'fineTune',
+    'pitchAttack', 'pitchDecay', 'vibratoDepth', 'tremoloDepth', 'breathAmount', 'characterMorph'
+]);
 const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
 const _bankParamsScratch: Partial<SamplerBankParams> = {};
+const _chordScratch: string[] = [];
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const isArray = Array.isArray(notes);
@@ -260,7 +265,15 @@ export const useStepHandler = ({
 
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
             const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
@@ -316,7 +329,15 @@ export const useStepHandler = ({
             if (!stepData) return;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
             const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
@@ -386,7 +407,15 @@ export const useStepHandler = ({
             const slideFromMidi = stepData.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
             const slideFromFormant = (stepData.slide || stepData.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
 
-            const rawNotes = stepData.chord ? [stepData.note, ...stepData.chord] : stepData.note;
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
 
             // Lock to sequencer logic
             let finalNotes = rawNotes;
@@ -411,9 +440,16 @@ export const useStepHandler = ({
                 if (targetStep !== -1) {
                     const targetData = seq.steps[targetStep];
                     if (targetData?.note) {
-                        finalNotes = targetData.chord
-                            ? [targetData.note, ...targetData.chord]
-                            : targetData.note;
+                        if (targetData.chord) {
+                            _chordScratch.length = 0;
+                            _chordScratch.push(targetData.note);
+                            for (let i = 0; i < targetData.chord.length; i++) {
+                                _chordScratch.push(targetData.chord[i]);
+                            }
+                            finalNotes = _chordScratch;
+                        } else {
+                            finalNotes = targetData.note;
+                        }
                     }
                 }
             }
@@ -506,18 +542,22 @@ export const useStepHandler = ({
                     realVal = normVal; // assume 0-1 or pass-through
                 }
 
-                if (lane.target === 'sampler' && audioEngine.updateSamplerVoiceParams) {
-                    // Apply to the currently active sampler bank during playback (MVP; future: bank-specific lanes)
-                    try {
-                        audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, lane.parameter, realVal);
-                    } catch (e) {
-                        // ignore per-param errors
+                if (lane.target === 'sampler') {
+                    if (!_continuousSamplerParams.has(lane.parameter)) continue;
+
+                    if (audioEngine.updateSamplerVoiceParams) {
+                        // Apply to the currently active sampler bank during playback (MVP; future: bank-specific lanes)
+                        try {
+                            audioEngine.updateSamplerVoiceParams(activeSamplerBankRef.current, lane.parameter, realVal);
+                        } catch (e) {
+                            // ignore per-param errors
+                        }
+                    } else if (onParamChange) {
+                        // Fallback to singing voice path for formant etc if no direct sampler updater
+                        try {
+                            onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
+                        } catch (e) {}
                     }
-                } else if (onParamChange && lane.target === 'sampler') {
-                    // Fallback to singing voice path for formant etc if no direct sampler updater
-                    try {
-                        onParamChange(activeSamplerBankRef.current, lane.parameter as any, realVal, rampDuration);
-                    } catch (e) {}
                 }
             }
 

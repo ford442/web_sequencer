@@ -79,7 +79,7 @@ export async function hasSequencerPlayhead(page: Page): Promise<boolean> {
  * leave `suspended`; StartOverlay ?e2e=1 also resumes on gesture.
  */
 export async function startPlaybackAndAwaitClock(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start Playback', exact: true }).click();
+  await page.getByRole('button', { name: 'Start Playback', exact: true }).evaluate((node) => (node as HTMLElement).click());
   await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
 
   const browserName = page.context().browser()?.browserType().name() ?? 'unknown';

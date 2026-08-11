@@ -26,3 +26,6 @@
 ## 2026-08-04 - Consistent Empty States for Filtered Lists
 **Learning:** When creating empty states for search or filter results (like in CloudLibrary where `filteredSongs.length === 0`), it's not enough to just add text. Following the standardized empty state pattern (dashed border, circular background with an SVG icon, clear text, and a CTA) significantly improves the UX and maintains visual consistency across the app, especially in contrast to completely blank empty states.
 **Action:** When asked to improve a zero-data or filtered list state, look for the standard components: `<div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center">` surrounding an SVG, along with the `border-dashed` container style.
+## 2026-08-10 - Apply standardized empty states universally
+**Learning:** Certain UI regions, such as the initial state of the Voice Editor canvas (which was just a black box when no voice was loaded), heavily benefit from the standard dashed-border empty state pattern. Without it, users may think the application has frozen or an error occurred. The standard pattern gives immediate visual feedback on the state and clarifies next actions.
+**Action:** Identify blank spaces or placeholders that represent "no active selection" and implement the unified empty state design to reinforce application consistency.

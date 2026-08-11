@@ -37,10 +37,24 @@ export abstract class VoicePool<TVoice extends PoolableVoice> {
     }
 
     /**
+     * Synchronizes the pool's internal active tracking with the actual state of the voices.
+     * Useful if voices can go inactive internally (e.g. self-terminating envelopes).
+     */
+    public syncActiveState(): void {
+        for (let i = 0; i < this.maxVoices; i++) {
+            if (this.voices[i] && !this.voices[i]!.isActive && this.activeIndices.has(i)) {
+                this.markInactive(i);
+            }
+        }
+    }
+
+    /**
      * Core allocation logic. Finds an idle voice, optionally matching an affinity key,
      * or steals one based on the specified policy.
      */
     protected acquire(options: AcquireOptions = {}): AcquireResult<TVoice> {
+        this.syncActiveState();
+
         const { affinityKey, steal = 'round-robin', time } = options;
 
         // 1. Find free voice with affinity match

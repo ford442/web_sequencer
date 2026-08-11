@@ -199,6 +199,8 @@ interface SamplerVoiceParamUpdateOptions {
     value: number | string | boolean;
 }
 
+const _lastStretchProfiles = new Map<AudioWorkletNode, string>();
+
 export function applySamplerVoiceParamUpdate({
     manager,
     currentTime,
@@ -232,9 +234,15 @@ export function applySamplerVoiceParamUpdate({
             case 'stretchProfile': {
                 const node = voice.getSourceNode();
                 if (node && 'port' in node) {
-                    (node as AudioWorkletNode).port.postMessage({
+                    const profile = String(value);
+                    const workletNode = node as AudioWorkletNode;
+                    if (_lastStretchProfiles.get(workletNode) === profile) {
+                        break;
+                    }
+                    _lastStretchProfiles.set(workletNode, profile);
+                    workletNode.port.postMessage({
                         type: 'setStretchProfile',
-                        profile: value
+                        data: { profile }
                     });
                 }
                 break;

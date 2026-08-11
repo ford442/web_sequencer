@@ -150,6 +150,11 @@ export async function selectRackTrack(page: Page, track: RackTrackKey): Promise<
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.scrollIntoViewIfNeeded();
   await domClick(row);
+
+  // The rowheader click is often intercepted by floating overlays, especially
+  // the transport-toolbar or rack container animations.
+  // Evaluate the click natively to bypass pointer-events blocking.
+  await row.dispatchEvent('click');
 }
 
 /** Locate a rack HardwareModule by title fragment (e.g. `SYNTH B`, `BASS 2`). */
