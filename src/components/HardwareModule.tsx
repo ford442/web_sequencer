@@ -415,12 +415,20 @@ export const HardwareModule = memo(
                     dirty = true;
                 }
 
-                controlsRef.current.forEach((ctrl) => {
-                    if (!ctrl.isRecording || !automationTargetRef.current) return;
-                    const buf = state.recordingBuffers.find(
-                        (b) => b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording,
-                    );
-                    if (!buf || buf.points.length === 0) return;
+                for (let i = 0; i < controlsRef.current.length; i++) {
+                    const ctrl = controlsRef.current[i];
+                    if (!ctrl.isRecording || !automationTargetRef.current) continue;
+
+                    let buf;
+                    for (let j = 0; j < state.recordingBuffers.length; j++) {
+                        const b = state.recordingBuffers[j];
+                        if (b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording) {
+                            buf = b;
+                            break;
+                        }
+                    }
+
+                    if (!buf || buf.points.length === 0) continue;
                     const target = buf.points[buf.points.length - 1].value;
                     const prev = smoothedRecordingRef.current[ctrl.id] ?? target;
                     const next = smoothToward(prev, target);
@@ -428,17 +436,17 @@ export const HardwareModule = memo(
                         smoothedRecordingRef.current[ctrl.id] = next;
                         dirty = true;
                     }
-                });
+                }
 
                 if (dirty) {
-                    controlsRef.current.forEach((_, i) => {
+                    for (let i = 0; i < controlsRef.current.length; i++) {
                         const handle = knobHandlesRef.current[i];
                         if (handle && KnobGPUContext.isSlotActive(handle)) {
                             KnobGPUContext.markDirty(handle);
                         } else {
                             renderCanvasAt(i);
                         }
-                    });
+                    }
                 }
                 raf = requestAnimationFrame(tick);
             };
