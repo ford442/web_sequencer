@@ -188,8 +188,8 @@ describe('playback stress — voice allocation', () => {
       { noteOff: vi.fn() },
     ];
 
-    mgr.registerActiveVoice(0, 'C4', 0);
-    mgr.registerActiveVoice(1, 'D4', 1);
+    mgr.acquireVoiceForBank("bank-a", 0);
+    mgr.acquireVoiceForBank("bank-a", 1);
     playbackHealthMonitor.reset();
     mgr.acquireVoiceForBank('bank-b');
 

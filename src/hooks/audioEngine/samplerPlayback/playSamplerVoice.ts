@@ -133,7 +133,7 @@ export function createPlaySamplerVoice(
     const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
     let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     if (pFormantLfoShape === undefined) {
-      pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+      pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     }
 
     // Formant Envelope
@@ -302,25 +302,6 @@ export function createPlaySamplerVoice(
 
         if (noteParams?.tranceGate !== undefined) {
           voice.setTranceGate(noteParams.tranceGate, triggerTime);
-        }
-
-        // Apply Formant LFO
-        if (noteParams?.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
-        } else if (params.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
-        }
-        if (noteParams?.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
-        } else if (params.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
-        }
-        if (noteParams?.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(noteParams.formantLfoShape);
-        } else if (params.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(params.formantLfoShape);
-        } else {
-          voice.setFormantLfoShape(undefined);
         }
 
         // Apply Character Morphing

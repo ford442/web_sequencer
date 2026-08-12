@@ -1,0 +1,11 @@
+
+> hyphon-daw@1.0.0 lint /app
+> eslint . && node scripts/check-root.mjs
+
+
+/app/src/engines/singing-voice/playback.ts
+  479:3  error  Parsing error: Declaration or statement expected
+
+✖ 1 problem (1 error, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.

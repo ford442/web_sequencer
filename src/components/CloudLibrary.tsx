@@ -289,10 +289,18 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                 </div>
                             ) : filteredSongs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-                                    <h3 className="text-gray-400 font-bold mb-2">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                    <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mb-4 text-gray-500">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-gray-300 font-bold mb-1 text-xs">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                    <p className="text-gray-500 text-[10px] max-w-[200px] mb-4">
+                                        Try changing or clearing your active filters to see more results.
+                                    </p>
                                     <button type="button"
                                         onClick={() => setFilterType('all')}
-                                        className="mt-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-600 px-4 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                                        className="bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-600 px-4 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                                         aria-label="Clear filter"
                                     >
                                         Clear Filter

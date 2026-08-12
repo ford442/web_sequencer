@@ -115,7 +115,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
           </div>
         )}
       {/* Formant LFO Rate Control */}
-      {trackType === "synth" && (
+      {(trackType === "synth" || trackType === "voice") && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase items-center">
             <label htmlFor="note-fmt-rate">Fmt LFO Rate</label>
@@ -183,7 +183,7 @@ export const SynthModulationEffects: React.FC<SynthEffectPropertiesProps> = Reac
         </div>
       )}
        {/* Formant LFO Depth Control */}
-      {trackType === "synth" && (
+      {(trackType === "synth" || trackType === "voice") && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
             <label htmlFor="note-fmt-depth">Fmt LFO Depth</label>
