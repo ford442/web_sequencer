@@ -73,14 +73,14 @@ export const PlaybackMixin = {
 
     // 3. Formant Shift / Glide Logic
     if (opts.slideFromFormant !== undefined && opts.formantShift !== undefined) {
-      (this.formantShifter as any)?.setFormantGlide?.(
+      this.setFormantGlide(
         opts.slideFromFormant,
         opts.formantShift,
         startTime,
         glideDur
       );
     } else if (opts.formantShift !== undefined) {
-      (this.formantShifter as any)?.setFormantShift?.(
+      this.setFormantShift(
         opts.formantShift,
         startTime,
         0
@@ -428,14 +428,14 @@ export const PlaybackMixin = {
              // If there's no user formant shift, we can still apply a micro-glide for expressiveness
              // Just a slight scoop to simulate vocal tract adjustments between vowels
              const scoopAmount = 0.5; // semitones
-             (this.formantShifter as any)?.setFormantGlide?.(
+             this.setFormantGlide(
                 targetShift,
                 targetShift + scoopAmount,
                 transitionTime,
                 rampDuration
              );
              // Return to baseline at the start of next vowel
-             (this.formantShifter as any)?.setFormantGlide?.(
+             this.setFormantGlide(
                 targetShift + scoopAmount,
                 targetShift,
                 currentTimeSeconds + stretchedDurationSec,
@@ -453,7 +453,7 @@ export const PlaybackMixin = {
         // Using existing setFormantGlide:
         // Note setFormantGlide ramps from startSemitones to endSemitones over duration.
         // If we want it to glide during this phoneme segment:
-        (this.formantShifter as any)?.setFormantGlide?.(
+        this.setFormantGlide(
           prevShift,
           targetShift,
           currentTimeSeconds,
@@ -462,7 +462,7 @@ export const PlaybackMixin = {
       } else {
         // Ensure we hold the target shift (only if we didn't just schedule an expressive scoop above)
         if (!(p.isVowel && i < phonemes.length - 1 && phonemes[i+1].isVowel && prevShift === targetShift)) {
-           (this.formantShifter as any)?.setFormantShift?.(targetShift, currentTimeSeconds, 0);
+           this.setFormantShift(targetShift, currentTimeSeconds, 0);
         }
       }
 

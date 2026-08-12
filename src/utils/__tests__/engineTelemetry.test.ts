@@ -58,6 +58,7 @@ const fakeRuntime = {
   sampleRate: null as number | null,
   baseLatencyMs: null as number | null,
   latencyHint: null as string | null,
+  transportSync: null,
 };
 
 describe('serializeEngineReport', () => {

@@ -31,12 +31,11 @@ describe('WasmOscillator', () => {
         vi.spyOn(WebAssembly, 'instantiate').mockResolvedValue(wasmResult as any);
         vi.spyOn(WebAssembly, 'instantiateStreaming').mockResolvedValue(wasmResult as any);
 
-        // Spy on fetch
-        global.fetch = vi.fn().mockResolvedValue({
+        vi.mocked(global.fetch).mockResolvedValue({
             ok: true,
             headers: { get: () => 'application/wasm' },
-            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8))
-        } as any);
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+        } as Response);
 
         await oscillator.init();
         expect(oscillator.isReady).toBe(true);

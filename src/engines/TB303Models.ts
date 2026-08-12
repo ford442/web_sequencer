@@ -267,14 +267,7 @@ export function normalizeTB303Model(
   const requested = model303?.trim();
   const model = getTB303Model(requested);
   if (model) {
-    let resolved = model.available ? model.id : stockModelForFamily(model.family);
-
-    // In environments without WebGPU, 'gpu-highfid' must fallback to stock.
-    // The previous implementation fell back to 'highfid-cpu' during offline resolution,
-    // but normalizeTB303Model must also correctly reject offline-only ids if they aren't fully supported.
-    if (resolved === 'gpu-highfid' && !detectWebGpuAvailable()) {
-      resolved = 'stock-open303';
-    }
+    const resolved = model.available ? model.id : stockModelForFamily(model.family);
 
     if (options?.reportFallback && requested && resolved !== requested) {
       reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped/supported', options.subsystem);
