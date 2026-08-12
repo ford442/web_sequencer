@@ -6,7 +6,7 @@
   "include": [
     "src",
     "tests",
-    "vitest.setup.ts",
+    "vitest.*.ts",
     "playwright.config.ts",
     "vite.config.ts"
   ]
