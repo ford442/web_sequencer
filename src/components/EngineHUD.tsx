@@ -2,6 +2,7 @@
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
+import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
 
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
@@ -89,6 +90,17 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>${modeAppliesNote}`;
 
+    const ts = runtime.transportSync;
+    const syncSection = ts ? `<div class="subheader">Transport sync</div>
+      <div class="row"><div style="flex:1">Mode</div><div style="min-width:72px;text-align:right">${ts.mode}</div></div>
+      <div class="row"><div style="flex:1">State</div><div style="min-width:72px;text-align:right">${syncStateLabel(ts.state)}</div></div>
+      <div class="row"><div style="flex:1">Device</div><div style="min-width:72px;text-align:right;font-size:10px">${ts.deviceName ?? '—'}</div></div>
+      <div class="row"><div style="flex:1">Measured BPM</div><div style="min-width:72px;text-align:right">${ts.measuredBpm != null ? ts.measuredBpm.toFixed(1) : '—'}</div></div>
+      <div class="row"><div style="flex:1">Phase err</div><div style="min-width:72px;text-align:right">${ts.phaseErrorMs.toFixed(1)} ms</div></div>
+      <div class="row"><div style="flex:1">Jitter p95</div><div style="min-width:72px;text-align:right">${ts.jitterMs.toFixed(1)} ms</div></div>
+      <div class="row"><div style="flex:1">Dropouts</div><div style="min-width:72px;text-align:right">${ts.droppedClocks}</div></div>
+      <div class="hud-actions" style="margin-top:4px;border-top:none;padding-top:0"><button type="button" id="hud-resync-btn">Resync</button></div>` : '';
+
     const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
     const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
     const offlineLat = runtime.offlineRenderLatencyMs != null ? `${runtime.offlineRenderLatencyMs.toFixed(1)} ms` : '—';
@@ -167,7 +179,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -177,6 +189,9 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     if (!target) return;
     if (target.id === 'hud-export-btn') {
       engineTelemetry.exportReport();
+    } else if (target.id === 'hud-resync-btn') {
+      transportSyncStore.resync();
+      render();
     } else if (target.classList.contains('hud-latency-btn')) {
       const mode = target.getAttribute('data-mode') as LatencyMode | null;
       if (mode) {

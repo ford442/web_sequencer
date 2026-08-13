@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { midiPortManager } from '../midi/MidiPortManager';
 import { midiMapStore } from '../stores/midiMapStore';
 import type { AutomationTarget } from '../types';
 import type { MidiBinding } from '../types/midi';
@@ -54,78 +55,35 @@ function handleRawMidiMessage(
 
 /**
  * Web MIDI input: learn mode, mapping persistence, and live CC routing.
- * Independent of gamepad / keyboard — uses navigator.requestMIDIAccess only.
+ * Uses shared MidiPortManager — channel messages only (clock routed separately).
  */
 export function useMidi({ handlers, showToast }: UseMidiOptions): void {
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !('requestMIDIAccess' in navigator)) {
-      midiMapStore.setInputAvailable(false);
-      return;
-    }
-
-    let disposed = false;
-    const inputHandlers = new Map<MIDIInput, (e: MIDIMessageEvent) => void>();
-
-    const attachInput = (input: MIDIInput) => {
-      if (inputHandlers.has(input)) return;
-      const handler = (e: MIDIMessageEvent) => {
-        const data = e.data;
-        if (!data) return;
-        handleRawMidiMessage(data, input.id || undefined, handlersRef.current, showToast);
-      };
-      inputHandlers.set(input, handler);
-      input.onmidimessage = handler;
-    };
-
-    const detachInput = (input: MIDIInput) => {
-      const handler = inputHandlers.get(input);
-      if (handler) {
-        input.onmidimessage = null;
-        inputHandlers.delete(input);
-      }
-    };
-
-    const refreshInputs = (access: MIDIAccess) => {
-      const inputs = Array.from(access.inputs.values());
-      inputs.forEach(attachInput);
+    const refreshInputs = () => {
+      const inputs = midiPortManager.getInputs();
       midiMapStore.setInputAvailable(
         inputs.length > 0,
-        inputs.map((i) => i.name || i.id || 'MIDI Input'),
+        inputs.map((i) => i.name),
       );
     };
 
-    const onStateChange = (e: MIDIConnectionEvent) => {
-      if (disposed || !midiAccess) return;
-      const port = e.port;
-      if (!port || port.type !== 'input') return;
-      if (port.state === 'connected') {
-        attachInput(port as MIDIInput);
-      } else {
-        detachInput(port as MIDIInput);
-      }
-      refreshInputs(midiAccess);
-    };
+    const unsubChannel = midiPortManager.onChannelMessage((deviceId, data) => {
+      handleRawMidiMessage(data, deviceId || undefined, handlersRef.current, showToast);
+    });
 
-    let midiAccess: MIDIAccess | null = null;
+    const unsubState = midiPortManager.onStateChange(refreshInputs);
 
-    navigator.requestMIDIAccess({ sysex: false })
-      .then((access) => {
-        if (disposed) return;
-        midiAccess = access;
-        access.onstatechange = onStateChange;
-        refreshInputs(access);
-      })
-      .catch(() => {
-        midiMapStore.setInputAvailable(false);
-      });
+    void midiPortManager.ensureAccess().then((access) => {
+      if (access) refreshInputs();
+      else midiMapStore.setInputAvailable(false);
+    });
 
     return () => {
-      disposed = true;
-      inputHandlers.forEach((_, input) => detachInput(input));
-      if (midiAccess) midiAccess.onstatechange = null;
+      unsubChannel();
+      unsubState();
     };
   }, [showToast]);
 }

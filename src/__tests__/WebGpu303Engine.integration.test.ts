@@ -59,8 +59,7 @@ describe('gpu-highfid registry', () => {
   });
 
   it('normalizeTB303Model preserves gpu-highfid for persistence', () => {
-    // In environments without WebGPU, this now falls back to stock-open303.
-    expect(normalizeTB303Model('gpu-highfid', undefined, { reportFallback: false })).toBe('stock-open303');
+    expect(normalizeTB303Model('gpu-highfid', undefined, { reportFallback: false })).toBe('gpu-highfid');
   });
 });
 
