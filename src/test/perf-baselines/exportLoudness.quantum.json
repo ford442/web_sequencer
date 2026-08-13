@@ -1,0 +1,5 @@
+{
+  "medianMs": 0.35,
+  "runner": "ubuntu-latest",
+  "note": "Master loudness limiter+meter per 128-frame quantum at 48 kHz. Functional ceiling 0.5 ms in PERFORMANCE_BUDGET.md."
+}

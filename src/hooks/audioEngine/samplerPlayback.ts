@@ -416,10 +416,10 @@ export function createSamplerPlayback(
         } else if (ctx.params.formantLfoDepth !== undefined) {
             voice.setFormantLfoDepth(ctx.params.formantLfoDepth, triggerTime);
         }
-        if (ctx.noteParams?.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.noteParams.formantLfoShape);
-        } else if (ctx.params.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.params.formantLfoShape);
+        if (ctx.noteParams?.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.noteParams.customLfoShape);
+        } else if (ctx.params.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.params.customLfoShape);
         } else {
             voice.setFormantLfoShape(undefined);
         }
@@ -724,7 +724,7 @@ const playSamplerVoice = (
     const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
     let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     if (pFormantLfoShape === undefined) {
-        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.customLfoShape;
     }
 
     // Formant Envelope

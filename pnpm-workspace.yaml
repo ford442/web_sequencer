@@ -1,2 +1,7 @@
 packages:
   - "."
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  protobufjs: true
+  wasm-pack: true

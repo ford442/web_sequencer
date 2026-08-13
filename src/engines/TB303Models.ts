@@ -268,8 +268,9 @@ export function normalizeTB303Model(
   const model = getTB303Model(requested);
   if (model) {
     const resolved = model.available ? model.id : stockModelForFamily(model.family);
+
     if (options?.reportFallback && requested && resolved !== requested) {
-      reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped', options.subsystem);
+      reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped/supported', options.subsystem);
     }
     return resolved;
   }

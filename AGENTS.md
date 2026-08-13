@@ -253,8 +253,20 @@ pnpm run build
 
 ### Testing
 ```bash
-# Run all Vitest tests
-pnpm test
+# Run unit tests (default PR gate — hermetic, no WASM build)
+pnpm run test:unit
+
+# Integration tests (requires build:wasm + build:emcc)
+pnpm run test:integration
+
+# Performance benchmarks (isolated; scheduled CI / PR label `perf`)
+pnpm run test:perf
+
+# Native host 303 checks
+pnpm run test:native
+
+# All Vitest tiers sequentially
+pnpm run test:all
 
 # Run with Vitest UI (if configured)
 npx vitest --ui
@@ -423,7 +435,7 @@ Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wa
 - **Utils**: `src/utils/__tests__/*.{test.ts,test.tsx}`
 - **Services**: `src/services/__tests__/*.{test.ts,test.tsx}`
 - **Environment**: `happy-dom`
-- **Setup**: `vitest.setup.ts` with fully mocked `AudioContext`
+- **Setup**: `vitest.setup.ts` (shared mocks); `vitest.setup.unit.ts` (strict fetch guard for unit tier)
 
 ### Test Categories
 1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `AudioDSP`, `SingingVoice`, `SingingVoiceManager`, `FormantShifter`
@@ -653,7 +665,8 @@ Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_
 |------|---------|
 | Dev server (fast restart) | `pnpm exec vite --host 0.0.0.0 --port 5173` |
 | Dev server (rebuilds WASM every start) | `pnpm run dev` |
-| Unit tests | `CI=true pnpm exec vitest run --pool forks` |
+| Unit tests | `CI=true pnpm run test:unit` |
+| Integration tests | `CI=true pnpm run test:integration` (after `build:wasm` + `build:emcc`) |
 | Lint | `pnpm run lint` |
 | Lint (strict / future CI gate) | `pnpm run lint:strict` |
 | Production build | `pnpm run build` |

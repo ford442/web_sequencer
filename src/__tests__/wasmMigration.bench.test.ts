@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { compareBenchmark } from '@/test/helpers/perfBenchmark';
 
 // ============================================================================
 // Benchmark Utilities
@@ -28,40 +29,10 @@ const benchmark = (
     jsFn: () => void,
     wasmFn: () => void,
     iterations: number
-): BenchmarkResult => {
-    // Warmup
-    for (let i = 0; i < 10; i++) {
-        jsFn();
-        wasmFn();
-    }
+): BenchmarkResult => compareBenchmark(name, jsFn, wasmFn, iterations);
 
-    // Run JS version
-    const jsStart = performance.now();
-    for (let i = 0; i < iterations; i++) jsFn();
-    const jsTime = performance.now() - jsStart;
-
-    // Run WASM version
-    const wasmStart = performance.now();
-    for (let i = 0; i < iterations; i++) wasmFn();
-    const wasmTime = performance.now() - wasmStart;
-
-    const speedup = jsTime / wasmTime;
-
-    return {
-        name,
-        jsTime,
-        wasmTime,
-        speedup,
-        iterations
-    };
-};
-
-const printResult = (result: BenchmarkResult): void => {
-    console.log(
-        `${result.name}: JS=${result.jsTime.toFixed(2)}ms, ` +
-        `WASM=${result.wasmTime.toFixed(2)}ms, ` +
-        `Speedup=${result.speedup.toFixed(2)}x`
-    );
+const printResult = (_result: BenchmarkResult): void => {
+    /* compareBenchmark logs timing */
 };
 
 // ============================================================================

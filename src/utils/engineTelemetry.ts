@@ -1,6 +1,7 @@
 // Lightweight runtime telemetry for engine backends
 
 import { engineDegradationStore } from '../stores/engineDegradationStore';
+import type { TransportSyncTelemetry } from '../midi/clock/types';
 
 type Resolution = { backend: string; reason?: string; ts: number };
 
@@ -69,6 +70,7 @@ type RuntimeTelemetry = {
   baseLatencyMs: number | null;
   /** P0 audio foundation — latencyHint requested when the context was created. */
   latencyHint: string | null;
+  transportSync: TransportSyncTelemetry | null;
 };
 
 function emptyData(): TelemetryData {
@@ -196,6 +198,8 @@ export interface RuntimeSnapshot {
   baseLatencyMs: number | null;
   /** latencyHint requested when the context was created. */
   latencyHint: string | null;
+  /** MIDI transport sync telemetry (master/slave/internal). */
+  transportSync: TransportSyncTelemetry | null;
 }
 
 export interface EngineReport {
@@ -282,6 +286,7 @@ export class EngineTelemetry {
     sampleRate: null,
     baseLatencyMs: null,
     latencyHint: null,
+    transportSync: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -457,7 +462,12 @@ export class EngineTelemetry {
       sampleRate: this.runtime.sampleRate,
       baseLatencyMs: this.runtime.baseLatencyMs,
       latencyHint: this.runtime.latencyHint,
+      transportSync: this.runtime.transportSync,
     };
+  }
+
+  recordTransportSync(telemetry: TransportSyncTelemetry): void {
+    this.runtime.transportSync = telemetry;
   }
 
   registerResolution(subsystem: string, backend: string, reason?: string) {

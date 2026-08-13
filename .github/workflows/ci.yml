@@ -18,29 +18,97 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  ci:
-    name: Lint + Test
+  source-integrity:
+    name: Source Integrity (fail-fast)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
-          # Phase 1 only: no WASM build, no submodule source needed.
-          # Phase 2 will add submodules: true with fetch-depth: 1.
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-          # Pins to pnpm 9 to match pnpm-lock.yaml lockfileVersion '9.0'.
-          # Avoids the Apr-2026 pnpm-lock mutation bug in setup-node + pnpm
-          # cache interaction — see: pnpm/action-setup#226.
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check (tsc, no WASM build)
+        run: pnpm exec tsc -b --pretty false
+
+  lint:
+    name: Lint
+    needs: source-integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        run: pnpm lint
+
+  test-unit:
+    name: Unit tests (Vitest)
+    needs: source-integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test (unit tier — no WASM build, hermetic fetch guard)
+        run: pnpm run test:unit
+        env:
+          CI: true
+
+  test-integration:
+    name: Integration + native tests
+    needs: test-unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,6 +120,7 @@ jobs:
         with:
           version: 3.1.51
           no-cache: false
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -61,33 +130,16 @@ jobs:
       - name: Build WASM artifacts
         run: pnpm run build:wasm
 
+      - name: Build Emscripten native glue
+        run: pnpm run build:emcc
+
       - name: Validate WASM export map
-        # Fails when hyphon_wasm_export_map.json is missing a required export,
-        # carries unexpected export bloat, or has drifted from the built glue.
-        # Skips cleanly (exit 0 + warning) when no WASM artifacts were built.
         run: pnpm run check:exports
 
-      - name: Type-check (tsc)
-        run: pnpm exec tsc -b
-
-      - name: Lint (ESLint)
-        # eslint.config.js globalIgnores excludes emsdk/, assembly/, emscripten/,
-        # jc303_wasm/, rubberband/, and public/. Lint is now clean on src/, so
-        # failures here must be fixed rather than masked.
-        run: pnpm lint
-
-
-      - name: Test (Vitest)
-        # WASM artifacts are gitignored and intentionally not built in Phase 1.
-        # Vitest tests degrade gracefully via fs.existsSync guards in WASM tests.
-        # pool=forks performs better than default worker_threads on 2-vCPU runners.
-        run: pnpm exec vitest run --pool forks
+      - name: Test (integration tier)
+        run: pnpm run test:integration
         env:
           CI: true
 
       - name: Test (offline 303 engines, host g++)
-        # Renders the 303 engines natively via the emscripten stubs — no emsdk
-        # needed. Covers the TB-303 output-level alignment gate, which has to
-        # sweep LEVEL through the real DSP and so cannot run from Vitest against
-        # the committed baselines (those are all rendered at a single LEVEL).
-        run: bash emscripten/tests/run_offline_voices_test.sh
+        run: pnpm run test:native

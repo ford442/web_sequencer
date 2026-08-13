@@ -7,6 +7,7 @@ vi.mock('../SingingVoice', () => {
         // vitest 4 invokes mock implementations with `new` via Reflect.construct,
         // so the implementation must be a constructable function, not an arrow.
         SingingVoice: vi.fn().mockImplementation(function () { return {
+            isActive: false,
             initWorklet: vi.fn().mockResolvedValue(undefined),
             connectOutput: vi.fn(),
             disconnectOutput: vi.fn(),
@@ -52,12 +53,14 @@ describe('SingingVoiceManager', () => {
     it('acquires free voices correctly', async () => {
         await manager.init();
 
-        const v1 = manager.acquireVoice();
-        manager.registerActiveVoice(v1.index, 'C4', 0);
+        const v1 = manager.acquireVoice(0);
+        // @ts-ignore
+        v1.voice.isActive = true;
         expect(v1.index).toBe(0);
 
-        const v2 = manager.acquireVoice();
-        manager.registerActiveVoice(v2.index, 'E4', 0);
+        const v2 = manager.acquireVoice(0);
+        // @ts-ignore
+        v2.voice.isActive = true;
         expect(v2.index).toBe(1);
     });
 
@@ -66,12 +69,15 @@ describe('SingingVoiceManager', () => {
 
         // Fill all 4 voices
         for (let i = 0; i < 4; i++) {
-            const v = manager.acquireVoice();
-            manager.registerActiveVoice(v.index, `Note${i}`, i * 10); // Start times: 0, 10, 20, 30
+            const v = manager.acquireVoice(i * 10);
+            // @ts-ignore
+            v.voice.isActive = true;
         }
 
         // Try to acquire 5th voice
         const stolen = manager.acquireVoice();
+        // @ts-ignore
+        stolen.voice.isActive = true;
 
         // Should steal index 0 (start time 0)
         expect(stolen.index).toBe(0);
@@ -80,10 +86,12 @@ describe('SingingVoiceManager', () => {
     it('releases voices correctly', async () => {
         await manager.init();
 
-        const v1 = manager.acquireVoice();
-        manager.registerActiveVoice(v1.index, 'C4', 0);
+        const v1 = manager.acquireVoice(0);
+        // @ts-ignore
+        v1.voice.isActive = true;
 
         manager.releaseVoice(v1.index);
+        v1.voice.isActive = false;
 
         // Should get index 0 again as it's free
         const v2 = manager.acquireVoice();

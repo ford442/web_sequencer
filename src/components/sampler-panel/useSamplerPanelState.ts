@@ -67,7 +67,7 @@ export function useSamplerPanelState({
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
       'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower', 'formantSidechainDepth',
       'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
-      'formantLfoRate', 'formantLfoDepth', 'formantLfoShape', 'characterMorph', 'attack', 'decay',
+      'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
       'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'downsample',
     ] as const;
@@ -101,16 +101,11 @@ export function useSamplerPanelState({
           voice.setFormantShift(value as number);
           break;
         case 'stretchProfile': {
-          const qualityMap = {
-            Fast: 1 | 16,
-            Standard: 1 | 32,
-            Elastic: 1 | 32 | 1048576,
-          };
           const node = voice.getSourceNode();
           if (node && 'port' in node) {
             (node as AudioWorkletNode).port.postMessage({
-              type: 'setQuality',
-              options: qualityMap[value as keyof typeof qualityMap],
+              type: 'setStretchProfile',
+              data: { profile: value },
             });
           }
           break;

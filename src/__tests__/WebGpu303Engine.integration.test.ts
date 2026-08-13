@@ -26,6 +26,7 @@ import {
   getAvailableTB303Models,
   getTB303Model,
   normalizeTB303Model,
+  resolveRealtimeTB303Model,
   tb303ModelFamily,
 } from '@/engines/TB303Models';
 import { EngineTelemetry } from '@/utils/engineTelemetry';
@@ -53,8 +54,12 @@ describe('gpu-highfid registry', () => {
     ).toBe(true);
   });
 
-  it('normalizeTB303Model preserves offline-only high-fid ids', () => {
-    expect(normalizeTB303Model('gpu-highfid')).toBe('gpu-highfid');
+  it('resolveRealtimeTB303Model falls back to stock for offline-only voices', () => {
+    expect(resolveRealtimeTB303Model('gpu-highfid')).toBe('stock-open303');
+  });
+
+  it('normalizeTB303Model preserves gpu-highfid for persistence', () => {
+    expect(normalizeTB303Model('gpu-highfid', undefined, { reportFallback: false })).toBe('gpu-highfid');
   });
 });
 

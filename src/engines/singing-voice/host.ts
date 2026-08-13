@@ -30,6 +30,17 @@ export interface SingingVoiceMixinMethods {
     tuning?: import("../../utils/musicTheory").ScaleDefinition | null,
   ): keyof PitchCache;
   trigger(opts: import("./playback").SingingVoiceTriggerOptions): void;
+  setFormantGlide(
+    startSemitones: number,
+    endSemitones: number,
+    startTime: number,
+    duration: number,
+  ): void;
+  setFormantShift(
+    semitones: number,
+    time?: number,
+    rampTime?: number,
+  ): void;
 }
 
 /**
