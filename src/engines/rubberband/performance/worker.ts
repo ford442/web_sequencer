@@ -113,7 +113,14 @@ export function createTTSWorkerBlob(): string {
 
                 switch (operation) {
                     case 'normalize':
-                        const max = Math.max(...buffer.map(Math.abs));
+                        // ⚡ Bolt Optimization: Replacing Math.max(...buffer.map(Math.abs)) with a for loop
+                        // This avoids allocating a new array for .map() and prevents Maximum Call Stack Size
+                        // Exceeded errors when spreading large Float32Arrays.
+                        let max = 0;
+                        for (let i = 0; i < buffer.length; i++) {
+                            const absVal = Math.abs(buffer[i]);
+                            if (absVal > max) max = absVal;
+                        }
                         const scale = max > 0 ? 1 / max : 1;
                         for (let i = 0; i < buffer.length; i++) {
                             result[i] = buffer[i] * scale;

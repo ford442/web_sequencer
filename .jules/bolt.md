@@ -60,3 +60,6 @@
 ## 2026-08-11 - Prevent closure allocations in requestAnimationFrame Hardware Module tick
 **Learning:** In the `src/components/HardwareModule.tsx` smooth recording playback tick loop running via `requestAnimationFrame`, `Array.prototype.forEach` and `Array.prototype.find` are continuously creating closures for every control being processed, putting unnecessary garbage collection pressure on the main thread and resulting in potential frame drops or micro-stutters during intensive rendering.
 **Action:** Replace `Array.prototype.forEach` and `Array.prototype.find` with standard, indexed `for` loops within main-thread rendering hot paths like `requestAnimationFrame` ticks to avoid closure instantiation entirely.
+## 2024-05-18 - Replacing Math.max(...buffer.map(Math.abs))
+**Learning:** Using `Math.max(...buffer.map(Math.abs))` on large `Float32Array` audio buffers allocates an intermediate array and a closure on every frame. Spreading the resulting array `...` pushes every single item onto the call stack, which can easily trigger a `RangeError: Maximum call stack size exceeded` and crash the thread (especially in Web Workers).
+**Action:** When finding the maximum amplitude of an audio buffer, always use a standard `for` loop to iterate over the items directly. This runs in O(N) time and O(1) space, avoiding all memory allocation and call stack limits.
