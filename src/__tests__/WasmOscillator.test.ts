@@ -35,7 +35,7 @@ describe('WasmOscillator', () => {
             ok: true,
             headers: { get: () => 'application/wasm' },
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
-        } as Response);
+        } as unknown as Response);
 
         await oscillator.init();
         expect(oscillator.isReady).toBe(true);
