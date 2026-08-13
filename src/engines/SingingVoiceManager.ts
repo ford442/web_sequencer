@@ -59,10 +59,6 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
         voice.noteOff(time ?? this.audioContext.currentTime);
     }
 
-    protected override markInactive(index: number): void {
-        super.markInactive(index);
-        this.activeVoices.delete(index);
-    }
 
     /**
      * Acquire a free voice or steal the oldest one.
