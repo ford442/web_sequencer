@@ -71,6 +71,12 @@
     "jc303_setAccent",
     "jc303_setVolume",
     "jc303_setFilterMode",
-    "jc303_process"
+    "jc303_process",
+    "pthread_self",
+    "_emscripten_tls_init",
+    "_embind_initialize_bindings",
+    "_emscripten_thread_init",
+    "_emscripten_thread_crashed",
+    "_emscripten_thread_exit"
   ]
 }
