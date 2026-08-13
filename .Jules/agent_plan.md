@@ -7,7 +7,6 @@
 - [ ] Optimize TTS memory footprint
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
-- [ ] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [ ] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
 
 ## Innovation Lab
@@ -26,11 +25,11 @@
 - [x] Optimize Voice Manager state syncing
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
-- [ ] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
 
 ## Refactoring Roadblocks
-- Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
+- [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
 - Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.
+- What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
 - Completed the "Implement per-phoneme granular synthesis grain size control" task from the Innovation Lab backlog by adding `grainSize` and `formantShift` fully to `PhonemeData`, updating the `PhonemeAligner` SharedArrayBuffer stride to 10, and modifying the `RubberBandProcessor` AudioWorklet to natively read and apply the `grainSize` parameter during FREEZE stream synthesis.

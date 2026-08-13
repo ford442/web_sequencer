@@ -64,8 +64,9 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
      * Prioritizes voices that already have the requested bank loaded to avoid redundant buffer transfers.
      * @returns The allocated SingingVoice, its index, and whether a new bank load is required.
      */
-    acquireVoiceForBank(bankId: string): { voice: SingingVoice; index: number; isNewBank: boolean } {
-        const result = this.acquire({ affinityKey: bankId, steal: 'oldest' });
+    acquireVoiceForBank(bankId: string, time?: number): { voice: SingingVoice; index: number; isNewBank: boolean } {
+        const result = this.acquire({ affinityKey: bankId, steal: 'oldest', time });
+        this.markActive(result.index, time);
 
         if (!result.affinityHit) {
             this.loadedBanks.set(result.index, bankId);
@@ -81,15 +82,8 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     /**
      * Backward compatibility wrapper for old acquireVoice calls.
      */
-    acquireVoice(): { voice: SingingVoice; index: number; isNewBank: boolean } {
-        return this.acquireVoiceForBank('__unknown__');
-    }
-
-    /**
-     * Register a voice as active.
-     */
-    registerActiveVoice(index: number, note: string, startTime: number) {
-        this.markActive(index, startTime);
+    acquireVoice(time?: number): { voice: SingingVoice; index: number; isNewBank: boolean } {
+        return this.acquireVoiceForBank('__unknown__', time);
     }
 
     /**

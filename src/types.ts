@@ -125,7 +125,6 @@ export interface SamplerBankParams {
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
-  formantLfoShape?: number[];
   customLfoShape?: number[];
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
@@ -452,7 +451,6 @@ export interface Note {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   formantLfoSync?: boolean;
-  formantLfoShape?: number[];
   customLfoShape?: number[];
   freezeLfoRate?: number;
   freezeLfoDepth?: number;
