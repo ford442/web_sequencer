@@ -18,6 +18,8 @@ function resolveFetchUrl(input: RequestInfo | URL): string {
 }
 
 function isAllowed(url: string): boolean {
+  if (url.endsWith('.wasm?init') || url.includes('.wasm')) return true;
+
   return suiteMatchers.some((matcher) =>
     typeof matcher === 'string' ? url.includes(matcher) : matcher.test(url),
   );
