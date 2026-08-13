@@ -51,13 +51,15 @@ jobs:
       - name: Build WASM artifacts
         run: pnpm run build:wasm
 
-      - name: Run spectrogram quality + stress tests
+      - name: Build Emscripten native glue
+        run: pnpm run build:emcc
+
+      - name: Run spectrogram quality + stress integration tests
         run: |
-          pnpm exec vitest run \
-            src/__tests__/TB303SpectrogramQuality.test.ts \
-            src/__tests__/Offline303Stress.test.ts \
-            src/utils/__tests__/tb303AuthenticityMetrics.test.ts \
-            --pool forks
+          pnpm run test:integration -- \
+            TB303SpectrogramQuality \
+            Offline303Stress \
+            tb303AuthenticityMetrics
         env:
           CI: true
 

@@ -101,16 +101,11 @@ export function useSamplerPanelState({
           voice.setFormantShift(value as number);
           break;
         case 'stretchProfile': {
-          const qualityMap = {
-            Fast: 1 | 16,
-            Standard: 1 | 32,
-            Elastic: 1 | 32 | 1048576,
-          };
           const node = voice.getSourceNode();
           if (node && 'port' in node) {
             (node as AudioWorkletNode).port.postMessage({
-              type: 'setQuality',
-              options: qualityMap[value as keyof typeof qualityMap],
+              type: 'setStretchProfile',
+              data: { profile: value },
             });
           }
           break;

@@ -35,7 +35,9 @@ the single stereo master pair (post-panner, pre-destination). Measured cost of o
 128-frame quantum — limiter plus meter, the same code path the worklet runs — is
 **~0.35 ms**, i.e. **~13 % of the 2.67 ms budget** at 48 kHz. The figure comes from
 the `audio-thread budget` case in
-`src/audio/loudness/__tests__/exportLoudness.test.ts`, which fails above 0.5 ms.
+`src/audio/loudness/__tests__/exportLoudness.perf.test.ts` (perf tier), which enforces
+a **0.5 ms functional ceiling** and a **median-vs-baseline regression** policy (see
+[Test tiers](#test-tiers) below).
 
 Where the cost goes: the limiter detects inter-sample peaks at 8× and the meter at
 4× (ITU minimum), so each frame costs ~384 FIR taps per channel. Two knobs exist if
@@ -104,3 +106,32 @@ See [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) and
 
 `src/__tests__/workletPerf.test.ts` drives `WorkletPerfReporter` with an artificial
 slow `process()` loop and asserts the underrun counter increments.
+
+## Test tiers
+
+Hyphon splits Vitest into tiers so PR gates stay fast and deterministic while
+heavier checks run in follow-up jobs.
+
+| Tier | Command | What it covers |
+|------|---------|----------------|
+| **Unit** | `pnpm run test:unit` | Pure logic, DOM with mocks, strict fetch guard (no real HTTP) |
+| **Integration** | `pnpm run test:integration` | Generated WASM/emcc glue, baseline WAV fixtures, Python 303 metrics |
+| **Perf** | `pnpm run test:perf` | Wall-clock benchmarks — warm-up, median samples, baseline regression |
+| **Native** | `pnpm run test:native` | Host C++ 303 LEVEL sweep (`emscripten/tests/`) |
+| **E2E** | `pnpm run test:e2e` | Playwright browser behaviour |
+
+### Functional invariants vs environment-sensitive benchmarks
+
+| Category | Examples | Gate |
+|----------|----------|------|
+| **Functional invariants** | LUFS parity ±0.1 LU, non-finite sample checks, authenticity thresholds | `test:unit` / `test:integration` |
+| **Environment-sensitive benchmarks** | Master loudness quantum median, WASM migration speedup ratios, offline `latencyMs` ceilings | `test:perf` / scheduled `test-perf.yml` |
+| **Native host** | TB-303 LEVEL sweep across realtime voices | `test:native` |
+
+### Perf policy (`test:perf`)
+
+- **Warm-up:** 200 iterations (master loudness) / 10 (WASM migration benches)
+- **Samples:** 7–11 timed runs; report **median** and p95
+- **Regression:** `median <= baseline.medianMs * 1.25` when a baseline JSON exists under `src/test/perf-baselines/`
+- **Isolation:** single fork, `fileParallelism: false`
+- **Artifacts:** `perf-summary.json` uploaded from scheduled / `perf`-labeled PR workflows

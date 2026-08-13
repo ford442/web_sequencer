@@ -28,6 +28,8 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     synthA,
     synthB,
     bass2,
+    tempoLocked,
+    slavePlayLabel,
   } = useAppStateContext()
 
   const engineStatus = (
@@ -63,6 +65,8 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
       engineStatus={engineStatus}
       onToggleCompact={onToggleCompact}
       isCompactLayout={isCompactLayout}
+      tempoLocked={tempoLocked}
+      playLabel={slavePlayLabel}
     />
   )
 })

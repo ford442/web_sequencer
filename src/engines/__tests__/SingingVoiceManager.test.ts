@@ -91,6 +91,7 @@ describe('SingingVoiceManager', () => {
         v1.voice.isActive = true;
 
         manager.releaseVoice(v1.index);
+        v1.voice.isActive = false;
 
         // Should get index 0 again as it's free
         const v2 = manager.acquireVoice();

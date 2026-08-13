@@ -1,6 +1,5 @@
 /**
- * Offline export path: loudness reporting, normalisation, live-vs-file parity
- * and the audio-thread performance budget for the master worklet.
+ * Offline export path: loudness reporting, normalisation, live-vs-file parity.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -120,38 +119,6 @@ describe('normalizeToTarget', () => {
         const result = normalizeToTarget(channels, SAMPLE_RATE, 'streaming');
         expect(result.appliedGain).toBe(1);
         expect(channels[0].every((value) => value === 0)).toBe(true);
-    });
-});
-
-describe('audio-thread budget', () => {
-    // Documented in docs/PERFORMANCE_BUDGET.md — this is the number that
-    // justifies keeping the DSP in one worklet instead of a SAB worker.
-    it('processes a stereo quantum well inside the 2.67 ms budget', () => {
-        const limiter = new TruePeakLimiter(SAMPLE_RATE, 2);
-        const meter = new LoudnessMeter({ sampleRate: SAMPLE_RATE, channelCount: 2 });
-        const input = [new Float32Array(128), new Float32Array(128)];
-        const output = [new Float32Array(128), new Float32Array(128)];
-        for (let i = 0; i < 128; i += 1) {
-            input[0][i] = 0.7 * Math.sin(i / 3);
-            input[1][i] = 0.7 * Math.sin(i / 3.1);
-        }
-
-        const iterations = 2000;
-        for (let i = 0; i < 200; i += 1) {
-            limiter.process(input, output, 128);
-            meter.process(output, 128);
-        }
-        const start = performance.now();
-        for (let i = 0; i < iterations; i += 1) {
-            limiter.process(input, output, 128);
-            meter.process(output, 128);
-        }
-        const perQuantumMs = (performance.now() - start) / iterations;
-
-        // 128 frames at 48 kHz is a 2.67 ms budget. Assert a wide margin so the
-        // test is not flaky on loaded CI machines but still catches a regression
-        // that would make the master stage unusable.
-        expect(perQuantumMs).toBeLessThan(0.5);
     });
 });
 

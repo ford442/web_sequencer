@@ -5,6 +5,8 @@ import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
 import { useUndoRedo } from './useUndoRedo'
 import { useGamepad } from './useGamepad'
+import { useMidi } from './useMidi'
+import { useTransportSyncStore } from '../stores/transportSyncStore'
 import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useTTSPreloader } from './useTTSPreloader'
@@ -393,6 +395,38 @@ export function useAppState() {
         currentStepRef, samplerRef,
     });
 
+    const midiHandlers = useMemo(
+        () => ({
+            handleSynthChange,
+            handleBass2Change,
+            handleKickChange,
+            handleSnareChange,
+            handleClosedHatChange,
+            handleOpenHatChange,
+            handleSamplerChange,
+            setMasterVolume,
+            setMasterSaturation,
+            setGlobalPan,
+            setAudioMasterVolume: (v: number) => audioEngine?.setMasterVolume?.(v),
+            setAudioMasterSaturation: (v: number) => audioEngine?.setMasterSaturation?.(v),
+            setAudioGlobalPan: (v: number) => audioEngine?.setGlobalPan?.(v),
+            getCurrentStep: () => currentStepRef.current,
+        }),
+        [
+            handleSynthChange, handleBass2Change, handleKickChange, handleSnareChange,
+            handleClosedHatChange, handleOpenHatChange, handleSamplerChange,
+            setMasterVolume, setMasterSaturation, setGlobalPan, audioEngine,
+        ],
+    );
+
+    useMidi({ handlers: midiHandlers, showToast });
+
+    const { mode: transportSyncMode } = useTransportSyncStore();
+    const tempoLocked = transportSyncMode === 'slave';
+    const slavePlayLabel = transportSyncMode === 'slave'
+        ? (schedPlaying ? '■ UNARM' : '◎ ARM')
+        : undefined;
+
     const { handleLoadSample } = useSampleHandlers({
         audioEngine, activeSamplerBank, ttsPhrases,
         setSampleBuffers, setSampler, setActiveAlignment,
@@ -708,5 +742,7 @@ export function useAppState() {
         tempoHoldTimeoutRef,
         activeKeyboardNotesRef,
         noteDragRef,
+        tempoLocked,
+        slavePlayLabel,
     }
 }

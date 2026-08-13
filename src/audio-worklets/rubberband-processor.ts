@@ -88,7 +88,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 }
+      { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
     ];
   }
 
@@ -264,13 +265,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
    * Determine the phoneme parameters for the current sample position.
    * Returns [stretchRatio, volume, pitchBend, vibDepth, vibRate]
    */
-  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number] {
-    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0];
+  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number, number] {
+    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
 
     const count = this.phonemeData[0];
-    // Phoneme data stride is 9 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate, grainJitter
+    // Phoneme data stride is 10 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize
     for (let i = 0; i < count; i++) {
-      const baseIndex = 1 + i * 9;
+      const baseIndex = 1 + i * 10;
       const start = this.phonemeData[baseIndex];
       const end = this.phonemeData[baseIndex + 1];
 
@@ -281,10 +282,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const vibDepth = this.phonemeData[baseIndex + 6] !== undefined ? this.phonemeData[baseIndex + 6] : -1.0;
         const vibRate = this.phonemeData[baseIndex + 7] !== undefined ? this.phonemeData[baseIndex + 7] : -1.0;
         const grainJitter = this.phonemeData[baseIndex + 8] !== undefined ? this.phonemeData[baseIndex + 8] : -1.0;
-        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter];
+        const grainSize = this.phonemeData[baseIndex + 9] !== undefined ? this.phonemeData[baseIndex + 9] : -1.0;
+        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize];
       }
     }
-    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0];
+    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -333,7 +335,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     let currentVibDepth = vibDepth;
     let currentVibRate = vibRate;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
     }
@@ -378,7 +380,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
@@ -404,7 +406,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         let phonemeVolume = 1.0;
         let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
           ratio = pRatio;
           phonemeVolume = pVol;
           phonemePitchBendCents = pBend;
@@ -424,6 +426,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeLfoDepth = parameters.freezeLfoDepth ? parameters.freezeLfoDepth[0] : 0.0;
         const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
         const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
+        const windowShape = parameters.windowShape ? parameters.windowShape[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -462,19 +465,24 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             // Using globalThis.sampleRate safely, fallback to 44100
             // @ts-ignore
             const sRate = typeof globalThis.sampleRate === 'number' ? globalThis.sampleRate : 44100;
-            const baseGrainSize = Math.floor(sRate * 0.1);
-            // Modulate grain size with envelope: louder = smaller grains for more texture
-            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
+            let baseGrainSize = Math.floor(sRate * 0.1);
 
             let grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
 
-            // Check for per-phoneme grainJitter override
+            // Check for per-phoneme overrides
             if (this.phonemeData && this.phonemeRatios) {
-                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
                 if (pGrainJitter !== -1.0) {
                     grainJitter = pGrainJitter;
                 }
+                if (pGrainSize !== -1.0) {
+                    // Overwrite base grain size with custom size (in ms converted to samples)
+                    baseGrainSize = Math.floor(sRate * (pGrainSize / 1000));
+                }
             }
+
+            // Modulate grain size with envelope: louder = smaller grains for more texture
+            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
 
             // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
@@ -487,8 +495,25 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             if (actualGrainSize > 0) {
               for (let i = 0; i < samplesToFeed; i++) {
-                // Apply a simple Hann window to the grain to avoid buzzing/clicks at the loop boundaries
-                const windowVal = 0.5 * (1 - Math.cos((2 * Math.PI * this.freezePhase) / (actualGrainSize - 1)));
+                // Apply a window to the grain to avoid buzzing/clicks at the loop boundaries
+                const phase = this.freezePhase / (actualGrainSize - 1);
+                let windowVal = 1.0;
+
+                // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                if (windowShape < 0.5) {
+                    // Hann
+                    windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                } else if (windowShape < 1.5) {
+                    // Hamming
+                    windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                } else if (windowShape < 2.5) {
+                    // Blackman
+                    windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                } else {
+                    // Rectangular / None
+                    windowVal = 1.0;
+                }
+
                 heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;
 
                 this.freezePhase++;
@@ -578,7 +603,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Apply phoneme volume
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-            const [_, pVol, _pBend, _vDepth, _vRate, _gJit] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
             if (pVol !== 1.0) {
                 for (let i = 0; i < outputChannel.length; i++) {
                     outputChannel[i] *= pVol;

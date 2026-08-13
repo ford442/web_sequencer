@@ -6,6 +6,7 @@ import type { PlaybackMixin } from "./playback";
 import type { AlignmentResult } from "../rubberband/PhonemeAligner";
 import type { PhonemeAligner } from "../rubberband/PhonemeAligner";
 import type { SingingVoiceConfig } from "./constants";
+import type { PoolableVoice } from "../base/VoicePool";
 
 /** Mixin-composed public API surface for SingingVoice. */
 export type SingingVoiceMixinApi = typeof WorkletSetupMixin &
@@ -26,4 +27,5 @@ export interface SingingVoiceCoreMethods {
 
 export interface SingingVoicePublic
   extends SingingVoiceMixinApi,
-    SingingVoiceCoreMethods {}
+    SingingVoiceCoreMethods,
+    PoolableVoice {}

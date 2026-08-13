@@ -74,6 +74,7 @@ export default defineConfig([
     'public/**',
     'patch_*.ts',
     'test_perf.ts',
+    'scripts/*.mjs',
   ]),
   {
     files: ['**/*.{ts,tsx}'],

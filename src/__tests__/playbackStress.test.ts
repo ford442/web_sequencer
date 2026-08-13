@@ -183,9 +183,9 @@ describe('playback stress — voice allocation', () => {
     const ctx = new AudioContext();
     const mgr = new SingingVoiceManager(ctx, 2);
     const noteOff = vi.fn();
-    (mgr as unknown as { voices: Array<{ noteOff: typeof noteOff }> }).voices = [
-      { noteOff },
-      { noteOff: vi.fn() },
+    (mgr as unknown as { voices: Array<{ noteOff: typeof noteOff, isActive: boolean }> }).voices = [
+      { noteOff, isActive: true },
+      { noteOff: vi.fn(), isActive: true },
     ];
 
     mgr.acquireVoiceForBank("bank-a", 0);

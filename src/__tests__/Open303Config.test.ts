@@ -11,31 +11,39 @@ vi.stubGlobal('WebAssembly', {
     },
 });
 
-// Mock fetch for WASM files and export map
-global.fetch = vi.fn((url: string) => {
-    if (typeof url === 'string' && url.includes('hyphon_native.wasm')) {
+function mockOpen303Fetch(url: string | Request | URL): Promise<Response> {
+    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+    if (href.includes('hyphon_native.wasm')) {
         return Promise.resolve({
             ok: true,
-            arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048))
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048)),
         } as Response);
     }
-    if (typeof url === 'string' && url.includes('hyphon_wasm_export_map.json')) {
+    if (href.includes('hyphon_wasm_export_map.json')) {
         return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ open303_create: 'da', open303_init: 'fa' }),
         } as Response);
     }
+    if (href.includes('hyphon_native.js')) {
+        return Promise.resolve({
+            ok: true,
+            text: () => Promise.resolve(''),
+        } as Response);
+    }
     return Promise.resolve({
         ok: false,
-        status: 404
+        status: 404,
     } as Response);
-}) as any;
+}
 
 describe('Open303 Oscillator', () => {
     let mockAudioContext: AudioContext;
     let mockWorkletNode: any;
 
     beforeEach(() => {
+        vi.mocked(global.fetch).mockImplementation(mockOpen303Fetch as typeof fetch);
+
         mockWorkletNode = {
             port: {
                 postMessage: vi.fn(),
@@ -165,7 +173,9 @@ describe('Open303 Oscillator', () => {
 
     it('should handle initialization failure gracefully', async () => {
         // Mock fetch failure — engine activates FallbackBassSynth and returns true
-        (global.fetch as any).mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }));
+        (global.fetch as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+            Promise.resolve({ ok: false, status: 404 } as Response),
+        );
 
         const engine = new Open303Oscillator();
         const success = await engine.init(mockAudioContext, 'worklet-url.js');
