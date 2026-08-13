@@ -79,6 +79,9 @@ await multisampleGenerator.generate303HighFidMultisamples({
 | `available` | `true` |
 | `offlineOnly` | `true` |
 
+`getAvailableTB303Models()` hides it from the real-time selector.
+`normalizeTB303Model('gpu-highfid')` → `stock-open303` so song load never
+routes it onto AudioWorklet.
 `getAvailableTB303Models()` hides it from realtime-only call sites.
 `Voice303Selector` includes it via `{ includeOfflineOnly: true }` (Phase-4).
 `normalizeTB303Model('gpu-highfid')` keeps the id for persistence;

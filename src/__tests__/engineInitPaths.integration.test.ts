@@ -3,35 +3,60 @@
  * Each engine must either initialize or emit a classified fallback reason.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { parseHyphonGlueExportMap } from '../utils/engineTelemetry';
 import { normalizeWasmExports } from '../audio-worklets/hyphonNativeImports';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
+import { repoRoot } from '@/test/helpers/requireRepoArtifacts';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const repoRootPath = repoRoot();
 
-const hasNativeJs = existsSync(join(repoRoot, 'public/hyphon_native.js'));
+describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
+  let glue: string;
+  let map: ReturnType<typeof parseHyphonGlueExportMap>;
 
-describe.skipIf(!hasNativeJs)('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
-  it('glue + JSON map resolve open303_create and prophecy_process', () => {
-    const glue = readFileSync(join(repoRoot, 'public/hyphon_native.js'), 'utf8');
-    const map = parseHyphonGlueExportMap(glue);
+  beforeEach(() => {
+    glue = readFileSync(join(repoRootPath, 'public/hyphon_native.js'), 'utf8');
+    map = parseHyphonGlueExportMap(glue);
+  });
+
+  it('release build exposes multi-instance JC303 handle API', () => {
     expect(map.open303_create).toBeTruthy();
     expect(map.prophecy_process).toBeTruthy();
-    expect(map.jc303_init).toBeTruthy();
+    expect(map.jc303_create).toBeTruthy();
+    expect(map.jc303_init_handle).toBeTruthy();
+    expect(map.jc303_process_handle).toBeTruthy();
 
     const fakeExports = {
       [map.open303_create!]: () => 1,
       [map.prophecy_process!]: () => 2,
+      [map.jc303_create!]: () => 3,
+      [map.jc303_init_handle!]: () => 1,
+      [map.jc303_process_handle!]: () => 4,
     } as unknown as WebAssembly.Exports;
 
     const normalized = normalizeWasmExports(fakeExports, map);
     expect(typeof normalized.open303_create).toBe('function');
     expect(typeof normalized.prophecy_process).toBe('function');
+    expect(typeof normalized.jc303_create).toBe('function');
+    expect(typeof normalized.jc303_init_handle).toBe('function');
+    expect(typeof normalized.jc303_process_handle).toBe('function');
+  });
+
+  it('debug build exposes legacy single-instance jc303_init when present', () => {
+    if (!map.jc303_init) {
+      return; // release build — legacy API pruned (HYPHON_LEGACY_JC303=0)
+    }
+    expect(map.jc303_init).toBeTruthy();
+
+    const fakeExports = {
+      [map.jc303_init!]: () => 1,
+    } as unknown as WebAssembly.Exports;
+
+    const normalized = normalizeWasmExports(fakeExports, map);
+    expect(typeof normalized.jc303_init).toBe('function');
   });
 });
 
@@ -95,7 +120,7 @@ describe('WebGpuOscillator.init', () => {
   });
 });
 
-describe.skipIf(!hasNativeJs)('Open303Oscillator.init export map wiring', () => {
+describe('Open303Oscillator.init export map wiring', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -106,7 +131,7 @@ describe.skipIf(!hasNativeJs)('Open303Oscillator.init export map wiring', () => 
   });
 
   it('includes non-empty exportMap in init-wasm message', async () => {
-    const glue = readFileSync(join(repoRoot, 'public/hyphon_native.js'), 'utf8');
+    const glue = readFileSync(join(repoRootPath, 'public/hyphon_native.js'), 'utf8');
     const exportMap = parseHyphonGlueExportMap(glue);
 
     const mockWorkletNode = {

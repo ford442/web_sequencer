@@ -416,10 +416,10 @@ export function createSamplerPlayback(
         } else if (ctx.params.formantLfoDepth !== undefined) {
             voice.setFormantLfoDepth(ctx.params.formantLfoDepth, triggerTime);
         }
-        if (ctx.noteParams?.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.noteParams.formantLfoShape);
-        } else if (ctx.params.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.params.formantLfoShape);
+        if (ctx.noteParams?.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.noteParams.customLfoShape);
+        } else if (ctx.params.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.params.customLfoShape);
         } else {
             voice.setFormantLfoShape(undefined);
         }
@@ -507,6 +507,9 @@ export function createSamplerPlayback(
         // 2. Setup Phonemes
         if (ctx.alignment) {
             voice.setAlignment(ctx.alignment);
+            if (ctx.noteParams?.phonemes?.length) {
+                voice.schedulePhonemeFormantGlides(targetDuration, triggerTime, finalFormantShift, ctx.noteParams.phonemes);
+            }
             voice.sendPhonemeDataToWorklet(targetDuration, ctx.noteParams?.phonemes);
         }
 
@@ -721,7 +724,7 @@ const playSamplerVoice = (
     const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
     let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     if (pFormantLfoShape === undefined) {
-        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.customLfoShape;
     }
 
     // Formant Envelope
@@ -885,9 +888,8 @@ const playSampler = (
 
             // Play this voice with pitch offset and slight delay for natural ensemble effect
             const delayMs = voice.index * 5;
-            setTimeout(() => {
-                playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
-            }, delayMs);
+            // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet/API-scheduled delayed start time
+            playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
         }
         return;
     }

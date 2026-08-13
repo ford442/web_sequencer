@@ -133,7 +133,7 @@ export function createPlaySamplerVoice(
     const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
     let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     if (pFormantLfoShape === undefined) {
-      pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+      pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     }
 
     // Formant Envelope
@@ -304,25 +304,6 @@ export function createPlaySamplerVoice(
           voice.setTranceGate(noteParams.tranceGate, triggerTime);
         }
 
-        // Apply Formant LFO
-        if (noteParams?.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(noteParams.formantLfoRate, triggerTime);
-        } else if (params.formantLfoRate !== undefined) {
-          voice.setFormantLfoRate(params.formantLfoRate, triggerTime);
-        }
-        if (noteParams?.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(noteParams.formantLfoDepth, triggerTime);
-        } else if (params.formantLfoDepth !== undefined) {
-          voice.setFormantLfoDepth(params.formantLfoDepth, triggerTime);
-        }
-        if (noteParams?.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(noteParams.formantLfoShape);
-        } else if (params.formantLfoShape !== undefined) {
-          voice.setFormantLfoShape(params.formantLfoShape);
-        } else {
-          voice.setFormantLfoShape(undefined);
-        }
-
         // Apply Character Morphing
         voice.setCharacterMorph(characterMorph, morphTarget, 0.05); // Use short ramp time
 
@@ -448,7 +429,7 @@ export function createPlaySamplerVoice(
       const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
         const t = actualTime + timeOffset;
 
-        const mainVoiceData = manager.acquireVoice();
+        const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
         manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
         triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
@@ -461,13 +442,13 @@ export function createPlaySamplerVoice(
           if (refs.choirLeftGainRef.current) refs.choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
           if (refs.choirRightGainRef.current) refs.choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
 
-          const leftVoiceData = manager.acquireVoice();
+          const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
           if (leftVoiceData.index !== mainVoiceData.index) {
             manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
             triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, refs.choirLeftGainRef.current!, leftVoiceData.isNewBank);
           }
 
-          const rightVoiceData = manager.acquireVoice();
+          const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
           if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
             manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
             triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, refs.choirRightGainRef.current!, rightVoiceData.isNewBank);

@@ -667,6 +667,18 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                 tabIndex={0}
                 aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
             >
+                {!buffer && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-gray-800/20 border-2 border-dashed border-gray-700 rounded m-0.5">
+                        <div className="flex items-center gap-2 text-gray-500">
+                            <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center shadow-inner" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                </svg>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">No Sample</span>
+                        </div>
+                    </div>
+                )}
                 <canvas ref={canvasRef} className="w-full h-full block" />
             </div>
 

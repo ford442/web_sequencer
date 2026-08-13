@@ -24,23 +24,44 @@ export function interpolateLaneAtStep(
   const { points, interpolation } = lane;
   if (points.length === 0) return null;
 
+  let left = 0;
+  let right = points.length - 1;
+
+  // Handle bounds early
+  if (step <= points[left].step) return points[left].value;
+  if (step >= points[right].step) return points[right].value;
+
+  // Binary search since points are sorted by step
   let before: AutomationLanePoint | null = null;
   let after: AutomationLanePoint | null = null;
 
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    if (p.step === step) return p.value;
-    if (p.step < step) {
-      before = p;
-    } else if (p.step > step) {
-      after = p;
-      break; // Points are sorted, so the first point > step is the only 'after' we need
+  while (left <= right) {
+    const mid = (left + right) >> 1;
+    const midStep = points[mid].step;
+
+    if (midStep === step) return points[mid].value;
+
+    if (midStep < step) {
+      // Check if this is exactly our left bound
+      if (mid < points.length - 1 && points[mid + 1].step > step) {
+        before = points[mid];
+        after = points[mid + 1];
+        break;
+      }
+      left = mid + 1;
+    } else {
+      // Check if this is exactly our right bound
+      if (mid > 0 && points[mid - 1].step < step) {
+        before = points[mid - 1];
+        after = points[mid];
+        break;
+      }
+      right = mid - 1;
     }
   }
 
-  if (!before && !after) return null;
-  if (!before) return after!.value;
-  if (!after) return before.value;
+  // If we somehow didn't find bounds, return null (shouldn't happen with sorted points & bound checks above)
+  if (!before || !after) return null;
 
   const interp = before.interpolation || interpolation;
   if (interp === 'step') return before.value;

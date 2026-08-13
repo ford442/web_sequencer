@@ -77,6 +77,8 @@ export interface TB303ModelInfo {
   available: boolean;
   /**
    * When true, the voice is intended for offline / freeze / export only
+   * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Excluded from the real-time
+   * Voice303Selector.
    * (Phase-2 highfid-cpu, Phase-3 gpu-highfid). Realtime AudioWorklet falls
    * back via `resolveRealtimeTB303Model`; offline renderers use the id as-is.
    */
@@ -189,6 +191,9 @@ export function isOfflineOnlyTB303Model(id: string | undefined): boolean {
 
 /**
  * Models selectable in the UI (DSP profile shipped).
+ * By default excludes `offlineOnly` voices (highfid-cpu, gpu-highfid) so the
+ * real-time selector stays latency-safe. Pass `{ includeOfflineOnly: true }`
+ * for freeze / export / offline renderer UIs (Phase-4).
  * By default excludes `offlineOnly` voices so callers that only drive the
  * AudioWorklet stay latency-safe. Pass `{ includeOfflineOnly: true }` for the
  * voice selector / freeze / export UIs (Phase-4).
@@ -263,8 +268,9 @@ export function normalizeTB303Model(
   const model = getTB303Model(requested);
   if (model) {
     const resolved = model.available ? model.id : stockModelForFamily(model.family);
+
     if (options?.reportFallback && requested && resolved !== requested) {
-      reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped', options.subsystem);
+      reportTB303ModelFallback(requested, resolved, 'catalogued but not shipped/supported', options.subsystem);
     }
     return resolved;
   }

@@ -331,9 +331,15 @@ export const HardwareModule = memo(
 
         const getRecordingValue = useCallback((ctrl: KnobConfig): number | undefined => {
             if (!ctrl.isRecording || !automationTargetRef.current) return undefined;
-            const buf = automationStore.getState().recordingBuffers.find(
-                (b) => b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording,
-            );
+            const buffers = automationStore.getState().recordingBuffers;
+            let buf;
+            for (let i = 0; i < buffers.length; i++) {
+                const b = buffers[i];
+                if (b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording) {
+                    buf = b;
+                    break;
+                }
+            }
             if (!buf) return undefined;
             const target = getRecordingBufferValue(buf.points);
             if (target === null) return undefined;
@@ -373,7 +379,8 @@ export const HardwareModule = memo(
             controlsRef.current = controls;
             const prev = prevControlsRef.current;
             const handles = knobHandlesRef.current;
-            controls.forEach((ctrl, i) => {
+            for (let i = 0; i < controls.length; i++) {
+                const ctrl = controls[i];
                 const prevCtrl = prev[i];
                 if (prevCtrl && prevCtrl.id === ctrl.id) {
                     const prevRender = getKnobCanvasValue(
@@ -398,7 +405,7 @@ export const HardwareModule = memo(
                         renderCanvasAt(i);
                     }
                 }
-            });
+            }
             prevControlsRef.current = controls;
         }, [controls, renderCanvasAt]);
 
@@ -415,12 +422,20 @@ export const HardwareModule = memo(
                     dirty = true;
                 }
 
-                controlsRef.current.forEach((ctrl) => {
-                    if (!ctrl.isRecording || !automationTargetRef.current) return;
-                    const buf = state.recordingBuffers.find(
-                        (b) => b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording,
-                    );
-                    if (!buf || buf.points.length === 0) return;
+                for (let i = 0; i < controlsRef.current.length; i++) {
+                    const ctrl = controlsRef.current[i];
+                    if (!ctrl.isRecording || !automationTargetRef.current) continue;
+
+                    let buf;
+                    for (let j = 0; j < state.recordingBuffers.length; j++) {
+                        const b = state.recordingBuffers[j];
+                        if (b.target === automationTargetRef.current && b.parameter === ctrl.id && b.isRecording) {
+                            buf = b;
+                            break;
+                        }
+                    }
+
+                    if (!buf || buf.points.length === 0) continue;
                     const target = buf.points[buf.points.length - 1].value;
                     const prev = smoothedRecordingRef.current[ctrl.id] ?? target;
                     const next = smoothToward(prev, target);
@@ -428,17 +443,17 @@ export const HardwareModule = memo(
                         smoothedRecordingRef.current[ctrl.id] = next;
                         dirty = true;
                     }
-                });
+                }
 
                 if (dirty) {
-                    controlsRef.current.forEach((_, i) => {
+                    for (let i = 0; i < controlsRef.current.length; i++) {
                         const handle = knobHandlesRef.current[i];
                         if (handle && KnobGPUContext.isSlotActive(handle)) {
                             KnobGPUContext.markDirty(handle);
                         } else {
                             renderCanvasAt(i);
                         }
-                    });
+                    }
                 }
                 raf = requestAnimationFrame(tick);
             };
@@ -686,9 +701,10 @@ export const HardwareModule = memo(
             const ro = new ResizeObserver((entries) => {
                 const rect = entries[0].contentRect;
                 const minDim = Math.min(rect.width, rect.height);
-                controlsRef.current.forEach((ctrl, i) => {
+                for (let i = 0; i < controlsRef.current.length; i++) {
+                    const ctrl = controlsRef.current[i];
                     const canvas = knobCanvasRefs.current[i];
-                    if (!canvas) return;
+                    if (!canvas) continue;
                     const sizePx = ctrl.size * minDim * 2;
                     canvas.style.width = `${sizePx}px`;
                     canvas.style.height = `${sizePx}px`;
@@ -706,7 +722,7 @@ export const HardwareModule = memo(
                     if (knobHandlesRef.current[i] === null) {
                         renderKnob2D(canvas, getCanvasValueAt(i), KNOB_MATERIAL, getAutomationOverlayAt(i));
                     }
-                });
+                }
             });
             ro.observe(container);
             return () => ro.disconnect();
@@ -753,12 +769,12 @@ export const HardwareModule = memo(
 
         useEffect(() => {
             return KnobGPUContext.onStatusChange(() => {
-                controlsRef.current.forEach((_, i) => {
+                for (let i = 0; i < controlsRef.current.length; i++) {
                     const h = knobHandlesRef.current[i];
                     if (!h || !KnobGPUContext.isSlotActive(h)) {
                         renderCanvasAt(i);
                     }
-                });
+                }
             });
         }, [renderCanvasAt]);
 

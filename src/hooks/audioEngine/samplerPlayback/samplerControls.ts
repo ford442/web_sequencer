@@ -6,14 +6,14 @@ export function createPlaySampler(
   playSamplerVoice: PlaySamplerVoiceFn,
   refs: Pick<SamplerPlaybackRefs, "harmonizerRef">,
 ): PlaySamplerFn {
-  return (params, note, time, durationSteps = 1, stepTime = 0.2, tuning) => {
+  return (params, note, time, durationSteps = 1, stepTime = 0.2, noteParams, tuning) => {
     // Harmonize support - if harmonizer is active, generate multiple harmony voices
     const harmonizer = refs.harmonizerRef.current;
     if (harmonizer?.getIsActive()) {
       const voices = harmonizer.generateVoices();
 
       // Play base voice (index 0) - the original note
-      playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+      playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams as any, 0, tuning);
 
       // Play each harmony voice (skip index 0 which is base)
       // ⚡ Bolt Optimization: Replacing forEach with for...of to prevent closure allocations on hot path
@@ -38,14 +38,13 @@ export function createPlaySampler(
 
         // Play this voice with pitch offset and slight delay for natural ensemble effect
         const delayMs = voice.index * 5;
-        setTimeout(() => {
-          playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, undefined, voice.pitchOffset, tuning);
-        }, delayMs);
+        // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet/API-scheduled delayed start time
+        playSamplerVoice(voiceParams, note, time + (delayMs / 1000), durationSteps, stepTime, noteParams as any, voice.pitchOffset, tuning);
       }
       return;
     }
 
-    playSamplerVoice(params, note, time, durationSteps, stepTime, undefined, 0, tuning);
+    playSamplerVoice(params, note, time, durationSteps, stepTime, noteParams as any, 0, tuning);
   };
 }
 

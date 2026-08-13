@@ -20,9 +20,11 @@ export function parseExportMap(js) {
   // Emscripten glue formats (release builds minify export names):
   //   Module["_open303_create"]=wasmExports["da"];
   //   _open303_destroy=Module["_open303_destroy"]=wasmExports["ea"];
+  // Sometimes Emscripten output has spaces around the '=' operator:
+  //   _open303_create = Module["_open303_create"] = wasmExports["open303_create"];
   const patterns = [
-    /Module\["(_[^"]+)"\]=wasmExports\["([^"]+)"\]/g,
-    /(_[a-zA-Z0-9_]+)=Module\["\1"\]=wasmExports\["([^"]+)"\]/g,
+    /Module\["(_[^"]+)"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
+    /(_[a-zA-Z0-9_]+)\s*=\s*Module\["\1"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
   ];
 
   for (const re of patterns) {

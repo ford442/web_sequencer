@@ -4,7 +4,9 @@ import { ScaleSelector } from './ScaleSelector'
 import type { ScaleDefinition } from '../utils/musicTheory'
 import type { SongSnapshot } from '../constants/appDefaults'
 import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore'
+import { useTransportSyncStore } from '../stores/transportSyncStore'
 import { HelpTip } from './help/HelpTip'
+import { TransportSyncControls } from './TransportSyncControls'
 
 interface TransportToolbarProps {
     songStorage: (SongSnapshot | null)[]
@@ -31,6 +33,10 @@ interface TransportToolbarProps {
     engineStatus?: React.ReactNode
     /** Toggle compact touch layout (mobile-friendly). */
     onToggleCompact?: () => void
+    /** When true, tempo controls are read-only (MIDI slave). */
+    tempoLocked?: boolean
+    /** Override play button label in slave mode. */
+    playLabel?: string
     isCompactLayout?: boolean
 }
 
@@ -58,8 +64,15 @@ export const TransportToolbar = memo(function TransportToolbar({
     engineStatus,
     onToggleCompact,
     isCompactLayout = false,
+    tempoLocked = false,
+    playLabel,
 }: TransportToolbarProps) {
     const { learnMode, inputAvailable } = useMidiMapStore();
+    const { telemetry } = useTransportSyncStore();
+    const displayTempo =
+        tempoLocked && telemetry.measuredBpm != null
+            ? Math.round(telemetry.measuredBpm)
+            : tempo;
 
     const handleSongSlotKeyDown = (e: React.KeyboardEvent, slot: number, isSaved: boolean) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -132,7 +145,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                     title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
                     className={`h-8 px-5 font-orbitron text-sm font-bold tracking-wider transition-all duration-150 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
                 >
-                    {isPlaying ? '■ STOP' : '▶ PLAY'}
+                    {isPlaying ? '■ STOP' : (playLabel ?? '▶ PLAY')}
                 </button>
 
                 {/* Record Button */}
@@ -154,11 +167,12 @@ export const TransportToolbar = memo(function TransportToolbar({
                     <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider">BPM</span>
                     <div className="flex items-center bg-zinc-950 rounded-md border border-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
                         <button type="button"
-                            onMouseDown={() => handleTempoHoldStart(-1)}
+                            onMouseDown={() => !tempoLocked && handleTempoHoldStart(-1)}
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, -1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-l-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95"
+                            onKeyDown={(e) => !tempoLocked && handleTempoKeyDown(e, -1)}
+                            disabled={tempoLocked}
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-r border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-l-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
                             title="Decrease Tempo"
                             aria-label="Decrease Tempo"
                         >
@@ -168,16 +182,17 @@ export const TransportToolbar = memo(function TransportToolbar({
                             className="w-12 text-center font-mono text-cyan-300 text-sm font-semibold" 
                             role="status" 
                             aria-live="polite" 
-                            aria-label={`Tempo: ${tempo} BPM`}
+                            aria-label={`Tempo: ${displayTempo} BPM`}
                         >
-                            {tempo}
+                            {displayTempo}
                         </span>
                         <button type="button"
-                            onMouseDown={() => handleTempoHoldStart(1)}
+                            onMouseDown={() => !tempoLocked && handleTempoHoldStart(1)}
                             onMouseUp={handleTempoHoldEnd}
                             onMouseLeave={handleTempoHoldEnd}
-                            onKeyDown={(e) => handleTempoKeyDown(e, 1)}
-                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-r-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95"
+                            onKeyDown={(e) => !tempoLocked && handleTempoKeyDown(e, 1)}
+                            disabled={tempoLocked}
+                            className="w-6 h-7 text-cyan-500 hover:text-cyan-400 font-bold text-sm border-l border-zinc-800 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-r-md hover:bg-zinc-900/50 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
                             title="Increase Tempo"
                             aria-label="Increase Tempo"
                         >
@@ -185,6 +200,11 @@ export const TransportToolbar = memo(function TransportToolbar({
                         </button>
                     </div>
                 </div>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1 hidden lg:block" />
+
+                <TransportSyncControls />
 
                 {/* Divider */}
                 <div className="w-px h-5 bg-gray-700 mx-1" />

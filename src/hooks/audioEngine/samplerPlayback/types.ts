@@ -43,5 +43,6 @@ export type PlaySamplerFn = (
   time: number,
   durationSteps?: number,
   stepTime?: number,
+  noteParams?: Partial<Note>,
   tuning?: ScaleDefinition | null,
 ) => void;

@@ -487,14 +487,6 @@ export class VoiceManager extends VoicePool<Voice> {
 
     /** Prefer idle voices; stop and steal the round-robin victim when saturated. */
     private pickVoice(time: number): Voice {
-        // We can optionally clean up `activeIndices` if `voice.isActive` went false externally.
-        // E.g., Voice has an internal timeout for release. Let's sync `activeIndices` with real `isActive`.
-        for (let i = 0; i < this.voices.length; i++) {
-            if (!this.voices[i]!.isActive && this.activeIndices.has(i)) {
-                this.markInactive(i);
-            }
-        }
-
         if (this.monophonic) {
             const result = this.acquire({ steal: 'round-robin', time });
             // Since it's monophonic, maxVoices is 1, so index is always 0.

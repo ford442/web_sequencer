@@ -512,6 +512,15 @@ class AutomationStore {
    * Employs rAF coalescing to prevent main-thread UI contention.
    */
   setLiveValues(values: Record<string, number>): void {
+    let changed = false;
+    for (const key in values) {
+      if (this.state.liveAutomatedValues[key] !== values[key]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+
     const merged = Object.assign({}, this.state.liveAutomatedValues, values);
     this.state = { ...this.state, liveAutomatedValues: merged };
 
