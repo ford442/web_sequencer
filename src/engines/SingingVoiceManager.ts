@@ -59,6 +59,7 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
         voice.noteOff(time ?? this.audioContext.currentTime);
     }
 
+
     /**
      * Acquire a free voice or steal the oldest one.
      * Prioritizes voices that already have the requested bank loaded to avoid redundant buffer transfers.

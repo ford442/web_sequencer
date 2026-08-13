@@ -429,7 +429,7 @@ export function createPlaySamplerVoice(
       const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
         const t = actualTime + timeOffset;
 
-        const mainVoiceData = manager.acquireVoice();
+        const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
         manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
         triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
@@ -442,13 +442,13 @@ export function createPlaySamplerVoice(
           if (refs.choirLeftGainRef.current) refs.choirLeftGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
           if (refs.choirRightGainRef.current) refs.choirRightGainRef.current.gain.setTargetAtTime(gain, t, 0.02);
 
-          const leftVoiceData = manager.acquireVoice();
+          const leftVoiceData = manager.acquireVoiceForBank(params.sampleName);
           if (leftVoiceData.index !== mainVoiceData.index) {
             manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
             triggerVoice(noteStr, leftVoiceData.voice, detune, t, duration, refs.choirLeftGainRef.current!, leftVoiceData.isNewBank);
           }
 
-          const rightVoiceData = manager.acquireVoice();
+          const rightVoiceData = manager.acquireVoiceForBank(params.sampleName);
           if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
             manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
             triggerVoice(noteStr, rightVoiceData.voice, -detune, t, duration, refs.choirRightGainRef.current!, rightVoiceData.isNewBank);
