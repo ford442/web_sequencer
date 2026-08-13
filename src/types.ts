@@ -420,6 +420,8 @@ export interface PhonemeData {
   vibratoRate?: number;
   volume?: number;
   grainJitter?: number;
+  formantShift?: number;
+  grainSize?: number;
 }
 
 export interface Note {
