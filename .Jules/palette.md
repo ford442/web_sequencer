@@ -29,3 +29,6 @@
 ## 2026-08-10 - Apply standardized empty states universally
 **Learning:** Certain UI regions, such as the initial state of the Voice Editor canvas (which was just a black box when no voice was loaded), heavily benefit from the standard dashed-border empty state pattern. Without it, users may think the application has frozen or an error occurred. The standard pattern gives immediate visual feedback on the state and clarifies next actions.
 **Action:** Identify blank spaces or placeholders that represent "no active selection" and implement the unified empty state design to reinforce application consistency.
+## 2026-08-11 - Better empty states over plain text
+**Learning:** The `WaveformDisplay` component previously rendered a completely blank canvas relying solely on `aria-label` when no audio sample was loaded. This lacked visual feedback for sighted users. The standardized `border-dashed` pattern with a centered icon significantly improves the interface by making it clear that a sample is expected in that container.
+**Action:** Consistently replace invisible or plain-text empty states on interactive panels with the full standardized visual representation.

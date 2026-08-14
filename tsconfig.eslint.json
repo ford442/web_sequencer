@@ -7,7 +7,10 @@
     "src",
     "tests",
     "vitest.setup.ts",
+    "vitest.setup.*.ts",
+    "vitest.*.config.ts",
     "playwright.config.ts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "scripts/**/*.mjs"
   ]
 }

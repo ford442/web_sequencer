@@ -384,7 +384,7 @@ export const PlaybackMixin = {
 
     // We only care if there is any user phoneme with a formant shift, or if there are vowel transitions to smooth out
     const hasFormantShift = userPhonemes.some(
-      (p) => (p as any).formantShift !== undefined || p.pitchBend !== 0,
+      (p) => p.formantShift !== undefined || p.pitchBend !== 0,
     );
 
     // We also want to run the loop to check for consecutive vowels for expressive transitions
@@ -411,8 +411,8 @@ export const PlaybackMixin = {
 
       const userP = userPhonemes[i];
       let targetShift = baseFormantShift;
-      if (userP && (userP as any).formantShift !== undefined) {
-        targetShift += (userP as any).formantShift;
+      if (userP && userP.formantShift !== undefined) {
+        targetShift += userP.formantShift;
       }
 
       // Expressive Note Transitions for Vowels

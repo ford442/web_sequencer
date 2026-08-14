@@ -20,7 +20,7 @@ describe('trackFreezer (WASM bridge)', () => {
         },
       },
     });
-    setWasmInstance(instance.exports as Parameters<typeof setWasmInstance>[0]);
+    setWasmInstance(instance.exports as unknown as Parameters<typeof setWasmInstance>[0]);
   });
 
   describe('findLoopPoints', () => {

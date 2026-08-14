@@ -8,7 +8,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 
 type FetchMatcher = string | RegExp;
 
-const suiteMatchers: FetchMatcher[] = [];
+const suiteMatchers: FetchMatcher[] = [/\.wasm\?init$/];
 let originalFetch: typeof globalThis.fetch | undefined;
 
 function resolveFetchUrl(input: RequestInfo | URL): string {
@@ -18,6 +18,8 @@ function resolveFetchUrl(input: RequestInfo | URL): string {
 }
 
 function isAllowed(url: string): boolean {
+  if (url.endsWith('.wasm?init') || url.includes('.wasm')) return true;
+
   return suiteMatchers.some((matcher) =>
     typeof matcher === 'string' ? url.includes(matcher) : matcher.test(url),
   );
@@ -57,6 +59,7 @@ function ensureFetchMock(): ReturnType<typeof vi.fn> {
 
 beforeEach(() => {
   suiteMatchers.length = 0;
+  suiteMatchers.push(/\.wasm\?init$/);
   const fetchMock = ensureFetchMock();
   fetchMock.mockReset();
   fetchMock.mockImplementation(guardedFetchImpl);

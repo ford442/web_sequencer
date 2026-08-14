@@ -12,7 +12,7 @@ const handoff = process.env.VITEST_PERF_SUMMARY;
 
 let summary = {
   collectedAt: new Date().toISOString(),
-  samples: [] as unknown[],
+  samples: [],
 };
 
 if (handoff && existsSync(handoff)) {

@@ -228,7 +228,9 @@ export function useAppState() {
                 automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
             }
             automationSchedulerRef.current.setPcfEffect(pcf);
-            automationSchedulerRef.current.setProphecyManager(prophecyManagerRef?.current ?? null);
+            if (prophecyManagerRef) {
+                automationSchedulerRef.current.setProphecyManager(prophecyManagerRef.current ?? null);
+            }
         }
     }, [audioEngine, prophecyManagerRef]);
 

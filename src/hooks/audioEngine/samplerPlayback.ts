@@ -416,10 +416,10 @@ export function createSamplerPlayback(
         } else if (ctx.params.formantLfoDepth !== undefined) {
             voice.setFormantLfoDepth(ctx.params.formantLfoDepth, triggerTime);
         }
-        if (ctx.noteParams?.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.noteParams.formantLfoShape);
-        } else if (ctx.params.formantLfoShape !== undefined) {
-            voice.setFormantLfoShape(ctx.params.formantLfoShape);
+        if (ctx.noteParams?.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.noteParams.customLfoShape);
+        } else if (ctx.params.customLfoShape !== undefined) {
+            voice.setFormantLfoShape(ctx.params.customLfoShape);
         } else {
             voice.setFormantLfoShape(undefined);
         }
@@ -557,8 +557,7 @@ export function createSamplerPlayback(
         const t = ctx.actualTime + timeOffset;
 
         const mainVoiceData = ctx.manager.acquireVoiceForBank(ctx.params.sampleName);
-        ctx.manager.registerActiveVoice(mainVoiceData.index, noteStr, t);
-        triggerVoice(ctx, noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
+                triggerVoice(ctx, noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
 
         const effectiveChoir = ctx.noteParams?.choir !== undefined ? ctx.noteParams.choir : (ctx.params.choir || 0);
 
@@ -571,14 +570,12 @@ export function createSamplerPlayback(
 
             const leftVoiceData = ctx.manager.acquireVoiceForBank(ctx.params.sampleName);
             if (leftVoiceData.index !== mainVoiceData.index) {
-                ctx.manager.registerActiveVoice(leftVoiceData.index, `${noteStr}_L`, t);
-                triggerVoice(ctx, noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
+                                triggerVoice(ctx, noteStr, leftVoiceData.voice, detune, t, duration, choirLeftGainRef.current!, leftVoiceData.isNewBank);
             }
 
             const rightVoiceData = ctx.manager.acquireVoiceForBank(ctx.params.sampleName);
             if (rightVoiceData.index !== mainVoiceData.index && rightVoiceData.index !== leftVoiceData.index) {
-                ctx.manager.registerActiveVoice(rightVoiceData.index, `${noteStr}_R`, t);
-                triggerVoice(ctx, noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
+                                triggerVoice(ctx, noteStr, rightVoiceData.voice, -detune, t, duration, choirRightGainRef.current!, rightVoiceData.isNewBank);
             }
         } else if (ctx.pitchOffsetSemitones === 0) {
             if (choirLeftGainRef.current) choirLeftGainRef.current.gain.setTargetAtTime(0, t, 0.02);
@@ -724,7 +721,7 @@ const playSamplerVoice = (
     const pFormantLfoDepth = noteParams?.formantLfoDepth !== undefined ? noteParams.formantLfoDepth : params.formantLfoDepth;
     let pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     if (pFormantLfoShape === undefined) {
-        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.formantLfoShape;
+        pFormantLfoShape = noteParams?.formantLfoShape !== undefined ? noteParams.formantLfoShape : params.customLfoShape;
     }
 
     // Formant Envelope

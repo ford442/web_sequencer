@@ -113,7 +113,11 @@ export function createTTSWorkerBlob(): string {
 
                 switch (operation) {
                     case 'normalize':
-                        const max = Math.max(...buffer.map(Math.abs));
+                        let max = 0;
+                        for (let i = 0; i < buffer.length; i++) {
+                            const abs = Math.abs(buffer[i]);
+                            if (abs > max) max = abs;
+                        }
                         const scale = max > 0 ? 1 / max : 1;
                         for (let i = 0; i < buffer.length; i++) {
                             result[i] = buffer[i] * scale;

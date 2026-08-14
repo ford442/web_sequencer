@@ -35,7 +35,7 @@ interface SamplerKnobHandlers {
   reverbLfoDepth: (v: number) => void;
   formantEnvSync: (v: unknown) => void;
   formantSidechainDepth: (v: number) => void;
-  formantLfoShape: (v: unknown) => void;
+  customLfoShape: (v: unknown) => void;
   pitchAmount: (v: number) => void;
   pitchAttack: (v: number) => void;
   pitchDecay: (v: number) => void;
@@ -262,8 +262,8 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
 
           <div className="flex flex-col justify-end">
             <DrawableLFO
-              value={currentParams.formantLfoShape}
-              onChange={handlers.formantLfoShape}
+              value={currentParams.customLfoShape}
+              onChange={handlers.customLfoShape}
               label="Fmt LFO Shape"
             />
           </div>
