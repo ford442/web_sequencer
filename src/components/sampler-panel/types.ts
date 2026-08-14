@@ -59,6 +59,8 @@ export const DEFAULT_BANK_PARAMS: SamplerBankParams = {
   grainJitter: 0,
   grainPitchQuantize: 0,
   granularPitchShift: 0,
+  windowShape: 0,
+  customGrainEnvelope: undefined,
   formantLfoRate: 0,
   formantLfoDepth: 0,
   reverbLfoRate: 0.1,

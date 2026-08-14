@@ -14,6 +14,8 @@ export type PropertyChangeKey =
   | "grainPitchEnvDepth"
   | "grainJitter"
   | "grainPitchQuantize"
+  | "windowShape"
+  | "customGrainEnvelope"
   | "timeStretchEnvDepth"
   | "spectralPanRate"
   | "spectralPanDepth"
@@ -143,5 +145,5 @@ export interface NoteSelectorProps {
   isProphecy?: boolean;
   currentVowel?: number;
   currentPortamento?: number;
-  onPropertyChange?: (key: PropertyChangeKey, value: number | boolean | string) => void;
+  onPropertyChange?: (key: PropertyChangeKey, value: number | boolean | string | number[]) => void;
 }

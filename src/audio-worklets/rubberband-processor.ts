@@ -42,6 +42,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private phonemeData: Float32Array | null = null;
   private phonemeRatios: number[] | null = null;
 
+  // Custom Grain Envelope
+  private customGrainEnvelope: number[] | null = null;
+
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
@@ -253,6 +256,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Enable/disable auto pitch following from sequencer
         if (data && typeof data.enabled === 'boolean') {
           // this.autoFollowEnabled = data.enabled;
+        }
+        break;
+
+      case 'setCustomGrainEnvelope':
+        if (data && Array.isArray(data.shape)) {
+          this.customGrainEnvelope = data.shape;
+        } else {
+          this.customGrainEnvelope = null;
         }
         break;
     }
@@ -499,19 +510,31 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const phase = this.freezePhase / (actualGrainSize - 1);
                 let windowVal = 1.0;
 
-                // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
-                if (windowShape < 0.5) {
-                    // Hann
-                    windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
-                } else if (windowShape < 1.5) {
-                    // Hamming
-                    windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
-                } else if (windowShape < 2.5) {
-                    // Blackman
-                    windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                    const idx = phase * (this.customGrainEnvelope.length - 1);
+                    const lowerIdx = Math.floor(idx);
+                    const upperIdx = Math.ceil(idx);
+                    const fraction = idx - lowerIdx;
+
+                    const lowerVal = this.customGrainEnvelope[lowerIdx];
+                    const upperVal = this.customGrainEnvelope[upperIdx];
+
+                    windowVal = lowerVal + (upperVal - lowerVal) * fraction;
                 } else {
-                    // Rectangular / None
-                    windowVal = 1.0;
+                    // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                    if (windowShape < 0.5) {
+                        // Hann
+                        windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                    } else if (windowShape < 1.5) {
+                        // Hamming
+                        windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                    } else if (windowShape < 2.5) {
+                        // Blackman
+                        windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                    } else {
+                        // Rectangular / None
+                        windowVal = 1.0;
+                    }
                 }
 
                 heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;

@@ -30,6 +30,8 @@ interface SamplerKnobHandlers {
   granularPitchShift: (v: number) => void;
   bitcrush: (v: number) => void;
   downsample: (v: number) => void;
+  windowShape: (v: number) => void;
+  customGrainEnvelope: (v: unknown) => void;
   formantLfoDepth: (v: number) => void;
   reverbLfoRate: (v: number) => void;
   reverbLfoDepth: (v: number) => void;
@@ -52,6 +54,7 @@ interface SamplerKnobControlsProps {
   currentParams: SamplerBankParams;
   handlers: SamplerKnobHandlers;
   onCustomLfoShapeChange: (value: number[]) => void;
+  onCustomGrainEnvelopeChange: (value: number[]) => void;
   onMorphTargetChange: (value: string) => void;
   onFormantEnvAttackChange: (v: number) => void;
   onFormantEnvDecayChange: (v: number) => void;
@@ -64,6 +67,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
   currentParams,
   handlers,
   onCustomLfoShapeChange,
+  onCustomGrainEnvelopeChange,
   onMorphTargetChange,
   onFormantEnvAttackChange,
   onFormantEnvDecayChange,
@@ -246,6 +250,31 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
               <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={onFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
               <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={onFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
               <Knob label="Fmt Ducking" value={currentParams.formantSidechainDepth ?? 0} onChange={onFormantSidechainDepthChange} min={0} max={24} step={1} color="indigo" unit="st" />
+          <div className="flex flex-col items-center justify-start gap-1">
+            <div className="text-[8px] text-gray-400 font-bold mb-0.5">WNDW SHAPE</div>
+            <select
+              value={currentParams.windowShape ?? 0}
+              onChange={(e) => handlers.windowShape(parseFloat(e.target.value))}
+              aria-label="Granular Window Shape"
+              className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus:border-indigo-400 mt-1"
+            >
+              <option value={0}>Hann</option>
+              <option value={1}>Hamming</option>
+              <option value={2}>Blackman</option>
+              <option value={3}>None</option>
+            </select>
+          </div>
+          <div className="flex flex-col items-center justify-start gap-1 col-span-2">
+            <div className="text-[9px] text-indigo-300 font-bold mb-0.5">GRAIN ENV</div>
+            <DrawableLFO
+              resolution={64}
+              value={currentParams.customGrainEnvelope || Array(64).fill(0.5)}
+              onChange={onCustomGrainEnvelopeChange}
+              width={120}
+              height={40}
+              color="#22d3ee"
+            />
+          </div>
             </div>
           </fieldset>
 
