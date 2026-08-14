@@ -76,6 +76,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           onAutoSliceSensitivityChange={state.setAutoSliceSensitivity}
           activeProgress={state.activeProgress}
           activeBankIdx={activeBankIdx}
+          onLoadSample={() => fileInputRef.current?.click()}
         />
 
         <SamplerToolbar
