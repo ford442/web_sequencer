@@ -22,7 +22,15 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
       const gps = navigator.getGamepads();
       // Filter out nulls for state, but keep indices for display accuracy if needed
       // Here we just grab all non-nulls to show what the browser sees
-      setGamepads(Array.from(gps).filter((gp): gp is Gamepad => gp !== null));
+      // ⚡ Bolt: Using standard for loop instead of Array.from().filter() to prevent closure allocation
+      const validGamepads: Gamepad[] = [];
+      for (let i = 0; i < gps.length; i++) {
+        const gp = gps[i];
+        if (gp !== null) {
+          validGamepads.push(gp);
+        }
+      }
+      setGamepads(validGamepads);
       reqRef.current = requestAnimationFrame(loop);
     };
 
