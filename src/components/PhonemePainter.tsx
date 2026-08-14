@@ -673,19 +673,19 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
               ))}
 
               {phonemes.length === 0 && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gray-800/20 border border-dashed border-gray-700 m-2 rounded-lg z-20">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-[#0d0f12]/80 z-20">
                   <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)]" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <h3 className="text-gray-300 font-bold mb-2">No phonemes yet</h3>
-                  <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
+                  <h3 className="text-gray-300 font-bold mb-2 font-mono">No phonemes yet</h3>
+                  <p className="text-zinc-500 text-xs mb-6 max-w-[250px] text-center font-mono">
                     Paint phonemes on the timeline to create realistic vocal articulations.
                   </p>
                   <button type="button"
                     onClick={() => setShowAddMenu(true)}
-                    className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 shadow-[0_2px_8px_rgba(6,182,212,0.2)]"
+                    className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 font-mono shadow-[0_2px_8px_rgba(6,182,212,0.2)]"
                     aria-label="Add your first phoneme"
                   >
                     + Add Phoneme
