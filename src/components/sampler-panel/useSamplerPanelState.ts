@@ -65,7 +65,7 @@ export function useSamplerPanelState({
       'playbackSpeed', 'volume', 'filterCutoff', 'drive',
       'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'formantEnvFollower', 'formantSidechainDepth',
+      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
       'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
@@ -354,6 +354,11 @@ export function useSamplerPanelState({
     else updateParamRef.current('customLfoShape', newValue);
   }, [activeBankIdx, onParamChange]);
 
+  const handleCustomGrainEnvelopeChange = useCallback((newValue: number[]) => {
+    if (onParamChange) onParamChange(activeBankIdx, 'customGrainEnvelope', newValue);
+    else updateParamRef.current('customGrainEnvelope', newValue);
+  }, [activeBankIdx, onParamChange]);
+
   const handleMorphTargetChange = useCallback((value: string) => {
     updateParamRef.current('morphTarget', value);
   }, []);
@@ -396,6 +401,7 @@ export function useSamplerPanelState({
     setAutoSliceSensitivity,
     handleAutoSlice,
     handleCustomLfoShapeChange,
+    handleCustomGrainEnvelopeChange,
     handleMorphTargetChange,
     handleFormantEnvAttackChange,
     handleFormantEnvDecayChange,

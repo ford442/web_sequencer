@@ -2,7 +2,7 @@ import type { PropertyChangeKey } from "./types";
 
 export interface SynthEffectPropertiesProps {
   trackType: "synth" | "drum" | "voice";
-  onPropertyChange: (key: PropertyChangeKey, value: number | boolean | string) => void;
+  onPropertyChange: (key: PropertyChangeKey, value: number | boolean | string | number[]) => void;
   isProphecy?: boolean;
   currentFreeze?: number;
   currentFreezeLfoSync?: boolean;
@@ -14,6 +14,8 @@ export interface SynthEffectPropertiesProps {
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
+  currentWindowShape?: number;
+  currentCustomGrainEnvelope?: number[];
   currentVocoderMix?: number;
   currentVocoderFormantShift?: number;
   currentVocoderPreservation?: number;

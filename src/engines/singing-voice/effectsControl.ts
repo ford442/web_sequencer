@@ -284,4 +284,26 @@ export const EffectsControlMixin = {
   setDownsample(this: SingingVoiceHost, factor: number, time?: number): void {
     setWorkletParam(this, "downsample", factor, time);
   },
+
+  /**
+   * Set the window shape for granular synthesis.
+   * @param shape Window shape (0=Hann, 1=Hamming, 2=Blackman, 3=Rectangular)
+   * @param time Optional time to apply the change
+   */
+  setWindowShape(this: SingingVoiceHost, shape: number, time?: number): void {
+    setWorkletParam(this, "windowShape", shape, time);
+  },
+
+  /**
+   * Set a custom envelope shape for granular synthesis.
+   * @param shape Array of normalized values (0.0 to 1.0)
+   */
+  setCustomGrainEnvelope(this: SingingVoiceHost, shape: number[] | undefined): void {
+    if (this.workletNode && this.workletNode.port) {
+      this.workletNode.port.postMessage({
+        type: 'setCustomGrainEnvelope',
+        shape: shape
+      });
+    }
+  },
 };

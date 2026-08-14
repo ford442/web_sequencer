@@ -1,6 +1,7 @@
 import React from "react";
 import { PropertySlider } from "./PropertySlider";
 import { VocoderProperties } from "./VocoderProperties";
+import { DrawableLFO } from "../DrawableLFO";
 import type { SynthEffectPropertiesProps } from "./synthEffectTypes";
 
 export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.memo((props) => {
@@ -18,6 +19,8 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentGrainJitter = 0,
     currentGrainPitchQuantize = 0,
     currentGranularPitchShift = 0,
+    currentWindowShape,
+    currentCustomGrainEnvelope,
     currentVocoderMix,
     currentVocoderFormantShift,
     currentVocoderPreservation,
@@ -322,6 +325,43 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           aria-valuetext={`${currentGranularPitchShift ?? 0} semitones`}
           aria-label="Granular Pitch Shift Override"
         />
+      </div>
+       <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <label htmlFor="note-window-shape">Window Shape</label>
+        </div>
+        <select
+          id="note-window-shape"
+          value={currentWindowShape ?? 0}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "windowShape",
+              parseFloat(e.target.value)
+            )
+          }
+          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus:border-cyan-400"
+          aria-label="Granular Window Shape"
+        >
+          <option value={0}>Hann</option>
+          <option value={1}>Hamming</option>
+          <option value={2}>Blackman</option>
+          <option value={3}>Rectangular (None)</option>
+        </select>
+      </div>
+      <div className="flex flex-col items-center justify-start gap-1 col-span-2 mt-2">
+        <div className="text-[10px] text-cyan-200/70 font-bold uppercase w-full flex justify-between">
+          <span>Custom Grain Envelope</span>
+        </div>
+        <div className="w-full flex justify-center bg-gray-900 rounded-lg p-1 border border-cyan-900/30">
+          <DrawableLFO
+            resolution={64}
+            value={currentCustomGrainEnvelope || Array(64).fill(0.5)}
+            onChange={(v) => onPropertyChange?.("customGrainEnvelope", v)}
+            width={160}
+            height={40}
+            color="#22d3ee"
+          />
+        </div>
       </div>
       <VocoderProperties
         onPropertyChange={onPropertyChange}

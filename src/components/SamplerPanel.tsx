@@ -130,6 +130,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           currentParams={state.currentParams}
           handlers={h}
           onCustomLfoShapeChange={state.handleCustomLfoShapeChange}
+          onCustomGrainEnvelopeChange={state.handleCustomGrainEnvelopeChange}
           onMorphTargetChange={state.handleMorphTargetChange}
           onFormantEnvAttackChange={state.handleFormantEnvAttackChange}
           onFormantEnvDecayChange={state.handleFormantEnvDecayChange}
