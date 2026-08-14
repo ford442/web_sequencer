@@ -46,6 +46,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isPlaying = false;
   private isReverse = false;
   private freezePhase: number = 0;
+  private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
@@ -161,6 +162,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       case 'loadBuffer':
         if (data && data.buffer) {
           this.fullSampleBuffer = new Float32Array(data.buffer);
+        }
+        break;
+
+      case 'setCustomWindowShape':
+        if (data.shape && data.shape.length > 0) {
+          this.customWindowShape = new Float32Array(data.shape);
+        } else {
+          this.customWindowShape = null;
         }
         break;
 
@@ -499,19 +508,27 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const phase = this.freezePhase / (actualGrainSize - 1);
                 let windowVal = 1.0;
 
-                // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
-                if (windowShape < 0.5) {
-                    // Hann
-                    windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
-                } else if (windowShape < 1.5) {
-                    // Hamming
-                    windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
-                } else if (windowShape < 2.5) {
-                    // Blackman
-                    windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                if (this.customWindowShape && this.customWindowShape.length > 0) {
+                    const index = phase * (this.customWindowShape.length - 1);
+                    const lower = Math.floor(index);
+                    const upper = Math.ceil(index);
+                    const weight = index - lower;
+                    windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
                 } else {
-                    // Rectangular / None
-                    windowVal = 1.0;
+                    // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                    if (windowShape < 0.5) {
+                        // Hann
+                        windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                    } else if (windowShape < 1.5) {
+                        // Hamming
+                        windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                    } else if (windowShape < 2.5) {
+                        // Blackman
+                        windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                    } else {
+                        // Rectangular / None
+                        windowVal = 1.0;
+                    }
                 }
 
                 heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;

@@ -7,13 +7,16 @@
 - [ ] Optimize TTS memory footprint
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
-- [ ] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
+- [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
+- [ ] Add granular random jitter per phoneme
 
 ## Innovation Lab
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
 - [x] Implement Expressive Note Transitions for Vowels
+- [ ] What if we could modulate the grain size with an LFO or envelope to create "breathing" textures?
+- [ ] Explore spectral panning per grain to create a wide stereo field for TTS voices.
 
 - [x] Optimize TTS memory footprint
 - [x] Implement Lyric Track parsing
@@ -21,7 +24,6 @@
 - [x] Implement per-phoneme pitch drift/vibrato
 - [x] Add Formant Modulation LFO
 - [x] Add Formant Glide per phoneme
-- [ ] Add granular random jitter per phoneme
 - [x] Optimize Voice Manager state syncing
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
@@ -35,7 +37,8 @@
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
 - Velocity Check: Refactoring went smoothly. The architecture is much cleaner without duplicate voice maps. Also completed linking voice affinity directly to WebGPU/WASM buffers to prevent redundant host-to-device memory copies by correctly providing a bankId to `acquireVoiceForBank`.
 - Completed the "Implement per-phoneme granular synthesis grain size control" task from the Innovation Lab backlog by adding `grainSize` and `formantShift` fully to `PhonemeData`, updating the `PhonemeAligner` SharedArrayBuffer stride to 10, and modifying the `RubberBandProcessor` AudioWorklet to natively read and apply the `grainSize` parameter during FREEZE stream synthesis.
-- Moved two ideas from the Innovation Lab into the Active Backlog to ensure the pipeline stays full.
-- Velocity Check: Adding new per-phoneme parameters is well-documented and straightforward due to the clean separation between main thread Web Audio API (formants) and AudioWorklet (grain/pitch).
+- Completed "Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?" Added `DrawableLFO` to `SynthGranularEffects` and wired `customWindowShape` through `playSamplerVoice`, `EffectsControlMixin`, and `RubberBandProcessor`.
+- Moved one idea from the Innovation Lab into the Active Backlog and added two new ideas to the Innovation Lab to ensure the pipeline stays full.
+- Velocity Check: Implementing the custom drawable window shape went quickly by reusing `DrawableLFO` and the message passing infrastructure. The AudioWorklet handles the Float32Array gracefully with linear interpolation.
 
 ## Roadmap

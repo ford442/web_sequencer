@@ -40,6 +40,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
+    currentCustomWindowShape,
     currentFormantLfoSync,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
@@ -193,6 +194,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentPitchAmount={currentPitchAmount}
                 currentPitchAttack={currentPitchAttack}
                 currentPitchDecay={currentPitchDecay}
+                currentCustomWindowShape={currentCustomWindowShape}
                 currentFormantEnvSync={currentFormantEnvSync}
                 currentFormantEnvAttack={currentFormantEnvAttack}
                 currentFormantEnvDecay={currentFormantEnvDecay}

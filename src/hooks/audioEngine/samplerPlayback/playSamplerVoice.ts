@@ -135,6 +135,7 @@ export function createPlaySamplerVoice(
     if (pFormantLfoShape === undefined) {
       pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     }
+    const pCustomWindowShape = noteParams?.customWindowShape !== undefined ? noteParams.customWindowShape : params.customWindowShape;
 
     // Formant Envelope
     const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
@@ -334,6 +335,8 @@ export function createPlaySamplerVoice(
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+
+        voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 
         if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
         if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);

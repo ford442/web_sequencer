@@ -126,6 +126,7 @@ export interface SamplerBankParams {
   formantLfoRate?: number;
   formantLfoDepth?: number;
   customLfoShape?: number[];
+  customWindowShape?: number[];
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
@@ -462,6 +463,7 @@ export interface Note {
   grainPitchQuantize?: number;
   grainEnvDepth?: number;
   vibratoDepth?: number;
+  customWindowShape?: number[];
   reverbSend?: number;
   reverbType?: ReverbType;
   reverbLfoRate?: number;
@@ -639,6 +641,7 @@ export interface AudioEngine {
 export interface AutomationPoint {
   step: number;
   value: number;
+  customWindowShape?: number[];
 }
 
 export interface KnobAutomation {
