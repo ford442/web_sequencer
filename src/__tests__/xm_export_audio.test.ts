@@ -91,8 +91,8 @@ describe('XM Export Audio Processing', () => {
             // Peak was 0.2, should be normalized to ~0.89 (-1dB)
             let newPeak = 0;
             for (let i = 0; i < output.length; i++) {
-                const absVal = Math.abs(output[i]);
-                if (absVal > newPeak) newPeak = absVal;
+                const abs = Math.abs(output[i]);
+                if (abs > newPeak) newPeak = abs;
             }
             expect(newPeak).toBeGreaterThan(0.7);
             expect(newPeak).toBeLessThan(1.0);
