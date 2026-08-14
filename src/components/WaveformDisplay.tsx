@@ -9,9 +9,10 @@ interface WaveformDisplayProps {
     onAutoSlice?: () => void;
     autoSliceSensitivity?: number;
     onAutoSliceSensitivityChange?: (val: number) => void;
+    onLoadSample?: () => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange, onLoadSample }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     // ⚡ Bolt: Cache DOMRect to prevent forced synchronous layout
@@ -86,10 +87,6 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             ctx.fillRect(0, 0, width, height);
 
             if (!buffer) {
-                ctx.fillStyle = '#9ca3af';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText("NO SAMPLE", width / 2, height / 2);
                 ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
                 return;
             }
@@ -657,19 +654,35 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
 
     return (
         <div className="relative group">
-            <div
-                ref={containerRef}
-                className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
-                role="img"
-                aria-label={label}
-                title={label}
-                onKeyDown={handleKeyDown}
-                tabIndex={0}
-                aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
-            >
-                <canvas ref={canvasRef} className="w-full h-full block" />
-            </div>
-
+            {!buffer ? (
+                <div className="flex flex-col items-center justify-center h-28 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded mb-1">
+                    <div className="w-8 h-8 rounded-full bg-cyan-900/30 flex items-center justify-center mb-2 text-cyan-500" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                    </div>
+                    <h3 className="text-gray-300 font-bold text-xs mb-1">No sample loaded</h3>
+                    <p className="text-gray-500 text-[10px] mb-3">Load an audio file to view and slice the waveform.</p>
+                    {onLoadSample && (
+                        <button type="button" onClick={onLoadSample} className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                            Load Sample
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div
+                    ref={containerRef}
+                    className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
+                    role="img"
+                    aria-label={label}
+                    title={label}
+                    onKeyDown={handleKeyDown}
+                    tabIndex={0}
+                    aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
+                >
+                    <canvas ref={canvasRef} className="w-full h-full block" />
+                </div>
+            )}
             {/* Auto-Slice Overlay Button */}
             {buffer && onAutoSlice && (
                 <div className="absolute top-1 right-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">

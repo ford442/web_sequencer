@@ -8,9 +8,8 @@ describe('WaveformDisplay', () => {
         const sliceHighlightRef = { current: null };
         render(<WaveformDisplay buffer={null} alignment={null} sliceHighlightRef={sliceHighlightRef} />);
 
-        const display = screen.getByRole('img');
-        expect(display).toHaveAttribute('aria-label', 'Waveform visualization: No sample loaded');
-        expect(display).toHaveAttribute('title', 'Waveform visualization: No sample loaded');
+        expect(screen.getByText('No sample loaded')).toBeInTheDocument();
+        expect(screen.getByText('Load an audio file to view and slice the waveform.')).toBeInTheDocument();
     });
 
     it('renders with correct accessibility label when buffer is loaded', () => {

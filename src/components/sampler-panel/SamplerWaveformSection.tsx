@@ -12,6 +12,7 @@ interface SamplerWaveformSectionProps {
   onAutoSliceSensitivityChange: (value: number) => void;
   activeProgress: { bankIdx: number; progress: number; isProcessing: boolean } | null;
   activeBankIdx: number;
+  onLoadSample?: () => void;
 }
 
 export const SamplerWaveformSection = React.memo(function SamplerWaveformSection({
@@ -24,6 +25,7 @@ export const SamplerWaveformSection = React.memo(function SamplerWaveformSection
   onAutoSliceSensitivityChange,
   activeProgress,
   activeBankIdx,
+  onLoadSample,
 }: SamplerWaveformSectionProps) {
   return (
     <>
@@ -38,6 +40,7 @@ export const SamplerWaveformSection = React.memo(function SamplerWaveformSection
         onAutoSlice={onAutoSlice}
         autoSliceSensitivity={autoSliceSensitivity}
         onAutoSliceSensitivityChange={onAutoSliceSensitivityChange}
+        onLoadSample={onLoadSample}
       />
 
       {activeProgress?.bankIdx === activeBankIdx && activeProgress.isProcessing && (
