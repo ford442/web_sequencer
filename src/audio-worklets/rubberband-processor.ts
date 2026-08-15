@@ -49,6 +49,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isPlaying = false;
   private isReverse = false;
   private freezePhase: number = 0;
+  private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
@@ -164,6 +165,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       case 'loadBuffer':
         if (data && data.buffer) {
           this.fullSampleBuffer = new Float32Array(data.buffer);
+        }
+        break;
+
+      case 'setCustomWindowShape':
+        if (data.shape && data.shape.length > 0) {
+          this.customWindowShape = new Float32Array(data.shape);
+        } else {
+          this.customWindowShape = null;
         }
         break;
 
@@ -510,7 +519,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const phase = this.freezePhase / (actualGrainSize - 1);
                 let windowVal = 1.0;
 
-                if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                if (this.customWindowShape && this.customWindowShape.length > 0) {
+                    const index = phase * (this.customWindowShape.length - 1);
+                    const lower = Math.floor(index);
+                    const upper = Math.ceil(index);
+                    const weight = index - lower;
+                    windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+                } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
                     const idx = phase * (this.customGrainEnvelope.length - 1);
                     const lowerIdx = Math.floor(idx);
                     const upperIdx = Math.ceil(idx);

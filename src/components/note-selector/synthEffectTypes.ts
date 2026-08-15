@@ -52,4 +52,5 @@ export interface SynthEffectPropertiesProps {
   currentSpectralPanRate?: number;
   currentSpectralPanDepth?: number;
   currentReverse?: boolean;
+  currentCustomWindowShape?: number[];
 }

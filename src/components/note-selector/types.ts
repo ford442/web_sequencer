@@ -43,6 +43,7 @@ export type PropertyChangeKey =
   | "formantEnvSync"
   | "vibratoDepth"
   | "tremoloDepth"
+  | "customWindowShape"
   | "tremoloRate"
   | "gateDepth"
   | "gateRate"
@@ -145,5 +146,6 @@ export interface NoteSelectorProps {
   isProphecy?: boolean;
   currentVowel?: number;
   currentPortamento?: number;
+  currentCustomWindowShape?: number[];
   onPropertyChange?: (key: PropertyChangeKey, value: number | boolean | string | number[]) => void;
 }

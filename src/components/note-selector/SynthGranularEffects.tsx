@@ -44,6 +44,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentFormantEnvFollower = 0,
     currentDrive,
     currentVibratoDepth = 0,
+    currentCustomWindowShape,
     currentVowel = 0,
     currentPortamento = 0,
     currentCharacterMorph = 0,
@@ -419,6 +420,14 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           aria-label="Trance Gate"
         />
       </div>
+
+      {(trackType === "synth" || trackType === "voice") && onPropertyChange && (
+          <DrawableLFO
+              value={currentCustomWindowShape}
+              onChange={(shape) => onPropertyChange("customWindowShape", shape)}
+              label="Custom Window Shape"
+          />
+      )}
     </>
   );
 });

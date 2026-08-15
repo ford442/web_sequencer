@@ -286,6 +286,24 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set custom shape for granular synthesis windowing.
+   * @param shape Array of normalized values (0.0 to 1.0)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setCustomWindowShape(
+    this: SingingVoiceHost,
+    shape: number[] | undefined,
+    time?: number,
+  ): void {
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({
+        type: "setCustomWindowShape",
+        data: { shape },
+      });
+    }
+  },
+
+  /**
    * Set the window shape for granular synthesis.
    * @param shape Window shape (0=Hann, 1=Hamming, 2=Blackman, 3=Rectangular)
    * @param time Optional time to apply the change
@@ -302,7 +320,7 @@ export const EffectsControlMixin = {
     if (this.workletNode && this.workletNode.port) {
       this.workletNode.port.postMessage({
         type: 'setCustomGrainEnvelope',
-        shape: shape
+        shape: shape,
       });
     }
   },
