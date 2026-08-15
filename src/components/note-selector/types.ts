@@ -14,6 +14,8 @@ export type PropertyChangeKey =
   | "grainPitchEnvDepth"
   | "grainJitter"
   | "grainPitchQuantize"
+  | "windowShape"
+  | "customGrainEnvelope"
   | "timeStretchEnvDepth"
   | "spectralPanRate"
   | "spectralPanDepth"

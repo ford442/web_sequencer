@@ -8,7 +8,7 @@
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
-- [ ] Add granular random jitter per phoneme
+
 
 ## Innovation Lab
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
@@ -37,8 +37,8 @@
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
 - Velocity Check: Refactoring went smoothly. The architecture is much cleaner without duplicate voice maps. Also completed linking voice affinity directly to WebGPU/WASM buffers to prevent redundant host-to-device memory copies by correctly providing a bankId to `acquireVoiceForBank`.
 - Completed the "Implement per-phoneme granular synthesis grain size control" task from the Innovation Lab backlog by adding `grainSize` and `formantShift` fully to `PhonemeData`, updating the `PhonemeAligner` SharedArrayBuffer stride to 10, and modifying the `RubberBandProcessor` AudioWorklet to natively read and apply the `grainSize` parameter during FREEZE stream synthesis.
-- Completed "Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?" Added `DrawableLFO` to `SynthGranularEffects` and wired `customWindowShape` through `playSamplerVoice`, `EffectsControlMixin`, and `RubberBandProcessor`.
-- Moved one idea from the Innovation Lab into the Active Backlog and added two new ideas to the Innovation Lab to ensure the pipeline stays full.
-- Velocity Check: Implementing the custom drawable window shape went quickly by reusing `DrawableLFO` and the message passing infrastructure. The AudioWorklet handles the Float32Array gracefully with linear interpolation.
+- Completed "Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?" by adding both a `DrawableLFO` to `SynthGranularEffects` and a `<select>` menu for predefined window shapes. Wired `customWindowShape` and `windowShape` through `playSamplerVoice`, `EffectsControlMixin`, and `RubberBandProcessor`. The custom drawable shape allows per-note granular windowing control while predefined shapes provide quick presets. The AudioWorklet handles both Float32Array shapes and numeric shape indices gracefully.
+- Moved ideas from the Innovation Lab into the Active Backlog and added new ideas to ensure the pipeline stays full.
+- Velocity Check: Working with `DrawableLFO` and the message passing infrastructure proved robust for exposing complex array modulations. Per-note granular control is now directly accessible from the sequencer UI overlays.
 
 ## Roadmap

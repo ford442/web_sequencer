@@ -76,6 +76,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           onAutoSliceSensitivityChange={state.setAutoSliceSensitivity}
           activeProgress={state.activeProgress}
           activeBankIdx={activeBankIdx}
+          onLoadSample={() => fileInputRef.current?.click()}
         />
 
         <SamplerToolbar
@@ -129,6 +130,7 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           currentParams={state.currentParams}
           handlers={h}
           onCustomLfoShapeChange={state.handleCustomLfoShapeChange}
+          onCustomGrainEnvelopeChange={state.handleCustomGrainEnvelopeChange}
           onMorphTargetChange={state.handleMorphTargetChange}
           onFormantEnvAttackChange={state.handleFormantEnvAttackChange}
           onFormantEnvDecayChange={state.handleFormantEnvDecayChange}

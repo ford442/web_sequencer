@@ -122,6 +122,8 @@ export interface SamplerBankParams {
   grainEnvDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
+  windowShape?: number;
+  customGrainEnvelope?: number[];
   formantLfoSync?: boolean;
   formantLfoRate?: number;
   formantLfoDepth?: number;
@@ -474,6 +476,8 @@ export interface Note {
   delayLfoDepth?: number;
   delaySend?: number;
   granularPitchShift?: number;
+  windowShape?: number;
+  customGrainEnvelope?: number[];
   choir?: number;
   drive?: number;
   tranceGate?: number;

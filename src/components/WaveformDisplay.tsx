@@ -9,9 +9,10 @@ interface WaveformDisplayProps {
     onAutoSlice?: () => void;
     autoSliceSensitivity?: number;
     onAutoSliceSensitivityChange?: (val: number) => void;
+    onLoadSample?: () => void;
 }
 
-export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange }) => {
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange, onLoadSample }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     // ⚡ Bolt: Cache DOMRect to prevent forced synchronous layout
@@ -86,10 +87,6 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             ctx.fillRect(0, 0, width, height);
 
             if (!buffer) {
-                ctx.fillStyle = '#9ca3af';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText("NO SAMPLE", width / 2, height / 2);
                 ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
                 return;
             }
@@ -650,13 +647,27 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
             canvas.removeEventListener('dblclick', handleDoubleClick);
         };
     }, [onAlignmentChange]);
-
-    const label = !buffer
-        ? "Waveform visualization: No sample loaded"
-        : `Waveform visualization: Sample loaded${alignment ? " with phoneme alignment" : ""}`;
-
-    return (
-        <div className="relative group">
+const label = !buffer
+    ? "Waveform visualization: No sample loaded"
+    : `Waveform visualization: Sample loaded${alignment ? " with phoneme alignment" : ""}`;
+return (
+    <div className="relative group">
+        {!buffer ? (
+            <div className="flex flex-col items-center justify-center h-28 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded mb-1">
+                <div className="w-8 h-8 rounded-full bg-cyan-900/30 flex items-center justify-center mb-2 text-cyan-500" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                </div>
+                <h3 className="text-gray-300 font-bold text-xs mb-1">No sample loaded</h3>
+                <p className="text-gray-500 text-[10px] mb-3">Load an audio file to view and slice the waveform.</p>
+                {onLoadSample && (
+                    <button type="button" onClick={onLoadSample} className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                        Load Sample
+                    </button>
+                )}
+            </div>
+        ) : (
             <div
                 ref={containerRef}
                 className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
@@ -667,56 +678,763 @@ export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, a
                 tabIndex={0}
                 aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
             >
-                {!buffer && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-gray-800/20 border-2 border-dashed border-gray-700 rounded m-0.5">
-                        <div className="flex items-center gap-2 text-gray-500">
-                            <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center shadow-inner" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                                </svg>
-                            </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">No Sample</span>
-                        </div>
-                    </div>
-                )}
                 <canvas ref={canvasRef} className="w-full h-full block" />
             </div>
+        )}
+        {/* Auto-Slice Overlay Button */}
+        {buffer && onAutoSlice && (
+            <div className="absolute top-1 right-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                {onAutoSliceSensitivityChange && (
+                    <div className="flex items-center gap-1.5 bg-indigo-900/90 px-2 py-0.5 rounded shadow border border-indigo-500/50 h-[22px]">
+                        <span className="text-[9px] text-indigo-200 font-orbitron font-bold">SENS</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={autoSliceSensitivity}
+                            onChange={(e) => onAutoSliceSensitivityChange(Number(e.target.value))}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseUp={(e) => e.stopPropagation()}
+                            onMouseMove={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-16 h-1 bg-indigo-950 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-indigo-400 [&::-webkit-slider-thumb]:rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            title="Auto-slice sensitivity"
+                            aria-label="Auto-slice sensitivity"
+                        />
+                    </div>
+                )}
+                <button type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onAutoSlice();
+                    }}
+                    className="px-2 h-[22px] bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-500/50 text-indigo-100 text-[9px] font-bold font-orbitron rounded shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    aria-label="Auto-slice by transients"
+                    title="Auto-slice sample based on transients"
+                >
+                    AUTO-SLICE
+                </button>
+            </div>
+        )}
+    </div>
+);
+import React, { useRef, useEffect, memo } from 'react';
+import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 
-            {/* Auto-Slice Overlay Button */}
-            {buffer && onAutoSlice && (
-                <div className="absolute top-1 right-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
-                    {onAutoSliceSensitivityChange && (
-                        <div className="flex items-center gap-1.5 bg-indigo-900/90 px-2 py-0.5 rounded shadow border border-indigo-500/50 h-[22px]">
-                            <span className="text-[9px] text-indigo-200 font-orbitron font-bold">SENS</span>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value={autoSliceSensitivity}
-                                onChange={(e) => onAutoSliceSensitivityChange(Number(e.target.value))}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onMouseUp={(e) => e.stopPropagation()}
-                                onMouseMove={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-16 h-1 bg-indigo-950 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-indigo-400 [&::-webkit-slider-thumb]:rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                                title="Auto-slice sensitivity"
-                                aria-label="Auto-slice sensitivity"
-                            />
-                        </div>
-                    )}
-                    <button type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onAutoSlice();
-                        }}
-                        className="px-2 h-[22px] bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-500/50 text-indigo-100 text-[9px] font-bold font-orbitron rounded shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                        aria-label="Auto-slice by transients"
-                        title="Auto-slice sample based on transients"
-                    >
-                        AUTO-SLICE
-                    </button>
+interface WaveformDisplayProps {
+    buffer: AudioBuffer | null;
+    alignment: AlignmentResult | null;
+    sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
+    onAlignmentChange?: (alignment: AlignmentResult) => void;
+    onAutoSlice?: () => void;
+    autoSliceSensitivity?: number;
+    onAutoSliceSensitivityChange?: (val: number) => void;
+    onLoadSample?: () => void;
+}
+
+export const WaveformDisplay: React.FC<WaveformDisplayProps> = memo(({ buffer, alignment, sliceHighlightRef, onAlignmentChange, onAutoSlice, autoSliceSensitivity = 50, onAutoSliceSensitivityChange, onLoadSample }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    // ⚡ Bolt: Cache DOMRect to prevent forced synchronous layout
+    const cachedCanvasRectRef = useRef<DOMRect | null>(null);
+    const cachedContainerRectRef = useRef<DOMRect | null>(null);
+    const activeSliceRef = useRef<number>(-1);
+
+    // Custom Slicing State
+    const [dragState, setDragState] = React.useState<{ index: number, isStart: boolean } | null>(null);
+    const [hoverState, setHoverState] = React.useState<{ index: number, isStart: boolean } | null>(null);
+    const [focusedSliceIndex, setFocusedSliceIndex] = React.useState<number>(0);
+    // State for drag interactions
+    const isDraggingRef = useRef(false);
+    const draggedMarkerIndexRef = useRef<number>(-1);
+
+    // Setup ResizeObserver to maintain cached rects
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
+
+        cachedCanvasRectRef.current = canvas.getBoundingClientRect();
+        cachedContainerRectRef.current = container.getBoundingClientRect();
+
+        const observer = new ResizeObserver(() => {
+            cachedCanvasRectRef.current = canvas.getBoundingClientRect();
+            cachedContainerRectRef.current = container.getBoundingClientRect();
+        });
+
+        observer.observe(canvas);
+        observer.observe(container);
+
+        return () => observer.disconnect();
+    }, []);
+
+
+    // Keep latest props in ref to access them inside the imperative callback without stale closures
+    const propsRef = useRef<{ buffer: AudioBuffer | null, alignment: AlignmentResult | null, onAlignmentChange?: (alignment: AlignmentResult) => void, focusedSliceIndex: number }>({ buffer, alignment, onAlignmentChange, focusedSliceIndex });
+    useEffect(() => { propsRef.current = { buffer, alignment, onAlignmentChange, focusedSliceIndex }; }, [buffer, alignment, onAlignmentChange, focusedSliceIndex]);
+
+    useEffect(() => {
+        const draw = () => {
+            const canvas = canvasRef.current;
+            const container = containerRef.current;
+            if (!canvas || !container) return;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const { buffer, alignment, focusedSliceIndex } = propsRef.current;
+            const activeSlice = activeSliceRef.current;
+
+            // Handle High DPI
+            const dpr = window.devicePixelRatio || 1;
+            const rect = cachedContainerRectRef.current || container.getBoundingClientRect();
+
+            // Only resize if dimensions changed to avoid clearing canvas unnecessarily
+            if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                canvas.style.width = `${rect.width}px`;
+                canvas.style.height = `${rect.height}px`;
+            }
+
+            ctx.scale(dpr, dpr);
+            const width = rect.width;
+            const height = rect.height;
+
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#111827'; // gray-900
+            ctx.fillRect(0, 0, width, height);
+
+            if (!buffer) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+                return;
+            }
+
+            // Draw Waveform
+            const data = buffer.getChannelData(0);
+            const step = Math.ceil(data.length / width);
+            const amp = height / 2;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#6b7280'; // gray-500
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                // Simple downsampling
+                for (let j = 0; j < step; j++) {
+                    const datum = data[i * step + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                ctx.moveTo(i, amp + min * amp);
+                ctx.lineTo(i, amp + max * amp);
+            }
+            ctx.stroke();
+
+            // Draw Alignment Markers
+            if (alignment) {
+                const duration = buffer.duration;
+
+                // Highlight Active Slice
+                if (activeSlice >= 0 && activeSlice < alignment.phonemes.length) {
+                    const p = alignment.phonemes[activeSlice];
+                    const startX = (p.start / duration) * width;
+                    const endX = (p.end / duration) * width;
+
+                    ctx.fillStyle = 'rgba(147, 51, 234, 0.3)'; // purple-600 with opacity
+                    ctx.fillRect(startX, 0, endX - startX, height);
+
+                    ctx.strokeStyle = '#d8b4fe'; // purple-300
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(startX, 0, endX - startX, height);
+                }
+
+                // Keyboard Focus Highlight
+                if (document.activeElement === container && focusedSliceIndex >= 0 && focusedSliceIndex < alignment.phonemes.length) {
+                    const p = alignment.phonemes[focusedSliceIndex];
+                    const startX = (p.start / duration) * width;
+                    const endX = (p.end / duration) * width;
+
+                    ctx.fillStyle = 'rgba(129, 140, 248, 0.2)'; // indigo-400 with opacity
+                    ctx.fillRect(startX, 0, endX - startX, height);
+
+                    ctx.strokeStyle = '#818cf8'; // indigo-400
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeRect(startX, 2, endX - startX, height - 4);
+                    ctx.setLineDash([]);
+                }
+
+                // Draw Lines & Text
+                ctx.textAlign = 'left';
+                ctx.font = '9px monospace';
+                ctx.fillStyle = '#9ca3af'; // gray-400
+
+                alignment.phonemes.forEach((p, idx) => {
+                    const x = (p.start / duration) * width;
+
+                    // Line
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+
+                    // Label (only if wide enough)
+                    const endX = (p.end / duration) * width;
+                    if (endX - x > 10) {
+                        ctx.fillStyle = idx === activeSlice ? '#fff' : 'rgba(255,255,255,0.5)';
+                        ctx.fillText(p.phoneme, x + 2, height - 2);
+                    }
+                });
+            }
+
+            // Draw hover state if present (and we have an alignment to show)
+            if (alignment && hoverState && !dragState) {
+                const duration = buffer.duration;
+                const p = alignment.phonemes[hoverState.index];
+                const time = hoverState.isStart ? p.start : p.end;
+                const x = (time / duration) * width;
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#22d3ee'; // cyan-400
+                ctx.lineWidth = 2;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
+            // Reset transform for next frame
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+        };
+
+        // Assign imperative handle
+        sliceHighlightRef.current = (slice: number) => {
+             // Only redraw if slice changed
+             if (activeSliceRef.current !== slice) {
+                 activeSliceRef.current = slice;
+                 requestAnimationFrame(draw);
+             }
+        };
+
+        // Initial draw (and whenever props change)
+        requestAnimationFrame(draw);
+
+        // Handle resize
+        const handleResize = () => requestAnimationFrame(draw);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [buffer, alignment, sliceHighlightRef, hoverState, dragState, focusedSliceIndex]);
+
+    // Custom Slicing Event Handlers
+    const getTimeFromEvent = (e: React.MouseEvent | MouseEvent): number | null => {
+        const canvas = canvasRef.current;
+        if (!canvas || !buffer) return null;
+
+        const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        return (x / rect.width) * buffer.duration;
+    };
+
+    const getNearestMarker = (time: number): { index: number, isStart: boolean, distance: number } | null => {
+        if (!alignment) return null;
+
+        let nearest: { index: number, isStart: boolean, distance: number } | null = null;
+
+        alignment.phonemes.forEach((p, idx) => {
+            const distStart = Math.abs(p.start - time);
+            const distEnd = Math.abs(p.end - time);
+
+            if (!nearest || distStart < nearest.distance) {
+                nearest = { index: idx, isStart: true, distance: distStart };
+            }
+            if (distEnd < nearest!.distance) {
+                nearest = { index: idx, isStart: false, distance: distEnd };
+            }
+        });
+
+        return nearest;
+    };
+
+    // Constants for interaction
+    const SNAP_DISTANCE_MS = 0.05; // 50ms snap radius
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!buffer || !onAlignmentChange) return;
+
+        const time = getTimeFromEvent(e);
+        if (time === null) return;
+
+        if (dragState && alignment) {
+            // Dragging a marker
+            // Clamp time to bounds
+            const prevEnd = (dragState.isStart && dragState.index > 0) ? alignment.phonemes[dragState.index - 1].start : 0;
+            const nextStart = (!dragState.isStart && dragState.index < alignment.phonemes.length - 1) ? alignment.phonemes[dragState.index + 1].end : buffer.duration;
+
+            // Constrain by same slice's opposite end
+            const minTime = dragState.isStart ? prevEnd : alignment.phonemes[dragState.index].start + 0.01;
+            const maxTime = dragState.isStart ? alignment.phonemes[dragState.index].end - 0.01 : nextStart;
+
+            const newTime = Math.max(minTime, Math.min(maxTime, time));
+
+            const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+            const p = { ...newAlignment.phonemes[dragState.index] };
+
+            if (dragState.isStart) {
+                p.start = newTime;
+                // If there's a previous slice adjacent, update its end
+                if (dragState.index > 0 && Math.abs(alignment.phonemes[dragState.index - 1].end - alignment.phonemes[dragState.index].start) < 0.001) {
+                     newAlignment.phonemes[dragState.index - 1] = { ...newAlignment.phonemes[dragState.index - 1], end: newTime };
+                }
+            } else {
+                p.end = newTime;
+                // If there's a next slice adjacent, update its start
+                if (dragState.index < alignment.phonemes.length - 1 && Math.abs(alignment.phonemes[dragState.index + 1].start - alignment.phonemes[dragState.index].end) < 0.001) {
+                     newAlignment.phonemes[dragState.index + 1] = { ...newAlignment.phonemes[dragState.index + 1], start: newTime };
+                }
+            }
+
+            newAlignment.phonemes[dragState.index] = p;
+            onAlignmentChange(newAlignment);
+
+        } else {
+            // Hovering - Check for nearest marker
+            const nearest = getNearestMarker(time);
+            if (nearest && nearest.distance < SNAP_DISTANCE_MS) {
+                setHoverState({ index: nearest.index, isStart: nearest.isStart });
+            } else {
+                setHoverState(null);
+            }
+        }
+    };
+
+    const handleMouseDown = () => {
+        if (!buffer || !alignment || !onAlignmentChange) return;
+
+        if (hoverState) {
+            setDragState(hoverState);
+        }
+    };
+
+    const handleMouseUp = () => {
+        setDragState(null);
+    };
+
+    const handleMouseLeave = () => {
+        setHoverState(null);
+        setDragState(null);
+    };
+
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (!buffer || !alignment || !onAlignmentChange) return;
+
+        const numSlices = alignment.phonemes.length;
+        if (numSlices === 0) return;
+
+        let currentIndex = focusedSliceIndex;
+        if (currentIndex >= numSlices) {
+            currentIndex = numSlices - 1;
+            setFocusedSliceIndex(currentIndex);
+        }
+
+        const moveAmount = e.shiftKey ? 0.05 : 0.005; // Use larger steps with shift
+
+        switch (e.key) {
+            case 'ArrowLeft': {
+                e.preventDefault();
+                if (e.ctrlKey || e.metaKey) {
+                    // Navigate slices
+                    setFocusedSliceIndex(Math.max(0, currentIndex - 1));
+                } else {
+                    // Move slice start backward
+                    if (currentIndex > 0) {
+                        const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+                        const newTime = Math.max(0, newAlignment.phonemes[currentIndex].start - moveAmount);
+                        // Don't cross previous marker
+                        if (currentIndex > 0 && newTime <= newAlignment.phonemes[currentIndex - 1].start) {
+                            return;
+                        }
+                        newAlignment.phonemes[currentIndex].start = newTime;
+                        newAlignment.phonemes[currentIndex - 1].end = newTime;
+                        onAlignmentChange(newAlignment);
+                    }
+                }
+                break;
+            }
+            case 'ArrowRight': {
+                e.preventDefault();
+                if (e.ctrlKey || e.metaKey) {
+                    // Navigate slices
+                    setFocusedSliceIndex(Math.min(numSlices - 1, currentIndex + 1));
+                } else {
+                    // Move slice start forward
+                    if (currentIndex > 0) {
+                        const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+                        const newTime = Math.min(buffer.duration, newAlignment.phonemes[currentIndex].start + moveAmount);
+                        // Don't cross next marker
+                        if (newTime >= newAlignment.phonemes[currentIndex].end) {
+                            return;
+                        }
+                        newAlignment.phonemes[currentIndex].start = newTime;
+                        newAlignment.phonemes[currentIndex - 1].end = newTime;
+                        onAlignmentChange(newAlignment);
+                    }
+                }
+                break;
+            }
+            case 'Enter':
+            case ' ': {
+                e.preventDefault();
+                // Add new slice in the middle of current
+                const currentSlice = alignment.phonemes[currentIndex];
+                const midPoint = currentSlice.start + (currentSlice.end - currentSlice.start) / 2;
+
+                const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+                // Adjust current slice end
+                newAlignment.phonemes[currentIndex].end = midPoint;
+
+                // Insert new slice
+                newAlignment.phonemes.splice(currentIndex + 1, 0, {
+                    phoneme: `SLICE ${currentIndex + 2}`,
+                    start: midPoint,
+                    end: currentSlice.end,
+                    isVowel: true
+                });
+
+                onAlignmentChange(newAlignment);
+                setFocusedSliceIndex(currentIndex + 1);
+                break;
+            }
+            case 'Backspace':
+            case 'Delete': {
+                e.preventDefault();
+                if (numSlices <= 1) return; // Don't delete the last slice
+
+                const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+                if (currentIndex === 0) {
+                    // Merge into next
+                    newAlignment.phonemes[1].start = newAlignment.phonemes[0].start;
+                    newAlignment.phonemes.splice(0, 1);
+                    setFocusedSliceIndex(0);
+                } else {
+                    // Merge into previous
+                    newAlignment.phonemes[currentIndex - 1].end = newAlignment.phonemes[currentIndex].end;
+                    newAlignment.phonemes.splice(currentIndex, 1);
+                    setFocusedSliceIndex(currentIndex - 1);
+                }
+
+                onAlignmentChange(newAlignment);
+                break;
+            }
+        }
+    };
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        if (!buffer || !onAlignmentChange) return;
+
+        const time = getTimeFromEvent(e);
+        if (time === null) return;
+
+        if (!alignment) {
+            // Create initial slice if none exists
+            onAlignmentChange({
+                phonemes: [{
+                    phoneme: 'SLICE 1',
+                    start: 0,
+                    end: buffer.duration,
+                    isVowel: true
+                }],
+                sampleRate: buffer.sampleRate,
+                duration: buffer.duration,
+                text: ''
+            });
+            return;
+        }
+
+        const nearest = getNearestMarker(time);
+
+        // 1. Remove marker (Merge slices) if clicking close to one
+        if (nearest && nearest.distance < SNAP_DISTANCE_MS) {
+             const { index, isStart } = nearest;
+
+             // Cannot merge if it's the very beginning or end
+             if ((isStart && index === 0) || (!isStart && index === alignment.phonemes.length - 1)) return;
+
+             const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+             if (isStart) {
+                 // Merge with previous
+                 newAlignment.phonemes[index - 1].end = newAlignment.phonemes[index].end;
+                 newAlignment.phonemes.splice(index, 1);
+             } else {
+                 // Merge with next
+                 newAlignment.phonemes[index].end = newAlignment.phonemes[index + 1].end;
+                 newAlignment.phonemes.splice(index + 1, 1);
+             }
+
+             onAlignmentChange(newAlignment);
+             setHoverState(null);
+             return;
+        }
+
+        // 2. Add marker (Split slice) if clicking inside one
+        const clickedIndex = alignment.phonemes.findIndex(p => time >= p.start && time <= p.end);
+
+        if (clickedIndex !== -1) {
+            const p = alignment.phonemes[clickedIndex];
+            const newAlignment = { ...alignment, phonemes: [...alignment.phonemes] };
+
+            // Adjust current slice
+            const oldEnd = p.end;
+            newAlignment.phonemes[clickedIndex] = { ...p, end: time };
+
+            // Insert new slice
+            newAlignment.phonemes.splice(clickedIndex + 1, 0, {
+                phoneme: `SLICE ${newAlignment.phonemes.length + 1}`,
+                start: time,
+                end: oldEnd,
+                isVowel: true
+            });
+
+            onAlignmentChange(newAlignment);
+        }
+    };
+
+    // Handle mouse interactions for custom slicing
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const getMouseTime = (e: MouseEvent): number | null => {
+            const { buffer } = propsRef.current;
+            if (!buffer) return null;
+
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            return (x / rect.width) * buffer.duration;
+        };
+
+        const getMarkerIndexNearTime = (time: number, thresholdSecs: number): number => {
+            const { alignment } = propsRef.current;
+            if (!alignment) return -1;
+
+            let closestIdx = -1;
+            let minDiff = Infinity;
+
+            // Skip the first marker (index 0) since it's the start of the file
+            for (let i = 1; i < alignment.phonemes.length; i++) {
+                const diff = Math.abs(alignment.phonemes[i].start - time);
+                if (diff < minDiff && diff <= thresholdSecs) {
+                    minDiff = diff;
+                    closestIdx = i;
+                }
+            }
+            return closestIdx;
+        };
+
+        const handleMouseDown = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
+            const threshold = (5 / rect.width) * propsRef.current.buffer.duration; // 5px threshold
+
+            const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+            if (markerIdx !== -1) {
+                // Clicked on a marker, start dragging
+                isDraggingRef.current = true;
+                draggedMarkerIndexRef.current = markerIdx;
+                e.preventDefault();
+            } else {
+                // Clicked in empty space, add a new slice
+                const { alignment, buffer } = propsRef.current;
+
+                // Find where to insert
+                let insertIdx = alignment.phonemes.findIndex(p => p.start > time);
+                if (insertIdx === -1) insertIdx = alignment.phonemes.length;
+
+                const newPhonemes = [...alignment.phonemes];
+
+                // We split the phoneme at insertIdx - 1
+                const prevPhoneme = newPhonemes[insertIdx - 1];
+
+                const newPhoneme = {
+                    phoneme: `S${alignment.phonemes.length + 1}`,
+                    start: time,
+                    end: prevPhoneme.end,
+                    isVowel: true
+                };
+
+                prevPhoneme.end = time;
+
+                newPhonemes.splice(insertIdx, 0, newPhoneme);
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            }
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            if (isDraggingRef.current && draggedMarkerIndexRef.current !== -1) {
+                // Update marker position
+                const { alignment } = propsRef.current;
+                const idx = draggedMarkerIndexRef.current;
+                const newPhonemes = [...alignment.phonemes];
+
+                // Constrain time between previous and next markers
+                const minTime = newPhonemes[idx - 1].start + 0.01;
+                const maxTime = idx < newPhonemes.length - 1 ? newPhonemes[idx + 1].start - 0.01 : propsRef.current.buffer.duration - 0.01;
+                const clampedTime = Math.max(minTime, Math.min(time, maxTime));
+
+                newPhonemes[idx].start = clampedTime;
+                newPhonemes[idx - 1].end = clampedTime;
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            } else {
+                // Update cursor
+                const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
+                const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
+                const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+                if (markerIdx !== -1) {
+                    canvas.style.cursor = 'col-resize';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+            }
+        };
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            draggedMarkerIndexRef.current = -1;
+        };
+
+        const handleDoubleClick = (e: MouseEvent) => {
+            if (!onAlignmentChange || !propsRef.current.alignment || !propsRef.current.buffer) return;
+
+            const time = getMouseTime(e);
+            if (time === null) return;
+
+            const rect = cachedCanvasRectRef.current || canvas.getBoundingClientRect();
+            const threshold = (5 / rect.width) * propsRef.current.buffer.duration;
+            const markerIdx = getMarkerIndexNearTime(time, threshold);
+
+            if (markerIdx !== -1) {
+                // Remove marker
+                const { alignment } = propsRef.current;
+                const newPhonemes = [...alignment.phonemes];
+
+                // Merge with previous
+                newPhonemes[markerIdx - 1].end = newPhonemes[markerIdx].end;
+                newPhonemes.splice(markerIdx, 1);
+
+                onAlignmentChange({
+                    ...alignment,
+                    phonemes: newPhonemes
+                });
+            }
+        };
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('dblclick', handleDoubleClick);
+
+        return () => {
+            canvas.removeEventListener('mousedown', handleMouseDown);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            canvas.removeEventListener('dblclick', handleDoubleClick);
+        };
+    }, [onAlignmentChange]);
+const label = !buffer
+    ? "Waveform visualization: No sample loaded"
+    : `Waveform visualization: Sample loaded${alignment ? " with phoneme alignment" : ""}`;
+return (
+    <div className="relative group">
+        {!buffer ? (
+            <div className="flex flex-col items-center justify-center h-28 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded mb-1">
+                <div className="w-8 h-8 rounded-full bg-cyan-900/30 flex items-center justify-center mb-2 text-cyan-500" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
                 </div>
-            )}
-        </div>
-    );
-});
+                <h3 className="text-gray-300 font-bold text-xs mb-1">No sample loaded</h3>
+                <p className="text-gray-500 text-[10px] mb-3">Load an audio file to view and slice the waveform.</p>
+                {onLoadSample && (
+                    <button type="button" onClick={onLoadSample} className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                        Load Sample
+                    </button>
+                )}
+            </div>
+        ) : (
+            <div
+                ref={containerRef}
+                className="w-full h-12 bg-gray-900 rounded border border-gray-700 overflow-hidden mb-1 relative"
+                role="img"
+                aria-label={label}
+                title={label}
+                onKeyDown={handleKeyDown}
+                tabIndex={0}
+                aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
+            >
+                <canvas ref={canvasRef} className="w-full h-full block" />
+            </div>
+        )}
+        {/* Auto-Slice Overlay Button */}
+        {buffer && onAutoSlice && (
+            <div className="absolute top-1 right-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                {onAutoSliceSensitivityChange && (
+                    <div className="flex items-center gap-1.5 bg-indigo-900/90 px-2 py-0.5 rounded shadow border border-indigo-500/50 h-[22px]">
+                        <span className="text-[9px] text-indigo-200 font-orbitron font-bold">SENS</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={autoSliceSensitivity}
+                            onChange={(e) => onAutoSliceSensitivityChange(Number(e.target.value))}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseUp={(e) => e.stopPropagation()}
+                            onMouseMove={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-16 h-1 bg-indigo-950 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-indigo-400 [&::-webkit-slider-thumb]:rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            title="Auto-slice sensitivity"
+                            aria-label="Auto-slice sensitivity"
+                        />
+                    </div>
+                )}
+                <button type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onAutoSlice();
+                    }}
+                    className="px-2 h-[22px] bg-indigo-900/90 hover:bg-indigo-700 border border-indigo-500/50 text-indigo-100 text-[9px] font-bold font-orbitron rounded shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    aria-label="Auto-slice by transients"
+                    title="Auto-slice sample based on transients"
+                >
+                    AUTO-SLICE
+                </button>
+            </div>
+        )}
+    </div>
+);

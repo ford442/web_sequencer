@@ -41,6 +41,8 @@ export interface SingingVoiceMixinMethods {
     time?: number,
     rampTime?: number,
   ): void;
+  setWindowShape(shape: number, time?: number): void;
+  setCustomGrainEnvelope(shape: number[] | undefined): void;
 }
 
 /**

@@ -42,6 +42,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private phonemeData: Float32Array | null = null;
   private phonemeRatios: number[] | null = null;
 
+  // Custom Grain Envelope
+  private customGrainEnvelope: number[] | null = null;
+
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
@@ -262,6 +265,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Enable/disable auto pitch following from sequencer
         if (data && typeof data.enabled === 'boolean') {
           // this.autoFollowEnabled = data.enabled;
+        }
+        break;
+
+      case 'setCustomGrainEnvelope':
+        if (data && Array.isArray(data.shape)) {
+          this.customGrainEnvelope = data.shape;
+        } else {
+          this.customGrainEnvelope = null;
         }
         break;
     }
@@ -514,6 +525,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                     const upper = Math.ceil(index);
                     const weight = index - lower;
                     windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+                } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                    const idx = phase * (this.customGrainEnvelope.length - 1);
+                    const lowerIdx = Math.floor(idx);
+                    const upperIdx = Math.ceil(idx);
+                    const fraction = idx - lowerIdx;
+
+                    const lowerVal = this.customGrainEnvelope[lowerIdx];
+                    const upperVal = this.customGrainEnvelope[upperIdx];
+
+                    windowVal = lowerVal + (upperVal - lowerVal) * fraction;
                 } else {
                     // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
                     if (windowShape < 0.5) {

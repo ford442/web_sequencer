@@ -81,6 +81,15 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     }
 
     /**
+     * Register a voice as active explicitly (used by playback hooks).
+     * Note: This is largely redundant now that acquireVoiceForBank calls markActive directly,
+     * but retained for backward compatibility with older sequencer patterns.
+     */
+    registerActiveVoice(index: number, noteId: string, time?: number): void {
+        this.markActive(index, time);
+    }
+
+    /**
      * Backward compatibility wrapper for old acquireVoice calls.
      */
     acquireVoice(time?: number): { voice: SingingVoice; index: number; isNewBank: boolean } {
