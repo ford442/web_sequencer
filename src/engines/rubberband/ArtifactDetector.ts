@@ -384,8 +384,18 @@ export class ArtifactDetector {
         }
 
         // Calculate running mean and std dev
-        const mean = this.fluxHistory.reduce((a, b) => a + b, 0) / this.fluxHistory.length;
-        const variance = this.fluxHistory.reduce((sum, val) => sum + (val - mean) ** 2, 0) / this.fluxHistory.length;
+        // ⚡ Bolt Optimization: Replace reduce with traditional for loop to avoid closure allocation
+        let sum = 0;
+        for (let i = 0; i < this.fluxHistory.length; i++) {
+            sum += this.fluxHistory[i];
+        }
+        const mean = sum / this.fluxHistory.length;
+
+        let varianceSum = 0;
+        for (let i = 0; i < this.fluxHistory.length; i++) {
+            varianceSum += (this.fluxHistory[i] - mean) ** 2;
+        }
+        const variance = varianceSum / this.fluxHistory.length;
         const stdDev = Math.sqrt(variance);
 
         // Adaptive threshold = mean + factor * stdDev
@@ -498,15 +508,25 @@ export class ArtifactDetector {
      * Get artifact detection statistics.
      */
     getStatistics(): ArtifactStatistics {
-        const artifacts = this.artifactHistory.filter(a => a.detected);
+        // ⚡ Bolt Optimization: Replace filter and reduce with traditional for loop to avoid closure allocation
+        let detectedCount = 0;
+        let severitySum = 0;
+
+        for (let i = 0; i < this.artifactHistory.length; i++) {
+            const a = this.artifactHistory[i];
+            if (a.detected) {
+                detectedCount++;
+                severitySum += a.severity;
+            }
+        }
         
         return {
             totalAnalyzed: this.artifactHistory.length,
             artifactRate: this.artifactHistory.length > 0 
-                ? artifacts.length / this.artifactHistory.length 
+                ? detectedCount / this.artifactHistory.length
                 : 0,
-            averageSeverity: artifacts.length > 0
-                ? artifacts.reduce((sum, a) => sum + a.severity, 0) / artifacts.length
+            averageSeverity: detectedCount > 0
+                ? severitySum / detectedCount
                 : 0,
             recentArtifacts: [...this.artifactHistory.slice(-10)],
             qualityTrend: [...this.qualityHistory]
