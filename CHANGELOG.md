@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### WAM2 host compatibility spike (Phase A)
+- Local-first Web Audio Modules 2.0 host on the existing declarative graph (`wam2` ids — distinct from AssemblyScript `wam-*` oscillators).
+- Bundled MIT fixtures: `hyphon.tone` (instrument) and `hyphon.gain` (track/master insert).
+- Sequencer notes, one automatable parameter, song save/load, missing-plugin bypass, Engine HUD telemetry.
+- Official SDK pin `@webaudiomodules/sdk@0.0.12` (MIT, lazy-load only). ADR: [0001-wam2-host.md](docs/adr/0001-wam2-host.md).
+
 ### High-fidelity TB-303 offline path (epic #972 / Phase-6 #979)
 - **Multi-core offline rendering**: OpenMP oversampling (`1` / `2` / `4`) and a worker pool for freeze / export / multisample — real-time AudioWorklet latency unchanged ([OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md)).
 - **High-Fidelity CPU** (`highfid-cpu`): diode-ladder offline reference with PolyBLEP oscillators and coupled accent ([HIGHFID_CPU_303.md](docs/audio-engine/HIGHFID_CPU_303.md)).

@@ -18,6 +18,7 @@ import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 import { midiMapStore } from '../stores/midiMapStore';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
+import { getWamHost } from '../audio/wam';
 
 // ---- Types for the hook parameters ----
 
@@ -185,6 +186,12 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             ttsPhrases,
             ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
             ...(exportedMidi.length > 0 ? { midiMappings: exportedMidi } : {}),
+            ...(() => {
+                const host = getWamHost();
+                if (!host) return {};
+                const payload = host.exportSongState();
+                return payload.plugins.length > 0 ? { wam2: payload } : {};
+            })(),
         } as SavedSongData;
     }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
 
@@ -276,6 +283,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
             automationStore.importLanes(songData.automationLanes ?? []);
             midiMapStore.importSongMappings(songData.midiMappings);
+            const wamHost = getWamHost();
+            if (wamHost) {
+                await wamHost.restore(songData.wam2);
+            }
             if (isE2eMode()) {
                 setE2eLaneCount(automationStore.getState().lanes.length);
             }

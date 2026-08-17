@@ -26,6 +26,7 @@ if (typeof window !== 'undefined') {
   window.AudioContext = vi.fn().mockImplementation(function () { return ({
     createGain: vi.fn().mockReturnValue({
       connect: vi.fn(),
+      disconnect: vi.fn(),
       gain: {
         value: 0,
         setTargetAtTime: vi.fn(),

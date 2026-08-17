@@ -41,6 +41,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
 | [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
+| [docs/adr/0001-wam2-host.md](docs/adr/0001-wam2-host.md) | WAM2 host Phase A: SDK pin, allowlist, CSP, integrity, lifecycle |
 
 ---
 

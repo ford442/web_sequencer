@@ -14,6 +14,7 @@ import { SupertonicService } from '../services/Supertonic'
 import { loadingProgressStore } from '../stores/loadingProgressStore'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
 import type { MainSequencerHandle } from '../components/MainSequencer'
@@ -231,6 +232,7 @@ export function useAppState() {
             if (prophecyManagerRef) {
                 automationSchedulerRef.current.setProphecyManager(prophecyManagerRef.current ?? null);
             }
+            automationSchedulerRef.current.setWamHost(getWamHost());
         }
     }, [audioEngine, prophecyManagerRef]);
 
