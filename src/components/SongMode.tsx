@@ -123,15 +123,17 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                     prevHeader.classList.remove('bg-cyan-900/20', 'text-cyan-400', 'font-bold');
                     prevHeader.classList.add('text-gray-600');
                 }
-                playheadLineRefs.current.forEach(line => {
+                for (let i = 0; i < playheadLineRefs.current.length; i++) {
+                    const line = playheadLineRefs.current[i];
                     if (line) line.style.left = `${ROW_HEADER_WIDTH + step * CELL_WIDTH}px`;
-                });
+                }
 
                 // Remove highlight classes from the column's cells safely via refs
-                ROWS.forEach(row => {
+                for (let i = 0; i < ROWS.length; i++) {
+                    const row = ROWS[i];
                     const cellId = `${row.key}-${prev}`;
                     const cell = songModeCellRefs.current.get(cellId);
-                    if (!cell) return;
+                    if (!cell) continue;
                     cell.classList.remove('bg-white/5');
                     cell.classList.add('bg-transparent');
                     const inner = cell.querySelector('.song-mode-cell-inner');
@@ -139,7 +141,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                         inner.classList.remove('opacity-100');
                         inner.classList.add('opacity-80');
                     }
-                });
+                }
             }
 
             if (step !== -1) {
@@ -148,15 +150,17 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                     currentHeader.classList.remove('text-gray-600');
                     currentHeader.classList.add('bg-cyan-900/20', 'text-cyan-400', 'font-bold');
                 }
-                playheadLineRefs.current.forEach(line => {
+                for (let i = 0; i < playheadLineRefs.current.length; i++) {
+                    const line = playheadLineRefs.current[i];
                     if (line) line.style.left = `${ROW_HEADER_WIDTH + step * CELL_WIDTH}px`;
-                });
+                }
 
                 // Add highlight classes to the column's cells safely via refs
-                ROWS.forEach(row => {
+                for (let i = 0; i < ROWS.length; i++) {
+                    const row = ROWS[i];
                     const cellId = `${row.key}-${step}`;
                     const cell = songModeCellRefs.current.get(cellId);
-                    if (!cell) return;
+                    if (!cell) continue;
                     cell.classList.remove('bg-transparent');
                     cell.classList.add('bg-white/5');
                     const inner = cell.querySelector('.song-mode-cell-inner');
@@ -164,7 +168,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                         inner.classList.remove('opacity-80');
                         inner.classList.add('opacity-100');
                     }
-                });
+                }
             }
 
             lastHighlightedStep.current = step;

@@ -179,7 +179,19 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    const wamRows = (runtime.wam2Slots ?? []).map((slot) => {
+      const cls = slot.status === 'ready' ? 'cpu-ok' : slot.status === 'bypassed' ? 'cpu-warn' : 'cpu-hot';
+      const err = slot.lastError ? ` title="${slot.lastError.replace(/"/g, '&quot;')}"` : '';
+      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${slot.isolation}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right">${slot.cpuPercent.toFixed(0)}%</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div></div>`;
+    }).join('');
+    const coop = runtime.wam2Constraints
+      ? `<div class="row"><div style="flex:1">COOP isolated</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.crossOriginIsolated ? 'yes' : 'no'}</div></div>
+         <div class="row"><div style="flex:1">Worklet / Worker</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.audioWorklet ? 'AW' : '—'} / ${runtime.wam2Constraints.worker ? 'W' : '—'}</div></div>
+         <div class="row"><div style="flex:1">BASE_URL</div><div style="min-width:72px;text-align:right;font-size:10px">${runtime.wam2Constraints.baseUrl}</div></div>`
+      : '';
+    const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
+
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render

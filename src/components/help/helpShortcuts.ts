@@ -44,6 +44,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { key: 'Touch knob', desc: 'While learning: select target parameter' },
       { key: 'Long-press knob', desc: 'Start MIDI Learn for that parameter' },
       { key: 'Right-click master slider', desc: 'MIDI Learn for volume / pan / warmth' },
+      { key: 'Right-click session cell', desc: 'MIDI Learn for clip / scene launch' },
       { key: 'Move CC / note', desc: 'While learning: bind controller to last-touched control' },
     ],
   },
@@ -52,7 +53,11 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     items: [
       { key: 'Tab', desc: 'Focus Next Element' },
       { key: 'Shift + Tab', desc: 'Focus Previous Element' },
-      { key: 'Esc', desc: 'Close Modals / Tape Stop' },
+      { key: 'CLIP (toolbar)', desc: 'Open Session / clip launcher' },
+      { key: 'Arrows (Session)', desc: 'Move clip/scene focus' },
+      { key: 'Enter / Space (Session)', desc: 'Launch focused clip or scene' },
+      { key: 'Delete (Session)', desc: 'Stop focused track (or all from a scene cell)' },
+      { key: 'Gamepad Attack / Jump', desc: 'Launch clip / scene when Session is focused' },
     ],
   },
 ];

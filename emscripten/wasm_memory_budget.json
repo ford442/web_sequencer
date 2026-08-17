@@ -23,5 +23,20 @@
     "freezerPages": 128,
     "audioExportPages": 128,
     "xmExportPages": 128
+  },
+  "standaloneJc303": {
+    "$comment": [
+      "Effective link settings for the standalone JC-303 variants built by",
+      "tools/build_jc303_omp.sh + tools/jc303_cmake/CMakeLists.txt.",
+      "These match the CMakeLists values that actually shipped (16 MB initial,",
+      "2/4 MB stack). The old 64/32/256 banner in the shell script was never",
+      "passed through to the linker. Raise here — not in banners — if the",
+      "standalone fallback overflows."
+    ],
+    "initialMemoryMb": 16,
+    "maximumMemoryMb": 256,
+    "stackSizeMbRelease": 4,
+    "stackSizeMbDebug": 2,
+    "pthreadPoolSize": 4
   }
 }

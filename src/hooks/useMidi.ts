@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { midiPortManager } from '../midi/MidiPortManager';
 import { midiMapStore } from '../stores/midiMapStore';
-import type { AutomationTarget } from '../types';
-import type { MidiBinding } from '../types/midi';
+import type { MidiBinding, MidiControlTarget } from '../types/midi';
 import { formatMidiBindingLabel, makeMidiControlId, midiValueToNormalized } from '../types/midi';
 import { applyMidiControlValue, type MidiParamHandlers } from '../utils/midiParamDispatch';
 import { midiMessageToBinding, parseMidiMessage } from '../utils/midiMessageParse';
@@ -89,12 +88,12 @@ export function useMidi({ handlers, showToast }: UseMidiOptions): void {
 }
 
 /** Register a control touch for MIDI learn (knob drag, slider focus, long-press). */
-export function registerMidiControlTouch(target: AutomationTarget, param: string): void {
+export function registerMidiControlTouch(target: MidiControlTarget, param: string): void {
   midiMapStore.touchControl(makeMidiControlId(target, param));
 }
 
 /** Long-press on a control: arm learn mode for that parameter. */
-export function startMidiLearnForControl(target: AutomationTarget, param: string): void {
+export function startMidiLearnForControl(target: MidiControlTarget, param: string): void {
   midiMapStore.touchControl(makeMidiControlId(target, param));
   midiMapStore.setLearnMode(true);
 }

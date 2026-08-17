@@ -22,6 +22,7 @@ import { engineTelemetry } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
+import { WamHost, setWamHost } from '../../audio/wam';
 import {
     createMasterLoudnessStage,
     setMasterLoudnessStage,
@@ -116,9 +117,13 @@ export async function initializeAudioContextAndEngines(
     // load the graph is compiled without it and playback continues unmetered.
     const loudnessStage = await createMasterLoudnessStage(context);
     setMasterLoudnessStage(loudnessStage);
-    const { masterBusInput } = buildClassicElectribeGraph(context, refs, {
+    const { masterBusInput, graph } = buildClassicElectribeGraph(context, refs, {
         masterLimiterNode: loudnessStage?.node ?? null,
     });
+    const wamHost = new WamHost(context);
+    wamHost.attachCompiledGraph(graph);
+    setWamHost(wamHost);
+    wamHost.publishTelemetry();
     loadingProgressStore.completeStep('masterChain');
 
     // Initialize oscillator backends through the shared registry. Every engine

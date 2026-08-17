@@ -7,8 +7,8 @@
 #   1. Threaded version (with OpenMP) - for high-performance environments
 #   2. Single-threaded version (no OpenMP) - for broad compatibility
 #
-# CRITICAL FIX: This version includes massive stack size increase (32MB) and
-# memory configuration changes to prevent stack overflow during initialization.
+# Memory / stack / pthread sizes come from
+# emscripten/wasm_memory_budget.json#standaloneJc303 — do not hardcode them here.
 #
 # Prerequisites:
 #   - Emscripten SDK installed and activated (emsdk)
@@ -44,13 +44,30 @@ echo -e "${GREEN} Build Type: ${BUILD_TYPE}${NC}"
 echo -e "${GREEN} Variant: ${BUILD_VARIANT}${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "${YELLOW}CRITICAL FIXES APPLIED:${NC}"
-echo "  - Stack size: 32MB (was 4MB)"
-echo "  - Initial memory: 64MB"
-echo "  - Maximum memory: 256MB"
-echo "  - Heap-allocated FFT buffers"
-echo "  - Lazy wavetable initialization"
-echo "  - setjmp/longjmp stack protection"
+
+# Memory / stack / pthread sizes — single source of truth:
+# emscripten/wasm_memory_budget.json#standaloneJc303
+BUDGET_JSON="$REPO_ROOT/emscripten/wasm_memory_budget.json"
+if [ ! -f "$BUDGET_JSON" ]; then
+    echo -e "${RED}Error: $BUDGET_JSON not found${NC}"
+    exit 1
+fi
+JC303_INITIAL_MEMORY_MB="$(node -p "require('$BUDGET_JSON').standaloneJc303.initialMemoryMb")"
+JC303_MAXIMUM_MEMORY_MB="$(node -p "require('$BUDGET_JSON').standaloneJc303.maximumMemoryMb")"
+if [ "$BUILD_TYPE" = "debug" ]; then
+    JC303_STACK_SIZE_MB="$(node -p "require('$BUDGET_JSON').standaloneJc303.stackSizeMbDebug")"
+else
+    JC303_STACK_SIZE_MB="$(node -p "require('$BUDGET_JSON').standaloneJc303.stackSizeMbRelease")"
+fi
+JC303_PTHREAD_POOL_SIZE="$(node -p "require('$BUDGET_JSON').standaloneJc303.pthreadPoolSize")"
+JC303_INITIAL_MEMORY="$((JC303_INITIAL_MEMORY_MB * 1024 * 1024))"
+JC303_MAXIMUM_MEMORY="$((JC303_MAXIMUM_MEMORY_MB * 1024 * 1024))"
+JC303_STACK_SIZE="$((JC303_STACK_SIZE_MB * 1024 * 1024))"
+JC303_CMAKE_DIR="$REPO_ROOT/tools/jc303_cmake"
+
+echo -e "${YELLOW}Memory budget (wasm_memory_budget.json#standaloneJc303):${NC}"
+echo "  INITIAL_MEMORY=${JC303_INITIAL_MEMORY_MB}mb  MAXIMUM_MEMORY=${JC303_MAXIMUM_MEMORY_MB}mb  STACK=${JC303_STACK_SIZE_MB}mb"
+echo "  pthread pool (threaded variant): ${JC303_PTHREAD_POOL_SIZE}"
 echo ""
 
 # Check if jc303_wasm submodule exists
@@ -124,12 +141,12 @@ build_variant() {
             echo -e "${YELLOW}Warning: libomp.a not found at $LIBOMP_PATH. Falling back to Emscripten built-in OpenMP.${NC}"
             OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
             OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0"
+            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=${JC303_PTHREAD_POOL_SIZE} -s PROXY_TO_PTHREAD=0"
         else
             echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
             OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
             OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
+            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=${JC303_PTHREAD_POOL_SIZE} -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
         fi
     else
         # Single-threaded variant - no OpenMP
@@ -138,16 +155,18 @@ build_variant() {
         LINK_OMP_FLAGS=""
     fi
     
-    # CMake configuration with explicit stack/memory settings
-    # CRITICAL: These must match the values in CMakeLists.txt
     CMAKE_BUILD_TYPE="$([ "$BUILD_TYPE" = "debug" ] && echo "Debug" || echo "Release")"
     
-    echo -e "${YELLOW}Running CMake...${NC}"
-    emcmake cmake "$WASM_DIR" \
+    echo -e "${YELLOW}Running CMake (Hyphon overlay ${JC303_CMAKE_DIR})...${NC}"
+    emcmake cmake "$JC303_CMAKE_DIR" \
         -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
         -DCMAKE_C_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
         -DCMAKE_CXX_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
         -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS}" \
+        -DJC303_WASM_DIR="${WASM_DIR}" \
+        -DJC303_INITIAL_MEMORY="${JC303_INITIAL_MEMORY}" \
+        -DJC303_MAXIMUM_MEMORY="${JC303_MAXIMUM_MEMORY}" \
+        -DJC303_STACK_SIZE="${JC303_STACK_SIZE}" \
         -DENABLE_WASM_DEBUG=$([ "$BUILD_TYPE" = "debug" ] && echo "ON" || echo "OFF")
     
     # Build with appropriate parallelism
@@ -205,21 +224,9 @@ if [ -d "$PUBLIC_DIR" ]; then
     fi
 fi
 
-# Copy single-threaded WASM to src/wasm/ — this is the Vite-managed asset.
-# Open303Oscillator.ts imports it as `../wasm/jc303-single.wasm?url` so Vite
-# content-hashes it and resolves the URL correctly in dev and production.
-# After running this script, commit src/wasm/jc303-single.wasm to git.
-SRC_WASM_DIR="$REPO_ROOT/src/wasm"
-if [ -f "${DIST_DIR}/jc303-single.wasm" ]; then
-    echo -e "${YELLOW}Copying single WASM to src/wasm/ (Vite asset)...${NC}"
-    mkdir -p "$SRC_WASM_DIR"
-    cp -f "${DIST_DIR}/jc303-single.wasm" "$SRC_WASM_DIR/jc303-single.wasm"
-    echo -e "${GREEN}Copied to $SRC_WASM_DIR/jc303-single.wasm${NC}"
-    echo ""
-    echo -e "${YELLOW}IMPORTANT — commit these files to git:${NC}"
-    echo "  git add src/wasm/jc303-single.wasm public/jc303_worklet.js public/jc303-single.wasm"
-    echo "  git commit -m 'chore: update jc303 wasm artifacts'"
-fi
+# Runtime 303 path is public/hyphon_native.wasm (Open303Oscillator).
+# Standalone jc303-* files stay in public/ only — do not copy into src/wasm/
+# or commit generated binaries.
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN} Build Complete!${NC}"
@@ -236,14 +243,6 @@ if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "single" ]; then
     echo "  Note: Broader compatibility, no special headers required"
 fi
 echo ""
-echo -e "${YELLOW}IMPORTANT:${NC}"
-echo "  - Stack size is now 32MB (was 4MB)"
-echo "  - Memory starts at 64MB, grows to 256MB max"
-echo "  - FFT buffers are heap-allocated"
-echo "  - Wavetable generation is deferred"
-echo ""
-echo "If you still see stack overflows:"
-echo "  1. Check browser console for 'Stack overflow detected' messages"
-echo "  2. Verify the new WASM files are being loaded (not cached)"
-echo "  3. Try the single-threaded variant first (more compatible)"
+echo "Memory/stack come from emscripten/wasm_memory_budget.json#standaloneJc303."
+echo "To change them, edit that file — do not hardcode flags in this script."
 echo ""

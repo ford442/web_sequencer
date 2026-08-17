@@ -66,8 +66,8 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                </svg>
              </div>
-             <h3 className="text-slate-300 font-bold mb-2 text-sm">No gamepads detected</h3>
-             <p className="text-slate-500 text-xs mb-6">
+             <h3 className="text-gray-300 font-bold mb-2 text-sm">No gamepads detected</h3>
+             <p className="text-gray-500 text-xs mb-6">
                Connect a gamepad and press any button to wake it up.
              </p>
              <button

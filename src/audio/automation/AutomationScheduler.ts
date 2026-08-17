@@ -36,6 +36,7 @@ import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
 import type { ProphecyManager } from '../../engines/ProphecyManager';
 import type { PcfEffect } from '../../engines/PcfEffect';
+import type { WamHost } from '../wam/WamHost';
 import {
   playbackHealthMonitor,
   PLAYBACK_THRESHOLDS,
@@ -138,6 +139,7 @@ export class AutomationScheduler {
   private open303Manager: Open303Manager | null;
   private prophecyManager: ProphecyManager | null = null;
   private pcfEffect: PcfEffect | null = null;
+  private wamHost: WamHost | null = null;
 
   private readonly lookaheadSeconds: number;
   private readonly rampDuration: number;
@@ -178,6 +180,11 @@ export class AutomationScheduler {
    */
   setPcfEffect(effect: PcfEffect | null): void {
     this.pcfEffect = effect;
+  }
+
+  /** Route `target: 'wam'` lanes to a mounted WAM2 slot (`parameter` = `slotId/paramId`). */
+  setWamHost(host: WamHost | null): void {
+    this.wamHost = host;
   }
 
   /** Update ProphecyManager for audio-clock vowel/portamento automation. */
@@ -388,6 +395,16 @@ export class AutomationScheduler {
           }, delayMs);
           this.pendingTimeouts.push(id);
         }
+        break;
+      }
+      case 'wam': {
+        if (!this.wamHost) return;
+        const slash = parameter.indexOf('/');
+        if (slash <= 0) return;
+        const slotId = parameter.slice(0, slash);
+        const paramId = parameter.slice(slash + 1);
+        const effectiveTime = this._effectiveAudioTime(audioTime, target, parameter);
+        this.wamHost.setParam(slotId, paramId, clamp01(value), effectiveTime);
         break;
       }
       default:

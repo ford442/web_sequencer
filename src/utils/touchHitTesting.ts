@@ -36,7 +36,8 @@ export function findHitKnobIndex(
     let bestIndex = -1;
     let bestDist = Infinity;
 
-    controls.forEach((k, i) => {
+    for (let i = 0; i < controls.length; i++) {
+        const k = controls[i];
         const kNormX = (k.x * rect.width) / scale;
         const kNormY = (k.y * rect.height) / scale;
         const kSizeNorm = (k.size * minDim) / scale;
@@ -54,7 +55,7 @@ export function findHitKnobIndex(
             bestDist = dist;
             bestIndex = i;
         }
-    });
+    }
 
     return bestIndex;
 }
