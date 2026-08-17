@@ -47,6 +47,7 @@ import { useInstrumentState } from './appState/useInstrumentState'
 import { useSamplerVoiceState } from './appState/useSamplerVoiceState'
 import { useUIModalsState } from './appState/useUIModalsState'
 import { useSongModeState } from './appState/useSongModeState'
+import { useSessionState } from './appState/useSessionState'
 import { useSongStructureEditor } from './useSongStructureEditor'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
@@ -173,6 +174,8 @@ export function useAppState() {
         songMeasureRef,
         isFirstStepRef,
     } = useSongModeState();
+
+    const session = useSessionState();
 
     const {
         editSongStructure: handleEditSongStructure,
@@ -327,9 +330,17 @@ export function useAppState() {
         setCurrentSongMeasure,
         automationSchedulerRef,
         trakEventsRef,
+        sessionEngineRef: session.sessionEngineRef,
+        sessionClockRef: session.sessionClockRef,
+        setIsSongModeActive,
+        onSessionTick: session.setPlayingSlots,
     })
 
     const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, audioEngine?.context ?? null, swing)
+
+    useEffect(() => {
+        session.sessionClockRef.current.tempo = tempo;
+    }, [tempo, session.sessionClockRef]);
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
     useEffect(() => {
@@ -339,6 +350,7 @@ export function useAppState() {
             isFirstStepRef.current = true;
             if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
+            session.sessionEngineRef.current?.resetTransport();
             automationStore.clearLiveValues();
             automationSchedulerRef.current?.cancelAll();
         }
@@ -415,11 +427,13 @@ export function useAppState() {
             setAudioMasterSaturation: (v: number) => audioEngine?.setMasterSaturation?.(v),
             setAudioGlobalPan: (v: number) => audioEngine?.setGlobalPan?.(v),
             getCurrentStep: () => currentStepRef.current,
+            handleSessionControl: session.handleSessionMidi,
         }),
         [
             handleSynthChange, handleBass2Change, handleKickChange, handleSnareChange,
             handleClosedHatChange, handleOpenHatChange, handleSamplerChange,
             setMasterVolume, setMasterSaturation, setGlobalPan, audioEngine,
+            session.handleSessionMidi,
         ],
     );
 
@@ -495,6 +509,8 @@ export function useAppState() {
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
         trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        sessionDocumentRef: session.sessionDocumentRef,
+        setSessionDocument: session.setSessionDocument,
         ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
         songStorage, pattern, tempo, trackStorage,
         setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
@@ -748,5 +764,23 @@ export function useAppState() {
         noteDragRef,
         tempoLocked,
         slavePlayLabel,
+        isSessionOpen: session.isSessionOpen,
+        setIsSessionOpen: session.setIsSessionOpen,
+        sessionDocument: session.sessionDocument,
+        setSessionDocument: session.setSessionDocument,
+        sessionPlayingSlots: session.playingSlots,
+        isSessionCapturing: session.isCapturing,
+        launchSessionClip: session.launchClip,
+        launchSessionScene: session.launchScene,
+        stopSessionTrack: session.stopTrack,
+        stopSessionAll: session.stopAll,
+        setSessionQuantization: session.setQuantization,
+        beginSessionCapture: session.beginCapture,
+        finishSessionCapture: session.finishCapture,
+        undoSession: session.undoSession,
+        redoSession: session.redoSession,
+        canUndoSession: session.canUndoSession,
+        canRedoSession: session.canRedoSession,
+        loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage),
     }
 }

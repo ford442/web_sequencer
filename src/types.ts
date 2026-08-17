@@ -604,6 +604,8 @@ export interface AudioEngine {
   noteOffSynth?: (id: number) => void;
 
   stopAllNotes?: () => void;
+  /** Flush hanging voices on one track at a clip transition. */
+  stopTrackNotes?: (track: 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler') => void;
 
   // Other existing methods
   loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void> | void;
@@ -803,7 +805,7 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
-  /** Schema version: 1 = 8 pattern slots per track, 2 = 32 slots (ReBirth-compatible). */
+  /** Schema version: 1 = 8 pattern slots, 2 = 32 slots, 3 = 32 slots + session. */
   version?: number;
   pattern: Pattern;
   params: {
@@ -830,6 +832,8 @@ export interface SavedSongData {
   midiMappings?: import('./types/midi').MidiBinding[];
   /** WAM2 plugin slots (identity, version, param/plugin state). */
   wam2?: import('./audio/wam').Wam2SongPayload;
+  /** Session / clip launcher document (v3+). Absent on v1/v2 songs — migrated on load. */
+  session?: import('./session/types').SessionDocument;
 }
 export interface AmbianceTrack {
   id: string;

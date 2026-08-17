@@ -38,6 +38,8 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
     getRbsAutomationLaneCount: () =>
       automationStore.getState().lanes.filter((l) => l.source === 'rbs').length,
     getAutomationPlaybackStep: () => e2eTransportSnapshot().step,
+    getSessionPlayingCount: () => window.__HYPHON_E2E_SESSION__?.playingCount ?? 0,
+    getSessionLastApplyStep: () => window.__HYPHON_E2E_SESSION__?.lastApplyStep ?? -1,
     setLiveAutomatedValue: (target: string, param: string, value: number) => {
       automationStore.setLiveValues({ [`${target}:${param}`]: value });
     },

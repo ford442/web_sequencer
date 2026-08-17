@@ -170,6 +170,14 @@ export class ProphecyManager {
         this.partB?.allNotesOff();
     }
 
+    allNotesOffPartA(): void {
+        this.partA?.allNotesOff();
+    }
+
+    allNotesOffPartB(): void {
+        this.partB?.allNotesOff();
+    }
+
     // ── Cleanup ───────────────────────────────────────────────────────────────
 
     cleanup(): void {

@@ -11,8 +11,8 @@ export const DEFAULT_TEMPO = 120;
 export const LEGACY_TRACK_PATTERN_SLOTS = 8;
 /** ReBirth-compatible pattern banks per track (DEVL supports 32). */
 export const MAX_TRACK_PATTERN_SLOTS = 32;
-/** SavedSongData schema: 1 = 8 slots, 2 = 32 slots. */
-export const SAVED_SONG_DATA_VERSION = 2;
+/** SavedSongData schema: 1 = 8 slots, 2 = 32 slots, 3 = 32 slots + session. */
+export const SAVED_SONG_DATA_VERSION = 3;
 
 export const TRACK_KEYS = [
   'partA',

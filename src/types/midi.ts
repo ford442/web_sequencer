@@ -1,7 +1,7 @@
 import type { AutomationTarget } from '../types';
 
 /** Identifies a mappable on-screen control (automation target + parameter id). */
-export type MidiControlTarget = AutomationTarget;
+export type MidiControlTarget = AutomationTarget | 'session';
 export type MidiControlId = `${MidiControlTarget}:${string}`;
 
 export function makeMidiControlId(target: MidiControlTarget, param: string): MidiControlId {
