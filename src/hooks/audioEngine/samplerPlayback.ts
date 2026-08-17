@@ -38,6 +38,8 @@ export interface SamplerVoiceContext {
     pFreeze: number | undefined;
     pFreezeLfoRate: number | undefined;
     pFreezeLfoDepth: number | undefined;
+    pGrainLfoRate: number | undefined;
+    pGrainLfoDepth: number | undefined;
     pFreezeEnvDepth: number | undefined;
     pTimeStretchEnvDepth: number | undefined;
     pGrainEnvDepth: number | undefined;
@@ -442,6 +444,8 @@ export function createSamplerPlayback(
         if (ctx.pFreeze !== undefined) voice.setFreeze(ctx.pFreeze, triggerTime);
         if (ctx.pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(ctx.pFreezeLfoRate, triggerTime);
         if (ctx.pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(ctx.pFreezeLfoDepth, triggerTime);
+        if (ctx.pGrainLfoRate !== undefined) voice.setGrainLfoRate(ctx.pGrainLfoRate, triggerTime);
+        if (ctx.pGrainLfoDepth !== undefined) voice.setGrainLfoDepth(ctx.pGrainLfoDepth, triggerTime);
 
         if (ctx.pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(ctx.pFreezeEnvDepth, triggerTime);
         if (ctx.pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(ctx.pTimeStretchEnvDepth, triggerTime);
@@ -699,6 +703,8 @@ const playSamplerVoice = (
         pFreezeLfoRate = freezeRateSync ? getSyncedLfoHz(params.freezeLfoRate, tempo) : params.freezeLfoRate;
     }
     const pFreezeLfoDepth = noteParams?.freezeLfoDepth !== undefined ? noteParams.freezeLfoDepth : params.freezeLfoDepth;
+    const pGrainLfoRate = noteParams?.grainLfoRate !== undefined ? noteParams.grainLfoRate : params.grainLfoRate;
+    const pGrainLfoDepth = noteParams?.grainLfoDepth !== undefined ? noteParams.grainLfoDepth : params.grainLfoDepth;
 
     // Envelopes
     const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
@@ -782,6 +788,8 @@ const playSamplerVoice = (
                 pFreeze,
                 pFreezeLfoRate,
                 pFreezeLfoDepth,
+                pGrainLfoRate,
+                pGrainLfoDepth,
                 pFreezeEnvDepth,
                 pTimeStretchEnvDepth,
                 pGrainEnvDepth,

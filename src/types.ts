@@ -120,6 +120,8 @@ export interface SamplerBankParams {
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
+  grainLfoRate?: number;
+  grainLfoDepth?: number;
   grainPitchQuantize?: number;
   granularPitchShift?: number;
   windowShape?: number;
@@ -464,6 +466,8 @@ export interface Note {
   grainJitter?: number;
   grainPitchQuantize?: number;
   grainEnvDepth?: number;
+  grainLfoRate?: number;
+  grainLfoDepth?: number;
   vibratoDepth?: number;
   customWindowShape?: number[];
   reverbSend?: number;

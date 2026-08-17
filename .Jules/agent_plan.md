@@ -8,6 +8,7 @@
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
+- [x] What if we could modulate the grain size with an LFO or envelope to create "breathing" textures?
 
 
 ## Innovation Lab
@@ -15,8 +16,8 @@
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
 - [x] Implement Expressive Note Transitions for Vowels
-- [ ] What if we could modulate the grain size with an LFO or envelope to create "breathing" textures?
 - [ ] Explore spectral panning per grain to create a wide stereo field for TTS voices.
+- [ ] Explore multi-band spectral compression for the TTS output
 
 - [x] Optimize TTS memory footprint
 - [x] Implement Lyric Track parsing
@@ -40,5 +41,8 @@
 - Completed "Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?" by adding both a `DrawableLFO` to `SynthGranularEffects` and a `<select>` menu for predefined window shapes. Wired `customWindowShape` and `windowShape` through `playSamplerVoice`, `EffectsControlMixin`, and `RubberBandProcessor`. The custom drawable shape allows per-note granular windowing control while predefined shapes provide quick presets. The AudioWorklet handles both Float32Array shapes and numeric shape indices gracefully.
 - Moved ideas from the Innovation Lab into the Active Backlog and added new ideas to ensure the pipeline stays full.
 - Velocity Check: Working with `DrawableLFO` and the message passing infrastructure proved robust for exposing complex array modulations. Per-note granular control is now directly accessible from the sequencer UI overlays.
+- Completed "What if we could modulate the grain size with an LFO or envelope to create breathing textures?" by adding a `grainLfoPhase` calculation right after the existing `freezeLfoPhase` logic in the `RubberBandProcessor` AudioWorklet. This feeds an LFO modulation scalar directly into the `baseGrainSize` calculation.
+- Added a new idea to the Innovation Lab: "Explore multi-band spectral compression for the TTS output".
+- Velocity Check: Wiring up LFO parameters is becoming increasingly streamlined as the boilerplate (params -> types -> UI hooks) is well-established. Performance is well-preserved by calculating the LFO per-block (`framesInBlock`) rather than per-sample in the hot loop.
 
 ## Roadmap

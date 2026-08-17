@@ -51,6 +51,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private freezePhase: number = 0;
   private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
+  private grainLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
 
@@ -86,6 +87,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
+      { name: 'grainLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
@@ -447,6 +450,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
         const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
         const windowShape = parameters.windowShape ? parameters.windowShape[0] : 0.0;
+        const grainLfoRate = parameters.grainLfoRate ? parameters.grainLfoRate[0] : 0.0;
+        const grainLfoDepth = parameters.grainLfoDepth ? parameters.grainLfoDepth[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -459,6 +464,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.freezeLfoPhase += (2 * Math.PI * freezeLfoRate * framesInBlock) / sRate;
         if (this.freezeLfoPhase > 2 * Math.PI) {
             this.freezeLfoPhase -= 2 * Math.PI;
+        }
+
+        this.grainLfoPhase += (2 * Math.PI * grainLfoRate * framesInBlock) / sRate;
+        if (this.grainLfoPhase > 2 * Math.PI) {
+            this.grainLfoPhase -= 2 * Math.PI;
         }
 
         const lfoValue = Math.sin(this.freezeLfoPhase);
@@ -501,8 +511,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 }
             }
 
+            const grainLfoValue = Math.sin(this.grainLfoPhase);
+            // Apply unipolar LFO modulation to grain size (reduces size)
+            const lfoMod = 1.0 - (grainLfoDepth * ((grainLfoValue + 1) * 0.5));
+
             // Modulate grain size with envelope: louder = smaller grains for more texture
-            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
+            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
 
             // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
