@@ -111,6 +111,8 @@ export interface SamplerNoteParams {
     freezeLfoDepth?: number;
     freezeEnvDepth?: number;
     timeStretchEnvDepth?: number;
+    grainLfoRate?: number;
+    grainLfoDepth?: number;
     grainEnvDepth?: number;
     grainPitchEnvDepth?: number;
     grainJitter?: number;

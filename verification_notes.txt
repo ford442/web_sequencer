@@ -1,1 +1,0 @@
-Blocked by out-of-scope syntax error in src/components/WaveformDisplay.tsx on base branch
