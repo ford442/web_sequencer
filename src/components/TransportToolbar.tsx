@@ -15,6 +15,7 @@ interface TransportToolbarProps {
     isRecording: boolean
     isPlaying: boolean
     isSongModeOpen: boolean
+    isSessionOpen?: boolean
     is3DMode: boolean
     loadSong: (slot: number) => void
     handleSaveSong: (slot: number) => Promise<void>
@@ -26,6 +27,7 @@ interface TransportToolbarProps {
     handlePlayToggle: () => void
     setIsRecording: React.Dispatch<React.SetStateAction<boolean>>
     setIsSongModeOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setIsSessionOpen?: React.Dispatch<React.SetStateAction<boolean>>
     setIs3DMode: React.Dispatch<React.SetStateAction<boolean>>
     currentScale: ScaleDefinition | null
     setCurrentScale: (scale: ScaleDefinition | null) => void
@@ -47,6 +49,7 @@ export const TransportToolbar = memo(function TransportToolbar({
     isRecording,
     isPlaying,
     isSongModeOpen,
+    isSessionOpen = false,
     is3DMode,
     loadSong,
     handleSaveSong,
@@ -58,6 +61,7 @@ export const TransportToolbar = memo(function TransportToolbar({
     handlePlayToggle,
     setIsRecording,
     setIsSongModeOpen,
+    setIsSessionOpen,
     setIs3DMode,
     currentScale,
     setCurrentScale,
@@ -280,6 +284,20 @@ export const TransportToolbar = memo(function TransportToolbar({
                     SONG
                 </button>
                 </HelpTip>
+
+                {setIsSessionOpen && (
+                <HelpTip topicId="session-launcher" position="bottom">
+                <button type="button"
+                    onClick={() => setIsSessionOpen(!isSessionOpen)}
+                    aria-pressed={isSessionOpen}
+                    aria-label="Toggle Session Launcher"
+                    title={isSessionOpen ? "Close Session Launcher" : "Open Session Launcher"}
+                    className={`h-7 px-3 font-orbitron text-xs font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isSessionOpen ? 'bg-cyan-600 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)] border border-cyan-400' : 'bg-zinc-800 text-gray-400 border border-zinc-700 hover:bg-zinc-700 hover:text-gray-300'}`}
+                >
+                    CLIP
+                </button>
+                </HelpTip>
+                )}
 
                 {/* 3D Toggle */}
                 <button type="button"
