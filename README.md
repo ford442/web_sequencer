@@ -33,7 +33,7 @@ See also:
 
 ## Setup
 ```bash
-npm install
+pnpm install --frozen-lockfile
 
 # Optional: Download TTS models for voice synthesis (requires ~235 MB)
 bash download_models.sh
@@ -42,13 +42,14 @@ bash download_models.sh
 > **Note:** The TTS feature requires external model files. See [TTS_DEPLOYMENT.md](docs/tts/TTS_DEPLOYMENT.md) for details. The app works fully without these models as a regular sequencer.
 
 ## Development
-```powershell
-npm run dev
+```bash
+pnpm run dev        # first run: rebuild native worlds, then Vite
+pnpm run dev:fast   # subsequent: preflight only, then Vite
 ```
 
 ## Testing
-```powershell
-npm test
+```bash
+pnpm test
 ```
 
 Knob rendering drift is guarded by contract tests that snapshot the pure derivations from
@@ -63,23 +64,25 @@ A separate Playwright smoke test (`tests/knob-canvas-smoke.spec.ts`) forces the 
 checks that knob canvases render non-blank output (no screenshot comparisons).
 
 ## Build
-```powershell
-npm run build
+```bash
+pnpm run build              # build:release — native + export check + Vite (no JS source maps)
+pnpm run build:web          # typecheck + Vite using already-built artifacts
+pnpm run build:native:changed
 ```
 
 ## Preview Production Build
-```powershell
-npm run preview
+```bash
+pnpm run preview
 ```
 
 ## Deploy
-```powershell
-npm run deploy
+```bash
+pnpm run deploy
 ```
 
 ## SVG Demo
-```powershell
-npm run demo
+```bash
+pnpm run demo
 ```
 Or open `svg-demo.html` in your browser to see a pure SVG-based sequencer interface with interactive step buttons, knobs, and transport controls.
 

@@ -13,7 +13,7 @@ export const INTEGRATION_ARTIFACTS = [
   'docs/audio-engine/303-baseline/jc303_canonical.wav',
 ] as const;
 
-const BUILD_HINT = 'pnpm run build:wasm && pnpm run build:emcc';
+const BUILD_HINT = 'pnpm run build:native';
 
 /**
  * Throws when generated WASM / baseline fixtures are missing.

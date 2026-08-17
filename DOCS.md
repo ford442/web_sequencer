@@ -114,7 +114,8 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 
 | File | Description |
 |------|-------------|
-| [BUILD_NOTES.md](docs/wasm/BUILD_NOTES.md) | WASM build configuration and known issues |
+| [BUILD_NOTES.md](docs/wasm/BUILD_NOTES.md) | WASM build configuration, command layers, memory budgets |
+| [native-artifacts.schema.json](docs/schemas/native-artifacts.schema.json) | Schema for generated `dist/native-artifacts.json` |
 
 ---
 
@@ -166,11 +167,12 @@ Detailed commands live in [AGENTS.md](AGENTS.md).
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run dev              # WASM prebuild + Vite
+pnpm run dev              # Full native rebuild + Vite
+pnpm run dev:fast         # Preflight + Vite (no native compile when hashes match)
 pnpm test                 # Vitest
 pnpm run lint
 npx tsc -b
-pnpm run build            # Production
+pnpm run build            # build:release (native + web, no JS source maps)
 ```
 
 ---

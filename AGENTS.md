@@ -208,8 +208,11 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 # Install dependencies (pnpm preferred to match CI)
 pnpm install --frozen-lockfile
 
-# Start dev server (builds WASM dependencies first)
+# Start dev server (full native rebuild, then Vite)
 pnpm run dev
+
+# Fast restart after artifacts/stamps already match
+pnpm run dev:fast
 
 # Type check only
 npx tsc -b
@@ -245,10 +248,15 @@ pnpm run build:emcc
 
 ### Production Build
 ```bash
-# Full production build (all WASM + optimize + TypeScript + Vite)
-pnpm run build
+# Layered commands (all via pnpm)
+pnpm run build:web              # tsc + Vite using already-built native artifacts
+pnpm run build:native           # rebuild all Four Worlds
+pnpm run build:native:changed   # rebuild only stale/missing worlds
+pnpm run check:native           # preflight (no compile); prints the exact rebuild command
+pnpm run build:release          # native + export check + web + dist/native-artifacts.json
+pnpm run build                  # alias of build:release
 
-# Output in dist/ directory
+# Output in dist/ directory. JS source maps are off unless HYPHON_SOURCEMAP=1.
 ```
 
 ### Testing
@@ -344,7 +352,7 @@ server: {
 
 ## WASM Change Detection
 
-**Critical**: After modifying any C++, Rust, or AssemblyScript source, you MUST rebuild the corresponding WASM module. The `public/` directory contains compiled binaries that Vite serves directly — stale binaries will be loaded if not rebuilt. Run `pnpm run build:wasm` and `pnpm run build:emcc` after any engine changes.
+**Critical**: After modifying any C++, Rust, or AssemblyScript source, you MUST rebuild the corresponding WASM module. The `public/` directory contains compiled binaries that Vite serves directly — stale binaries will be loaded if not rebuilt. Run `pnpm run check:native` to see the targeted command, or `pnpm run build:native:changed`.
 
 ---
 
@@ -653,17 +661,16 @@ WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchai
 After `pnpm install`, with Emscripten sourced:
 
 ```bash
-pnpm run build:wasm    # AssemblyScript + Rust + JC-303 (~1–2 min)
-pnpm run build:emcc    # hyphon_native.js + Rubberband/Open303 (~30s)
+pnpm run build:native    # AssemblyScript + Rust + JC-303 + hyphon_native (~2 min)
 ```
 
-Re-run only after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources.
+Re-run `pnpm run build:native:changed` after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources. `pnpm run check:native` / `dev:fast` fail closed and print the targeted command when stamps or outputs are stale.
 
 ### Running the main DAW locally
 
 | Task | Command |
 |------|---------|
-| Dev server (fast restart) | `pnpm exec vite --host 0.0.0.0 --port 5173` |
+| Dev server (fast restart) | `pnpm run dev:fast` |
 | Dev server (rebuilds WASM every start) | `pnpm run dev` |
 | Unit tests | `CI=true pnpm run test:unit` |
 | Integration tests | `CI=true pnpm run test:integration` (after `build:wasm` + `build:emcc`) |
@@ -682,7 +689,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 
 ### Gotchas
 
-- **`pnpm run dev` is slow**: it always runs `build:wasm` and `build:emcc` before Vite. Prefer `pnpm exec vite` after WASM is already built.
+- **`pnpm run dev` is slow**: it always rebuilds all Four Worlds before Vite. Use `pnpm run dev:fast` after a successful `build:native` / `build:native:changed` when source hashes still match.
 - **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
 - **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
 - **Rust audio import warning**: a console warning about `/rust-wasm/rust_audio.js` may appear in dev; core sequencer/audio still works. Use `public/rust-wasm/` paths if debugging the Rust engine.

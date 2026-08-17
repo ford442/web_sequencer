@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyphon.local/schemas/native-artifacts.schema.json",
+  "title": "Hyphon native-artifacts.json",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "profile", "toolchains", "sources", "exportContract", "artifacts"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "profile": { "enum": ["release", "debug"] },
+    "toolchains": {
+      "type": "object",
+      "required": ["emcc", "rustc", "asc", "node"],
+      "properties": {
+        "emcc": { "type": ["string", "null"] },
+        "rustc": { "type": ["string", "null"] },
+        "asc": { "type": ["string", "null"] },
+        "node": { "type": ["string", "null"] }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": ["gitHead", "jc303Submodule"],
+      "properties": {
+        "gitHead": { "type": ["string", "null"] },
+        "jc303Submodule": { "type": ["string", "null"] }
+      }
+    },
+    "exportContract": {
+      "type": "object",
+      "required": ["mapPath", "mapSha256", "manifestSha256"],
+      "properties": {
+        "mapPath": { "type": "string" },
+        "mapSha256": { "type": ["string", "null"] },
+        "manifestSha256": { "type": ["string", "null"] }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "sha256", "bytes", "world", "profile", "threaded", "requiresCoopCoep"],
+        "properties": {
+          "id": { "type": "string" },
+          "path": { "type": "string" },
+          "sha256": { "type": "string" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "world": { "type": "string" },
+          "profile": { "enum": ["release", "debug"] },
+          "threaded": { "type": "boolean" },
+          "requiresCoopCoep": { "type": "boolean" },
+          "memory": {
+            "type": ["object", "null"],
+            "properties": {
+              "initialMb": { "type": "number" },
+              "maximumMb": { "type": "number" },
+              "stackMb": { "type": "number" },
+              "pthreadPoolSize": { "type": "number" }
+            }
+          },
+          "linkFlags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
