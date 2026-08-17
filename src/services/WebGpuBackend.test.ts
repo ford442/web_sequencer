@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebGpuBackend } from './WebGpuBackend';
+import { resetWebGpuProbeForTests } from '../engines/backends/webgpuProbe';
 
 // Minimal WebGPU mock that records how buffers are wired through a chain.
 function installGpuMock() {
@@ -63,6 +64,7 @@ describe('WebGpuBackend.runChain', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    resetWebGpuProbeForTests();
     mocks = installGpuMock();
     backend = new WebGpuBackend();
     await backend.init();

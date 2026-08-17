@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
+import { probeWebGPU } from '../engines/backends/webgpuProbe';
 
 // ---------------------------------------------------------
 // 1. WGSL Shader Code
@@ -159,17 +160,17 @@ export const useWebGPUScope = (
     let isCleanedUp = false;
 
     const initWebGPU = async () => {
-      if (!canvasRef.current || !navigator.gpu) return;
+      if (!canvasRef.current) return;
 
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter || isCleanedUp) {
-        if (!adapter) {
+      const probe = await probeWebGPU();
+      if (!probe.ok || !probe.device || isCleanedUp) {
+        if (!probe.ok) {
           engineDegradationStore.report({
             id: 'webgpu-scope',
             subsystem: 'webgpu-scope',
             category: 'gpu',
             message: 'Oscilloscope using static fallback',
-            reason: 'requestAdapter() returned null',
+            reason: probe.reason ?? 'WebGPU unavailable',
             status: 'active',
             activeBackend: 'static',
             requestedBackend: 'webgpu',
@@ -178,17 +179,13 @@ export const useWebGPUScope = (
         }
         return;
       }
-      const device = await adapter.requestDevice();
-      if (isCleanedUp) {
-          device.destroy();
-          return;
-      }
+      const device = probe.device;
       deviceRef.current = device;
 
       const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext | null;
       if (!context) return;
 
-      const format = navigator.gpu.getPreferredCanvasFormat();
+      const format = navigator.gpu?.getPreferredCanvasFormat?.() ?? 'bgra8unorm';
       context.configure({ device, format });
 
       // 1. Create Layouts & Pipelines
@@ -342,7 +339,7 @@ export const useWebGPUScope = (
       isCleanedUp = true;
       clearTimeout(initTimeoutId);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (deviceRef.current) deviceRef.current.destroy();
+      deviceRef.current = null;
     };
   }, [initDelay, canvasRef]);
 };

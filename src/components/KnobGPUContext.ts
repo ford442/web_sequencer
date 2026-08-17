@@ -62,6 +62,7 @@ import type { KnobMaterial } from './knobMaterial';
 import { getPrefersReducedMotion, resolveKnobTimeUniform, shouldAnimateKnob, subscribeReducedMotion } from './knobMotion';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
+import { probeWebGPU } from '../engines/backends/webgpuProbe';
 
 type StatusListener = (status: KnobGpuStatus) => void;
 type SnapshotListener = () => void;
@@ -714,9 +715,6 @@ class KnobGPUContextClass {
         this.slots.clear();
         this.dirtyIds.clear();
         this.pauseLoop();
-        try {
-            this.device?.destroy?.();
-        } catch { /* noop */ }
         this.device = null;
         this.pipeline = null;
         this.format = null;
@@ -750,21 +748,16 @@ class KnobGPUContextClass {
     }
 
     private async doInit(): Promise<boolean> {
-        if (!navigator.gpu) {
+        const probe = await probeWebGPU();
+        if (!probe.ok || !probe.device) {
             this.setStatus('unavailable');
-            this.reportDegradation('navigator.gpu unavailable');
+            this.reportDegradation(probe.reason ?? 'navigator.gpu unavailable');
             return false;
         }
         try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) {
-                this.setStatus('degraded');
-                this.reportDegradation('requestAdapter() returned null');
-                return false;
-            }
-            const device = await adapter.requestDevice();
+            const device = probe.device;
             this.device = device;
-            this.format = navigator.gpu.getPreferredCanvasFormat();
+            this.format = navigator.gpu?.getPreferredCanvasFormat() ?? 'bgra8unorm';
 
             if (!this.deviceLostHandled) {
                 this.deviceLostHandled = true;

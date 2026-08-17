@@ -33,6 +33,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
+| [webgpu-session.md](audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred |
 | [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
 | [PLAYBACK_STABILITY.md](audio-engine/PLAYBACK_STABILITY.md) | Jitter thresholds, scheduler guards, and stress-test guidance for song-mode playback |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Design notes for the multisample generator |

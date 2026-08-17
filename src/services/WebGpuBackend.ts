@@ -1,5 +1,6 @@
 /// <reference types="@webgpu/types" />
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { probeWebGPU } from '../engines/backends/webgpuProbe';
 
 export class WebGpuBackend {
     device: GPUDevice | null = null;
@@ -20,20 +21,20 @@ export class WebGpuBackend {
     private readonly MAX_BUFFER_SIZE = 64 * 1024 * 1024; // 64MB guard against OOM
 
     async init(): Promise<boolean> {
-        if (!navigator.gpu) {
+        const probe = await probeWebGPU();
+        if (!probe.ok || !probe.device || !probe.adapterHandle) {
             console.warn("WebGPU not supported on this browser.");
-            logEngineFallback('webgpu-compute', 'webgpu', 'navigator.gpu unavailable (browser lacks WebGPU)');
+            logEngineFallback(
+                'webgpu-compute',
+                'webgpu',
+                probe.reason ?? 'navigator.gpu unavailable (browser lacks WebGPU)',
+            );
             return false;
         }
 
         try {
-            this.adapter = await navigator.gpu.requestAdapter();
-            if (!this.adapter) {
-                console.warn("No appropriate GPUAdapter found.");
-                logEngineFallback('webgpu-compute', 'webgpu', 'requestAdapter() returned null (no compatible GPU adapter)');
-                return false;
-            }
-            this.device = await this.adapter.requestDevice();
+            this.adapter = probe.adapterHandle;
+            this.device = probe.device;
             this.initShaders();
             // Allocate persistent uniform buffer (16 bytes: rows, cols, factor, seed)
             this.uniformBuffer = this.device.createBuffer({

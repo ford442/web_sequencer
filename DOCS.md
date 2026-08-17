@@ -72,6 +72,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](docs/audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](docs/audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
+| [webgpu-session.md](docs/audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred (#1105) |
 | [OPENMP_RUBBERBAND_PATCHES.md](docs/audio-engine/OPENMP_RUBBERBAND_PATCHES.md) | Rubberband OpenMP patches |
 | [RBS_IMPORT_PIPELINE.md](docs/audio-engine/RBS_IMPORT_PIPELINE.md) | RBS import pipeline documentation |
 | [RUBBERBAND_ANALYSIS.md](docs/audio-engine/RUBBERBAND_ANALYSIS.md) | Rubberband library integration analysis |

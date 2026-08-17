@@ -61,6 +61,7 @@ const fakeRuntime = {
   transportSync: null,
   wam2Slots: [] as [],
   wam2Constraints: null,
+  webgpuProbe: null,
 };
 
 describe('serializeEngineReport', () => {
@@ -75,6 +76,25 @@ describe('serializeEngineReport', () => {
     expect((parsed as { subsystems: { synthA: { resolution: { backend: string }; p50: number } } }).subsystems.synthA.resolution.backend).toBe('wasm');
     expect((parsed as { subsystems: { synthA: { p50: number } } }).subsystems.synthA.p50).toBe(1.2);
     expect((parsed as { runtime: { masterBudgetPercent: number } }).runtime.masterBudgetPercent).toBe(42);
+  });
+
+  it('round-trips runtime.webgpuProbe in the report JSON', () => {
+    const runtime = {
+      ...fakeRuntime,
+      webgpuProbe: {
+        ok: false,
+        reason: 'requestAdapter() returned null (no compatible GPU adapter)',
+        browser: { engineHint: 'edge', platform: 'Windows' },
+        adapter: null,
+        ts: 123,
+      },
+    };
+    const parsed = JSON.parse(serializeEngineReport({ s: fakeSubsystem() }, fakeCaps, runtime)) as {
+      runtime: { webgpuProbe: { ok: boolean; reason: string; browser: { engineHint: string } } };
+    };
+    expect(parsed.runtime.webgpuProbe.ok).toBe(false);
+    expect(parsed.runtime.webgpuProbe.reason).toContain('requestAdapter');
+    expect(parsed.runtime.webgpuProbe.browser.engineHint).toBe('edge');
   });
 
   it('never leaks a raw userAgent string', () => {
