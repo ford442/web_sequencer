@@ -128,4 +128,6 @@ export type {
     GraphConnectionRecord,
     GraphNodeId,
     GraphNodeRole,
+    GraphPortPair,
 } from './types';
+export { assertSafeGraphCycles, GraphCycleError } from './cycleCheck';

@@ -665,7 +665,8 @@ export type AutomationTarget =
   | 'kick' | 'snare' | 'closedHat' | 'openHat'
   | 'sampler' | 'master'
   | 'sampler0' | 'sampler1' | 'sampler2' | 'sampler3'
-  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7';
+  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7'
+  | 'wam';
 
 /** Where the automation data originated */
 export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
@@ -827,6 +828,8 @@ export interface SavedSongData {
   automationLanes?: UnifiedAutomationLane[];
   /** Per-song MIDI CC / note → control mappings */
   midiMappings?: import('./types/midi').MidiBinding[];
+  /** WAM2 plugin slots (identity, version, param/plugin state). */
+  wam2?: import('./audio/wam').Wam2SongPayload;
 }
 export interface AmbianceTrack {
   id: string;

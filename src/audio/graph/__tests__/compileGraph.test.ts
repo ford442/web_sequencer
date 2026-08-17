@@ -44,6 +44,7 @@ function createTrackingContext(): {
             const node = makeNode('gain');
             return Object.assign(node, {
                 gain: { value: 1, setValueAtTime: () => {} },
+                disconnect: () => {},
             });
         },
         createWaveShaper: () => makeNode('waveShaper'),

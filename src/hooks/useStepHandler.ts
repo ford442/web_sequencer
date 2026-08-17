@@ -44,6 +44,7 @@ import {
     playbackHealthMonitor,
     PLAYBACK_THRESHOLDS,
 } from '../audio/playback/PlaybackHealthMonitor';
+import { getWamHost } from '../audio/wam';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -317,7 +318,14 @@ export const useStepHandler = ({
             const driveVal = getAutomationValue(targetForLane, 'drive', step);
             if (driveVal !== undefined) noteParams.drive = driveVal;
 
-            audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
+            const durationSeconds = (stepData.length ?? 1) * stepTime;
+            const wamHost = getWamHost();
+            if (wamHost?.takesOverTrack(trackKey)) {
+                const velocity = stepData.velocity ?? 1;
+                wamHost.scheduleTrackNotes(trackKey, notes, time, durationSeconds, velocity);
+            } else {
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
+            }
 
             // Update last frequency for future slides
             lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
@@ -373,7 +381,13 @@ export const useStepHandler = ({
             const b2Drive = getAutomationValue('bass2', 'drive', step);
             if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
 
-            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
+            const wamBass = getWamHost();
+            if (wamBass?.takesOverTrack('bass2')) {
+                const durationSeconds = (stepData.length ?? 1) * stepTime;
+                wamBass.scheduleTrackNotes('bass2', notes, time, durationSeconds, stepData.velocity ?? 1);
+            } else {
+                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
+            }
         };
 
         // Trigger synths
