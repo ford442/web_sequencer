@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { SessionLauncher } from '../SessionLauncher';
 import { createDefaultSessionDocument } from '../../session/defaults';
@@ -43,8 +43,10 @@ describe('SessionLauncher accessibility', () => {
     render(<SessionLauncher {...props} />);
     expect(screen.getByRole('grid', { name: 'Clip launcher' })).toBeTruthy();
     const scene = screen.getByTestId('session-scene-0');
-    scene.focus();
-    fireEvent.keyDown(scene, { key: 'Enter' });
+    act(() => {
+      scene.focus();
+      fireEvent.keyDown(scene, { key: 'Enter' });
+    });
     expect(props.onLaunchScene).toHaveBeenCalledWith(0);
   });
 
