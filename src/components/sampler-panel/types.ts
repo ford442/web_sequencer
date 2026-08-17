@@ -57,6 +57,8 @@ export const DEFAULT_BANK_PARAMS: SamplerBankParams = {
   freeze: 0,
   grainPitchEnvDepth: 0,
   grainJitter: 0,
+  grainLfoRate: 0,
+  grainLfoDepth: 0,
   grainPitchQuantize: 0,
   granularPitchShift: 0,
   windowShape: 0,

@@ -66,6 +66,8 @@ export const ContextMenuNode = React.memo(() => {
           currentTranceGate={stepData?.tranceGate}
           currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}
+          currentGrainLfoRate={stepData?.grainLfoRate}
+          currentGrainLfoDepth={stepData?.grainLfoDepth}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}

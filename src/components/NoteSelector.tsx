@@ -66,6 +66,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentDelayLfoDepth,
     currentDelaySend,
     currentFreezeEnvDepth = 0,
+    currentGrainLfoRate = 0,
+    currentGrainLfoDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
     currentGrainJitter = 0,
@@ -151,6 +153,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentFreezeLfoRate={currentFreezeLfoRate}
                 currentFreezeLfoDepth={currentFreezeLfoDepth}
                 currentFreezeEnvDepth={currentFreezeEnvDepth}
+                currentGrainLfoRate={currentGrainLfoRate}
+                currentGrainLfoDepth={currentGrainLfoDepth}
                 currentGrainEnvDepth={currentGrainEnvDepth}
                 currentGrainPitchEnvDepth={currentGrainPitchEnvDepth}
                 currentGrainJitter={currentGrainJitter}
