@@ -18,6 +18,7 @@ export interface MidiParamHandlers {
   setAudioMasterSaturation?: (v: number) => void;
   setAudioGlobalPan?: (v: number) => void;
   getCurrentStep?: () => number;
+  handleSessionControl?: (param: string, normalized: number) => void;
 }
 
 /** Map normalized 0–1 MIDI value to control-specific range, then dispatch. */
@@ -28,6 +29,11 @@ export function applyMidiControlValue(
 ): void {
   const { target, param } = parseMidiControlId(controlId);
   const n = Math.max(0, Math.min(1, normalized));
+
+  if (target === 'session') {
+    handlers.handleSessionControl?.(param, n);
+    return;
+  }
 
   if (target === 'master') {
     applyMasterParam(param, n, handlers);

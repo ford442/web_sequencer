@@ -194,6 +194,48 @@ export function noteOffSynth(
   activeSynthNotes.delete(id);
 }
 
+export function createStopTrackNotes(
+  refs: Pick<
+    PlaybackRefs,
+    | "activeSamplerNotes"
+    | "voiceManagerARef"
+    | "voiceManagerBRef"
+    | "singingVoiceManagerRef"
+    | "open303ManagerRef"
+    | "prophecyManagerRef"
+  >,
+): NonNullable<AudioEngine["stopTrackNotes"]> {
+  return (track) => {
+    if (track === "partA") {
+      refs.voiceManagerARef.current?.stopAll(0);
+      refs.open303ManagerRef.current?.noteOffLead303(0);
+      refs.prophecyManagerRef.current?.allNotesOffPartA();
+      return;
+    }
+    if (track === "partB") {
+      refs.voiceManagerBRef.current?.stopAll(0);
+      refs.open303ManagerRef.current?.noteOffBass1(0);
+      refs.prophecyManagerRef.current?.allNotesOffPartB();
+      return;
+    }
+    if (track === "bass2") {
+      refs.open303ManagerRef.current?.noteOffBass2(0);
+      return;
+    }
+    if (track === "sampler") {
+      refs.singingVoiceManagerRef.current?.stopAll();
+      for (const note of refs.activeSamplerNotes.current.values()) {
+        try {
+          note.source.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      refs.activeSamplerNotes.current.clear();
+    }
+  };
+}
+
 export function createStopAllNotes(
   refs: Pick<
     PlaybackRefs,

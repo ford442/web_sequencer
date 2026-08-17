@@ -1,5 +1,7 @@
 import { makeDistortionCurve } from '../../hooks/audioEngine/distortion';
 import { createReverbImpulseResponse } from '../impulseResponses';
+import { WamSlotPorts } from '../wam/WamSlotPorts';
+import { assertSafeGraphCycles } from './cycleCheck';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -15,6 +17,7 @@ import type {
     GraphNodeId,
     GraphNodeRole,
     GraphNodeSpec,
+    GraphPortPair,
     StereoPannerConfig,
     TrackMonitorConfig,
     WaveShaperConfig,
@@ -59,6 +62,7 @@ function createNode(
     spec: GraphNodeSpec,
     options: Required<CompileGraphOptions>,
     analysers: Map<GraphNodeId, AnalyserNode>,
+    ports: Map<GraphNodeId, GraphPortPair>,
 ): AudioNode | null {
     const { factory, id, config } = spec;
 
@@ -150,6 +154,14 @@ function createNode(
             return options.createMasterLimiterNode(context);
         case 'destination':
             return context.destination;
+        case 'wamInstrumentSlot':
+        case 'wamTrackInsert':
+        case 'wamMasterInsert':
+        case 'wamSendReturn': {
+            const slot = new WamSlotPorts(context);
+            ports.set(id, { input: slot.input, output: slot.output, wamSlot: slot });
+            return slot.output;
+        }
         default:
             throw new Error(`Unknown graph node factory: ${factory}`);
     }
@@ -209,16 +221,21 @@ export function compileAudioGraph(
     config: AudioGraphConfig,
     options: CompileGraphOptions = {},
 ): CompiledAudioGraph {
+    assertSafeGraphCycles(config);
     const resolved = { ...DEFAULT_OPTIONS, ...options };
     const nodes = new Map<GraphNodeId, AudioNode>();
+    const ports = new Map<GraphNodeId, GraphPortPair>();
     const analysers = new Map<GraphNodeId, AnalyserNode>();
     const roles = new Map<GraphNodeRole, GraphNodeId | GraphNodeId[]>();
     const connectionLog: GraphConnectionRecord[] = [];
 
     for (const spec of config.nodes) {
-        const node = createNode(context, spec, resolved, analysers);
+        const node = createNode(context, spec, resolved, analysers, ports);
         if (node) {
             nodes.set(spec.id, node);
+            if (!ports.has(spec.id)) {
+                ports.set(spec.id, { input: node, output: node });
+            }
             if (spec.role) {
                 registerRole(roles, spec.role, spec.id);
             }
@@ -250,8 +267,13 @@ export function compileAudioGraph(
     }
 
     for (const edge of edges) {
-        const fromNode = nodes.get(edge.from);
-        const toNode = nodes.get(edge.to) ?? (edge.to === 'destination' ? context.destination : undefined);
+        const fromPort = ports.get(edge.from);
+        const toPort = ports.get(edge.to);
+        const fromNode = fromPort?.output ?? nodes.get(edge.from);
+        const toNode =
+            toPort?.input ??
+            nodes.get(edge.to) ??
+            (edge.to === 'destination' ? context.destination : undefined);
         if (!fromNode || !toNode) {
             if (!hasStereoPanner && (edge.to === 'masterPanner' || edge.from === 'masterPanner')) {
                 continue;
@@ -272,6 +294,7 @@ export function compileAudioGraph(
         configId: config.id,
         configName: config.name,
         nodes,
+        ports,
         analysers,
         roles,
         connectionLog,
@@ -281,6 +304,13 @@ export function compileAudioGraph(
                 throw new Error(`AudioGraph node not found: ${id}`);
             }
             return node as T;
+        },
+        getPort(id: GraphNodeId): GraphPortPair {
+            const pair = ports.get(id);
+            if (!pair) {
+                throw new Error(`AudioGraph port not found: ${id}`);
+            }
+            return pair;
         },
         getRoleNode(role: GraphNodeRole): AudioNode | undefined {
             const entry = roles.get(role);

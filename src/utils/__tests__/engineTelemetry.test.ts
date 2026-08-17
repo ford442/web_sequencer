@@ -59,6 +59,8 @@ const fakeRuntime = {
   baseLatencyMs: null as number | null,
   latencyHint: null as string | null,
   transportSync: null,
+  wam2Slots: [] as [],
+  wam2Constraints: null,
 };
 
 describe('serializeEngineReport', () => {

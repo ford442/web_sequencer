@@ -18,6 +18,8 @@ import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 import { midiMapStore } from '../stores/midiMapStore';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
+import { migrateSavedSongSession } from '../session/migrate';
+import { getWamHost } from '../audio/wam';
 
 // ---- Types for the hook parameters ----
 
@@ -38,6 +40,8 @@ export interface SongStorageDeps {
     trackStorageRef: MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     activeTrackSlotsRef: MutableRefObject<Record<TrackKey, number>>;
     songStructureRef: MutableRefObject<({ [key in TrackKey]: number | null })[]>;
+    sessionDocumentRef?: MutableRefObject<import('../session/types').SessionDocument>;
+    setSessionDocument?: (doc: import('../session/types').SessionDocument, recordUndo?: boolean) => void;
 
     // State values (needed as deps for serialization)
     ambianceUrl: string;
@@ -130,6 +134,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
         trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        sessionDocumentRef, setSessionDocument,
         ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
         songStorage, pattern, tempo, trackStorage,
         setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
@@ -181,10 +186,17 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             trackStorage: trackStorageRef.current,
             activeTrackSlots: activeTrackSlotsRef.current,
             songStructure: songStructureRef.current,
+            session: sessionDocumentRef?.current,
             embeddedSamples: encodedSamples,
             ttsPhrases,
             ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
             ...(exportedMidi.length > 0 ? { midiMappings: exportedMidi } : {}),
+            ...(() => {
+                const host = getWamHost();
+                if (!host) return {};
+                const payload = host.exportSongState();
+                return payload.plugins.length > 0 ? { wam2: payload } : {};
+            })(),
         } as SavedSongData;
     }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
 
@@ -247,6 +259,13 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 clearSongUndo?.();
                 setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]);
             }
+            if (setSessionDocument) {
+                const migrated = migrateTrackStorage(songData.trackStorage ?? {});
+                setSessionDocument(
+                    migrateSavedSongSession(songData.version, songData.session, migrated),
+                    false,
+                );
+            }
             if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases) && songData.ttsPhrases.length === 8) {
                 setTtsPhrases(songData.ttsPhrases);
             } else if (songData.ttsPhrases && Array.isArray(songData.ttsPhrases)) {
@@ -276,6 +295,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
             automationStore.importLanes(songData.automationLanes ?? []);
             midiMapStore.importSongMappings(songData.midiMappings);
+            const wamHost = getWamHost();
+            if (wamHost) {
+                await wamHost.restore(songData.wam2);
+            }
             if (isE2eMode()) {
                 setE2eLaneCount(automationStore.getState().lanes.length);
             }

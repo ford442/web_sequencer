@@ -12,6 +12,7 @@ import {
     createPlayDrum,
     createPlaySynth,
     createStopAllNotes,
+    createStopTrackNotes,
     noteOffSynth,
     setGlobalPan as setMasterPan,
     setHarmonizerConfig as applyHarmonizerConfig,
@@ -57,6 +58,7 @@ export function buildAudioEngine(
     const noteOnSynth = createNoteOnSynth(context, refs);
     const noteOffSynthById = (id: number) => noteOffSynth(refs.activeSynthNotes.current, id);
     const stopAllNotes = createStopAllNotes(refs);
+    const stopTrackNotes = createStopTrackNotes(refs);
 
     const renderSynthPartToBuffer = (params: SynthParams, sequence: PartSequence, tempo: number): Promise<AudioBuffer> => {
         return renderSynthPattern(params, {
@@ -128,6 +130,7 @@ export function buildAudioEngine(
         noteOnSynth,
         noteOffSynth: noteOffSynthById,
         stopAllNotes,
+        stopTrackNotes,
         loadSampleToEngine: playbackFns.loadSampleToEngine,
         renderSynthPartToBuffer,
         playBufferedPart,

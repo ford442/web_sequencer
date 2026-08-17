@@ -62,4 +62,22 @@ describe('midiParamDispatch', () => {
     expect(buf?.points.length).toBeGreaterThan(0);
     automationStore.reset();
   });
+
+  it('routes session clip launches', () => {
+    const handleSessionControl = vi.fn();
+    applyMidiControlValue(makeMidiControlId('session', 'clip:kick:0'), 1, {
+      handleSynthChange: vi.fn(),
+      handleBass2Change: vi.fn(),
+      handleKickChange: vi.fn(),
+      handleSnareChange: vi.fn(),
+      handleClosedHatChange: vi.fn(),
+      handleOpenHatChange: vi.fn(),
+      handleSamplerChange: vi.fn(),
+      setMasterVolume: vi.fn(),
+      setMasterSaturation: vi.fn(),
+      setGlobalPan: vi.fn(),
+      handleSessionControl,
+    });
+    expect(handleSessionControl).toHaveBeenCalledWith('clip:kick:0', 1);
+  });
 });

@@ -15,7 +15,11 @@ export type GraphNodeRole =
     | 'trackAnalyser'
     | 'auxReturn'
     | 'choirBus'
-    | 'internal';
+    | 'internal'
+    | 'instrumentSource'
+    | 'trackInsert'
+    | 'masterInsert'
+    | 'auxSend';
 
 export type GraphNodeFactory =
     | 'waveShaper'
@@ -28,7 +32,11 @@ export type GraphNodeFactory =
     | 'delay'
     | 'trackMonitor'
     | 'masterLimiter'
-    | 'destination';
+    | 'destination'
+    | 'wamInstrumentSlot'
+    | 'wamTrackInsert'
+    | 'wamMasterInsert'
+    | 'wamSendReturn';
 
 export interface BiquadFilterConfig {
     type: BiquadFilterType;
@@ -116,15 +124,25 @@ export interface GraphConnectionRecord {
     order: number;
 }
 
+/** Dual-port pair so inserts have a distinct input and output. */
+export interface GraphPortPair {
+    input: AudioNode;
+    output: AudioNode;
+    wamSlot?: import('../wam/WamSlotPorts').WamSlotPorts;
+}
+
 export interface CompiledAudioGraph {
     configId: string;
     configName: string;
     nodes: ReadonlyMap<GraphNodeId, AudioNode>;
+    /** Incoming/outgoing ports. Simple nodes have input === output. */
+    ports: ReadonlyMap<GraphNodeId, GraphPortPair>;
     /** Passive analyser taps keyed by graph node id (trackMonitor nodes). */
     analysers: ReadonlyMap<GraphNodeId, AnalyserNode>;
     roles: ReadonlyMap<GraphNodeRole, GraphNodeId | GraphNodeId[]>;
     connectionLog: readonly GraphConnectionRecord[];
     getNode<T extends AudioNode = AudioNode>(id: GraphNodeId): T;
+    getPort(id: GraphNodeId): GraphPortPair;
     getRoleNode(role: GraphNodeRole): AudioNode | undefined;
     getRoleNodes(role: GraphNodeRole): AudioNode[];
 }

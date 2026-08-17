@@ -11,6 +11,7 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     isRecording,
     isPlaying,
     isSongModeOpen,
+    isSessionOpen,
     is3DMode,
     loadSong,
     handleSaveSong,
@@ -22,6 +23,7 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     handlePlayToggle,
     setIsRecording,
     setIsSongModeOpen,
+    setIsSessionOpen,
     setIs3DMode,
     currentScale,
     setCurrentScale,
@@ -48,6 +50,7 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
       isRecording={isRecording}
       isPlaying={isPlaying}
       isSongModeOpen={isSongModeOpen}
+      isSessionOpen={isSessionOpen}
       is3DMode={is3DMode}
       loadSong={loadSong}
       handleSaveSong={handleSaveSong}
@@ -59,6 +62,7 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
       handlePlayToggle={handlePlayToggle}
       setIsRecording={setIsRecording}
       setIsSongModeOpen={setIsSongModeOpen}
+      setIsSessionOpen={setIsSessionOpen}
       setIs3DMode={setIs3DMode}
       currentScale={currentScale}
       setCurrentScale={setCurrentScale}

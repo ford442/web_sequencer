@@ -48,11 +48,31 @@ jobs:
       - name: Install Python metrics deps
         run: pip install numpy scipy
 
-      - name: Build WASM artifacts
-        run: pnpm run build:wasm
+      - name: Cache native artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/wasm/
+            public/hyphon_native.js
+            public/hyphon_native.wasm
+            public/hyphon_native.worker.js
+            public/hyphon_wasm_export_map.json
+            public/jc303-single.js
+            public/jc303-single.wasm
+            public/jc303-single-worklet.js
+            public/jc303-threaded.js
+            public/jc303-threaded.wasm
+            public/jc303-threaded.worker.js
+            public/jc303-threaded-worklet.js
+            public/rust-wasm/
+            rust-audio/target
+            jc303_wasm/wasm/build_threaded
+            jc303_wasm/wasm/build_single
+            .cache/native/
+          key: native-${{ runner.os }}-emcc3.1.51-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
 
-      - name: Build Emscripten native glue
-        run: pnpm run build:emcc
+      - name: Build native artifacts (incremental)
+        run: pnpm run build:native:changed
 
       - name: Run spectrogram quality + stress integration tests
         run: |
@@ -97,8 +117,31 @@ jobs:
       - name: Install Python metrics deps
         run: pip install numpy scipy
 
-      - name: Build WASM artifacts
-        run: pnpm run build:wasm
+      - name: Cache native artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/wasm/
+            public/hyphon_native.js
+            public/hyphon_native.wasm
+            public/hyphon_native.worker.js
+            public/hyphon_wasm_export_map.json
+            public/jc303-single.js
+            public/jc303-single.wasm
+            public/jc303-single-worklet.js
+            public/jc303-threaded.js
+            public/jc303-threaded.wasm
+            public/jc303-threaded.worker.js
+            public/jc303-threaded-worklet.js
+            public/rust-wasm/
+            rust-audio/target
+            jc303_wasm/wasm/build_threaded
+            jc303_wasm/wasm/build_single
+            .cache/native/
+          key: native-${{ runner.os }}-emcc3.1.51-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
+
+      - name: Build native artifacts (incremental)
+        run: pnpm run build:native:changed
 
       - name: Run offline 303 benchmark
         run: pnpm exec vite-node scripts/benchmark_offline303.mjs --json benchmark-303-offline.json

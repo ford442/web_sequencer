@@ -60,26 +60,29 @@ src/
 ### Commands
 
 ```bash
-# Development (builds WASM + runs Vite dev server)
-npm run dev
+# Development (full native rebuild + Vite)
+pnpm run dev
 
-# Build everything (WASM, Emscripten, Rust, optimizations)
-npm run build
+# Fast restart when native stamps still match
+pnpm run dev:fast
+
+# Build everything (native + export check + Vite; no JS source maps)
+pnpm run build
 
 # Run tests
-npm test
+pnpm test
 
 # Preview production build
-npm run preview
+pnpm run preview
 
 # Lint code
-npm lint
+pnpm run lint
 
-# Optimize assets
-npm run optimize
+# Optional wasm-opt pass (not part of build:release)
+pnpm run optimize
 
 # Deploy
-npm run deploy
+pnpm run deploy
 ```
 
 ### WASM Build Details
