@@ -86,4 +86,14 @@ describe('native preflight', () => {
     expect(byId.jc303).toBe('pnpm run build:wasm:jc303');
     expect(byId['as-oscillators']).toBe('pnpm run build:wasm:oscillators');
   });
+
+  it('jc303 world still stamps the historical pthread worker path', () => {
+    const worlds = defineWorlds(defaultRepoRoot());
+    const jc303 = worlds.find((w: { id: string }) => w.id === 'jc303');
+    expect(jc303).toBeDefined();
+    expect(jc303!.outputs).toContain('public/jc303-threaded.worker.js');
+    expect(jc303!.inputs.some((i: { name: string }) => i.name === 'scripts/ensure-pthread-worker-stamp.mjs')).toBe(
+      true,
+    );
+  });
 });
