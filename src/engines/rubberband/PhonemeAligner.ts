@@ -153,7 +153,7 @@ export class PhonemeAligner {
         const result = raw as AlignmentServiceResponse;
         
         // Convert service response to our format
-        const phonemes = new Array(result.phonemes.length);
+        const phonemes = new Array<PhonemeSegment>(result.phonemes.length);
         for (let i = 0; i < result.phonemes.length; i++) {
             const p = result.phonemes[i];
             phonemes[i] = {
@@ -203,7 +203,7 @@ export class PhonemeAligner {
         const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
         
         // Map phonemes to segments
-        const phonemeSegments: PhonemeSegment[] = new Array(estimatedPhonemes.length);
+        const phonemeSegments: PhonemeSegment[] = new Array<PhonemeSegment>(estimatedPhonemes.length);
         for (let i = 0; i < estimatedPhonemes.length; i++) {
             const phoneme = estimatedPhonemes[i];
             const segment = segments[i] || { start: duration * 0.9, end: duration };
