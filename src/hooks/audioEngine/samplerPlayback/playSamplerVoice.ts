@@ -126,6 +126,7 @@ export function createPlaySamplerVoice(
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
+    const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
 
     // Formant LFO
@@ -338,6 +339,7 @@ export function createPlaySamplerVoice(
         if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+        if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);

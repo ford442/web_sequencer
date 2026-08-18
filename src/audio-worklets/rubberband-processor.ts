@@ -58,6 +58,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Bitcrusher states
   private downsamplePhase: number[] = [0, 0];
   private lastSampleValue: number[] = [0, 0];
+
+  // Spectral Compression states (3-band approximation)
+  private scLow: number[] = [0, 0];
+  private scMid: number[] = [0, 0];
+  private scHigh: number[] = [0, 0];
+  private scEnvLow: number[] = [0, 0];
+  private scEnvMid: number[] = [0, 0];
+  private scEnvHigh: number[] = [0, 0];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -96,7 +105,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'spectralCompression', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -345,6 +355,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
+    const spectralCompression = parameters.spectralCompression ? parameters.spectralCompression[0] : 0.0;
     const breath = parameters.breathIntensity[0];
 
     const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
@@ -684,6 +695,66 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGateLfo));
           outputChannel[i] *= gateMultiplier;
+        }
+      }
+
+      // Apply Spectral Compression (3-band multi-band approximation)
+      if (spectralCompression > 0) {
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+
+          // Filter coefficients for ~300Hz and ~3000Hz crossovers at 44.1kHz/48kHz
+          // Using simple 1-pole approximations for efficiency in the hot loop
+          const fLow = 0.04;  // approx 300Hz
+          const fHigh = 0.35; // approx 3000Hz
+
+          // Compressor envelope constants (approx 1-5ms attack, 40-80ms release for speech)
+          const attackConst = 0.005; // ~5ms
+          const releaseConst = 0.0003; // ~70ms
+
+          for (let i = 0; i < outCh.length; i++) {
+            const sample = outCh[i];
+
+            // 1-pole state variable filters
+            this.scLow[channel] += fLow * (sample - this.scLow[channel]);
+            this.scHigh[channel] += fHigh * (sample - this.scHigh[channel]);
+
+            // Reconstruct bands so that amount=0 is unity gain
+            const low = this.scLow[channel];
+            const high = sample - this.scHigh[channel];
+            const mid = sample - low - high;
+
+            // Envelope followers
+            const absLow = Math.abs(low);
+            const absMid = Math.abs(mid);
+            const absHigh = Math.abs(high);
+
+            this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
+            this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
+            this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+
+            // Gain reduction + Upward/Downward compression (OTT style)
+            // The higher the env, the lower the gain multiplier.
+            // Scaled by spectralCompression parameter.
+            // Using +0.001 to prevent divide by zero
+            const targetRMS = 0.15; // Target level for upward/downward convergence
+
+            // Calculate ratio modifiers (0.0 to 1.0 maps to no-compression to heavy-compression)
+            // Soft knee approximation around target RMS
+            const gainLow = 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5;
+            const gainMid = 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7; // Compress mid more
+            const gainHigh = 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6;
+
+            // Clamp gains to prevent extreme blowout
+            const clampGainLow = Math.max(0.1, Math.min(4.0, gainLow));
+            const clampGainMid = Math.max(0.1, Math.min(3.0, gainMid));
+            const clampGainHigh = Math.max(0.1, Math.min(4.0, gainHigh));
+
+            // Apply gain and mix (Compressed + Dry mix)
+            const compressed = (low * clampGainLow) + (mid * clampGainMid) + (high * clampGainHigh);
+            outCh[i] = sample * (1.0 - spectralCompression) + compressed * spectralCompression;
+          }
         }
       }
 

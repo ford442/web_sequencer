@@ -17,7 +17,7 @@
 - [x] Implement Phoneme Envelope shaping per step
 - [x] Implement Expressive Note Transitions for Vowels
 - [ ] Explore spectral panning per grain to create a wide stereo field for TTS voices.
-- [ ] Explore multi-band spectral compression for the TTS output
+- [x] Explore multi-band spectral compression for the TTS output
 
 - [x] Optimize TTS memory footprint
 - [x] Implement Lyric Track parsing
@@ -44,5 +44,6 @@
 - Completed "What if we could modulate the grain size with an LFO or envelope to create breathing textures?" by adding a `grainLfoPhase` calculation right after the existing `freezeLfoPhase` logic in the `RubberBandProcessor` AudioWorklet. This feeds an LFO modulation scalar directly into the `baseGrainSize` calculation.
 - Added a new idea to the Innovation Lab: "Explore multi-band spectral compression for the TTS output".
 - Velocity Check: Wiring up LFO parameters is becoming increasingly streamlined as the boilerplate (params -> types -> UI hooks) is well-established. Performance is well-preserved by calculating the LFO per-block (`framesInBlock`) rather than per-sample in the hot loop.
+- Completed "Explore multi-band spectral compression for the TTS output" by implementing a lightweight 3-band dynamics processor in the `RubberBandProcessor`. We avoided a heavy true STFT magnitude compressor and instead used per-sample SVF (1-pole approx for ~300Hz and ~3kHz crossovers) with fast envelope followers (1-5ms attack, 40-80ms release). The output uses downward/upward compression with a dry/wet mix. It is strictly bypassed when the parameter `spectralCompression` is 0 to ensure zero overhead otherwise.
 
 ## Roadmap
