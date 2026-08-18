@@ -153,14 +153,20 @@ export class PhonemeAligner {
         const result = raw as AlignmentServiceResponse;
         
         // Convert service response to our format
-        return {
-            phonemes: result.phonemes.map((p) => ({
+        const phonemes = new Array<PhonemeSegment>(result.phonemes.length);
+        for (let i = 0; i < result.phonemes.length; i++) {
+            const p = result.phonemes[i];
+            phonemes[i] = {
                 phoneme: p.phoneme,
                 start: p.start,
                 end: p.end,
                 isVowel: PhonemeAligner.isVowelPhoneme(p.phoneme),
                 category: this.categorizePhoneme(p.phoneme)
-            })),
+            };
+        }
+
+        return {
+            phonemes,
             sampleRate,
             duration: audio.length / sampleRate,
             text
@@ -197,16 +203,18 @@ export class PhonemeAligner {
         const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
         
         // Map phonemes to segments
-        const phonemeSegments: PhonemeSegment[] = estimatedPhonemes.map((phoneme, i) => {
+        const phonemeSegments: PhonemeSegment[] = new Array<PhonemeSegment>(estimatedPhonemes.length);
+        for (let i = 0; i < estimatedPhonemes.length; i++) {
+            const phoneme = estimatedPhonemes[i];
             const segment = segments[i] || { start: duration * 0.9, end: duration };
-            return {
+            phonemeSegments[i] = {
                 phoneme,
                 start: segment.start,
                 end: segment.end,
                 isVowel: PhonemeAligner.isVowelPhoneme(phoneme),
                 category: this.categorizePhoneme(phoneme)
             };
-        });
+        }
         
         return Promise.resolve({
             phonemes: phonemeSegments,
