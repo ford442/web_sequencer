@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- scripts/*.mjs has no project-referenced types
-import {
-  PTHREAD_WORKER_STAMP_BANNER,
-  ensurePthreadWorkerStamp,
-} from '../../scripts/ensure-pthread-worker-stamp.mjs';
+import { PTHREAD_WORKER_STAMP_BANNER, ensurePthreadWorkerStamp } from '../../scripts/ensure-pthread-worker-stamp.mjs';
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'hyphon-pthread-worker-'));
