@@ -66,3 +66,7 @@
 ## 2026-08-12 - Prevent closure allocations in requestAnimationFrame GamepadDebugger rAF loop
 **Learning:** In the `src/components/GamepadDebugger.tsx` game loop running via `requestAnimationFrame`, `Array.from().filter()` was creating unnecessary array allocations and closures for every frame, putting garbage collection pressure on the main thread and resulting in potential frame drops or micro-stutters during intensive rendering.
 **Action:** Replaced `Array.from().filter()` with a standard `for` loop pushing to a new valid gamepads array within main-thread rendering hot paths like `requestAnimationFrame` ticks to avoid closure and intermediate array instantiation.
+
+## 2026-08-17 - Prevent closure allocations in ArtifactDetector Audio Path
+**Learning:** High-frequency audio analysis functions like `getAdaptiveThreshold` and `getStatistics` inside `ArtifactDetector.ts` run constantly during playback. Using functional array methods (`reduce` and `filter`) over history buffers creates continuous closure allocations on the main thread, leading to garbage collection (GC) pressure and audio micro-stutters.
+**Action:** Always replace `Array.prototype.reduce` and `Array.prototype.filter` with standard `for` loops and simple accumulator variables in real-time continuous processing paths to avoid closure overhead.
