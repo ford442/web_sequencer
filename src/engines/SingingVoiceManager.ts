@@ -115,14 +115,20 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
      * @param outArray Optional array to populate, avoiding transient array allocation.
      */
     getActiveVoices(outArray?: SingingVoice[]): SingingVoice[] {
+        const result = outArray || new Array(this.activeIndices.size);
         if (outArray) {
             outArray.length = 0;
-            for (const index of this.activeIndices) {
-                outArray.push(this.voices[index]!);
-            }
-            return outArray;
         }
-        return Array.from(this.activeIndices).map(index => this.voices[index]!);
+
+        let i = 0;
+        for (const index of this.activeIndices) {
+            if (outArray) {
+                result.push(this.voices[index]!);
+            } else {
+                result[i++] = this.voices[index]!;
+            }
+        }
+        return result as SingingVoice[];
     }
 
     override stopAll(time?: number) {

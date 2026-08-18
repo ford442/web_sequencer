@@ -47,8 +47,13 @@ export function useAutoMix(deps: {
         const closedHatActivity = calculateActivity(pattern.closedHat);
         const openHatActivity = calculateActivity(pattern.openHat);
 
-        const samplerActivities = pattern.sampler.map(bank => calculateActivity(bank));
-        const totalSamplerActivity = samplerActivities.reduce((a, b) => a + b, 0);
+        const samplerActivities = new Array(pattern.sampler.length);
+        let totalSamplerActivity = 0;
+        for (let i = 0; i < pattern.sampler.length; i++) {
+            const activity = calculateActivity(pattern.sampler[i]);
+            samplerActivities[i] = activity;
+            totalSamplerActivity += activity;
+        }
 
         let synthAPan = -0.3;
         let synthBPan = 0.3;

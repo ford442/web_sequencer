@@ -1,0 +1,1 @@
+Pre-existing structural or syntax errors in out-of-scope files on the base branch (Firefox testing timeouts in session-launcher.spec.ts)
