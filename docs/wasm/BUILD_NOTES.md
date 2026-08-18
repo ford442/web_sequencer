@@ -66,6 +66,14 @@ with `-s USE_PTHREADS=1`. No host `libomp` is involved. Rubber Band is compiled
 pthread pool exists for Emscripten's own runtime work. Comments elsewhere that
 describe Rubber Band as OpenMP-parallel are stale — this section is authoritative.
 
+CI and `AGENTS.md` pin **Emscripten 3.1.51**, which still emits a separate
+`*.worker.js` for pthreads. Emscripten 3.1.58+ inlines that worker into the
+main JS, and 6.x no longer writes the file at all. `check:native` still
+requires `public/jc303-threaded.worker.js` and `public/hyphon_native.worker.js`.
+`scripts/ensure-pthread-worker-stamp.mjs` copies a real worker when present
+and otherwise writes a stamp stub so Colab/`emsdk install latest` builds do
+not fail after a successful compile.
+
 ---
 
 ## Four Worlds memory budget
