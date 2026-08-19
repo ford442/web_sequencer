@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error -- scripts/*.mjs has no project-referenced types
+// @ts-ignore -- scripts/*.mjs has no project-referenced types
 import {
   PTHREAD_WORKER_STAMP_BANNER,
   ensurePthreadWorkerStamp,

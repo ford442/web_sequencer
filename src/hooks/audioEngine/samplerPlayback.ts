@@ -49,6 +49,7 @@ export interface SamplerVoiceContext {
     pGranularPitchShift: number | undefined;
     pBitcrush: number | undefined;
     pDownsample: number | undefined;
+    pSpectralCompression: number | undefined;
     pTranceGate: number | undefined;
     pFormantLfoRateHz: number | undefined;
     pFormantLfoDepth: number | undefined;
@@ -92,6 +93,7 @@ export interface SamplerNoteParams {
     fineTune?: number;
     grainPitchQuantize?: number;
     tranceGate?: number;
+    spectralCompression?: number;
     gateRate?: number;
     gateDepth?: number;
     vocoderMix?: number;
@@ -459,6 +461,7 @@ export function createSamplerPlayback(
         if (ctx.pGranularPitchShift !== undefined) voice.setGranularPitchShift(ctx.pGranularPitchShift, triggerTime);
         if (ctx.pBitcrush !== undefined) voice.setBitcrush(ctx.pBitcrush, triggerTime);
         if (ctx.pDownsample !== undefined) voice.setDownsample(ctx.pDownsample, triggerTime);
+        if (ctx.pSpectralCompression !== undefined) voice.setSpectralCompression(ctx.pSpectralCompression, triggerTime);
         if (ctx.pTranceGate !== undefined) voice.setTranceGate(ctx.pTranceGate, triggerTime);
 
         if (ctx.pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(ctx.pFormantLfoRateHz, triggerTime);
@@ -720,6 +723,7 @@ const playSamplerVoice = (
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
+    const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
 
     // Formant LFO
@@ -801,6 +805,7 @@ const playSamplerVoice = (
                 pGranularPitchShift,
                 pBitcrush,
                 pDownsample,
+                pSpectralCompression,
                 pTranceGate,
                 pFormantLfoRateHz,
                 pFormantLfoDepth,
