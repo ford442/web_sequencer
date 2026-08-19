@@ -428,8 +428,6 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                     <canvas
                         ref={canvasRef}
                         data-testid={testId}
-                        width={size * 2}
-                        height={size * 2}
                         style={{
                             width: '100%',
                             height: '100%',
@@ -439,6 +437,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                             left: 0,
                             zIndex: 10,
                             pointerEvents: 'none',
+                            transform: 'none',
                         }}
                     />
                 </div>

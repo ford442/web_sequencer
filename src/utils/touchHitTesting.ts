@@ -59,3 +59,46 @@ export function findHitKnobIndex(
 
     return bestIndex;
 }
+
+/**
+ * Hit-test against each knob canvas's layout box. WebGPU presents into the
+ * canvas bitmap; CSS transforms on that canvas can desync the visible image
+ * from reconstructed x/y math, so prefer the element's own rect.
+ */
+export function findHitKnobIndexFromCanvases(
+    canvases: Array<HTMLCanvasElement | null | undefined>,
+    clientX: number,
+    clientY: number,
+    options: FindHitKnobOptions = {}
+): number {
+    const minHitRadiusPx = options.minHitRadiusPx ?? MIN_TOUCH_TARGET_PX / 2;
+    const hitRadiusMultiplier = options.hitRadiusMultiplier ?? 1.15;
+
+    let bestIndex = -1;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < canvases.length; i++) {
+        const canvas = canvases[i];
+        if (!canvas) continue;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const visualR = Math.min(rect.width, rect.height) / 2;
+        const hitRadius = Math.max(visualR * hitRadiusMultiplier, minHitRadiusPx);
+
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const distCenter = Math.hypot(dx, dy);
+        const distLabel = Math.hypot(dx, clientY - (cy + visualR * 0.8));
+        const dist = Math.min(distCenter, distLabel);
+
+        if (dist < hitRadius && dist < bestDist) {
+            bestDist = dist;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
