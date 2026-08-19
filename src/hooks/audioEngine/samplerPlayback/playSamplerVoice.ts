@@ -111,6 +111,8 @@ export function createPlaySamplerVoice(
       pFreezeLfoRate = freezeRateSync ? getSyncedLfoHz(params.freezeLfoRate, tempo) : params.freezeLfoRate;
     }
     const pFreezeLfoDepth = noteParams?.freezeLfoDepth !== undefined ? noteParams.freezeLfoDepth : params.freezeLfoDepth;
+    const pGrainLfoRate = noteParams?.grainLfoRate !== undefined ? noteParams.grainLfoRate : params.grainLfoRate;
+    const pGrainLfoDepth = noteParams?.grainLfoDepth !== undefined ? noteParams.grainLfoDepth : params.grainLfoDepth;
 
     // Envelopes
     const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
@@ -124,6 +126,7 @@ export function createPlaySamplerVoice(
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
+    const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
 
     // Formant LFO
@@ -135,6 +138,7 @@ export function createPlaySamplerVoice(
     if (pFormantLfoShape === undefined) {
       pFormantLfoShape = noteParams?.customLfoShape !== undefined ? noteParams.customLfoShape : params.customLfoShape;
     }
+    const pCustomWindowShape = noteParams?.customWindowShape !== undefined ? noteParams.customWindowShape : params.customWindowShape;
 
     // Formant Envelope
     const envSync = noteParams?.formantEnvSync ?? params.formantEnvSync ?? false;
@@ -322,6 +326,8 @@ export function createPlaySamplerVoice(
         if (pFreeze !== undefined) voice.setFreeze(pFreeze, triggerTime);
         if (pFreezeLfoRate !== undefined) voice.setFreezeLfoRate(pFreezeLfoRate, triggerTime);
         if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
+        if (pGrainLfoRate !== undefined) voice.setGrainLfoRate(pGrainLfoRate, triggerTime);
+        if (pGrainLfoDepth !== undefined) voice.setGrainLfoDepth(pGrainLfoDepth, triggerTime);
 
         if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
         if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
@@ -333,7 +339,10 @@ export function createPlaySamplerVoice(
         if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+        if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+
+        voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 
         if (pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(pFormantLfoRateHz, triggerTime);
         if (pFormantLfoDepth !== undefined) voice.setFormantLfoDepth(pFormantLfoDepth, triggerTime);

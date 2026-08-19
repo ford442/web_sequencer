@@ -1,5 +1,8 @@
 import { makeDistortionCurve } from '../../hooks/audioEngine/distortion';
 import { createReverbImpulseResponse } from '../impulseResponses';
+import { WamSlotPorts } from '../wam/WamSlotPorts';
+import { assertSafeGraphCycles } from './cycleCheck';
+import { edgeKey, validateGraph } from './graphOps';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -15,6 +18,7 @@ import type {
     GraphNodeId,
     GraphNodeRole,
     GraphNodeSpec,
+    GraphPortPair,
     StereoPannerConfig,
     TrackMonitorConfig,
     WaveShaperConfig,
@@ -33,11 +37,19 @@ export interface CompileGraphOptions {
      * destination, so a browser that cannot register the worklet still plays.
      */
     createMasterLimiterNode?: (context: AudioContext) => AudioNode | null;
+    /**
+     * Reject configs that fail `validateGraph` (cycles, dangling edges,
+     * duplicate ids) instead of compiling them. On by default: a user-authored
+     * patch must not be able to wire a runaway loop into the audio thread.
+     * Disable only for tests that compile a deliberately partial subgraph.
+     */
+    validate?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
+    validate: true,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
             case 'room':
@@ -59,6 +71,7 @@ function createNode(
     spec: GraphNodeSpec,
     options: Required<CompileGraphOptions>,
     analysers: Map<GraphNodeId, AnalyserNode>,
+    ports: Map<GraphNodeId, GraphPortPair>,
 ): AudioNode | null {
     const { factory, id, config } = spec;
 
@@ -150,6 +163,14 @@ function createNode(
             return options.createMasterLimiterNode(context);
         case 'destination':
             return context.destination;
+        case 'wamInstrumentSlot':
+        case 'wamTrackInsert':
+        case 'wamMasterInsert':
+        case 'wamSendReturn': {
+            const slot = new WamSlotPorts(context);
+            ports.set(id, { input: slot.input, output: slot.output, wamSlot: slot });
+            return slot.output;
+        }
         default:
             throw new Error(`Unknown graph node factory: ${factory}`);
     }
@@ -209,16 +230,31 @@ export function compileAudioGraph(
     config: AudioGraphConfig,
     options: CompileGraphOptions = {},
 ): CompiledAudioGraph {
+    assertSafeGraphCycles(config);
     const resolved = { ...DEFAULT_OPTIONS, ...options };
+
+    if (resolved.validate) {
+        const validation = validateGraph(config);
+        if (!validation.valid) {
+            const detail = validation.issues.map((issue) => issue.message).join('; ');
+            throw new Error(`AudioGraph compile failed: ${detail}`);
+        }
+    }
+
     const nodes = new Map<GraphNodeId, AudioNode>();
+    const ports = new Map<GraphNodeId, GraphPortPair>();
+    const sendGains = new Map<string, GainNode>();
     const analysers = new Map<GraphNodeId, AnalyserNode>();
     const roles = new Map<GraphNodeRole, GraphNodeId | GraphNodeId[]>();
     const connectionLog: GraphConnectionRecord[] = [];
 
     for (const spec of config.nodes) {
-        const node = createNode(context, spec, resolved, analysers);
+        const node = createNode(context, spec, resolved, analysers, ports);
         if (node) {
             nodes.set(spec.id, node);
+            if (!ports.has(spec.id)) {
+                ports.set(spec.id, { input: node, output: node });
+            }
             if (spec.role) {
                 registerRole(roles, spec.role, spec.id);
             }
@@ -250,8 +286,13 @@ export function compileAudioGraph(
     }
 
     for (const edge of edges) {
-        const fromNode = nodes.get(edge.from);
-        const toNode = nodes.get(edge.to) ?? (edge.to === 'destination' ? context.destination : undefined);
+        const fromPort = ports.get(edge.from);
+        const toPort = ports.get(edge.to);
+        const fromNode = fromPort?.output ?? nodes.get(edge.from);
+        const toNode =
+            toPort?.input ??
+            nodes.get(edge.to) ??
+            (edge.to === 'destination' ? context.destination : undefined);
         if (!fromNode || !toNode) {
             if (!hasStereoPanner && (edge.to === 'masterPanner' || edge.from === 'masterPanner')) {
                 continue;
@@ -260,7 +301,18 @@ export function compileAudioGraph(
                 `AudioGraph compile failed: missing node for edge ${edge.from} → ${edge.to}`,
             );
         }
-        fromNode.connect(toNode);
+        if (edge.gain !== undefined && edge.gain !== 1) {
+            // Web Audio connections carry no level, so a send amount becomes an
+            // implicit GainNode. It is kept in `sendGains` so the patch bay can
+            // ride the fader without recompiling the graph.
+            const send = context.createGain();
+            send.gain.setValueAtTime(edge.gain, context.currentTime);
+            fromNode.connect(send);
+            send.connect(toNode);
+            sendGains.set(edgeKey(edge.from, edge.to), send);
+        } else {
+            fromNode.connect(toNode);
+        }
         connectionLog.push({
             from: edge.from,
             to: edge.to,
@@ -272,15 +324,24 @@ export function compileAudioGraph(
         configId: config.id,
         configName: config.name,
         nodes,
+        ports,
         analysers,
         roles,
         connectionLog,
+        sendGains,
         getNode<T extends AudioNode = AudioNode>(id: GraphNodeId): T {
             const node = nodes.get(id);
             if (!node) {
                 throw new Error(`AudioGraph node not found: ${id}`);
             }
             return node as T;
+        },
+        getPort(id: GraphNodeId): GraphPortPair {
+            const pair = ports.get(id);
+            if (!pair) {
+                throw new Error(`AudioGraph port not found: ${id}`);
+            }
+            return pair;
         },
         getRoleNode(role: GraphNodeRole): AudioNode | undefined {
             const entry = roles.get(role);

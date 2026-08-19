@@ -49,9 +49,12 @@ gpt_mini_work/contabo_storage_manager/
 # Build artifacts
 public/*.js
 public/*.wasm
+public/*.mjs
 src/wasm/*.js
 src/wasm/*.wasm
 src/wasm/*.d.ts
+src/jc303-single.wasm
 public/audio-worklets/
 public/utils/
+.cache/
 __pycache__/

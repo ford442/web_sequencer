@@ -62,6 +62,7 @@ import type { KnobMaterial } from './knobMaterial';
 import { getPrefersReducedMotion, resolveKnobTimeUniform, shouldAnimateKnob, subscribeReducedMotion } from './knobMotion';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
+import { probeWebGPU } from '../engines/backends/webgpuProbe';
 
 type StatusListener = (status: KnobGpuStatus) => void;
 type SnapshotListener = () => void;
@@ -530,17 +531,56 @@ class KnobGPUContextClass {
         slot.inViewport = true;
     }
 
+    /**
+     * Keep the WebGPU swapchain size in lockstep with the canvas CSS box.
+     * Changing `canvas.width` after the first configure() without reconfigure
+     * leaves the presented texture at the old size, which Chromium composites
+     * 1:1 from the bottom-left — the knob image sits up/right of the hit box.
+     */
+    private canvasBufferSize(canvas: HTMLCanvasElement): { w: number; h: number } {
+        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+        const cssW = canvas.clientWidth > 0 ? canvas.clientWidth : canvas.width;
+        const cssH = canvas.clientHeight > 0 ? canvas.clientHeight : canvas.height;
+        return {
+            w: Math.max(1, Math.floor(cssW * dpr)),
+            h: Math.max(1, Math.floor(cssH * dpr)),
+        };
+    }
+
+    private configureCanvasContext(context: GPUCanvasContext, canvas: HTMLCanvasElement): void {
+        const { w, h } = this.canvasBufferSize(canvas);
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+        context.configure({
+            device: this.device!,
+            format: this.format!,
+            alphaMode: 'premultiplied',
+        });
+    }
+
+    private syncSlotBuffer(slot: Slot): void {
+        if (!this.device || !this.format) return;
+        const { w, h } = this.canvasBufferSize(slot.canvas);
+        if (slot.canvas.width !== w || slot.canvas.height !== h || slot.width !== w || slot.height !== h) {
+            if (slot.canvas.width !== w) slot.canvas.width = w;
+            if (slot.canvas.height !== h) slot.canvas.height = h;
+            slot.width = w;
+            slot.height = h;
+            slot.context.configure({
+                device: this.device,
+                format: this.format,
+                alphaMode: 'premultiplied',
+            });
+        }
+    }
+
     private attachSlot(id: number, canvas: HTMLCanvasElement, getValue: () => number): boolean {
         if (!this.device || !this.pipeline || !this.format) return false;
         try {
             const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
             if (!context) return false;
 
-            context.configure({
-                device: this.device,
-                format: this.format,
-                alphaMode: 'premultiplied',
-            });
+            this.configureCanvasContext(context, canvas);
 
             const uniformBuffer = this.device.createBuffer({
                 size: 32,
@@ -714,9 +754,6 @@ class KnobGPUContextClass {
         this.slots.clear();
         this.dirtyIds.clear();
         this.pauseLoop();
-        try {
-            this.device?.destroy?.();
-        } catch { /* noop */ }
         this.device = null;
         this.pipeline = null;
         this.format = null;
@@ -750,21 +787,16 @@ class KnobGPUContextClass {
     }
 
     private async doInit(): Promise<boolean> {
-        if (!navigator.gpu) {
+        const probe = await probeWebGPU();
+        if (!probe.ok || !probe.device) {
             this.setStatus('unavailable');
-            this.reportDegradation('navigator.gpu unavailable');
+            this.reportDegradation(probe.reason ?? 'navigator.gpu unavailable');
             return false;
         }
         try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) {
-                this.setStatus('degraded');
-                this.reportDegradation('requestAdapter() returned null');
-                return false;
-            }
-            const device = await adapter.requestDevice();
+            const device = probe.device;
             this.device = device;
-            this.format = navigator.gpu.getPreferredCanvasFormat();
+            this.format = navigator.gpu?.getPreferredCanvasFormat() ?? 'bgra8unorm';
 
             if (!this.deviceLostHandled) {
                 this.deviceLostHandled = true;
@@ -903,11 +935,7 @@ class KnobGPUContextClass {
             const slot = this.slots.get(id);
             if (!slot || !slot.inViewport) continue;
             try {
-                // Sync canvas buffer size if DPR/layout changed.
-                if (slot.canvas.width !== slot.width || slot.canvas.height !== slot.height) {
-                    slot.width = slot.canvas.width;
-                    slot.height = slot.canvas.height;
-                }
+                this.syncSlotBuffer(slot);
 
                 const value = slot.getValue();
                 const time = resolveKnobTimeUniform(nowSeconds, slot.animated, reduced);

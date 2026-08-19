@@ -27,7 +27,10 @@ export default mergeConfig(
       rollupOptions: {
         external: ['loader.mjs'],
       },
-      sourcemap: true,
+      sourcemap:
+        process.env.HYPHON_SOURCEMAP === 'hidden'
+          ? 'hidden'
+          : process.env.HYPHON_SOURCEMAP === '1',
       outDir: 'dist',
     },
     test: unitTestConfig.test,

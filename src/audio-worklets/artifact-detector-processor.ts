@@ -303,17 +303,23 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
+        const pendingArtifacts = new Array(this.pendingArtifacts.length);
+        for (let i = 0; i < this.pendingArtifacts.length; i++) {
+            const a = this.pendingArtifacts[i];
+            pendingArtifacts[i] = {
+                detected: a.detected,
+                severity: a.severity,
+                type: a.type,
+                timestamp: a.timestamp
+            };
+        }
+
         this.port.postMessage({
             type: 'quality-update',
             quality: avgQuality,
             artifactRate: stats.artifactRate,
             averageSeverity: stats.averageSeverity,
-            pendingArtifacts: this.pendingArtifacts.map(a => ({
-                detected: a.detected,
-                severity: a.severity,
-                type: a.type,
-                timestamp: a.timestamp
-            }))
+            pendingArtifacts
         });
 
         // Reset accumulators

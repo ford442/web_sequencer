@@ -121,6 +121,28 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set grain LFO rate.
+   * @param rate LFO rate in Hz
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainLfoRate(this: SingingVoiceHost, rate: number, time?: number): void {
+    setWorkletParam(this, "grainLfoRate", rate, time);
+  },
+
+  /**
+   * Set grain LFO depth.
+   * @param depth LFO depth (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainLfoDepth(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainLfoDepth", depth, time);
+  },
+
+  /**
    * Set envelope follower depth for time stretch modulation.
    * @param depth Depth (-1 to 1)
    * @param time Optional time to apply the change (default: now)
@@ -268,6 +290,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralCompression(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralCompression", amount, time);
+  },
+
+  /**
    * Set bitcrush amount.
    * @param amount Bitcrush amount (0-1)
    * @param time Optional time to apply the change
@@ -283,6 +314,24 @@ export const EffectsControlMixin = {
    */
   setDownsample(this: SingingVoiceHost, factor: number, time?: number): void {
     setWorkletParam(this, "downsample", factor, time);
+  },
+
+  /**
+   * Set custom shape for granular synthesis windowing.
+   * @param shape Array of normalized values (0.0 to 1.0)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setCustomWindowShape(
+    this: SingingVoiceHost,
+    shape: number[] | undefined,
+    time?: number,
+  ): void {
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({
+        type: "setCustomWindowShape",
+        data: { shape },
+      });
+    }
   },
 
   /**
@@ -302,7 +351,7 @@ export const EffectsControlMixin = {
     if (this.workletNode && this.workletNode.port) {
       this.workletNode.port.postMessage({
         type: 'setCustomGrainEnvelope',
-        shape: shape
+        shape: shape,
       });
     }
   },

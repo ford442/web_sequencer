@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { probeWebGPU } from '../../engines/backends/webgpuProbe';
 import type { AutomationLanePoint } from '../../types';
 
 // The compute shader takes the list of points and interpolation mode,
@@ -139,17 +140,17 @@ export const useWebGPUCurveEditor = (
     let isCleanedUp = false;
 
     const initWebGPU = async () => {
-      if (!canvasRef.current || !navigator.gpu) return;
+      if (!canvasRef.current) return;
 
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter || isCleanedUp) {
-        if (!adapter) {
+      const probe = await probeWebGPU();
+      if (!probe.ok || !probe.device || isCleanedUp) {
+        if (!probe.ok) {
           engineDegradationStore.report({
             id: 'webgpu-curve-editor',
             subsystem: 'webgpu-curve-editor',
             category: 'gpu',
             message: 'Curve Editor using SVG fallback',
-            reason: 'requestAdapter() returned null',
+            reason: probe.reason ?? 'WebGPU unavailable',
             status: 'active',
             activeBackend: 'static',
             requestedBackend: 'webgpu',
@@ -159,17 +160,13 @@ export const useWebGPUCurveEditor = (
         return;
       }
 
-      const device = await adapter.requestDevice();
-      if (isCleanedUp) {
-          device.destroy();
-          return;
-      }
+      const device = probe.device;
       deviceRef.current = device;
 
       const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext | null;
       if (!context) return;
 
-      const format = navigator.gpu.getPreferredCanvasFormat();
+      const format = navigator.gpu?.getPreferredCanvasFormat?.() ?? 'bgra8unorm';
       context.configure({ device, format });
 
       const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
@@ -307,7 +304,7 @@ export const useWebGPUCurveEditor = (
 
     return () => {
       isCleanedUp = true;
-      if (deviceRef.current) deviceRef.current.destroy();
+      deviceRef.current = null;
     };
   }, [canvasRef]);
 };

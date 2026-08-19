@@ -17,9 +17,30 @@ HighFid303 / Rubber Band) and the AssemblyScript modules under `assembly/`.
 ```bash
 pnpm run build:emcc          # release (default)
 pnpm run build:emcc:debug    # debug
+pnpm run build:native        # all Four Worlds
+pnpm run build:native:changed
+pnpm run check:native        # fail closed + print the targeted rebuild command
+pnpm run dev:fast            # preflight then Vite — no native compile when hashes match
 bash emscripten/build.sh debug
 HYPHON_BUILD_PROFILE=debug bash emscripten/build.sh
 ```
+
+### Command layers
+
+| Script | What it does |
+|---|---|
+| `build:web` | `tsc -b` + Vite using already-built artifacts. No JS source maps. |
+| `build:web:debug` | Same with `HYPHON_SOURCEMAP=1`. |
+| `build:native` | Rebuild AssemblyScript, Rust, standalone JC-303, and `hyphon_native`. |
+| `build:native:changed` | Content-hash incremental; only stale/missing worlds. |
+| `check:native` | Preflight only. |
+| `build:release` | Native + `check:exports --glue` + web + `dist/native-artifacts.json`. |
+| `dev` | Full native then Vite (first run). |
+| `dev:fast` | `check:native` then Vite. |
+
+Stamps live in `.cache/native/stamps.json` (gitignored). The generated inventory is `.cache/native/native-artifacts.json`, copied to `dist/native-artifacts.json` after Vite. Schema: `docs/schemas/native-artifacts.schema.json`.
+
+`optimize` (`tools/optimize.sh`) is opt-in and is **not** part of `build` / `build:release`.
 
 | | release | debug |
 |---|---|---|
@@ -44,6 +65,14 @@ with `-s USE_PTHREADS=1`. No host `libomp` is involved. Rubber Band is compiled
 `build.sh` are disabled); it runs single-threaded inside the worklet, and the
 pthread pool exists for Emscripten's own runtime work. Comments elsewhere that
 describe Rubber Band as OpenMP-parallel are stale — this section is authoritative.
+
+CI and `AGENTS.md` pin **Emscripten 3.1.51**, which still emits a separate
+`*.worker.js` for pthreads. Emscripten 3.1.58+ inlines that worker into the
+main JS, and 6.x no longer writes the file at all. `check:native` still
+requires `public/jc303-threaded.worker.js` and `public/hyphon_native.worker.js`.
+`scripts/ensure-pthread-worker-stamp.mjs` copies a real worker when present
+and otherwise writes a stamp stub so Colab/`emsdk install latest` builds do
+not fail after a successful compile.
 
 ---
 
@@ -181,6 +210,34 @@ Current flags (`package.json`), one script per module:
 
 Page counts are mirrored in `emscripten/wasm_memory_budget.json#assemblyScript`
 and asserted by `src/__tests__/wasmMemoryBudget.test.ts`.
+
+---
+
+## Standalone JC-303 memory budget
+
+**This is not `hyphon_native`.** The live 303 path is `public/hyphon_native.wasm`.
+Standalone `public/jc303-*.wasm` is still built for fallback/compat.
+
+**Source of truth:** `emscripten/wasm_memory_budget.json#standaloneJc303`, consumed by
+`tools/build_jc303_omp.sh` and `tools/jc303_cmake/CMakeLists.txt` (Hyphon-owned
+overlay — the submodule `jc303_wasm/wasm/CMakeLists.txt` is not used).
+
+| Setting | Value |
+|---|---|
+| `INITIAL_MEMORY` | 16 MB |
+| `MAXIMUM_MEMORY` | 256 MB |
+| `STACK_SIZE` (release / debug) | 4 MB / 2 MB |
+| Threaded `PTHREAD_POOL_SIZE` | 4 |
+
+These are the settings that actually shipped when CMake last-won over the
+script banner that advertised 64 / 32 / 256. Raise them in the JSON if the
+standalone fallback overflows; do not put a second set of literals in the
+shell script.
+
+`src/jc303-single.wasm` is a stale tracked leftover and is no longer part of
+the runtime or the commit set. Generated JC-303 binaries stay in `public/`.
+
+Contract: `src/__tests__/wasmMemoryBudget.test.ts` + `src/__tests__/jc303LinkFlags.test.ts`.
 
 | Feature | Chrome / Edge | Firefox | Safari |
 |---|---|---|---|

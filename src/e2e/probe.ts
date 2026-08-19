@@ -4,6 +4,11 @@ declare global {
       step: number;
       laneCount: number;
     };
+    __HYPHON_E2E_SESSION__?: {
+      playingCount: number;
+      lastApplyStep: number;
+      captureCount: number;
+    };
   }
 }
 
@@ -26,4 +31,13 @@ export function setE2eTransportStep(step: number): void {
 export function setE2eLaneCount(count: number): void {
   if (!isE2eMode()) return;
   e2eTransportSnapshot().laneCount = count;
+}
+
+export function setE2eSessionState(state: {
+  playingCount: number;
+  lastApplyStep: number;
+  captureCount: number;
+}): void {
+  if (!isE2eMode() || typeof window === 'undefined') return;
+  window.__HYPHON_E2E_SESSION__ = state;
 }

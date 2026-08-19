@@ -5,14 +5,32 @@
  * 1. Root *.py must match allowlist (deploy.py only).
  * 2. Root *.md must match allowlist (canonical docs only).
  * 3. Every relative link in DOCS.md must resolve to an existing file.
+ * 4. No merge artifacts (*.orig, *.rej) anywhere in the tracked tree — they are
+ *    build-safe but they poison greps, diffs and agent context.
  */
 
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
+
+/** Suffixes left behind by `git merge` / `git apply` conflicts. */
+const MERGE_ARTIFACT_SUFFIXES = ['.orig', '.rej'];
+
+/** Directories that are not ours to police (deps, build output, vendored SDKs). */
+const SCAN_SKIP_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'emsdk',
+  'coverage',
+  'test-results',
+  'playwright-report',
+  '.pnpm-store',
+]);
 
 const ALLOWED_ROOT_PY = new Set(['deploy.py']);
 const ALLOWED_ROOT_MD = new Set([
@@ -48,6 +66,46 @@ function checkRootMd() {
   }
 }
 
+/** Walk the tree once, collecting merge artifacts. */
+function collectMergeArtifacts(dir, found) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return found; // unreadable directory is not a hygiene failure
+  }
+
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SCAN_SKIP_DIRS.has(entry.name)) continue;
+      collectMergeArtifacts(full, found);
+      continue;
+    }
+    // Symlinks are reported as neither file nor directory by some platforms;
+    // stat them so a linked-in artifact still counts.
+    const isFile = entry.isFile() || (entry.isSymbolicLink() && safeIsFile(full));
+    if (isFile && MERGE_ARTIFACT_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))) {
+      found.push(full.slice(ROOT.length + 1));
+    }
+  }
+  return found;
+}
+
+function safeIsFile(path) {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function checkMergeArtifacts() {
+  for (const relative of collectMergeArtifacts(ROOT, [])) {
+    errors.push(`Merge artifact left in tree: ${relative} (delete it; *.orig / *.rej are banned)`);
+  }
+}
+
 function checkDocsLinks() {
   const docsPath = join(ROOT, 'DOCS.md');
   if (!existsSync(docsPath)) {
@@ -74,6 +132,7 @@ function checkDocsLinks() {
 
 checkRootPy();
 checkRootMd();
+checkMergeArtifacts();
 checkDocsLinks();
 
 if (errors.length > 0) {

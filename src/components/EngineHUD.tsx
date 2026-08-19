@@ -2,6 +2,7 @@
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
+import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
 
 const CONTAINER_ID = 'engine-hud-root';
@@ -89,6 +90,37 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '<div style="font-size:10px;opacity:0.7;margin-top:4px">Restart audio (reload) to apply</div>';
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>${modeAppliesNote}`;
+
+    const probe = getLastWebGpuProbe();
+    const probeSnap = runtime.webgpuProbe;
+    const probeTitle = probeSnap
+      ? JSON.stringify(probeSnap).replace(/"/g, '&quot;')
+      : '';
+    const gpuSessionSection = (() => {
+      if (!probeSnap && !probe) {
+        return `<div class="subheader">WebGPU session</div>
+      <div class="row"><div style="flex:1">Probe</div><div style="min-width:72px;text-align:right">—</div></div>`;
+      }
+      const snap = probeSnap ?? {
+        ok: probe!.ok,
+        reason: probe!.reason,
+        browser: probe!.browser,
+        adapter: probe!.adapter,
+        ts: probe!.ts,
+      };
+      if (snap.ok) {
+        const desc = snap.adapter?.description || snap.adapter?.vendor || 'adapter';
+        return `<div class="subheader">WebGPU session</div>
+      <div class="row" title="${probeTitle}"><div style="flex:1">Status</div><div class="cpu-ok" style="min-width:72px;text-align:right">device-ready</div></div>
+      <div class="row"><div style="flex:1">Adapter</div><div style="min-width:72px;text-align:right;font-size:10px">${desc}</div></div>`;
+      }
+      const reason = (snap.reason ?? 'WebGPU unavailable').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const browser = snap.browser?.engineHint ?? 'unknown';
+      return `<div class="subheader">WebGPU session</div>
+      <div class="row" title="${probeTitle}"><div style="flex:1">Status</div><div class="cpu-hot" style="min-width:120px;text-align:right">WebGPU unavailable</div></div>
+      <div class="row" title="${reason}"><div style="flex:1">Reason</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${reason}</div></div>
+      <div class="row"><div style="flex:1">Browser</div><div style="min-width:72px;text-align:right;font-size:10px">${browser}</div></div>`;
+    })();
 
     const ts = runtime.transportSync;
     const syncSection = ts ? `<div class="subheader">Transport sync</div>
@@ -179,7 +211,19 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       ? `<div class="subheader">Degradations</div><div style="font-size:11px;opacity:0.85">${runtime.degradations.slice(-3).map(d => `${d.step}: ${d.active ? 'ON' : 'off'}`).join(' · ')}</div>`
       : '';
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    const wamRows = (runtime.wam2Slots ?? []).map((slot) => {
+      const cls = slot.status === 'ready' ? 'cpu-ok' : slot.status === 'bypassed' ? 'cpu-warn' : 'cpu-hot';
+      const err = slot.lastError ? ` title="${slot.lastError.replace(/"/g, '&quot;')}"` : '';
+      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${slot.isolation}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right">${slot.cpuPercent.toFixed(0)}%</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div></div>`;
+    }).join('');
+    const coop = runtime.wam2Constraints
+      ? `<div class="row"><div style="flex:1">COOP isolated</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.crossOriginIsolated ? 'yes' : 'no'}</div></div>
+         <div class="row"><div style="flex:1">Worklet / Worker</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.audioWorklet ? 'AW' : '—'} / ${runtime.wam2Constraints.worker ? 'W' : '—'}</div></div>
+         <div class="row"><div style="flex:1">BASE_URL</div><div style="min-width:72px;text-align:right;font-size:10px">${runtime.wam2Constraints.baseUrl}</div></div>`
+      : '';
+    const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
+
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render

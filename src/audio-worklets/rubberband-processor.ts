@@ -49,13 +49,24 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private isPlaying = false;
   private isReverse = false;
   private freezePhase: number = 0;
+  private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
+  private grainLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
 
   // Bitcrusher states
   private downsamplePhase: number[] = [0, 0];
   private lastSampleValue: number[] = [0, 0];
+
+  // Spectral Compression states (3-band approximation)
+  private scLow: number[] = [0, 0];
+  private scMid: number[] = [0, 0];
+  private scHigh: number[] = [0, 0];
+  private scEnvLow: number[] = [0, 0];
+  private scEnvMid: number[] = [0, 0];
+  private scEnvHigh: number[] = [0, 0];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -85,6 +96,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'freezeEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'timeStretchEnvDepth', defaultValue: 0.0, minValue: -1.0, maxValue: 1.0 },
       { name: 'grainEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'grainLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
+      { name: 'grainLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
@@ -92,7 +105,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'spectralCompression', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -164,6 +178,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       case 'loadBuffer':
         if (data && data.buffer) {
           this.fullSampleBuffer = new Float32Array(data.buffer);
+        }
+        break;
+
+      case 'setCustomWindowShape':
+        if (data.shape && data.shape.length > 0) {
+          this.customWindowShape = new Float32Array(data.shape);
+        } else {
+          this.customWindowShape = null;
         }
         break;
 
@@ -333,6 +355,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
+    const spectralCompression = parameters.spectralCompression ? parameters.spectralCompression[0] : 0.0;
     const breath = parameters.breathIntensity[0];
 
     const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
@@ -438,6 +461,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const freezeEnvDepth = parameters.freezeEnvDepth ? parameters.freezeEnvDepth[0] : 0.0;
         const grainEnvDepth = parameters.grainEnvDepth ? parameters.grainEnvDepth[0] : 0.0;
         const windowShape = parameters.windowShape ? parameters.windowShape[0] : 0.0;
+        const grainLfoRate = parameters.grainLfoRate ? parameters.grainLfoRate[0] : 0.0;
+        const grainLfoDepth = parameters.grainLfoDepth ? parameters.grainLfoDepth[0] : 0.0;
 
         // Advance LFO phase (we can do this per block/process call rather than per sample since block is 128 samples (~2.9ms at 44.1kHz),
         // which is fast enough for low-frequency LFOs up to 20Hz. We'll add the increment based on the block size).
@@ -450,6 +475,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.freezeLfoPhase += (2 * Math.PI * freezeLfoRate * framesInBlock) / sRate;
         if (this.freezeLfoPhase > 2 * Math.PI) {
             this.freezeLfoPhase -= 2 * Math.PI;
+        }
+
+        this.grainLfoPhase += (2 * Math.PI * grainLfoRate * framesInBlock) / sRate;
+        if (this.grainLfoPhase > 2 * Math.PI) {
+            this.grainLfoPhase -= 2 * Math.PI;
         }
 
         const lfoValue = Math.sin(this.freezeLfoPhase);
@@ -492,8 +522,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 }
             }
 
+            const grainLfoValue = Math.sin(this.grainLfoPhase);
+            // Apply unipolar LFO modulation to grain size (reduces size)
+            const lfoMod = 1.0 - (grainLfoDepth * ((grainLfoValue + 1) * 0.5));
+
             // Modulate grain size with envelope: louder = smaller grains for more texture
-            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * (1.0 - grainEnvDepth * envelopeValue)));
+            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
 
             // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
@@ -510,7 +544,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const phase = this.freezePhase / (actualGrainSize - 1);
                 let windowVal = 1.0;
 
-                if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                if (this.customWindowShape && this.customWindowShape.length > 0) {
+                    const index = phase * (this.customWindowShape.length - 1);
+                    const lower = Math.floor(index);
+                    const upper = Math.ceil(index);
+                    const weight = index - lower;
+                    windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+                } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
                     const idx = phase * (this.customGrainEnvelope.length - 1);
                     const lowerIdx = Math.floor(idx);
                     const upperIdx = Math.ceil(idx);
@@ -655,6 +695,66 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const gateMultiplier = 1.0 - (gateDepth * (1.0 - this.currentGateLfo));
           outputChannel[i] *= gateMultiplier;
+        }
+      }
+
+      // Apply Spectral Compression (3-band multi-band approximation)
+      if (spectralCompression > 0) {
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+
+          // Filter coefficients for ~300Hz and ~3000Hz crossovers at 44.1kHz/48kHz
+          // Using simple 1-pole approximations for efficiency in the hot loop
+          const fLow = 0.04;  // approx 300Hz
+          const fHigh = 0.35; // approx 3000Hz
+
+          // Compressor envelope constants (approx 1-5ms attack, 40-80ms release for speech)
+          const attackConst = 0.005; // ~5ms
+          const releaseConst = 0.0003; // ~70ms
+
+          for (let i = 0; i < outCh.length; i++) {
+            const sample = outCh[i];
+
+            // 1-pole state variable filters
+            this.scLow[channel] += fLow * (sample - this.scLow[channel]);
+            this.scHigh[channel] += fHigh * (sample - this.scHigh[channel]);
+
+            // Reconstruct bands so that amount=0 is unity gain
+            const low = this.scLow[channel];
+            const high = sample - this.scHigh[channel];
+            const mid = sample - low - high;
+
+            // Envelope followers
+            const absLow = Math.abs(low);
+            const absMid = Math.abs(mid);
+            const absHigh = Math.abs(high);
+
+            this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
+            this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
+            this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+
+            // Gain reduction + Upward/Downward compression (OTT style)
+            // The higher the env, the lower the gain multiplier.
+            // Scaled by spectralCompression parameter.
+            // Using +0.001 to prevent divide by zero
+            const targetRMS = 0.15; // Target level for upward/downward convergence
+
+            // Calculate ratio modifiers (0.0 to 1.0 maps to no-compression to heavy-compression)
+            // Soft knee approximation around target RMS
+            const gainLow = 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5;
+            const gainMid = 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7; // Compress mid more
+            const gainHigh = 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6;
+
+            // Clamp gains to prevent extreme blowout
+            const clampGainLow = Math.max(0.1, Math.min(4.0, gainLow));
+            const clampGainMid = Math.max(0.1, Math.min(3.0, gainMid));
+            const clampGainHigh = Math.max(0.1, Math.min(4.0, gainHigh));
+
+            // Apply gain and mix (Compressed + Dry mix)
+            const compressed = (low * clampGainLow) + (mid * clampGainMid) + (high * clampGainHigh);
+            outCh[i] = sample * (1.0 - spectralCompression) + compressed * spectralCompression;
+          }
         }
       }
 

@@ -13,6 +13,7 @@ export {
   createNoteOnSynth,
   noteOffSynth,
   createStopAllNotes,
+  createStopTrackNotes,
 } from "./audioPlayback/noteControls";
 export { createAmbianceControls } from "./audioPlayback/ambiance";
 export {

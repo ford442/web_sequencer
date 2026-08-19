@@ -277,6 +277,11 @@ if [ $? -eq 0 ]; then
         "$REPO_ROOT/public/hyphon_wasm_export_map.json"
     echo "Validating export map against emscripten/wasm_export_manifest.json..."
     node "$REPO_ROOT/tools/check_wasm_export_map.mjs" --glue "$OUTPUT_JS"
+    # Emscripten 3.1.51 emits hyphon_native.worker.js; 6.x inlines pthread workers.
+    node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
+        --src-dir "$REPO_ROOT/public" \
+        --stem hyphon_native \
+        --dest "$REPO_ROOT/public/hyphon_native.worker.js"
     echo "Build successful! (profile=$BUILD_PROFILE, legacy_jc303=$HYPHON_LEGACY_JC303)"
     echo "Generated: public/hyphon_native.js (and .wasm/.worker.js)"
     rm -rf "$TEMP_DIR"

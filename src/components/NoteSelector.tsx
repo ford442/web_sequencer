@@ -40,6 +40,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFilterCutoff,
     currentFilterResonance,
     currentEnvMod,
+    currentCustomWindowShape,
     currentFormantLfoSync,
     currentFormantLfoRate = 0,
     currentFormantLfoDepth = 0,
@@ -65,6 +66,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentDelayLfoDepth,
     currentDelaySend,
     currentFreezeEnvDepth = 0,
+    currentGrainLfoRate = 0,
+    currentGrainLfoDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
     currentGrainJitter = 0,
@@ -75,6 +78,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentGranularPitchShift = 0,
     currentBitcrush = 0,
     currentDownsample = 1,
+    currentSpectralCompression = 0,
     currentChoir,
     currentVocoderMix,
     currentVocoderFormantShift,
@@ -150,6 +154,8 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentFreezeLfoRate={currentFreezeLfoRate}
                 currentFreezeLfoDepth={currentFreezeLfoDepth}
                 currentFreezeEnvDepth={currentFreezeEnvDepth}
+                currentGrainLfoRate={currentGrainLfoRate}
+                currentGrainLfoDepth={currentGrainLfoDepth}
                 currentGrainEnvDepth={currentGrainEnvDepth}
                 currentGrainPitchEnvDepth={currentGrainPitchEnvDepth}
                 currentGrainJitter={currentGrainJitter}
@@ -160,6 +166,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentVocoderPreservation={currentVocoderPreservation}
                 currentBitcrush={currentBitcrush}
                 currentDownsample={currentDownsample}
+                currentSpectralCompression={currentSpectralCompression}
                 currentTranceGate={currentTranceGate}
               />
 
@@ -193,6 +200,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentPitchAmount={currentPitchAmount}
                 currentPitchAttack={currentPitchAttack}
                 currentPitchDecay={currentPitchDecay}
+                currentCustomWindowShape={currentCustomWindowShape}
                 currentFormantEnvSync={currentFormantEnvSync}
                 currentFormantEnvAttack={currentFormantEnvAttack}
                 currentFormantEnvDecay={currentFormantEnvDecay}

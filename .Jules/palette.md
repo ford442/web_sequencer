@@ -32,3 +32,6 @@
 ## 2026-08-11 - Better empty states over plain text
 **Learning:** The `WaveformDisplay` component previously rendered a completely blank canvas relying solely on `aria-label` when no audio sample was loaded. This lacked visual feedback for sighted users. The standardized `border-dashed` pattern with a centered icon significantly improves the interface by making it clear that a sample is expected in that container.
 **Action:** Consistently replace invisible or plain-text empty states on interactive panels with the full standardized visual representation.
+## 2026-08-18 - Better empty states for Phoneme Painter
+**Learning:** The `PhonemePainter` component had a completely blank, dark overlay (`bg-[#0d0f12]/80`) for its empty state. Consistent with `CloudLibrary` and other panels, using the standardized empty state container (`bg-gray-800/20 border border-dashed border-gray-700`) significantly improves the UX by visually indicating a designated interactive area for content, rather than an unstyled empty void.
+**Action:** Always replace unstyled or solid-color backgrounds for empty states in modals and panels with the standardized dashed-border pattern to maintain application consistency.

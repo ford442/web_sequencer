@@ -29,7 +29,7 @@ export class WasmOscillator {
     async init() {
         try {
             // Instantiate (Let WASM create its own memory)
-            this.instance = await initOscillators({
+            console.log("INIT FUN:", initOscillators); this.instance = await initOscillators({
                 env: {
                     abort: () => {}
                 }
