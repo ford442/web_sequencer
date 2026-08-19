@@ -48,6 +48,7 @@ export interface SamplerVoiceContext {
     pGrainPitchQuantize: number | undefined;
     pGranularPitchShift: number | undefined;
     pBitcrush: number | undefined;
+    pSpectralComp: number | undefined;
     pDownsample: number | undefined;
     pTranceGate: number | undefined;
     pFormantLfoRateHz: number | undefined;
@@ -458,6 +459,7 @@ export function createSamplerPlayback(
 
         if (ctx.pGranularPitchShift !== undefined) voice.setGranularPitchShift(ctx.pGranularPitchShift, triggerTime);
         if (ctx.pBitcrush !== undefined) voice.setBitcrush(ctx.pBitcrush, triggerTime);
+        if (ctx.pSpectralComp !== undefined) voice.setSpectralComp(ctx.pSpectralComp, triggerTime);
         if (ctx.pDownsample !== undefined) voice.setDownsample(ctx.pDownsample, triggerTime);
         if (ctx.pTranceGate !== undefined) voice.setTranceGate(ctx.pTranceGate, triggerTime);
 
@@ -719,6 +721,7 @@ const playSamplerVoice = (
     // Effects
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
+    const pSpectralComp = (noteParams as any)?.spectralComp !== undefined ? (noteParams as any).spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pTranceGate = noteParams?.tranceGate;
 
@@ -800,6 +803,7 @@ const playSamplerVoice = (
                 pGrainPitchQuantize,
                 pGranularPitchShift,
                 pBitcrush,
+                pSpectralComp,
                 pDownsample,
                 pTranceGate,
                 pFormantLfoRateHz,

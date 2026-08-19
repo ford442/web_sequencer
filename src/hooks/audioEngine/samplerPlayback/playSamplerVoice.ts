@@ -125,6 +125,7 @@ export function createPlaySamplerVoice(
     // Effects
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
+    const pSpectralComp = (noteParams as any)?.spectralComp !== undefined ? (noteParams as any).spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pTranceGate = noteParams?.tranceGate;
 
@@ -337,6 +338,7 @@ export function createPlaySamplerVoice(
 
         if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+        if (pSpectralComp !== undefined) voice.setSpectralComp(pSpectralComp, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
 

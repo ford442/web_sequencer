@@ -17,7 +17,7 @@
 - [x] Implement Phoneme Envelope shaping per step
 - [x] Implement Expressive Note Transitions for Vowels
 - [ ] Explore spectral panning per grain to create a wide stereo field for TTS voices.
-- [ ] Explore multi-band spectral compression for the TTS output
+- [x] Explore multi-band spectral compression for the TTS output
 
 - [x] Optimize TTS memory footprint
 - [x] Implement Lyric Track parsing
@@ -46,3 +46,4 @@
 - Velocity Check: Wiring up LFO parameters is becoming increasingly streamlined as the boilerplate (params -> types -> UI hooks) is well-established. Performance is well-preserved by calculating the LFO per-block (`framesInBlock`) rather than per-sample in the hot loop.
 
 ## Roadmap
+- Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.

@@ -23,6 +23,7 @@ export type PropertyChangeKey =
   | "spectralPanDepth"
   | "granularPitchShift"
   | "bitcrush"
+  | "spectralComp"
   | "downsample"
   | "tranceGate"
   | "formantShift"
