@@ -717,6 +717,5 @@ return (
             </div>
         )}
     </div>
-  );
+);
 });
-WaveformDisplay.displayName = "WaveformDisplay";
