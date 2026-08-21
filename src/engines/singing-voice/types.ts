@@ -23,6 +23,7 @@ export interface SingingVoiceCoreMethods {
   getLatency(): number;
   getLatencySeconds(): number;
   getPhonemeAligner(): PhonemeAligner | null;
+  setSpectralCompression(amount: number, time?: number): void;
 }
 
 export interface SingingVoicePublic

@@ -71,6 +71,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Bitcrusher states
   private downsamplePhase: number[] = [0, 0];
   private lastSampleValue: number[] = [0, 0];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -356,7 +357,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0;
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
-    const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
@@ -702,15 +702,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // Apply Multi-band Spectral Compression
       if (spectralComp > 0) {
-        // Simple 3-band dynamics processing
-        // Frequencies for crossovers
         const f1 = 300;
         const f2 = 3000;
         const fs = (globalThis as any).sampleRate ?? 44100;
 
-        // SVF coefficients (Chamberlin)
+        // Chamberlin SVF coefficients
         const f1_c = 2 * Math.sin(Math.PI * f1 / fs);
         const f2_c = 2 * Math.sin(Math.PI * f2 / fs);
         const q = 0.5; // Butterworth-ish
@@ -723,15 +720,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Max gain reduction in dB
         const maxGR = 12.0 * spectralComp;
-        const threshold = 0.1; // -20dB
+        const threshold = 0.1; // -20 dB
         const ratio = 1.0 + (3.0 * spectralComp); // up to 4:1
 
         for (let channel = 0; channel < outputs[0].length; channel++) {
           const outCh = outputs[0][channel];
           if (!outCh) continue;
-
-          // Ensure our state arrays have enough slots for stereo
-          if (channel > 1) continue; // For now, we only support up to stereo for this effect
+          if (channel > 1) continue; // stereo only for now
 
           for (let i = 0; i < outCh.length; i++) {
             const x = outCh[i];
@@ -740,54 +735,43 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
             const hp1 = x - this.scState.lp1[channel] - q * this.scState.bp1[channel];
             this.scState.bp1[channel] += f1_c * hp1;
-
             const low = this.scState.lp1[channel];
-            const rest = hp1; // High pass of first crossover
+            const rest = hp1;
 
-            // Crossover 2 (Mid / High) from the 'rest' signal
+            // Crossover 2 (Mid / High)
             this.scState.lp2[channel] += f2_c * this.scState.bp2[channel];
             const high = rest - this.scState.lp2[channel] - q * this.scState.bp2[channel];
             this.scState.bp2[channel] += f2_c * high;
-
             const mid = this.scState.lp2[channel];
 
-            // Bands: low, mid, high
             const bands = [low, mid, high];
             let outSum = 0;
 
             for (let b = 0; b < 3; b++) {
-               const absIn = Math.abs(bands[b]);
+              const absIn = Math.abs(bands[b]);
 
-               // Envelope calculation (Stereo linked: we max across channels to avoid image shifting)
-               // Simple max envelope: we update with max of current env or absIn, then release.
-               // For a true stereo link, we'd update once per frame, but this is an acceptable approximation.
-               if (absIn > this.scState.env[b]) {
-                   this.scState.env[b] = attackCoef * this.scState.env[b] + (1 - attackCoef) * absIn;
-               } else {
-                   this.scState.env[b] = releaseCoef * this.scState.env[b] + (1 - releaseCoef) * absIn;
-               }
+              if (absIn > this.scState.env[b]) {
+                this.scState.env[b] = attackCoef * this.scState.env[b] + (1 - attackCoef) * absIn;
+              } else {
+                this.scState.env[b] = releaseCoef * this.scState.env[b] + (1 - releaseCoef) * absIn;
+              }
 
-               let gain = 1.0;
-               if (this.scState.env[b] > threshold) {
-                   // Convert to dB for compression curve
-                   const envDb = 20 * Math.log10(this.scState.env[b]);
-                   const threshDb = 20 * Math.log10(threshold);
-                   const over = envDb - threshDb;
-
-                   let grDb = over * (1.0 - (1.0 / ratio));
-                   grDb = Math.min(grDb, maxGR);
-
-                   gain = Math.pow(10, -grDb / 20);
-               }
-
-               outSum += bands[b] * gain;
+              let gain = 1.0;
+              if (this.scState.env[b] > threshold) {
+                const envDb = 20 * Math.log10(this.scState.env[b]);
+                const threshDb = 20 * Math.log10(threshold);
+                const over = envDb - threshDb;
+                let grDb = over * (1.0 - (1.0 / ratio));
+                grDb = Math.min(grDb, maxGR);
+                gain = Math.pow(10, -grDb / 20);
+              }
+              outSum += bands[b] * gain;
             }
-
             outCh[i] = outSum;
           }
         }
       }
-
+        
       // Apply Bitcrush & Downsample
       if (bitcrushAmount > 0 || downsampleFactor > 1.0) {
         for (let channel = 0; channel < outputs[0].length; channel++) {

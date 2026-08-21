@@ -136,6 +136,7 @@ export interface SamplerBankParams {
   bitcrush?: number;
   spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantEnvAttack?: number;
@@ -478,6 +479,7 @@ export interface Note {
   bitcrush?: number;
   spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;

@@ -29,6 +29,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentBitcrush = 0,
     currentSpectralComp = 0,
     currentDownsample = 1,
+    currentSpectralCompression = 0,
     currentTranceGate = 0,
     currentFormantShift,
     currentSlideFormant = false,
@@ -354,6 +355,31 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           aria-valuetext={`${currentGrainPitchQuantize} semitones`}
           aria-label="Granular Pitch Quantization"
         />{" "}
+      </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <label htmlFor="note-spectral-compression">Band Dyn</label>
+          <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+            {Math.round((currentSpectralCompression + 0.0001) * 100)}%
+          </span>
+        </div>
+        <input
+          id="note-spectral-compression"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={currentSpectralCompression}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "spectralCompression",
+              parseFloat(e.target.value),
+            )
+          }
+          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+          aria-valuetext={`${Math.round((currentSpectralCompression + 0.0001) * 100)}%`}
+          aria-label="Spectral Compression Amount"
+        />
       </div>
        <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">

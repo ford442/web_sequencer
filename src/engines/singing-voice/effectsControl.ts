@@ -290,6 +290,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralCompression(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralCompression", amount, time);
+  },
+
+  /**
    * Set bitcrush amount.
    * @param amount Bitcrush amount (0-1)
    * @param time Optional time to apply the change
