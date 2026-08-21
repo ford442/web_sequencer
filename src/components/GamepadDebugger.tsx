@@ -73,7 +73,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
              <button
                type="button"
                onClick={handleScanGamepads}
-               className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-6 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+               className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-6 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                aria-label="Scan for connected gamepads"
              >
                {isScanning ? (
