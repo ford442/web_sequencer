@@ -31,6 +31,7 @@ interface SamplerKnobHandlers {
   grainPitchQuantize: (v: number) => void;
   granularPitchShift: (v: number) => void;
   bitcrush: (v: number) => void;
+  spectralComp: (v: number) => void;
   downsample: (v: number) => void;
   spectralCompression: (v: number) => void;
   windowShape: (v: number) => void;
@@ -182,6 +183,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handlers.grainPitchQuantize} min={0} max={12.0} step={1} color="indigo" unit="st" />
           <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handlers.granularPitchShift} min={-24} max={24} step={1} color="indigo" unit="st" />
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Spectral Comp" value={currentParams.spectralComp || 0} onChange={handlers.spectralComp} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handlers.downsample} min={1} max={32} step={1} color="indigo" unit="x" />
           <Knob label="Band Dyn" value={currentParams.spectralCompression || 0} onChange={handlers.spectralCompression} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handlers.formantLfoRate} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />

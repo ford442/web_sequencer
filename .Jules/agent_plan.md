@@ -47,3 +47,4 @@
 - Completed "Explore multi-band spectral compression for the TTS output" by implementing a lightweight 3-band dynamics processor in the `RubberBandProcessor`. We avoided a heavy true STFT magnitude compressor and instead used per-sample SVF (1-pole approx for ~300Hz and ~3kHz crossovers) with fast envelope followers (1-5ms attack, 40-80ms release). The output uses downward/upward compression with a dry/wet mix. It is strictly bypassed when the parameter `spectralCompression` is 0 to ensure zero overhead otherwise.
 
 ## Roadmap
+- Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.
