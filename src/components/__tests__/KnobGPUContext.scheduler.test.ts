@@ -3,6 +3,7 @@ import { KnobGPUContext } from '../KnobGPUContext';
 import { KNOB_STATIC_TIME } from '../knobMaterial';
 import { resolveKnobTimeUniform } from '../knobMotion';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { resetWebGpuProbeForTests } from '../../engines/backends/webgpuProbe';
 
 describe('KnobGPUContext idle-static scheduler', () => {
     let mockWriteBuffer: ReturnType<typeof vi.fn>;
@@ -21,6 +22,7 @@ describe('KnobGPUContext idle-static scheduler', () => {
     let lostResolve: ((info: GPUDeviceLostInfo) => void) | null;
 
     beforeEach(() => {
+        resetWebGpuProbeForTests();
         (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         engineDegradationStore.clear('gpu-knobs');
         frameCallbacks = [];

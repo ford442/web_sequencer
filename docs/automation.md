@@ -13,6 +13,7 @@ This document summarizes the current automation architecture and how `.rbs` data
   - `scheduleFromLanes()` handles step-indexed lanes from app state/import.
   - `scheduleFromTrakEvents()` handles RBS TRAK tick events.
   - Open303 parameters are applied through `Open303Manager.scheduleParamAtTime()` per voice (`lead303`, `bass1`, `bass2`).
+- WAM2 parameters use `target: 'wam'` and `parameter: '<slotId>/<paramId>'` via `AutomationScheduler.setWamHost()`.
 
 ## Practical importer behavior
 

@@ -12,6 +12,8 @@ export type PropertyChangeKey =
   | "freezeEnvDepth"
   | "grainEnvDepth"
   | "grainPitchEnvDepth"
+  | "grainLfoRate"
+  | "grainLfoDepth"
   | "grainJitter"
   | "grainPitchQuantize"
   | "windowShape"
@@ -21,7 +23,9 @@ export type PropertyChangeKey =
   | "spectralPanDepth"
   | "granularPitchShift"
   | "bitcrush"
+  | "spectralComp"
   | "downsample"
+  | "spectralCompression"
   | "tranceGate"
   | "formantShift"
   | "formantPitchLink"
@@ -95,6 +99,7 @@ export interface NoteSelectorProps {
   currentFreeze?: number;
   currentBitcrush?: number;
   currentDownsample?: number;
+  currentSpectralCompression?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;
@@ -127,6 +132,8 @@ export interface NoteSelectorProps {
   currentFreezeEnvDepth?: number;
   currentGrainEnvDepth?: number;
   currentGrainPitchEnvDepth?: number;
+  currentGrainLfoRate?: number;
+  currentGrainLfoDepth?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;

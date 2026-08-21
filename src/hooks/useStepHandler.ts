@@ -14,6 +14,7 @@ import type { TrackKey } from '../constants/appDefaults';
 import { noteToMidi, midiToNote, tunedNoteToFrequency } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
+import { TRACK_KEYS } from '../constants';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
 import type { AutomationTarget, UnifiedAutomationLane } from '../types';
@@ -37,13 +38,14 @@ const getAutomationValue = (target: AutomationTarget, param: string, step: numbe
 
 
 
-import { isE2eMode, setE2eTransportStep } from '../e2e/probe';
+import { isE2eMode, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 import {
     playbackHealthMonitor,
     PLAYBACK_THRESHOLDS,
 } from '../audio/playback/PlaybackHealthMonitor';
+import { getWamHost } from '../audio/wam';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -141,6 +143,10 @@ export interface UseStepHandlerOptions {
     automationSchedulerRef?: React.MutableRefObject<AutomationScheduler | null>;
     /** Resolved TRAK events from an imported RBS song for sub-step automation scheduling. */
     trakEventsRef?: React.MutableRefObject<ResolvedTrakEvent[] | null>;
+    sessionEngineRef?: React.MutableRefObject<import('../session/SessionLaunchEngine').SessionLaunchEngine | null>;
+    sessionClockRef?: React.MutableRefObject<{ step: number; audioTime: number; tempo: number }>;
+    setIsSongModeActive?: (active: boolean) => void;
+    onSessionTick?: (playing: Record<TrackKey, number | null>) => void;
 }
 
 export const useStepHandler = ({
@@ -173,6 +179,10 @@ export const useStepHandler = ({
     setCurrentSongMeasure,
     automationSchedulerRef,
     trakEventsRef,
+    sessionEngineRef,
+    sessionClockRef,
+    setIsSongModeActive,
+    onSessionTick,
 }: UseStepHandlerOptions) => {
     const lastHandledStepRef = useRef({ step: -1, audioTime: 0 });
     const lastTrakBarRef = useRef(-1);
@@ -201,8 +211,56 @@ export const useStepHandler = ({
 
         let activePattern = patternRef.current;
 
-        // Song Mode Measure Handling
-        if (isSongModeActiveRef.current) {
+        if (sessionClockRef) {
+            sessionClockRef.current = { step, audioTime: time, tempo };
+        }
+        const sessionEngine = sessionEngineRef?.current;
+        if (sessionEngine) {
+            const tick = sessionEngine.tick({
+                step,
+                audioTime: time,
+                tempo,
+                patternSteps: 32,
+                stepsPerBeat: 4,
+                stepsPerBar: 16,
+                isPlaying: true,
+                songModeActive: isSongModeActiveRef.current,
+            });
+            if (tick.preemptSongMode) setIsSongModeActive?.(false);
+            for (const track of tick.flushTracks) {
+                audioEngine.stopTrackNotes?.(track);
+                lastFreqRef.current[track] = 0;
+            }
+            onSessionTick?.(sessionEngine.playingSlots());
+            if (isE2eMode()) {
+                setE2eSessionState({
+                    playingCount: TRACK_KEYS.filter((t) => sessionEngine.playingSlot(t) != null).length,
+                    lastApplyStep: tick.applied[0]?.step ?? (typeof window !== 'undefined' ? window.__HYPHON_E2E_SESSION__?.lastApplyStep ?? -1 : -1),
+                    captureCount: sessionEngine.captureEvents.length,
+                });
+            }
+        }
+
+        // Session clip playback overlays the live pattern (stopped tracks are silent).
+        if (sessionEngine?.hasPlaying()) {
+            const slots = sessionEngine.playingSlots();
+            const getSessionSeq = (key: TrackKey) => {
+                const slot = slots[key];
+                if (slot === null) return key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ;
+                const stored = trackStorageRef.current[key][slot];
+                return stored ?? (key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ);
+            };
+            activePattern = {
+                partA: getSessionSeq('partA'),
+                partB: getSessionSeq('partB'),
+                bass2: getSessionSeq('bass2'),
+                kick: getSessionSeq('kick'),
+                snare: getSessionSeq('snare'),
+                closedHat: getSessionSeq('closedHat'),
+                openHat: getSessionSeq('openHat'),
+                sampler: getSessionSeq('sampler'),
+            } as Pattern;
+        } else if (isSongModeActiveRef.current) {
             if (step === 0) {
                 if (isFirstStepRef.current) {
                     isFirstStepRef.current = false;
@@ -317,7 +375,14 @@ export const useStepHandler = ({
             const driveVal = getAutomationValue(targetForLane, 'drive', step);
             if (driveVal !== undefined) noteParams.drive = driveVal;
 
-            audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
+            const durationSeconds = (stepData.length ?? 1) * stepTime;
+            const wamHost = getWamHost();
+            if (wamHost?.takesOverTrack(trackKey)) {
+                const velocity = stepData.velocity ?? 1;
+                wamHost.scheduleTrackNotes(trackKey, notes, time, durationSeconds, velocity);
+            } else {
+                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
+            }
 
             // Update last frequency for future slides
             lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
@@ -373,7 +438,13 @@ export const useStepHandler = ({
             const b2Drive = getAutomationValue('bass2', 'drive', step);
             if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
 
-            audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
+            const wamBass = getWamHost();
+            if (wamBass?.takesOverTrack('bass2')) {
+                const durationSeconds = (stepData.length ?? 1) * stepTime;
+                wamBass.scheduleTrackNotes('bass2', notes, time, durationSeconds, stepData.velocity ?? 1);
+            } else {
+                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
+            }
         };
 
         // Trigger synths

@@ -6,7 +6,7 @@ export type { Knob2DDimensions, Knob2DDrawCommand } from './knobRender';
 export { buildKnob2DDrawCalls } from './knobRender';
 import { isPointerNearArcRing, valueFromArcPointer, createKnobDragAnchor, computeKnobDragValue, getKnobCanvasValue, getKnobDragCursor, type KnobDragAnchor, type KnobDragModifier } from './knobInteraction';
 import { notifyDetentCross, snappedDetentIndex } from './knobDetentFeedback';
-import { findHitKnobIndex } from '../utils/touchHitTesting';
+import { findHitKnobIndexFromCanvases } from '../utils/touchHitTesting';
 import { useCompactLayoutOptional } from '../contexts/CompactLayoutContext';
 import { MidiBadge } from './MidiBadge';
 import type { AutomationTarget } from '../types';
@@ -474,8 +474,7 @@ export const HardwareModule = memo(
             observer.observe(container);
 
             const findHitKnob = (clientX: number, clientY: number): number => {
-                const rect = cachedRectRef.current || container.getBoundingClientRect();
-                return findHitKnobIndex(controlsRef.current, clientX, clientY, rect, {
+                return findHitKnobIndexFromCanvases(knobCanvasRefs.current, clientX, clientY, {
                     hitRadiusMultiplier: isCompact ? 1.35 : 1.15,
                 });
             };
@@ -534,12 +533,16 @@ export const HardwareModule = memo(
 
             const tryArcClickToSet = (hitIndex: number, clientX: number, clientY: number): boolean => {
                 const k = controlsRef.current[hitIndex];
+                const canvas = knobCanvasRefs.current[hitIndex];
+                const kRect = canvas?.getBoundingClientRect();
                 const rect = cachedRectRef.current || container.getBoundingClientRect();
-                const kCenterX = rect.left + k.x * rect.width;
-                const kCenterY = rect.top + k.y * rect.height;
+                const kCenterX = kRect ? kRect.left + kRect.width / 2 : rect.left + k.x * rect.width;
+                const kCenterY = kRect ? kRect.top + kRect.height / 2 : rect.top + k.y * rect.height;
                 const dx = clientX - kCenterX;
                 const dy = clientY - kCenterY;
-                const bodyRadius = k.size * Math.min(rect.width, rect.height);
+                const bodyRadius = kRect
+                    ? Math.min(kRect.width, kRect.height) / 2
+                    : k.size * Math.min(rect.width, rect.height);
 
                 if (!isPointerNearArcRing(dx, dy, bodyRadius, KNOB_MATERIAL)) {
                     return false;
@@ -698,35 +701,37 @@ export const HardwareModule = memo(
         useEffect(() => {
             const container = containerRef.current;
             if (!container) return;
-            const ro = new ResizeObserver((entries) => {
-                const rect = entries[0].contentRect;
-                const minDim = Math.min(rect.width, rect.height);
+            const layoutKnobSlot = (index: number) => {
+                const ctrl = controlsRef.current[index];
+                const canvas = knobCanvasRefs.current[index];
+                const moduleEl = containerRef.current;
+                if (!ctrl || !canvas || !moduleEl) return;
+                const minDim = Math.min(moduleEl.clientWidth, moduleEl.clientHeight);
+                const wrap = canvas.parentElement;
+                const sizePx = ctrl.size * minDim * 2;
+                if (wrap) {
+                    wrap.style.width = `${sizePx}px`;
+                    wrap.style.height = `${sizePx}px`;
+                }
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.transform = 'none';
+                const handle = knobHandlesRef.current[index];
+                if (handle && KnobGPUContext.isSlotActive(handle)) {
+                    KnobGPUContext.markDirty(handle);
+                } else {
+                    renderKnob2D(canvas, getCanvasValueAt(index), KNOB_MATERIAL, getAutomationOverlayAt(index));
+                }
+            };
+
+            const ro = new ResizeObserver(() => {
                 for (let i = 0; i < controlsRef.current.length; i++) {
-                    const ctrl = controlsRef.current[i];
-                    const canvas = knobCanvasRefs.current[i];
-                    if (!canvas) continue;
-                    const sizePx = ctrl.size * minDim * 2;
-                    canvas.style.width = `${sizePx}px`;
-                    canvas.style.height = `${sizePx}px`;
-                    canvas.style.left = `${ctrl.x * rect.width}px`;
-                    canvas.style.top = `${ctrl.y * rect.height}px`;
-                    canvas.style.position = 'absolute';
-                    canvas.style.transform = 'translate(-50%, -50%)';
-                    const dpr = window.devicePixelRatio || 1;
-                    const targetW = Math.max(1, Math.floor(sizePx * dpr));
-                    const targetH = Math.max(1, Math.floor(sizePx * dpr));
-                    if (canvas.width !== targetW || canvas.height !== targetH) {
-                        canvas.width = targetW;
-                        canvas.height = targetH;
-                    }
-                    if (knobHandlesRef.current[i] === null) {
-                        renderKnob2D(canvas, getCanvasValueAt(i), KNOB_MATERIAL, getAutomationOverlayAt(i));
-                    }
+                    layoutKnobSlot(i);
                 }
             });
             ro.observe(container);
             return () => ro.disconnect();
-        }, []);
+        }, [getCanvasValueAt, getAutomationOverlayAt]);
 
         const setKnobCanvasRef = useCallback((index: number) => (el: HTMLCanvasElement | null) => {
             const oldCanvas = knobCanvasRefs.current[index];
@@ -739,22 +744,18 @@ export const HardwareModule = memo(
             knobCanvasRefs.current[index] = el;
             if (!el) return;
 
-            const container = el.parentElement as HTMLDivElement | null;
-            if (container) {
-                const rect = container.getBoundingClientRect();
-                const minDim = Math.min(rect.width, rect.height);
+            const wrap = el.parentElement;
+            const moduleEl = containerRef.current;
+            if (wrap && moduleEl) {
+                const minDim = Math.min(moduleEl.clientWidth, moduleEl.clientHeight);
                 const ctrl = controlsRef.current[index];
                 if (ctrl) {
                     const sizePx = ctrl.size * minDim * 2;
-                    el.style.width = `${sizePx}px`;
-                    el.style.height = `${sizePx}px`;
-                    el.style.left = `${ctrl.x * rect.width}px`;
-                    el.style.top = `${ctrl.y * rect.height}px`;
-                    el.style.position = 'absolute';
-                    el.style.transform = 'translate(-50%, -50%)';
-                    const dpr = window.devicePixelRatio || 1;
-                    el.width = Math.max(1, Math.floor(sizePx * dpr));
-                    el.height = Math.max(1, Math.floor(sizePx * dpr));
+                    wrap.style.width = `${sizePx}px`;
+                    wrap.style.height = `${sizePx}px`;
+                    el.style.width = '100%';
+                    el.style.height = '100%';
+                    el.style.transform = 'none';
                 }
             }
 
@@ -839,13 +840,22 @@ export const HardwareModule = memo(
                     aria-hidden="true"
                 />
                 {controls.map((c, i) => (
-                    <canvas
+                    <div
                         key={c.id}
-                        ref={setKnobCanvasRef(i)}
-                        data-testid={`hardware-knob-canvas-${String(c.id).replace(KNOB_TEST_ID_SANITIZE_PATTERN, '_')}`}
-                        className="block"
-                        style={{ position: 'absolute', pointerEvents: 'none' }}
-                    />
+                        className="absolute pointer-events-none"
+                        style={{
+                            left: `${c.x * 100}%`,
+                            top: `${c.y * 100}%`,
+                            transform: 'translate(-50%, -50%)',
+                        }}
+                    >
+                        <canvas
+                            ref={setKnobCanvasRef(i)}
+                            data-testid={`hardware-knob-canvas-${String(c.id).replace(KNOB_TEST_ID_SANITIZE_PATTERN, '_')}`}
+                            className="block w-full h-full"
+                            style={{ pointerEvents: 'none' }}
+                        />
+                    </div>
                 ))}
                 <div className="absolute inset-0 pointer-events-none">
                     <PanelTitleBar

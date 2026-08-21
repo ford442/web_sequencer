@@ -1,0 +1,24 @@
+{
+  "sdk": {
+    "package": "@webaudiomodules/sdk",
+    "version": "0.0.12",
+    "license": "MIT",
+    "load": "lazy"
+  },
+  "packages": [
+    {
+      "id": "hyphon.tone",
+      "version": "1.0.0",
+      "kind": "instrument",
+      "license": "MIT",
+      "origin": "bundled"
+    },
+    {
+      "id": "hyphon.gain",
+      "version": "1.0.0",
+      "kind": "effect",
+      "license": "MIT",
+      "origin": "bundled"
+    }
+  ]
+}

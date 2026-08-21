@@ -2,6 +2,8 @@
 
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import type { TransportSyncTelemetry } from '../midi/clock/types';
+import type { Wam2RuntimeConstraints, Wam2SlotTelemetry } from '../audio/wam/types';
+import type { WebGpuProbeSnapshot } from '../engines/backends/webgpuProbe';
 
 type Resolution = { backend: string; reason?: string; ts: number };
 
@@ -71,6 +73,10 @@ type RuntimeTelemetry = {
   /** P0 audio foundation — latencyHint requested when the context was created. */
   latencyHint: string | null;
   transportSync: TransportSyncTelemetry | null;
+  wam2Slots: Wam2SlotTelemetry[];
+  wam2Constraints: Wam2RuntimeConstraints | null;
+  /** Session WebGPU probe (JSON-safe; no GPUDevice). */
+  webgpuProbe: WebGpuProbeSnapshot | null;
 };
 
 function emptyData(): TelemetryData {
@@ -200,6 +206,11 @@ export interface RuntimeSnapshot {
   latencyHint: string | null;
   /** MIDI transport sync telemetry (master/slave/internal). */
   transportSync: TransportSyncTelemetry | null;
+  /** WAM2 host slots (Phase A compatibility spike). */
+  wam2Slots: Wam2SlotTelemetry[];
+  wam2Constraints: Wam2RuntimeConstraints | null;
+  /** Session WebGPU probe breadcrumb (browser, reason, adapter). */
+  webgpuProbe: WebGpuProbeSnapshot | null;
 }
 
 export interface EngineReport {
@@ -287,6 +298,9 @@ export class EngineTelemetry {
     baseLatencyMs: null,
     latencyHint: null,
     transportSync: null,
+    wam2Slots: [],
+    wam2Constraints: null,
+    webgpuProbe: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -421,6 +435,12 @@ export class EngineTelemetry {
     }
   }
 
+  /** Session WebGPU probe (voices may still use WASM/JS; GPU HUD hard-fails). */
+  recordWebGpuProbe(snapshot: WebGpuProbeSnapshot): void {
+    this.runtime.webgpuProbe = snapshot;
+    this.runtime.gpuAvailable = snapshot.ok;
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -463,11 +483,22 @@ export class EngineTelemetry {
       baseLatencyMs: this.runtime.baseLatencyMs,
       latencyHint: this.runtime.latencyHint,
       transportSync: this.runtime.transportSync,
+      wam2Slots: this.runtime.wam2Slots.slice(),
+      wam2Constraints: this.runtime.wam2Constraints,
+      webgpuProbe: this.runtime.webgpuProbe,
     };
   }
 
   recordTransportSync(telemetry: TransportSyncTelemetry): void {
     this.runtime.transportSync = telemetry;
+  }
+
+  recordWam2Slots(slots: Wam2SlotTelemetry[]): void {
+    this.runtime.wam2Slots = slots.slice();
+  }
+
+  recordWam2Constraints(constraints: Wam2RuntimeConstraints): void {
+    this.runtime.wam2Constraints = constraints;
   }
 
   registerResolution(subsystem: string, backend: string, reason?: string) {

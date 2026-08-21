@@ -606,10 +606,14 @@ export class LatencyCompensator {
      * @returns Array of note IDs
      */
     scheduleNotes(notes: Omit<ScheduledNote, 'id' | 'triggered'>[]): number[] {
-        const adjustedNotes = notes.map(note => ({
-            ...note,
-            startTime: this.compensateLatency(note.startTime)
-        }));
+        const adjustedNotes = new Array(notes.length);
+        for (let i = 0; i < notes.length; i++) {
+            const note = notes[i];
+            adjustedNotes[i] = {
+                ...note,
+                startTime: this.compensateLatency(note.startTime)
+            };
+        }
         
         return this.scheduler.scheduleNotes(adjustedNotes);
     }

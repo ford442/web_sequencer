@@ -121,6 +121,28 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set grain LFO rate.
+   * @param rate LFO rate in Hz
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainLfoRate(this: SingingVoiceHost, rate: number, time?: number): void {
+    setWorkletParam(this, "grainLfoRate", rate, time);
+  },
+
+  /**
+   * Set grain LFO depth.
+   * @param depth LFO depth (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainLfoDepth(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainLfoDepth", depth, time);
+  },
+
+  /**
    * Set envelope follower depth for time stretch modulation.
    * @param depth Depth (-1 to 1)
    * @param time Optional time to apply the change (default: now)
@@ -268,12 +290,30 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralCompression(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralCompression", amount, time);
+  },
+
+  /**
    * Set bitcrush amount.
    * @param amount Bitcrush amount (0-1)
    * @param time Optional time to apply the change
    */
   setBitcrush(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "bitcrush", amount, time);
+  },
+
+  /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralComp(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralComp", amount, time);
   },
 
   /**
@@ -310,6 +350,15 @@ export const EffectsControlMixin = {
    */
   setWindowShape(this: SingingVoiceHost, shape: number, time?: number): void {
     setWorkletParam(this, "windowShape", shape, time);
+  },
+
+  /**
+   * Set the grain panning spread for spectral pan
+   * @param spread Spread amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setGrainPanSpread(this: SingingVoiceHost, spread: number, time?: number): void {
+    setWorkletParam(this, "grainPanSpread", spread, time);
   },
 
   /**

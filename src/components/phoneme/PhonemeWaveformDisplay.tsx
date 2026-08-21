@@ -84,6 +84,21 @@ export const PhonemeWaveformDisplay = memo(({ audioBuffer, width, height, phonem
 
   }, [audioBuffer, width, height, phonemes]);
 
+
+  if (!audioBuffer) {
+    return (
+      <div className="flex flex-col items-center justify-center h-28 text-center bg-zinc-900/40 border border-dashed border-zinc-700 rounded-md mb-1 w-full relative group">
+        <div className="w-8 h-8 rounded-full bg-cyan-900/30 flex items-center justify-center mb-2 text-cyan-500" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+          </svg>
+        </div>
+        <h3 className="text-zinc-300 font-bold text-xs mb-1">No sample loaded</h3>
+        <p className="text-zinc-500 text-[10px]">Load a vocal sample to view the waveform and phoneme slices.</p>
+      </div>
+    );
+  }
+
   return (
     <canvas
       ref={canvasRef}

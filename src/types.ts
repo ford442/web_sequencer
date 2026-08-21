@@ -120,7 +120,10 @@ export interface SamplerBankParams {
   timeStretchEnvDepth?: number;
   grainPitchEnvDepth?: number;
   grainEnvDepth?: number;
+  grainLfoRate?: number;
+  grainLfoDepth?: number;
   grainPitchQuantize?: number;
+  grainPanSpread?: number;
   granularPitchShift?: number;
   windowShape?: number;
   customGrainEnvelope?: number[];
@@ -132,7 +135,9 @@ export interface SamplerBankParams {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantEnvAttack?: number;
@@ -464,6 +469,9 @@ export interface Note {
   grainJitter?: number;
   grainPitchQuantize?: number;
   grainEnvDepth?: number;
+  grainLfoRate?: number;
+  grainLfoDepth?: number;
+  grainPanSpread?: number;
   vibratoDepth?: number;
   customWindowShape?: number[];
   reverbSend?: number;
@@ -471,7 +479,9 @@ export interface Note {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;
@@ -604,6 +614,8 @@ export interface AudioEngine {
   noteOffSynth?: (id: number) => void;
 
   stopAllNotes?: () => void;
+  /** Flush hanging voices on one track at a clip transition. */
+  stopTrackNotes?: (track: 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler') => void;
 
   // Other existing methods
   loadSampleToEngine: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void> | void;
@@ -665,7 +677,8 @@ export type AutomationTarget =
   | 'kick' | 'snare' | 'closedHat' | 'openHat'
   | 'sampler' | 'master'
   | 'sampler0' | 'sampler1' | 'sampler2' | 'sampler3'
-  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7';
+  | 'sampler4' | 'sampler5' | 'sampler6' | 'sampler7'
+  | 'wam';
 
 /** Where the automation data originated */
 export type AutomationSource = 'rbs' | 'recorded' | 'ai' | 'manual';
@@ -802,7 +815,7 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
-  /** Schema version: 1 = 8 pattern slots per track, 2 = 32 slots (ReBirth-compatible). */
+  /** Schema version: 1 = 8 pattern slots, 2 = 32 slots, 3 = 32 slots + session. */
   version?: number;
   pattern: Pattern;
   params: {
@@ -827,6 +840,15 @@ export interface SavedSongData {
   automationLanes?: UnifiedAutomationLane[];
   /** Per-song MIDI CC / note → control mappings */
   midiMappings?: import('./types/midi').MidiBinding[];
+  /** WAM2 plugin slots (identity, version, param/plugin state). */
+  wam2?: import('./audio/wam').Wam2SongPayload;
+  /** Session / clip launcher document (v3+). Absent on v1/v2 songs — migrated on load. */
+  session?: import('./session/types').SessionDocument;
+  /**
+   * Patch bay routing. Holds only the preset id when the routing is stock, so
+   * songs that never touched the patch bay do not grow.
+   */
+  audioGraph?: import('./audio/graph').SerializedAudioGraph;
 }
 export interface AmbianceTrack {
   id: string;

@@ -5,11 +5,13 @@ interface MobileTransportDockProps {
     isRecording: boolean;
     tempo: number;
     isSongModeOpen: boolean;
+    isSessionOpen?: boolean;
     onPlayToggle: () => void;
     onRecordToggle: () => void;
     onTempoNudgeStart: (direction: -1 | 1) => void;
     onTempoNudgeEnd: () => void;
     onSongModeToggle: () => void;
+    onSessionToggle?: () => void;
     onPanic: () => void;
 }
 
@@ -19,11 +21,13 @@ export const MobileTransportDock = memo(function MobileTransportDock({
     isRecording,
     tempo,
     isSongModeOpen,
+    isSessionOpen = false,
     onPlayToggle,
     onRecordToggle,
     onTempoNudgeStart,
     onTempoNudgeEnd,
     onSongModeToggle,
+    onSessionToggle,
     onPanic,
 }: MobileTransportDockProps) {
     return (
@@ -99,6 +103,22 @@ export const MobileTransportDock = memo(function MobileTransportDock({
             >
                 SONG
             </button>
+
+            {onSessionToggle && (
+            <button
+                type="button"
+                onClick={onSessionToggle}
+                aria-pressed={isSessionOpen}
+                aria-label="Toggle session launcher"
+                className={`mobile-tap-target h-11 px-3 rounded-lg font-orbitron text-xs font-bold touch-manipulation ${
+                    isSessionOpen
+                        ? 'bg-cyan-600 text-white border border-cyan-400'
+                        : 'bg-zinc-800 text-gray-300 border border-zinc-700'
+                }`}
+            >
+                CLIP
+            </button>
+            )}
 
             <button
                 type="button"

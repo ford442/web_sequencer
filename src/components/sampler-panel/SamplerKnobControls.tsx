@@ -23,13 +23,17 @@ interface SamplerKnobHandlers {
   formantLfoRate: (v: number) => void;
   freezeEnvDepth: (v: number) => void;
   timeStretchEnvDepth: (v: number) => void;
+  grainLfoRate: (v: number) => void;
+  grainLfoDepth: (v: number) => void;
   grainEnvDepth: (v: number) => void;
   grainPitchEnvDepth: (v: number) => void;
   grainJitter: (v: number) => void;
   grainPitchQuantize: (v: number) => void;
   granularPitchShift: (v: number) => void;
   bitcrush: (v: number) => void;
+  spectralComp: (v: number) => void;
   downsample: (v: number) => void;
+  spectralCompression: (v: number) => void;
   windowShape: (v: number) => void;
   customGrainEnvelope: (v: unknown) => void;
   formantLfoDepth: (v: number) => void;
@@ -171,13 +175,17 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
 
           <Knob label="Env → Freeze" value={currentParams.freezeEnvDepth || 0} onChange={handlers.freezeEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Env → Time" value={currentParams.timeStretchEnvDepth || 0} onChange={handlers.timeStretchEnvDepth} min={-1.0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Grain LFO Rate" value={currentParams.grainLfoRate || 0} onChange={handlers.grainLfoRate} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
+          <Knob label="Grain LFO Depth" value={currentParams.grainLfoDepth || 0} onChange={handlers.grainLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handlers.grainEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handlers.grainPitchEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Jitter" value={currentParams.grainJitter || 0} onChange={handlers.grainJitter} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Grain Quant" value={currentParams.grainPitchQuantize || 0} onChange={handlers.grainPitchQuantize} min={0} max={12.0} step={1} color="indigo" unit="st" />
           <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handlers.granularPitchShift} min={-24} max={24} step={1} color="indigo" unit="st" />
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Spectral Comp" value={currentParams.spectralComp || 0} onChange={handlers.spectralComp} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handlers.downsample} min={1} max={32} step={1} color="indigo" unit="x" />
+          <Knob label="Band Dyn" value={currentParams.spectralCompression || 0} onChange={handlers.spectralCompression} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handlers.formantLfoRate} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
           <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handlers.formantLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handlers.reverbLfoRate} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />

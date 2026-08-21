@@ -27,6 +27,7 @@ import {
   NOTE_EVENT_BYTES,
 } from '@/webgpu/shaders/303Voice.wgsl';
 import { engineTelemetry, logEngineFallback } from '@/utils/engineTelemetry';
+import { probeWebGPU } from '@/engines/backends/webgpuProbe';
 
 export const GPU_HIGHFID_MODEL_ID = 'gpu-highfid' as const;
 
@@ -87,12 +88,13 @@ export class WebGpu303Engine {
   }
 
   private async doInit(): Promise<boolean> {
-    if (!navigator.gpu) {
-      this.lastFallbackReason = 'navigator.gpu unavailable';
+    const probe = await probeWebGPU();
+    if (!probe.ok || !probe.device || !probe.adapterHandle) {
+      this.lastFallbackReason = probe.reason ?? 'navigator.gpu unavailable';
       logEngineFallback(
         'gpu-highfid',
         'webgpu',
-        'navigator.gpu unavailable (browser lacks WebGPU)',
+        this.lastFallbackReason,
       );
       try {
         engineTelemetry.recordGpu303Render({
@@ -108,14 +110,8 @@ export class WebGpu303Engine {
     }
 
     try {
-      this.adapter = await navigator.gpu.requestAdapter();
-      if (!this.adapter) {
-        this.lastFallbackReason = 'requestAdapter() returned null';
-        logEngineFallback('gpu-highfid', 'webgpu', this.lastFallbackReason);
-        return false;
-      }
-
-      this.device = await this.adapter.requestDevice();
+      this.adapter = probe.adapterHandle;
+      this.device = probe.device;
       const module = this.device.createShaderModule({ code: VOICE_303_WGSL });
 
       // Surface compile errors early (Chrome / Edge).
@@ -126,7 +122,6 @@ export class WebGpu303Engine {
           const msg = errors.map((e) => e.message).join('; ');
           this.lastFallbackReason = `WGSL compile error: ${msg}`;
           logEngineFallback('gpu-highfid', 'webgpu', this.lastFallbackReason);
-          this.device.destroy?.();
           this.device = null;
           return false;
         }

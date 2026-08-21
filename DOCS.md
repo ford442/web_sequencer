@@ -40,7 +40,9 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
+| [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
 | [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
+| [docs/adr/0001-wam2-host.md](docs/adr/0001-wam2-host.md) | WAM2 host Phase A: SDK pin, allowlist, CSP, integrity, lifecycle |
 
 ---
 
@@ -58,6 +60,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [303-baseline-spectra/](docs/audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |
 | [master-loudness.md](docs/audio-engine/master-loudness.md) | Master true-peak limiter + BS.1770 LUFS metering (graph placement, accuracy, export) |
+| [patch-bay.md](docs/audio-engine/patch-bay.md) | User-editable audio routing: patch model, live editing, persistence, safety |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
 | [PLAYBACK_STABILITY.md](docs/audio-engine/PLAYBACK_STABILITY.md) | Song-mode playback jitter thresholds and stress tests |
@@ -69,6 +72,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](docs/audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](docs/audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
+| [webgpu-session.md](docs/audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred (#1105) |
 | [OPENMP_RUBBERBAND_PATCHES.md](docs/audio-engine/OPENMP_RUBBERBAND_PATCHES.md) | Rubberband OpenMP patches |
 | [RBS_IMPORT_PIPELINE.md](docs/audio-engine/RBS_IMPORT_PIPELINE.md) | RBS import pipeline documentation |
 | [RUBBERBAND_ANALYSIS.md](docs/audio-engine/RUBBERBAND_ANALYSIS.md) | Rubberband library integration analysis |
@@ -114,7 +118,8 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 
 | File | Description |
 |------|-------------|
-| [BUILD_NOTES.md](docs/wasm/BUILD_NOTES.md) | WASM build configuration and known issues |
+| [BUILD_NOTES.md](docs/wasm/BUILD_NOTES.md) | WASM build configuration, command layers, memory budgets |
+| [native-artifacts.schema.json](docs/schemas/native-artifacts.schema.json) | Schema for generated `dist/native-artifacts.json` |
 
 ---
 
@@ -133,6 +138,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 |------|-------------|
 | [APP_REFACTORING_SUMMARY.md](docs/refactoring/APP_REFACTORING_SUMMARY.md) | App.tsx extraction refactor summary |
 | [PERFORMANCE_MIGRATION_STRATEGY.md](docs/refactoring/PERFORMANCE_MIGRATION_STRATEGY.md) | WebGPU/WASM performance migration |
+| [module-size-budget.md](docs/refactoring/module-size-budget.md) | Module size budget: tracked hot-module status, merge-artifact gate, remaining over-budget inventory |
 | [REFACTORING_SUMMARY.md](docs/refactoring/REFACTORING_SUMMARY.md) | General refactoring notes |
 | [SECTIONS_3_4_SUMMARY.md](docs/refactoring/SECTIONS_3_4_SUMMARY.md) | Rubberband sections 3 & 4 summary |
 | [streamlining.md](docs/refactoring/streamlining.md) | Build and dev workflow streamlining |
@@ -166,11 +172,12 @@ Detailed commands live in [AGENTS.md](AGENTS.md).
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run dev              # WASM prebuild + Vite
+pnpm run dev              # Full native rebuild + Vite
+pnpm run dev:fast         # Preflight + Vite (no native compile when hashes match)
 pnpm test                 # Vitest
 pnpm run lint
 npx tsc -b
-pnpm run build            # Production
+pnpm run build            # build:release (native + web, no JS source maps)
 ```
 
 ---

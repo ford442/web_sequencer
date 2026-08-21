@@ -2,6 +2,7 @@ import type { MutableRefObject } from 'react';
 import type { TrackAnalysers } from '../../types';
 import { compileAudioGraph } from './compileGraph';
 import { CLASSIC_ELECTRIBE_GRAPH } from './defaultElectribeGraph';
+import { PatchController } from './patchController';
 import type { CompiledAudioGraph } from './types';
 
 export interface MasterChainRefs {
@@ -88,6 +89,12 @@ export interface BuildElectribeGraphResult {
 
 export interface BuildElectribeGraphOptions {
     /**
+     * Patch to compile instead of the stock Classic Electribe graph — the user's
+     * saved patch from the song payload. The controller is attached to the
+     * compiled result so live edits patch the running graph.
+     */
+    patchController?: PatchController | null;
+    /**
      * Master true-peak limiter / loudness-meter node, already constructed via
      * `createMasterLoudnessStage`. Omit it and the chain runs panner →
      * destination exactly as before.
@@ -104,9 +111,11 @@ export function buildClassicElectribeGraph(
     options: BuildElectribeGraphOptions = {},
 ): BuildElectribeGraphResult {
     const limiterNode = options.masterLimiterNode ?? null;
-    const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, {
-        createMasterLimiterNode: () => limiterNode,
-    });
+    const compileOptions = { createMasterLimiterNode: () => limiterNode };
+    const controller = options.patchController ?? null;
+    const graph = controller
+        ? controller.compile(context, compileOptions)
+        : compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, compileOptions);
     const masterBusInput = assignMasterChainRefs(graph, refs);
     assignTrackBusRefs(graph, refs);
     assignAuxSendRefs(graph, refs);
@@ -122,10 +131,60 @@ export {
 } from './defaultElectribeGraph';
 export { compileAudioGraph, extractMasterChainConnections } from './compileGraph';
 export type { CompileGraphOptions } from './compileGraph';
+export {
+    addConnection,
+    addNode,
+    edgeKey,
+    findCycle,
+    findEdge,
+    removeConnection,
+    removeNode,
+    setConnectionGain,
+    setNodePosition,
+    validateGraph,
+} from './graphOps';
+export type {
+    GraphEditResult,
+    GraphValidationCode,
+    GraphValidationIssue,
+    GraphValidationResult,
+} from './graphOps';
+export {
+    GRAPH_SCHEMA_VERSION,
+    deserializeAudioGraph,
+    graphsEqual,
+    parseAudioGraphConfig,
+    serializeAudioGraph,
+} from './graphSerialization';
+export type { DeserializedGraph, SerializedAudioGraph } from './graphSerialization';
+export { PatchController } from './patchController';
+export type { PatchEditOutcome, PatchListener } from './patchController';
+export { GRAPH_PRESETS, DEFAULT_PRESET_ID, buildPreset } from './presets';
+export {
+    layoutGraph,
+    cablePath,
+    inputPort,
+    outputPort,
+    NODE_WIDTH,
+    NODE_HEIGHT,
+} from './layout';
+export type { GraphLayout, NodeLayout } from './layout';
+export type { GraphPreset } from './presets';
+export { restorePatchFromSong } from './patchSession';
+export type { PatchRestoreResult } from './patchSession';
+export {
+    setActivePatchController,
+    getActivePatchController,
+    subscribeActivePatchController,
+} from './patchRegistry';
 export type {
     AudioGraphConfig,
+    GraphEdgeSpec,
+    GraphNodeSpec,
     CompiledAudioGraph,
     GraphConnectionRecord,
     GraphNodeId,
     GraphNodeRole,
+    GraphPortPair,
 } from './types';
+export { assertSafeGraphCycles, GraphCycleError } from './cycleCheck';

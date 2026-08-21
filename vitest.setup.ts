@@ -26,6 +26,7 @@ if (typeof window !== 'undefined') {
   window.AudioContext = vi.fn().mockImplementation(function () { return ({
     createGain: vi.fn().mockReturnValue({
       connect: vi.fn(),
+      disconnect: vi.fn(),
       gain: {
         value: 0,
         setTargetAtTime: vi.fn(),
@@ -131,27 +132,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-// Global mocks for WASM imports
-vi.mock('../wasm/oscillators.wasm?init', () => ({
-    default: vi.fn().mockResolvedValue({
-        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
-    })
-}));
-vi.mock('../wasm/audioExport.wasm?init', () => ({
-    default: vi.fn().mockResolvedValue({
-        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
-    })
-}));
-vi.mock('../wasm/trackFreezer.wasm?init', () => ({
-    default: vi.fn().mockResolvedValue({
-        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
-    })
-}));
-vi.mock('../wasm/fft.wasm?init', () => ({
-    default: vi.fn().mockResolvedValue({
-        exports: { memory: new WebAssembly.Memory({ initial: 1 }) }
-    })
-}));
+// Global mocks for WASM imports removed because they conflict with Vite alias stub
 
 // Mock IndexedDB
 if (typeof window !== 'undefined' && typeof window.indexedDB === 'undefined') {

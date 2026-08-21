@@ -25,8 +25,10 @@ import { StartOverlay } from './components/StartOverlay'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { SongMode } from './components/SongMode'
+import { SessionLauncher } from './components/SessionLauncher'
 import { MobileTransportDock } from './components/MobileTransportDock'
 import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
+import { PatchBay } from './components/PatchBay'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
@@ -54,6 +56,11 @@ export const App: React.FC = () => {
         handleSongStructureUpdate, handleEditSongStructure, handleAddMeasure, handleRemoveMeasure,
         handleExportXM, isSongModeActive, setIsSongModeActive,
         undoSongStructure, redoSongStructure, canUndoSong, canRedoSong,
+        isSessionOpen, setIsSessionOpen, sessionDocument, setSessionDocument,
+        sessionPlayingSlots, isSessionCapturing, launchSessionClip, launchSessionScene,
+        stopSessionTrack, stopSessionAll, setSessionQuantization,
+        beginSessionCapture, finishSessionCapture, undoSession, redoSession,
+        canUndoSession, canRedoSession, loadSessionPack,
         contextMenu, setContextMenu, handleNoteSelect, handleNoteLengthChange,
         handleNotePropertyChange, currentScale,
         handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay,
@@ -210,16 +217,45 @@ export const App: React.FC = () => {
 
             <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onEditStructure={handleEditSongStructure} onUndoSong={undoSongStructure} onRedoSong={redoSongStructure} canUndoSong={canUndoSong()} canRedoSong={canRedoSong()} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
 
+            <SessionLauncher
+                isVisible={isSessionOpen}
+                document={sessionDocument}
+                playingSlots={sessionPlayingSlots}
+                currentStep={state.currentStepRef.current}
+                isCapturing={isSessionCapturing}
+                quantization={sessionDocument.quantization}
+                onClose={() => setIsSessionOpen(false)}
+                onLaunchClip={launchSessionClip}
+                onLaunchScene={launchSessionScene}
+                onStopTrack={stopSessionTrack}
+                onStopAll={stopSessionAll}
+                onSetQuantization={setSessionQuantization}
+                onBeginCapture={beginSessionCapture}
+                onFinishCapture={() => {
+                    const captured = finishSessionCapture();
+                    handleEditSongStructure(() => captured);
+                    setIsSongModeOpen(true);
+                }}
+                onUndo={undoSession}
+                onRedo={redoSession}
+                canUndo={canUndoSession()}
+                canRedo={canRedoSession()}
+                onLoadPack={loadSessionPack}
+                onUpdateDocument={(doc) => setSessionDocument(doc)}
+            />
+
             <MobileTransportDock
                 isPlaying={isPlaying}
                 isRecording={isRecording}
                 tempo={tempo}
                 isSongModeOpen={isSongModeOpen}
+                isSessionOpen={isSessionOpen}
                 onPlayToggle={handlePlayToggle}
                 onRecordToggle={() => setIsRecording(!isRecording)}
                 onTempoNudgeStart={handleTempoHoldStart}
                 onTempoNudgeEnd={handleTempoHoldEnd}
                 onSongModeToggle={() => setIsSongModeOpen(!isSongModeOpen)}
+                onSessionToggle={() => setIsSessionOpen(!isSessionOpen)}
                 onPanic={handlePanic}
             />
 
@@ -249,6 +285,18 @@ export const App: React.FC = () => {
                 <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
                     <MasterLoudnessMeter />
                 </div>
+
+                {/* Routing editor — collapsed by default so the rack stays the
+                    focus; opening it costs nothing until the engine publishes
+                    a patch controller. */}
+                <details className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-gray-500 hover:text-cyan-300">
+                        Patch Bay
+                    </summary>
+                    <div className="mt-2">
+                        <PatchBay />
+                    </div>
+                </details>
 
                 <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
                     <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />

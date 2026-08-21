@@ -314,7 +314,10 @@ export class FormantShifter {
         const imag = new Float32Array(maxHarmonics + 1);
 
         // Convert normalized [0, 1] to bipolar [-1, 1]
-        const bipolarShape = shape.map(v => v * 2 - 1);
+        const bipolarShape = new Float32Array(shape.length);
+        for (let i = 0; i < shape.length; i++) {
+            bipolarShape[i] = shape[i] * 2 - 1;
+        }
 
         for (let k = 1; k <= maxHarmonics; k++) {
             let sumReal = 0;
