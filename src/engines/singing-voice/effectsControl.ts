@@ -290,12 +290,30 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralCompression(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralCompression", amount, time);
+  },
+
+  /**
    * Set bitcrush amount.
    * @param amount Bitcrush amount (0-1)
    * @param time Optional time to apply the change
    */
   setBitcrush(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "bitcrush", amount, time);
+  },
+
+  /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralComp(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralComp", amount, time);
   },
 
   /**
@@ -332,6 +350,15 @@ export const EffectsControlMixin = {
    */
   setWindowShape(this: SingingVoiceHost, shape: number, time?: number): void {
     setWorkletParam(this, "windowShape", shape, time);
+  },
+
+  /**
+   * Set the grain panning spread for spectral pan
+   * @param spread Spread amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setGrainPanSpread(this: SingingVoiceHost, spread: number, time?: number): void {
+    setWorkletParam(this, "grainPanSpread", spread, time);
   },
 
   /**

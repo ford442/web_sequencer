@@ -31,3 +31,6 @@
 ## 2026-06-25 - DragValue Component Accessibility Refinement
 **Learning:** Found that custom draggable input controls with supplementary increment/decrement buttons lack standard `type="button"` attributes, which can cause unexpected form submissions if nested within forms. Additionally, focus ring colors must be aligned with the global app theme (e.g., using cyan instead of yellow) to maintain visual consistency across reusable components.
 **Action:** Ensure all `<button>` elements in custom input components include `type="button"` explicitly, and verify that `focus-visible:ring` colors match the app's established design system tokens.
+## 2024-06-25 - Focus Visible for Mouse Users
+**Learning:** For accessibility in UI components, it is critical to use `focus-visible:` utility classes (e.g., `focus-visible:ring-2`) instead of just `focus:` for focus rings on buttons. Using `focus:` causes the focus ring to appear even when the user clicks the button with a mouse, which can be visually distracting and is generally considered a poor UX pattern for modern applications.
+**Action:** Always strictly use `focus-visible:` over `focus:` for any button or interactive element to ensure focus rings are reserved for keyboard navigation.

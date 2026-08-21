@@ -1,6 +1,7 @@
 // @mode: typescript
 // @note-for-ai: This is a native WebGPU implementation (L5 in UIMP).
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import { probeWebGPU } from './backends/webgpuProbe';
 // The WGSL shader code is embedded in SHADER_CODE constant.
 // This file handles GPU resource management and buffer pooling.
 // See PERFORMANCE_MIGRATION_STRATEGY.md for migration context.
@@ -76,19 +77,18 @@ export class WebGpuOscillator {
     `;
 
     async init() {
-        if (!navigator.gpu) {
-            logEngineFallback('webgpu', 'webgpu', 'navigator.gpu unavailable (browser lacks WebGPU)');
+        const probe = await probeWebGPU();
+        if (!probe.ok || !probe.device) {
+            logEngineFallback(
+                'webgpu',
+                'webgpu',
+                probe.reason ?? 'WebGPU unavailable (no adapter/device)',
+            );
             return;
         }
 
         try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) {
-                logEngineFallback('webgpu', 'webgpu', 'requestAdapter() returned null (no compatible GPU adapter)');
-                return;
-            }
-
-            this.device = await adapter.requestDevice();
+            this.device = probe.device;
 
             const shaderModule = this.device.createShaderModule({
                 code: this.SHADER_CODE

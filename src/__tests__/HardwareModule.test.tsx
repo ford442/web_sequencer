@@ -201,4 +201,22 @@ describe('HardwareModule - 3D Holographic Mode', () => {
         const sweepSpan = valueArc.args[4] - valueArc.args[3];
         expect(sweepSpan).toBeCloseTo(0.8 * KNOB_MATERIAL.geometry.sweepTotal, 5);
     });
+
+    it('keeps GPU canvases untransformed inside a centered slot', () => {
+        const onParamChange = vi.fn();
+        const { getByTestId } = render(
+            <HardwareModule
+                title="Test Module"
+                colorHex={mockColorHex}
+                controls={mockControls}
+                onParamChange={onParamChange}
+            />
+        );
+        const canvas = getByTestId('hardware-knob-canvas-test1') as HTMLCanvasElement;
+        expect(canvas.style.transform === '' || canvas.style.transform === 'none').toBe(true);
+        const slot = canvas.parentElement as HTMLElement;
+        expect(slot.style.transform).toContain('translate(-50%, -50%)');
+        expect(slot.style.left).toBe('30%');
+        expect(slot.style.top).toBe('50%');
+    });
 });

@@ -23,7 +23,9 @@ export type PropertyChangeKey =
   | "spectralPanDepth"
   | "granularPitchShift"
   | "bitcrush"
+  | "spectralComp"
   | "downsample"
+  | "spectralCompression"
   | "tranceGate"
   | "formantShift"
   | "formantPitchLink"
@@ -97,6 +99,7 @@ export interface NoteSelectorProps {
   currentFreeze?: number;
   currentBitcrush?: number;
   currentDownsample?: number;
+  currentSpectralCompression?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;

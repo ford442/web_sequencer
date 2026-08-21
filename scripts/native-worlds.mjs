@@ -178,6 +178,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...jc303WasmFiles.map(fileInput),
         ...jc303SrcFiles.map(fileInput),
         fileInput('tools/build_jc303_omp.sh'),
+        fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
         fileInput('tools/jc303_cmake/CMakeLists.txt'),
         fileInput(budgetRel),
         textInput('jc303_wasm.submodule', readSubmoduleCommit(repoRoot)),
@@ -202,6 +203,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...rubberbandSrc.map(fileInput),
         ...open303Dsp.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
+        fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
         fileInput(budgetRel),
       ],
       outputs: [

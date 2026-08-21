@@ -173,15 +173,22 @@ build_variant() {
     echo -e "${YELLOW}Building...${NC}"
     emmake make -j8
     
-    # Copy built files with variant suffix
+    # Copy built files with variant suffix. Fail closed on glue/wasm/worklet —
+    # a missing file used to be swallowed by `|| true` and only failed later in
+    # check:native after the script printed "Build Complete!".
     echo -e "${YELLOW}Copying ${VARIANT_NAME} variant to distribution...${NC}"
-    cp -f jc303.js "${DIST_DIR}/jc303-${VARIANT_NAME}.js" 2>/dev/null || true
-    cp -f jc303.wasm "${DIST_DIR}/jc303-${VARIANT_NAME}.wasm" 2>/dev/null || true
-    cp -f jc303_worklet.js "${DIST_DIR}/jc303-${VARIANT_NAME}-worklet.js" 2>/dev/null || true
-    
-    # Threaded variant also produces worker files
+    cp -f jc303.js "${DIST_DIR}/jc303-${VARIANT_NAME}.js"
+    cp -f jc303.wasm "${DIST_DIR}/jc303-${VARIANT_NAME}.wasm"
+    cp -f jc303_worklet.js "${DIST_DIR}/jc303-${VARIANT_NAME}-worklet.js"
+
+    # Threaded variant: Emscripten 3.1.51 emits jc303.worker.js; 6.x inlines it.
+    # ensure-pthread-worker-stamp.mjs copies the real worker or writes a stamp stub
+    # so public/jc303-threaded.worker.js exists for check:native.
     if [ "$ENABLE_THREADING" = "true" ]; then
-        cp -f jc303.worker.js "${DIST_DIR}/jc303-${VARIANT_NAME}.worker.js" 2>/dev/null || true
+        node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
+            --src-dir "$(pwd)" \
+            --stem jc303 \
+            --dest "${DIST_DIR}/jc303-${VARIANT_NAME}.worker.js"
     fi
     
     echo -e "${GREEN}${VARIANT_NAME} variant build complete!${NC}"
@@ -207,20 +214,27 @@ fi
 # Copy to main public directory for use in web_sequencer
 if [ -d "$PUBLIC_DIR" ]; then
     echo -e "${YELLOW}Copying to web_sequencer public directory...${NC}"
-    cp -f "${DIST_DIR}"/jc303-*.js "$PUBLIC_DIR/" 2>/dev/null || true
-    cp -f "${DIST_DIR}"/jc303-*.wasm "$PUBLIC_DIR/" 2>/dev/null || true
-    cp -f "${DIST_DIR}"/jc303-*.worker.js "$PUBLIC_DIR/" 2>/dev/null || true
+    shopt -s nullglob
+    jc303_js=( "${DIST_DIR}"/jc303-*.js )
+    jc303_wasm=( "${DIST_DIR}"/jc303-*.wasm )
+    shopt -u nullglob
+    if [ ${#jc303_js[@]} -eq 0 ] || [ ${#jc303_wasm[@]} -eq 0 ]; then
+        echo -e "${RED}Error: expected jc303-* artifacts in ${DIST_DIR}${NC}"
+        exit 1
+    fi
+    cp -f "${jc303_js[@]}" "$PUBLIC_DIR/"
+    cp -f "${jc303_wasm[@]}" "$PUBLIC_DIR/"
 
     # Also copy without suffix for backward compatibility (prefer single-threaded if both exist)
     if [ -f "${DIST_DIR}/jc303-single.js" ]; then
-        cp -f "${DIST_DIR}/jc303-single.js" "$PUBLIC_DIR/jc303.js" 2>/dev/null || true
-        cp -f "${DIST_DIR}/jc303-single.wasm" "$PUBLIC_DIR/jc303.wasm" 2>/dev/null || true
-        cp -f "${DIST_DIR}/jc303-single-worklet.js" "$PUBLIC_DIR/jc303_worklet.js" 2>/dev/null || true
+        cp -f "${DIST_DIR}/jc303-single.js" "$PUBLIC_DIR/jc303.js"
+        cp -f "${DIST_DIR}/jc303-single.wasm" "$PUBLIC_DIR/jc303.wasm"
+        cp -f "${DIST_DIR}/jc303-single-worklet.js" "$PUBLIC_DIR/jc303_worklet.js"
     elif [ -f "${DIST_DIR}/jc303-threaded.js" ]; then
-        cp -f "${DIST_DIR}/jc303-threaded.js" "$PUBLIC_DIR/jc303.js" 2>/dev/null || true
-        cp -f "${DIST_DIR}/jc303-threaded.wasm" "$PUBLIC_DIR/jc303.wasm" 2>/dev/null || true
-        cp -f "${DIST_DIR}/jc303-threaded-worklet.js" "$PUBLIC_DIR/jc303_worklet.js" 2>/dev/null || true
-        cp -f "${DIST_DIR}/jc303-threaded.worker.js" "$PUBLIC_DIR/jc303.worker.js" 2>/dev/null || true
+        cp -f "${DIST_DIR}/jc303-threaded.js" "$PUBLIC_DIR/jc303.js"
+        cp -f "${DIST_DIR}/jc303-threaded.wasm" "$PUBLIC_DIR/jc303.wasm"
+        cp -f "${DIST_DIR}/jc303-threaded-worklet.js" "$PUBLIC_DIR/jc303_worklet.js"
+        cp -f "${DIST_DIR}/jc303-threaded.worker.js" "$PUBLIC_DIR/jc303.worker.js"
     fi
 fi
 
@@ -237,6 +251,7 @@ echo ""
 if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "threaded" ]; then
     echo "Threaded variant files: jc303-threaded.{js,wasm,worker.js}"
     echo "  Note: Requires COOP/COEP headers on web server"
+    echo "  Note: On Emscripten 6.x the .worker.js path is a stamp stub (workers are inlined)"
 fi
 if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "single" ]; then
     echo "Single-threaded variant files: jc303-single.{js,wasm}"

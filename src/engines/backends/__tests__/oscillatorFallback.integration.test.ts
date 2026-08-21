@@ -164,4 +164,21 @@ describe('oscillator backend fallback (integration)', () => {
         expect(tri.reason).toContain('rust: does not render "tri" natively');
         expect(await rustBackend.generate({ ...REQ, shape: 'tri' })).toBeNull();
     });
+
+    it('keeps voices audible when the session WebGPU probe fails', async () => {
+        const { probeWebGPU, resetWebGpuProbeForTests, getLastWebGpuProbe } = await import('../webgpuProbe');
+        resetWebGpuProbeForTests();
+        vi.stubGlobal('navigator', { gpu: undefined });
+        const probe = await probeWebGPU();
+        expect(probe.ok).toBe(false);
+
+        const { registry } = await buildChain({ gpu: false, wam: true, rust: true });
+        const out = await registry.generate(REQ);
+
+        expect(getLastWebGpuProbe()?.ok).toBe(false);
+        expect(out).not.toBeNull();
+        expect(out!.backendId).toBe('wam');
+        expect(out!.samples.length).toBeGreaterThan(0);
+        vi.unstubAllGlobals();
+    });
 });

@@ -123,6 +123,7 @@ export interface SamplerBankParams {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPitchQuantize?: number;
+  grainPanSpread?: number;
   granularPitchShift?: number;
   windowShape?: number;
   customGrainEnvelope?: number[];
@@ -134,7 +135,9 @@ export interface SamplerBankParams {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantEnvAttack?: number;
@@ -468,6 +471,7 @@ export interface Note {
   grainEnvDepth?: number;
   grainLfoRate?: number;
   grainLfoDepth?: number;
+  grainPanSpread?: number;
   vibratoDepth?: number;
   customWindowShape?: number[];
   reverbSend?: number;
@@ -475,7 +479,9 @@ export interface Note {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
+  spectralCompression?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;

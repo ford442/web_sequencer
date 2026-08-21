@@ -30,6 +30,7 @@ import {
   tb303ModelFamily,
 } from '@/engines/TB303Models';
 import { EngineTelemetry } from '@/utils/engineTelemetry';
+import { resetWebGpuProbeForTests } from '@/engines/backends/webgpuProbe';
 
 describe('gpu-highfid registry', () => {
   it('is catalogued as offline-only highfid family', () => {
@@ -75,8 +76,12 @@ describe('WGSL 303 shader source', () => {
 });
 
 describe('WebGpu303Engine fallback', () => {
+  beforeEach(() => {
+    resetWebGpuProbeForTests();
+  });
   afterEach(() => {
     resetSharedWebGpu303Engine();
+    resetWebGpuProbeForTests();
   });
 
   it('identifies gpu model ids', () => {
@@ -187,6 +192,7 @@ describe('render303Offline gpu-highfid path', () => {
   beforeEach(() => {
     terminateOffline303Pool();
     resetSharedWebGpu303Engine();
+    resetWebGpuProbeForTests();
   });
 
   afterEach(() => {

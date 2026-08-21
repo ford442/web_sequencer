@@ -65,6 +65,7 @@ jobs:
       - name: Lint (ESLint)
         run: pnpm lint
 
+  # Promoted to run as an early gate to catch Vite import-resolution failures without building WASM
   test-unit:
     name: Unit tests (Vitest)
     needs: source-integrity
@@ -154,7 +155,7 @@ jobs:
         run: pnpm run build:native:changed
 
       - name: Validate WASM export map
-        run: pnpm run check:exports -- --glue public/hyphon_native.js
+        run: pnpm run check:exports --glue public/hyphon_native.js
 
       - name: Test (integration tier)
         run: pnpm run test:integration

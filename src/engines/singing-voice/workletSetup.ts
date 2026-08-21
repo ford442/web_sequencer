@@ -53,6 +53,9 @@ export const WorkletSetupMixin = {
       this.workletNode = new AudioWorkletNode(
         this.audioContext,
         "RubberBandProcessor",
+        {
+          outputChannelCount: [2],
+        }
       );
 
       // Initialize the worklet with the fetched binary and buffers (flat structure)
