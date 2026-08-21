@@ -72,6 +72,20 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private downsamplePhase: number[] = [0, 0];
   private lastSampleValue: number[] = [0, 0];
 
+  // Spectral Compression states (3-band approximation)
+  private scLow: number[] = [0, 0];
+  private scMid: number[] = [0, 0];
+  private scHigh: number[] = [0, 0];
+  private scEnvLow: number[] = [0, 0];
+  private scEnvMid: number[] = [0, 0];
+  private scEnvHigh: number[] = [0, 0];
+
+  // Grain Panning State
+  private grainWrapPending = false;
+  private wasFrozen = false;
+  private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
+  private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -106,6 +120,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'grainPanSpread', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
@@ -496,6 +511,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const isFrozen = freezeAmt > 0.5;
 
         if (isFrozen) {
+          if (!this.wasFrozen) {
+            this.grainWrapPending = true;
+          }
+          this.wasFrozen = true;
+
           // FREEZE STREAMING (Spectral Granulator)
           // Don't advance the pointer, just loop a small grain
           if (samplesRequired > 0) {
@@ -586,6 +606,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 this.freezePhase++;
                 if (this.freezePhase >= actualGrainSize) {
                   this.freezePhase = 0; // Loop the grain
+                  this.grainWrapPending = true;
                 }
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
@@ -596,6 +617,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           }
         } else {
           this.freezePhase = 0; // Reset phase when unfreezing
+          if (this.wasFrozen) {
+            this.grainWrapPending = false;
+            this.wasFrozen = false;
+            // Restore dual-mono on unfreeze
+            this.grainPanL.fill(Math.SQRT1_2);
+            this.grainPanR.fill(Math.SQRT1_2);
+            // Clear SVF states to avoid bleed from panned grains
+            this.scLow.fill(0);
+            this.scHigh.fill(0);
+          }
 
           if (this.isReverse) {
             // REVERSE STREAMING
@@ -702,6 +733,103 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
       }
 
+  const grainPanSpread = parameters.grainPanSpread ? parameters.grainPanSpread[0] : 0.0;
+  const spectralCompression = parameters.spectralCompression
+    ? parameters.spectralCompression[0]
+    : 0.0;
+  // spectralComp already read earlier on main
+  if (grainPanSpread > 0 && this.grainWrapPending) {
+    this.grainWrapPending = false;
+    for (let b = 0; b < 3; b++) {
+      const spreadMod = b === 0 ? 0.4 : b === 1 ? 0.8 : 1.2;
+      const pan = (Math.random() * 2 - 1) * Math.min(1.0, grainPanSpread * spreadMod);
+      const angle = ((pan + 1.0) * 0.5) * Math.PI / 2;
+      this.grainPanL[b] = Math.cos(angle);
+      this.grainPanR[b] = Math.sin(angle);
+    }
+  } else if (grainPanSpread === 0) {
+    this.grainPanL.fill(Math.SQRT1_2);
+    this.grainPanR.fill(Math.SQRT1_2);
+  }
+  const outL = outputs[0][0];
+  const outR = outputs[0][1];
+  const hasStereo = !!(outL && outR);
+  const needSplit =
+    spectralComp > 0 ||
+    spectralCompression > 0 ||
+    (grainPanSpread > 0 && hasStereo);
+  if (needSplit) {
+    const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+    const f1_c = 2 * Math.sin(Math.PI * 300 / fs);
+    const f2_c = 2 * Math.sin(Math.PI * 3000 / fs);
+    const q = 0.5;
+    const attackCoef = Math.exp(-1.0 / (fs * (2.0 / 1000.0)));
+    const releaseCoef = Math.exp(-1.0 / (fs * (50.0 / 1000.0)));
+    const maxGR = 12.0 * spectralComp;
+    const threshold = 0.1;
+    const ratio = 1.0 + 3.0 * spectralComp;
+    const channel = 0;
+    for (let i = 0; i < outL.length; i++) {
+      const x = outL[i];
+      this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
+      const hp1 = x - this.scState.lp1[channel] - q * this.scState.bp1[channel];
+      this.scState.bp1[channel] += f1_c * hp1;
+      let low = this.scState.lp1[channel];
+      const rest = hp1;
+      this.scState.lp2[channel] += f2_c * this.scState.bp2[channel];
+      let high = rest - this.scState.lp2[channel] - q * this.scState.bp2[channel];
+      this.scState.bp2[channel] += f2_c * high;
+      let mid = this.scState.lp2[channel];
+      const bands = [low, mid, high];
+      if (spectralComp > 0) {
+        for (let b = 0; b < 3; b++) {
+          const absIn = Math.abs(bands[b]);
+          const env = this.scState.env;
+          if (absIn > env[b]) {
+            env[b] = attackCoef * env[b] + (1 - attackCoef) * absIn;
+          } else {
+            env[b] = releaseCoef * env[b] + (1 - releaseCoef) * absIn;
+          }
+          let gain = 1.0;
+          if (env[b] > threshold) {
+            const over = 20 * Math.log10(env[b]) - 20 * Math.log10(threshold);
+            const grDb = Math.min(over * (1.0 - 1.0 / ratio), maxGR);
+            gain = Math.pow(10, -grDb / 20);
+          }
+          bands[b] *= gain;
+        }
+      }
+      low = bands[0];
+      mid = bands[1];
+      high = bands[2];
+      if (spectralCompression > 0) {
+        const attackConst = 1 - Math.exp(-1.0 / (fs * 0.005));
+        const releaseConst = 1 - Math.exp(-1.0 / (fs * 0.070));
+        const absLow = Math.abs(low);
+        const absMid = Math.abs(mid);
+        const absHigh = Math.abs(high);
+        this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
+        this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
+        this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+        const targetRMS = 0.15;
+        const gainLow = Math.max(0.1, Math.min(4.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5));
+        const gainMid = Math.max(0.1, Math.min(3.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7));
+        const gainHigh = Math.max(0.1, Math.min(4.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6));
+        low = low * (1.0 - spectralCompression) + low * gainLow * spectralCompression;
+        mid = mid * (1.0 - spectralCompression) + mid * gainMid * spectralCompression;
+        high = high * (1.0 - spectralCompression) + high * gainHigh * spectralCompression;
+      }
+      if (hasStereo) {
+        outL[i] = low * this.grainPanL[0] + mid * this.grainPanL[1] + high * this.grainPanL[2];
+        outR[i] = low * this.grainPanR[0] + mid * this.grainPanR[1] + high * this.grainPanR[2];
+      } else {
+        outL[i] = low + mid + high;
+      }
+    }
+  } else if (hasStereo) {
+    outR.set(outL);
+  }
+        
       if (spectralComp > 0) {
         const f1 = 300;
         const f2 = 3000;
@@ -770,6 +898,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             outCh[i] = outSum;
           }
         }
+      } else if (hasStereo) {
+        // If neither effect is active, but we have stereo output, just copy L to R
+        outR.set(outL);
       }
         
       // Apply Bitcrush & Downsample

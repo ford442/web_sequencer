@@ -16,7 +16,7 @@
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
 - [x] Implement Expressive Note Transitions for Vowels
-- [ ] Explore spectral panning per grain to create a wide stereo field for TTS voices.
+- [x] Explore spectral panning per grain to create a wide stereo field for TTS voices.
 - [x] Explore multi-band spectral compression for the TTS output
 
 - [x] Optimize TTS memory footprint
@@ -28,6 +28,9 @@
 - [x] Optimize Voice Manager state syncing
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
+
+- [ ] Explore overlapping stereo grains (true OLA instead of one looped grain)
+- [ ] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -45,6 +48,9 @@
 - Added a new idea to the Innovation Lab: "Explore multi-band spectral compression for the TTS output".
 - Velocity Check: Wiring up LFO parameters is becoming increasingly streamlined as the boilerplate (params -> types -> UI hooks) is well-established. Performance is well-preserved by calculating the LFO per-block (`framesInBlock`) rather than per-sample in the hot loop.
 - Completed "Explore multi-band spectral compression for the TTS output" by implementing a lightweight 3-band dynamics processor in the `RubberBandProcessor`. We avoided a heavy true STFT magnitude compressor and instead used per-sample SVF (1-pole approx for ~300Hz and ~3kHz crossovers) with fast envelope followers (1-5ms attack, 40-80ms release). The output uses downward/upward compression with a dry/wet mix. It is strictly bypassed when the parameter `spectralCompression` is 0 to ensure zero overhead otherwise.
+
+- Completed "Explore spectral panning per grain to create a wide stereo field for TTS voices" by implementing a latch-based spectral pan per grain in the `RubberBandProcessor`. The panning is applied to 3 SVF bands (Low, Mid, High) after the mono retrieval. Constant-power L/R panning multipliers are calculated and held per grain cycle when `grainPanSpread` > 0.
+- Velocity Check: Utilizing a sticky `grainWrapPending` latch set during the FREEZE input loop and consumed during output retrieval successfully decouples the grain schedule from the RubberBand latency, providing a stable stereo field without dropping the time-stretch functionality.
 
 ## Roadmap
 - Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.

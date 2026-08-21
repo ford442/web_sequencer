@@ -52,6 +52,7 @@ export function createPlaySamplerVoice(
     const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
     const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
     const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
+    const pGrainPanSpreadOuter = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : params.spectralPanDepth;
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : params.spectralPanRate;
@@ -215,7 +216,13 @@ export function createPlaySamplerVoice(
           rawSpectralDepth !== undefined && rawSpectralDepth > 0
             ? rawSpectralDepth * performanceBudget.getSpectralPanMultiplier()
             : 0;
-        strip.updateSpectralPanning(spectralDepth, spectralPanLfoRate, triggerTime);
+        // Disable VoiceFXStrip LFO pan if the worklet is handling grain-locked spectral panning
+        const workletSpectralPan = pGrainPanSpreadOuter !== undefined && pGrainPanSpreadOuter > 0;
+        if (!workletSpectralPan) {
+          strip.updateSpectralPanning(spectralDepth, spectralPanLfoRate, triggerTime);
+        } else {
+          strip.updateSpectralPanning(0, 0, triggerTime); // Turn off strip LFO panning
+        }
 
         strip.updateReverbSend(
           reverbSendAmount,
@@ -336,6 +343,7 @@ export function createPlaySamplerVoice(
         if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
         if (pGrainJitter !== undefined) voice.setGrainJitter(pGrainJitter, triggerTime);
         if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
+        if (pGrainPanSpreadOuter !== undefined && voice.setGrainPanSpread) voice.setGrainPanSpread(pGrainPanSpreadOuter, triggerTime);
 
         if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
