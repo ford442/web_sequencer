@@ -13,6 +13,7 @@ declare class AudioWorkletProcessor {
     readonly port: MessagePort;
     process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
 }
+declare const currentTime: number;
 
 declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
 
@@ -96,6 +97,9 @@ class Open303Processor extends AudioWorkletProcessor {
     private static readonly MAX_NOTE_DURATION_MS = 8000;
     private stuckNoteWarnings = 0;
 
+    // Scheduled parameter events
+    private pendingParams: Array<{ func: string; value: number; audioTime: number }> = [];
+
     // Rate limiting
     private lastNoteOnTime = 0;
     private static readonly MIN_NOTE_INTERVAL_MS = 5;
@@ -151,8 +155,22 @@ class Open303Processor extends AudioWorkletProcessor {
         } else if (type === 'set-303-model') {
             this.handleSetModel(data.model as string, data.engine as 'open303' | 'jc303' | undefined);
         } else if (type === 'param') {
-            this.applyParamMessage(exports, data);
+            this.handleParam(data);
         }
+    }
+
+    private handleParam(data: { func: string; value: number; audioTime?: number }): void {
+        const audioTime = data.audioTime ?? 0;
+
+        // Immediate? (currentTime must be accessed on global scope in audio worklets, but TS types define it via currentTime. Actually, AudioWorkletGlobalScope exposes currentTime directly.)
+        if (typeof currentTime !== 'undefined' && audioTime <= currentTime) {
+            this.applyParamMessage(this.getExports(), data);
+            return;
+        }
+
+        // Schedule
+        this.pendingParams.push({ func: data.func, value: data.value, audioTime });
+        this.pendingParams.sort((a, b) => a.audioTime - b.audioTime);
     }
 
     private applyParamMessage(exports: Record<string, any>, data: { func: string; value: number }): void {
@@ -723,6 +741,15 @@ class Open303Processor extends AudioWorkletProcessor {
         const endPerf = this.perf.beginProcess(blockFrames);
         try {
         const channelR = output[1];
+
+        // Drain pending parameters
+        if (this.pendingParams.length > 0 && typeof currentTime !== 'undefined') {
+            const exports = this.getExports();
+            while (this.pendingParams.length > 0 && this.pendingParams[0].audioTime <= currentTime) {
+                const paramMsg = this.pendingParams.shift()!;
+                this.applyParamMessage(exports, paramMsg);
+            }
+        }
 
         // Handle pending note (portamento fix)
         if (this.pendingNote && this.synthState === SynthState.READY) {
