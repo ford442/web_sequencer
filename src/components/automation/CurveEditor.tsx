@@ -364,18 +364,26 @@ export const CurveEditor = memo(({
       })}
 
       {/* Step labels */}
-      {Array.from({ length: Math.min(totalSteps + 1, 33) }, (_, i) => i).filter((i) => i % 4 === 0).map((i) => (
-        <text
-          key={`label${i}`}
-          x={toX(i)}
-          y={height - 4}
-          textAnchor="middle"
-          fontSize={9}
-          fill="#6b7280"
-        >
-          {i}
-        </text>
-      ))}
+      {/* ⚡ Bolt: Replaced Array.from().filter().map() with an IIFE and for loop to prevent array allocations on hot re-render path */}
+      {(() => {
+        const labels = [];
+        const maxStep = Math.min(totalSteps, 32);
+        for (let i = 0; i <= maxStep; i += 4) {
+          labels.push(
+            <text
+              key={`label${i}`}
+              x={toX(i)}
+              y={height - 4}
+              textAnchor="middle"
+              fontSize={9}
+              fill="#6b7280"
+            >
+              {i}
+            </text>
+          );
+        }
+        return labels;
+      })()}
     </svg>
   );
 });

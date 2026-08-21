@@ -53,3 +53,4 @@
 - Velocity Check: Utilizing a sticky `grainWrapPending` latch set during the FREEZE input loop and consumed during output retrieval successfully decouples the grain schedule from the RubberBand latency, providing a stable stereo field without dropping the time-stretch functionality.
 
 ## Roadmap
+- Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.

@@ -135,6 +135,7 @@ export interface SamplerBankParams {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
   spectralCompression?: number;
   delayLfoRate?: number;
@@ -478,6 +479,7 @@ export interface Note {
   reverbLfoRate?: number;
   reverbLfoDepth?: number;
   bitcrush?: number;
+  spectralComp?: number;
   downsample?: number;
   spectralCompression?: number;
   delayLfoRate?: number;

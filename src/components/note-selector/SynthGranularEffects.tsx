@@ -27,6 +27,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentVocoderFormantShift,
     currentVocoderPreservation,
     currentBitcrush = 0,
+    currentSpectralComp = 0,
     currentDownsample = 1,
     currentSpectralCompression = 0,
     currentTranceGate = 0,
@@ -456,6 +457,18 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         onChange={(v) => onPropertyChange?.("bitcrush", v)}
         valueFormatter={() =>
           `${((currentBitcrush ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-indigo-400 hover:accent-indigo-300"
+        borderColor="border-indigo-900/30"
+      />
+      <PropertySlider
+        label="Spectral Comp"
+        id="note-spectral-comp"
+        ariaLabel="Spectral Comp Override"
+        value={currentSpectralComp ?? 0}
+        onChange={(v) => onPropertyChange?.("spectralComp", v)}
+        valueFormatter={() =>
+          `${((currentSpectralComp ?? 0) * 100).toFixed(0)}%`
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"

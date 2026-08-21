@@ -308,6 +308,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set spectral compression amount.
+   * @param amount Spectral compression amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSpectralComp(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spectralComp", amount, time);
+  },
+
+  /**
    * Set downsample factor.
    * @param factor Downsample factor (1-32)
    * @param time Optional time to apply the change
