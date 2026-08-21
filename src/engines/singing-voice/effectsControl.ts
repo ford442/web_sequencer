@@ -344,6 +344,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set the grain panning spread for spectral pan
+   * @param spread Spread amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setGrainPanSpread(this: SingingVoiceHost, spread: number, time?: number): void {
+    setWorkletParam(this, "grainPanSpread", spread, time);
+  },
+
+  /**
    * Set a custom envelope shape for granular synthesis.
    * @param shape Array of normalized values (0.0 to 1.0)
    */

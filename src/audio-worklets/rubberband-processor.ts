@@ -67,6 +67,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private scEnvMid: number[] = [0, 0];
   private scEnvHigh: number[] = [0, 0];
 
+  // Grain Panning State
+  private grainWrapPending = false;
+  private wasFrozen = false;
+  private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
+  private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -101,6 +107,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'grainPanSpread', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
@@ -492,6 +499,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const isFrozen = freezeAmt > 0.5;
 
         if (isFrozen) {
+          if (!this.wasFrozen) {
+            this.grainWrapPending = true;
+          }
+          this.wasFrozen = true;
+
           // FREEZE STREAMING (Spectral Granulator)
           // Don't advance the pointer, just loop a small grain
           if (samplesRequired > 0) {
@@ -582,6 +594,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 this.freezePhase++;
                 if (this.freezePhase >= actualGrainSize) {
                   this.freezePhase = 0; // Loop the grain
+                  this.grainWrapPending = true;
                 }
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
@@ -592,6 +605,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           }
         } else {
           this.freezePhase = 0; // Reset phase when unfreezing
+          if (this.wasFrozen) {
+            this.grainWrapPending = false;
+            this.wasFrozen = false;
+            // Restore dual-mono on unfreeze
+            this.grainPanL.fill(Math.SQRT1_2);
+            this.grainPanR.fill(Math.SQRT1_2);
+            // Clear SVF states to avoid bleed from panned grains
+            this.scLow.fill(0);
+            this.scHigh.fill(0);
+          }
 
           if (this.isReverse) {
             // REVERSE STREAMING
@@ -698,64 +721,101 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // Apply Spectral Compression (3-band multi-band approximation)
-      if (spectralCompression > 0) {
-        for (let channel = 0; channel < outputs[0].length; channel++) {
-          const outCh = outputs[0][channel];
-          if (!outCh) continue;
+      const grainPanSpread = parameters.grainPanSpread ? parameters.grainPanSpread[0] : 0.0;
 
-          // Filter coefficients for ~300Hz and ~3000Hz crossovers at 44.1kHz/48kHz
-          // Using simple 1-pole approximations for efficiency in the hot loop
-          const fLow = 0.04;  // approx 300Hz
-          const fHigh = 0.35; // approx 3000Hz
+      // Handle Grain Panning Latch
+      if (grainPanSpread > 0 && this.grainWrapPending) {
+        this.grainWrapPending = false;
 
-          // Compressor envelope constants (approx 1-5ms attack, 40-80ms release for speech)
-          const attackConst = 0.005; // ~5ms
-          const releaseConst = 0.0003; // ~70ms
+        // Randomize pan for Low, Mid, High bands based on spread
+        // Highs spread more than lows
+        for (let b = 0; b < 3; b++) {
+            const spreadMod = b === 0 ? 0.4 : (b === 1 ? 0.8 : 1.2);
+            // Map [-1, 1] random value to a pan position
+            const pan = (Math.random() * 2 - 1) * Math.min(1.0, grainPanSpread * spreadMod);
 
-          for (let i = 0; i < outCh.length; i++) {
-            const sample = outCh[i];
+            // Constant power panning
+            // L = cos(pan * PI/4), R = sin(pan * PI/4) where pan is 0 to 1
+            // We map pan [-1, 1] to [0, 1] -> +1 / 2
+            const normPan = (pan + 1.0) * 0.5;
+            const angle = normPan * Math.PI / 2;
+            this.grainPanL[b] = Math.cos(angle);
+            this.grainPanR[b] = Math.sin(angle);
+        }
+      } else if (grainPanSpread === 0) {
+          // Bypass completely
+          this.grainPanL.fill(Math.SQRT1_2);
+          this.grainPanR.fill(Math.SQRT1_2);
+      }
 
-            // 1-pole state variable filters
-            this.scLow[channel] += fLow * (sample - this.scLow[channel]);
-            this.scHigh[channel] += fHigh * (sample - this.scHigh[channel]);
+      // We need to route the mono output to stereo if spreading is active
+      const outL = outputs[0][0];
+      const outR = outputs[0][1];
 
-            // Reconstruct bands so that amount=0 is unity gain
-            const low = this.scLow[channel];
-            const high = sample - this.scHigh[channel];
-            const mid = sample - low - high;
+      // If outputChannelCount is [2], outR will exist. Otherwise we do mono fallback.
+      const hasStereo = outL && outR;
 
-            // Envelope followers
-            const absLow = Math.abs(low);
-            const absMid = Math.abs(mid);
-            const absHigh = Math.abs(high);
+      // Apply Spectral Compression (3-band multi-band approximation) and Spectral Panning
+      if (spectralCompression > 0 || (grainPanSpread > 0 && hasStereo)) {
+        // Filter coefficients for ~300Hz and ~3000Hz crossovers at 44.1kHz/48kHz
+        const fLow = 0.04;  // approx 300Hz
+        const fHigh = 0.35; // approx 3000Hz
 
-            this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
-            this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
-            this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+        // Compressor envelope constants (approx 1-5ms attack, 40-80ms release for speech)
+        const attackConst = 0.005; // ~5ms
+        const releaseConst = 0.0003; // ~70ms
 
-            // Gain reduction + Upward/Downward compression (OTT style)
-            // The higher the env, the lower the gain multiplier.
-            // Scaled by spectralCompression parameter.
-            // Using +0.001 to prevent divide by zero
-            const targetRMS = 0.15; // Target level for upward/downward convergence
+        // Process only mono channel 0 for SVF and compression
+        const monoIn = outL;
+        const channel = 0; // Using channel 0 for state tracking
 
-            // Calculate ratio modifiers (0.0 to 1.0 maps to no-compression to heavy-compression)
-            // Soft knee approximation around target RMS
-            const gainLow = 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5;
-            const gainMid = 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7; // Compress mid more
-            const gainHigh = 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6;
+        for (let i = 0; i < monoIn.length; i++) {
+          const sample = monoIn[i];
 
-            // Clamp gains to prevent extreme blowout
-            const clampGainLow = Math.max(0.1, Math.min(4.0, gainLow));
-            const clampGainMid = Math.max(0.1, Math.min(3.0, gainMid));
-            const clampGainHigh = Math.max(0.1, Math.min(4.0, gainHigh));
+          // 1-pole state variable filters
+          this.scLow[channel] += fLow * (sample - this.scLow[channel]);
+          this.scHigh[channel] += fHigh * (sample - this.scHigh[channel]);
 
-            // Apply gain and mix (Compressed + Dry mix)
-            const compressed = (low * clampGainLow) + (mid * clampGainMid) + (high * clampGainHigh);
-            outCh[i] = sample * (1.0 - spectralCompression) + compressed * spectralCompression;
+          // Reconstruct bands
+          let low = this.scLow[channel];
+          let high = sample - this.scHigh[channel];
+          let mid = sample - low - high;
+
+          if (spectralCompression > 0) {
+              const absLow = Math.abs(low);
+              const absMid = Math.abs(mid);
+              const absHigh = Math.abs(high);
+
+              this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
+              this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
+              this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+
+              const targetRMS = 0.15;
+
+              const gainLow = 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5;
+              const gainMid = 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7;
+              const gainHigh = 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6;
+
+              const clampGainLow = Math.max(0.1, Math.min(4.0, gainLow));
+              const clampGainMid = Math.max(0.1, Math.min(3.0, gainMid));
+              const clampGainHigh = Math.max(0.1, Math.min(4.0, gainHigh));
+
+              // Blend compressed and dry
+              low = low * (1.0 - spectralCompression) + (low * clampGainLow) * spectralCompression;
+              mid = mid * (1.0 - spectralCompression) + (mid * clampGainMid) * spectralCompression;
+              high = high * (1.0 - spectralCompression) + (high * clampGainHigh) * spectralCompression;
+          }
+
+          if (hasStereo) {
+              outL[i] = low * this.grainPanL[0] + mid * this.grainPanL[1] + high * this.grainPanL[2];
+              outR[i] = low * this.grainPanR[0] + mid * this.grainPanR[1] + high * this.grainPanR[2];
+          } else {
+              outL[i] = low + mid + high;
           }
         }
+      } else if (hasStereo) {
+        // If neither effect is active, but we have stereo output, just copy L to R
+        outR.set(outL);
       }
 
       // Apply Bitcrush & Downsample
