@@ -202,12 +202,24 @@ export function copySegment(structure: SongStructure, selection: Set<string>): S
     if (selection.size === 0) return null;
     const coords = [...selection].map((id) => parseCellId(id)).filter(Boolean) as SongCellCoord[];
     if (coords.length === 0) return null;
-    const minM = Math.min(...coords.map((c) => c.measure));
-    const maxM = Math.max(...coords.map((c) => c.measure));
+
+    // ⚡ Bolt: Use a single pass loop instead of spreading .map() arrays to prevent call stack exceeded errors and array allocations
     const trackOrder = SONG_MODE_TRACKS.map((r) => r.key);
-    const trackIdx = coords.map((c) => trackOrder.indexOf(c.track));
-    const minT = Math.min(...trackIdx);
-    const maxT = Math.max(...trackIdx);
+    let minM = Infinity;
+    let maxM = -Infinity;
+    let minT = Infinity;
+    let maxT = -Infinity;
+
+    for (let i = 0; i < coords.length; i++) {
+        const c = coords[i];
+        if (c.measure < minM) minM = c.measure;
+        if (c.measure > maxM) maxM = c.measure;
+
+        const tIdx = trackOrder.indexOf(c.track);
+        if (tIdx < minT) minT = tIdx;
+        if (tIdx > maxT) maxT = tIdx;
+    }
+
     const cells = coords.map((c) => ({
         dMeasure: c.measure - minM,
         track: c.track,
