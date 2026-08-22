@@ -48,7 +48,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
-  private freezePhase: number = 0;
+  private grains = [
+    { phase: 0, start: 0, size: 0, active: false },
+    { phase: 0, start: 0, size: 0, active: false }
+  ];
   private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
   private grainLfoPhase: number = 0;
@@ -551,63 +554,88 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const lfoMod = 1.0 - (grainLfoDepth * ((grainLfoValue + 1) * 0.5));
 
             // Modulate grain size with envelope: louder = smaller grains for more texture
-            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
-
-            // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
-            const jitterOffset = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
 
-            const grainCenter = this.currentSamplePtr + jitterOffset;
-            const grainStart = Math.max(0, Math.min(buf.length - grainSizeSamples, grainCenter - Math.floor(grainSizeSamples / 2)));
-            const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
-            const actualGrainSize = grainEnd - grainStart;
+            const initGrain = (g: any) => {
+                const grainSizeSamplesActive = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
+                const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
+                const grainCenterActive = this.currentSamplePtr + jitterOffsetActive;
+                g.start = Math.max(0, Math.min(buf.length - grainSizeSamplesActive, grainCenterActive - Math.floor(grainSizeSamplesActive / 2)));
+                g.size = Math.min(buf.length, g.start + grainSizeSamplesActive) - g.start;
+                g.phase = 0;
+                g.active = g.size > 0;
+            };
 
-            if (actualGrainSize > 0) {
+            // Ensure at least one grain is active
+            if (!this.grains[0].active && !this.grains[1].active) {
+                initGrain(this.grains[0]);
+            }
+
+            const hasActiveGrain = this.grains[0].active || this.grains[1].active;
+
+            if (hasActiveGrain) {
               for (let i = 0; i < samplesToFeed; i++) {
-                // Apply a window to the grain to avoid buzzing/clicks at the loop boundaries
-                const phase = this.freezePhase / (actualGrainSize - 1);
-                let windowVal = 1.0;
+                let sampleVal = 0;
+                for (let gIdx = 0; gIdx < 2; gIdx++) {
+                    const g = this.grains[gIdx];
+                    if (g.active) {
+                        const phase = g.phase / (g.size - 1);
+                        let windowVal = 1.0;
 
-                if (this.customWindowShape && this.customWindowShape.length > 0) {
-                    const index = phase * (this.customWindowShape.length - 1);
-                    const lower = Math.floor(index);
-                    const upper = Math.ceil(index);
-                    const weight = index - lower;
-                    windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
-                } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
-                    const idx = phase * (this.customGrainEnvelope.length - 1);
-                    const lowerIdx = Math.floor(idx);
-                    const upperIdx = Math.ceil(idx);
-                    const fraction = idx - lowerIdx;
+                        if (this.customWindowShape && this.customWindowShape.length > 0) {
+                            const index = phase * (this.customWindowShape.length - 1);
+                            const lower = Math.floor(index);
+                            const upper = Math.ceil(index);
+                            const weight = index - lower;
+                            windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+                        } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                            const idx = phase * (this.customGrainEnvelope.length - 1);
+                            const lowerIdx = Math.floor(idx);
+                            const upperIdx = Math.ceil(idx);
+                            const fraction = idx - lowerIdx;
 
-                    const lowerVal = this.customGrainEnvelope[lowerIdx];
-                    const upperVal = this.customGrainEnvelope[upperIdx];
+                            const lowerVal = this.customGrainEnvelope[lowerIdx];
+                            const upperVal = this.customGrainEnvelope[upperIdx];
 
-                    windowVal = lowerVal + (upperVal - lowerVal) * fraction;
-                } else {
-                    // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
-                    if (windowShape < 0.5) {
-                        // Hann
-                        windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
-                    } else if (windowShape < 1.5) {
-                        // Hamming
-                        windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
-                    } else if (windowShape < 2.5) {
-                        // Blackman
-                        windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
-                    } else {
-                        // Rectangular / None
-                        windowVal = 1.0;
+                            windowVal = lowerVal + (upperVal - lowerVal) * fraction;
+                        } else {
+                            // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                            if (windowShape < 0.5) {
+                                // Hann
+                                windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                            } else if (windowShape < 1.5) {
+                                // Hamming
+                                windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                            } else if (windowShape < 2.5) {
+                                // Blackman
+                                windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                            } else {
+                                // Rectangular / None
+                                windowVal = 1.0;
+                            }
+                        }
+
+                        sampleVal += buf[g.start + g.phase] * windowVal;
+                        g.phase++;
+
+                        // Check if we should start the other grain (50% overlap)
+                        const otherIdx = gIdx === 0 ? 1 : 0;
+                        const otherG = this.grains[otherIdx];
+                        if (g.phase === Math.floor(g.size / 2) && !otherG.active) {
+                            initGrain(otherG);
+                        }
+
+                        if (g.phase >= g.size) {
+                            g.active = false;
+                            if (gIdx === 0) {
+                                // Only trigger grain wrap panning when the primary grain finishes
+                                // to avoid double triggers that flutter the stereo field too much
+                                this.grainWrapPending = true;
+                            }
+                        }
                     }
                 }
-
-                heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;
-
-                this.freezePhase++;
-                if (this.freezePhase >= actualGrainSize) {
-                  this.freezePhase = 0; // Loop the grain
-                  this.grainWrapPending = true;
-                }
+                heap[ptr + i] = sampleVal;
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
             } else {
@@ -616,7 +644,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             }
           }
         } else {
-          this.freezePhase = 0; // Reset phase when unfreezing
+          this.grains[0].active = false;
+          this.grains[1].active = false; // Reset phase when unfreezing
           if (this.wasFrozen) {
             this.grainWrapPending = false;
             this.wasFrozen = false;
