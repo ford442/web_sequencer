@@ -224,7 +224,7 @@ export const CurveEditor = memo(({
   if (!lane) {
     return (
       <div
-        className="flex flex-col items-center justify-center p-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg"
+        className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg"
         style={{ width, height }}
       >
         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
@@ -232,8 +232,8 @@ export const CurveEditor = memo(({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         </div>
-        <h3 className="text-gray-300 font-bold mb-2">No Lane Selected</h3>
-        <p className="text-gray-500 text-xs max-w-[250px]">
+        <h3 className="text-gray-300 font-bold mb-2 text-sm">No Lane Selected</h3>
+        <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
           Select an automation lane from the list to edit its curve.
         </p>
       </div>

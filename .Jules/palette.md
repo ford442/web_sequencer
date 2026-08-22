@@ -35,3 +35,6 @@
 ## 2026-08-18 - Better empty states for Phoneme Painter
 **Learning:** The `PhonemePainter` component had a completely blank, dark overlay (`bg-[#0d0f12]/80`) for its empty state. Consistent with `CloudLibrary` and other panels, using the standardized empty state container (`bg-gray-800/20 border border-dashed border-gray-700`) significantly improves the UX by visually indicating a designated interactive area for content, rather than an unstyled empty void.
 **Action:** Always replace unstyled or solid-color backgrounds for empty states in modals and panels with the standardized dashed-border pattern to maintain application consistency.
+## 2026-08-22 - [Standardizing Empty States]
+**Learning:** Found multiple instances of empty states in the codebase that used similar but slightly different HTML structures and styling (e.g., different icon sizes, varying text sizes), causing UI inconsistencies.
+**Action:** Identified a standard empty state pattern (dashed border, w-12 h-12 circular icon background, text-sm for titles, text-xs for descriptions) and applied it consistently across components to ensure a uniform user experience.
