@@ -178,9 +178,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setBass2Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('bass2', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnBass2(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
@@ -210,9 +208,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setBass1Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('bass1', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnBass1(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
@@ -236,9 +232,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setLead303Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('lead303', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnLead303(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {

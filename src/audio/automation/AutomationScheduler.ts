@@ -57,16 +57,19 @@ export function resolveTrakDeltas(
   events: Array<{ deltaTick: number; trackIndex: number; ctrlId: number; value: number; eventKind?: ResolvedTrakEvent['eventKind'] }>
 ): ResolvedTrakEvent[] {
   let tick = 0;
-  return events.map((ev) => {
+  const result: ResolvedTrakEvent[] = new Array(events.length);
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
     tick += ev.deltaTick;
-    return {
+    result[i] = {
       tick,
       trackIndex: ev.trackIndex,
       ctrlId: ev.ctrlId,
       value: ev.value,
       eventKind: ev.eventKind,
     };
-  });
+  }
+  return result;
 }
 
 /**
@@ -459,6 +462,9 @@ export class AutomationScheduler {
         break;
       case 'volume':
         mgr.scheduleParamAtTime(voice, 'setVolume', v, effectiveTime);
+        break;
+      case 'drive':
+        mgr.scheduleParamAtTime(voice, 'setDrive', v, effectiveTime);
         break;
       default:
         break;

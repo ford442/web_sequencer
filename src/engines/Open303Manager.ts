@@ -25,6 +25,14 @@ export class Open303Manager {
     private bass1Drive: WaveShaperNode | null = null;
     private bass2Drive: WaveShaperNode | null = null;
     private lead303Drive: WaveShaperNode | null = null;
+
+    // Drive routing gains
+    private bass1DryGain: GainNode | null = null;
+    private bass1WetGain: GainNode | null = null;
+    private bass2DryGain: GainNode | null = null;
+    private bass2WetGain: GainNode | null = null;
+    private lead303DryGain: GainNode | null = null;
+    private lead303WetGain: GainNode | null = null;
     private bass1Panner: StereoPannerNode | null = null;
     private bass2Panner: StereoPannerNode | null = null;
     private lead303Panner: StereoPannerNode | null = null;
@@ -72,6 +80,37 @@ export class Open303Manager {
                 this.lead303Gain.connect(this.lead303Panner);
             }
 
+
+            this.bass1DryGain = audioContext.createGain();
+            this.bass1WetGain = audioContext.createGain();
+            this.bass1DryGain.gain.value = 1.0;
+            this.bass1WetGain.gain.value = 0.0;
+            this.bass1Drive = audioContext.createWaveShaper();
+            this.bass1Drive.curve = makeDistortionCurve(100); // Fixed curve
+            this.bass1DryGain.connect(this.bass1Gain);
+            this.bass1WetGain.connect(this.bass1Drive);
+            this.bass1Drive.connect(this.bass1Gain);
+
+            this.bass2DryGain = audioContext.createGain();
+            this.bass2WetGain = audioContext.createGain();
+            this.bass2DryGain.gain.value = 1.0;
+            this.bass2WetGain.gain.value = 0.0;
+            this.bass2Drive = audioContext.createWaveShaper();
+            this.bass2Drive.curve = makeDistortionCurve(100); // Fixed curve
+            this.bass2DryGain.connect(this.bass2Gain);
+            this.bass2WetGain.connect(this.bass2Drive);
+            this.bass2Drive.connect(this.bass2Gain);
+
+            this.lead303DryGain = audioContext.createGain();
+            this.lead303WetGain = audioContext.createGain();
+            this.lead303DryGain.gain.value = 1.0;
+            this.lead303WetGain.gain.value = 0.0;
+            this.lead303Drive = audioContext.createWaveShaper();
+            this.lead303Drive.curve = makeDistortionCurve(100); // Fixed curve
+            this.lead303DryGain.connect(this.lead303Gain);
+            this.lead303WetGain.connect(this.lead303Drive);
+            this.lead303Drive.connect(this.lead303Gain);
+
             // Initialize bass1, bass2 and lead303 in parallel — the browser dedupes
             // the addModule call for the same URL so all three share one worklet load.
             this.bass1 = new Open303Oscillator();
@@ -103,19 +142,16 @@ export class Open303Manager {
             }
 
             if (this.bass1Ready) {
-                this.bass1Drive = audioContext.createWaveShaper();
-                this.bass1!.connect(this.bass1Drive);
-                this.bass1Drive.connect(this.bass1Gain!);
+                this.bass1!.connect(this.bass1DryGain!);
+                this.bass1!.connect(this.bass1WetGain!);
             }
             if (this.bass2Ready) {
-                this.bass2Drive = audioContext.createWaveShaper();
-                this.bass2!.connect(this.bass2Drive);
-                this.bass2Drive.connect(this.bass2Gain!);
+                this.bass2!.connect(this.bass2DryGain!);
+                this.bass2!.connect(this.bass2WetGain!);
             }
             if (this.lead303Ready) {
-                this.lead303Drive = audioContext.createWaveShaper();
-                this.lead303!.connect(this.lead303Drive);
-                this.lead303Drive.connect(this.lead303Gain!);
+                this.lead303!.connect(this.lead303DryGain!);
+                this.lead303!.connect(this.lead303WetGain!);
             }
 
             this.isReady = this.bass1Ready || this.bass2Ready || this.lead303Ready;
@@ -241,21 +277,27 @@ export class Open303Manager {
         }
     }
 
-    setBass1Drive(amount: number): void {
-        if (this.bass1Drive) {
-            this.bass1Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
+    setBass1Drive(amount: number, audioTime?: number): void {
+        if (this.bass1DryGain && this.bass1WetGain && this.audioContext) {
+            const time = Math.max(this.audioContext.currentTime, audioTime ?? 0);
+            this.bass1WetGain.gain.setValueAtTime(amount, time);
+            this.bass1DryGain.gain.setValueAtTime(1.0 - amount, time);
         }
     }
 
-    setBass2Drive(amount: number): void {
-        if (this.bass2Drive) {
-            this.bass2Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
+    setBass2Drive(amount: number, audioTime?: number): void {
+        if (this.bass2DryGain && this.bass2WetGain && this.audioContext) {
+            const time = Math.max(this.audioContext.currentTime, audioTime ?? 0);
+            this.bass2WetGain.gain.setValueAtTime(amount, time);
+            this.bass2DryGain.gain.setValueAtTime(1.0 - amount, time);
         }
     }
 
-    setLead303Drive(amount: number): void {
-        if (this.lead303Drive) {
-            this.lead303Drive.curve = amount > 0 ? makeDistortionCurve(amount * 100) : null;
+    setLead303Drive(amount: number, audioTime?: number): void {
+        if (this.lead303DryGain && this.lead303WetGain && this.audioContext) {
+            const time = Math.max(this.audioContext.currentTime, audioTime ?? 0);
+            this.lead303WetGain.gain.setValueAtTime(amount, time);
+            this.lead303DryGain.gain.setValueAtTime(1.0 - amount, time);
         }
     }
 
@@ -538,6 +580,12 @@ export class Open303Manager {
         audioTime: number
     ): void {
         // Native AudioParam setters (pan, gain) — schedule ahead of time.
+        if (func === 'setDrive') {
+            if (voice === 'bass1') this.setBass1Drive(value, audioTime);
+            else if (voice === 'bass2') this.setBass2Drive(value, audioTime);
+            else this.setLead303Drive(value, audioTime);
+            return;
+        }
         if (func === 'setPan') {
             const panner =
                 voice === 'bass1' ? this.bass1Panner :
@@ -559,22 +607,14 @@ export class Open303Manager {
             // Also forward to the worklet so its internal gain state stays consistent with the GainNode.
         }
 
-        // Worklet-routed params: schedule via wall-clock timeout.
+        // Worklet-routed params: postMessage with audioTime to be handled by the worklet.
         const osc =
             voice === 'bass1' ? this.bass1 :
             voice === 'bass2' ? this.bass2 :
             this.lead303;
         if (!osc) return;
 
-        const nowAudio = this.audioContext?.currentTime ?? 0;
-        const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
-
-        if (delayMs < 1) {
-            // Immediate — send now to avoid setTimeout overhead.
-            osc.setParam(func, value);
-        } else {
-            setTimeout(() => osc.setParam(func, value), delayMs);
-        }
+        osc.setParam(func, value, audioTime);
     }
 
     /**
@@ -646,6 +686,24 @@ export class Open303Manager {
 
         // For native AudioParams (pan, gain) use a single linearRamp — it's
         // sample-accurate and cheaper than many setValueAtTime calls.
+        if (func === 'setDrive') {
+            const wetGain =
+                voice === 'bass1' ? this.bass1WetGain :
+                voice === 'bass2' ? this.bass2WetGain :
+                this.lead303WetGain;
+            const dryGain =
+                voice === 'bass1' ? this.bass1DryGain :
+                voice === 'bass2' ? this.bass2DryGain :
+                this.lead303DryGain;
+            if (wetGain && dryGain && this.audioContext) {
+                const start = Math.max(this.audioContext.currentTime, startTime);
+                wetGain.gain.setValueAtTime(fromValue, start);
+                wetGain.gain.linearRampToValueAtTime(toValue, endTime);
+                dryGain.gain.setValueAtTime(1.0 - fromValue, start);
+                dryGain.gain.linearRampToValueAtTime(1.0 - toValue, endTime);
+            }
+            return;
+        }
         if (func === 'setPan') {
             const panner =
                 voice === 'bass1' ? this.bass1Panner :

@@ -248,7 +248,7 @@ export class Open303Oscillator {
         }
     }
 
-    setParam(func: string, value: number): void {
+    setParam(func: string, value: number, audioTime?: number): void {
         if (this.isFallback && this.fallbackSynth) {
             // Map to fallback synth methods
             switch(func) {
@@ -260,7 +260,7 @@ export class Open303Oscillator {
                 // envMod, accent, filterMode not implemented in fallback
             }
         } else if (this.workletNode) {
-            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value } });
+            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value, audioTime } });
         }
     }
 
