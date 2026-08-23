@@ -1,0 +1,4 @@
+💡 What: Replaced array `.map()` followed by spread syntax `...` with an optimized single-pass `for` loop in `copySegment` (`src/utils/songModeEditing.ts`).
+🎯 Why: Prevents `RangeError: Maximum call stack size exceeded` errors for large array sizes (e.g. from large block selections) and eliminates multiple intermediate array allocations that put pressure on the V8 garbage collector (GC).
+📊 Impact: Reduces time complexity from `4 * O(N)` to `O(N)` and space complexity from `O(N)` to `O(1)`. Safely supports unbounded bounds checking for song grid interactions.
+🔬 Measurement: Run application with performance profiler during playback and selection. Unit test suite fully covers the utility and passes successfully.
