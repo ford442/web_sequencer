@@ -95,7 +95,7 @@ export const BasicNoteProperties: React.FC<BasicNotePropertiesProps> =
                   role="switch"
                   aria-checked={currentReverse}
                   onClick={() => onPropertyChange?.("reverse", !currentReverse)}
-                  className={`w-8 h-4 rounded-full transition-colors relative focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                  className={`w-8 h-4 rounded-full transition-colors relative focus:outline-none focus-visible:ring-2 focus:ring-cyan-500 ${
                     currentReverse ? "bg-cyan-500" : "bg-gray-700"
                   }`}
                 >
