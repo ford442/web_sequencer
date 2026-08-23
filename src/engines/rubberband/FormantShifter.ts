@@ -413,7 +413,7 @@ export class FormantShifter {
         this.lfoDepth = depth;
         if (this.lfoGain) {
             const t = time || this.audioContext.currentTime;
-            this.lfoGain.gain.cancelScheduledValues(t);
+            this.lfoGain.gain.cancelScheduledValues?.(t);
             this.lfoGain.gain.setValueAtTime(depth * 1200, t); // Map 0-1 to 0-1200 cents
         }
 
@@ -462,13 +462,13 @@ export class FormantShifter {
             const staticGain = Math.abs(semitonesShift) * 2;
             const finalGain = Math.max(staticGain, lfoEmphasisGain);
 
-            if (this.filterNodes[i].frequency.cancelScheduledValues) this.filterNodes[i].frequency.cancelScheduledValues(now);
+            this.filterNodes[i].frequency.cancelScheduledValues?.(now);
             this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, now);
-            if (this.filterNodes[i].frequency.linearRampToValueAtTime) this.filterNodes[i].frequency.linearRampToValueAtTime(targetFreq, targetTime);
+            this.filterNodes[i].frequency.linearRampToValueAtTime?.(targetFreq, targetTime);
 
-            if (this.filterNodes[i].gain.cancelScheduledValues) this.filterNodes[i].gain.cancelScheduledValues(now);
+            this.filterNodes[i].gain.cancelScheduledValues?.(now);
             this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, now);
-            if (this.filterNodes[i].gain.linearRampToValueAtTime) this.filterNodes[i].gain.linearRampToValueAtTime(finalGain, targetTime);
+            this.filterNodes[i].gain.linearRampToValueAtTime?.(finalGain, targetTime);
         }
         
         this.currentShift = shift;
@@ -596,7 +596,7 @@ export class FormantShifter {
         this.followerDepth = depth;
         if (this.followerGain) {
             const t = time || this.audioContext.currentTime;
-            this.followerGain.gain.cancelScheduledValues(t);
+            this.followerGain.gain.cancelScheduledValues?.(t);
             this.followerGain.gain.setValueAtTime(depth * 100, t); // Map semitones to cents
         }
     }
@@ -616,7 +616,7 @@ export class FormantShifter {
         const t = time || this.audioContext.currentTime;
         const gainParam = this.envGain.gain;
 
-        gainParam.cancelScheduledValues(t);
+        gainParam.cancelScheduledValues?.(t);
         gainParam.setValueAtTime(0, t);
 
         const peakGain = amount * 100; // Map semitones to cents
@@ -655,7 +655,7 @@ export class FormantShifter {
         const gainParam = this.sidechainGain.gain;
         const duckCents = -Math.abs(amount) * 100; // negative = pull formants back
 
-        gainParam.cancelScheduledValues(t);
+        gainParam.cancelScheduledValues?.(t);
         gainParam.setValueAtTime(duckCents, t); // instant (or very short) drop
         gainParam.linearRampToValueAtTime(0, t + releaseTime); // smooth recovery
     }
