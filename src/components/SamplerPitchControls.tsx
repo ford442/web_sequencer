@@ -103,7 +103,7 @@ const VerticalMiniLadder: React.FC<VerticalMiniLadderProps> = React.memo(({ sele
             aria-checked={isSelected}
             tabIndex={isSelected ? 0 : -1}
             onClick={() => onSelect(note)}
-            className={`text-[10px] font-mono py-0.5 px-2 rounded transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 ${
+            className={`text-[10px] font-mono py-0.5 px-2 rounded transition-all focus:outline-none focus-visible:ring-2 focus:ring-purple-400 focus:ring-opacity-50 ${
               isSelected
                 ? 'bg-purple-600 text-white shadow-[0_0_8px_rgba(147,51,234,0.6)]'
                 : isC
@@ -257,7 +257,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
               value={values.stretchProfile}
               aria-label="Stretch Profile"
               onChange={(e) => onChange('stretchProfile', e.target.value as 'vocal' | 'harmonic' | 'fast')}
-              className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+              className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus-visible:ring-2 focus:ring-purple-500"
             >
               <option value="vocal">Vocal</option>
               <option value="harmonic">Harmonic</option>
@@ -273,7 +273,7 @@ export const SamplerPitchControls: React.FC<SamplerPitchControlsProps> = React.m
               value={values.stretchMode}
               aria-label="Stretch Mode"
               onChange={(e) => onChange('stretchMode', e.target.value as 'Time' | 'Pitch' | 'Formant')}
-              className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+              className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-2 py-1 outline-none focus:border-purple-500 focus-visible:ring-2 focus:ring-purple-500"
             >
               <option value="Time">Time</option>
               <option value="Pitch">Pitch</option>

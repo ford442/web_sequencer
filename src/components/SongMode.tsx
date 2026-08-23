@@ -61,7 +61,7 @@ const SongModeCell = memo(forwardRef<HTMLDivElement, {
             ref={ref}
             data-testid={`cell-${rowKey}-${sIdx}`}
             style={{ width: CELL_WIDTH }}
-            className={`song-mode-cell shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-cyan-500 bg-transparent
+            className={`song-mode-cell shrink-0 border-r border-b border-gray-800/30 relative group cursor-pointer transition-colors select-none focus:outline-none focus-visible:ring-2 focus:ring-cyan-500 bg-transparent
                 ${hasVal ? '' : 'hover:bg-gray-800/50'}
             `}
             role="gridcell"

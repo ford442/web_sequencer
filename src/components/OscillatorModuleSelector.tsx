@@ -160,7 +160,7 @@ export const OscillatorModuleSelector: React.FC<OscillatorModuleSelectorProps> =
             className={[
               'flex flex-col items-center gap-0.5 px-1 pt-1.5 pb-1 rounded-md border',
               'transition-all duration-150 active:scale-95',
-              'focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-offset-zinc-900',
+              'focus:outline-none focus-visible:ring-2 focus:ring-offset-1 focus:ring-offset-zinc-900',
               FOCUS_RING[m.id],
               isActive
                 ? ACTIVE_CARD[m.id]
