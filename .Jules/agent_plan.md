@@ -58,5 +58,13 @@
 - Completed "Explore overlapping stereo grains (true OLA instead of one looped grain)" by modifying the `RubberBandProcessor` granulator input logic. Replaced the single `freezePhase` with an array of two active grain states. A secondary grain is dynamically activated when the primary grain crosses its 50% boundary. Overlapped grains are summed directly into the input heap utilizing standard Window functions (Hann/Hamming) which preserve unity gain.
 - Velocity Check: OLA logic cleanly integrates with the existing RubberBand input pointer stream, significantly improving the smoothness of the spectral freeze effect. The spectral pan latching was updated to only trigger on primary grain completion to avoid rapid stereo flutter.
 
+
+- Completed the task: "What if we could apply an LFO to the TTS formant shift directly from the step sequencer?"
+  - Built a robust FormantModulator topology directly inside `FormantShifter.ts`.
+  - Refactored `FormantShifter.ts` to lazily construct the Biquad filter chain and LFO nodes using `ensureFilterChain()`.
+  - Modified `disconnect()` so it unplugs inputs and outputs without destroying the internal filter chain and LFO, resolving the issue where modulations were lost upon note re-triggers.
+  - Dynamically scaled minimum peak gains for Formant filters using `Math.max(Math.abs(semitonesShift) * 2, this.lfoDepth * 8)` ensuring the LFO sweep is richly audible even when the static shift is neutral (0).
+- Velocity Check: Diagnosing the graph lifecycle proved crucial. Moving away from tearing down graph topologies on every trigger toward a patch-cable `disconnect` pattern is much healthier for continuous polyphonic modulations.
+
 ## Roadmap
 - Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.

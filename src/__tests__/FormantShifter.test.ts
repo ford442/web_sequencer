@@ -278,8 +278,8 @@ describe('FormantShifter', () => {
             
             shifter.disconnect();
             
-            expect(shifter.getInputNode()).toBeNull();
-            expect(shifter.getOutputNode()).toBeNull();
+            expect(shifter.getInputNode()).not.toBeNull();
+            expect(shifter.getOutputNode()).not.toBeNull();
         });
     });
     

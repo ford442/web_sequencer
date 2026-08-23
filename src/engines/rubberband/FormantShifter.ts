@@ -117,131 +117,94 @@ export class FormantShifter {
     constructor(config: FormantShifterConfig) {
         this.audioContext = config.audioContext;
         this.sourceFormants = config.sourceFormants ?? VOICE_FORMANTS.default;
-    }
-    
-    /**
-     * Create a filter chain for formant shifting.
-     * 
-     * @param shift Formant shift specification
-     * @returns Array of connected BiquadFilterNodes
+    }    /**
+     * Ensure the internal filter chain and modulators are created once.
      */
-    createFilterChain(shift: FormantShift): BiquadFilterNode[] {
-        // Clean up existing filters
-        this.disconnect();
-        
+    private ensureFilterChain(): void {
+        if (this.filterNodes && this.filterNodes.length > 0) return;
+
         const filters: BiquadFilterNode[] = [];
-        
-        // Create filters for each formant
+
+        // Determine base frequencies from source character
         const formants = [
-            { freq: this.sourceFormants.f1, shift: shift.f1Shift },
-            { freq: this.sourceFormants.f2, shift: shift.f2Shift },
-            { freq: this.sourceFormants.f3, shift: shift.f3Shift }
+            { freq: this.sourceFormants.f1 },
+            { freq: this.sourceFormants.f2 },
+            { freq: this.sourceFormants.f3 }
         ];
-        
-        if (this.sourceFormants.f4 && shift.f4Shift !== undefined) {
-            formants.push({ freq: this.sourceFormants.f4, shift: shift.f4Shift });
+
+        if (this.sourceFormants.f4) {
+            formants.push({ freq: this.sourceFormants.f4 });
         }
-        
-        for (const { freq, shift: semitonesShift } of formants) {
-            // Convert semitone shift to frequency multiplier
-            const freqMultiplier = Math.pow(2, semitonesShift / 12);
-            const targetFreq = freq * freqMultiplier;
-            
-            // Create peaking filter for this formant
+
+        const lfoEmphasisGain = this.lfoDepth * 8;
+
+        for (const { freq } of formants) {
             const filter = this.audioContext.createBiquadFilter();
             filter.type = 'peaking';
-            filter.frequency.value = targetFreq;
-            
-            // Q value determines bandwidth - higher Q = narrower peak
-            // Typical formant Q: 4-10 for natural voice
+            filter.frequency.value = freq;
             filter.Q.value = 6;
-            
-            // Gain adjustment based on shift amount
-            // More shift = more gain to emphasize the new formant position
-            filter.gain.value = Math.abs(semitonesShift) * 2; // dB gain
-            
+            filter.gain.value = Math.max(0, lfoEmphasisGain);
             filters.push(filter);
         }
-        
-        // Add compensatory filters at original frequencies to reduce them
+
         for (const { freq } of formants) {
             const compensateFilter = this.audioContext.createBiquadFilter();
             compensateFilter.type = 'peaking';
             compensateFilter.frequency.value = freq;
             compensateFilter.Q.value = 6;
-            compensateFilter.gain.value = -3; // Reduce original formant
+            compensateFilter.gain.value = -3;
             filters.push(compensateFilter);
         }
-        
-        // Connect filters in series
+
         for (let i = 0; i < filters.length - 1; i++) {
             filters[i].connect(filters[i + 1]);
         }
-        
-        // Create LFO if createOscillator is available (tests might use mock AudioContext)
+
+        // LFO
         if (typeof this.audioContext.createOscillator === 'function') {
             this.lfo = this.audioContext.createOscillator();
-            if (this.lfoShape && this.lfoShape.length > 0) {
-                const periodicWave = this.createPeriodicWaveFromShape(this.lfoShape);
-                if (periodicWave) {
-                    this.lfo.setPeriodicWave(periodicWave);
-                } else {
-                    this.lfo.type = 'sine';
-                }
-            } else {
-                this.lfo.type = 'sine';
-            }
+            this.setLfoShape(this.lfoShape);
             this.lfo.frequency.value = this.lfoRate;
 
             this.lfoGain = this.audioContext.createGain();
-            this.lfoGain.gain.value = this.lfoDepth * 1200; // Map depth (0-1) to cents (up to 1 octave)
+            this.lfoGain.gain.value = this.lfoDepth * 1200;
 
             this.lfo.connect(this.lfoGain);
 
-            // Connect LFO to the detune param of the peaking filters
-            // Only connect to the boosting filters (the first half of the array), not the compensatory ones
             for (let i = 0; i < formants.length; i++) {
                 this.lfoGain.connect(filters[i].detune);
             }
-
             this.lfo.start();
         }
 
-        // Create Envelope components
+        // Envelope
         if (typeof this.audioContext.createConstantSource === 'function') {
             this.envNode = this.audioContext.createConstantSource();
             this.envGain = this.audioContext.createGain();
-            this.envGain.gain.value = 0; // Idle state
-
+            this.envGain.gain.value = 0;
             this.envNode.connect(this.envGain);
-
             for (let i = 0; i < formants.length; i++) {
                 this.envGain.connect(filters[i].detune);
             }
-
             this.envNode.start();
         }
 
-        // Create Sidechain components
+        // Sidechain
         if (typeof this.audioContext.createConstantSource === 'function') {
             this.sidechainNode = this.audioContext.createConstantSource();
             this.sidechainGain = this.audioContext.createGain();
-            this.sidechainGain.gain.value = 0; // Idle state
-
+            this.sidechainGain.gain.value = 0;
             this.sidechainNode.connect(this.sidechainGain);
-
             for (let i = 0; i < formants.length; i++) {
                 this.sidechainGain.connect(filters[i].detune);
             }
-
             this.sidechainNode.start();
         }
 
-        // Create Envelope Follower components
+        // Follower
         if (typeof this.audioContext.createWaveShaper === 'function') {
             this.followerWaveshaper = this.audioContext.createWaveShaper();
         }
-        // Create a simple absolute value curve
         const curve = new Float32Array(4096);
         for (let i = 0; i < 4096; i++) {
             const x = (i * 2) / 4096 - 1;
@@ -252,13 +215,15 @@ export class FormantShifter {
         if (typeof this.audioContext.createBiquadFilter === 'function') {
             this.followerFilter = this.audioContext.createBiquadFilter();
         }
-        if (this.followerFilter) this.followerFilter.type = 'lowpass';
-        if (this.followerFilter) this.followerFilter.frequency.value = 10; // 10 Hz smoothing
+        if (this.followerFilter) {
+            this.followerFilter.type = 'lowpass';
+            this.followerFilter.frequency.value = 10;
+        }
 
         if (typeof this.audioContext.createGain === 'function') {
             this.followerGain = this.audioContext.createGain();
         }
-        if (this.followerGain) this.followerGain.gain.value = this.followerDepth * 100; // Map semitones to cents
+        if (this.followerGain) this.followerGain.gain.value = this.followerDepth * 100;
 
         if (this.followerWaveshaper && this.followerFilter) this.followerWaveshaper.connect(this.followerFilter);
         if (this.followerFilter && this.followerGain) this.followerFilter.connect(this.followerGain);
@@ -268,8 +233,18 @@ export class FormantShifter {
         }
 
         this.filterNodes = filters;
-        this.currentShift = shift;
-        return filters;
+    }
+
+    /**
+     * Create a filter chain for formant shifting.
+     *
+     * @param shift Formant shift specification
+     * @returns Array of connected BiquadFilterNodes
+     */
+    createFilterChain(shift: FormantShift): BiquadFilterNode[] {
+        this.ensureFilterChain();
+        this.updateFilterChain(shift, 0);
+        return this.filterNodes;
     }
     
     /**
@@ -441,6 +416,13 @@ export class FormantShifter {
             this.lfoGain.gain.cancelScheduledValues(t);
             this.lfoGain.gain.setValueAtTime(depth * 1200, t); // Map 0-1 to 0-1200 cents
         }
+
+        // Update the filter chain to adjust the minimum gain based on the new LFO depth
+        if (this.currentShift) {
+            this.updateFilterChain(this.currentShift, 0.05, time);
+        } else {
+            this.updateFilterChain({f1Shift: 0, f2Shift: 0, f3Shift: 0}, 0.05, time);
+        }
     }
 
     /**
@@ -449,11 +431,9 @@ export class FormantShifter {
      * 
      * @param shift New formant shift specification
      * @param rampTime Optional duration for interpolating to the new shift (seconds)
-     */
-    updateFilterChain(shift: FormantShift, rampTime: number = 0.05, startTime?: number): void {
+     */    updateFilterChain(shift: FormantShift, rampTime: number = 0.05, startTime?: number): void {
         if (this.filterNodes.length === 0) {
-            this.createFilterChain(shift);
-            return;
+            this.ensureFilterChain();
         }
         
         const formants = [
@@ -469,19 +449,26 @@ export class FormantShifter {
         const now = startTime ?? this.audioContext.currentTime;
         const targetTime = now + rampTime;
 
+        // Calculate a static base gain plus dynamic emphasis scaled by LFO depth
+        // e.g. 1.0 depth = 8dB peak emphasis to make the sweep highly audible even at 0 static shift
+        const lfoEmphasisGain = this.lfoDepth * 8;
+
         // Update frequency and gain of existing filters
         for (let i = 0; i < formants.length && i < this.filterNodes.length; i++) {
             const { freq, shift: semitonesShift } = formants[i];
             const freqMultiplier = Math.pow(2, semitonesShift / 12);
             const targetFreq = freq * freqMultiplier;
             
-            this.filterNodes[i].frequency.cancelScheduledValues(now);
-            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, now);
-            this.filterNodes[i].frequency.linearRampToValueAtTime(targetFreq, targetTime);
+            const staticGain = Math.abs(semitonesShift) * 2;
+            const finalGain = Math.max(staticGain, lfoEmphasisGain);
 
-            this.filterNodes[i].gain.cancelScheduledValues(now);
+            if (this.filterNodes[i].frequency.cancelScheduledValues) this.filterNodes[i].frequency.cancelScheduledValues(now);
+            this.filterNodes[i].frequency.setValueAtTime(this.filterNodes[i].frequency.value, now);
+            if (this.filterNodes[i].frequency.linearRampToValueAtTime) this.filterNodes[i].frequency.linearRampToValueAtTime(targetFreq, targetTime);
+
+            if (this.filterNodes[i].gain.cancelScheduledValues) this.filterNodes[i].gain.cancelScheduledValues(now);
             this.filterNodes[i].gain.setValueAtTime(this.filterNodes[i].gain.value, now);
-            this.filterNodes[i].gain.linearRampToValueAtTime(Math.abs(semitonesShift) * 2, targetTime);
+            if (this.filterNodes[i].gain.linearRampToValueAtTime) this.filterNodes[i].gain.linearRampToValueAtTime(finalGain, targetTime);
         }
         
         this.currentShift = shift;
@@ -571,6 +558,7 @@ export class FormantShifter {
      * @param destination Destination audio node
      */
     connect(source: AudioNode, destination: AudioNode): void {
+        this.ensureFilterChain();
         const input = this.getInputNode();
         const output = this.getOutputNode();
         
@@ -585,57 +573,18 @@ export class FormantShifter {
             source.connect(destination);
         }
     }
-    
     /**
      * Disconnect all filter nodes.
      */
     disconnect(): void {
-        this.filterNodes.forEach(filter => filter.disconnect());
-        this.filterNodes = [];
-        this.currentShift = null;
-
-        if (this.lfo) {
-            this.lfo.stop();
-            this.lfo.disconnect();
-            this.lfo = null;
-        }
-        if (this.lfoGain) {
-            this.lfoGain.disconnect();
-            this.lfoGain = null;
+        const output = this.getOutputNode();
+        if (output) {
+            output.disconnect();
         }
 
-        if (this.envNode) {
-            this.envNode.stop();
-            this.envNode.disconnect();
-            this.envNode = null;
-        }
-        if (this.envGain) {
-            this.envGain.disconnect();
-            this.envGain = null;
-        }
-
-        if (this.sidechainNode) {
-            this.sidechainNode.stop();
-            this.sidechainNode.disconnect();
-            this.sidechainNode = null;
-        }
-        if (this.sidechainGain) {
-            this.sidechainGain.disconnect();
-            this.sidechainGain = null;
-        }
-
-        if (this.followerWaveshaper) {
-            this.followerWaveshaper.disconnect();
-            this.followerWaveshaper = null;
-        }
-        if (this.followerFilter) {
-            this.followerFilter.disconnect();
-            this.followerFilter = null;
-        }
-        if (this.followerGain) {
-            this.followerGain.disconnect();
-            this.followerGain = null;
-        }
+        // DO NOT disconnect input (it is filter 0, doing so breaks internal chain)
+        // DO NOT call this.lfo.stop()
+        // DO NOT clear this.filterNodes
     }
 
     /**
