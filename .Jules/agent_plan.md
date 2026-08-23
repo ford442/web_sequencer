@@ -30,11 +30,13 @@
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
 
 - [x] Explore overlapping stereo grains (true OLA instead of one looped grain)
-- [ ] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
+- [x] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
 
 ## Innovation Lab
 - [ ] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
+- [ ] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
+- [ ] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -57,6 +59,9 @@
 - Velocity Check: Utilizing a sticky `grainWrapPending` latch set during the FREEZE input loop and consumed during output retrieval successfully decouples the grain schedule from the RubberBand latency, providing a stable stereo field without dropping the time-stretch functionality.
 - Completed "Explore overlapping stereo grains (true OLA instead of one looped grain)" by modifying the `RubberBandProcessor` granulator input logic. Replaced the single `freezePhase` with an array of two active grain states. A secondary grain is dynamically activated when the primary grain crosses its 50% boundary. Overlapped grains are summed directly into the input heap utilizing standard Window functions (Hann/Hamming) which preserve unity gain.
 - Velocity Check: OLA logic cleanly integrates with the existing RubberBand input pointer stream, significantly improving the smoothness of the spectral freeze effect. The spectral pan latching was updated to only trigger on primary grain completion to avoid rapid stereo flutter.
+- Completed "Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field" by utilizing the existing `isVowel` flag from the `PhonemeData` buffer (already available at `baseIndex + 2`). This was threaded up to the spectral panning logic to dynamically reduce the pan spread by 70% during consonants, creating a much more natural stereo image for speech.
+- Velocity Check: Passing `isVowel` through the worklet's getter function avoided any new allocations or buffer expansions. Adding the 8th tuple item was clean and the performance impact is zero since it's only evaluated once per grain wrap.
 
 ## Roadmap
 - Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.
+- Completed "Explore linking grain pan to phoneme voicing". Added dynamic reduction of `grainPanSpread` during consonants in `RubberBandProcessor` by passing `isVowel` from the phoneme SAB up to the spectral pan generator.
