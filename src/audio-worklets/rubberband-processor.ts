@@ -321,8 +321,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
    * Determine the phoneme parameters for the current sample position.
    * Returns [stretchRatio, volume, pitchBend, vibDepth, vibRate]
    */
-  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number, number] {
-    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
+  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number, number, number] {
+    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0];
 
     const count = this.phonemeData[0];
     // Phoneme data stride is 10 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize
@@ -333,16 +333,17 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
       if (currentSample >= start && currentSample < end) {
         const ratio = this.phonemeRatios[i] || 1.0;
+        const isVowel = this.phonemeData[baseIndex + 2] !== undefined ? this.phonemeData[baseIndex + 2] : 0.0;
         const volume = this.phonemeData[baseIndex + 4] !== undefined ? this.phonemeData[baseIndex + 4] : 1.0;
         const pitchBend = this.phonemeData[baseIndex + 5] !== undefined ? this.phonemeData[baseIndex + 5] : 0.0;
         const vibDepth = this.phonemeData[baseIndex + 6] !== undefined ? this.phonemeData[baseIndex + 6] : -1.0;
         const vibRate = this.phonemeData[baseIndex + 7] !== undefined ? this.phonemeData[baseIndex + 7] : -1.0;
         const grainJitter = this.phonemeData[baseIndex + 8] !== undefined ? this.phonemeData[baseIndex + 8] : -1.0;
         const grainSize = this.phonemeData[baseIndex + 9] !== undefined ? this.phonemeData[baseIndex + 9] : -1.0;
-        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize];
+        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize, isVowel];
       }
     }
-    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
+    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0];
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -391,7 +392,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     let currentVibDepth = vibDepth;
     let currentVibRate = vibRate;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
     }
@@ -436,7 +437,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
@@ -462,7 +463,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         let phonemeVolume = 1.0;
         let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
           ratio = pRatio;
           phonemeVolume = pVol;
           phonemePitchBendCents = pBend;
@@ -539,7 +540,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             // Check for per-phoneme overrides
             if (this.phonemeData && this.phonemeRatios) {
-                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
                 if (pGrainJitter !== -1.0) {
                     grainJitter = pGrainJitter;
                 }
@@ -730,7 +731,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Apply phoneme volume
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
             if (pVol !== 1.0) {
                 for (let i = 0; i < outputChannel.length; i++) {
                     outputChannel[i] *= pVol;
@@ -769,9 +770,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // spectralComp already read earlier on main
   if (grainPanSpread > 0 && this.grainWrapPending) {
     this.grainWrapPending = false;
+    const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+    const finalPanSpread = isVowel > 0 ? grainPanSpread : grainPanSpread * 0.3;
+
     for (let b = 0; b < 3; b++) {
       const spreadMod = b === 0 ? 0.4 : b === 1 ? 0.8 : 1.2;
-      const pan = (Math.random() * 2 - 1) * Math.min(1.0, grainPanSpread * spreadMod);
+      const pan = (Math.random() * 2 - 1) * Math.min(1.0, finalPanSpread * spreadMod);
       const angle = ((pan + 1.0) * 0.5) * Math.PI / 2;
       this.grainPanL[b] = Math.cos(angle);
       this.grainPanR[b] = Math.sin(angle);
