@@ -271,15 +271,16 @@ describe('FormantShifter', () => {
             
             expect(mockSource.connect).toHaveBeenCalled();
         });
-        
         it('should disconnect all filters', () => {
             const shift = { f1Shift: 2, f2Shift: 3, f3Shift: 4 };
             shifter.createFilterChain(shift);
             
+            const output = shifter.getOutputNode();
+
             shifter.disconnect();
             
-            expect(shifter.getInputNode()).not.toBeNull();
-            expect(shifter.getOutputNode()).not.toBeNull();
+            // It should disconnect the output node
+            expect(output?.disconnect).toHaveBeenCalled();
         });
     });
     
