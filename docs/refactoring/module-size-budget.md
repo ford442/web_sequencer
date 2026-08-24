@@ -60,7 +60,6 @@ they are simply un-triaged. Recorded so the next pass starts from facts:
 |-------|--------|
 | 960 | `src/importers/ai-song/AISongImporter.ts` |
 | 959 | `src/components/KnobGPUContext.ts` |
-| 904 | `src/components/HardwareModule.tsx` |
 | 892 | `src/types.ts` |
 | 885 | `src/engines/rubberband/HybridNeuralPipeline.ts` |
 | 855 | `src/audio-worklets/open303-processor.ts` |
@@ -113,6 +112,19 @@ and did a fresh extraction from the working inline code into
 `AutomationStep` and the `SequencerRowHandle` type for its existing external
 consumers (`Rack.tsx`, `AutomationStepA11y.test.tsx`) and is **315 lines**.
 `sequencer/__tests__/noStaleSequencerSplit.test.ts` guards the regression.
+
+### `HardwareModule.tsx` split (2026-08-24)
+
+904 lines, no prior split attempt (unlike the two cases above — nothing stale
+to clean up here). Split along its actual seams: `KnobOverlay` (the
+memoized per-knob label/badge/a11y-slider overlay — pure presentational,
+194 lines) moved to `KnobOverlay.tsx`; the native pointer/wheel/touch
+interaction wiring, GPU/2D canvas render sync, and drag-HUD plumbing (five
+`useEffect`s plus their helper callbacks, ~450 lines, all closing over the
+same dozen refs) moved to `useHardwareModuleKnobRack.ts` as a single-purpose
+hook with exactly one caller. `HardwareModule.tsx` itself is now **269
+lines** — the props/config types, the automation context-menu state, and
+the render tree that wires the extracted pieces together.
 
 Two shapes worth distinguishing before splitting any of them:
 
