@@ -58,10 +58,8 @@ they are simply un-triaged. Recorded so the next pass starts from facts:
 
 | Lines | Module |
 |-------|--------|
-| 964 | `src/components/MainSequencer.tsx` |
 | 960 | `src/importers/ai-song/AISongImporter.ts` |
 | 959 | `src/components/KnobGPUContext.ts` |
-| 936 | `src/engines/rubberband/__tests__/LatencyCompensator.test.ts` |
 | 904 | `src/components/HardwareModule.tsx` |
 | 892 | `src/types.ts` |
 | 885 | `src/engines/rubberband/HybridNeuralPipeline.ts` |
@@ -90,10 +88,36 @@ friends in `src/midi/clock/`) already owns this responsibility. Deleted rather
 than wired in: keeping two timing systems, one live and one dead, is the same
 shadow-stack hazard as the sampler-playback duplicate above.
 
+### `MainSequencer.tsx` split (2026-08-24): a third shadow-stack hazard
+
+Splitting the 964-line `MainSequencer.tsx` turned up another abandoned split
+attempt sitting in `src/components/sequencer/`: `Sequencer.tsx`,
+`SequencerRow.tsx` and `SvgStep.tsx` existed there already, but nothing
+outside the folder imported `Sequencer.tsx` (the would-be entry point), and
+they had badly diverged from the live inline versions in `MainSequencer.tsx`
+— no bass2 track, no keyboard grid navigation, no phoneme labels, no zoom,
+and (worse) their own `SvgStep` never wrote into the shared `refsArray`, so
+the "is-current" playhead highlight silently would not have worked. Building
+the real split on top of them would have reintroduced missing features
+instead of removing duplication — the same class of hazard as the
+sampler-playback and `LatencyCompensator` cases above. `sequencer/constants.ts`
+had the same problem: its `TRACK_COLORS`/`ROWS` were live imports but stale
+(missing bass2), while its `SEQUENCER_STYLES`/`getPatternColor` were unused
+dead exports shadowed by better copies inline in `MainSequencer.tsx`.
+
+Resolution: deleted the three stale files, updated `constants.ts`'s
+`TRACK_COLORS`/`ROWS`/`SEQUENCER_STYLES` to match the current live behaviour,
+and did a fresh extraction from the working inline code into
+`sequencer/AutomationStep.tsx`, `SvgStep.tsx`, `SequencerRow.tsx` and
+`SequencerRowWrapper.tsx`. `MainSequencer.tsx` now re-exports `ROWS`,
+`AutomationStep` and the `SequencerRowHandle` type for its existing external
+consumers (`Rack.tsx`, `AutomationStepA11y.test.tsx`) and is **315 lines**.
+`sequencer/__tests__/noStaleSequencerSplit.test.ts` guards the regression.
+
 Two shapes worth distinguishing before splitting any of them:
 
 - **Type/declaration files** (`src/types.ts`, `src/importers/rbs/types.ts`) are
   long but flat. Length there costs little; splitting them churns imports across
   the repo for no real reviewability gain. Treat as low priority.
-- **Behavioural modules** (`MainSequencer`, `AISongImporter`, `KnobGPUContext`)
-  are where length actually hurts, and where a split pays for its merge risk.
+- **Behavioural modules** (`AISongImporter`, `KnobGPUContext`) are where length
+  actually hurts, and where a split pays for its merge risk.
