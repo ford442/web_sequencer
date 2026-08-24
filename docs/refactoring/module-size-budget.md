@@ -30,6 +30,17 @@ live implementation.
 **Lesson for the next hygiene pass:** confirm a hot module is actually reachable
 before splitting it. `grep` for its exports, not just its filename.
 
+**Update (2026-08-24):** the 973-line `samplerPlayback.ts` had come back into
+the tree — a merge had reintroduced it as a byproduct of an unrelated change,
+alongside three more unreachable siblings: `src/audio/playback/synthPlayback.ts`,
+`drumPlayback.ts` and `samplerPlayback.ts` (only re-exported from
+`src/audio/playback/index.ts`, which nothing imported). All four plus the
+now-pointless `index.ts` are deleted again.
+`src/hooks/audioEngine/samplerPlayback/__tests__/noDuplicateSamplerEntry.test.ts`
+now guards the regression: it asserts the deleted paths stay gone,
+`createPlaySamplerVoice` has exactly one definition in `src/`, and
+`src/audio/playback/` contains only the live `PlaybackHealthMonitor.ts`.
+
 ## Merge artifacts
 
 `scripts/check-root.mjs` now fails on any `*.orig` or `*.rej` in the tree
