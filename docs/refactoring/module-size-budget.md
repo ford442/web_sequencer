@@ -58,7 +58,6 @@ they are simply un-triaged. Recorded so the next pass starts from facts:
 
 | Lines | Module |
 |-------|--------|
-| 1001 | `src/engines/rubberband/LatencyCompensator.ts` |
 | 964 | `src/components/MainSequencer.tsx` |
 | 960 | `src/importers/ai-song/AISongImporter.ts` |
 | 959 | `src/components/KnobGPUContext.ts` |
@@ -81,11 +80,20 @@ they are simply un-triaged. Recorded so the next pass starts from facts:
 | 709 | `src/hooks/useAppState.tsx` |
 | 702 | `src/hooks/useSongStorage.ts` |
 
+**`LatencyCompensator.ts` (was 1005 lines, deleted 2026-08-24):** a second,
+unwired MIDI/timing system (`NoteScheduler`, `LatencyCompensator`,
+`BpmTimingCalculator`, `MidiClockGenerator`) from the RUBBERBAND_ENHANCEMENT_PLAN
+Section 9 stub set. Nothing outside its own 936-line test and the
+`engines/rubberband` barrel referenced it, and the barrel itself has no
+importers — the live MIDI/worklet clock (`TransportClockController` and
+friends in `src/midi/clock/`) already owns this responsibility. Deleted rather
+than wired in: keeping two timing systems, one live and one dead, is the same
+shadow-stack hazard as the sampler-playback duplicate above.
+
 Two shapes worth distinguishing before splitting any of them:
 
 - **Type/declaration files** (`src/types.ts`, `src/importers/rbs/types.ts`) are
   long but flat. Length there costs little; splitting them churns imports across
   the repo for no real reviewability gain. Treat as low priority.
-- **Behavioural modules** (`LatencyCompensator`, `MainSequencer`,
-  `AISongImporter`, `KnobGPUContext`) are where length actually hurts, and where
-  a split pays for its merge risk.
+- **Behavioural modules** (`MainSequencer`, `AISongImporter`, `KnobGPUContext`)
+  are where length actually hurts, and where a split pays for its merge risk.
