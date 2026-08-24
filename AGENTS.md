@@ -399,7 +399,7 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 **Rollout order** (enable per-directory overrides in `eslint.config.js` as each area is fixed):
 
 1. `src/utils/**` + `src/engines/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
-2. `src/hooks/**`
+2. `src/hooks/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 3. `src/stores/**`
 4. `src/components/**`
 

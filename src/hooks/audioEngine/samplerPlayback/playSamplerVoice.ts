@@ -126,7 +126,7 @@ export function createPlaySamplerVoice(
     // Effects
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
-    const pSpectralComp = (noteParams as any)?.spectralComp !== undefined ? (noteParams as any).spectralComp : params.spectralComp;
+    const pSpectralComp = noteParams?.spectralComp !== undefined ? noteParams.spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
@@ -384,7 +384,7 @@ export function createPlaySamplerVoice(
 
           if (sliceIndex >= 0) {
             const phonemeId = `${params.sampleName}_${sliceIndex}`;
-            voice.triggerSlice(
+            void voice.triggerSlice(
               buffer.getChannelData(0),
               sliceIndex,
               alignment,

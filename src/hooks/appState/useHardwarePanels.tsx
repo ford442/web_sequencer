@@ -14,8 +14,9 @@ import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
 import { engineTelemetry } from '../../utils/engineTelemetry'
+import { Open303Manager } from '../../engines/Open303Manager'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
-import type { SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
+import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../types'
 
 export function useHardwarePanels(deps: {
@@ -27,7 +28,7 @@ export function useHardwarePanels(deps: {
     updateSynthB: (updates: Partial<SynthParams>) => void;
     updateBass2: (updates: Partial<Bass2Params>) => void;
     updateSampler: (u: SamplerParams) => void;
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     activeSamplerBank: number;
     setActiveSamplerBank: React.Dispatch<React.SetStateAction<number>>;
     isVoiceEditorOpen: boolean;
@@ -35,7 +36,7 @@ export function useHardwarePanels(deps: {
     ttsPhrases: string[];
     handleTtsPhraseChange: (newPhrases: string[]) => void;
     handleGenerateTTS: (text: string) => Promise<void>;
-    handleSamplerParamChange: (bankIdx: number, key: string, val: any) => void;
+    handleSamplerParamChange: (bankIdx: number, key: string, val: unknown) => void;
     handleLoadSample: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
     loadedBanks: boolean[];
     sampleBuffers: (AudioBuffer | null)[];
@@ -81,22 +82,20 @@ export function useHardwarePanels(deps: {
                 engine303: legacyEngine303ForModel(selection.persisted),
             });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(selection.realtime);
-            else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(legacyEngine303ForModel(selection.realtime));
+            if (mgr instanceof Open303Manager) mgr.setLead303Model(selection.realtime);
             engineTelemetry.registerResolution('synthA-model303', selection.persisted, 'user-initiated');
         };
 
         const handleSynthATypeChange = (newType: OscillatorType) => {
             const nextWave = getDefaultWaveformForType(newType);
-            const update: any = { waveform: nextWave };
+            const update: Partial<SynthParams> = { waveform: nextWave };
             if (newType === 'open303' || newType === 'jc303') {
                 const nextModel = stockModelForFamily(newType);
                 update.model303 = nextModel;
                 update.engine303 = newType;
                 updateSynthA(update);
                 const mgr = audioEngine?.open303Engine;
-                if (mgr && 'setLead303Model' in mgr) (mgr as any).setLead303Model(nextModel);
-                else if (mgr && 'setLead303Engine' in mgr) (mgr as any).setLead303Engine(newType);
+                if (mgr instanceof Open303Manager) mgr.setLead303Model(nextModel);
             } else {
                 updateSynthA(update);
             }
@@ -169,22 +168,20 @@ export function useHardwarePanels(deps: {
                 engine303: legacyEngine303ForModel(selection.persisted),
             });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(selection.realtime);
-            else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(legacyEngine303ForModel(selection.realtime));
+            if (mgr instanceof Open303Manager) mgr.setBass1Model(selection.realtime);
             engineTelemetry.registerResolution('synthB-model303', selection.persisted, 'user-initiated');
         };
 
         const handleSynthBTypeChange = (newType: OscillatorType) => {
             const nextWave = getDefaultWaveformForType(newType);
-            const update: any = { waveform: nextWave };
+            const update: Partial<SynthParams> = { waveform: nextWave };
             if (newType === 'open303' || newType === 'jc303') {
                 const nextModel = stockModelForFamily(newType);
                 update.model303 = nextModel;
                 update.engine303 = newType;
                 updateSynthB(update);
                 const mgr = audioEngine?.open303Engine;
-                if (mgr && 'setBass1Model' in mgr) (mgr as any).setBass1Model(nextModel);
-                else if (mgr && 'setBass1Engine' in mgr) mgr.setBass1Engine(newType);
+                if (mgr instanceof Open303Manager) mgr.setBass1Model(nextModel);
             } else {
                 updateSynthB(update);
             }
@@ -248,8 +245,7 @@ export function useHardwarePanels(deps: {
                 engine303: legacyEngine303ForModel(selection.persisted),
             });
             const mgr = audioEngine?.open303Engine;
-            if (mgr && 'setBass2Model' in mgr) (mgr as any).setBass2Model(selection.realtime);
-            else if (mgr && 'setBass2Engine' in mgr) mgr.setBass2Engine(legacyEngine303ForModel(selection.realtime));
+            if (mgr instanceof Open303Manager) mgr.setBass2Model(selection.realtime);
             engineTelemetry.registerResolution('bass2-model303', selection.persisted, 'user-initiated');
         };
         const bass2Type: OscillatorType = tb303ModelFamily(modelB2) === 'jc303' ? 'jc303' : 'open303';
