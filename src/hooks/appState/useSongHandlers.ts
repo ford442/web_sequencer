@@ -1,7 +1,9 @@
 import { useCallback } from 'react'
 import { exportSongToXM } from '../../utils/xmExport'
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams } from '../../types'
+import type { AudioEngine, Pattern, PartSequence, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
 import type { TrackKey, SongSnapshot } from '../../constants/appDefaults'
+import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
+import type { PyodideLike } from '../../utils/pyodideBuffers'
 
 export function useSongHandlers(deps: {
     songStructure: ({ [key in TrackKey]: number | null })[];
@@ -9,17 +11,17 @@ export function useSongHandlers(deps: {
     setIsSongModeOpen: React.Dispatch<React.SetStateAction<boolean>>;
     patternRef: React.MutableRefObject<Pattern>;
     songStructureRef: React.MutableRefObject<({ [key in TrackKey]: number | null })[]>;
-    trackStorageRef: React.MutableRefObject<Record<TrackKey, any[]>>;
+    trackStorageRef: React.MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     tempoRef: React.MutableRefObject<number>;
     synthARef: React.MutableRefObject<SynthParams>;
     synthBRef: React.MutableRefObject<SynthParams>;
     kickRef: React.MutableRefObject<KickParams>;
     snareRef: React.MutableRefObject<SnareParams>;
-    closedHatRef: React.MutableRefObject<any>;
-    openHatRef: React.MutableRefObject<any>;
+    closedHatRef: React.MutableRefObject<HatParams>;
+    openHatRef: React.MutableRefObject<HatParams>;
     samplerRef: React.MutableRefObject<SamplerParams>;
-    audioEngine: any;
-    pyodide: any;
+    audioEngine: AudioEngine | null;
+    pyodide: PyodideLike | null;
     sampleBuffers: (AudioBuffer | null)[];
 }) {
     const {
@@ -58,7 +60,7 @@ export function useSongHandlers(deps: {
     }, [songStructure, setSongStructure]);
 
     const handleExportXM = useCallback(() => {
-        exportSongToXM(
+        void exportSongToXM(
             songStructureRef.current,
             trackStorageRef.current,
             {
@@ -87,12 +89,12 @@ export function useSongHandlers(deps: {
 }
 
 export function useSampleHandlers(deps: {
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     activeSamplerBank: number;
     ttsPhrases: string[];
     setSampleBuffers: React.Dispatch<React.SetStateAction<(AudioBuffer | null)[]>>;
     setSampler: React.Dispatch<React.SetStateAction<SamplerParams>>;
-    setActiveAlignment: React.Dispatch<React.SetStateAction<any>>;
+    setActiveAlignment: React.Dispatch<React.SetStateAction<AlignmentResult | null>>;
 }) {
     const { audioEngine, activeSamplerBank, ttsPhrases, setSampleBuffers, setSampler, setActiveAlignment } = deps;
 
@@ -112,7 +114,7 @@ export function useSampleHandlers(deps: {
         });
         if (audioEngine.prepareVocal) {
             const text = ttsPhrases[activeSamplerBank] || "Hello World";
-            audioEngine.prepareVocal(activeSamplerBank, text).then(() => {
+            void audioEngine.prepareVocal(activeSamplerBank, text).then(() => {
                 if (audioEngine.getAlignment) {
                     setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
                 }
