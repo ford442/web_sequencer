@@ -408,7 +408,7 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 | Command | Behaviour |
 |---------|-----------|
 | `pnpm run lint` | Default lint; gradual rules off except in cleaned directories |
-| `pnpm run lint:strict` | Sets `ESLINT_STRICT=1` — enables the full `gradualTypeRules` set project-wide (for future CI gating) |
+| `pnpm run lint:strict` | Sets `ESLINT_STRICT=1` — enables the full `gradualTypeRules` set project-wide. Runs as a non-blocking `lint-strict` CI job (`continue-on-error: true`) so ratchet progress is visible without gating merges |
 
 **Contributor / agent expectations when fixing violations:**
 
