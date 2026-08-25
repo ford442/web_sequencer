@@ -557,10 +557,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     }, [loadCloudData, showToast]);
 
     // ---- RBS Import ----
-    // TODO(#651): Full integration — consume song.automation (HyphonAutomationLane[]), rbsMetadata (tb303*Params, pcf),
-    // apply initial Open303Manager params for 303 tracks, populate automation store (see #652), show ImportReport.
-    // Current impl only does basic pattern/params via loadCloudData. See epic #650 + #651-656 for the full plan.
-
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
         // Convert HyphonSong automation lanes using the centralized automationStore converter
         const automationLanes: UnifiedAutomationLane[] | undefined = song.automation && song.automation.length > 0

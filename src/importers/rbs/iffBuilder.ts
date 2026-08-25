@@ -9,16 +9,20 @@ import {
   TB303_FLAG_ACCENT,
   TB303_FLAG_NOTE,
   TB303_FLAG_SLIDE,
+  TB303_PATTERN_COUNT,
   TB303_PATTERN_DATA_OFFSET,
   TB303_PATTERN_SIZE,
   TB303_STEP_OFFSET_IN_PATTERN,
   TB303_STEP_SIZE,
   TR808_CHUNK_PAYLOAD_SIZE,
+  TR808_PATTERN_COUNT,
   TR808_PATTERN_DATA_OFFSET,
+  TR808_PATTERN_SIZE,
   TR808_STEP_INSTRUMENT_COUNT,
   TR808_STEP_OFFSET_IN_PATTERN,
   TR909_CHUNK_PAYLOAD_SIZE,
 } from './devlLayout';
+import { TRKL_TRACK_COUNT } from './trakExport';
 
 export function writeU32BE(val: number): Uint8Array {
   const buf = new Uint8Array(4);
@@ -78,9 +82,31 @@ export interface Tb303DeviceParams {
   waveform?: 0 | 1;
 }
 
-/** Build RBS42-aligned "303 " device chunk payload (1097 bytes), pattern slot 0 only. */
+function normalizeTb303PatternSteps(patternSteps: Tb303Step[] = []): Tb303Step[] {
+  if (patternSteps.length >= 16) {
+    return patternSteps.slice(0, 16);
+  }
+  return [
+    ...patternSteps,
+    ...Array.from({ length: 16 - patternSteps.length }, (_, i) => ({
+      index: patternSteps.length + i,
+      note: -1,
+      octave: 3,
+      accent: false,
+      slide: false,
+      tie: false,
+      gate: 100,
+    })),
+  ];
+}
+
+function isTb303StepArray(value: Tb303Step[] | Tb303Step[][]): value is Tb303Step[] {
+  return value.length === 0 || !Array.isArray(value[0]);
+}
+
+/** Build RBS42-aligned "303 " device chunk payload (1097 bytes). Supports 1 or many pattern slots. */
 export function buildDevl303ChunkPayload(
-  patternSteps: Tb303Step[] = [],
+  patternSteps: Tb303Step[] | Tb303Step[][] = [],
   params: Tb303DeviceParams = {},
 ): Uint8Array {
   const payload = new Uint8Array(TB303_CHUNK_PAYLOAD_SIZE);
@@ -92,29 +118,22 @@ export function buildDevl303ChunkPayload(
   payload[7] = params.accent ?? 80;
   payload[8] = params.waveform ?? 0;
 
-  const steps: Tb303Step[] = patternSteps.length >= 16
-    ? patternSteps.slice(0, 16)
-    : [
-        ...patternSteps,
-        ...Array.from({ length: 16 - patternSteps.length }, (_, i) => ({
-          index: patternSteps.length + i,
-          note: -1,
-          octave: 3,
-          accent: false,
-          slide: false,
-          tie: false,
-          gate: 100,
-        })),
-      ];
+  const patterns: Tb303Step[][] = isTb303StepArray(patternSteps)
+    ? [normalizeTb303PatternSteps(patternSteps)]
+    : patternSteps.map((p) => normalizeTb303PatternSteps(p));
 
-  const patternOffset = TB303_PATTERN_DATA_OFFSET;
-  payload[patternOffset] = 0;
-  payload[patternOffset + 1] = 16;
-  for (let s = 0; s < 16; s++) {
-    const stepOffset = patternOffset + TB303_STEP_OFFSET_IN_PATTERN + s * TB303_STEP_SIZE;
-    const [pitch, flags] = encodeDevlTb303Step(steps[s]);
-    payload[stepOffset] = pitch;
-    payload[stepOffset + 1] = flags;
+  const patternCount = Math.min(TB303_PATTERN_COUNT, Math.max(1, patterns.length));
+  for (let p = 0; p < patternCount; p++) {
+    const steps = patterns[p] ?? normalizeTb303PatternSteps([]);
+    const patternOffset = TB303_PATTERN_DATA_OFFSET + p * TB303_PATTERN_SIZE;
+    payload[patternOffset] = 0;
+    payload[patternOffset + 1] = 16;
+    for (let s = 0; s < 16; s++) {
+      const stepOffset = patternOffset + TB303_STEP_OFFSET_IN_PATTERN + s * TB303_STEP_SIZE;
+      const [pitch, flags] = encodeDevlTb303Step(steps[s]);
+      payload[stepOffset] = pitch;
+      payload[stepOffset + 1] = flags;
+    }
   }
 
   return payload;
@@ -146,11 +165,12 @@ export function buildDevlMixrChunk(pcfDeviceId = 0): Uint8Array {
   return payload;
 }
 
-/** Build TR-808 DEVL chunk with pattern 0 from a DrumPattern. */
-export function buildDevl808ChunkFromPattern(dp: DrumPattern): Uint8Array {
-  const payload = new Uint8Array(TR808_CHUNK_PAYLOAD_SIZE);
-  payload[0] = 1;
-  const patternOffset = TR808_PATTERN_DATA_OFFSET;
+function writeDrumPatternTo808Payload(
+  payload: Uint8Array,
+  patternIndex: number,
+  dp: DrumPattern,
+): void {
+  const patternOffset = TR808_PATTERN_DATA_OFFSET + patternIndex * TR808_PATTERN_SIZE;
   payload[patternOffset + 1] = 16;
   for (let s = 0; s < 16; s++) {
     const stepBase = patternOffset + TR808_STEP_OFFSET_IN_PATTERN + s * TR808_STEP_INSTRUMENT_COUNT;
@@ -159,14 +179,14 @@ export function buildDevl808ChunkFromPattern(dp: DrumPattern): Uint8Array {
     if (dp.openHat[s]) payload[stepBase + 10] = 0x01;
     if (dp.closedHat[s]) payload[stepBase + 11] = 0x01;
   }
-  return payload;
 }
 
-/** Build TR-909 DEVL chunk with pattern 0 from a DrumPattern. */
-export function buildDevl909ChunkFromPattern(dp: DrumPattern): Uint8Array {
-  const payload = new Uint8Array(TR909_CHUNK_PAYLOAD_SIZE);
-  payload[0] = 1;
-  const patternOffset = TR808_PATTERN_DATA_OFFSET;
+function writeDrumPatternTo909Payload(
+  payload: Uint8Array,
+  patternIndex: number,
+  dp: DrumPattern,
+): void {
+  const patternOffset = TR808_PATTERN_DATA_OFFSET + patternIndex * TR808_PATTERN_SIZE;
   payload[patternOffset + 1] = 16;
   for (let s = 0; s < 16; s++) {
     const stepBase = patternOffset + TR808_STEP_OFFSET_IN_PATTERN + s * TR808_STEP_INSTRUMENT_COUNT;
@@ -175,15 +195,38 @@ export function buildDevl909ChunkFromPattern(dp: DrumPattern): Uint8Array {
     if (dp.openHat[s]) payload[stepBase + 10] = 0x01;
     if (dp.closedHat[s]) payload[stepBase + 9] = 0x01;
   }
+}
+
+/** Build TR-808 DEVL chunk from one or many DrumPatterns. */
+export function buildDevl808ChunkFromPattern(dp: DrumPattern | DrumPattern[]): Uint8Array {
+  const payload = new Uint8Array(TR808_CHUNK_PAYLOAD_SIZE);
+  payload[0] = 1;
+  const patterns = Array.isArray(dp) ? dp : [dp];
+  const patternCount = Math.min(TR808_PATTERN_COUNT, Math.max(1, patterns.length));
+  for (let p = 0; p < patternCount; p++) {
+    writeDrumPatternTo808Payload(payload, p, patterns[p]);
+  }
+  return payload;
+}
+
+/** Build TR-909 DEVL chunk from one or many DrumPatterns. */
+export function buildDevl909ChunkFromPattern(dp: DrumPattern | DrumPattern[]): Uint8Array {
+  const payload = new Uint8Array(TR909_CHUNK_PAYLOAD_SIZE);
+  payload[0] = 1;
+  const patterns = Array.isArray(dp) ? dp : [dp];
+  const patternCount = Math.min(TR808_PATTERN_COUNT, Math.max(1, patterns.length));
+  for (let p = 0; p < patternCount; p++) {
+    writeDrumPatternTo909Payload(payload, p, patterns[p]);
+  }
   return payload;
 }
 
 export function buildDevlCatalogChunk(options: {
-  tb303ASteps?: Tb303Step[];
-  tb303BSteps?: Tb303Step[];
+  tb303ASteps?: Tb303Step[] | Tb303Step[][];
+  tb303BSteps?: Tb303Step[] | Tb303Step[][];
   tb303AParams?: Tb303DeviceParams;
   tb303BParams?: Tb303DeviceParams;
-  drumPattern?: DrumPattern;
+  drumPattern?: DrumPattern | DrumPattern[];
   drumKit?: '808' | '909';
   include303B?: boolean;
   pcf?: Parameters<typeof buildDevlPcfChunkPayload>[0];
@@ -256,7 +299,7 @@ export function buildTrklChunk(
 ): Uint8Array {
   const lists = trackEventLists.length > 0
     ? trackEventLists
-    : Array.from({ length: 6 }, () => ({ events: [] as Array<{ delta: number; ctrl: number; value: number }> }));
+    : Array.from({ length: TRKL_TRACK_COUNT }, () => ({ events: [] as Array<{ delta: number; ctrl: number; value: number }> }));
 
   const trakChunks = lists.map((t) => wrapTrakChunk(t.events));
   const trklInnerSize = 4 + trakChunks.reduce((sum, c) => sum + c.length, 0);

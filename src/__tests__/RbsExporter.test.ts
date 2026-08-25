@@ -8,6 +8,7 @@ import { RbsExporter } from '../importers/rbs/RbsExporter';
 import { parseTb303DeviceChunk, parseTr808DeviceChunk } from '../importers/rbs/devlLayout';
 import { buildSyntheticIffFile } from './rbs/fixtures';
 import type { Tb303Step } from '../importers/rbs/types';
+import { TRAK_TRACK_INDEX } from '../importers/rbs/types';
 
 function findIffChunk(bytes: Uint8Array, id: string): Uint8Array | null {
   let pos = 12;
@@ -185,5 +186,142 @@ describe('RbsExporter', () => {
 
     const drums = parseTr808DeviceChunk(drumPayload, 0, drumPayload.length);
     expect(drums[0].kick.filter(Boolean).length).toBeGreaterThan(0);
+  });
+
+  it('round-trips pattern mode export → import without song-mode downgrade warning', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const source = await parser.parseBytes(buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 0,
+      trakEvents: [],
+    }));
+    expect(source.success).toBe(true);
+    if (!source.success) return;
+
+    const imported = importer.convertToHyphonSong(source.data);
+    const { bytes, warnings } = new RbsExporter({ mode: 'pattern' }).exportToBytes(imported.song);
+    expect(warnings.some((w) => w.includes('Song-mode TRAK export is not yet implemented'))).toBe(false);
+
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success) return;
+
+    expect(reParsed.data.songData?.glob.playMode).toBe(0);
+    expect(reParsed.data.project.tempo).toBeCloseTo(imported.song.tempo, 0);
+  });
+
+  it('round-trips song mode export → import with TRAK arrangement events', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false, tb303BTarget: 'partB' });
+    const sourceBytes = buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 1,
+      trakEvents: [
+        { delta: 0, ctrl: 0x01, value: 0 },
+        { delta: 768, ctrl: 0x01, value: 1 },
+        { delta: 768, ctrl: 0x01, value: 2 },
+        { delta: 768, ctrl: 0x01, value: 0 },
+      ],
+    });
+    const sourceParsed = await parser.parseBytes(sourceBytes);
+    expect(sourceParsed.success).toBe(true);
+    if (!sourceParsed.success) return;
+
+    const imported = importer.convertToHyphonSong(sourceParsed.data);
+    expect(imported.song.songArrangement?.mode).toBe('song');
+
+    const { bytes, warnings } = new RbsExporter({
+      mode: 'song',
+      tb303BSource: 'partB',
+      collapse32Steps: true,
+    }).exportToBytes(imported.song);
+
+    expect(warnings.some((w) => w.includes('Song-mode TRAK export is not yet implemented'))).toBe(false);
+    expect(warnings.some((w) => w.includes('writing pattern mode'))).toBe(false);
+
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success || !reParsed.data.songData) return;
+
+    expect(reParsed.data.songData.glob.playMode).toBe(1);
+
+    const tb303Track = reParsed.data.songData.tracks.find(
+      (t) => t.trackIndex === TRAK_TRACK_INDEX.TB303_1,
+    );
+    expect(tb303Track).toBeDefined();
+    expect(tb303Track!.events.length).toBe(4);
+
+    const patternSelects = tb303Track!.events.filter((e) => e.eventKind === 'patternSelect');
+    expect(patternSelects.map((e) => e.value)).toEqual([0, 1, 2, 0]);
+
+    const reImported = importer.convertToHyphonSong(reParsed.data);
+    expect(reImported.song.songArrangement?.mode).toBe('song');
+    expect(reImported.song.songArrangement?.songStructure.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('round-trips v1.5 single-303 IFF export → import', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const source = await parser.parseBytes(buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 0,
+      headVersionString: 'ReBirth RB-338 v1.5',
+      include303B: false,
+      trakEvents: [],
+    }));
+    expect(source.success).toBe(true);
+    if (!source.success) return;
+
+    const imported = importer.convertToHyphonSong(source.data);
+    const { bytes } = new RbsExporter({
+      mode: 'pattern',
+      versionTarget: '1.5',
+      include303B: false,
+    }).exportToBytes(imported.song);
+
+    const head = findIffChunk(bytes, 'HEAD');
+    expect(head).toBeTruthy();
+    const headStr = new TextDecoder().decode(head!).slice(0, 24);
+    expect(headStr).toContain('ReBirth RB-338 v1.5');
+
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success) return;
+
+    const patterns = extract303PatternsFromDevl(bytes);
+    expect(patterns.length).toBeGreaterThanOrEqual(1);
+    expect(reParsed.data.tb303PatternA.steps.length).toBe(16);
+  });
+
+  it('warns when song mode export is requested without arrangement data', async () => {
+    const song = {
+      version: 1 as const,
+      metadata: { name: 'No Arrangement', importedFrom: 'rbs' as const, importedAt: new Date() },
+      tempo: 120,
+      timeSignature: [4, 4] as [number, number],
+      swing: 64,
+      pattern: {
+        partA: { steps: Array(16).fill(null) },
+        partB: { steps: Array(16).fill(null) },
+        bass2: { steps: Array(16).fill(null) },
+        kick: { steps: Array(16).fill(null) },
+        snare: { steps: Array(16).fill(null) },
+        closedHat: { steps: Array(16).fill(null) },
+        openHat: { steps: Array(16).fill(null) },
+        sampler: Array.from({ length: 8 }, () => ({ steps: Array(16).fill(null) })),
+      },
+      params: {
+        synthA: { waveform: '303-saw', filterCutoff: 800, filterResonance: 0.5, decay: 0.3, volume: 0.8, pan: 0, filterMode: 0 } as any,
+        synthB: { waveform: '303-saw', filterCutoff: 800, filterResonance: 0.5, decay: 0.3, volume: 0.8, pan: 0, filterMode: 0 } as any,
+        kick: { pitch: 60, tone: 0.5, decay: 0.5, volume: 0.8 } as any,
+        snare: { pitch: 200, tone: 0.5, decay: 0.3, volume: 0.8 } as any,
+        closedHat: { pitch: 8000, tone: 0.5, decay: 0.1, volume: 0.6 } as any,
+        openHat: { pitch: 7000, tone: 0.5, decay: 0.2, volume: 0.6 } as any,
+      },
+    };
+
+    const { warnings } = new RbsExporter({ mode: 'song' }).exportToBytes(song);
+    expect(warnings.some((w) => w.includes('no song arrangement'))).toBe(true);
   });
 });
