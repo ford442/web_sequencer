@@ -44,11 +44,12 @@ TEMP_DIR="$SCRIPT_DIR/temp_build"
 rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 
-# Copy Rubberband Source to Temp Directory
-RUBBERBAND_SRC="$TEMP_DIR/rubberband"
-mkdir -p "$RUBBERBAND_SRC"
-echo "Copying Rubberband source from $REPO_ROOT/rubberband to $RUBBERBAND_SRC..."
-cp -r "$REPO_ROOT/rubberband/"* "$RUBBERBAND_SRC/"
+# Rubber Band is NOT part of this module. It is built separately by
+# emscripten/build_rubberband.sh into public/rubberband.wasm, which is what
+# src/audio-worklets/{rubberband,sustain}-processor.ts actually instantiate
+# (via createRubberBandModule). Linking it here only shared its ~40 MB stretch
+# transient with the live 303 voices' heap for no caller.
+# See docs/wasm/BUILD_NOTES.md#module-split.
 
 # ---------------------------------------------------------
 # MEMORY BUDGET (single source of truth)
@@ -89,7 +90,14 @@ if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3 -fno-omit-frame-pointer"
     LINK_PROFILE_FLAGS="-O1 -g3 -gsource-map -s ASSERTIONS=2 -s STACK_OVERFLOW_CHECK=2"
 else
-    OPT_FLAGS="-O3 -ffast-math -funroll-loops"
+    # No -ffast-math here. It is opt-in per translation unit via compile_cpp_fast
+    # (audio_dsp.cpp only). -ffast-math implies -ffinite-math-only and
+    # -fno-signed-zeros, which lets the compiler assume no NaN/Inf ever reaches a
+    # recursive filter: the diode-ladder and TB-303 IIR sections can then latch a
+    # NaN instead of settling, and reassociated accumulations drift the 303
+    # spectrogram baselines in scripts/generate_303_baselines.sh off their
+    # reference. See docs/wasm/BUILD_NOTES.md#fast-math.
+    OPT_FLAGS="-O3 -funroll-loops"
     # Link-time -O1 (not -O3) is deliberate: at -O2+ em++ 3.1.51 runs wasm-opt with a
     # feature set that does not match the pthreads+SIMD module and the link fails.
     # Revisit only with a pinned binaryen — see docs/wasm/BUILD_NOTES.md#wasm-opt.
@@ -98,11 +106,17 @@ fi
 
 COMMON_FLAGS="$OPT_FLAGS $ARCH_FLAGS"
 
-# C Flags
-CFLAGS="$COMMON_FLAGS"
+# C++ Flags. USE_KISSFFT / USE_SPEEX are gone with Rubber Band - nothing left in
+# this module uses them.
+CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_PTHREADS -std=c++17"
 
-# C++ Flags
-CXXFLAGS="$COMMON_FLAGS -frtti -DUSE_KISSFFT -DHAVE_KISSFFT -DUSE_PTHREADS -DUSE_SPEEX -std=c++17"
+# Fast-math variant, used only by compile_cpp_fast. In the debug profile this is
+# identical to CXXFLAGS so debug builds stay bit-comparable with the reference.
+if [ "$BUILD_PROFILE" = "debug" ]; then
+    CXXFLAGS_FAST="$CXXFLAGS"
+else
+    CXXFLAGS_FAST="$CXXFLAGS -ffast-math"
+fi
 
 # Linker Flags
 LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_MB}mb -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --post-js $SCRIPT_DIR/pyodide_bootstrap.js --bind"
@@ -183,17 +197,13 @@ fi
 # Added -I $SCRIPT_DIR to find the local omp.h
 INCLUDES="-I $SCRIPT_DIR \
           -I $TEMP_DIR \
-          -I $RUBBERBAND_SRC \
-          -I $RUBBERBAND_SRC/rubberband \
-          -I $RUBBERBAND_SRC/src \
-          -I $RUBBERBAND_SRC/src/ext/kissfft \
-          -I $RUBBERBAND_SRC/src/ext/speex \
           -I $REPO_ROOT/jc303_wasm/src/dsp/open303 \
           -I $REPO_ROOT/jc303_wasm/src/dsp"
 
 echo "Compiling Objects..."
 
-# Helper function to compile C++ files
+# Helper function to compile C++ files.
+# Default: IEEE-safe math (see the -ffast-math note above CXXFLAGS_FAST).
 compile_cpp() {
     local src=$1
     local obj="$TEMP_DIR/$(basename "${src%.*}").o"
@@ -201,64 +211,37 @@ compile_cpp() {
     em++ -c "$src" -o "$obj" $INCLUDES $CXXFLAGS
 }
 
-# Helper function to compile C files
-compile_c() {
+# Opt-in fast-math variant. Only for kernels with no recursive filter state and
+# no baseline-comparison contract - currently just audio_dsp.cpp (mix/gain/pan).
+compile_cpp_fast() {
     local src=$1
     local obj="$TEMP_DIR/$(basename "${src%.*}").o"
-    echo "  [C]   $src -> $obj"
-    emcc -c "$src" -o "$obj" $INCLUDES $CFLAGS
+    echo "  [C++/fast-math] $src -> $obj"
+    em++ -c "$src" -o "$obj" $INCLUDES $CXXFLAGS_FAST
 }
 
-# --- PATCH START ---
-# Fix include path issue in VectorOpsComplex.cpp for the main build
-echo "  [Patch] Fixing VectorOpsComplex.cpp include..."
-if ! grep -q '#include "sysutils.h"' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp"; then
-    sed -i 's|#include "system/sysutils.h"|#include "sysutils.h"|' "$RUBBERBAND_SRC/src/common/VectorOpsComplex.cpp" || true
-fi
+# 1. Compile Audio DSP.
+# The one fast-math consumer: block mix / gain / pan over stateless float arrays,
+# where reassociation is safe and vectorises well. Everything below is compiled
+# IEEE-safe.
+compile_cpp_fast "$SCRIPT_DIR/audio_dsp.cpp"
 
-# Fix size_t issue in sysutils.h (needed for mathmisc.h etc)
-echo "  [Patch] Fixing size_t in sysutils.h..."
-if ! grep -q "using std::size_t;" "$RUBBERBAND_SRC/src/common/sysutils.h"; then
-    sed -i 's|#include <math.h>|#include <math.h>\n#include <cstddef>\nusing std::size_t;|' "$RUBBERBAND_SRC/src/common/sysutils.h" || true
-fi
-
-# --- OPENMP PARALLELIZATION PATCHES ---
-# Disabled OpenMP parallelization for Rubberband due to missing omp.h
-# --- PATCH END ---
-
-# 1. Compile C sources (KissFFT, Speex)
-for f in $RUBBERBAND_SRC/src/ext/kissfft/*.c; do compile_c "$f"; done
-for f in $RUBBERBAND_SRC/src/ext/speex/*.c; do compile_c "$f"; done
-
-# 2. Compile C++ sources (Rubber Band Core)
-compile_cpp "$RUBBERBAND_SRC/src/RubberBandStretcher.cpp"
-compile_cpp "$RUBBERBAND_SRC/src/RubberBandLiveShifter.cpp"
-compile_cpp "$RUBBERBAND_SRC/src/rubberband-c.cpp"
-
-for f in $RUBBERBAND_SRC/src/common/*.cpp; do compile_cpp "$f"; done
-for f in $RUBBERBAND_SRC/src/faster/*.cpp; do compile_cpp "$f"; done
-for f in $RUBBERBAND_SRC/src/finer/*.cpp; do compile_cpp "$f"; done
-
-# 3. Compile Audio DSP (OpenMP enabled)
-compile_cpp "$SCRIPT_DIR/audio_dsp.cpp"
-
-# 4. Compile custom Open303 TB-303 synthesizer engine
-compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
-
-# 4b. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
+# 2. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
 compile_cpp "$SCRIPT_DIR/highfid303_wrapper.cpp"
 
-# 5. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
+# 3. Compile custom Open303 TB-303 synthesizer engine
+compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
+
+# 4. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
 for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
     compile_cpp "$f"
 done
 compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
 
-# 5b. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
+# 5. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
 compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
 
-# 6. Compile Wrapper & Main
-compile_cpp "$SCRIPT_DIR/rubberband_wrapper.cpp"
+# 6. Compile Main
 compile_cpp "$SCRIPT_DIR/main.cpp"
 
 echo "Linking..."

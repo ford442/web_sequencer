@@ -323,6 +323,12 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Requires**: `libomp.a` in `emscripten/` directory
 - **Requires**: Emscripten SDK activated
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
+- **Not** Rubber Band — it is its own module (below). `-ffast-math` is opt-in per file here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
+
+### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
+- **Build**: `pnpm run build:wasm:rubberband`
+- **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
+- **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
 
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
