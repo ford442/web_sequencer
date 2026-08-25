@@ -176,14 +176,31 @@ export class SessionLaunchEngine {
     }
     if (!clock.songModeActive) this.songModeLatched = false;
 
-    const due = this.queued.filter((e) => e.timelineStep <= this.timelineStep);
-    this.queued = this.queued.filter((e) => e.timelineStep > this.timelineStep);
+    // ⚡ Bolt: Replaced double .filter() with single-pass partition to avoid multiple array and closure allocations
+    const due: CompiledLaunchEvent[] = [];
+    const nextQueued: CompiledLaunchEvent[] = [];
+    for (let i = 0; i < this.queued.length; i++) {
+      const e = this.queued[i];
+      if (e.timelineStep <= this.timelineStep) {
+        due.push(e);
+      } else {
+        nextQueued.push(e);
+      }
+    }
+    this.queued = nextQueued;
 
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);
 
-    const preemptSongMode = merged.some((e) => shouldPreemptSongMode(e.source, clock.songModeActive));
-    const preemptSession = merged.some((e) => shouldPreemptSession(e.source));
+    // ⚡ Bolt: Replaced double .some() with a single pass over merged to avoid closures
+    let preemptSongMode = false;
+    let preemptSession = false;
+    for (let i = 0; i < merged.length; i++) {
+      const e = merged[i];
+      if (!preemptSongMode && shouldPreemptSongMode(e.source, clock.songModeActive)) preemptSongMode = true;
+      if (!preemptSession && shouldPreemptSession(e.source)) preemptSession = true;
+      if (preemptSongMode && preemptSession) break;
+    }
 
     return this.applyEvents(merged, clock, preemptSongMode, preemptSession);
   }
@@ -201,13 +218,22 @@ export class SessionLaunchEngine {
   }
 
   hasPlaying(): boolean {
-    return TRACK_KEYS.some((t) => this.playing[t] != null);
+    // ⚡ Bolt: Replaced .some() with for loop to avoid closure allocation
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      if (this.playing[TRACK_KEYS[i]] != null) return true;
+    }
+    return false;
   }
 
   private hasLiveQueued(): boolean {
-    return this.queued.some(
-      (e) => e.source === 'manual' || e.source === 'midi' || e.source === 'gamepad' || e.source === 'scene',
-    );
+    // ⚡ Bolt: Replaced .some() with for loop to avoid closure allocation
+    for (let i = 0; i < this.queued.length; i++) {
+      const e = this.queued[i];
+      if (e.source === 'manual' || e.source === 'midi' || e.source === 'gamepad' || e.source === 'scene') {
+        return true;
+      }
+    }
+    return false;
   }
 
   private collectFollowEvents(clock: TransportClockSnapshot): CompiledLaunchEvent[] {
@@ -326,22 +352,30 @@ export class SessionLaunchEngine {
   private stopPlayingAsSongMode(clock: TransportClockSnapshot): CompiledLaunchEvent[] {
     if (!this.hasPlaying()) return [];
     const q = quantizeLaunch('immediate', clock, clock.step, clock.audioTime, this.timelineStep);
-    return TRACK_KEYS.filter((t) => this.playing[t]).map((track) =>
-      this.makeEvent(
-        {
-          kind: 'stop-all',
-          source: 'song-mode',
-          requestSeq: this.nextSeq(),
-          requestAudioTime: clock.audioTime,
-          requestStep: clock.step,
-        },
-        clock,
-        q,
-        track,
-        'stop',
-        null,
-      ),
-    );
+    // ⚡ Bolt: Replaced .filter().map() with standard for loop to avoid closure and array allocations
+    const out: CompiledLaunchEvent[] = [];
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      const track = TRACK_KEYS[i];
+      if (this.playing[track]) {
+        out.push(
+          this.makeEvent(
+            {
+              kind: 'stop-all',
+              source: 'song-mode',
+              requestSeq: this.nextSeq(),
+              requestAudioTime: clock.audioTime,
+              requestStep: clock.step,
+            },
+            clock,
+            q,
+            track,
+            'stop',
+            null,
+          )
+        );
+      }
+    }
+    return out;
   }
 
   private makeEvent(
