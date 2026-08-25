@@ -573,7 +573,7 @@ export const useStepHandler = ({
             let hasLiveValues = false;
             // Clear scratch object
             for (let i = 0; i < _liveValuesKeys.length; i++) {
-                liveValues[_liveValuesKeys[i]] = undefined as any;
+                delete liveValues[_liveValuesKeys[i]];
             }
             _liveValuesKeys.length = 0;
 

@@ -1,16 +1,18 @@
 import { useCallback, useEffect } from 'react'
 import { automationStore } from '../../stores/automationStore'
 import { NUM_STEPS } from '../../constants'
-import type { Pattern, AutomationTarget } from '../../types'
+import type { Pattern, PartSequence, AutomationTarget } from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
 import { GLOBAL_ARM_PARAMS } from './constants'
+
+type NonSamplerTrackKey = Exclude<keyof Pattern, 'sampler'>;
 
 export function useAutomationHandlers(deps: {
     automationParam: string;
     patternRef: React.MutableRefObject<Pattern>;
     setPattern: React.Dispatch<React.SetStateAction<Pattern>>;
     activeSamplerBankRef: React.MutableRefObject<number>;
-    updateStorageForTrack: (track: TrackKey, sequence: any) => void;
+    updateStorageForTrack: (track: TrackKey, sequence: PartSequence | PartSequence[]) => void;
     currentStepRef: React.MutableRefObject<number>;
     schedPlaying: boolean;
     isAutomationRecording: boolean;
@@ -24,17 +26,17 @@ export function useAutomationHandlers(deps: {
         activeTrackSlotsRef, isSongModeActiveRef,
     } = deps;
 
-    const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number | boolean) => {
+    const handleAutomationChange = useCallback((trackKey: TrackKey, step: number, value: number) => {
         const prev = patternRef.current;
         let newPattern = prev;
 
         if (trackKey === 'sampler') {
             const bankIdx = activeSamplerBankRef.current;
             const bank = prev.sampler[bankIdx];
-            const nextAutomation = bank.automation ? { ...bank.automation } : {};
-            const nextParamArray = nextAutomation[automationParam]
+            const nextAutomation: { [param: string]: (number | null)[] } = bank.automation ? { ...bank.automation } : {};
+            const nextParamArray: (number | null)[] = nextAutomation[automationParam]
                 ? [...nextAutomation[automationParam]]
-                : Array(NUM_STEPS).fill(null);
+                : Array<number | null>(NUM_STEPS).fill(null);
 
             nextParamArray[step] = value;
 
@@ -47,11 +49,11 @@ export function useAutomationHandlers(deps: {
             };
             updateStorageForTrack(trackKey, newPattern.sampler);
         } else {
-            const track = prev[trackKey] as any;
-            const nextAutomation = track.automation ? { ...track.automation } : {};
-            const nextParamArray = nextAutomation[automationParam]
+            const track = prev[trackKey as NonSamplerTrackKey];
+            const nextAutomation: { [param: string]: (number | null)[] } = track.automation ? { ...track.automation } : {};
+            const nextParamArray: (number | null)[] = nextAutomation[automationParam]
                 ? [...nextAutomation[automationParam]]
-                : Array(NUM_STEPS).fill(null);
+                : Array<number | null>(NUM_STEPS).fill(null);
 
             nextParamArray[step] = value;
 

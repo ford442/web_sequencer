@@ -94,5 +94,10 @@
     "vite-plugin-wasm": "^3.5.0",
     "vitest": "2.1.9",
     "wasm-pack": "^0.13.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "protobufjs": "^7.5.8"
+    }
   }
 }

@@ -99,6 +99,14 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'error',
     },
   },
+  // Phase 2: hooks surface
+  {
+    files: ['src/hooks/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+    },
+  },
   // `ESLINT_STRICT=1 pnpm run lint` — full safety set for CI gating
   ...(process.env.ESLINT_STRICT === '1'
     ? [
