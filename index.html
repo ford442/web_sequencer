@@ -5,7 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hyphon</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js" crossorigin="anonymous"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -49,14 +48,22 @@
   <body>
     <div id="root"></div>
     <script type="module">
-      // Use Vite's ?url import to get the path to the public asset, then import it dynamically
-      // We use new Function to bypass Vite's import transformation which adds ?import and fails on public assets
+      // Where pyodide_bootstrap.js (bundled into hyphon_native.js via --post-js)
+      // looks for the vendored runtime. Same origin, base-path aware, no CDN.
+      // Populate it with `pnpm run vendor:pyodide`.
+      window.HYPHON_PYODIDE_BASE_URL = `${import.meta.env.BASE_URL}pyodide/`;
+    </script>
+    <script type="module">
+      // hyphon_native.js is an Emscripten ES module in public/, so Vite must not
+      // transform it. `?url` gives the emitted path; the `@vite-ignore` comment
+      // stops Vite rewriting the dynamic import (it would append `?import` and
+      // 404). This used to be `new Function('url', 'return import(url)')`, which
+      // required `unsafe-eval` — forbidden by the WAM2 Phase B CSP
+      // (docs/adr/0001-wam2-host.md). A plain dynamic import needs no eval.
       import moduleUrl from '/hyphon_native.js?url';
-      const importModule = new Function('url', 'return import(url)');
-      const { default: Module } = await importModule(moduleUrl);
+      const { default: Module } = await import(/* @vite-ignore */ moduleUrl);
       window.Module = await Module();
     </script>
-    <!-- Pyodide initialization is now automatic from hyphon_native.js -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
