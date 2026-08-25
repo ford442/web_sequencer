@@ -38,3 +38,6 @@
 ## 2026-08-22 - [Standardizing Empty States]
 **Learning:** Found multiple instances of empty states in the codebase that used similar but slightly different HTML structures and styling (e.g., different icon sizes, varying text sizes), causing UI inconsistencies.
 **Action:** Identified a standard empty state pattern (dashed border, w-12 h-12 circular icon background, text-sm for titles, text-xs for descriptions) and applied it consistently across components to ensure a uniform user experience.
+## 2026-08-24 - Standardizing Empty State Titles
+**Learning:** When standardizing the empty state pattern (dashed border, centered icon), it's important to also ensure the typography is consistent. While many components used the correct `text-sm` for the `<h3>` title, some lacked it and fell back to larger or inherited base font sizes, creating subtle inconsistencies.
+**Action:** Added the `text-sm` class to `<h3>` elements in empty states across the application (e.g., MidiMapPanel, CloudLibrary, VoiceEditor, PreviewTabPanel, ShortcutsHelp) to enforce a uniform visual hierarchy.

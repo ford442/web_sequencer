@@ -210,7 +210,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
-                    <h3 className="text-gray-300 font-bold mb-2">No topics found</h3>
+                    <h3 className="text-gray-300 font-bold mb-2 text-sm">No topics found</h3>
                     <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
                       We couldn't find any help topics matching "{query}". Try different keywords.
                     </p>
