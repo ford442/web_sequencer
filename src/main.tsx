@@ -61,6 +61,19 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
       getWamHost()?.getSlotPorts(slotId)?.bypass.gain.value ?? null,
     getWam2SlotDescriptor: (slotId: string) => getWamHost()?.getSlotDescriptor(slotId) ?? null,
     getAudioContextTime: () => getWamHost()?.audioContextTime() ?? null,
+
+    // --- Live high-fid 303 (Phase L1) -------------------------------------
+    // Which realtime 303 path is audible, and why it stepped down if it did.
+    getLiveHighFidState: () => {
+      const runtime = engineTelemetry.getRuntimeSnapshot();
+      return {
+        requested: runtime.liveHighFidRequested,
+        active: runtime.liveHighFidActive,
+        reason: runtime.liveHighFidFallbackReason,
+        cpuPercent: runtime.liveHighFidCpuPercent,
+        oversample: runtime.liveHighFidOversample,
+      };
+    },
   }
 }
 

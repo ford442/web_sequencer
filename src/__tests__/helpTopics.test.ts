@@ -17,6 +17,16 @@ describe('helpTopics', () => {
     expect(results.some((t) => t.id === 'highfid-303-offline')).toBe(true);
   });
 
+  it('finds the live high-fidelity 303 topic', () => {
+    const results = searchHelpTopics('live-highfid');
+    expect(results.some((t) => t.id === 'highfid-303-live')).toBe(true);
+  });
+
+  it('keeps the offline high-fid topic distinct from the live one', () => {
+    const results = searchHelpTopics('high-fidelity offline');
+    expect(results.some((t) => t.id === 'highfid-303-offline')).toBe(true);
+  });
+
   it('finds automation filter topic', () => {
     const results = searchHelpTopics('automate filter');
     expect(results.some((t) => t.id === 'automation-filter')).toBe(true);
