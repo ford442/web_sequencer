@@ -140,7 +140,13 @@ describe('WAM2 bundle boundary', () => {
     expect(main).not.toContain('@webaudiomodules/sdk');
     expect(app).not.toContain('@webaudiomodules/sdk');
     const loader = readFileSync(resolve(process.cwd(), 'src/audio/wam/sdk/loadOfficialSdk.ts'), 'utf8');
-    expect(loader).toContain('@vite-ignore');
+    // Phase B: a *literal* dynamic import, deliberately NOT `@vite-ignore`.
+    // Rollup makes a dynamic import a chunk boundary, which is what keeps the
+    // main entry at zero SDK bytes; the Phase A `@vite-ignore` + runtime variable
+    // kept the build green but left a bare specifier no browser could resolve, so
+    // the load could never succeed. See loadOfficialSdk.ts for the full note.
+    expect(loader).toContain("import('@webaudiomodules/sdk')");
+    expect(loader).not.toContain('@vite-ignore');
     expect(loader).toContain('OFFICIAL_WAM_SDK_PACKAGE');
   });
 });
