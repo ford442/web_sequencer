@@ -26,6 +26,7 @@ fallback when WebGPU or heavy CPU is unavailable.
 |----------|------------|---------------|--------------|
 | `highfid-cpu` | High-Fidelity CPU (offline) | Worker / OpenMP diode-ladder | **HIFID** + amber **Offline** |
 | `gpu-highfid` | GPU High-Fidelity (offline) | WebGPU WGSL compute (else CPU) | **HIFID** + **Offline** (+ **No GPU** if needed) |
+| `live-highfid` | Live High-Fidelity | AudioWorklet diode-ladder @ 1× (Phase-L1) | **HIFID** + amber **Live** |
 
 Realtime playback of a part that has a high-fid model selected still uses
 **Stock Open303** via `resolveRealtimeTB303Model`. The requested id is
@@ -155,8 +156,9 @@ Matches `Voice303Selector` and [303-A-B-checklist.md](./303-A-B-checklist.md):
 | Indicator | Meaning |
 |-----------|---------|
 | **OPEN303** / **JC303** | Realtime engine family |
-| **HIFID** | Offline high-fidelity family selected |
+| **HIFID** | High-fidelity family selected (live or offline) |
 | Amber **Offline** pill on a voice row | Voice is freeze/export/multisample only |
+| Amber **Live** pill on a voice row | Realtime diode ladder (`live-highfid`, Phase-L1) |
 | **No GPU** | WebGPU unavailable; GPU High-Fidelity falls back to CPU |
 | Status line | Effective offline engine + live Stock Open303 reminder |
 | Engine HUD (**Ctrl+Shift+E**) → Offline 303 | Oversample, thread count, latency, GPU telemetry |
@@ -203,6 +205,13 @@ AudioWorklet would risk underruns and violate epic principle #1: **real-time
 latency must not regress**. Offline jobs run on workers / OpenMP / GPU with
 telemetry outside the master audio-thread budget.
 
+Since Phase-L1 there *is* a realtime diode-ladder voice — `live-highfid`, at
+oversample 1 and behind a CPU/glitch gate that hands it back to Stock Open303
+rather than underrunning
+([303-realtime-highfid.md](./303-realtime-highfid.md)). `highfid-cpu` and
+`gpu-highfid` stay offline-only: the 4× oversampled and WGSL paths still cannot
+meet a quantum deadline.
+
 ### Why WebGPU?
 
 WebGPU compute is the browser path for a full nonlinear voice without blocking
@@ -232,7 +241,8 @@ renders, not a replacement for those voices. Catalog:
 
 ### Can I edit diode-ladder coefficients in the UI?
 
-Not yet — see [Roadmap](#roadmap--next-steps).
+Not yet — tracked as L3 in
+[303-realtime-highfid.md](./303-realtime-highfid.md#tracking-checklist-l2l5).
 
 ---
 
@@ -263,14 +273,19 @@ bash scripts/generate_303_baselines.sh
 
 ## Roadmap / next steps
 
-Stable for freeze/export. Future work (not blocking epic close):
+Stable for freeze/export. The follow-ups below now live in
+[303-realtime-highfid.md](./303-realtime-highfid.md), which also documents the
+**Phase-L1 live diode-ladder voice** (`live-highfid`) that shipped after this
+epic closed:
 
-1. **Real-time GPU audio** when browsers offer low-latency WebGPU ↔ AudioWorklet
-   bridging without underruns.
-2. **Live A/B** — two synced instances (stock vs high-fid) for audition.
-3. **User-editable coefficients** for the diode-ladder oracle.
-4. **Hardware TB-303 reference WAV** to replace the jc303 soft oracle in
+1. **Live CPU high-fid** (L1) — **shipped**: `live-highfid` runs the diode
+   ladder in the AudioWorklet at oversample 1 behind a CPU/glitch gate.
+2. **Live A/B** (L2) — two synced instances (stock vs high-fid) for audition.
+3. **User-editable coefficients** (L3) for the diode-ladder oracle.
+4. **Hardware TB-303 reference WAV** (L4) to replace the jc303 soft oracle in
    absolute gates ([303-authenticity-gaps.md](./303-authenticity-gaps.md)).
+5. **Real-time GPU audio** (L5) when browsers offer low-latency
+   WebGPU ↔ AudioWorklet bridging without underruns.
 
 ---
 
@@ -296,6 +311,7 @@ editable coefficients, hardware reference WAV) are **follow-ups**, not blockers.
 
 | Doc | Role |
 |-----|------|
+| [303-realtime-highfid.md](./303-realtime-highfid.md) | Live diode-ladder voice (Phase-L1) + L2–L5 tracking |
 | [303-voices.md](./303-voices.md) | Full voice catalog + registry contract |
 | [303-authenticity-gaps.md](./303-authenticity-gaps.md) | Gap audit G1–G7 + thresholds |
 | [OFFLINE_303_OVERSAMPLE.md](./OFFLINE_303_OVERSAMPLE.md) | Oversample + worker pool |

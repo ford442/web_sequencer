@@ -66,6 +66,16 @@ type RuntimeTelemetry = {
   highFidRealtimeModel: string | null;
   /** Phase-4 — selection-time fallback reason (distinct from last render). */
   highFidFallbackReason: string | null;
+  /** Phase-L1 — realtime 303 voice a track requested (`live-highfid` or other). */
+  liveHighFidRequested: string | null;
+  /** Phase-L1 — whether the live diode-ladder voice is the audible path. */
+  liveHighFidActive: boolean | null;
+  /** Phase-L1 — why the live high-fid voice stepped down to stock (null if fine). */
+  liveHighFidFallbackReason: string | null;
+  /** Phase-L1 — rolling CPU share of the quantum used by the live high-fid voice. */
+  liveHighFidCpuPercent: number | null;
+  /** Phase-L1 — oversample factor the live high-fid voice runs at (1 or 2). */
+  liveHighFidOversample: number | null;
   /** P0 audio foundation — live AudioContext.sampleRate at construction. */
   sampleRate: number | null;
   /** P0 audio foundation — live AudioContext.baseLatency, in ms. */
@@ -198,6 +208,16 @@ export interface RuntimeSnapshot {
   highFidRealtimeModel: string | null;
   /** Selection-time high-fid fallback reason. */
   highFidFallbackReason: string | null;
+  /** Realtime 303 voice requested by the last live high-fid selection. */
+  liveHighFidRequested: string | null;
+  /** Whether the live diode-ladder voice is currently the audible path. */
+  liveHighFidActive: boolean | null;
+  /** Why the live high-fid voice stepped down to stock (null if healthy). */
+  liveHighFidFallbackReason: string | null;
+  /** Rolling CPU share of the quantum used by the live high-fid voice. */
+  liveHighFidCpuPercent: number | null;
+  /** Oversample factor the live high-fid voice runs at (1 or 2). */
+  liveHighFidOversample: number | null;
   /** Live AudioContext.sampleRate at construction (Hz). */
   sampleRate: number | null;
   /** Live AudioContext.baseLatency at construction, in ms. */
@@ -294,6 +314,11 @@ export class EngineTelemetry {
     highFidActiveEngine: null,
     highFidRealtimeModel: null,
     highFidFallbackReason: null,
+    liveHighFidRequested: null,
+    liveHighFidActive: null,
+    liveHighFidFallbackReason: null,
+    liveHighFidCpuPercent: null,
+    liveHighFidOversample: null,
     sampleRate: null,
     baseLatencyMs: null,
     latencyHint: null,
@@ -435,6 +460,33 @@ export class EngineTelemetry {
     }
   }
 
+  /**
+   * Record the state of the live (realtime) high-fid 303 path — Phase-L1.
+   * `active: false` with a reason means the CPU/glitch gate handed the voice
+   * back to Stock Open303, which is what the HUD badge reflects.
+   */
+  recordLiveHighFid(meta: {
+    requested: string;
+    active: boolean;
+    reason?: string | null;
+    cpuPercent?: number | null;
+    oversample?: number | null;
+  }): void {
+    this.runtime.liveHighFidRequested = meta.requested;
+    this.runtime.liveHighFidActive = meta.active;
+    this.runtime.liveHighFidFallbackReason = meta.reason ?? null;
+    if (meta.cpuPercent != null) this.runtime.liveHighFidCpuPercent = meta.cpuPercent;
+    if (meta.oversample != null) this.runtime.liveHighFidOversample = meta.oversample;
+    this.registerResolution(
+      'live-highfid',
+      meta.active ? 'highfid-worklet' : 'stock-open303',
+      meta.reason ?? meta.requested,
+    );
+    if (!meta.active && meta.reason) {
+      this.recordDegradation('live-highfid', true, meta.reason);
+    }
+  }
+
   /** Session WebGPU probe (voices may still use WASM/JS; GPU HUD hard-fails). */
   recordWebGpuProbe(snapshot: WebGpuProbeSnapshot): void {
     this.runtime.webgpuProbe = snapshot;
@@ -479,6 +531,11 @@ export class EngineTelemetry {
       highFidActiveEngine: this.runtime.highFidActiveEngine,
       highFidRealtimeModel: this.runtime.highFidRealtimeModel,
       highFidFallbackReason: this.runtime.highFidFallbackReason,
+      liveHighFidRequested: this.runtime.liveHighFidRequested,
+      liveHighFidActive: this.runtime.liveHighFidActive,
+      liveHighFidFallbackReason: this.runtime.liveHighFidFallbackReason,
+      liveHighFidCpuPercent: this.runtime.liveHighFidCpuPercent,
+      liveHighFidOversample: this.runtime.liveHighFidOversample,
       sampleRate: this.runtime.sampleRate,
       baseLatencyMs: this.runtime.baseLatencyMs,
       latencyHint: this.runtime.latencyHint,

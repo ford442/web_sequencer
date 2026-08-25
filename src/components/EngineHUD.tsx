@@ -159,6 +159,23 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       runtime.highFidFallbackReason != null
         ? runtime.highFidFallbackReason.slice(0, 42)
         : '—';
+    // Phase-L1 — which realtime 303 path is actually audible.
+    const liveHfActive = runtime.liveHighFidActive === true;
+    const liveHfBadge = liveHfActive
+        ? 'LIVE HIFID'
+        : runtime.liveHighFidActive === false
+          ? 'stock (degraded)'
+          : '—';
+    const liveHfClass = liveHfActive ? 'cpu-ok' : runtime.liveHighFidActive === false ? 'cpu-hot' : '';
+    const liveHfCpu =
+        runtime.liveHighFidCpuPercent != null ? `${runtime.liveHighFidCpuPercent.toFixed(0)}%` : '—';
+    const liveHfOs = runtime.liveHighFidOversample != null ? `${runtime.liveHighFidOversample}×` : '—';
+    const liveHfReason = runtime.liveHighFidFallbackReason ?? '';
+    const liveSection = runtime.liveHighFidActive == null ? '' : `<div class="subheader">Live 303 path</div>
+      <div class="row" title="${liveHfReason}"><div style="flex:1">Audible</div><div class="${liveHfClass}" style="min-width:96px;text-align:right;font-size:10px">${liveHfBadge}</div></div>
+      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>
+      ${liveHfReason ? `<div class="row" title="${liveHfReason}"><div style="flex:1">Fallback</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liveHfReason}</div></div>` : ''}`;
+
     const offlineSection = `<div class="subheader">Offline 303</div>
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
@@ -233,7 +250,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${liveSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
