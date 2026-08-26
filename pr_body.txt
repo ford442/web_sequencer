@@ -1,20 +1,12 @@
-💡 What:
-Replaced `.map()` combined with `Math.max()` and `Math.min()` spread syntax with standard `for` loops in:
-- `src/components/ai-song-modal/useAISongPreviewElements.tsx`
-- `src/importers/ai-song/automation.ts`
-- `src/importers/ai-song/versioning.ts`
+## 💡 What
+Replaced the plain text "This plugin declares no automatable parameters" message in `Wam2GenericEditor` with the application's standardized empty state pattern.
 
-Added explanatory comments to each location highlighting the optimization.
+## 🎯 Why
+When users explore WAM plugins that happen to not declare any host-automatable parameters, presenting a bare line of grey text feels broken or unfinished compared to the rest of the application. Applying the standard dashed-border empty-state pattern gives this structural weight and clarifies that the lack of parameters is an expected state.
 
-🎯 Why:
-The pattern `Math.max(...array.map())` is an anti-pattern for large arrays because it has two major performance flaws:
-1. `.map()` creates an intermediate array, increasing GC pressure.
-2. The spread operator `...` passes the entire array to the call stack as arguments. If the array is too large, it triggers `RangeError: Maximum call stack size exceeded`.
+## 📸 Before/After
+*Before:* Plain `<p className="text-xs text-gray-400">` text without structural framing.
+*After:* A dashed-border container (`border-dashed`), a centered icon inside a circular background, and a clear title/subtitle hierarchy (`h3` for title, `p` for description).
 
-📊 Impact:
-- Prevents crash on large datasets.
-- Reduces GC pressure and speeds up computations since no intermediate array is created.
-
-🔬 Measurement:
-- Run tests `pnpm run test` and `pnpm run typecheck`
-- Visual inspection of the code changes showing the O(n) loop approach compared to O(n) + space + O(n) call stack size.
+## ♿ Accessibility
+The SVG icon is strictly decorative and marked with `aria-hidden="true"`. The title and description use standard semantic tags.

@@ -41,3 +41,6 @@
 ## 2026-08-24 - Standardizing Empty State Titles
 **Learning:** When standardizing the empty state pattern (dashed border, centered icon), it's important to also ensure the typography is consistent. While many components used the correct `text-sm` for the `<h3>` title, some lacked it and fell back to larger or inherited base font sizes, creating subtle inconsistencies.
 **Action:** Added the `text-sm` class to `<h3>` elements in empty states across the application (e.g., MidiMapPanel, CloudLibrary, VoiceEditor, PreviewTabPanel, ShortcutsHelp) to enforce a uniform visual hierarchy.
+## 2026-08-25 - Standardizing Empty States in Modals
+**Learning:** For content panels like `Wam2GenericEditor` that genuinely have no content to display (e.g., no automatable parameters), using the standardized dashed-border empty state pattern is much better than a simple, unstyled text message. However, for conditional UI chrome (like status pills or degradation banners), absence of data often implies "success" or "nothing to report," and `return null` is appropriate to avoid adding visual noise.
+**Action:** Apply the standardized empty state pattern (`border-dashed`, circular icon well) to content panels, but retain `return null` for status and alert components.
