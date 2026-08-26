@@ -51,6 +51,7 @@ export interface SamplerVoiceContext {
     pSpectralComp: number | undefined;
     pDownsample: number | undefined;
     pSpectralCompression: number | undefined;
+    pPhonemeFilterMod: number | undefined;
     pTranceGate: number | undefined;
     pFormantLfoRateHz: number | undefined;
     pFormantLfoDepth: number | undefined;
@@ -95,6 +96,7 @@ export interface SamplerNoteParams {
     grainPitchQuantize?: number;
     tranceGate?: number;
     spectralCompression?: number;
+    phonemeFilterMod?: number;
     gateRate?: number;
     gateDepth?: number;
     vocoderMix?: number;
@@ -464,6 +466,7 @@ export function createSamplerPlayback(
         if (ctx.pSpectralComp !== undefined) voice.setSpectralComp(ctx.pSpectralComp, triggerTime);
         if (ctx.pDownsample !== undefined) voice.setDownsample(ctx.pDownsample, triggerTime);
         if (ctx.pSpectralCompression !== undefined) voice.setSpectralCompression(ctx.pSpectralCompression, triggerTime);
+        if (ctx.pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(ctx.pPhonemeFilterMod, triggerTime);
         if (ctx.pTranceGate !== undefined) voice.setTranceGate(ctx.pTranceGate, triggerTime);
 
         if (ctx.pFormantLfoRateHz !== undefined) voice.setFormantLfoRate(ctx.pFormantLfoRateHz, triggerTime);
@@ -727,6 +730,7 @@ const playSamplerVoice = (
     const pSpectralComp = (noteParams as any)?.spectralComp !== undefined ? (noteParams as any).spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
+    const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
     const pTranceGate = noteParams?.tranceGate;
 
     // Formant LFO
@@ -810,6 +814,7 @@ const playSamplerVoice = (
                 pSpectralComp,
                 pDownsample,
                 pSpectralCompression,
+                pPhonemeFilterMod,
                 pTranceGate,
                 pFormantLfoRateHz,
                 pFormantLfoDepth,

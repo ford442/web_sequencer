@@ -138,6 +138,7 @@ export interface SamplerBankParams {
   spectralComp?: number;
   downsample?: number;
   spectralCompression?: number;
+  phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantEnvAttack?: number;
@@ -482,6 +483,7 @@ export interface Note {
   spectralComp?: number;
   downsample?: number;
   spectralCompression?: number;
+  phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;

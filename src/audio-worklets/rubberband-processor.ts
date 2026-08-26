@@ -83,6 +83,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private scEnvMid: number[] = [0, 0];
   private scEnvHigh: number[] = [0, 0];
 
+  // Phoneme Filter State
+  private pFilterState: number[] = [0, 0];
+  private pFilterLastFc: number = 20000;
+
   // Grain Panning State
   private grainWrapPending = false;
   private wasFrozen = false;
@@ -129,7 +133,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -729,14 +734,45 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         outputChannel.set(outputView);
         this.expressiveProcessor.process(outputChannel, outputChannel);
 
-        // Apply phoneme volume
+        const phonemeFilterMod = parameters.phonemeFilterMod ? parameters.phonemeFilterMod[0] : 0.0;
+
+        // Apply phoneme volume and filter mod
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
             const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+
+            if (phonemeFilterMod > 0.0) {
+                const minFc = 200;
+                const maxFc = 10000;
+                // clamp pVol to 0..1
+                const clampedVol = Math.max(0.0, Math.min(1.0, pVol));
+                const brightness = Math.pow(clampedVol, 0.7);
+                const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
+
+                const sRate = (globalThis as any).sampleRate || 44100;
+
+                for (let i = 0; i < outputChannel.length; i++) {
+                    // Smooth fc over time to prevent zippering
+                    this.pFilterLastFc = this.pFilterLastFc * 0.99 + targetFc * 0.01;
+
+                    // Simple 1-pole LP calculation
+                    const costh = 2.0 - Math.cos(2.0 * Math.PI * this.pFilterLastFc / sRate);
+                    const b1 = Math.sqrt(costh * costh - 1.0) - costh;
+                    const a0 = 1.0 + b1;
+
+                    this.pFilterState[0] = a0 * outputChannel[i] - b1 * this.pFilterState[0];
+                    outputChannel[i] = this.pFilterState[0];
+                }
+            } else if (outputChannel.length > 0) {
+                this.pFilterState[0] = outputChannel[outputChannel.length - 1];
+            }
+
             if (pVol !== 1.0) {
                 for (let i = 0; i < outputChannel.length; i++) {
                     outputChannel[i] *= pVol;
                 }
             }
+        } else if (phonemeFilterMod === 0.0 && outputChannel.length > 0) {
+            this.pFilterState[0] = outputChannel[outputChannel.length - 1];
         }
 
         // Apply Rhythmic Gating (Trance Gate)

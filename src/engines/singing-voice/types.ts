@@ -24,6 +24,7 @@ export interface SingingVoiceCoreMethods {
   getLatencySeconds(): number;
   getPhonemeAligner(): PhonemeAligner | null;
   setSpectralCompression(amount: number, time?: number): void;
+  setPhonemeFilterMod(amount: number, time?: number): void;
 }
 
 export interface SingingVoicePublic
