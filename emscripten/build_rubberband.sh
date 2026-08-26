@@ -48,10 +48,10 @@ done
 SOURCE_DIR="$REPO_ROOT/rubberband"
 if [ ! -d "$SOURCE_DIR/src" ]; then
     echo "⬇️  Fetching Rubber Band source..."
-    (cd "$REPO_ROOT" && git submodule update --init --recursive) || true
+    git -C "$REPO_ROOT" submodule update --init --recursive rubberband
 fi
-if [ ! -d "$SOURCE_DIR/src" ]; then
-    echo "Rubber Band source not found at $SOURCE_DIR/src." >&2
+if [ ! -f "$SOURCE_DIR/rubberband/RubberBandStretcher.h" ]; then
+    echo "Rubber Band public header missing at $SOURCE_DIR/rubberband/RubberBandStretcher.h" >&2
     exit 1
 fi
 

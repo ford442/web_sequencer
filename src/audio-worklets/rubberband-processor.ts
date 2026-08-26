@@ -985,9 +985,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
               this.subState.lp1[channel] = this.subState.lp1[channel] + alpha * (rawSub - this.subState.lp1[channel]);
               this.subState.lp2[channel] = this.subState.lp2[channel] + alpha * (this.subState.lp1[channel] - this.subState.lp2[channel]);
 
-              // Mix filtered sub-harmonic with the dry signal
-              // Boost the smoothed sub significantly to make it audible as a bass tone
-              outCh[i] = x + (this.subState.lp2[channel] * 4.0 * subHarmonicsAmount);
+              // Apply subtle soft-clipping saturation to the sub-harmonic
+              // This adds upper harmonics to help the sub cut through on smaller speakers
+              const drive = 2.5;
+              const drivenSub = this.subState.lp2[channel] * 4.0 * drive;
+              const saturatedSub = drivenSub / (1.0 + Math.abs(drivenSub));
+
+              // Compensate for gain loss and mix with the dry signal
+              const finalSub = (saturatedSub / drive) * 4.0;
+              outCh[i] = x + (finalSub * subHarmonicsAmount);
             }
           }
         }
