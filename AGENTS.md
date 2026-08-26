@@ -323,6 +323,12 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Requires**: `libomp.a` in `emscripten/` directory
 - **Requires**: Emscripten SDK activated
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
+- **Not** Rubber Band — it is its own module (below). `-ffast-math` is opt-in per file here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
+
+### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
+- **Build**: `pnpm run build:wasm:rubberband`
+- **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
+- **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
 
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
@@ -399,7 +405,7 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 **Rollout order** (enable per-directory overrides in `eslint.config.js` as each area is fixed):
 
 1. `src/utils/**` + `src/engines/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
-2. `src/hooks/**`
+2. `src/hooks/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 3. `src/stores/**`
 4. `src/components/**`
 
@@ -408,7 +414,7 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 | Command | Behaviour |
 |---------|-----------|
 | `pnpm run lint` | Default lint; gradual rules off except in cleaned directories |
-| `pnpm run lint:strict` | Sets `ESLINT_STRICT=1` — enables the full `gradualTypeRules` set project-wide (for future CI gating) |
+| `pnpm run lint:strict` | Sets `ESLINT_STRICT=1` — enables the full `gradualTypeRules` set project-wide. Runs as a non-blocking `lint-strict` CI job (`continue-on-error: true`) so ratchet progress is visible without gating merges |
 
 **Contributor / agent expectations when fixing violations:**
 

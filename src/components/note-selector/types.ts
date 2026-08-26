@@ -100,6 +100,7 @@ export interface NoteSelectorProps {
   currentBitcrush?: number;
   currentDownsample?: number;
   currentSpectralCompression?: number;
+  currentSubHarmonics?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;

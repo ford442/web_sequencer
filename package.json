@@ -11,16 +11,20 @@
     "dev": "pnpm run build:native && vite",
     "dev:fast": "pnpm run check:native && vite",
     "build:wasm": "pnpm run build:wasm:oscillators && pnpm run build:wasm:freezer && pnpm run build:wasm:audioexport && pnpm run build:wasm:xmexport && pnpm run build:wasm:fft && pnpm run build:wasm:rust && pnpm run build:wasm:jc303",
-    "build:wasm:oscillators": "asc assembly/oscillators.ts -o src/wasm/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 384 --enable threads --target wasm-gc --enable reference-types --enable gc --exportRuntime --bindings esm",
-    "build:wasm:freezer": "asc assembly/trackFreezer.ts -o src/wasm/trackFreezer.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 128 --target wasm-gc --enable reference-types --enable gc --exportRuntime --bindings esm",
-    "build:wasm:fft": "asc assembly/fft.ts -o src/wasm/fft.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 256 --target wasm-gc --enable reference-types --enable gc --exportRuntime --bindings esm",
-    "build:wasm:audioexport": "asc assembly/audioExport.ts -o src/wasm/audioExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 128 --target wasm-gc --enable reference-types --enable gc --exportRuntime --bindings esm",
-    "build:wasm:xmexport": "asc assembly/xmExport.ts -o src/wasm/xmExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable relaxed-simd --enable bulk-memory --initialMemory 128 --target wasm-gc --enable reference-types --enable gc --exportRuntime --bindings esm",
+    "build:wasm:oscillators": "asc assembly/oscillators.ts -o src/wasm/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --enable threads --initialMemory 384 --exportRuntime --bindings esm",
+    "build:wasm:freezer": "asc assembly/trackFreezer.ts -o src/wasm/trackFreezer.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
+    "build:wasm:fft": "asc assembly/fft.ts -o src/wasm/fft.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 256 --exportRuntime --bindings esm",
+    "build:wasm:audioexport": "asc assembly/audioExport.ts -o src/wasm/audioExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
+    "build:wasm:xmexport": "asc assembly/xmExport.ts -o src/wasm/xmExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
     "build:wasm:rust": "cd rust-audio && wasm-pack build --target web --out-dir ../public/rust-wasm",
     "build:wasm:jc303": "bash tools/build_jc303_omp.sh release both",
     "build:emcc": "bash emscripten/build.sh",
     "build:emcc:debug": "bash emscripten/build.sh debug",
+    "build:wasm:rubberband": "bash emscripten/build_rubberband.sh",
+    "vendor:pyodide": "node scripts/fetch-pyodide.mjs",
     "check:exports": "node tools/check_wasm_export_map.mjs",
+    "wam:integrity": "node scripts/wam-catalog-integrity.mjs",
+    "check:wam": "node scripts/wam-catalog-integrity.mjs --check",
     "check:native": "node scripts/native-preflight.mjs",
     "build:native": "node scripts/native-build.mjs --all",
     "build:native:changed": "node scripts/native-build.mjs --changed",
@@ -31,7 +35,7 @@
     "optimize": "bash tools/optimize.sh",
     "build": "pnpm run build:release",
     "preview": "vite preview",
-    "lint": "eslint . && node scripts/check-root.mjs",
+    "lint": "eslint . && node scripts/check-root.mjs && node scripts/wam-catalog-integrity.mjs --check",
     "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",
     "check:root": "node scripts/check-root.mjs",
     "typecheck": "tsc -b",
@@ -75,6 +79,7 @@
     "@vitest/snapshot": "2.1.9",
     "@vitest/spy": "2.1.9",
     "@vitest/utils": "2.1.9",
+    "@webaudiomodules/sdk": "0.0.12",
     "@webgpu/types": "^0.1.66",
     "assemblyscript": "^0.28.9",
     "autoprefixer": "^10.4.14",
@@ -94,5 +99,10 @@
     "vite-plugin-wasm": "^3.5.0",
     "vitest": "2.1.9",
     "wasm-pack": "^0.13.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "protobufjs": "^7.5.8"
+    }
   }
 }

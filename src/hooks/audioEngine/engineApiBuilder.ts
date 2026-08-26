@@ -54,7 +54,7 @@ export function buildAudioEngine(
     const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
         createPlaySynth(context, refs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
     };
-    const playDrum = createPlayDrum(context, refs) as any;
+    const playDrum = createPlayDrum(context, refs);
     const noteOnSynth = createNoteOnSynth(context, refs);
     const noteOffSynthById = (id: number) => noteOffSynth(refs.activeSynthNotes.current, id);
     const stopAllNotes = createStopAllNotes(refs);
@@ -120,7 +120,7 @@ export function buildAudioEngine(
         trackAnalysers: refs.trackAnalysersRef.current,
         webGpuEngine: refs.gpuEngineRef.current,
         wasmEngine: refs.wasmEngineRef.current,
-        open303Engine: refs.open303ManagerRef.current as any,
+        open303Engine: refs.open303ManagerRef.current,
         singingVoice: undefined,
         playSynth,
         playDrum,

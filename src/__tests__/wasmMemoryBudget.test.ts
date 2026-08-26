@@ -31,6 +31,11 @@ const budget = JSON.parse(
         stackSizeMb: number;
         pthreadPoolSize: number;
     };
+    rubberband: {
+        initialMemoryMb: number;
+        maximumMemoryMb: number;
+        stackSizeMb: number;
+    };
     assemblyScript: Record<string, number | string[]>;
     standaloneJc303: {
         initialMemoryMb: number;
@@ -42,6 +47,7 @@ const budget = JSON.parse(
 };
 
 const buildSh = readFileSync(join(REPO_ROOT, 'emscripten/build.sh'), 'utf8');
+const rubberbandSh = readFileSync(join(REPO_ROOT, 'emscripten/build_rubberband.sh'), 'utf8');
 const jc303BuildSh = readFileSync(join(REPO_ROOT, 'tools/build_jc303_omp.sh'), 'utf8');
 const jc303Cmake = readFileSync(join(REPO_ROOT, 'tools/jc303_cmake/CMakeLists.txt'), 'utf8');
 const packageJson = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
@@ -133,5 +139,41 @@ describe('standalone JC-303 memory budget', () => {
         expect(jc303Cmake).not.toMatch(/INITIAL_MEMORY=\d+/);
         expect(jc303Cmake).not.toMatch(/STACK_SIZE=\d+/);
         expect(jc303Cmake).not.toMatch(/16777216|4194304|2097152|67108864|33554432/);
+    });
+});
+
+describe('Rubber Band module split', () => {
+    // Rubber Band's finer-engine stereo stretch was the dominant transient in the
+    // hyphon_native budget (~40 MB of a ~114 MB peak) while sharing a heap with the
+    // live 303 voices — and nothing ever called it there: the worklets have always
+    // gone through createRubberBandModule() against the standalone artifact.
+    it('is not compiled into hyphon_native', () => {
+        expect(buildSh).not.toMatch(/rubberband_wrapper\.cpp/);
+        expect(buildSh).not.toMatch(/RUBBERBAND_SRC/);
+        expect(buildSh).not.toMatch(/RubberBandStretcher\.cpp/);
+        // Rubber Band was the only consumer of these in this module.
+        expect(buildSh).not.toMatch(/-DUSE_KISSFFT/);
+        expect(buildSh).not.toMatch(/-DUSE_SPEEX/);
+    });
+
+    it('has its own budget entry and build script that reads it', () => {
+        expect(budget.rubberband.initialMemoryMb).toBeGreaterThan(0);
+        expect(budget.rubberband.initialMemoryMb).toBeLessThan(budget.rubberband.maximumMemoryMb);
+        expect(rubberbandSh).toContain('wasm_memory_budget.json');
+        expect(rubberbandSh).toContain('rubberband.initialMemoryMb');
+        expect(rubberbandSh).toContain('-s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb');
+        expect(rubberbandSh).toContain('-s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb');
+        expect(rubberbandSh).toContain('-s STACK_SIZE=${STACK_SIZE_MB}mb');
+        expect(rubberbandSh).not.toMatch(/INITIAL_MEMORY=\d+/);
+    });
+
+    it('is a registered build world with a package script', () => {
+        expect(packageJson.scripts['build:wasm:rubberband']).toContain('build_rubberband.sh');
+    });
+
+    it('patches a copy of the submodule, never the checkout', () => {
+        // The two sed fixes are not idempotent against an already-patched tree.
+        expect(rubberbandSh).toContain('temp_build_rubberband');
+        expect(rubberbandSh).not.toMatch(/sed -i [^\n]*\$SOURCE_DIR/);
     });
 });

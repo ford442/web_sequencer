@@ -12,7 +12,10 @@ export function makeWamTestAudioContext(): AudioContext {
     disconnect: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
+    type: 'sine' as OscillatorType,
     frequency: { value: 440, setValueAtTime: vi.fn() },
+    // Community packages may detune voices (hyphon.pulsar does).
+    detune: { value: 0, setValueAtTime: vi.fn() },
   });
   return {
     currentTime: 0,

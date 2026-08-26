@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import type { TB303ModelId } from '../types';
 import {
     getAvailableTB303Models,
+    isLiveHighFidModel,
     isOfflineOnlyTB303Model,
     resolveHighFidModelSelection,
     tb303ModelFamily,
@@ -75,17 +76,22 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
 
     const familyBadgeLabel =
         activeFamily === 'jc303' ? 'JC303' : activeFamily === 'highfid' ? 'HIFID' : 'OPEN303';
+    const liveHighFidActive = isLiveHighFidModel(model);
     const familyBadgeAria =
         activeFamily === 'jc303'
             ? 'JC303 engine family active'
             : activeFamily === 'highfid'
-              ? 'High-fidelity offline engine family active'
+              ? liveHighFidActive
+                  ? 'High-fidelity live engine family active'
+                  : 'High-fidelity offline engine family active'
               : 'Open303 engine family active';
     const familyBadgeTitle =
         activeFamily === 'jc303'
             ? 'Active engine family: authentic rosic::Open303 (jc303)'
             : activeFamily === 'highfid'
-              ? 'Active engine family: offline high-fidelity (freeze / export / multisample)'
+              ? liveHighFidActive
+                  ? 'Active engine family: live high-fidelity diode ladder (realtime AudioWorklet)'
+                  : 'Active engine family: offline high-fidelity (freeze / export / multisample)'
               : 'Active engine family: custom Open303';
 
     const handleSelect = (id: TB303ModelId) => {
@@ -140,9 +146,12 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                         : m.family === 'highfid'
                           ? highfidActive
                           : openActive;
+                const isLive = isLiveHighFidModel(m.id);
                 const tooltip = m.offlineOnly
                     ? `${m.description} (offline only – best for freeze / export / multisample)`
-                    : m.description;
+                    : isLive
+                      ? `${m.description} (live diode ladder – auto-degrades to Stock Open303 over budget)`
+                      : m.description;
                 return (
                     <button
                         type="button"
@@ -167,10 +176,29 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                                 Offline
                             </span>
                         )}
+                        {isLive && (
+                            <span
+                                className={`shrink-0 text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border ${
+                                    isActive
+                                        ? 'bg-black/25 border-white/30 text-white'
+                                        : 'bg-amber-950/80 border-amber-600/50 text-amber-300'
+                                }`}
+                            >
+                                Live
+                            </span>
+                        )}
                     </button>
                 );
             })}
 
+            {liveHighFidActive && (
+                <p
+                    className="text-[8px] text-amber-300/90 font-mono leading-snug mt-0.5"
+                    role="status"
+                >
+                    Live diode ladder · freeze uses highfid-cpu · falls back to Stock Open303 over CPU budget
+                </p>
+            )}
             {selectionHint?.fallbackReason && (
                 <p
                     className="text-[8px] text-amber-300/90 font-mono leading-snug mt-0.5"

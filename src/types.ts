@@ -87,6 +87,25 @@ export interface HatParams {
   pan?: number;
 }
 
+/** Live-editable per-note sampler voice params, held in a ref and mirrored to state. */
+export interface SamplerVoiceParams {
+  drive: number;
+  rootNote: number;
+  coarseTune: number;
+  fineTune: number;
+  formantShift: number;
+  attack: number;
+  decay: number;
+  vibratoRate: number;
+  vibratoDepth: number;
+  tremoloDepth: number;
+  breathAmount: number;
+  stretchProfile: 'vocal' | 'harmonic' | 'fast';
+  stretchMode: 'Time' | 'Pitch' | 'Formant';
+  lockToSequencer: boolean;
+  pan?: number;
+}
+
 export interface SamplerBankParams {
   grainJitter?: number;
   sampleName: string;

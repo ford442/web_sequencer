@@ -1,12 +1,20 @@
 import { useCallback } from 'react'
 import { NUM_STEPS } from '../../constants'
 import { midiToNote, noteToMidi } from '../../utils/musicTheory'
-import type { Pattern, PhonemeData } from '../../types'
+import type { Note, Pattern, PartSequence, PhonemeData } from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
 import type { useUndoRedo } from '../useUndoRedo'
 import { updateSamplerStep, updateTrackStep, updateSamplerRange, updateTrackRange } from './patternUpdates'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
+type TrackStorage = Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
+/** Minimal event shape handleStepToggle needs — real pointer events and test mocks both satisfy it. */
+interface StepToggleEvent {
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    preventDefault: () => void;
+}
 
 export function usePatternHandlers(deps: {
     patternRef: React.MutableRefObject<Pattern>;
@@ -16,9 +24,9 @@ export function usePatternHandlers(deps: {
     contextMenu: { x: number; y: number; track: TrackKey; step: number } | null;
     setContextMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number; track: TrackKey; step: number } | null>>;
     setSelection: React.Dispatch<React.SetStateAction<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>>;
-    trackStorageRef: React.MutableRefObject<Record<TrackKey, any[]>>;
+    trackStorageRef: React.MutableRefObject<TrackStorage>;
     activeTrackSlotsRef: React.MutableRefObject<Record<TrackKey, number>>;
-    setTrackStorage: React.Dispatch<React.SetStateAction<Record<TrackKey, any[]>>>;
+    setTrackStorage: React.Dispatch<React.SetStateAction<TrackStorage>>;
     setActiveTrackSlots: React.Dispatch<React.SetStateAction<Record<TrackKey, number>>>;
     setSelectedTrack: React.Dispatch<React.SetStateAction<TrackKey>>;
 }) {
@@ -29,7 +37,7 @@ export function usePatternHandlers(deps: {
         setSelectedTrack,
     } = deps;
 
-    const updateStorageForTrackInner = useCallback((track: TrackKey, sequence: any) => {
+    const updateStorageForTrackInner = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => {
         setTrackStorage(prev => {
             const copy = { ...prev };
             copy[track] = [...copy[track]];
@@ -82,7 +90,7 @@ export function usePatternHandlers(deps: {
         updateStorageForTrackInner(rowKey as TrackKey, changedSequence);
     }, [updateStorageForTrackInner, undoRedo, patternRef, activeSamplerBankRef, setPattern]);
 
-    const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: any) => {
+    const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: StepToggleEvent) => {
         if (e.altKey) { e.preventDefault(); let step = null; if (rowKey === 'sampler') { step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index]; } else { step = patternRef.current[rowKey].steps[index]; } if (step) { handlePatternChange(rowKey, index, undefined, { slide: !step.slide }); } return; }
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); let step = null; if (rowKey === 'sampler') { step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index]; } else { step = patternRef.current[rowKey].steps[index]; } if (step) { if (step.chord && step.chord.length > 0) { handlePatternChange(rowKey, index, undefined, { chord: [] }); } else { const root = noteToMidi(step.note); const chord = [midiToNote(root + 4), midiToNote(root + 7)]; handlePatternChange(rowKey, index, undefined, { chord }); } } return; }
         const pattern = patternRef.current;
@@ -102,7 +110,7 @@ export function usePatternHandlers(deps: {
         const note = midiToNote(pitch);
         setPattern(prev => {
             const bankIdx = activeSamplerBankRef.current;
-            const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
+            const updater = (stepData: Note | null) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
             const newPattern = updateSamplerStep(prev, bankIdx, step, updater);
             updateStorageForTrackInner('sampler', newPattern.sampler);
             return newPattern;
@@ -140,7 +148,7 @@ export function usePatternHandlers(deps: {
         const stepIndex = contextMenu.step;
 
         setPattern(prev => {
-            const updater = (stepData: any) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
+            const updater = (stepData: Note | null) => stepData ? { ...stepData, note } : { note, velocity: 1, length: 1 };
 
             let newPattern;
             let changedSequence;
@@ -211,21 +219,24 @@ export function usePatternHandlers(deps: {
         const stepIndex = contextMenu.step;
         const prev = patternRef.current;
 
-        const updater = (stepData: any) => {
+        const updater = (stepData: Note | null) => {
             if (!stepData) return stepData;
-            const newStep = { ...stepData };
+            const newStep: Note = { ...stepData };
+            // `key` spans fields of several different value types; the typeof
+            // guards above already prove `value` matches `key`'s field type.
+            const writable = newStep as unknown as Record<string, number | boolean | string | number[]>;
 
-            if (key === 'reverse' || 
-                key === 'formantEnvSync' || 
-                key === 'formantLfoSync' || 
+            if (key === 'reverse' ||
+                key === 'formantEnvSync' ||
+                key === 'formantLfoSync' ||
                 key === 'freezeLfoSync') {
-                if (typeof value === 'boolean') newStep[key] = value;
-            } 
+                if (typeof value === 'boolean') writable[key] = value;
+            }
             else if (key === 'reverbType') {
-                if (typeof value === 'string') newStep[key] = value;
-            } 
+                if (typeof value === 'string') writable[key] = value;
+            }
             else {
-                if (typeof value === 'number') newStep[key] = value;
+                if (typeof value === 'number') writable[key] = value;
             }
 
             return newStep;
@@ -249,14 +260,14 @@ export function usePatternHandlers(deps: {
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
             const emptyPattern: Pattern = {
-                partA: { steps: Array(32).fill(null) },
-                partB: { steps: Array(32).fill(null) },
-                bass2: { steps: Array(32).fill(null) },
-                kick: { steps: Array(32).fill(null) },
-                snare: { steps: Array(32).fill(null) },
-                closedHat: { steps: Array(32).fill(null) },
-                openHat: { steps: Array(32).fill(null) },
-                sampler: Array.from({ length: 8 }, () => ({ steps: Array(32).fill(null) })),
+                partA: { steps: Array<Note | null>(32).fill(null) },
+                partB: { steps: Array<Note | null>(32).fill(null) },
+                bass2: { steps: Array<Note | null>(32).fill(null) },
+                kick: { steps: Array<Note | null>(32).fill(null) },
+                snare: { steps: Array<Note | null>(32).fill(null) },
+                closedHat: { steps: Array<Note | null>(32).fill(null) },
+                openHat: { steps: Array<Note | null>(32).fill(null) },
+                sampler: Array.from({ length: 8 }, () => ({ steps: Array<Note | null>(32).fill(null) })),
             };
             setPattern(emptyPattern);
             setTrackStorage(prevStorage => {
@@ -289,7 +300,7 @@ export function usePatternHandlers(deps: {
         }
     }, [patternRef, trackStorageRef, setPattern, setTrackStorage, setActiveTrackSlots]);
 
-    const handleSelectRow = useCallback((k: any) => setSelectedTrack(k as TrackKey), [setSelectedTrack]);
+    const handleSelectRow = useCallback((k: TrackKey) => setSelectedTrack(k), [setSelectedTrack]);
 
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => {
         handlePatternChange(k, i, undefined, { length: len });

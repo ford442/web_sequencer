@@ -134,9 +134,20 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
       { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
-      { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
+
+  // Sub Harmonics State
+  private subState = {
+    // Zero crossing and toggle state per channel
+    lastSign: [0, 0],
+    subToggle: [1, 1],
+    // Low pass filter state for smoothing the sub octave square wave
+    lp1: [0, 0],
+    lp2: [0, 0]
+  };
 
   constructor() {
     super();
@@ -383,6 +394,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
+    const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
 
@@ -970,6 +982,51 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       } else if (hasStereo) {
         // If neither effect is active, but we have stereo output, just copy L to R
         outR.set(outL);
+      }
+
+      // Generate Sub-Harmonics (Vowels only)
+      if (subHarmonicsAmount > 0) {
+        // Evaluate vowel state via phoneme stride
+        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+
+        if (isVowel > 0) {
+          const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+          // Simple 1-pole LPF for the sub-octave square wave, cutoff around 80Hz
+          const cutoffFreq = 80;
+          const rc = 1.0 / (2.0 * Math.PI * cutoffFreq);
+          const dt = 1.0 / fs;
+          const alpha = dt / (rc + dt);
+
+          for (let channel = 0; channel < outputs[0].length; channel++) {
+            const outCh = outputs[0][channel];
+            if (!outCh) continue;
+            if (channel > 1) continue; // Stereo only
+
+            for (let i = 0; i < outCh.length; i++) {
+              const x = outCh[i];
+
+              // Zero crossing detector to divide frequency by 2
+              const currentSign = x >= 0 ? 1 : -1;
+              if (currentSign !== this.subState.lastSign[channel]) {
+                 if (currentSign === 1) { // Positive edge
+                    this.subState.subToggle[channel] = -this.subState.subToggle[channel];
+                 }
+                 this.subState.lastSign[channel] = currentSign;
+              }
+
+              // Raw sub-octave square wave
+              const rawSub = this.subState.subToggle[channel] * 0.5; // Scale down a bit initially
+
+              // Apply low-pass filter twice (2-pole approximation) to make it smooth/sine-like
+              this.subState.lp1[channel] = this.subState.lp1[channel] + alpha * (rawSub - this.subState.lp1[channel]);
+              this.subState.lp2[channel] = this.subState.lp2[channel] + alpha * (this.subState.lp1[channel] - this.subState.lp2[channel]);
+
+              // Mix filtered sub-harmonic with the dry signal
+              // Boost the smoothed sub significantly to make it audible as a bass tone
+              outCh[i] = x + (this.subState.lp2[channel] * 4.0 * subHarmonicsAmount);
+            }
+          }
+        }
       }
         
       // Apply Bitcrush & Downsample

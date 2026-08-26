@@ -272,7 +272,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                                         </svg>
                                     </div>
-                                    <h3 className="text-gray-300 font-bold mb-2">No items found</h3>
+                                    <h3 className="text-gray-300 font-bold mb-2 text-sm">No items found</h3>
                                     <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
                                         The library is empty. Be the first to share your creation with the world!
                                     </p>

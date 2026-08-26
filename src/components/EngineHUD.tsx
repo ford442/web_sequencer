@@ -4,6 +4,7 @@ import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type Latency
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
+import { getWamHost } from '../audio/wam/WamHost';
 
 const CONTAINER_ID = 'engine-hud-root';
 if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
@@ -41,6 +42,9 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
   #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
   #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
+  #${CONTAINER_ID} button[disabled] { opacity:0.4; cursor:default; }
+  #${CONTAINER_ID} .hud-wam-actions { display:flex; gap:4px; margin-left:8px; }
+  #${CONTAINER_ID} .hud-wam-actions button { padding:2px 6px; font-size:10px; }
   `;
   document.head.appendChild(style);
 
@@ -155,6 +159,23 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       runtime.highFidFallbackReason != null
         ? runtime.highFidFallbackReason.slice(0, 42)
         : '—';
+    // Phase-L1 — which realtime 303 path is actually audible.
+    const liveHfActive = runtime.liveHighFidActive === true;
+    const liveHfBadge = liveHfActive
+        ? 'LIVE HIFID'
+        : runtime.liveHighFidActive === false
+          ? 'stock (degraded)'
+          : '—';
+    const liveHfClass = liveHfActive ? 'cpu-ok' : runtime.liveHighFidActive === false ? 'cpu-hot' : '';
+    const liveHfCpu =
+        runtime.liveHighFidCpuPercent != null ? `${runtime.liveHighFidCpuPercent.toFixed(0)}%` : '—';
+    const liveHfOs = runtime.liveHighFidOversample != null ? `${runtime.liveHighFidOversample}×` : '—';
+    const liveHfReason = runtime.liveHighFidFallbackReason ?? '';
+    const liveSection = runtime.liveHighFidActive == null ? '' : `<div class="subheader">Live 303 path</div>
+      <div class="row" title="${liveHfReason}"><div style="flex:1">Audible</div><div class="${liveHfClass}" style="min-width:96px;text-align:right;font-size:10px">${liveHfBadge}</div></div>
+      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>
+      ${liveHfReason ? `<div class="row" title="${liveHfReason}"><div style="flex:1">Fallback</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liveHfReason}</div></div>` : ''}`;
+
     const offlineSection = `<div class="subheader">Offline 303</div>
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
@@ -214,7 +235,13 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const wamRows = (runtime.wam2Slots ?? []).map((slot) => {
       const cls = slot.status === 'ready' ? 'cpu-ok' : slot.status === 'bypassed' ? 'cpu-warn' : 'cpu-hot';
       const err = slot.lastError ? ` title="${slot.lastError.replace(/"/g, '&quot;')}"` : '';
-      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${slot.isolation}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right">${slot.cpuPercent.toFixed(0)}%</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div></div>`;
+      const freeze = slot.offline === 'native'
+        ? '<span title="Renders natively in an OfflineAudioContext" style="opacity:0.7">freeze ok</span>'
+        : '<span title="Cannot be rendered in an OfflineAudioContext — track freeze is unavailable for this slot" style="color:#fbbf24">no freeze</span>';
+      const mounted = slot.status === 'ready' || slot.status === 'bypassed';
+      const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
+      const controls = `<button type="button" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
+      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
       ? `<div class="row"><div style="flex:1">COOP isolated</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.crossOriginIsolated ? 'yes' : 'no'}</div></div>
@@ -223,7 +250,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${liveSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -231,6 +258,21 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   container.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+    if (target.classList.contains('hud-wam-bypass') || target.classList.contains('hud-wam-restart')) {
+      const slotId = target.getAttribute('data-slot');
+      const host = getWamHost();
+      if (!slotId || !host) return;
+      if (target.classList.contains('hud-wam-bypass')) {
+        // Read current state from the host rather than the rendered label: the
+        // HUD re-renders on a timer and could be up to one tick stale.
+        host.setBypass(slotId, host.getSlotStatus(slotId) !== 'bypassed');
+        render();
+      } else {
+        target.setAttribute('disabled', 'true');
+        void host.restartSlot(slotId).finally(render);
+      }
+      return;
+    }
     if (target.id === 'hud-export-btn') {
       engineTelemetry.exportReport();
     } else if (target.id === 'hud-resync-btn') {

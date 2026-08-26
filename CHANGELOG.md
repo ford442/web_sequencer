@@ -16,6 +16,14 @@
 - **Quality gates**: spectrogram / RMS tests, offline benchmarks, cross-browser Playwright matrix, and stress tests ([303-A-B-checklist.md](docs/audio-engine/303-A-B-checklist.md)).
 - **Docs**: architecture & FAQ — [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md).
 
+### Real-time high-fidelity TB-303 (Phase-L1, post-#972)
+- **Live High-Fidelity voice** (`live-highfid`): the diode-ladder DSP now runs inside the AudioWorklet at oversample 1×, so authenticity can be auditioned while the sequencer plays instead of only after a freeze.
+- **CPU / glitch gate**: sustained over-budget CPU or repeated underruns hand the voice back to Stock Open303 with a stated reason — it degrades instead of glitching.
+- **Freeze matches play**: freeze / export / multisample of a live high-fid track renders through the same `highfid-cpu` diode ladder.
+- **Engine HUD** gains a **Live 303 path** section (audible path, rolling CPU %, oversample, fallback reason); the voice selector shows an amber **Live** pill.
+- Stock and JC303 voices are untouched — the high-fid WASM instance is created lazily on first selection, so real-time latency for stock voices is unchanged.
+- Docs: [303-realtime-highfid.md](docs/audio-engine/303-realtime-highfid.md), including the L2–L5 tracking checklist (live A/B, editable coefficients, hardware oracle, GPU live).
+
 ### In-app discoverability (closes #632, #633, #634)
 - Searchable **Help** modal (`?` key): Search · Guides · Shortcuts tabs
 - Dismissible **What's New** checklist for major workflows

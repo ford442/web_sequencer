@@ -1,4 +1,34 @@
-💡 What: Replaced array `.map()` followed by spread syntax `...` with an optimized single-pass `for` loop in `copySegment` (`src/utils/songModeEditing.ts`).
-🎯 Why: Prevents `RangeError: Maximum call stack size exceeded` errors for large array sizes (e.g. from large block selections) and eliminates multiple intermediate array allocations that put pressure on the V8 garbage collector (GC).
-📊 Impact: Reduces time complexity from `4 * O(N)` to `O(N)` and space complexity from `O(N)` to `O(1)`. Safely supports unbounded bounds checking for song grid interactions.
-🔬 Measurement: Run application with performance profiler during playback and selection. Unit test suite fully covers the utility and passes successfully.
+## 💡 What
+Replaced the plain text "This plugin declares no automatable parameters" message in `Wam2GenericEditor` with the application's standardized empty state pattern.
+💡 What:
+Replaced functional array methods (`.filter()`, `.map()`, `.some()`) with standard `for` loops in the high-frequency `SessionLaunchEngine` clock paths.
+Specifically:
+- Replaced double `.filter()` with a single-pass partition in `tick()`.
+- Replaced two `.some()` checks with a single short-circuiting loop over `merged` in `tick()`.
+- Refactored `stopPlayingAsSongMode()` to use a standard `for` loop over `TRACK_KEYS` instead of `.filter().map()`.
+- Replaced `.some()` with standard `for` loops in `hasPlaying` and `hasLiveQueued`.
+
+🎯 Why:
+During live performance, `SessionLaunchEngine.tick()` executes continuously on the audio-clock step boundary. Using functional array methods in these hot paths creates transient array and closure allocations on every tick, which introduces unnecessary garbage collection (GC) pressure and can cause audio micro-stutters or dropouts.
+
+📊 Impact:
+Eliminates continuous main-thread GC allocations within the `SessionLaunchEngine` loop, reducing the likelihood of audio stutters during dense clip-launching and song-mode playback. Space and time complexity are improved by avoiding intermediate arrays during partitioning.
+
+🔬 Measurement:
+- Playback a dense session with multiple tracks switching between song mode and clip launch mode.
+- Use Chrome DevTools Performance tab to profile memory allocations over a 60-second window.
+- The `SessionLaunchEngine.tick()` path will show zero intermediate array allocations per tick compared to baseline.
+Replaced `.map()` combined with `Math.max()` and `Math.min()` spread syntax with standard `for` loops in:
+- `src/components/ai-song-modal/useAISongPreviewElements.tsx`
+- `src/importers/ai-song/automation.ts`
+- `src/importers/ai-song/versioning.ts`
+
+## 🎯 Why
+When users explore WAM plugins that happen to not declare any host-automatable parameters, presenting a bare line of grey text feels broken or unfinished compared to the rest of the application. Applying the standard dashed-border empty-state pattern gives this structural weight and clarifies that the lack of parameters is an expected state.
+
+## 📸 Before/After
+*Before:* Plain `<p className="text-xs text-gray-400">` text without structural framing.
+*After:* A dashed-border container (`border-dashed`), a centered icon inside a circular background, and a clear title/subtitle hierarchy (`h3` for title, `p` for description).
+
+## ♿ Accessibility
+The SVG icon is strictly decorative and marked with `aria-hidden="true"`. The title and description use standard semantic tags.
