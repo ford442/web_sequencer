@@ -65,6 +65,35 @@ jobs:
       - name: Lint (ESLint)
         run: pnpm lint
 
+  lint-strict:
+    name: Lint (strict ratchet, informational)
+    needs: source-integrity
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Full gradualTypeRules set project-wide (see AGENTS.md's rollout tracker).
+      # Non-blocking: most of src/stores/** and src/components/** aren't cleaned
+      # up yet, so this is expected to fail until that ratchet finishes — it
+      # exists so the ratchet's progress is visible in CI without gating merges.
+      - name: Lint (ESLint, full strict rule set)
+        run: pnpm run lint:strict
+
   # Promoted to run as an early gate to catch Vite import-resolution failures without building WASM
   test-unit:
     name: Unit tests (Vitest)
@@ -156,6 +185,11 @@ jobs:
 
       - name: Validate WASM export map
         run: pnpm run check:exports --glue public/hyphon_native.js
+
+      - name: Validate WAM2 catalog integrity
+        # A community package edited without `pnpm run wam:integrity` would be
+        # refused by the installer at runtime; fail here instead.
+        run: pnpm run check:wam
 
       - name: Test (integration tier)
         run: pnpm run test:integration

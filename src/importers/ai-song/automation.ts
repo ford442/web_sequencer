@@ -336,13 +336,27 @@ export function getAutomationSummary(
     const pointCount = values.length;
     totalPoints += pointCount;
 
+    // ⚡ Bolt Optimization: Replace Math.max(...array) with standard O(n) loop
+    // This avoids "Maximum call stack size exceeded" errors on large datasets and reduces GC overhead.
+    let minValue: number | null = null;
+    let maxValue: number | null = null;
+    if (values.length > 0) {
+      minValue = Infinity;
+      maxValue = -Infinity;
+      for (let i = 0; i < values.length; i++) {
+        const val = values[i];
+        if (val < minValue) minValue = val;
+        if (val > maxValue) maxValue = val;
+      }
+    }
+
     return {
       target: lane.target,
       parameter: lane.parameter,
       pointCount,
       interpolation: lane.interpolation || 'step',
-      minValue: values.length > 0 ? Math.min(...values) : null,
-      maxValue: values.length > 0 ? Math.max(...values) : null
+      minValue,
+      maxValue
     };
   });
 

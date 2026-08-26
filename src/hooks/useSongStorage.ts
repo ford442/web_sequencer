@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
+import { Open303Manager } from '../engines/Open303Manager';
+import type { AudioEngine, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
 import {
   migrateTrackStorage,
   deriveActiveTrackSlotsFromStructure,
@@ -40,8 +41,8 @@ export interface SongStorageDeps {
     bass2Ref: MutableRefObject<Bass2Params>;
     kickRef: MutableRefObject<KickParams>;
     snareRef: MutableRefObject<SnareParams>;
-    closedHatRef: MutableRefObject<any>;
-    openHatRef: MutableRefObject<any>;
+    closedHatRef: MutableRefObject<HatParams>;
+    openHatRef: MutableRefObject<HatParams>;
     samplerRef: MutableRefObject<SamplerParams>;
     trackStorageRef: MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     activeTrackSlotsRef: MutableRefObject<Record<TrackKey, number>>;
@@ -69,8 +70,8 @@ export interface SongStorageDeps {
     setBass2: React.Dispatch<React.SetStateAction<Bass2Params>>;
     setKick: React.Dispatch<React.SetStateAction<KickParams>>;
     setSnare: React.Dispatch<React.SetStateAction<SnareParams>>;
-    setClosedHat: React.Dispatch<React.SetStateAction<any>>;
-    setOpenHat: React.Dispatch<React.SetStateAction<any>>;
+    setClosedHat: React.Dispatch<React.SetStateAction<HatParams>>;
+    setOpenHat: React.Dispatch<React.SetStateAction<HatParams>>;
     setSampler: React.Dispatch<React.SetStateAction<SamplerParams>>;
     setTrackStorage: React.Dispatch<React.SetStateAction<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>>;
     setActiveTrackSlots: React.Dispatch<React.SetStateAction<Record<TrackKey, number>>>;
@@ -81,7 +82,7 @@ export interface SongStorageDeps {
     setActiveSongSlot: React.Dispatch<React.SetStateAction<number | null>>;
 
     // Audio engine (may be null before init)
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
 
     // Toast helper
     showToast: (message: string, type: 'success' | 'error' | 'info') => void;
@@ -220,7 +221,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
     // ---- Load helpers ----
 
-    const loadCloudData = useCallback(async (data: any, type: CloudItemType) => {
+    const loadCloudData = useCallback(async (data: unknown, type: CloudItemType) => {
         console.log("Loading Cloud Data:", type, data);
         if (type === 'song') {
             const songData = data as SavedSongData;
@@ -231,7 +232,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             if (songData.params) {
                 if (songData.params.synthA) { setSynthA(songData.params.synthA); synthARef.current = songData.params.synthA; }
                 if (songData.params.synthB) { setSynthB(songData.params.synthB); synthBRef.current = songData.params.synthB; }
-                if ((songData.params as any).bass2) { setBass2((songData.params as any).bass2); bass2Ref.current = (songData.params as any).bass2; }
+                if (songData.params.bass2) { setBass2(songData.params.bass2); bass2Ref.current = songData.params.bass2; }
                 if (songData.params.kick) { setKick(songData.params.kick); kickRef.current = songData.params.kick; }
                 if (songData.params.snare) { setSnare(songData.params.snare); snareRef.current = songData.params.snare; }
                 if (songData.params.closedHat) { setClosedHat(songData.params.closedHat); closedHatRef.current = songData.params.closedHat; }
@@ -294,7 +295,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                         const audioBuf = await audioEngine.context.decodeAudioData(arrayBuf);
                         const bankIdx = parseInt(idx);
                         const bankName = `bank_${bankIdx}`;
-                        audioEngine.loadSampleToEngine(bankName, audioBuf);
+                        await audioEngine.loadSampleToEngine(bankName, audioBuf);
                         loadedBuffers[bankIdx] = audioBuf;
                     } catch (e) {
                         console.error(`Failed to load sample bank ${idx}`, e);
@@ -315,13 +316,15 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             }
             showToast("Song loaded!", "success");
         } else if (type === 'bank') {
-            if (data.trackStorage) {
-                setTrackStorage(migrateTrackStorage(data.trackStorage));
+            const bankData = data as { trackStorage?: Record<TrackKey, (PartSequence | PartSequence[] | null)[]> };
+            if (bankData.trackStorage) {
+                setTrackStorage(migrateTrackStorage(bankData.trackStorage));
                 showToast("Pattern Bank loaded!", "success");
             }
         } else if (type === 'pattern') {
-            if (data.pattern) {
-                setPattern(data.pattern);
+            const patternData = data as { pattern?: Pattern };
+            if (patternData.pattern) {
+                setPattern(patternData.pattern);
                 showToast("Pattern loaded!", "success");
             }
         }
@@ -443,7 +446,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             if (!file) return;
             try {
                 const text = await file.text();
-                const songData = JSON.parse(text);
+                const songData: unknown = JSON.parse(text);
                 await loadCloudData(songData, 'song');
             } catch (err) {
                 console.error('Failed to load song:', err);
@@ -505,7 +508,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // Load the song data using existing loadCloudData logic
-            loadCloudData(song, 'song');
+            await loadCloudData(song, 'song');
 
             // Complete
             setAiImportProgress(100);
@@ -554,10 +557,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     }, [loadCloudData, showToast]);
 
     // ---- RBS Import ----
-    // TODO(#651): Full integration — consume song.automation (HyphonAutomationLane[]), rbsMetadata (tb303*Params, pcf),
-    // apply initial Open303Manager params for 303 tracks, populate automation store (see #652), show ImportReport.
-    // Current impl only does basic pattern/params via loadCloudData. See epic #650 + #651-656 for the full plan.
-
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
         // Convert HyphonSong automation lanes using the centralized automationStore converter
         const automationLanes: UnifiedAutomationLane[] | undefined = song.automation && song.automation.length > 0
@@ -611,7 +610,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 snare: song.params.snare,
                 closedHat: song.params.closedHat,
                 openHat: song.params.openHat,
-                sampler: (song.params as any).sampler || Array.from({ length: 8 }, () => ({
+                // RBS imports carry no sampler params; seed default banks.
+                sampler: Array.from({ length: 8 }, () => ({
                     sampleName: 'bank_0',
                     playbackSpeed: 1.0,
                     volume: 1.0,
@@ -647,7 +647,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             deps.setDrumKit(song.params.drumKit);
         }
 
-        loadCloudData(savedSong, 'song');
+        void loadCloudData(savedSong, 'song');
 
         // Activate song mode when the imported RBS song has a full arrangement.
         if (arrangement?.mode === 'song') {
@@ -669,7 +669,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         // Wire imported 303 params to Open303Manager instances.
         // partB → bass1 (SYNTH B), partA → lead303 (SYNTH A LEAD), bass2 → bass2 instance.
         const open303Engine = audioEngine?.open303Engine;
-        if (open303Engine) {
+        if (open303Engine instanceof Open303Manager) {
             const synthB = song.params.synthB;
             if (synthB) {
                 open303Engine.applyBass1Params({

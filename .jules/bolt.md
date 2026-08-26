@@ -77,3 +77,6 @@
 ## 2024-08-27 - Optimized Vowel Transition Check in Playback Path
 **Learning:** Checking for consecutive conditions using `.filter(cond).length > X` allocates an intermediate array and creates a closure. In real-time audio hot paths like `SingingVoiceHost.processSinging` (inside `playback.ts`), this creates unnecessary garbage collection pressure on the main thread which can cause audio glitches.
 **Action:** Replaced the array filter with a standard `for` loop that iterates over the elements, counts matching conditions, and breaks early once the target threshold is met. This reduces both time and space complexity, avoiding the allocation entirely.
+## 2024-05-31 - Array allocation and call stack limits with spread syntax
+**Learning:** Using `Math.max(...array.map(x => x))` causes maximum call stack size exceeded errors when the array becomes large. It also allocates an unnecessary intermediate array due to the `.map()` which creates garbage collection spikes.
+**Action:** Avoid spreading large arrays into function arguments (like `Math.max` or `Math.min`). Replace these patterns with a standard `for` loop that iterates over the original array to find the min/max values without allocating intermediate arrays or blowing up the call stack limit.

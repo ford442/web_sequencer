@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { automationStore } from '../../stores/automationStore'
 import { type HarmonizerConfig } from '../../engines/Harmonizer'
-import type { SamplerBankParams, SamplerParams } from '../../types'
+import type { AudioEngine, SamplerBankParams, SamplerParams } from '../../types'
 
 export function useSamplerVoiceState(deps: {
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     sampler: SamplerParams;
     activeSamplerBank: number;
     activeSamplerBankRef: React.MutableRefObject<number>;
@@ -59,10 +59,10 @@ export function useSamplerVoiceState(deps: {
             const current = next[bankIndex];
             if (!current) return prev;
 
-            const nextBank: SamplerBankParams = {
-                ...current,
-                [param]: value as any,
-            };
+            const nextBank: SamplerBankParams = { ...current };
+            // `param` names one of many differently-typed SamplerBankParams fields;
+            // the caller supplies a matching value at runtime for the given param.
+            (nextBank as unknown as Record<string, number | string | boolean>)[param] = value;
 
             if (param === 'breathAmount') {
                 nextBank.breathIntensity = value as number;

@@ -20,7 +20,8 @@ public/assets/onnx/*.onnx
 public/assets/onnx/voice_styles/
 public/oscillators.wasm
 
-# Pyodide runtime (large — download separately)
+# Pyodide runtime (large — vendored by `pnpm run vendor:pyodide`, never committed)
+public/pyodide/
 public/pyodide.asm.wasm
 public/pyodide.js
 

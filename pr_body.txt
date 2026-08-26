@@ -16,3 +16,22 @@ Eliminates continuous main-thread GC allocations within the `SessionLaunchEngine
 - Playback a dense session with multiple tracks switching between song mode and clip launch mode.
 - Use Chrome DevTools Performance tab to profile memory allocations over a 60-second window.
 - The `SessionLaunchEngine.tick()` path will show zero intermediate array allocations per tick compared to baseline.
+Replaced `.map()` combined with `Math.max()` and `Math.min()` spread syntax with standard `for` loops in:
+- `src/components/ai-song-modal/useAISongPreviewElements.tsx`
+- `src/importers/ai-song/automation.ts`
+- `src/importers/ai-song/versioning.ts`
+
+Added explanatory comments to each location highlighting the optimization.
+
+🎯 Why:
+The pattern `Math.max(...array.map())` is an anti-pattern for large arrays because it has two major performance flaws:
+1. `.map()` creates an intermediate array, increasing GC pressure.
+2. The spread operator `...` passes the entire array to the call stack as arguments. If the array is too large, it triggers `RangeError: Maximum call stack size exceeded`.
+
+📊 Impact:
+- Prevents crash on large datasets.
+- Reduces GC pressure and speeds up computations since no intermediate array is created.
+
+🔬 Measurement:
+- Run tests `pnpm run test` and `pnpm run typecheck`
+- Visual inspection of the code changes showing the O(n) loop approach compared to O(n) + space + O(n) call stack size.

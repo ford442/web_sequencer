@@ -331,7 +331,7 @@ export const useWebGPUScope = (
 
     // Use setTimeout to stagger WebGPU initialization between components
     const initTimeoutId = setTimeout(() => {
-      initWebGPU();
+      void initWebGPU();
     }, initDelay);
 
     return () => {

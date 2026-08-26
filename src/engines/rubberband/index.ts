@@ -14,8 +14,7 @@
  * 4. HybridNeuralPipeline (Section 6) - Neural vocoding integration
  * 5. PerformanceOptimizer (Section 7) - Real-time performance optimization
  * 6. ConcatenativeHybrid (Section 8) - TTS + real sample blending
- * 7. LatencyCompensator (Section 9) - MIDI sync and timing
- * 8. ArtifactDetector (Section 10) - Quality monitoring
+ * 7. ArtifactDetector (Section 10) - Quality monitoring
  * 
  * Implementation Status:
  * ----------------------
@@ -59,9 +58,6 @@ export * from './performance';
 
 // Section 8: Advanced Concatenative Hybrid
 export * from './ConcatenativeHybrid';
-
-// Section 9: Latency & Synchronization
-export * from './LatencyCompensator';
 
 // Section 10: Quality Assurance - Artifact Detection
 export * from './ArtifactDetector';

@@ -7,6 +7,14 @@ import {
     normalizeWasmExports,
 } from './hyphonNativeImports';
 import { WorkletPerfReporter } from './workletPerfReporter';
+import {
+    LIVE_HIGHFID_MODEL_ID,
+    LiveHighFid303Voice,
+    LiveHighFidGuard,
+    clampLiveOversample,
+    supportsLiveHighFid,
+    type LiveHighFidOversample,
+} from './liveHighFid303';
 
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
@@ -35,6 +43,9 @@ const SynthState = {
 } as const;
 
 type SynthStateType = typeof SynthState[keyof typeof SynthState];
+
+/** DSP engine families this processor can route a block to. */
+type EngineFamily = 'open303' | 'jc303' | 'highfid';
 
 /** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
  *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
@@ -78,8 +89,17 @@ class Open303Processor extends AudioWorkletProcessor {
     /** Which DSP engine is currently active for this processor instance.
      *  'open303' = custom synthesizer (open303_* API, default)
      *  'jc303'   = authentic rosic::Open303 (jc303_* multi-instance API)
+     *  'highfid' = live diode-ladder high-fid voice (highfid303_* API, L1)
      */
-    private activeEngine: 'open303' | 'jc303' = 'open303';
+    private activeEngine: EngineFamily = 'open303';
+
+    /** Live high-fid voice — created lazily, only when a track selects it. */
+    private liveHighFid: LiveHighFid303Voice | null = null;
+    private liveHighFidGuard = new LiveHighFidGuard();
+    private liveHighFidOversample: LiveHighFidOversample = 1;
+    /** Set once the CPU/glitch gate has stepped this processor down to stock. */
+    private liveHighFidDegraded = false;
+    private sampleRateHz = 44100;
 
     /** Native 303 model registry (open303_get_model_* exports), discovered at
      *  init. null = the loaded WASM predates the voices architecture; model
@@ -151,9 +171,13 @@ class Open303Processor extends AudioWorkletProcessor {
         } else if (type === 'noteOff') {
             this.handleNoteOff(data.note);
         } else if (type === 'set-engine') {
-            this.handleSetEngine(data.engine as 'open303' | 'jc303');
+            this.handleSetEngine(data.engine as EngineFamily);
         } else if (type === 'set-303-model') {
-            this.handleSetModel(data.model as string, data.engine as 'open303' | 'jc303' | undefined);
+            this.handleSetModel(
+                data.model as string,
+                data.engine as EngineFamily | undefined,
+                data.oversample as number | undefined,
+            );
         } else if (type === 'param') {
             this.handleParam(data);
         }
@@ -177,6 +201,11 @@ class Open303Processor extends AudioWorkletProcessor {
         if (this.isNativeApi) {
             const paramId = JC303_PARAM_MAP[data.func as string];
             if (paramId !== undefined) {
+                // The live high-fid voice mirrors Open303Param ids, so the same
+                // message keeps working. Params go to it whenever it exists,
+                // and the custom open303 instance keeps receiving them too, so
+                // a CPU-gate step-down lands on an already-in-sync stock voice.
+                this.liveHighFid?.setParam(paramId, data.value);
                 if (this.activeEngine === 'jc303' && this.hasJc303MultiApi && exports.jc303_set_param) {
                     exports.jc303_set_param(this.toWasmHandle(this.jc303Handle), paramId, data.value);
                 } else if (exports.open303_set_param) {
@@ -388,6 +417,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private initializeSynth(exports: any, sampleRate: number): boolean {
+        this.sampleRateHz = sampleRate > 0 ? sampleRate : 44100;
         // Prefer the new multi-instance native API (hyphon_native with open303_wrapper.cpp).
         // Fall back to the single-instance jc303_* API (standalone jc303-single.wasm).
         if (typeof exports.open303_create === 'function' &&
@@ -482,11 +512,16 @@ class Open303Processor extends AudioWorkletProcessor {
 
     /** Switch the active DSP engine for this processor instance.
      *  Clears any held notes before switching to avoid stuck notes. */
-    private handleSetEngine(engine: 'open303' | 'jc303'): void {
+    private handleSetEngine(engine: EngineFamily): void {
         if (engine === this.activeEngine) return;
 
         if (engine === 'jc303' && !this.hasJc303MultiApi) {
             console.warn('[Open303] Authentic JC303 engine not available — ignoring set-engine request');
+            return;
+        }
+
+        if (engine === 'highfid' && !this.ensureLiveHighFid()) {
+            console.warn('[Open303] Live high-fid engine unavailable — ignoring set-engine request');
             return;
         }
 
@@ -551,13 +586,36 @@ class Open303Processor extends AudioWorkletProcessor {
     /** Select the active 303 voice/model. Resolves the engine family from the
      *  native registry when available, otherwise trusts the fallbackEngine hint
      *  sent by Open303Oscillator (mirrored TS registry). */
-    private handleSetModel(model: string, fallbackEngine?: 'open303' | 'jc303'): void {
+    private handleSetModel(
+        model: string,
+        fallbackEngine?: EngineFamily,
+        oversample?: number,
+    ): void {
         const entry = this.modelRegistry?.get(model);
-        const engine = entry?.engine ?? fallbackEngine ?? 'open303';
+        const isLiveHighFid = model === LIVE_HIGHFID_MODEL_ID || fallbackEngine === 'highfid';
+        const engine: EngineFamily = isLiveHighFid ? 'highfid' : entry?.engine ?? fallbackEngine ?? 'open303';
 
         if (engine === 'jc303' && !this.hasJc303MultiApi) {
             console.warn(`[Open303] Model "${model}" needs the JC303 engine which is unavailable — ignoring`);
             return;
+        }
+
+        if (engine === 'highfid') {
+            if (oversample !== undefined) {
+                this.liveHighFidOversample = clampLiveOversample(oversample);
+                this.liveHighFid?.setOversample(this.liveHighFidOversample);
+            }
+            // A previous CPU-gate step-down stays in force for the session:
+            // re-arming it automatically would just glitch again.
+            if (this.liveHighFidDegraded) {
+                console.warn('[Open303] Live high-fid stays disabled (CPU gate tripped this session)');
+                this.reportLiveHighFidUnavailable(model, 'CPU gate tripped earlier this session');
+                return;
+            }
+            if (!this.ensureLiveHighFid()) {
+                this.reportLiveHighFidUnavailable(model, 'highfid303_* exports missing from this WASM build');
+                return;
+            }
         }
 
         const exports = this.getExports();
@@ -581,6 +639,73 @@ class Open303Processor extends AudioWorkletProcessor {
         this.activeModel = model;
         console.log(`[Open303] 303 model set to: ${model} (engine=${engine}, native=${entry !== undefined})`);
         this.port.postMessage({ type: 'model-changed', data: { model, engine } });
+    }
+
+    // ── Live high-fid (Phase L1) ─────────────────────────────────────────────
+
+    /** Create the live diode-ladder voice on first use. Idempotent. */
+    private ensureLiveHighFid(): boolean {
+        if (this.liveHighFid?.isReady) return true;
+        if (this.liveHighFidDegraded) return false;
+        if (!this.isNativeApi || this.isInvalidHandle(this.nativeOutputPtr)) return false;
+
+        const exports = this.getExports();
+        if (!supportsLiveHighFid(exports)) {
+            console.log('[Open303] Live high-fid engine not available in this WASM build');
+            return false;
+        }
+
+        const voice = new LiveHighFid303Voice(exports, (h) => this.toWasmHandle(h));
+        if (!voice.init(this.sampleRateHz, this.nativeBufFrames, this.liveHighFidOversample)) {
+            console.warn('[Open303] Live high-fid init failed');
+            return false;
+        }
+
+        this.liveHighFid = voice;
+        this.liveHighFidGuard.reset();
+        console.log(`[Open303] Live high-fid voice ready (oversample=${voice.activeOversample}×)`);
+        return true;
+    }
+
+    /** Tell the main thread the requested live high-fid voice cannot be used. */
+    private reportLiveHighFidUnavailable(model: string, reason: string): void {
+        this.port.postMessage({
+            type: 'live-highfid-unavailable',
+            data: { model, reason, fallbackModel: 'stock-open303' },
+        });
+    }
+
+    /**
+     * CPU/glitch gate tripped — step down to the stock voice for the rest of
+     * the session and tell the main thread which path is now audible.
+     */
+    private degradeLiveHighFid(reason: string, cpuPercent: number, underruns: number): void {
+        this.liveHighFidDegraded = true;
+        this.clearAllNotes();
+        this.liveHighFid?.destroy();
+        this.liveHighFid = null;
+        this.activeEngine = 'open303';
+        this.activeModel = 'stock-open303';
+        // The custom open303 instance may still carry whatever coefficient
+        // profile was selected before the high-fid voice — put it back on stock.
+        const stockEntry = this.modelRegistry?.get('stock-open303');
+        const exports = this.getExports();
+        if (stockEntry && this.isNativeApi && typeof exports.open303_set_model === 'function') {
+            try {
+                exports.open303_set_model(this.toWasmHandle(this.instanceHandle), stockEntry.index);
+            } catch (e) {
+                console.warn('[Open303] Reverting to stock profile after high-fid degrade failed:', e);
+            }
+        }
+        console.warn(`[Open303] Live high-fid degraded to stock: ${reason}`);
+        this.port.postMessage({
+            type: 'live-highfid-degraded',
+            data: { reason, cpuPercent, underruns, fallbackModel: 'stock-open303' },
+        });
+        this.port.postMessage({
+            type: 'model-changed',
+            data: { model: 'stock-open303', engine: 'open303' },
+        });
     }
 
     private initializeLegacyApi(exports: any, sampleRate: number): boolean {
@@ -646,7 +771,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.getExports();
 
         try {
-            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+            if (this.activeEngine === 'highfid' && this.liveHighFid) {
+                this.liveHighFid.noteOff(note);
+            } else if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                 exports.jc303_note_off(this.toWasmHandle(this.jc303Handle), note);
             } else if (this.isNativeApi) {
                 exports.open303_note_off(this.toWasmHandle(this.instanceHandle), note);
@@ -665,7 +792,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.getExports();
 
         try {
-            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+            if (this.activeEngine === 'highfid' && this.liveHighFid) {
+                this.liveHighFid.allNotesOff();
+            } else if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                 exports.jc303_all_notes_off(this.toWasmHandle(this.jc303Handle));
             } else if (this.isNativeApi) {
                 exports.open303_all_notes_off(this.toWasmHandle(this.instanceHandle));
@@ -687,7 +816,9 @@ class Open303Processor extends AudioWorkletProcessor {
         const exports = this.getExports();
 
         try {
-            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+            if (this.activeEngine === 'highfid' && this.liveHighFid) {
+                this.liveHighFid.noteOn(note, velocity);
+            } else if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                 exports.jc303_note_on(this.toWasmHandle(this.jc303Handle), note, velocity);
             } else if (this.isNativeApi) {
                 exports.open303_note_on(this.toWasmHandle(this.instanceHandle), note, velocity);
@@ -770,7 +901,36 @@ class Open303Processor extends AudioWorkletProcessor {
             const numFrames = channelL ? channelL.length : 128;
             const gain = Open303Processor.OUTPUT_GAIN;
 
-            if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+            if (this.activeEngine === 'highfid' && this.liveHighFid?.isReady) {
+                // ── Live diode-ladder high-fid voice (Phase L1) ──────────────
+                if (this.isInvalidHandle(this.nativeOutputPtr)) {
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                    return true;
+                }
+
+                const t0 = getTime();
+                this.liveHighFid.process(this.nativeOutputPtr, numFrames);
+                const renderUs = (getTime() - t0) * 1000;
+
+                const samples = this.readWasmSamples(this.nativeOutputPtr, numFrames);
+                if (!samples) {
+                    if (this.processErrorCount++ < 5) {
+                        console.error('[Open303] highfid303_process output buffer unreadable');
+                    }
+                    if (channelL) channelL.fill(0);
+                    if (channelR) channelR.fill(0);
+                    return true;
+                }
+                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
+
+                // CPU meter / glitch gate — degrade to stock rather than glitch.
+                const quantumUs = (numFrames / this.sampleRateHz) * 1_000_000;
+                const verdict = this.liveHighFidGuard.record(renderUs, quantumUs);
+                if (verdict.degrade && verdict.reason) {
+                    this.degradeLiveHighFid(verdict.reason, verdict.cpuPercent, verdict.underruns);
+                }
+            } else if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                 // ── Authentic rosic::Open303 multi-instance API ───────────────
                 const ptr = exports.jc303_process_handle(
                     this.toWasmHandle(this.jc303Handle),
@@ -865,7 +1025,9 @@ class Open303Processor extends AudioWorkletProcessor {
                     console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
                 }
                 try {
-                    if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
+                    if (this.activeEngine === 'highfid' && this.liveHighFid) {
+                        this.liveHighFid.noteOff(note);
+                    } else if (this.activeEngine === 'jc303' && this.hasJc303MultiApi) {
                         exports.jc303_note_off(this.jc303Handle, note);
                     } else if (this.isNativeApi) {
                         exports.open303_note_off(this.instanceHandle, note);

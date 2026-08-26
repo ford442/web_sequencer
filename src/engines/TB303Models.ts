@@ -8,9 +8,10 @@
  *    Models in this family are coefficient profiles applied to the same DSP
  *    topology (filter curves, envelope ranges, accent punch, waveshaping).
  *  - 'jc303' family — authentic rosic::Open303 (emscripten/jc303_wrapper.cpp).
- *  - 'highfid' family — offline-only diode-ladder engines (highfid-cpu /
- *    gpu-highfid). Never routed to AudioWorklet; used for freeze / export /
- *    multisample (Phase-2+).
+ *  - 'highfid' family — diode-ladder engines. `highfid-cpu` / `gpu-highfid`
+ *    stay offline-only (freeze / export / multisample, Phase-2+);
+ *    `live-highfid` (Phase-L1) runs the same C topology inside the
+ *    AudioWorklet at oversample 1 behind a CPU/glitch gate.
  *
  * This registry is mirrored by `k303Models[]` in emscripten/open303_wrapper.cpp
  * for open303-family coefficient profiles. High-fid engines live in separate
@@ -31,6 +32,9 @@
 
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
+import { LIVE_HIGHFID_MODEL_ID } from '../audio-worklets/liveHighFid303';
+
+export { LIVE_HIGHFID_MODEL_ID };
 
 /** Which WASM API family a model is built on. Matches the legacy Engine303 type (+ highfid). */
 export type Engine303Family = 'open303' | 'jc303' | 'highfid';
@@ -47,6 +51,7 @@ export type TB303ModelId =
   | 'raveolution'
   | '1ink303-v1'        // in-house
   | 'experimental-01'  // scratchpad
+  | 'live-highfid'     // Phase-L1 realtime diode-ladder voice
   | 'highfid-cpu'      // Phase-2 offline diode-ladder reference
   | 'gpu-highfid';     // Phase-3 WGSL offline authenticity tier
 
@@ -155,6 +160,15 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     available: true,
   },
   {
+    id: 'live-highfid',
+    label: 'Live High-Fidelity',
+    shortLabel: 'HiFi Live',
+    description:
+      'Diode-ladder high-fidelity voice running live in the AudioWorklet (oversample 1×). Falls back to Stock Open303 automatically if it exceeds the CPU budget.',
+    family: 'highfid',
+    available: true,
+  },
+  {
     id: 'highfid-cpu',
     label: 'High-Fidelity CPU (offline)',
     shortLabel: 'HiFi CPU',
@@ -187,6 +201,11 @@ export function getTB303Model(id: string | undefined): TB303ModelInfo | undefine
 
 export function isOfflineOnlyTB303Model(id: string | undefined): boolean {
   return !!getTB303Model(id)?.offlineOnly;
+}
+
+/** The realtime diode-ladder voice (Phase-L1) — runs inside the AudioWorklet. */
+export function isLiveHighFidModel(id: string | undefined): boolean {
+  return id === LIVE_HIGHFID_MODEL_ID;
 }
 
 /**
@@ -364,7 +383,9 @@ export function resolveHighFidModelSelection(
       offlineEngine = 'highfid-cpu';
       fallbackReason = 'WebGPU unavailable — using High-Fidelity CPU for offline render';
     }
-  } else if (requested === 'highfid-cpu') {
+  } else if (requested === 'highfid-cpu' || isLiveHighFidModel(requested)) {
+    // Freezing a live high-fid track renders through the same diode ladder,
+    // so what the producer hears live is what the freeze bounces.
     offlineEngine = 'highfid-cpu';
   }
   // Non-highfid models: offlineEngine stays stock-open303 as a sentinel;
@@ -401,7 +422,11 @@ export function resolveHighFidModelSelection(
           selection.fallbackReason,
           options?.subsystem ?? 'gpu-highfid',
         );
-      } else if (selection.requested === 'gpu-highfid' || selection.requested === 'highfid-cpu') {
+      } else if (
+        selection.requested === 'gpu-highfid' ||
+        selection.requested === 'highfid-cpu' ||
+        isLiveHighFidModel(selection.requested)
+      ) {
         engineDegradationStore.resolve('gpu-highfid-selection');
       }
     } catch {
