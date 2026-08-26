@@ -80,3 +80,7 @@
 ## 2024-05-31 - Array allocation and call stack limits with spread syntax
 **Learning:** Using `Math.max(...array.map(x => x))` causes maximum call stack size exceeded errors when the array becomes large. It also allocates an unnecessary intermediate array due to the `.map()` which creates garbage collection spikes.
 **Action:** Avoid spreading large arrays into function arguments (like `Math.max` or `Math.min`). Replace these patterns with a standard `for` loop that iterates over the original array to find the min/max values without allocating intermediate arrays or blowing up the call stack limit.
+
+## 2025-02-13 - [SessionLaunchEngine.tick() optimizations]
+**Learning:** Found array method chains (`.filter().map()`) and multiple array allocations (double `.filter()`) inside real-time hot paths like `SessionLaunchEngine.tick()` and `stopPlayingAsSongMode()`.
+**Action:** Replaced functional array methods with basic `for` loops in audio hot paths, as per memory instructions about reducing GC and closure overhead.

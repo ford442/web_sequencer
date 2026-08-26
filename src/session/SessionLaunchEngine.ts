@@ -176,8 +176,17 @@ export class SessionLaunchEngine {
     }
     if (!clock.songModeActive) this.songModeLatched = false;
 
-    const due = this.queued.filter((e) => e.timelineStep <= this.timelineStep);
-    this.queued = this.queued.filter((e) => e.timelineStep > this.timelineStep);
+    const due: CompiledLaunchEvent[] = [];
+    const remaining: CompiledLaunchEvent[] = [];
+    for (let i = 0; i < this.queued.length; i++) {
+      const e = this.queued[i];
+      if (e.timelineStep <= this.timelineStep) {
+        due.push(e);
+      } else {
+        remaining.push(e);
+      }
+    }
+    this.queued = remaining;
 
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);
@@ -326,22 +335,29 @@ export class SessionLaunchEngine {
   private stopPlayingAsSongMode(clock: TransportClockSnapshot): CompiledLaunchEvent[] {
     if (!this.hasPlaying()) return [];
     const q = quantizeLaunch('immediate', clock, clock.step, clock.audioTime, this.timelineStep);
-    return TRACK_KEYS.filter((t) => this.playing[t]).map((track) =>
-      this.makeEvent(
-        {
-          kind: 'stop-all',
-          source: 'song-mode',
-          requestSeq: this.nextSeq(),
-          requestAudioTime: clock.audioTime,
-          requestStep: clock.step,
-        },
-        clock,
-        q,
-        track,
-        'stop',
-        null,
-      ),
-    );
+    const events: CompiledLaunchEvent[] = [];
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      const track = TRACK_KEYS[i];
+      if (this.playing[track]) {
+        events.push(
+          this.makeEvent(
+            {
+              kind: 'stop-all',
+              source: 'song-mode',
+              requestSeq: this.nextSeq(),
+              requestAudioTime: clock.audioTime,
+              requestStep: clock.step,
+            },
+            clock,
+            q,
+            track,
+            'stop',
+            null,
+          ),
+        );
+      }
+    }
+    return events;
   }
 
   private makeEvent(
