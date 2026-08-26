@@ -1,4 +1,21 @@
 💡 What:
+Replaced functional array methods (`.filter()`, `.map()`, `.some()`) with standard `for` loops in the high-frequency `SessionLaunchEngine` clock paths.
+Specifically:
+- Replaced double `.filter()` with a single-pass partition in `tick()`.
+- Replaced two `.some()` checks with a single short-circuiting loop over `merged` in `tick()`.
+- Refactored `stopPlayingAsSongMode()` to use a standard `for` loop over `TRACK_KEYS` instead of `.filter().map()`.
+- Replaced `.some()` with standard `for` loops in `hasPlaying` and `hasLiveQueued`.
+
+🎯 Why:
+During live performance, `SessionLaunchEngine.tick()` executes continuously on the audio-clock step boundary. Using functional array methods in these hot paths creates transient array and closure allocations on every tick, which introduces unnecessary garbage collection (GC) pressure and can cause audio micro-stutters or dropouts.
+
+📊 Impact:
+Eliminates continuous main-thread GC allocations within the `SessionLaunchEngine` loop, reducing the likelihood of audio stutters during dense clip-launching and song-mode playback. Space and time complexity are improved by avoiding intermediate arrays during partitioning.
+
+🔬 Measurement:
+- Playback a dense session with multiple tracks switching between song mode and clip launch mode.
+- Use Chrome DevTools Performance tab to profile memory allocations over a 60-second window.
+- The `SessionLaunchEngine.tick()` path will show zero intermediate array allocations per tick compared to baseline.
 Replaced `.map()` combined with `Math.max()` and `Math.min()` spread syntax with standard `for` loops in:
 - `src/components/ai-song-modal/useAISongPreviewElements.tsx`
 - `src/importers/ai-song/automation.ts`
