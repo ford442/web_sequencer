@@ -675,7 +675,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
               {phonemes.length === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-gray-800/20 border border-dashed border-gray-700 z-20">
                   <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)]" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
