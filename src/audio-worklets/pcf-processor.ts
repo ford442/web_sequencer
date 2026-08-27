@@ -133,10 +133,13 @@ class PcfProcessor extends AudioWorkletProcessor {
             }
             case 'set-pattern': {
                 if (Array.isArray(data)) {
-                    this.pattern = data.slice(0, MAX_PATTERN_STEPS).map(
-                        (v: number) => clampMidi(v)
-                    );
-                    this.patternLength = this.pattern.length;
+                    const length = Math.min(data.length, MAX_PATTERN_STEPS);
+                    const newPattern: number[] = new Array<number>(length);
+                    for (let i = 0; i < length; i++) {
+                        newPattern[i] = clampMidi(data[i]);
+                    }
+                    this.pattern = newPattern;
+                    this.patternLength = length;
                 }
                 break;
             }

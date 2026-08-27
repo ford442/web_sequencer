@@ -1,0 +1,4 @@
+💡 What: Refactored the `Array.from().map()` logic in `src/audio-worklets/pcf-processor.ts` to use a pre-allocated array and a standard `for` loop.
+🎯 Why: In high-frequency paths like `AudioWorkletProcessor` message handlers, higher-order array functions like `.map()` create closures and intermediate array allocations. This causes garbage collection (GC) pressure, which is detrimental to real-time audio threads and can lead to audio dropouts or glitches.
+📊 Impact: Eliminates closure creation and reduces dynamic memory allocations on the audio thread when receiving `'set-pattern'` messages.
+🔬 Measurement: Verified that unit tests pass and that the `pcf-processor` still functions correctly without breaking the audio thread.
