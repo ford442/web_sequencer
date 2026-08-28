@@ -3,7 +3,7 @@
 #include <iostream>
 
 // Include the Rubber Band header from the cloned directory structure
-#include "rubberband/rubberband/RubberBandStretcher.h"
+#include "rubberband/RubberBandStretcher.h"
 
 using namespace emscripten;
 

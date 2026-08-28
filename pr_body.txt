@@ -1,4 +1,17 @@
 💡 What: Replaced \`dryBlock = new Float32Array(input)\` with direct loop indexing over the input array, replaced \`new Float32Array(length)\` in \`getAlignedDrySamples\` with a pre-allocated \`alignedDryScratch\` class property, and removed the \`pendingArtifacts.map()\`-equivalent array mapping block in \`sendPeriodicReport\` which now just passes the internal array and clears it with \`.length = 0\`.
+💡 What: Refactored the `Array.from().map()` logic in `src/audio-worklets/pcf-processor.ts` to use a pre-allocated array and a standard `for` loop.
+🎯 Why: In high-frequency paths like `AudioWorkletProcessor` message handlers, higher-order array functions like `.map()` create closures and intermediate array allocations. This causes garbage collection (GC) pressure, which is detrimental to real-time audio threads and can lead to audio dropouts or glitches.
+📊 Impact: Eliminates closure creation and reduces dynamic memory allocations on the audio thread when receiving `'set-pattern'` messages.
+🔬 Measurement: Verified that unit tests pass and that the `pcf-processor` still functions correctly without breaking the audio thread.
+## 💡 What
+Replaced the plain text "This plugin declares no automatable parameters" message in `Wam2GenericEditor` with the application's standardized empty state pattern.
+💡 What:
+Replaced functional array methods (`.filter()`, `.map()`, `.some()`) with standard `for` loops in the high-frequency `SessionLaunchEngine` clock paths.
+Specifically:
+- Replaced double `.filter()` with a single-pass partition in `tick()`.
+- Replaced two `.some()` checks with a single short-circuiting loop over `merged` in `tick()`.
+- Refactored `stopPlayingAsSongMode()` to use a standard `for` loop over `TRACK_KEYS` instead of `.filter().map()`.
+- Replaced `.some()` with standard `for` loops in `hasPlaying` and `hasLiveQueued`.
 
 🎯 Why: AudioWorklets process blocks of 128 samples at extremely high frequencies. Allocating multiple \`Float32Array\`s or new standard arrays per block pushes significant pressure onto the V8 garbage collector, causing audio thread stutters and potential dropouts.
 
