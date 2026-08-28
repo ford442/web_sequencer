@@ -228,7 +228,7 @@ export class SessionLaunchEngine {
   playingCount(): number {
     let count = 0;
     for (let i = 0; i < TRACK_KEYS.length; i++) {
-      if (this.playingSlot(TRACK_KEYS[i]) != null) count++;
+      if (this.playing[TRACK_KEYS[i]] != null) count++;
     }
     return count;
   }
