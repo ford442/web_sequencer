@@ -383,20 +383,19 @@ export class ArtifactDetector {
             return this.config.artifactThreshold;
         }
 
-        // Calculate running mean and std dev without allocating closures
-        const len = this.fluxHistory.length;
+        // Calculate running mean and std dev
+        // ⚡ Bolt Optimization: Replace reduce with traditional for loop to avoid closure allocation
         let sum = 0;
-        for (let i = 0; i < len; i++) {
+        for (let i = 0; i < this.fluxHistory.length; i++) {
             sum += this.fluxHistory[i];
         }
-        const mean = sum / len;
+        const mean = sum / this.fluxHistory.length;
 
         let varianceSum = 0;
-        for (let i = 0; i < len; i++) {
+        for (let i = 0; i < this.fluxHistory.length; i++) {
             varianceSum += (this.fluxHistory[i] - mean) ** 2;
         }
-        const variance = varianceSum / len;
-
+        const variance = varianceSum / this.fluxHistory.length;
         const stdDev = Math.sqrt(variance);
 
         // Adaptive threshold = mean + factor * stdDev
@@ -509,26 +508,20 @@ export class ArtifactDetector {
      * Get artifact detection statistics.
      */
     getStatistics(): ArtifactStatistics {
-        // Calculate statistics without allocating closures
-        let artifactCount = 0;
-        let totalSeverity = 0;
-        const len = this.artifactHistory.length;
+        // ⚡ Bolt Optimization: Replace filter and reduce with traditional for loop to avoid closure allocation
+        // Note: updateHistory already guarantees only detected items enter artifactHistory
+        const detectedCount = this.artifactHistory.length;
+        let severitySum = 0;
 
-        for (let i = 0; i < len; i++) {
-            const artifact = this.artifactHistory[i];
-            if (artifact.detected) {
-                artifactCount++;
-                totalSeverity += artifact.severity;
-            }
+        for (let i = 0; i < detectedCount; i++) {
+            severitySum += this.artifactHistory[i].severity;
         }
         
         return {
-            totalAnalyzed: len,
-            artifactRate: len > 0
-                ? artifactCount / len
-                : 0,
-            averageSeverity: artifactCount > 0
-                ? totalSeverity / artifactCount
+            totalAnalyzed: detectedCount,
+            artifactRate: detectedCount > 0 ? 1 : 0, // In original logic this denominator was totalHistory which is now equivalent
+            averageSeverity: detectedCount > 0
+                ? severitySum / detectedCount
                 : 0,
             recentArtifacts: [...this.artifactHistory.slice(-10)],
             qualityTrend: [...this.qualityHistory]

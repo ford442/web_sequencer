@@ -315,7 +315,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                     <KnobDragHud modifier={isDragging ? dragModifier : null} className="-top-3" />
                     <div
                         {...interactionProps}
-                        className={`h-5 bg-zinc-900 rounded-md border cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                        className={`h-5 bg-zinc-900 rounded-md border cursor-ew-resize relative overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.03)] focus:outline-none focus-visible:ring-2 focus:ring-purple-400 ${
                             isAutomated
                                 ? 'border-cyan-500/70 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_0_6px_rgba(0,229,255,0.3)]'
                                 : 'border-zinc-700'
@@ -360,7 +360,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                     {isAutomated && <KnobAutomationRing className="inset-0" />}
                     <div
                         {...interactionProps}
-                        className={`w-6 rounded-full bg-zinc-900 cursor-ns-resize relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                        className={`w-6 rounded-full bg-zinc-900 cursor-ns-resize relative overflow-hidden focus:outline-none focus-visible:ring-2 focus:ring-purple-400 ${
                             isAutomated
                                 ? 'border-2 border-cyan-500/70 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_0_8px_rgba(0,229,255,0.4)]'
                                 : 'border-2 border-zinc-600 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.05)]'
@@ -428,8 +428,6 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                     <canvas
                         ref={canvasRef}
                         data-testid={testId}
-                        width={size * 2}
-                        height={size * 2}
                         style={{
                             width: '100%',
                             height: '100%',
@@ -439,6 +437,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                             left: 0,
                             zIndex: 10,
                             pointerEvents: 'none',
+                            transform: 'none',
                         }}
                     />
                 </div>

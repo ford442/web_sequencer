@@ -8,6 +8,9 @@ import { CompactLayoutProvider } from './contexts/CompactLayoutContext'
 import { engineTelemetry } from './utils/engineTelemetry'
 import { automationStore } from './stores/automationStore'
 import { e2eTransportSnapshot } from './e2e/probe'
+// Direct module import, not the './audio/wam' barrel: the barrel re-exports the
+// official-SDK loader, and main.tsx must stay free of any path to it.
+import { getWamHost, type WamHost } from './audio/wam/WamHost'
 
 // Register the engine-report export hook at app bootstrap (NOT on HUD/component
 // mount) so it is available regardless of view state — a user hitting an audio
@@ -45,6 +48,31 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
     },
     clearLiveAutomatedValues: () => {
       automationStore.clearLiveValues();
+    },
+
+    // --- WAM2 (Phase B) ---------------------------------------------------
+    // Exposed as hooks rather than letting a spec `import('/src/...')`: that
+    // specifier only resolves under the Vite dev server, and CI runs the specs
+    // against the built `dist/` via `pnpm preview`.
+    restoreWam2SongState: (payload: unknown) =>
+      getWamHost()?.restore(payload as Parameters<WamHost['restore']>[0]) ?? null,
+    getWam2SlotTelemetry: () => getWamHost()?.telemetry() ?? null,
+    getWam2SlotBypassGain: (slotId: string) =>
+      getWamHost()?.getSlotPorts(slotId)?.bypass.gain.value ?? null,
+    getWam2SlotDescriptor: (slotId: string) => getWamHost()?.getSlotDescriptor(slotId) ?? null,
+    getAudioContextTime: () => getWamHost()?.audioContextTime() ?? null,
+
+    // --- Live high-fid 303 (Phase L1) -------------------------------------
+    // Which realtime 303 path is audible, and why it stepped down if it did.
+    getLiveHighFidState: () => {
+      const runtime = engineTelemetry.getRuntimeSnapshot();
+      return {
+        requested: runtime.liveHighFidRequested,
+        active: runtime.liveHighFidActive,
+        reason: runtime.liveHighFidFallbackReason,
+        cpuPercent: runtime.liveHighFidCpuPercent,
+        oversample: runtime.liveHighFidOversample,
+      };
     },
   }
 }

@@ -52,6 +52,7 @@ export function createPlaySamplerVoice(
     const pVocoderPreservation = noteParams?.vocoderPreservation ?? 1.0;
     const pVocoderAttack = noteParams?.vocoderAttack ?? 0.01;
     const pVocoderRelease = noteParams?.vocoderRelease ?? 0.05;
+    const pGrainPanSpreadOuter = noteParams?.spectralPanDepth !== undefined ? noteParams.spectralPanDepth : params.spectralPanDepth;
 
     // Spectral Panning
     const spectralPanRate = noteParams?.spectralPanRate !== undefined ? noteParams.spectralPanRate : params.spectralPanRate;
@@ -125,7 +126,9 @@ export function createPlaySamplerVoice(
     // Effects
     const pGranularPitchShift = noteParams?.granularPitchShift !== undefined ? noteParams.granularPitchShift : params.granularPitchShift;
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
+    const pSpectralComp = noteParams?.spectralComp !== undefined ? noteParams.spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
+    const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
 
     // Formant LFO
@@ -213,7 +216,13 @@ export function createPlaySamplerVoice(
           rawSpectralDepth !== undefined && rawSpectralDepth > 0
             ? rawSpectralDepth * performanceBudget.getSpectralPanMultiplier()
             : 0;
-        strip.updateSpectralPanning(spectralDepth, spectralPanLfoRate, triggerTime);
+        // Disable VoiceFXStrip LFO pan if the worklet is handling grain-locked spectral panning
+        const workletSpectralPan = pGrainPanSpreadOuter !== undefined && pGrainPanSpreadOuter > 0;
+        if (!workletSpectralPan) {
+          strip.updateSpectralPanning(spectralDepth, spectralPanLfoRate, triggerTime);
+        } else {
+          strip.updateSpectralPanning(0, 0, triggerTime); // Turn off strip LFO panning
+        }
 
         strip.updateReverbSend(
           reverbSendAmount,
@@ -334,10 +343,13 @@ export function createPlaySamplerVoice(
         if (pGrainPitchEnvDepth !== undefined) voice.setGrainPitchEnvDepth(pGrainPitchEnvDepth, triggerTime);
         if (pGrainJitter !== undefined) voice.setGrainJitter(pGrainJitter, triggerTime);
         if (pGrainPitchQuantize !== undefined) voice.setGrainPitchQuantize(pGrainPitchQuantize, triggerTime);
+        if (pGrainPanSpreadOuter !== undefined && voice.setGrainPanSpread) voice.setGrainPanSpread(pGrainPanSpreadOuter, triggerTime);
 
         if (pGranularPitchShift !== undefined) voice.setGranularPitchShift(pGranularPitchShift, triggerTime);
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
+        if (pSpectralComp !== undefined) voice.setSpectralComp(pSpectralComp, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
+        if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
@@ -372,7 +384,7 @@ export function createPlaySamplerVoice(
 
           if (sliceIndex >= 0) {
             const phonemeId = `${params.sampleName}_${sliceIndex}`;
-            voice.triggerSlice(
+            void voice.triggerSlice(
               buffer.getChannelData(0),
               sliceIndex,
               alignment,

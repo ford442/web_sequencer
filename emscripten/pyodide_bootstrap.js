@@ -742,20 +742,29 @@ globalThis.initPyodideSystem = async function() {
     console.log("[C++ -> JS] Requesting Pyodide Load...");
 
     try {
-        // Load the Pyodide script dynamically if not present
+        // Load the Pyodide script from OUR OWN ORIGIN if index.html has not already.
+        // No CDN: the WAM2 Phase B CSP (docs/adr/0001-wam2-host.md) allows same-origin
+        // scripts only, and a remote script-src also breaks offline/air-gapped deploys.
+        // public/pyodide/ is populated by `pnpm run vendor:pyodide` and is gitignored,
+        // so a missing copy is a setup problem and must say so rather than silently
+        // reaching out to jsdelivr.
+        const PYODIDE_BASE = globalThis.HYPHON_PYODIDE_BASE_URL || '/pyodide/';
         if (!globalThis.loadPyodide) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
-                script.crossOrigin = "anonymous";
+                script.src = `${PYODIDE_BASE}pyodide.js`;
                 script.onload = resolve;
-                script.onerror = reject;
+                script.onerror = () => reject(new Error(
+                    `Pyodide runtime not found at ${PYODIDE_BASE}pyodide.js. ` +
+                    'Run `pnpm run vendor:pyodide` to vendor it (it is not fetched from a CDN).',
+                ));
                 document.head.appendChild(script);
             });
         }
 
-        // Initialize Pyodide
-        const pyodide = await globalThis.loadPyodide();
+        // indexURL must point at the vendored copy too, or Pyodide derives its own
+        // asset base from the script URL and can still escape same-origin.
+        const pyodide = await globalThis.loadPyodide({ indexURL: PYODIDE_BASE });
 
         // --- FIX: Load NumPy and SciPy explicitly ---
         console.log("[C++ -> JS] Loading NumPy & SciPy...");

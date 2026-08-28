@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * Release-bundle hygiene: fail if Vite source maps shipped without opt-in.
+ * Release-bundle hygiene:
+ *   - fail if Vite source maps shipped without opt-in
+ *   - fail if any remote script/CDN origin survived into the built index.html
+ *   - warn if the Pyodide runtime was not vendored
  *
  *   node scripts/check-release-dist.mjs
  *   HYPHON_SOURCEMAP=1 node scripts/check-release-dist.mjs   # allow .map
@@ -42,6 +45,38 @@ if (!allowMaps && maps.length) {
 if (!fs.existsSync(path.join(distDir, 'native-artifacts.json'))) {
   console.error('[check-release-dist] dist/native-artifacts.json is missing.');
   process.exit(1);
+}
+
+// The WAM2 Phase B CSP (docs/adr/0001-wam2-host.md) is same-origin scripts only
+// and no `unsafe-eval`. Both used to be violated from index.html — a jsDelivr
+// Pyodide <script> and a `new Function` importer. Catch a regression in the built
+// output, where it actually matters, not just in the source file.
+const indexHtmlPath = path.join(distDir, 'index.html');
+if (fs.existsSync(indexHtmlPath)) {
+  const html = fs.readFileSync(indexHtmlPath, 'utf8');
+  const scriptSrcs = [...html.matchAll(/<script[^>]*\ssrc=["']([^"']+)["']/gi)].map((m) => m[1]);
+  const remoteScripts = scriptSrcs.filter((src) => /^(https?:)?\/\//i.test(src));
+  if (remoteScripts.length) {
+    console.error('[check-release-dist] dist/index.html loads scripts from a remote origin:');
+    for (const src of remoteScripts) console.error(`  ${src}`);
+    console.error('  The CSP allows same-origin scripts only — vendor the asset instead.');
+    process.exit(1);
+  }
+  if (/new\s+Function\s*\(/.test(html)) {
+    console.error(
+      '[check-release-dist] dist/index.html contains `new Function(` — that needs ' +
+      "`unsafe-eval`, which the CSP forbids. Use `import(/* @vite-ignore */ url)`.",
+    );
+    process.exit(1);
+  }
+}
+
+if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
+  console.warn(
+    '[check-release-dist] WARNING: dist/pyodide/ is empty — the Pyodide oscillators ' +
+    'will fail at runtime and nothing falls back to a CDN by design. ' +
+    'Run `pnpm run vendor:pyodide` before `pnpm run build:web`.',
+  );
 }
 
 console.log(

@@ -2,12 +2,17 @@ import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
 import {
+    isLiveHighFidModel,
     legacyEngine303ForModel,
     normalizeTB303Model,
     reportTB303ModelFallback,
     resolveRealtimeTB303Model,
     stockModelForFamily,
+    tb303ModelFamily,
+    type Engine303Family,
 } from './TB303Models';
+import { clampLiveOversample, type LiveHighFidOversample } from '../audio-worklets/liveHighFid303';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -41,6 +46,14 @@ export class Open303Oscillator {
     private engine303: 'open303' | 'jc303' = 'open303';
     /** Persisted 303 voice/model choice — applied once the worklet is ready. */
     private model303: TB303ModelId = 'stock-open303';
+    /**
+     * Oversample factor for the live high-fid voice (Phase-L1). 1× is the
+     * shipping default: 2× roughly doubles the audio-thread cost and is only
+     * worth it on machines with headroom to spare.
+     */
+    private liveHighFidOversample: LiveHighFidOversample = 1;
+    /** Cleanup for the worklet status listener (live high-fid fallbacks). */
+    private detachStatusListener: (() => void) | null = null;
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
@@ -148,6 +161,7 @@ export class Open303Oscillator {
             if (!this.gainNode) throw new Error('gainNode not initialized');
             this.workletNode.connect(this.gainNode);
             attachWorkletPerf(this.workletNode, 'open303');
+            this.attachStatusListener(this.workletNode);
 
             // Wait for worklet to confirm initialization
             const initSuccess = await new Promise<boolean>((resolve) => {
@@ -248,7 +262,7 @@ export class Open303Oscillator {
         }
     }
 
-    setParam(func: string, value: number): void {
+    setParam(func: string, value: number, audioTime?: number): void {
         if (this.isFallback && this.fallbackSynth) {
             // Map to fallback synth methods
             switch(func) {
@@ -260,7 +274,7 @@ export class Open303Oscillator {
                 // envMod, accent, filterMode not implemented in fallback
             }
         } else if (this.workletNode) {
-            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value } });
+            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value, audioTime } });
         }
     }
 
@@ -313,7 +327,26 @@ export class Open303Oscillator {
         }
         this.model303 = resolved;
         this.engine303 = legacyEngine303ForModel(this.model303);
+        if (isLiveHighFidModel(this.model303)) {
+            engineDegradationStore.resolve('live-highfid');
+            try {
+                engineTelemetry.recordLiveHighFid({
+                    requested: this.model303,
+                    active: true,
+                    oversample: this.liveHighFidOversample,
+                });
+            } catch { /* telemetry optional */ }
+        }
         this.applyModel303();
+    }
+
+    /**
+     * Oversample factor for the live high-fid voice (1× default, 2× when the
+     * CPU budget allows). Takes effect on the next model apply.
+     */
+    setLiveHighFidOversample(factor: number): void {
+        this.liveHighFidOversample = clampLiveOversample(factor);
+        if (isLiveHighFidModel(this.model303)) this.applyModel303();
     }
 
     /** Currently selected 303 voice/model. */
@@ -323,11 +356,18 @@ export class Open303Oscillator {
 
     private applyModel303(): void {
         if (!this.workletNode) return;
+        // The worklet routes on engine family: `highfid` selects the live
+        // diode-ladder voice, the other two keep their existing meaning.
+        const family: Engine303Family = tb303ModelFamily(this.model303);
         this.workletNode.port.postMessage({
             type: 'set-303-model',
             // engine is included so the worklet can route correctly even when
             // the WASM build has no native model registry (pre-voices builds).
-            data: { model: this.model303, engine: this.engine303 },
+            data: {
+                model: this.model303,
+                engine: family,
+                oversample: this.liveHighFidOversample,
+            },
         });
         if (this.isReady) {
             // Params were routed to the previous engine — push them to the new one.
@@ -365,7 +405,61 @@ export class Open303Oscillator {
         if (this.outputNode) this.outputNode.disconnect();
     }
 
+    /**
+     * Listen for worklet-side status messages that outlive init — today the
+     * live high-fid CPU/glitch gate. Uses addEventListener so it coexists with
+     * the `port.onmessage` handler the init handshake installs.
+     */
+    private attachStatusListener(node: AudioWorkletNode): void {
+        this.detachStatusListener?.();
+
+        const onMessage = (event: MessageEvent) => {
+            const payload = event.data as { type?: string; data?: Record<string, unknown> } | null;
+            if (!payload || typeof payload !== 'object') return;
+            if (payload.type === 'live-highfid-degraded') {
+                this.handleLiveHighFidFallback(
+                    String(payload.data?.reason ?? 'CPU budget exceeded'),
+                    typeof payload.data?.cpuPercent === 'number' ? payload.data.cpuPercent : null,
+                );
+            } else if (payload.type === 'live-highfid-unavailable') {
+                this.handleLiveHighFidFallback(
+                    String(payload.data?.reason ?? 'live high-fid unavailable'),
+                    null,
+                );
+            }
+        };
+
+        node.port.addEventListener('message', onMessage);
+        this.detachStatusListener = () => node.port.removeEventListener('message', onMessage);
+    }
+
+    /**
+     * The worklet handed the live high-fid voice back to Stock Open303.
+     * Mirror that on this side so the HUD, telemetry and any later param
+     * pushes all agree on which path is actually audible.
+     */
+    private handleLiveHighFidFallback(reason: string, cpuPercent: number | null): void {
+        const requested = this.model303;
+        this.model303 = 'stock-open303';
+        this.engine303 = 'open303';
+        try {
+            engineTelemetry.recordLiveHighFid({
+                requested,
+                active: false,
+                reason,
+                cpuPercent,
+                oversample: this.liveHighFidOversample,
+            });
+        } catch { /* telemetry optional */ }
+        try {
+            engineDegradationStore.reportLiveHighFidFallback({ requested, reason, cpuPercent });
+        } catch { /* store optional in tests */ }
+        reportTB303ModelFallback(requested, 'stock-open303', reason, 'live-highfid');
+    }
+
     private cleanupWorklet() {
+        this.detachStatusListener?.();
+        this.detachStatusListener = null;
         if (this.workletNode) {
             this.workletNode.disconnect();
             this.workletNode.port.close();

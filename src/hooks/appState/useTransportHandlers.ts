@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { Pattern } from '../../types'
+import type { AudioEngine, Pattern } from '../../types'
 import type { useUndoRedo } from '../useUndoRedo'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
@@ -9,7 +9,7 @@ export function useTransportHandlers(deps: {
     isReady: boolean;
     initializeAudio: () => Promise<void>;
     setIsInitialized: React.Dispatch<React.SetStateAction<boolean>>;
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     setSchedPlaying: React.Dispatch<React.SetStateAction<boolean>>;
     setTempo: React.Dispatch<React.SetStateAction<number>>;
     undoRedo: UndoRedo;
@@ -81,7 +81,7 @@ export function useTransportHandlers(deps: {
             if (e.code === 'Space') {
                 if (inTextField) return;
                 e.preventDefault();
-                handlePlayToggle();
+                void handlePlayToggle();
                 return;
             }
 

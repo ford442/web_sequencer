@@ -48,16 +48,47 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
-  private freezePhase: number = 0;
+  private grains = [
+    { phase: 0, start: 0, size: 0, active: false },
+    { phase: 0, start: 0, size: 0, active: false }
+  ];
   private customWindowShape: Float32Array | null = null;
   private freezeLfoPhase: number = 0;
   private grainLfoPhase: number = 0;
   private gatePhase: number = 0;
   private currentGateLfo: number = 1.0;
 
+  // Spectral Compressor states (3-band SVF)
+  private scState = {
+    // SVF state: [lp, bp] per channel. We cascade for steeper slopes if needed, but simple is fine.
+    // Actually for 3 bands we need 2 crossovers: Low/Mid and Mid/High
+    // Low pass at ~300Hz, High pass at ~3kHz.
+    // State for Linkwitz-Riley or SVF:
+    lp1: [0, 0], bp1: [0, 0], // Crossover 1 (~300Hz) for L, R
+    lp2: [0, 0], bp2: [0, 0], // Crossover 2 (~3kHz) for L, R
+
+    // Envelopes for Low, Mid, High (Stereo linked: one per band)
+    env: [0, 0, 0]
+  };
+
   // Bitcrusher states
   private downsamplePhase: number[] = [0, 0];
   private lastSampleValue: number[] = [0, 0];
+
+  // Spectral Compression states (3-band approximation)
+  private scLow: number[] = [0, 0];
+  private scMid: number[] = [0, 0];
+  private scHigh: number[] = [0, 0];
+  private scEnvLow: number[] = [0, 0];
+  private scEnvMid: number[] = [0, 0];
+  private scEnvHigh: number[] = [0, 0];
+
+  // Grain Panning State
+  private grainWrapPending = false;
+  private wasFrozen = false;
+  private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
+  private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -92,13 +123,26 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },
+      { name: 'grainPanSpread', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'granularPitchShift', defaultValue: 0.0, minValue: -24.0, maxValue: 24.0 },
       { name: 'tranceGate', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
+
+  // Sub Harmonics State
+  private subState = {
+    // Zero crossing and toggle state per channel
+    lastSign: [0, 0],
+    subToggle: [1, 1],
+    // Low pass filter state for smoothing the sub octave square wave
+    lp1: [0, 0],
+    lp2: [0, 0]
+  };
 
   constructor() {
     super();
@@ -288,8 +332,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
    * Determine the phoneme parameters for the current sample position.
    * Returns [stretchRatio, volume, pitchBend, vibDepth, vibRate]
    */
-  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number, number] {
-    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
+  private getPhonemeDataAtSample(currentSample: number): [number, number, number, number, number, number, number, number] {
+    if (!this.phonemeData || !this.phonemeRatios) return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0];
 
     const count = this.phonemeData[0];
     // Phoneme data stride is 10 floats: start, end, isVowel, stretch(unused in buffer), volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize
@@ -300,16 +344,17 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
       if (currentSample >= start && currentSample < end) {
         const ratio = this.phonemeRatios[i] || 1.0;
+        const isVowel = this.phonemeData[baseIndex + 2] !== undefined ? this.phonemeData[baseIndex + 2] : 0.0;
         const volume = this.phonemeData[baseIndex + 4] !== undefined ? this.phonemeData[baseIndex + 4] : 1.0;
         const pitchBend = this.phonemeData[baseIndex + 5] !== undefined ? this.phonemeData[baseIndex + 5] : 0.0;
         const vibDepth = this.phonemeData[baseIndex + 6] !== undefined ? this.phonemeData[baseIndex + 6] : -1.0;
         const vibRate = this.phonemeData[baseIndex + 7] !== undefined ? this.phonemeData[baseIndex + 7] : -1.0;
         const grainJitter = this.phonemeData[baseIndex + 8] !== undefined ? this.phonemeData[baseIndex + 8] : -1.0;
         const grainSize = this.phonemeData[baseIndex + 9] !== undefined ? this.phonemeData[baseIndex + 9] : -1.0;
-        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize];
+        return [ratio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize, isVowel];
       }
     }
-    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0];
+    return [1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0];
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -342,8 +387,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const tremRate = parameters.tremoloRate ? parameters.tremoloRate[0] : 0;
     const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0;
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
-    const tranceGateAmt = parameters.tranceGate ? parameters.tranceGate[0] : 0.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
+    const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
+    const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
 
@@ -358,7 +404,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     let currentVibDepth = vibDepth;
     let currentVibRate = vibRate;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
     }
@@ -403,7 +449,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
@@ -429,7 +475,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         let phonemeVolume = 1.0;
         let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
           ratio = pRatio;
           phonemeVolume = pVol;
           phonemePitchBendCents = pBend;
@@ -481,6 +527,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const isFrozen = freezeAmt > 0.5;
 
         if (isFrozen) {
+          if (!this.wasFrozen) {
+            this.grainWrapPending = true;
+          }
+          this.wasFrozen = true;
+
           // FREEZE STREAMING (Spectral Granulator)
           // Don't advance the pointer, just loop a small grain
           if (samplesRequired > 0) {
@@ -501,7 +552,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             // Check for per-phoneme overrides
             if (this.phonemeData && this.phonemeRatios) {
-                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
                 if (pGrainJitter !== -1.0) {
                     grainJitter = pGrainJitter;
                 }
@@ -516,62 +567,88 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const lfoMod = 1.0 - (grainLfoDepth * ((grainLfoValue + 1) * 0.5));
 
             // Modulate grain size with envelope: louder = smaller grains for more texture
-            const grainSizeSamples = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
-
-            // Jitter adds a random offset to the grain center up to +/- 50ms based on jitter amount
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
-            const jitterOffset = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
 
-            const grainCenter = this.currentSamplePtr + jitterOffset;
-            const grainStart = Math.max(0, Math.min(buf.length - grainSizeSamples, grainCenter - Math.floor(grainSizeSamples / 2)));
-            const grainEnd = Math.min(buf.length, grainStart + grainSizeSamples);
-            const actualGrainSize = grainEnd - grainStart;
+            const initGrain = (g: any) => {
+                const grainSizeSamplesActive = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
+                const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
+                const grainCenterActive = this.currentSamplePtr + jitterOffsetActive;
+                g.start = Math.max(0, Math.min(buf.length - grainSizeSamplesActive, grainCenterActive - Math.floor(grainSizeSamplesActive / 2)));
+                g.size = Math.min(buf.length, g.start + grainSizeSamplesActive) - g.start;
+                g.phase = 0;
+                g.active = g.size > 0;
+            };
 
-            if (actualGrainSize > 0) {
+            // Ensure at least one grain is active
+            if (!this.grains[0].active && !this.grains[1].active) {
+                initGrain(this.grains[0]);
+            }
+
+            const hasActiveGrain = this.grains[0].active || this.grains[1].active;
+
+            if (hasActiveGrain) {
               for (let i = 0; i < samplesToFeed; i++) {
-                // Apply a window to the grain to avoid buzzing/clicks at the loop boundaries
-                const phase = this.freezePhase / (actualGrainSize - 1);
-                let windowVal = 1.0;
+                let sampleVal = 0;
+                for (let gIdx = 0; gIdx < 2; gIdx++) {
+                    const g = this.grains[gIdx];
+                    if (g.active) {
+                        const phase = g.phase / (g.size - 1);
+                        let windowVal = 1.0;
 
-                if (this.customWindowShape && this.customWindowShape.length > 0) {
-                    const index = phase * (this.customWindowShape.length - 1);
-                    const lower = Math.floor(index);
-                    const upper = Math.ceil(index);
-                    const weight = index - lower;
-                    windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
-                } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
-                    const idx = phase * (this.customGrainEnvelope.length - 1);
-                    const lowerIdx = Math.floor(idx);
-                    const upperIdx = Math.ceil(idx);
-                    const fraction = idx - lowerIdx;
+                        if (this.customWindowShape && this.customWindowShape.length > 0) {
+                            const index = phase * (this.customWindowShape.length - 1);
+                            const lower = Math.floor(index);
+                            const upper = Math.ceil(index);
+                            const weight = index - lower;
+                            windowVal = this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+                        } else if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
+                            const idx = phase * (this.customGrainEnvelope.length - 1);
+                            const lowerIdx = Math.floor(idx);
+                            const upperIdx = Math.ceil(idx);
+                            const fraction = idx - lowerIdx;
 
-                    const lowerVal = this.customGrainEnvelope[lowerIdx];
-                    const upperVal = this.customGrainEnvelope[upperIdx];
+                            const lowerVal = this.customGrainEnvelope[lowerIdx];
+                            const upperVal = this.customGrainEnvelope[upperIdx];
 
-                    windowVal = lowerVal + (upperVal - lowerVal) * fraction;
-                } else {
-                    // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
-                    if (windowShape < 0.5) {
-                        // Hann
-                        windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
-                    } else if (windowShape < 1.5) {
-                        // Hamming
-                        windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
-                    } else if (windowShape < 2.5) {
-                        // Blackman
-                        windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
-                    } else {
-                        // Rectangular / None
-                        windowVal = 1.0;
+                            windowVal = lowerVal + (upperVal - lowerVal) * fraction;
+                        } else {
+                            // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                            if (windowShape < 0.5) {
+                                // Hann
+                                windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+                            } else if (windowShape < 1.5) {
+                                // Hamming
+                                windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+                            } else if (windowShape < 2.5) {
+                                // Blackman
+                                windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+                            } else {
+                                // Rectangular / None
+                                windowVal = 1.0;
+                            }
+                        }
+
+                        sampleVal += buf[g.start + g.phase] * windowVal;
+                        g.phase++;
+
+                        // Check if we should start the other grain (50% overlap)
+                        const otherIdx = gIdx === 0 ? 1 : 0;
+                        const otherG = this.grains[otherIdx];
+                        if (g.phase === Math.floor(g.size / 2) && !otherG.active) {
+                            initGrain(otherG);
+                        }
+
+                        if (g.phase >= g.size) {
+                            g.active = false;
+                            if (gIdx === 0) {
+                                // Only trigger grain wrap panning when the primary grain finishes
+                                // to avoid double triggers that flutter the stereo field too much
+                                this.grainWrapPending = true;
+                            }
+                        }
                     }
                 }
-
-                heap[ptr + i] = buf[grainStart + this.freezePhase] * windowVal;
-
-                this.freezePhase++;
-                if (this.freezePhase >= actualGrainSize) {
-                  this.freezePhase = 0; // Loop the grain
-                }
+                heap[ptr + i] = sampleVal;
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
             } else {
@@ -580,7 +657,18 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             }
           }
         } else {
-          this.freezePhase = 0; // Reset phase when unfreezing
+          this.grains[0].active = false;
+          this.grains[1].active = false; // Reset phase when unfreezing
+          if (this.wasFrozen) {
+            this.grainWrapPending = false;
+            this.wasFrozen = false;
+            // Restore dual-mono on unfreeze
+            this.grainPanL.fill(Math.SQRT1_2);
+            this.grainPanR.fill(Math.SQRT1_2);
+            // Clear SVF states to avoid bleed from panned grains
+            this.scLow.fill(0);
+            this.scHigh.fill(0);
+          }
 
           if (this.isReverse) {
             // REVERSE STREAMING
@@ -655,7 +743,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Apply phoneme volume
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
             if (pVol !== 1.0) {
                 for (let i = 0; i < outputChannel.length; i++) {
                     outputChannel[i] *= pVol;
@@ -687,6 +775,230 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
       }
 
+  const grainPanSpread = parameters.grainPanSpread ? parameters.grainPanSpread[0] : 0.0;
+  const spectralCompression = parameters.spectralCompression
+    ? parameters.spectralCompression[0]
+    : 0.0;
+  // spectralComp already read earlier on main
+  if (grainPanSpread > 0 && this.grainWrapPending) {
+    this.grainWrapPending = false;
+    const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+    const finalPanSpread = isVowel > 0 ? grainPanSpread : grainPanSpread * 0.3;
+
+    for (let b = 0; b < 3; b++) {
+      const spreadMod = b === 0 ? 0.4 : b === 1 ? 0.8 : 1.2;
+      const pan = (Math.random() * 2 - 1) * Math.min(1.0, finalPanSpread * spreadMod);
+      const angle = ((pan + 1.0) * 0.5) * Math.PI / 2;
+      this.grainPanL[b] = Math.cos(angle);
+      this.grainPanR[b] = Math.sin(angle);
+    }
+  } else if (grainPanSpread === 0) {
+    this.grainPanL.fill(Math.SQRT1_2);
+    this.grainPanR.fill(Math.SQRT1_2);
+  }
+  const outL = outputs[0][0];
+  const outR = outputs[0][1];
+  const hasStereo = !!(outL && outR);
+  const needSplit =
+    spectralComp > 0 ||
+    spectralCompression > 0 ||
+    (grainPanSpread > 0 && hasStereo);
+  if (needSplit) {
+    const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+    const f1_c = 2 * Math.sin(Math.PI * 300 / fs);
+    const f2_c = 2 * Math.sin(Math.PI * 3000 / fs);
+    const q = 0.5;
+    const attackCoef = Math.exp(-1.0 / (fs * (2.0 / 1000.0)));
+    const releaseCoef = Math.exp(-1.0 / (fs * (50.0 / 1000.0)));
+    const maxGR = 12.0 * spectralComp;
+    const threshold = 0.1;
+    const ratio = 1.0 + 3.0 * spectralComp;
+    const channel = 0;
+    for (let i = 0; i < outL.length; i++) {
+      const x = outL[i];
+      this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
+      const hp1 = x - this.scState.lp1[channel] - q * this.scState.bp1[channel];
+      this.scState.bp1[channel] += f1_c * hp1;
+      let low = this.scState.lp1[channel];
+      const rest = hp1;
+      this.scState.lp2[channel] += f2_c * this.scState.bp2[channel];
+      let high = rest - this.scState.lp2[channel] - q * this.scState.bp2[channel];
+      this.scState.bp2[channel] += f2_c * high;
+      let mid = this.scState.lp2[channel];
+      const bands = [low, mid, high];
+      if (spectralComp > 0) {
+        for (let b = 0; b < 3; b++) {
+          const absIn = Math.abs(bands[b]);
+          const env = this.scState.env;
+          if (absIn > env[b]) {
+            env[b] = attackCoef * env[b] + (1 - attackCoef) * absIn;
+          } else {
+            env[b] = releaseCoef * env[b] + (1 - releaseCoef) * absIn;
+          }
+          let gain = 1.0;
+          if (env[b] > threshold) {
+            const over = 20 * Math.log10(env[b]) - 20 * Math.log10(threshold);
+            const grDb = Math.min(over * (1.0 - 1.0 / ratio), maxGR);
+            gain = Math.pow(10, -grDb / 20);
+          }
+          bands[b] *= gain;
+        }
+      }
+      low = bands[0];
+      mid = bands[1];
+      high = bands[2];
+      if (spectralCompression > 0) {
+        const attackConst = 1 - Math.exp(-1.0 / (fs * 0.005));
+        const releaseConst = 1 - Math.exp(-1.0 / (fs * 0.070));
+        const absLow = Math.abs(low);
+        const absMid = Math.abs(mid);
+        const absHigh = Math.abs(high);
+        this.scEnvLow[channel] += (absLow > this.scEnvLow[channel] ? attackConst : releaseConst) * (absLow - this.scEnvLow[channel]);
+        this.scEnvMid[channel] += (absMid > this.scEnvMid[channel] ? attackConst : releaseConst) * (absMid - this.scEnvMid[channel]);
+        this.scEnvHigh[channel] += (absHigh > this.scEnvHigh[channel] ? attackConst : releaseConst) * (absHigh - this.scEnvHigh[channel]);
+        const targetRMS = 0.15;
+        const gainLow = Math.max(0.1, Math.min(4.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvLow[channel] + 0.001) - 1.0) * 0.5));
+        const gainMid = Math.max(0.1, Math.min(3.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvMid[channel] + 0.001) - 1.0) * 0.7));
+        const gainHigh = Math.max(0.1, Math.min(4.0, 1.0 + spectralCompression * (targetRMS / (this.scEnvHigh[channel] + 0.001) - 1.0) * 0.6));
+        low = low * (1.0 - spectralCompression) + low * gainLow * spectralCompression;
+        mid = mid * (1.0 - spectralCompression) + mid * gainMid * spectralCompression;
+        high = high * (1.0 - spectralCompression) + high * gainHigh * spectralCompression;
+      }
+      if (hasStereo) {
+        outL[i] = low * this.grainPanL[0] + mid * this.grainPanL[1] + high * this.grainPanL[2];
+        outR[i] = low * this.grainPanR[0] + mid * this.grainPanR[1] + high * this.grainPanR[2];
+      } else {
+        outL[i] = low + mid + high;
+      }
+    }
+  } else if (hasStereo) {
+    outR.set(outL);
+  }
+        
+      if (spectralComp > 0) {
+        const f1 = 300;
+        const f2 = 3000;
+        const fs = (globalThis as any).sampleRate ?? 44100;
+
+        // Chamberlin SVF coefficients
+        const f1_c = 2 * Math.sin(Math.PI * f1 / fs);
+        const f2_c = 2 * Math.sin(Math.PI * f2 / fs);
+        const q = 0.5; // Butterworth-ish
+
+        // Envelope constants
+        const attackMs = 2.0;
+        const releaseMs = 50.0;
+        const attackCoef = Math.exp(-1.0 / (fs * (attackMs / 1000.0)));
+        const releaseCoef = Math.exp(-1.0 / (fs * (releaseMs / 1000.0)));
+
+        // Max gain reduction in dB
+        const maxGR = 12.0 * spectralComp;
+        const threshold = 0.1; // -20 dB
+        const ratio = 1.0 + (3.0 * spectralComp); // up to 4:1
+
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+          if (channel > 1) continue; // stereo only for now
+
+          for (let i = 0; i < outCh.length; i++) {
+            const x = outCh[i];
+
+            // Crossover 1 (Low / Rest)
+            this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
+            const hp1 = x - this.scState.lp1[channel] - q * this.scState.bp1[channel];
+            this.scState.bp1[channel] += f1_c * hp1;
+            const low = this.scState.lp1[channel];
+            const rest = hp1;
+
+            // Crossover 2 (Mid / High)
+            this.scState.lp2[channel] += f2_c * this.scState.bp2[channel];
+            const high = rest - this.scState.lp2[channel] - q * this.scState.bp2[channel];
+            this.scState.bp2[channel] += f2_c * high;
+            const mid = this.scState.lp2[channel];
+
+            const bands = [low, mid, high];
+            let outSum = 0;
+
+            for (let b = 0; b < 3; b++) {
+              const absIn = Math.abs(bands[b]);
+
+              if (absIn > this.scState.env[b]) {
+                this.scState.env[b] = attackCoef * this.scState.env[b] + (1 - attackCoef) * absIn;
+              } else {
+                this.scState.env[b] = releaseCoef * this.scState.env[b] + (1 - releaseCoef) * absIn;
+              }
+
+              let gain = 1.0;
+              if (this.scState.env[b] > threshold) {
+                const envDb = 20 * Math.log10(this.scState.env[b]);
+                const threshDb = 20 * Math.log10(threshold);
+                const over = envDb - threshDb;
+                let grDb = over * (1.0 - (1.0 / ratio));
+                grDb = Math.min(grDb, maxGR);
+                gain = Math.pow(10, -grDb / 20);
+              }
+              outSum += bands[b] * gain;
+            }
+            outCh[i] = outSum;
+          }
+        }
+      } else if (hasStereo) {
+        // If neither effect is active, but we have stereo output, just copy L to R
+        outR.set(outL);
+      }
+
+      // Generate Sub-Harmonics (Vowels only)
+      if (subHarmonicsAmount > 0) {
+        // Evaluate vowel state via phoneme stride
+        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+
+        if (isVowel > 0) {
+          const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+          // Simple 1-pole LPF for the sub-octave square wave, cutoff around 80Hz
+          const cutoffFreq = 80;
+          const rc = 1.0 / (2.0 * Math.PI * cutoffFreq);
+          const dt = 1.0 / fs;
+          const alpha = dt / (rc + dt);
+
+          for (let channel = 0; channel < outputs[0].length; channel++) {
+            const outCh = outputs[0][channel];
+            if (!outCh) continue;
+            if (channel > 1) continue; // Stereo only
+
+            for (let i = 0; i < outCh.length; i++) {
+              const x = outCh[i];
+
+              // Zero crossing detector to divide frequency by 2
+              const currentSign = x >= 0 ? 1 : -1;
+              if (currentSign !== this.subState.lastSign[channel]) {
+                 if (currentSign === 1) { // Positive edge
+                    this.subState.subToggle[channel] = -this.subState.subToggle[channel];
+                 }
+                 this.subState.lastSign[channel] = currentSign;
+              }
+
+              // Raw sub-octave square wave
+              const rawSub = this.subState.subToggle[channel] * 0.5; // Scale down a bit initially
+
+              // Apply low-pass filter twice (2-pole approximation) to make it smooth/sine-like
+              this.subState.lp1[channel] = this.subState.lp1[channel] + alpha * (rawSub - this.subState.lp1[channel]);
+              this.subState.lp2[channel] = this.subState.lp2[channel] + alpha * (this.subState.lp1[channel] - this.subState.lp2[channel]);
+
+              // Apply subtle soft-clipping saturation to the sub-harmonic
+              // This adds upper harmonics to help the sub cut through on smaller speakers
+              const drive = 2.5;
+              const drivenSub = this.subState.lp2[channel] * 4.0 * drive;
+              const saturatedSub = drivenSub / (1.0 + Math.abs(drivenSub));
+
+              // Compensate for gain loss and mix with the dry signal
+              const finalSub = (saturatedSub / drive) * 4.0;
+              outCh[i] = x + (finalSub * subHarmonicsAmount);
+            }
+          }
+        }
+      }
+        
       // Apply Bitcrush & Downsample
       if (bitcrushAmount > 0 || downsampleFactor > 1.0) {
         for (let channel = 0; channel < outputs[0].length; channel++) {

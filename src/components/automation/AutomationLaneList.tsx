@@ -146,14 +146,14 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
 
   if (state.lanes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 px-4 text-center bg-[#1a1d24]/50 border border-dashed border-gray-700 rounded-lg m-2">
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-[#1a1d24]/50 border border-dashed border-gray-700 rounded-lg m-2">
         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         </div>
-        <h3 className="text-gray-300 font-bold mb-2">No automation lanes</h3>
-        <p className="text-gray-500 text-[10px] max-w-[200px]">
+        <h3 className="text-gray-300 font-bold mb-2 text-sm">No automation lanes</h3>
+        <p className="text-gray-500 text-xs max-w-[250px]">
           Record knob movements or import an .rbs file to see automation here.
         </p>
       </div>

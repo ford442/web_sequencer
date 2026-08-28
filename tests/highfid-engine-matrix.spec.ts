@@ -78,6 +78,51 @@ test.describe('High-fid 303 engine matrix', () => {
     }
   });
 
+  test('live high-fid voice is selectable and stays audible or degrades to stock', async ({ page }) => {
+    await initializeHyphonAudio(page);
+    const bass2 = await openRackModule(page, 'BASS 2');
+    const voiceGroup = bass2.getByRole('group', { name: /303 voice selection/i });
+    await expect(voiceGroup).toBeVisible({ timeout: 15_000 });
+
+    const liveBtn = voiceGroup.getByRole('button', {
+      name: /Select Live High-Fidelity voice/i,
+    });
+    await expect(liveBtn).toBeVisible();
+    await expect(liveBtn).toContainText('Live');
+    // The realtime voice must not carry the offline-only badge.
+    await expect(liveBtn).not.toContainText('Offline');
+
+    await liveBtn.click();
+    await expect(liveBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      voiceGroup.getByLabel('High-fidelity live engine family active'),
+    ).toBeVisible();
+    await expect(voiceGroup.getByRole('status')).toContainText(/live diode ladder/i);
+
+    // Either the diode ladder is carrying audio, or the CPU gate handed it back
+    // to stock with a stated reason — both are correct, an unexplained silent
+    // step-down is not. Requires the ?e2e=1 hooks installed by the boot helper.
+    const state = await page.evaluate(async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+      const w = window as unknown as {
+        __HYPHON_E2E__?: {
+          getLiveHighFidState?: () => {
+            requested: string | null;
+            active: boolean | null;
+            reason: string | null;
+          };
+        };
+      };
+      return w.__HYPHON_E2E__?.getLiveHighFidState?.() ?? null;
+    });
+    if (state) {
+      expect(state.requested).toBe('live-highfid');
+      if (state.active === false) {
+        expect(state.reason ?? '').not.toHaveLength(0);
+      }
+    }
+  });
+
   test('stock ↔ jc303 switch still works alongside high-fid voices', async ({ page }) => {
     await initializeHyphonAudio(page);
     const bass2 = await openRackModule(page, 'BASS 2');

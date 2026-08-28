@@ -35,3 +35,12 @@
 ## 2026-08-18 - Better empty states for Phoneme Painter
 **Learning:** The `PhonemePainter` component had a completely blank, dark overlay (`bg-[#0d0f12]/80`) for its empty state. Consistent with `CloudLibrary` and other panels, using the standardized empty state container (`bg-gray-800/20 border border-dashed border-gray-700`) significantly improves the UX by visually indicating a designated interactive area for content, rather than an unstyled empty void.
 **Action:** Always replace unstyled or solid-color backgrounds for empty states in modals and panels with the standardized dashed-border pattern to maintain application consistency.
+## 2026-08-22 - [Standardizing Empty States]
+**Learning:** Found multiple instances of empty states in the codebase that used similar but slightly different HTML structures and styling (e.g., different icon sizes, varying text sizes), causing UI inconsistencies.
+**Action:** Identified a standard empty state pattern (dashed border, w-12 h-12 circular icon background, text-sm for titles, text-xs for descriptions) and applied it consistently across components to ensure a uniform user experience.
+## 2026-08-24 - Standardizing Empty State Titles
+**Learning:** When standardizing the empty state pattern (dashed border, centered icon), it's important to also ensure the typography is consistent. While many components used the correct `text-sm` for the `<h3>` title, some lacked it and fell back to larger or inherited base font sizes, creating subtle inconsistencies.
+**Action:** Added the `text-sm` class to `<h3>` elements in empty states across the application (e.g., MidiMapPanel, CloudLibrary, VoiceEditor, PreviewTabPanel, ShortcutsHelp) to enforce a uniform visual hierarchy.
+## 2026-08-25 - Standardizing Empty States in Modals
+**Learning:** For content panels like `Wam2GenericEditor` that genuinely have no content to display (e.g., no automatable parameters), using the standardized dashed-border empty state pattern is much better than a simple, unstyled text message. However, for conditional UI chrome (like status pills or degradation banners), absence of data often implies "success" or "nothing to report," and `return null` is appropriate to avoid adding visual noise.
+**Action:** Apply the standardized empty state pattern (`border-dashed`, circular icon well) to content panels, but retain `return null` for status and alert components.

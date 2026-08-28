@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import type { Pattern, SamplerParams } from '../../types'
+import type { AudioEngine, Pattern, PartSequence, SamplerParams } from '../../types'
 
 export function useAutoMix(deps: {
     patternRef: React.MutableRefObject<Pattern>;
@@ -12,7 +12,7 @@ export function useAutoMix(deps: {
     updateOpenHat: (updates: any) => void;
     setSampler: React.Dispatch<React.SetStateAction<SamplerParams>>;
     setMasterVolume: React.Dispatch<React.SetStateAction<number>>;
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     synthA: { filterCutoff: number; filterResonance: number };
     synthB: { filterCutoff: number; filterResonance: number };
 }) {
@@ -24,7 +24,7 @@ export function useAutoMix(deps: {
 
     const handleAutoMix = useCallback(() => {
         const pattern = patternRef.current;
-        const calculateActivity = (trackSeq: any) => {
+        const calculateActivity = (trackSeq: PartSequence | null | undefined) => {
             if (!trackSeq || !trackSeq.steps) return 0;
             let activeSteps = 0;
             let totalVelocity = 0;

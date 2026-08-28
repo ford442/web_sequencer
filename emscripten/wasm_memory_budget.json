@@ -1,7 +1,8 @@
 {
   "$comment": [
-    "Single source of truth for hyphon_native.wasm memory sizing.",
-    "Consumed by emscripten/build.sh (-s INITIAL_MEMORY / -s MAXIMUM_MEMORY) and by",
+    "Single source of truth for WASM memory sizing across every module Hyphon links.",
+    "Consumed by emscripten/build.sh (-s INITIAL_MEMORY / -s MAXIMUM_MEMORY),",
+    "emscripten/build_rubberband.sh, tools/build_jc303_omp.sh, and by",
     "src/audio-worklets/hyphonNativeImports.ts, which allocates the imported",
     "WebAssembly.Memory for the AudioWorklet instantiation path. The two MUST agree:",
     "an imported memory whose `initial` is below the module's declared minimum fails",
@@ -11,10 +12,30 @@
   ],
   "pageSizeBytes": 65536,
   "hyphonNative": {
+    "$comment": [
+      "Voices only, as of the Rubber Band split: Open303 / JC303 / Prophecy /",
+      "HighFid303 / audio_dsp. Rubber Band moved to its own module (see `rubberband`",
+      "below), which removed the ~40 MB stretch transient from this heap. 128 MB is",
+      "kept rather than tightened because the previous figure was an analytic budget,",
+      "not a device capture — lower it only with a measurement."
+    ],
     "initialMemoryMb": 128,
     "maximumMemoryMb": 1024,
     "stackSizeMb": 8,
     "pthreadPoolSize": 4
+  },
+  "rubberband": {
+    "$comment": [
+      "Standalone public/rubberband.wasm, built by emscripten/build_rubberband.sh and",
+      "instantiated by src/audio-worklets/{rubberband,sustain}-processor.ts through",
+      "createRubberBandModule(). This module owns its memory (it is NOT imported), so",
+      "the only contract is that build_rubberband.sh reads these numbers instead of",
+      "carrying literals. 64 MB covers the ~40 MB finer-engine stereo stretch peak",
+      "plus scratch; growth to 256 MB stays available for long offline renders."
+    ],
+    "initialMemoryMb": 64,
+    "maximumMemoryMb": 256,
+    "stackSizeMb": 4
   },
   "assemblyScript": {
     "$comment": "--initialMemory is in 64 KiB pages, not MB.",

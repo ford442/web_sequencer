@@ -55,4 +55,31 @@ describe('SessionLauncher accessibility', () => {
     fireEvent.click(screen.getByTestId('session-clip-kick-0'));
     expect(props.onLaunchClip).toHaveBeenCalledWith('kick', 0);
   });
+  it('renders an empty state when rowCount is 0', () => {
+    // Empty document with no rows
+    const emptyDoc = {
+      ...props.document,
+      columns: {
+        partA: { clips: [] },
+        partB: { clips: [] },
+        drums: { clips: [] },
+        samplerA: { clips: [] },
+        samplerB: { clips: [] },
+        vocoder: { clips: [] },
+        bass303: { clips: [] },
+        lead303: { clips: [] },
+      },
+      scenes: [],
+    };
+
+    render(
+      <SessionLauncher
+        {...props}
+        document={emptyDoc as any}
+      />
+    );
+    expect(screen.getByText('No clips in session')).toBeInTheDocument();
+    expect(screen.getByText(/Your session is empty/)).toBeInTheDocument();
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+  });
 });

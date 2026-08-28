@@ -388,7 +388,15 @@ export const PlaybackMixin = {
     );
 
     // We also want to run the loop to check for consecutive vowels for expressive transitions
-    const hasVowelTransitions = phonemes.filter(p => p.isVowel).length > 1;
+    // ⚡ Bolt Optimization: Prevent array allocation and closure in hot path by avoiding .filter()
+    let vowelCount = 0;
+    for (let i = 0; i < phonemes.length; i++) {
+      if (phonemes[i].isVowel) {
+        vowelCount++;
+        if (vowelCount > 1) break;
+      }
+    }
+    const hasVowelTransitions = vowelCount > 1;
 
     if (!hasFormantShift && !hasVowelTransitions) {
       return;

@@ -1,2 +1,3 @@
 Pre-existing structural or syntax errors in out-of-scope files on the base branch (Firefox testing timeouts in session-launcher.spec.ts)
 Typecheck blocked by pre-existing errors in src/__tests__/ensurePthreadWorkerStamp.test.ts
+The tests run successfully aside from unrelated preexisting issues in checkRootHygiene and act() warnings. I have successfully fixed the stereofying issue with the SVF by changing `scState` array sizes to hold separate L/R values (`[0, 0]`), changing `chIdx` to `channel` within the loop, and linking the envelopes appropriately by calculating the max abs input across channels before applying the envelope logic.

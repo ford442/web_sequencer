@@ -10,6 +10,11 @@ import { SYNTH_TRACK_TO_LED, type PlaySynthFn, type PlaybackRefs } from "./types
 const _synthParamsScratchKeys: string[] = [];
 const _synthParamsScratch: SynthParams = {} as SynthParams;
 
+/** Typed view for the scratch-object key copy below — avoids `any` on the hot path. */
+function asRecord(obj: SynthParams): Record<string, unknown> {
+  return obj as unknown as Record<string, unknown>;
+}
+
 export function createPlaySynth(
   context: AudioContext,
   refs: Pick<
@@ -54,13 +59,13 @@ export function createPlaySynth(
       noteParams?.formantShift !== undefined
     ) {
       for (let i = 0; i < _synthParamsScratchKeys.length; i++) {
-        (_synthParamsScratch as any)[_synthParamsScratchKeys[i]] = undefined;
+        asRecord(_synthParamsScratch)[_synthParamsScratchKeys[i]] = undefined;
       }
       _synthParamsScratchKeys.length = 0;
       effectiveParams = _synthParamsScratch;
       // Reuse a module-level object to prevent allocations on hot path
       for (const k in params) {
-        (effectiveParams as any)[k] = (params as any)[k];
+        asRecord(effectiveParams)[k] = asRecord(params)[k];
         _synthParamsScratchKeys.push(k);
       }
 
@@ -178,9 +183,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setBass2Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('bass2', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnBass2(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
@@ -210,9 +213,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setBass1Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('bass1', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnBass1(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {
@@ -236,9 +237,7 @@ export function createPlaySynth(
             noteParams?.drive !== undefined
               ? noteParams.drive
               : params.drive || 0;
-          setTimeout(() => {
-            refs.open303ManagerRef.current?.setLead303Drive(driveAmount);
-          }, startDelay * 1000);
+          refs.open303ManagerRef.current?.scheduleParamAtTime('lead303', 'setDrive', driveAmount, noteTime);
           refs.open303ManagerRef.current?.noteOnLead303(engineMidi, velocity, noteTime);
 
           if (slideFromFreq === undefined) {

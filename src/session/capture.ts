@@ -22,7 +22,13 @@ export function captureEventsToSongStructure(
     return Array.from({ length: minMeasures }, () => createEmptyMeasure());
   }
 
-  const lastTimeline = Math.max(...events.map((e) => e.timelineStep));
+  // ⚡ Bolt Optimization: Replace Math.max(...events.map()) with a standard for loop
+  // This avoids intermediate array allocation and prevents "Maximum call stack size exceeded" errors on long captures
+  let lastTimeline = 0;
+  for (let i = 0; i < events.length; i++) {
+    const step = events[i].timelineStep;
+    if (step > lastTimeline) lastTimeline = step;
+  }
   const measureCount = Math.max(minMeasures, Math.floor(lastTimeline / spm) + 1);
 
   const slotAt = {} as Record<TrackKey, number | null>;

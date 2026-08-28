@@ -1,0 +1,64 @@
+{
+  "$comment": [
+    "Pinned toolchain versions for the native build. Read by tools/optimize.sh and",
+    "src/__tests__/wasmToolchain.test.ts; mirrored by .github/workflows/ci.yml and",
+    "AGENTS.md. Record a version here rather than in a script banner.",
+    "",
+    "emscripten: what CI installs and what emscripten/build.sh is validated against.",
+    "  3.1.51 still emits a separate *.worker.js for pthreads (see BUILD_NOTES).",
+    "",
+    "binaryen: the OUT-OF-BAND wasm-opt used by tools/optimize.sh. It is deliberately",
+    "  NOT emsdk 3.1.51's bundled wasm-opt: that one is what fails the link at -O2+",
+    "  on this pthreads+SIMD+bigint module, which is why emscripten/build.sh pins the",
+    "  link at -O1. optimize.sh refuses any wasm-opt whose reported version does not",
+    "  match `binaryen.version`, so a stray emsdk binary on PATH cannot silently",
+    "  re-introduce that failure. See BUILD_NOTES.md#wasm-opt."
+  ],
+  "emscripten": {
+    "version": "3.1.51"
+  },
+  "pyodide": {
+    "$comment": [
+      "Vendored to public/pyodide/ by scripts/fetch-pyodide.mjs (pnpm run vendor:pyodide)",
+      "and loaded same-origin by index.html + emscripten/pyodide_bootstrap.js. Nothing",
+      "reaches a CDN at runtime — see docs/adr/0001-wam2-host.md.",
+      "public/pyodide/ is gitignored; the fetch is a setup step, not a build step."
+    ],
+    "version": "0.26.1",
+    "publicPath": "/pyodide/",
+    "files": [
+      "pyodide.js",
+      "pyodide.asm.js",
+      "pyodide.asm.wasm",
+      "pyodide-lock.json",
+      "python_stdlib.zip"
+    ],
+    "$packagesComment": [
+      "Loaded by emscripten/pyodide_bootstrap.js via loadPyodide().loadPackage().",
+      "Their transitive closure is resolved from the vendored pyodide-lock.json,",
+      "so this list stays the two names the bootstrap actually asks for."
+    ],
+    "packages": ["numpy", "scipy"]
+  },
+  "binaryen": {
+    "version": 119,
+    "npmPackage": "binaryen@119.0.0",
+    "versionString": "wasm-opt version 119",
+    "features": {
+      "hyphonNative": [
+        "--enable-simd",
+        "--enable-threads",
+        "--enable-bulk-memory",
+        "--enable-sign-ext",
+        "--enable-nontrapping-float-to-int"
+      ],
+      "assemblyScriptBaseline": [
+        "--enable-simd",
+        "--enable-threads",
+        "--enable-bulk-memory",
+        "--enable-sign-ext",
+        "--enable-nontrapping-float-to-int"
+      ]
+    }
+  }
+}

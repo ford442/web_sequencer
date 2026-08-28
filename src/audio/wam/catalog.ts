@@ -1,3 +1,5 @@
+import { loadWam2Catalog } from './catalogSource';
+import { descriptorFromCatalogEntry } from './installer';
 import { hashCanonicalJson } from './integrity';
 import type { Wam2PackageDescriptor, Wam2ParamDesc } from './types';
 import { WAM2_DEFAULT_PERMISSIONS } from './types';
@@ -91,8 +93,49 @@ export async function getBundledPackage(packageId: string): Promise<Wam2PackageD
   return catalog.find((pkg) => pkg.id === packageId);
 }
 
-export function isAllowlistedPackageId(packageId: string): boolean {
+export function isBundledPackageId(packageId: string): boolean {
   return packageId === TONE_PARTIAL.id || packageId === GAIN_FX_PARTIAL.id;
+}
+
+/** @deprecated Bundled-only check; prefer {@link isAllowlistedPackageId}. */
+export const isBundledPackage = isBundledPackageId;
+
+/**
+ * Is this id on the allowlist at all — bundled fixture *or* community package?
+ *
+ * Community membership needs the catalog, which is fetched. When the catalog
+ * cannot be read (offline, a test with no fetch, a broken deploy) this reports
+ * bundled-only rather than throwing: an unreachable allowlist must fail closed
+ * to "not allowed", never open.
+ */
+export async function isAllowlistedPackageId(
+  packageId: string,
+  fetchImpl?: typeof fetch,
+): Promise<boolean> {
+  if (isBundledPackageId(packageId)) return true;
+  return (await resolveAllowlistedPackage(packageId, fetchImpl)) !== undefined;
+}
+
+/**
+ * Descriptor for any allowlisted package, from whichever source owns it.
+ *
+ * Bundled descriptors carry a fingerprint hash of their compiled-in metadata;
+ * community descriptors carry the SHA-256 of the package file's bytes, which is
+ * what {@link installCommunityPackage} verifies before importing.
+ */
+export async function resolveAllowlistedPackage(
+  packageId: string,
+  fetchImpl?: typeof fetch,
+): Promise<Wam2PackageDescriptor | undefined> {
+  const bundled = await getBundledPackage(packageId);
+  if (bundled) return bundled;
+  try {
+    const catalog = await loadWam2Catalog(fetchImpl ?? fetch);
+    const entry = catalog.packages.find((p) => p.id === packageId && p.origin === 'community');
+    return entry ? descriptorFromCatalogEntry(entry) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export const HYPHON_TONE_PACKAGE_ID = TONE_PARTIAL.id;
