@@ -234,7 +234,7 @@ export const useStepHandler = ({
             onSessionTick?.(sessionEngine.playingSlots());
             if (isE2eMode()) {
                 setE2eSessionState({
-                    playingCount: TRACK_KEYS.filter((t) => sessionEngine.playingSlot(t) != null).length,
+                    playingCount: sessionEngine.playingCount(),
                     lastApplyStep: tick.applied[0]?.step ?? (typeof window !== 'undefined' ? window.__HYPHON_E2E_SESSION__?.lastApplyStep ?? -1 : -1),
                     captureCount: sessionEngine.captureEvents.length,
                 });
