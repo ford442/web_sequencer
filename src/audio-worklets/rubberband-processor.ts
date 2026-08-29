@@ -89,6 +89,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
   private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
 
+  // Granular Filter state (1-pole lowpass)
+  private grainLpState: number = 0;
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -587,6 +590,21 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const hasActiveGrain = this.grains[0].active || this.grains[1].active;
 
             if (hasActiveGrain) {
+              // Map TTS syllable volume directly to filter cutoff in the granular engine
+              let cutoff = 20000; // default bypassed
+              if (this.phonemeData && this.phonemeRatios) {
+                  const [_, pVol, __, ___, ____, _____, ______, _______] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                  if (pVol < 1.0) {
+                      // Map volume [0, 1] to cutoff frequency [200, 20000] exponentially
+                      cutoff = 200 * Math.pow(100, pVol);
+                  }
+              }
+
+              // 1-pole IIR lowpass coefficients
+              const dt = 1.0 / sRate;
+              const rc = 1.0 / (2.0 * Math.PI * cutoff);
+              const alpha = dt / (rc + dt);
+
               for (let i = 0; i < samplesToFeed; i++) {
                 let sampleVal = 0;
                 for (let gIdx = 0; gIdx < 2; gIdx++) {
@@ -648,7 +666,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                heap[ptr + i] = sampleVal;
+
+                // Apply 1-pole lowpass filter to the combined grain signal
+                this.grainLpState += alpha * (sampleVal - this.grainLpState);
+                heap[ptr + i] = this.grainLpState;
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
             } else {
