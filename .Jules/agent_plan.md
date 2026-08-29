@@ -47,6 +47,8 @@
 - What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
+- Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?" by applying a 1-pole IIR lowpass filter to the combined grain output in the `RubberBandProcessor`. Muffled syllables (lower volume) exponentially map to a lower cutoff frequency, creating a dynamic dampening effect for speech.
+- Velocity Check: Moving the cutoff calculation outside the inner granular loop fixed the initial performance regression where filter state sharing and heavy Math operations were causing audio artifacts. The current approach is computationally cheap and correctly isolates states.
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
 - Velocity Check: Refactoring went smoothly. The architecture is much cleaner without duplicate voice maps. Also completed linking voice affinity directly to WebGPU/WASM buffers to prevent redundant host-to-device memory copies by correctly providing a bankId to `acquireVoiceForBank`.
 - Completed the "Implement per-phoneme granular synthesis grain size control" task from the Innovation Lab backlog by adding `grainSize` and `formantShift` fully to `PhonemeData`, updating the `PhonemeAligner` SharedArrayBuffer stride to 10, and modifying the `RubberBandProcessor` AudioWorklet to natively read and apply the `grainSize` parameter during FREEZE stream synthesis.
