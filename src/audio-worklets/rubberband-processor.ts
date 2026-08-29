@@ -89,6 +89,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
   private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
 
+  // Granular Filter state (1-pole lowpass)
+  private grainLpState: number = 0;
+
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
   private endSamplePtr = 0;
@@ -129,9 +132,20 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 }
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
+
+  // Sub Harmonics State
+  private subState = {
+    // Zero crossing and toggle state per channel
+    lastSign: [0, 0],
+    subToggle: [1, 1],
+    // Low pass filter state for smoothing the sub octave square wave
+    lp1: [0, 0],
+    lp2: [0, 0]
+  };
 
   constructor() {
     super();
@@ -378,6 +392,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const gateRate = parameters.gateRate ? parameters.gateRate[0] : 4.0;
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
+    const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
 
@@ -575,6 +590,21 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const hasActiveGrain = this.grains[0].active || this.grains[1].active;
 
             if (hasActiveGrain) {
+              // Map TTS syllable volume directly to filter cutoff in the granular engine
+              let cutoff = 20000; // default bypassed
+              if (this.phonemeData && this.phonemeRatios) {
+                  const [_, pVol, __, ___, ____, _____, ______, _______] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                  if (pVol < 1.0) {
+                      // Map volume [0, 1] to cutoff frequency [200, 20000] exponentially
+                      cutoff = 200 * Math.pow(100, pVol);
+                  }
+              }
+
+              // 1-pole IIR lowpass coefficients
+              const dt = 1.0 / sRate;
+              const rc = 1.0 / (2.0 * Math.PI * cutoff);
+              const alpha = dt / (rc + dt);
+
               for (let i = 0; i < samplesToFeed; i++) {
                 let sampleVal = 0;
                 for (let gIdx = 0; gIdx < 2; gIdx++) {
@@ -636,7 +666,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                         }
                     }
                 }
-                heap[ptr + i] = sampleVal;
+
+                // Apply 1-pole lowpass filter to the combined grain signal
+                this.grainLpState += alpha * (sampleVal - this.grainLpState);
+                heap[ptr + i] = this.grainLpState;
               }
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
             } else {
@@ -934,6 +967,57 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       } else if (hasStereo) {
         // If neither effect is active, but we have stereo output, just copy L to R
         outR.set(outL);
+      }
+
+      // Generate Sub-Harmonics (Vowels only)
+      if (subHarmonicsAmount > 0) {
+        // Evaluate vowel state via phoneme stride
+        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+
+        if (isVowel > 0) {
+          const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+          // Simple 1-pole LPF for the sub-octave square wave, cutoff around 80Hz
+          const cutoffFreq = 80;
+          const rc = 1.0 / (2.0 * Math.PI * cutoffFreq);
+          const dt = 1.0 / fs;
+          const alpha = dt / (rc + dt);
+
+          for (let channel = 0; channel < outputs[0].length; channel++) {
+            const outCh = outputs[0][channel];
+            if (!outCh) continue;
+            if (channel > 1) continue; // Stereo only
+
+            for (let i = 0; i < outCh.length; i++) {
+              const x = outCh[i];
+
+              // Zero crossing detector to divide frequency by 2
+              const currentSign = x >= 0 ? 1 : -1;
+              if (currentSign !== this.subState.lastSign[channel]) {
+                 if (currentSign === 1) { // Positive edge
+                    this.subState.subToggle[channel] = -this.subState.subToggle[channel];
+                 }
+                 this.subState.lastSign[channel] = currentSign;
+              }
+
+              // Raw sub-octave square wave
+              const rawSub = this.subState.subToggle[channel] * 0.5; // Scale down a bit initially
+
+              // Apply low-pass filter twice (2-pole approximation) to make it smooth/sine-like
+              this.subState.lp1[channel] = this.subState.lp1[channel] + alpha * (rawSub - this.subState.lp1[channel]);
+              this.subState.lp2[channel] = this.subState.lp2[channel] + alpha * (this.subState.lp1[channel] - this.subState.lp2[channel]);
+
+              // Apply subtle soft-clipping saturation to the sub-harmonic
+              // This adds upper harmonics to help the sub cut through on smaller speakers
+              const drive = 2.5;
+              const drivenSub = this.subState.lp2[channel] * 4.0 * drive;
+              const saturatedSub = drivenSub / (1.0 + Math.abs(drivenSub));
+
+              // Compensate for gain loss and mix with the dry signal
+              const finalSub = (saturatedSub / drive) * 4.0;
+              outCh[i] = x + (finalSub * subHarmonicsAmount);
+            }
+          }
+        }
       }
         
       // Apply Bitcrush & Downsample

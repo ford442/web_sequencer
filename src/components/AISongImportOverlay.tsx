@@ -31,7 +31,7 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress" tabIndex={-1}>
             <div className="bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.3)] p-8 max-w-md w-full mx-4">
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center" aria-hidden="true">
                         {aiImportStage === 'error' ? (
                             <span className="text-2xl text-red-400">⚠️</span>
                         ) : aiImportStage === 'complete' ? (

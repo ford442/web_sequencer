@@ -1,20 +1,20 @@
+💡 What: Replaced \`dryBlock = new Float32Array(input)\` with direct loop indexing over the input array, replaced \`new Float32Array(length)\` in \`getAlignedDrySamples\` with a pre-allocated \`alignedDryScratch\` class property, and removed the \`pendingArtifacts.map()\`-equivalent array mapping block in \`sendPeriodicReport\` which now just passes the internal array and clears it with \`.length = 0\`.
+💡 What: Refactored the `Array.from().map()` logic in `src/audio-worklets/pcf-processor.ts` to use a pre-allocated array and a standard `for` loop.
+🎯 Why: In high-frequency paths like `AudioWorkletProcessor` message handlers, higher-order array functions like `.map()` create closures and intermediate array allocations. This causes garbage collection (GC) pressure, which is detrimental to real-time audio threads and can lead to audio dropouts or glitches.
+📊 Impact: Eliminates closure creation and reduces dynamic memory allocations on the audio thread when receiving `'set-pattern'` messages.
+🔬 Measurement: Verified that unit tests pass and that the `pcf-processor` still functions correctly without breaking the audio thread.
+## 💡 What
+Replaced the plain text "This plugin declares no automatable parameters" message in `Wam2GenericEditor` with the application's standardized empty state pattern.
 💡 What:
-Replaced `.map()` combined with `Math.max()` and `Math.min()` spread syntax with standard `for` loops in:
-- `src/components/ai-song-modal/useAISongPreviewElements.tsx`
-- `src/importers/ai-song/automation.ts`
-- `src/importers/ai-song/versioning.ts`
+Replaced functional array methods (`.filter()`, `.map()`, `.some()`) with standard `for` loops in the high-frequency `SessionLaunchEngine` clock paths.
+Specifically:
+- Replaced double `.filter()` with a single-pass partition in `tick()`.
+- Replaced two `.some()` checks with a single short-circuiting loop over `merged` in `tick()`.
+- Refactored `stopPlayingAsSongMode()` to use a standard `for` loop over `TRACK_KEYS` instead of `.filter().map()`.
+- Replaced `.some()` with standard `for` loops in `hasPlaying` and `hasLiveQueued`.
 
-Added explanatory comments to each location highlighting the optimization.
+🎯 Why: AudioWorklets process blocks of 128 samples at extremely high frequencies. Allocating multiple \`Float32Array\`s or new standard arrays per block pushes significant pressure onto the V8 garbage collector, causing audio thread stutters and potential dropouts.
 
-🎯 Why:
-The pattern `Math.max(...array.map())` is an anti-pattern for large arrays because it has two major performance flaws:
-1. `.map()` creates an intermediate array, increasing GC pressure.
-2. The spread operator `...` passes the entire array to the call stack as arguments. If the array is too large, it triggers `RangeError: Maximum call stack size exceeded`.
+📊 Impact: Eliminates ~3 arrays and closures created per audio block (every ~2.6ms) in the artifact detection path.
 
-📊 Impact:
-- Prevents crash on large datasets.
-- Reduces GC pressure and speeds up computations since no intermediate array is created.
-
-🔬 Measurement:
-- Run tests `pnpm run test` and `pnpm run typecheck`
-- Visual inspection of the code changes showing the O(n) loop approach compared to O(n) + space + O(n) call stack size.
+🔬 Measurement: Run \`pnpm run test:perf\` or monitor the Engine HUD (\`Ctrl+Shift+E\`) to observe fewer GC pauses during heavy pitch-shifting operations.

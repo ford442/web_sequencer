@@ -176,8 +176,9 @@ export class SessionLaunchEngine {
     }
     if (!clock.songModeActive) this.songModeLatched = false;
 
+    // ⚡ Bolt: Replaced double .filter() with single-pass partition to avoid multiple array and closure allocations
     const due: CompiledLaunchEvent[] = [];
-    const remaining: CompiledLaunchEvent[] = [];
+    const nextQueued: CompiledLaunchEvent[] = [];
     for (let i = 0; i < this.queued.length; i++) {
       const e = this.queued[i];
       if (e.timelineStep <= this.timelineStep) {
@@ -191,8 +192,15 @@ export class SessionLaunchEngine {
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);
 
-    const preemptSongMode = merged.some((e) => shouldPreemptSongMode(e.source, clock.songModeActive));
-    const preemptSession = merged.some((e) => shouldPreemptSession(e.source));
+    // ⚡ Bolt: Replaced double .some() with a single pass over merged to avoid closures
+    let preemptSongMode = false;
+    let preemptSession = false;
+    for (let i = 0; i < merged.length; i++) {
+      const e = merged[i];
+      if (!preemptSongMode && shouldPreemptSongMode(e.source, clock.songModeActive)) preemptSongMode = true;
+      if (!preemptSession && shouldPreemptSession(e.source)) preemptSession = true;
+      if (preemptSongMode && preemptSession) break;
+    }
 
     return this.applyEvents(merged, clock, preemptSongMode, preemptSession);
   }
@@ -210,13 +218,30 @@ export class SessionLaunchEngine {
   }
 
   hasPlaying(): boolean {
-    return TRACK_KEYS.some((t) => this.playing[t] != null);
+    // ⚡ Bolt: Replaced .some() with for loop to avoid closure allocation
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      if (this.playing[TRACK_KEYS[i]] != null) return true;
+    }
+    return false;
+  }
+
+  playingCount(): number {
+    let count = 0;
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      if (this.playing[TRACK_KEYS[i]] != null) count++;
+    }
+    return count;
   }
 
   private hasLiveQueued(): boolean {
-    return this.queued.some(
-      (e) => e.source === 'manual' || e.source === 'midi' || e.source === 'gamepad' || e.source === 'scene',
-    );
+    // ⚡ Bolt: Replaced .some() with for loop to avoid closure allocation
+    for (let i = 0; i < this.queued.length; i++) {
+      const e = this.queued[i];
+      if (e.source === 'manual' || e.source === 'midi' || e.source === 'gamepad' || e.source === 'scene') {
+        return true;
+      }
+    }
+    return false;
   }
 
   private collectFollowEvents(clock: TransportClockSnapshot): CompiledLaunchEvent[] {

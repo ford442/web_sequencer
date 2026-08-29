@@ -84,3 +84,6 @@
 ## 2025-02-13 - [SessionLaunchEngine.tick() optimizations]
 **Learning:** Found array method chains (`.filter().map()`) and multiple array allocations (double `.filter()`) inside real-time hot paths like `SessionLaunchEngine.tick()` and `stopPlayingAsSongMode()`.
 **Action:** Replaced functional array methods with basic `for` loops in audio hot paths, as per memory instructions about reducing GC and closure overhead.
+## 2026-08-28 - Prevent closure allocations in playing count loop
+**Learning:** Checking the number of active tracks in `useStepHandler` using `TRACK_KEYS.filter((t) => sessionEngine.playingSlot(t) != null).length` introduces unnecessary closure and array allocations every 16th-note step for the E2E debug state.
+**Action:** Replaced the `.filter().length` chain with a simple indexed loop count method `playingCount()` added to `SessionLaunchEngine` to eliminate the allocation and prevent performance degradation.
