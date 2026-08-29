@@ -209,7 +209,7 @@ describe('CSP-legal boot path', () => {
         // hyphon_native.js runs pyodide_bootstrap.js via --post-js, and the first
         // inline module script has a top-level await, which would defer a later one.
         expect(indexHtml.indexOf('HYPHON_PYODIDE_BASE_URL'))
-            .toBeLessThan(indexHtml.indexOf('/hyphon_native.js?url'));
+            .toBeLessThan(indexHtml.indexOf('moduleUrl = `${import.meta.env.BASE_URL}hyphon_native.js`'));
     });
 
     it('can vendor Pyodide reproducibly from the pin', () => {
