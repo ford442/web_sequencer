@@ -20,8 +20,8 @@ interface BottomBarProps {
     isImportingAISong: boolean
     aiImportStage: AiImportStage
     aiImportProgress: number
-    exportSongToFile: () => Promise<void>
-    exportRbsToFile: () => Promise<void>
+    exportSongToFile: () => void
+    exportRbsToFile: () => void
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>

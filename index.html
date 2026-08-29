@@ -60,7 +60,7 @@
       // 404). This used to be `new Function('url', 'return import(url)')`, which
       // required `unsafe-eval` — forbidden by the WAM2 Phase B CSP
       // (docs/adr/0001-wam2-host.md). A plain dynamic import needs no eval.
-      import moduleUrl from '/hyphon_native.js?url';
+      const moduleUrl = `${import.meta.env.BASE_URL}hyphon_native.js`;
       const { default: Module } = await import(/* @vite-ignore */ moduleUrl);
       window.Module = await Module();
     </script>
