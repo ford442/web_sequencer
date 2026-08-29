@@ -225,6 +225,14 @@ export class SessionLaunchEngine {
     return false;
   }
 
+  playingCount(): number {
+    let count = 0;
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      if (this.playing[TRACK_KEYS[i]] != null) count++;
+    }
+    return count;
+  }
+
   private hasLiveQueued(): boolean {
     // ⚡ Bolt: Replaced .some() with for loop to avoid closure allocation
     for (let i = 0; i < this.queued.length; i++) {
