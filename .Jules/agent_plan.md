@@ -35,7 +35,7 @@
 ## Innovation Lab
 - [ ] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
-- [ ] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
+- [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
 - [ ] Explore a TTS vocal stack chorus effect using micro-delayed grains.
@@ -81,4 +81,5 @@
 - Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal...". I added an inexpensive soft-clipper to the sub-bass signal path inside the AudioWorklet before mixing it back with the dry signal.
 - Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.
 - Completed "Explore linking grain pan to phoneme voicing". Added dynamic reduction of `grainPanSpread` during consonants in `RubberBandProcessor` by passing `isVowel` from the phoneme SAB up to the spectral pan generator.
+- Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?". Added a new `phonemeFilterMod` parameter that applies a simple 1-pole Low-Pass Filter to the grain output path. The cutoff frequency scales dynamically with the phoneme volume `pVol`, making louder syllables sound brighter and softer syllables sound darker. The parameter is exposed via the UI for sequencing.
 - Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount.
