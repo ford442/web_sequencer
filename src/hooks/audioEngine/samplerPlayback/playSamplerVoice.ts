@@ -130,6 +130,7 @@ export function createPlaySamplerVoice(
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pTranceGate = noteParams?.tranceGate;
+    const pVolumeFilterMod = noteParams?.volumeFilterMod !== undefined ? noteParams.volumeFilterMod : params.volumeFilterMod;
 
     // Formant LFO
     const useFmtLfoSync = noteParams?.formantLfoSync ?? params.formantLfoSync ?? false;
@@ -351,6 +352,7 @@ export function createPlaySamplerVoice(
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+        if (pVolumeFilterMod !== undefined && (voice as any).setVolumeFilterMod) (voice as any).setVolumeFilterMod(pVolumeFilterMod, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 

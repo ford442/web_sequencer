@@ -57,4 +57,5 @@ export interface SynthEffectPropertiesProps {
   currentSpectralPanDepth?: number;
   currentReverse?: boolean;
   currentCustomWindowShape?: number[];
+  currentVolumeFilterMod?: number;
 }

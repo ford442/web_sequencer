@@ -35,11 +35,13 @@
 ## Innovation Lab
 - [ ] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
-- [ ] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
+- [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
 - [ ] Explore a TTS vocal stack chorus effect using micro-delayed grains.
 - [ ] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
+- [ ] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
+- [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -74,6 +76,8 @@
 - Velocity Check: Diagnosing the graph lifecycle proved crucial. Moving away from tearing down graph topologies on every trigger toward a patch-cable `disconnect` pattern is much healthier for continuous polyphonic modulations.
 - Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?". Modified the `RubberBandProcessor` to apply a simple and efficient soft clipper to the generated sub-octave bass tone right after the low pass filter. This introduces harmonic saturation while keeping the cost extremely low.
 - Velocity Check: The soft clipper is inexpensive to compute inside the worklet since we are using `x / (1.0 + abs(x))`. It successfully broadens the spectral presence of the sub-harmonic on devices with poor low-frequency reproduction. Added new ideas to the Innovation Lab.
+- Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?". Implemented a 1-pole low pass filter in `RubberBandProcessor` where the cutoff frequency maps dynamically between 400Hz and 8000Hz based on the `pVol` read from the phoneme stride buffer. Scaled depth based on whether it is a vowel (`isVowel`) so consonants don't lose clarity. Wired parameter up to UI.
+- Velocity Check: Utilizing a 1-pole LPF correctly placed after amplitude multiplication and before the 3-band spectral split effectively avoided conflicting with the multi-band compressor. Applying smoothing on `targetCutoff` completely eliminated zipper noise across phoneme transitions.
 
 ## Roadmap
 - Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal...". I added an inexpensive soft-clipper to the sub-bass signal path inside the AudioWorklet before mixing it back with the dry signal.

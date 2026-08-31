@@ -34,6 +34,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentPitchDecay = 0,
     currentReverse = false,
     currentRetrigger = 1,
+    currentVolumeFilterMod = 0,
     currentFreeze = 0,
     currentFormantShift,
     currentSlideFormant = false,
@@ -168,6 +169,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentDownsample={currentDownsample}
                 currentSpectralCompression={currentSpectralCompression}
                 currentTranceGate={currentTranceGate}
+                currentVolumeFilterMod={currentVolumeFilterMod}
               />
 
               <EffectsSendProperties
