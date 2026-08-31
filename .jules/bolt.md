@@ -87,3 +87,7 @@
 ## 2026-08-28 - Prevent closure allocations in playing count loop
 **Learning:** Checking the number of active tracks in `useStepHandler` using `TRACK_KEYS.filter((t) => sessionEngine.playingSlot(t) != null).length` introduces unnecessary closure and array allocations every 16th-note step for the E2E debug state.
 **Action:** Replaced the `.filter().length` chain with a simple indexed loop count method `playingCount()` added to `SessionLaunchEngine` to eliminate the allocation and prevent performance degradation.
+
+## 2024-05-32 - Optimize high-frequency object merging
+**Learning:** In high-frequency paths like `AutomationStore.setLiveValues` (called on every 16th-note step), using `Object.assign` and spread syntax to create new state references for React allocates temporary objects and symbols, leading to garbage collection (GC) pressure.
+**Action:** Avoid `Object.assign` and spread syntax for object merging in high-frequency React state updates. Manually construct the new object using standard `for...in` loops to minimize GC overhead while still providing the new reference React requires.
