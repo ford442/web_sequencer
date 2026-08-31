@@ -178,16 +178,16 @@ export class SessionLaunchEngine {
 
     // ⚡ Bolt: Replaced double .filter() with single-pass partition to avoid multiple array and closure allocations
     const due: CompiledLaunchEvent[] = [];
-    const remaining: CompiledLaunchEvent[] = [];
+    const nextQueued: CompiledLaunchEvent[] = [];
     for (let i = 0; i < this.queued.length; i++) {
       const e = this.queued[i];
       if (e.timelineStep <= this.timelineStep) {
         due.push(e);
       } else {
-        remaining.push(e);
+        nextQueued.push(e);
       }
     }
-    this.queued = remaining;
+    this.queued = nextQueued;
 
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);

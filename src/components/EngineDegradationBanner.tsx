@@ -40,7 +40,8 @@ export const EngineDegradationBanner = memo(function EngineDegradationBanner() {
                             type="button"
                             onClick={() => void handleRetry(issue.id)}
                             disabled={issue.status === 'recovering'}
-                            className="min-h-[36px] px-3 py-1 rounded-md bg-amber-800/80 hover:bg-amber-700 border border-amber-500/60 font-bold text-[10px] uppercase tracking-wider touch-manipulation disabled:opacity-50"
+                            aria-label={issue.status === 'recovering' ? `Retrying ${issue.subsystem}` : `Retry ${issue.subsystem}`}
+                            className="min-h-[36px] px-3 py-1 rounded-md bg-amber-800/80 hover:bg-amber-700 border border-amber-500/60 font-bold text-[10px] uppercase tracking-wider touch-manipulation disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-950 focus:outline-none"
                         >
                             {issue.status === 'recovering' ? 'Retrying…' : `Retry ${issue.subsystem}`}
                         </button>
