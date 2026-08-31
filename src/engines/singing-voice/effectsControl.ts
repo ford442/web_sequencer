@@ -326,6 +326,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set sub-harmonics amount.
+   * @param amount Sub-harmonics amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSubHarmonics(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "subHarmonics", amount, time);
+  },
+
+  /**
    * Set downsample factor.
    * @param factor Downsample factor (1-32)
    * @param time Optional time to apply the change

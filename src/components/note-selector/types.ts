@@ -24,6 +24,7 @@ export type PropertyChangeKey =
   | "granularPitchShift"
   | "bitcrush"
   | "spectralComp"
+  | "subHarmonics"
   | "downsample"
   | "spectralCompression"
   | "tranceGate"
