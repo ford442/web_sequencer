@@ -42,6 +42,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
   #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
   #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
+  #${CONTAINER_ID} button:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }
   #${CONTAINER_ID} button[disabled] { opacity:0.4; cursor:default; }
   #${CONTAINER_ID} .hud-wam-actions { display:flex; gap:4px; margin-left:8px; }
   #${CONTAINER_ID} .hud-wam-actions button { padding:2px 6px; font-size:10px; }
@@ -240,7 +241,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         : '<span title="Cannot be rendered in an OfflineAudioContext — track freeze is unavailable for this slot" style="color:#fbbf24">no freeze</span>';
       const mounted = slot.status === 'ready' || slot.status === 'bypassed';
       const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
-      const controls = `<button type="button" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
+      const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
       return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
