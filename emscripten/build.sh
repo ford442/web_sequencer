@@ -258,8 +258,10 @@ if [ $? -eq 0 ]; then
     node "$REPO_ROOT/tools/extract_wasm_export_map.mjs" \
         "$OUTPUT_JS" \
         "$REPO_ROOT/public/hyphon_wasm_export_map.json"
-    echo "Validating export map against emscripten/wasm_export_manifest.json..."
-    node "$REPO_ROOT/tools/check_wasm_export_map.mjs" --glue "$OUTPUT_JS"
+    echo "Validating export map against emscripten/wasm_export_manifest.json and the linked wasm..."
+    node "$REPO_ROOT/tools/check_wasm_export_map.mjs" \
+        --glue "$OUTPUT_JS" \
+        --wasm "${OUTPUT_JS%.js}.wasm"
     # Emscripten 3.1.51 emits hyphon_native.worker.js; 6.x inlines pthread workers.
     node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
         --src-dir "$REPO_ROOT/public" \

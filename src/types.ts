@@ -147,6 +147,7 @@ export interface SamplerBankParams {
   windowShape?: number;
   customGrainEnvelope?: number[];
   formantLfoSync?: boolean;
+  volumeFilterMod?: number;
   formantLfoRate?: number;
   formantLfoDepth?: number;
   customLfoShape?: number[];
@@ -494,6 +495,7 @@ export interface Note {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPanSpread?: number;
+  volumeFilterMod?: number;
   vibratoDepth?: number;
   customWindowShape?: number[];
   reverbSend?: number;
@@ -683,6 +685,7 @@ export interface AutomationPoint {
   step: number;
   value: number;
   customWindowShape?: number[];
+  volumeFilterMod?: number;
 }
 
 export interface KnobAutomation {

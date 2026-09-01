@@ -133,6 +133,7 @@ export function createPlaySamplerVoice(
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
     const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
     const pTranceGate = noteParams?.tranceGate;
+    const pVolumeFilterMod = noteParams?.volumeFilterMod !== undefined ? noteParams.volumeFilterMod : params.volumeFilterMod;
 
     // Formant LFO
     const useFmtLfoSync = noteParams?.formantLfoSync ?? params.formantLfoSync ?? false;
@@ -357,6 +358,7 @@ export function createPlaySamplerVoice(
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
         if (pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(pPhonemeFilterMod, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
+        if (pVolumeFilterMod !== undefined && (voice as any).setVolumeFilterMod) (voice as any).setVolumeFilterMod(pVolumeFilterMod, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 

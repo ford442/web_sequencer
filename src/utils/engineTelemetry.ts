@@ -703,41 +703,87 @@ export function parseHyphonGlueExportMap(glueSource: string): Record<string, str
   return map;
 }
 
-/**
- * Load the WASM export map: JSON first, then glue-source fallback.
- */
-export async function loadHyphonWasmExportMap(): Promise<Record<string, string>> {
+/** Keys present in either map whose values disagree (including absent vs present). */
+export function countExportMapDrift(
+  jsonMap: Record<string, string>,
+  glueMap: Record<string, string>,
+): number {
+  const keys = new Set([...Object.keys(jsonMap), ...Object.keys(glueMap)]);
+  let drift = 0;
+  for (const key of keys) {
+    if (jsonMap[key] !== glueMap[key]) drift += 1;
+  }
+  return drift;
+}
+
+async function fetchJsonExportMap(): Promise<Record<string, string>> {
   const jsonUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
   try {
     const response = await fetch(jsonUrl);
-    if (response.ok) {
-      const fromJson = (await response.json()) as Record<string, string>;
-      if (fromJson && Object.keys(fromJson).length > 0) {
-        return fromJson;
-      }
+    if (!response.ok) return {};
+    const fromJson = (await response.json()) as Record<string, string>;
+    if (fromJson && typeof fromJson === 'object' && !Array.isArray(fromJson)) {
+      return fromJson;
     }
   } catch {
-    /* try glue fallback */
+    /* missing or invalid */
   }
+  return {};
+}
 
+async function fetchGlueExportMap(): Promise<Record<string, string>> {
   const glueUrl = resolvePublicAsset('hyphon_native.js');
   try {
     const response = await fetch(glueUrl);
-    if (response.ok) {
-      const glue = await response.text();
-      const fromGlue = parseHyphonGlueExportMap(glue);
-      if (Object.keys(fromGlue).length > 0) {
-        console.warn(
-          `[EngineTelemetry] hyphon_wasm_export_map.json empty or missing; recovered ${Object.keys(fromGlue).length} exports from glue`,
-        );
-        return fromGlue;
-      }
-    }
+    if (!response.ok) return {};
+    return parseHyphonGlueExportMap(await response.text());
   } catch {
-    /* fall through */
+    return {};
+  }
+}
+
+async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>> {
+  const [fromJson, fromGlue] = await Promise.all([fetchJsonExportMap(), fetchGlueExportMap()]);
+  const jsonCount = Object.keys(fromJson).length;
+  const glueCount = Object.keys(fromGlue).length;
+
+  if (glueCount > 0 && jsonCount > 0) {
+    const drift = countExportMapDrift(fromJson, fromGlue);
+    if (drift > 0) {
+      console.warn(
+        `[EngineTelemetry] hyphon_wasm_export_map.json disagrees with hyphon_native.js glue on ${drift} export(s); using glue`,
+      );
+      return fromGlue;
+    }
+    return fromJson;
   }
 
-  return {};
+  if (glueCount > 0) {
+    console.warn(
+      `[EngineTelemetry] hyphon_wasm_export_map.json empty or missing; recovered ${glueCount} exports from glue`,
+    );
+    return fromGlue;
+  }
+
+  return fromJson;
+}
+
+let exportMapPromise: Promise<Record<string, string>> | null = null;
+
+/** Drop the memoized export-map fetch. For tests only. */
+export function resetHyphonWasmExportMapCache(): void {
+  exportMapPromise = null;
+}
+
+/**
+ * Load the WASM export map: JSON and glue in parallel.
+ * Glue wins when it is non-empty and disagrees with JSON (stale identity maps).
+ */
+export async function loadHyphonWasmExportMap(): Promise<Record<string, string>> {
+  if (!exportMapPromise) {
+    exportMapPromise = loadHyphonWasmExportMapUncached();
+  }
+  return exportMapPromise;
 }
 
 /** Active engine fallbacks for UI/diagnostics (subsystem → reason). */

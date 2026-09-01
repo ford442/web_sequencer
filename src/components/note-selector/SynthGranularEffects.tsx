@@ -49,6 +49,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentFormantEnvFollower = 0,
     currentDrive,
     currentVibratoDepth = 0,
+    currentVolumeFilterMod = 0,
     currentCustomWindowShape,
     currentVowel = 0,
     currentPortamento = 0,
@@ -470,6 +471,18 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         onChange={(v) => onPropertyChange?.("spectralComp", v)}
         valueFormatter={() =>
           `${((currentSpectralComp ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-indigo-400 hover:accent-indigo-300"
+        borderColor="border-indigo-900/30"
+      />
+      <PropertySlider
+        label="Syllable Filter"
+        id="note-vol-filter-mod"
+        ariaLabel="Syllable Filter Amount Override"
+        value={currentVolumeFilterMod ?? 0}
+        onChange={(v) => onPropertyChange?.("volumeFilterMod", v)}
+        valueFormatter={() =>
+          `${((currentVolumeFilterMod ?? 0) * 100).toFixed(0)}%`
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"
