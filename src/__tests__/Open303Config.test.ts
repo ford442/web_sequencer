@@ -8,6 +8,10 @@ vi.stubGlobal('WebAssembly', {
     compile: vi.fn().mockResolvedValue(mockWasmModule),
     Module: {
         imports: vi.fn().mockReturnValue([]),
+        exports: vi.fn().mockReturnValue([
+            { name: 'da', kind: 'function' },
+            { name: 'fa', kind: 'function' },
+        ]),
     },
 });
 
