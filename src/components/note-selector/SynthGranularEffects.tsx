@@ -28,6 +28,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentVocoderPreservation,
     currentBitcrush = 0,
     currentSpectralComp = 0,
+    currentSubHarmonics = 0,
     currentDownsample = 1,
     currentSpectralCompression = 0,
     currentTranceGate = 0,
@@ -482,6 +483,18 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         onChange={(v) => onPropertyChange?.("volumeFilterMod", v)}
         valueFormatter={() =>
           `${((currentVolumeFilterMod ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-indigo-400 hover:accent-indigo-300"
+        borderColor="border-indigo-900/30"
+      />
+      <PropertySlider
+        label="Sub Bass"
+        id="note-sub-harmonics"
+        ariaLabel="Sub Bass Amount"
+        value={currentSubHarmonics ?? 0}
+        onChange={(v) => onPropertyChange?.("subHarmonics", v)}
+        valueFormatter={() =>
+          `${((currentSubHarmonics ?? 0) * 100).toFixed(0)}%`
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"

@@ -178,16 +178,16 @@ export class SessionLaunchEngine {
 
     // ⚡ Bolt: Replaced double .filter() with single-pass partition to avoid multiple array and closure allocations
     const due: CompiledLaunchEvent[] = [];
-    const nextQueued: CompiledLaunchEvent[] = [];
+    const remaining: CompiledLaunchEvent[] = [];
     for (let i = 0; i < this.queued.length; i++) {
       const e = this.queued[i];
       if (e.timelineStep <= this.timelineStep) {
         due.push(e);
       } else {
-        nextQueued.push(e);
+        remaining.push(e);
       }
     }
-    this.queued = nextQueued;
+    this.queued = remaining;
 
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);
@@ -223,6 +223,14 @@ export class SessionLaunchEngine {
       if (this.playing[TRACK_KEYS[i]] != null) return true;
     }
     return false;
+  }
+
+  playingCount(): number {
+    let count = 0;
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+      if (this.playing[TRACK_KEYS[i]] != null) count++;
+    }
+    return count;
   }
 
   private hasLiveQueued(): boolean {
@@ -352,12 +360,11 @@ export class SessionLaunchEngine {
   private stopPlayingAsSongMode(clock: TransportClockSnapshot): CompiledLaunchEvent[] {
     if (!this.hasPlaying()) return [];
     const q = quantizeLaunch('immediate', clock, clock.step, clock.audioTime, this.timelineStep);
-    // ⚡ Bolt: Replaced .filter().map() with standard for loop to avoid closure and array allocations
-    const out: CompiledLaunchEvent[] = [];
+    const events: CompiledLaunchEvent[] = [];
     for (let i = 0; i < TRACK_KEYS.length; i++) {
       const track = TRACK_KEYS[i];
       if (this.playing[track]) {
-        out.push(
+        events.push(
           this.makeEvent(
             {
               kind: 'stop-all',
@@ -371,11 +378,11 @@ export class SessionLaunchEngine {
             track,
             'stop',
             null,
-          )
+          ),
         );
       }
     }
-    return out;
+    return events;
   }
 
   private makeEvent(

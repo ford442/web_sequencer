@@ -156,8 +156,10 @@ export interface SamplerBankParams {
   reverbLfoDepth?: number;
   bitcrush?: number;
   spectralComp?: number;
+  subHarmonics?: number;
   downsample?: number;
   spectralCompression?: number;
+  phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   formantEnvAttack?: number;
@@ -503,6 +505,7 @@ export interface Note {
   spectralComp?: number;
   downsample?: number;
   spectralCompression?: number;
+  phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
   delaySend?: number;
@@ -512,6 +515,7 @@ export interface Note {
   choir?: number;
   drive?: number;
   tranceGate?: number;
+  subHarmonics?: number;
   formantEnvSync?: boolean;
   formantEnvAttack?: number;
   formantEnvDecay?: number;

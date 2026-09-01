@@ -187,8 +187,8 @@ export const App: React.FC = () => {
             />
 
             <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
-            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={handleAISongImport} onShowToast={showToast} isImporting={isImportingAISong} />
-            <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={handleRbsImport} onShowToast={showToast} />
+            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} />
+            <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
             <ExportModal
                 isOpen={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
@@ -313,9 +313,9 @@ export const App: React.FC = () => {
                 isImportingAISong={isImportingAISong}
                 aiImportStage={aiImportStage}
                 aiImportProgress={aiImportProgress}
-                exportSongToFile={exportSongToFile}
-                exportRbsToFile={exportRbsToFile}
-                importSongFromFile={importSongFromFile}
+                exportSongToFile={() => { void exportSongToFile(); }}
+                exportRbsToFile={() => { void exportRbsToFile(); }}
+                importSongFromFile={() => { void importSongFromFile(); }}
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
                 setIsExportModalOpen={setIsExportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}

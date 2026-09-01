@@ -23,6 +23,7 @@ export interface SynthEffectPropertiesProps {
   currentVocoderPreservation?: number;
   currentBitcrush?: number;
   currentSpectralComp?: number;
+  currentSubHarmonics?: number;
   currentDownsample?: number;
   currentSpectralCompression?: number;
   currentTranceGate?: number;

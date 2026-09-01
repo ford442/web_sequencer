@@ -299,6 +299,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set phoneme filter mod amount.
+   * @param amount Phoneme filter mod amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setPhonemeFilterMod(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "phonemeFilterMod", amount, time);
+  },
+
+  /**
    * Set bitcrush amount.
    * @param amount Bitcrush amount (0-1)
    * @param time Optional time to apply the change
@@ -314,6 +323,15 @@ export const EffectsControlMixin = {
    */
   setSpectralComp(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "spectralComp", amount, time);
+  },
+
+  /**
+   * Set sub-harmonics amount.
+   * @param amount Sub-harmonics amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setSubHarmonics(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "subHarmonics", amount, time);
   },
 
   /**
