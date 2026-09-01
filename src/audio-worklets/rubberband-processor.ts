@@ -137,10 +137,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
       { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
-      { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
+
+  // Syllable Volume Filter State
+  private volFilterLp: number[] = [0, 0];
+  private volFilterCutoffSmooth: number = 20000;
 
   // Sub Harmonics State
   private subState = {
@@ -268,6 +272,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
 
         this.isPlaying = true;
+        this.volFilterLp[0] = 0;
+        this.volFilterLp[1] = 0;
         break;
 
       case 'noteOff':
@@ -811,6 +817,33 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Apply Rhythmic Gating (Trance Gate)
       const gateDepth = parameters.gateDepth ? parameters.gateDepth[0] : 0.0;
       const gateRate = parameters.gateRate ? parameters.gateRate[0] : 0.0;
+
+      // Apply Syllable Volume Filter
+      const volFilterMod = parameters.volumeFilterMod ? parameters.volumeFilterMod[0] : 0.0;
+      if (volFilterMod > 0 && this.isPlaying && this.phonemeData) {
+        const [_, pVol, __, ___, ____, _____, ______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const amount = volFilterMod * (0.25 + 0.75 * isVowel);
+        // Log scale mapping from 400Hz to 8000Hz based on clamped pVol
+        const targetCutoff = 400 * Math.pow(8000 / 400, Math.min(1.0, Math.max(0.0, pVol)) * amount);
+
+        // Smooth target -> cutoffState at block rate using a fixed ~10ms time constant
+        const dt = 1.0 / this.sampleRate;
+        const smoothAlpha = dt / (0.01 + dt);
+        this.volFilterCutoffSmooth = this.volFilterCutoffSmooth + smoothAlpha * (targetCutoff - this.volFilterCutoffSmooth);
+
+        const rc = 1.0 / (2.0 * Math.PI * this.volFilterCutoffSmooth);
+        const alpha = dt / (rc + dt);
+
+        // 1-pole filter processing per channel
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+          for (let i = 0; i < outCh.length; i++) {
+            this.volFilterLp[channel] = this.volFilterLp[channel] + alpha * (outCh[i] - this.volFilterLp[channel]);
+            outCh[i] = this.volFilterLp[channel];
+          }
+        }
+      }
 
       if (gateDepth > 0 && gateRate > 0) {
         const sampleRate = (globalThis as any).sampleRate ?? 44100;

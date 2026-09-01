@@ -4,6 +4,7 @@
 import {
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     buildHyphonWasmImports,
+    formatMissingWasmExports,
     normalizeWasmExports,
 } from './hyphonNativeImports';
 import { WorkletPerfReporter } from './workletPerfReporter';
@@ -313,7 +314,8 @@ class Open303Processor extends AudioWorkletProcessor {
         });
 
         this.wasmInstance = await Promise.race([instantiatePromise, timeoutPromise]);
-        this.normalizedExports = normalizeWasmExports(this.wasmInstance.exports, data.exportMap ?? {});
+        const rawExports = this.wasmInstance.exports;
+        this.normalizedExports = normalizeWasmExports(rawExports, data.exportMap ?? {});
         console.log('[Open303] WASM instantiated successfully');
 
         this.updateHeap();
@@ -338,7 +340,13 @@ class Open303Processor extends AudioWorkletProcessor {
 
         if (!hasNative && !hasLegacy) {
             throw new Error(
-                `Missing required exports: neither open303_* (native) nor jc303_* (legacy) found`
+                `Missing required exports: neither open303_* (native) nor jc303_* (legacy) found. ` +
+                formatMissingWasmExports(rawExports, [
+                    'open303_create',
+                    'open303_init',
+                    'jc303_init',
+                    'jc303_process',
+                ]),
             );
         }
 

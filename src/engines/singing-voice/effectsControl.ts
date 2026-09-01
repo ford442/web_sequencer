@@ -344,6 +344,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set syllable volume filter modulation depth.
+   * @param depth Modulation depth (0-1)
+   * @param time Optional time to apply the change
+   */
+  setVolumeFilterMod(this: SingingVoiceHost, depth: number, time?: number): void {
+    setWorkletParam(this, "volumeFilterMod", depth, time);
+  },
+
+  /**
    * Set custom shape for granular synthesis windowing.
    * @param shape Array of normalized values (0.0 to 1.0)
    * @param time Optional time to apply the change (default: now)
