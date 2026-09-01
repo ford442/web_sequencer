@@ -137,7 +137,7 @@ export function useLyricHandlers(deps: {
 
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                 const stepTime = 60 / tempoRef.current / 4;
-                const newSteps = Array(32).fill(null);
+                const newSteps = new Array<Note | null>(32).fill(null);
 
                 for (let i = 0; i < alignment.phonemes.length; i++) {
                     const p: PhonemeSegment = alignment.phonemes[i];
@@ -154,13 +154,11 @@ export function useLyricHandlers(deps: {
                     }
                 }
 
+                const newSampler = [...prev.sampler];
+                newSampler[bankIdx] = { ...newSampler[bankIdx], steps: newSteps };
                 newPattern = {
                     ...prev,
-                    sampler: prev.sampler.map((bank, idx) =>
-                        idx === bankIdx
-                            ? { ...bank, steps: newSteps }
-                            : bank
-                    ),
+                    sampler: newSampler,
                 };
             } else {
                 newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
