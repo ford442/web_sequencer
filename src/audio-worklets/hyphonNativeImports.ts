@@ -57,6 +57,36 @@ export function normalizeWasmExports(
   return normalized;
 }
 
+/** How many raw WASM export names to include in mismatch errors. */
+const WASM_EXPORT_NAME_PREVIEW = 48;
+
+/**
+ * Describe a missing-API failure with the actual (often minified) export names
+ * present on the instantiated module, so a stale export map is obvious in logs.
+ */
+export function formatMissingWasmExports(
+  rawExports: WebAssembly.Exports,
+  requiredBareNames: readonly string[],
+): string {
+  const names = Object.keys(rawExports).sort();
+  const preview = names.slice(0, WASM_EXPORT_NAME_PREVIEW).join(', ');
+  const extra =
+    names.length > WASM_EXPORT_NAME_PREVIEW
+      ? ` … (+${names.length - WASM_EXPORT_NAME_PREVIEW} more)`
+      : '';
+  return (
+    `missing ${requiredBareNames.join(', ')}. ` +
+    `WASM exports (${names.length}): ${preview}${extra}`
+  );
+}
+
+export function hasProphecyApi(exports: Record<string, unknown>): boolean {
+  return (
+    typeof exports.prophecy_create === 'function' &&
+    typeof exports.prophecy_init === 'function'
+  );
+}
+
 export interface HyphonNativeImportContext {
   getWasmInstance: () => WebAssembly.Instance | null;
   getImportedMemory: () => WebAssembly.Memory | null;

@@ -176,6 +176,12 @@ describe('pinned wasm-opt', () => {
         expect(read('tools/check_wasm_export_map.mjs')).toContain("'--wasm'");
     });
 
+    it('release and emcc builds re-check the linked wasm, not only glue', () => {
+        expect(packageJson.scripts['build:release']).toContain('--wasm public/hyphon_native.wasm');
+        expect(packageJson.scripts['build:release:changed']).toContain('--wasm public/hyphon_native.wasm');
+        expect(withoutShellComments(buildSh)).toContain('--wasm');
+    });
+
     it('is opt-in, not part of build:release', () => {
         expect(packageJson.scripts['build:release']).not.toContain('optimize');
         expect(packageJson.scripts.optimize).toContain('tools/optimize.sh');
