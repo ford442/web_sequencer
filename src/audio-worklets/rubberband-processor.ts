@@ -138,7 +138,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
       { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
       { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -151,6 +152,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     lp1: [0, 0],
     lp2: [0, 0]
   };
+
+  // Chorus State
+  // 1-second max buffer size for delay lines (48000 frames)
+  private chorusBuffer: Float32Array[] = [new Float32Array(48000), new Float32Array(48000)];
+  private chorusWritePtr: number = 0;
+  private chorusLfoPhase: number = 0;
 
   constructor() {
     super();
@@ -398,6 +405,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
     const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
+    const vocalChorusAmount = parameters.vocalChorus ? parameters.vocalChorus[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
 
@@ -1003,6 +1011,87 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       } else if (hasStereo) {
         // If neither effect is active, but we have stereo output, just copy L to R
         outR.set(outL);
+      }
+
+      // Vocal Stack Chorus Effect (Post-Retrieve Micro-Delay Taps)
+      if (vocalChorusAmount > 0) {
+        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+
+        // Consonants get 30% of the wet amount to prevent smearing plosives
+        const wetMod = isVowel > 0 ? 1.0 : 0.3;
+        const currentWet = vocalChorusAmount * wetMod;
+
+        const fs = this.sampleRate || (globalThis as { sampleRate?: number }).sampleRate || 44100;
+        const bufferSize = this.chorusBuffer[0].length;
+
+        // Block-rate LFO increment
+        const lfoRate = 0.6; // Hz
+        const lfoPhaseInc = (2.0 * Math.PI * lfoRate) / fs;
+
+        for (let i = 0; i < outputs[0][0].length; i++) {
+          this.chorusLfoPhase += lfoPhaseInc;
+          if (this.chorusLfoPhase > 2.0 * Math.PI) {
+            this.chorusLfoPhase -= 2.0 * Math.PI;
+          }
+
+          const lfoVal = Math.sin(this.chorusLfoPhase);
+
+          for (let channel = 0; channel < outputs[0].length; channel++) {
+            const outCh = outputs[0][channel];
+            if (!outCh) continue;
+
+            const buf = this.chorusBuffer[channel];
+
+            // Read dry sample
+            const dry = outCh[i];
+
+            // Write to delay line
+            buf[this.chorusWritePtr] = dry;
+
+            // Calculate delay times for 2 taps
+            // Base delays in the 7-23ms range, scaled by lfo
+            // Tap 1: ~12ms
+            // Tap 2: ~18ms
+            const delay1Ms = 12.0 + (lfoVal * 3.0 * vocalChorusAmount);
+            const delay2Ms = 18.0 + (-lfoVal * 4.0 * vocalChorusAmount);
+
+            const delay1Frames = delay1Ms * 0.001 * fs;
+            const delay2Frames = delay2Ms * 0.001 * fs;
+
+            // Read pointers
+            let readPtr1 = this.chorusWritePtr - Math.floor(delay1Frames);
+            let readPtr2 = this.chorusWritePtr - Math.floor(delay2Frames);
+
+            if (readPtr1 < 0) readPtr1 += bufferSize;
+            if (readPtr2 < 0) readPtr2 += bufferSize;
+
+            const tap1 = buf[readPtr1];
+            const tap2 = buf[readPtr2];
+
+            // Constant power panning. Tap 1 left-biased, Tap 2 right-biased
+            let mixedWet = 0;
+            if (channel === 0) { // Left channel
+               mixedWet = (tap1 * 0.8) + (tap2 * 0.2);
+            } else if (channel === 1) { // Right channel
+               mixedWet = (tap1 * 0.2) + (tap2 * 0.8);
+            } else {
+               mixedWet = (tap1 + tap2) * 0.5;
+            }
+
+            // Mix Dry and Wet
+            // Dampen dry signal slightly to compensate for wet gain sum
+            const dryGain = 1.0 - (currentWet * 0.3);
+            const wetGain = currentWet * 0.7;
+
+            outCh[i] = (dry * dryGain) + (mixedWet * wetGain);
+          }
+
+          // Advance global write pointer safely
+          this.chorusWritePtr++;
+          if (this.chorusWritePtr >= bufferSize) {
+             this.chorusWritePtr = 0;
+          }
+        }
       }
 
       // Generate Sub-Harmonics (Vowels only)
