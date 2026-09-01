@@ -1,3 +1,5 @@
+import type { PcfEffect } from '../audio/graph/pcfEffect';
+import type { Open303Manager } from '../engines/Open303Manager';
 /**
  * AutomationScheduler.test.ts
  *
@@ -202,11 +204,11 @@ describe('AutomationScheduler.cancelAll', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const lane = makeLane({
-      target: 'master' as any,
+      target: 'master',
       parameter: 'pcfCutoff',
       points: [{ step: 0, value: 0.5 }],
     });
@@ -236,7 +238,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('does nothing when passed an empty lanes array', () => {
     const ctx = makeAudioContext();
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
     expect(() => scheduler.scheduleFromLanes([], 0, 1, 0.5, 0)).not.toThrow();
     vi.runAllTimers();
     expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
@@ -245,7 +247,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('does nothing for a disabled lane', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({ enabled: false, points: [{ step: 0, value: 0.7 }] });
 
@@ -257,7 +259,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('schedules a synthA cutoff value directly on the Open303 audio clock', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({ target: 'synthA', parameter: 'filterCutoff', points: [{ step: 0, value: 0.75 }] });
 
@@ -273,7 +275,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('schedules a synthB resonance for the bass1 voice', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({ target: 'synthB', parameter: 'filterResonance', points: [{ step: 0, value: 0.4 }] });
 
@@ -285,7 +287,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('schedules a bass2 decay for the bass2 voice', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({ target: 'bass2', parameter: 'decay', points: [{ step: 0, value: 0.6 }] });
 
@@ -297,7 +299,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('uses originalRange to denormalise value before scheduling', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({
       target: 'synthA',
@@ -327,7 +329,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('calls scheduleParamAtTime with setAccent for an accent lane', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({
       target: 'synthA',
@@ -347,7 +349,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('calls scheduleSlideAtTime with enabled=true when slide lane value >= 0.5', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({
       target: 'synthA',
@@ -365,7 +367,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
   it('calls scheduleSlideAtTime with enabled=false when slide lane value < 0.5', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const lane = makeLane({
       target: 'synthA',
@@ -389,7 +391,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('does nothing with an empty events array', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
     expect(() => scheduler.scheduleFromTrakEvents([], 120, 0, 0, 96)).not.toThrow();
     vi.runAllTimers();
     expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
@@ -398,7 +400,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('skips events outside the fromTick–toTick window', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const events = [
       { tick: 0, trackIndex: TB303_1, ctrlId: TB303_TRAK_CONTROLLER.CUTOFF, value: 64 },
@@ -413,7 +415,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('schedules a TB-303 #1 cutoff event at the correct audio time', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
 
     const tempo = 120;
     const events = [{ tick: 24, trackIndex: TB303_1, ctrlId: TB303_TRAK_CONTROLLER.CUTOFF, value: 64 }];
@@ -432,7 +434,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('schedules a TB-303 #2 cutoff event for bass1 voice', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
 
     const events = [{ tick: 6, trackIndex: TB303_2, ctrlId: TB303_TRAK_CONTROLLER.CUTOFF, value: 100 }];
 
@@ -445,7 +447,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('ignores pattern-select events (does not call setCutoff with pattern index)', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
 
     const events = [
       { tick: 0, trackIndex: TB303_1, ctrlId: TB303_TRAK_CONTROLLER.PATTERN_SELECT, value: 3 },
@@ -467,7 +469,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
   it('ignores events whose ctrlId has no mapping on that track', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
 
     const UNKNOWN_CTRL = 0xff;
     const events = [{ tick: 10, trackIndex: TB303_1, ctrlId: UNKNOWN_CTRL, value: 64 }];
@@ -499,11 +501,11 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const lane = makeLane({
-      target: 'master' as any,
+      target: 'master',
       parameter: 'pcfCutoff',
       points: [{ step: 0, value: 0.5 }],
     });
@@ -522,11 +524,11 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const lane = makeLane({
-      target: 'master' as any,
+      target: 'master',
       parameter: 'pcfResonance',
       points: [{ step: 0, value: 1.0 }],
     });
@@ -544,11 +546,11 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const lane = makeLane({
-      target: 'master' as any,
+      target: 'master',
       parameter: 'pcfEnvAmount',
       points: [{ step: 0, value: 0.75 }],
     });
@@ -566,11 +568,11 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
     // intentionally NOT calling setPcfEffect
 
     const lane = makeLane({
-      target: 'master' as any,
+      target: 'master',
       parameter: 'pcfCutoff',
       points: [{ step: 0, value: 0.5 }],
     });
@@ -597,8 +599,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const events = [{ tick: 24, trackIndex: PCF_TRACK, ctrlId: PCF_TRAK_CONTROLLER.FREQUENCY, value: 64 }];
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
@@ -613,8 +615,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const events = [{ tick: 12, trackIndex: PCF_TRACK, ctrlId: PCF_TRAK_CONTROLLER.RESONANCE, value: 100 }];
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
@@ -627,8 +629,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const events = [{ tick: 6, trackIndex: PCF_TRACK, ctrlId: PCF_TRAK_CONTROLLER.AMOUNT, value: 64 }];
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
@@ -641,7 +643,7 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
     scheduler.setPcfEffect(null);
 
     const events = [{ tick: 6, trackIndex: PCF_TRACK, ctrlId: PCF_TRAK_CONTROLLER.FREQUENCY, value: 64 }];
@@ -655,8 +657,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
-    const scheduler = new AutomationScheduler(ctx, mgr as any, { ppq: 24 });
-    scheduler.setPcfEffect(pcf as any);
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
 
     const events = [
       { tick: 6, trackIndex: TB303_1, ctrlId: TB303_TRAK_CONTROLLER.CUTOFF, value: 80 },

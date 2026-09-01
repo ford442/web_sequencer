@@ -77,6 +77,7 @@ export const ContextMenuNode = React.memo(() => {
           currentBitcrush={stepData?.bitcrush}
           currentDownsample={stepData?.downsample}
           currentSpectralCompression={stepData?.spectralCompression}
+          currentVolumeFilterMod={stepData?.volumeFilterMod}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}

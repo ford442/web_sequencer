@@ -25,9 +25,11 @@ export type PropertyChangeKey =
   | "bitcrush"
   | "spectralComp"
   | "subHarmonics"
+  | "vocalChorus"
   | "downsample"
   | "spectralCompression"
   | "tranceGate"
+  | "volumeFilterMod"
   | "formantShift"
   | "formantPitchLink"
   | "filterCutoff"
@@ -102,6 +104,7 @@ export interface NoteSelectorProps {
   currentDownsample?: number;
   currentSpectralCompression?: number;
   currentSubHarmonics?: number;
+  currentVolumeFilterMod?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;

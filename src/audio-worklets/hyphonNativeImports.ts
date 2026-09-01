@@ -57,6 +57,87 @@ export function normalizeWasmExports(
   return normalized;
 }
 
+/** How many raw WASM export names to include in mismatch errors. */
+const WASM_EXPORT_NAME_PREVIEW = 48;
+
+/**
+ * Describe a missing-API failure with the actual (often minified) export names
+ * present on the instantiated module, so a stale export map is obvious in logs.
+ */
+export function formatMissingWasmExports(
+  rawExports: WebAssembly.Exports,
+  requiredBareNames: readonly string[],
+): string {
+  const names = Object.keys(rawExports).sort();
+  const preview = names.slice(0, WASM_EXPORT_NAME_PREVIEW).join(', ');
+  const extra =
+    names.length > WASM_EXPORT_NAME_PREVIEW
+      ? ` … (+${names.length - WASM_EXPORT_NAME_PREVIEW} more)`
+      : '';
+  return (
+    `missing ${requiredBareNames.join(', ')}. ` +
+    `WASM exports (${names.length}): ${preview}${extra}`
+  );
+}
+
+/** Bare export names the Open303 worklet must resolve via the export map. */
+export const OPEN303_REQUIRED_WASM_EXPORTS = [
+  'open303_create',
+  'open303_init',
+  'jc303_init',
+  'jc303_process',
+] as const;
+
+/** Bare export names the Prophecy worklet must resolve via the export map. */
+export const PROPHECY_REQUIRED_WASM_EXPORTS = [
+  'prophecy_create',
+  'prophecy_init',
+  'prophecy_process',
+] as const;
+
+/** Name-only snapshot of a compiled module's exports (for main-thread diagnostics). */
+export function wasmExportNameSnapshot(module: WebAssembly.Module): WebAssembly.Exports {
+  const out: Record<string, unknown> = {};
+  for (const entry of WebAssembly.Module.exports(module)) {
+    out[entry.name] = null;
+  }
+  return out as WebAssembly.Exports;
+}
+
+/**
+ * True when the export map fails to surface either the native open303_* API or
+ * the legacy jc303_* API against the compiled module's raw export table.
+ */
+export function open303ExportMapInsufficient(
+  module: WebAssembly.Module,
+  exportMap: WasmExportMap,
+): boolean {
+  const normalized = normalizeWasmExports(wasmExportNameSnapshot(module), exportMap);
+  const hasNative =
+    typeof normalized.open303_create === 'function' &&
+    typeof normalized.open303_init === 'function';
+  const hasLegacy =
+    typeof normalized.jc303_init === 'function' &&
+    typeof normalized.jc303_process === 'function';
+  return !hasNative && !hasLegacy;
+}
+
+/** True when prophecy_create/init cannot be resolved from the export map. */
+export function prophecyExportMapInsufficient(
+  module: WebAssembly.Module,
+  exportMap: WasmExportMap,
+): boolean {
+  const normalized = normalizeWasmExports(wasmExportNameSnapshot(module), exportMap);
+  return !hasProphecyApi(normalized);
+}
+
+export function hasProphecyApi(exports: Record<string, unknown>): boolean {
+  return (
+    typeof exports.prophecy_create === 'function' &&
+    typeof exports.prophecy_init === 'function'
+  );
+}
+
 export interface HyphonNativeImportContext {
   getWasmInstance: () => WebAssembly.Instance | null;
   getImportedMemory: () => WebAssembly.Memory | null;

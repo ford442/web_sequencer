@@ -147,6 +147,7 @@ export interface SamplerBankParams {
   windowShape?: number;
   customGrainEnvelope?: number[];
   formantLfoSync?: boolean;
+  volumeFilterMod?: number;
   formantLfoRate?: number;
   formantLfoDepth?: number;
   customLfoShape?: number[];
@@ -156,6 +157,7 @@ export interface SamplerBankParams {
   bitcrush?: number;
   spectralComp?: number;
   subHarmonics?: number;
+  vocalChorus?: number;
   downsample?: number;
   spectralCompression?: number;
   phonemeFilterMod?: number;
@@ -493,6 +495,7 @@ export interface Note {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPanSpread?: number;
+  volumeFilterMod?: number;
   vibratoDepth?: number;
   customWindowShape?: number[];
   reverbSend?: number;
@@ -514,6 +517,7 @@ export interface Note {
   drive?: number;
   tranceGate?: number;
   subHarmonics?: number;
+  vocalChorus?: number;
   formantEnvSync?: boolean;
   formantEnvAttack?: number;
   formantEnvDecay?: number;
@@ -681,6 +685,7 @@ export interface AutomationPoint {
   step: number;
   value: number;
   customWindowShape?: number[];
+  volumeFilterMod?: number;
 }
 
 export interface KnobAutomation {

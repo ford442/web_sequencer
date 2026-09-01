@@ -21,7 +21,13 @@ import {
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
 import { attachWorkletPerf } from '../utils/workletPerfBridge';
-import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
+import {
+    formatMissingWasmExports,
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    OPEN303_REQUIRED_WASM_EXPORTS,
+    open303ExportMapInsufficient,
+    wasmExportNameSnapshot,
+} from '../audio-worklets/hyphonNativeImports';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
@@ -82,7 +88,7 @@ export class Open303Oscillator {
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                const exportMap = await this.fetchExportMap();
+                const exportMap = await this.fetchExportMap(wasmBytes);
                 return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true, exportMap);
 
             } catch (e) {
@@ -105,15 +111,33 @@ export class Open303Oscillator {
      * Complete the worklet init given pre-fetched WASM bytes.
      * Extracted so that the native/legacy retry path can reuse it.
      */
-    private async fetchExportMap(): Promise<Record<string, string>> {
+    private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
         const map = await loadHyphonWasmExportMap();
+        const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
+        const glueUrl = resolvePublicAsset('hyphon_native.js');
+        const wasmModule = await WebAssembly.compile(wasmBytes);
+        const rawExports = wasmExportNameSnapshot(wasmModule);
+
         if (Object.keys(map).length === 0) {
             logEngineFallback(
                 'open303',
                 'wasm-worklet',
-                'hyphon_wasm_export_map.json empty and glue parse found no exports — worklet cannot resolve minified WASM symbols',
+                `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+                `(tried ${mapUrl} and ${glueUrl}). ` +
+                formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
+            );
+            return map;
+        }
+
+        if (open303ExportMapInsufficient(wasmModule, map)) {
+            logEngineFallback(
+                'open303',
+                'wasm-worklet',
+                `export map did not resolve open303_* / jc303_* against WASM. ` +
+                formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
             );
         }
+
         return map;
     }
 
@@ -175,7 +199,18 @@ export class Open303Oscillator {
                         try { engineTelemetry.registerResolution('jc303', backend, 'worklet-ready'); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'error') {
-                        logEngineFallback('open303', 'wasm-worklet', 'worklet init-wasm error', e.data.error);
+                        const payload = e.data as { error?: unknown };
+                        const errDetail =
+                            typeof payload.error === 'string'
+                                ? payload.error
+                                : payload.error != null
+                                  ? String(payload.error)
+                                  : 'unknown worklet error';
+                        logEngineFallback(
+                            'open303',
+                            'wasm-worklet',
+                            `worklet init-wasm error: ${errDetail}`,
+                        );
                         resolve(false);
                     }
                 };

@@ -73,6 +73,31 @@ describe('SessionLaunchEngine', () => {
     expect(engine.playingSlot('snare')).toBeNull();
   });
 
+  it('partitions queued events: applies due, retains not-yet-due', () => {
+    const doc = createDefaultSessionDocument();
+    doc.columns.kick.clips[0].empty = false;
+    doc.columns.kick.clips[1].empty = false;
+    const engine = new SessionLaunchEngine(doc);
+    const mk = (timelineStep: number, slot: number): CompiledLaunchEvent => ({
+      audioTime: 1,
+      step: 0,
+      timelineStep,
+      track: 'kick',
+      action: 'start',
+      clipId: doc.columns.kick.clips[slot].id,
+      slotIndex: slot,
+      source: 'manual',
+      requestSeq: slot + 1,
+    });
+    engine.queued = [mk(2, 0), mk(10, 1)];
+    engine.timelineStep = 5;
+    (engine as unknown as { lastClockStep: number }).lastClockStep = 5;
+    engine.tick(clock({ step: 5 }));
+    expect(engine.queued).toHaveLength(1);
+    expect(engine.queued[0].timelineStep).toBe(10);
+    expect(engine.playingSlot('kick')).toBe(0);
+  });
+
   it('applies a scene atomically on one boundary', () => {
     const doc = createDefaultSessionDocument();
     for (const t of TRACK_KEYS) {
