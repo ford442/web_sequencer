@@ -25,6 +25,7 @@ export type PropertyChangeKey =
   | "bitcrush"
   | "spectralComp"
   | "subHarmonics"
+  | "vocalChorus"
   | "downsample"
   | "spectralCompression"
   | "tranceGate"

@@ -335,6 +335,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set vocal stack chorus amount.
+   * @param amount Chorus amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setVocalChorus(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "vocalChorus", amount, time);
+  },
+
+  /**
    * Set downsample factor.
    * @param factor Downsample factor (1-32)
    * @param time Optional time to apply the change
