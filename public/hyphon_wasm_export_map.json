@@ -1,7 +1,6 @@
 {
-  "free": "free",
-  "malloc": "malloc",
   "jc303_create": "jc303_create",
+  "free": "free",
   "jc303_destroy": "jc303_destroy",
   "jc303_init_handle": "jc303_init_handle",
   "jc303_note_on": "jc303_note_on",
@@ -27,6 +26,7 @@
   "open303_get_model": "open303_get_model",
   "open303_find_model_index": "open303_find_model_index",
   "open303_set_model_by_id": "open303_set_model_by_id",
+  "malloc": "malloc",
   "highfid303_create": "highfid303_create",
   "highfid303_destroy": "highfid303_destroy",
   "highfid303_init": "highfid303_init",
