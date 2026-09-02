@@ -19,7 +19,7 @@ export const AmbiancePlayer: React.FC<AmbiancePlayerProps> = React.memo(({ track
         id="ambiance-select"
         value={selectedUrl}
         onChange={(e) => onSelect(e.target.value)}
-        className="bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-md text-sm focus:border-indigo-400 focus:ring-0 focus:outline-none"
+        className="bg-gray-800 text-gray-200 border-2 border-gray-700 rounded-md text-sm focus-visible:border-indigo-400 focus-visible:ring-0 focus:outline-none"
         aria-label="Ambiance Track Preset"
       >
         {tracks.map(track => (

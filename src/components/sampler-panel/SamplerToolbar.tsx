@@ -84,7 +84,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           <input
             value={currentTtsText}
             onChange={e => setCurrentTtsText(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus:border-purple-500 h-5"
+            className="w-full bg-gray-900 border border-gray-700 rounded px-1 pr-4 text-white text-[10px] outline-none focus-visible:border-purple-500 h-5"
             placeholder="Phrase..."
             aria-label="Text to Speech Phrase"
           />
@@ -151,7 +151,7 @@ export const SamplerToolbar: React.FC<SamplerToolbarProps> = React.memo(({
           value={chordType}
           onChange={(e) => setChordType(e.target.value)}
           aria-label="Harmonization Chord Type"
-          className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
+          className="flex-1 bg-gray-900 text-[10px] text-gray-300 border border-gray-700 rounded px-1 h-5 outline-none focus-visible:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-400"
         >
           <option value="major">Major</option>
           <option value="minor">Minor</option>
