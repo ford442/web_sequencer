@@ -272,6 +272,8 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
               <option value={1}>Hamming</option>
               <option value={2}>Blackman</option>
               <option value={3}>None</option>
+              <option value={4}>Gaussian</option>
+              <option value={5}>Sharp</option>
             </select>
           </div>
           <div className="flex flex-col items-center justify-start gap-1 col-span-2">

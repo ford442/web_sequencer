@@ -184,10 +184,10 @@ export class SessionLaunchEngine {
       if (e.timelineStep <= this.timelineStep) {
         due.push(e);
       } else {
-        remaining.push(e);
+        nextQueued.push(e);
       }
     }
-    this.queued = remaining;
+    this.queued = nextQueued;
 
     const follow = clock.songModeActive ? [] : this.collectFollowEvents(clock);
     const merged = resolveTrackConflicts([...due, ...follow]);
