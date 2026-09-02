@@ -136,10 +136,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'bitcrush', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'spectralComp', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'downsample', defaultValue: 1.0, minValue: 1.0, maxValue: 32.0 },
-      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 3.0 },
+      { name: 'windowShape', defaultValue: 0.0, minValue: 0.0, maxValue: 5.0 },
       { name: 'phonemeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
@@ -650,7 +650,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
                             windowVal = lowerVal + (upperVal - lowerVal) * fraction;
                         } else {
-                            // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None)
+                            // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None), 4: Gaussian, 5: Sharp Exponential
                             if (windowShape < 0.5) {
                                 // Hann
                                 windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
@@ -660,9 +660,15 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                             } else if (windowShape < 2.5) {
                                 // Blackman
                                 windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
-                            } else {
+                            } else if (windowShape < 3.5) {
                                 // Rectangular / None
                                 windowVal = 1.0;
+                            } else if (windowShape < 4.5) {
+                                // Gaussian
+                                windowVal = Math.exp(-0.5 * Math.pow((phase - 0.5) / 0.15, 2));
+                            } else {
+                                // Sharp Exponential
+                                windowVal = Math.pow(Math.sin(Math.PI * phase), 4);
                             }
                         }
 

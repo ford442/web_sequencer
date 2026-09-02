@@ -9,6 +9,7 @@
 - [x] Implement per-phoneme granular synthesis grain size control
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
 - [x] What if we could modulate the grain size with an LFO or envelope to create "breathing" textures?
+- [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 
 
 ## Innovation Lab
@@ -44,7 +45,7 @@
 - [ ] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
 - [ ] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
 - [ ] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
-- [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
+- [ ] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -86,6 +87,9 @@
 
 - Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". To preserve the inner granular freeze loop budget, the chorus was implemented as a post-retrieve stereo tap delay instead of an additional freeze grain. Added `vocalChorus` parameter. It introduces micro-delays (7-23ms) with unipolar block-rate LFOs and constant power stereo imaging. Consonants receive a 70% reduction in wet mix to avoid smearing transients, relying entirely on the existing `isVowel` SAB property.
 - Velocity Check: Strict early-out bypass guarantees zero CPU cost when `vocalChorus === 0`. The DSP takes advantage of block-rate evaluation for LFO increments to avoid per-sample overhead.
+
+- Completed "Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)". Added Gaussian and Sharp Exponential shapes to `RubberBandProcessor` logic. Exposed the shapes via `windowShape` values 4 and 5 in the `RubberBandProcessor` parameter descriptor and the UI dropdowns (`SamplerKnobControls.tsx` and `SynthGranularEffects.tsx`).
+- Velocity Check: Using mathematically straightforward algorithms for non-linear windowing preserves the audio thread performance budget without allocating massive new arrays.
 
 ## Roadmap
 - Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.
