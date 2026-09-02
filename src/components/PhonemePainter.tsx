@@ -146,71 +146,102 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
         e.preventDefault();
         if (e.shiftKey) {
           // Extend right
-          setPhonemes(prev => prev.map(p => {
-            if (p.id !== phonemeId) return p;
-            const newEnd = Math.min(1, p.end + BIG_STEP);
-            return { ...p, end: newEnd };
-          }));
+          setPhonemes(prev => {
+            const idx = prev.findIndex(p => p.id === phonemeId);
+            if (idx === -1) return prev;
+            const newPhonemes = [...prev];
+            newPhonemes[idx] = { ...newPhonemes[idx], end: Math.min(1, newPhonemes[idx].end + BIG_STEP) };
+            return newPhonemes;
+          });
         } else {
           // Move right
-          setPhonemes(prev => prev.map(p => {
-            if (p.id !== phonemeId) return p;
+          setPhonemes(prev => {
+            const idx = prev.findIndex(p => p.id === phonemeId);
+            if (idx === -1) return prev;
+            const newPhonemes = [...prev];
+            const p = newPhonemes[idx];
             const duration = p.end - p.start;
             const newStart = Math.min(1 - duration, p.start + STEP_SIZE);
-            return { ...p, start: newStart, end: newStart + duration };
-          }));
+            newPhonemes[idx] = { ...p, start: newStart, end: newStart + duration };
+            return newPhonemes;
+          });
         }
         break;
       case 'ArrowLeft':
         e.preventDefault();
         if (e.shiftKey) {
           // Shrink from right
-          setPhonemes(prev => prev.map(p => {
-            if (p.id !== phonemeId) return p;
-            const newEnd = Math.max(p.start + 0.05, p.end - BIG_STEP);
-            return { ...p, end: newEnd };
-          }));
+          setPhonemes(prev => {
+            const idx = prev.findIndex(p => p.id === phonemeId);
+            if (idx === -1) return prev;
+            const newPhonemes = [...prev];
+            const p = newPhonemes[idx];
+            newPhonemes[idx] = { ...p, end: Math.max(p.start + 0.05, p.end - BIG_STEP) };
+            return newPhonemes;
+          });
         } else {
           // Move left
-          setPhonemes(prev => prev.map(p => {
-            if (p.id !== phonemeId) return p;
+          setPhonemes(prev => {
+            const idx = prev.findIndex(p => p.id === phonemeId);
+            if (idx === -1) return prev;
+            const newPhonemes = [...prev];
+            const p = newPhonemes[idx];
             const duration = p.end - p.start;
             const newStart = Math.max(0, p.start - STEP_SIZE);
-            return { ...p, start: newStart, end: newStart + duration };
-          }));
+            newPhonemes[idx] = { ...p, start: newStart, end: newStart + duration };
+            return newPhonemes;
+          });
         }
         break;
       case 'ArrowUp':
         e.preventDefault();
         // Increase pitch bend
-        setPhonemes(prev => prev.map(p =>
-          p.id === phonemeId ? { ...p, pitchBend: Math.min(100, p.pitchBend + (e.shiftKey ? 20 : 5)) } : p
-        ));
+        setPhonemes(prev => {
+          const idx = prev.findIndex(p => p.id === phonemeId);
+          if (idx === -1) return prev;
+          const newPhonemes = [...prev];
+          const p = newPhonemes[idx];
+          newPhonemes[idx] = { ...p, pitchBend: Math.min(100, p.pitchBend + (e.shiftKey ? 20 : 5)) };
+          return newPhonemes;
+        });
         break;
       case 'ArrowDown':
         e.preventDefault();
         // Decrease pitch bend
-        setPhonemes(prev => prev.map(p =>
-          p.id === phonemeId ? { ...p, pitchBend: Math.max(-100, p.pitchBend - (e.shiftKey ? 20 : 5)) } : p
-        ));
+        setPhonemes(prev => {
+          const idx = prev.findIndex(p => p.id === phonemeId);
+          if (idx === -1) return prev;
+          const newPhonemes = [...prev];
+          const p = newPhonemes[idx];
+          newPhonemes[idx] = { ...p, pitchBend: Math.max(-100, p.pitchBend - (e.shiftKey ? 20 : 5)) };
+          return newPhonemes;
+        });
         break;
       case 'Home':
         e.preventDefault();
         // Move to start
-        setPhonemes(prev => prev.map(p => {
-          if (p.id !== phonemeId) return p;
+        setPhonemes(prev => {
+          const idx = prev.findIndex(p => p.id === phonemeId);
+          if (idx === -1) return prev;
+          const newPhonemes = [...prev];
+          const p = newPhonemes[idx];
           const duration = p.end - p.start;
-          return { ...p, start: 0, end: duration };
-        }));
+          newPhonemes[idx] = { ...p, start: 0, end: duration };
+          return newPhonemes;
+        });
         break;
       case 'End':
         e.preventDefault();
         // Move to end
-        setPhonemes(prev => prev.map(p => {
-          if (p.id !== phonemeId) return p;
+        setPhonemes(prev => {
+          const idx = prev.findIndex(p => p.id === phonemeId);
+          if (idx === -1) return prev;
+          const newPhonemes = [...prev];
+          const p = newPhonemes[idx];
           const duration = p.end - p.start;
-          return { ...p, start: 1 - duration, end: 1 };
-        }));
+          newPhonemes[idx] = { ...p, start: 1 - duration, end: 1 };
+          return newPhonemes;
+        });
         break;
       case 'Delete':
       case 'Backspace': {
@@ -320,7 +351,14 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
       // Find gap or append at end
       let newStart = 0;
       if (prev.length > 0) {
-        const lastEnd = Math.max(...prev.map(p => p.end));
+        // ⚡ Bolt: Replace Math.max(...prev.map(p => p.end)) with O(n) loop
+        // Prevents intermediate array allocation and avoids call stack size limits on large phoneme sequences
+        let lastEnd = -Infinity;
+        for (let i = 0; i < prev.length; i++) {
+          if (prev[i].end > lastEnd) {
+            lastEnd = prev[i].end;
+          }
+        }
         newStart = Math.min(lastEnd, 0.9);
       }
       const newEnd = Math.min(1, newStart + 0.2);
@@ -345,9 +383,13 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
 
   // Update pitch bend
   const handlePitchBendChange = useCallback((id: string, bend: number) => {
-    setPhonemes(prev => prev.map(p =>
-      p.id === id ? { ...p, pitchBend: bend } : p
-    ));
+    setPhonemes(prev => {
+      const idx = prev.findIndex(p => p.id === id);
+      if (idx === -1) return prev;
+      const newPhonemes = [...prev];
+      newPhonemes[idx] = { ...newPhonemes[idx], pitchBend: bend };
+      return newPhonemes;
+    });
   }, []);
 
   // Auto-align using PhonemeAligner
@@ -792,9 +834,13 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     value={(selectedPhoneme.volume || 1) * 100}
                     onChange={(e) => {
                       const vol = parseInt(e.target.value) / 100;
-                      setPhonemes(prev => prev.map(p =>
-                        p.id === selectedPhoneme.id ? { ...p, volume: vol } : p
-                      ));
+                      setPhonemes(prev => {
+                        const idx = prev.findIndex(p => p.id === selectedPhoneme.id);
+                        if (idx === -1) return prev;
+                        const newPhonemes = [...prev];
+                        newPhonemes[idx] = { ...newPhonemes[idx], volume: vol };
+                        return newPhonemes;
+                      });
                     }}
                     className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                     aria-label="Volume"
