@@ -31,7 +31,7 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
                 type="text"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1 text-white font-mono text-sm focus:border-cyan-500 outline-none"
+                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1 text-white font-mono text-sm focus-visible:border-cyan-500 outline-none"
                 id="lyric-track-input" aria-label="Global Lyric Track Input" placeholder="Enter phrase (e.g. 'Hello(C4)') to map or auto-generate notes..."
                 disabled={isGenerating}
                 onKeyDown={(e) => {

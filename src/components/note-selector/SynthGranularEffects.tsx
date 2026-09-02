@@ -421,7 +421,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
               parseFloat(e.target.value)
             )
           }
-          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus:border-cyan-400"
+          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus-visible:border-cyan-400"
           aria-label="Granular Window Shape"
         >
           <option value={0}>Hann</option>

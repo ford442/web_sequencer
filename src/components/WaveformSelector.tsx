@@ -194,7 +194,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
         aria-label={`Waveform selector: ${selected}. Click to ${isExpanded ? 'collapse' : 'expand'} options. Click to cycle, Shift+click for reverse.`}
         aria-expanded={isExpanded}
         title={`Current: ${selected}. Click to expand waveforms, or click here to cycle (Shift+click for reverse).`}
-        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'} ${isExpanded ? 'ring-2' : ''}`}
+        className={`w-10 h-10 p-2 rounded-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-400 ring-cyan-400' : 'focus-visible:ring-pink-400 ring-pink-400'} ${isExpanded ? 'ring-2' : ''}`}
         onDoubleClick={handleWaveformClick}
       >
         <WaveformIcon type={selected} />
@@ -219,7 +219,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
                 onClick={handleWaveformClick}
                 aria-label={`Current waveform: ${selected}. Click to cycle, Shift+click to cycle back.`}
                 title={`Current: ${selected}. Click to cycle, Shift+click for reverse.`}
-                className={`w-12 h-12 p-2 rounded-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus:ring-cyan-400 ring-cyan-400' : 'focus:ring-pink-400 ring-pink-400'}`}
+                className={`w-12 h-12 p-2 rounded-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-gray-900 border border-gray-600 bg-gray-700 hover:bg-gray-600 flex items-center justify-center ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-400 ring-cyan-400' : 'focus-visible:ring-pink-400 ring-pink-400'}`}
               >
                 <WaveformIcon type={selected} />
               </button>
@@ -243,7 +243,7 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
                         aria-current={selected === wave ? 'true' : undefined}
                         aria-label={`Select ${wave} waveform ${selected === wave ? '(currently selected)' : ''}`}
                         title={wave}
-                        className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap gap-1 ${
+                        className={`px-2 py-1 text-xs font-bold rounded-md transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ring-offset-gray-900 flex items-center justify-center whitespace-nowrap gap-1 ${
                           selected === wave
                             ? `${accentClasses[accentColor]} shadow-lg`
                             : `bg-gray-700 ${bgClasses[accentColor]} border border-gray-600 hover:border-gray-500`

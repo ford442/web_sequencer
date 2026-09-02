@@ -346,15 +346,15 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     <legend className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</legend>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save full song"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save full song"/>
                                             <span className="text-sm text-gray-300">Full Song</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save pattern bank"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save pattern bank"/>
                                             <span className="text-sm text-gray-300">Pattern Bank</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save current pattern"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save current pattern"/>
                                             <span className="text-sm text-gray-300">Current Pattern</span>
                                         </label>
                                     </div>
@@ -374,7 +374,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={40}
                                         value={uploadForm.name}
                                         onChange={e => setUploadForm({...uploadForm, name: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors"
                                         placeholder={uploadType === 'song' ? "My Song" : "My Pattern"}
                                     />
                                 </div>
@@ -387,7 +387,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={20}
                                         value={uploadForm.author}
                                         onChange={e => setUploadForm({...uploadForm, author: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors"
                                         placeholder="Your Name"
                                     />
                                 </div>
@@ -398,7 +398,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={100}
                                         value={uploadForm.description}
                                         onChange={e => setUploadForm({...uploadForm, description: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors h-20 resize-none"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors h-20 resize-none"
                                         placeholder="Style, bpm, mood..."
                                     />
                                 </div>
