@@ -207,7 +207,7 @@ export function usePatternHandlers(deps: {
              'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
              'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
              'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
-             'grainLfoRate' | 'grainLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
+             'grainLfoRate' | 'grainLfoDepth' | 'grainPosLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
              'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
              'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
              'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',

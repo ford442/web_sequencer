@@ -155,6 +155,14 @@ export const EffectsControlMixin = {
     setWorkletParam(this, "timeStretchEnvDepth", depth, time);
   },
 
+  setGrainPosLfoDepth(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainPosLfoDepth", depth, time);
+  },
+
   setFreezeEnvDepth(
     this: SingingVoiceHost,
     depth: number,
