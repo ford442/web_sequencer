@@ -94,3 +94,6 @@
 ## 2024-05-32 - Optimize high-frequency object merging
 **Learning:** In high-frequency paths like `AutomationStore.setLiveValues` (called on every 16th-note step), using `Object.assign` and spread syntax to create new state references for React allocates temporary objects and symbols, leading to garbage collection (GC) pressure.
 **Action:** Avoid `Object.assign` and spread syntax for object merging in high-frequency React state updates. Manually construct the new object using standard `for...in` loops to minimize GC overhead while still providing the new reference React requires.
+## 2026-09-03 - AudioWorklet WASM Memory Allocation Avoidance
+**Learning:** Instantiating new TypedArray views of the WASM memory buffer (e.g., `new Float32Array(memory.buffer, offset, length)`) on every audio block in an AudioWorklet hot path causes severe garbage collection pressure and audio dropouts, even though the underlying memory isn't copied.
+**Action:** When interfacing with WASM from an AudioWorklet, cache the full heap TypedArray view in a class property. Update it only when `this.heapFloat32.buffer !== memory.buffer` (indicating memory growth), and compute integer byte offsets (`>>> 2`) to index directly into the cached heap view rather than creating new slices.
