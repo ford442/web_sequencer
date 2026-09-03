@@ -657,7 +657,7 @@ export interface AudioEngine {
   setReverbType: (type: ReverbType) => void;
   detectSamplePitch?: (buffer: AudioBuffer) => Promise<unknown>;
   processSinging?: (sampleName: string, note: string, steps: number, tempo: number) => Promise<AudioBuffer | null>;
-  prepareVocal?: (bankIndex: number, text: string) => Promise<void>;
+  prepareVocal?: (bankIndex: number, text: string, durationPriors?: number[]) => Promise<void>;
   getAlignment?: (bankIndex: number) => AlignmentResult | null;
   setAlignment?: (bankIndex: number, alignment: AlignmentResult | null) => void;
   setSustainMode?: (mode: 'loop' | 'stretch' | 'wavetable') => void;
@@ -866,6 +866,29 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /** GLOB loop start bar from an imported .rbs (0-based). */
+  rbsLoopStart?: number;
+  /** GLOB loop end bar from an imported .rbs (0-based). */
+  rbsLoopEnd?: number;
+  /** PCF filter snapshot from an imported .rbs (re-export + PcfEffect). */
+  pcfFilter?: {
+    enabled: boolean;
+    filterType: 'lp' | 'bp' | 'hp';
+    cutoff: number;
+    resonance: number;
+    envAmount: number;
+    decay: number;
+    pattern: number[];
+    target: { tb303A: boolean; tb303B: boolean; drums: boolean };
+  };
+  /** Per-slot TB-303 knobs from DEVL banks (song-mode pattern recall). */
+  trackParamStorage?: {
+    synthA: (Partial<SynthParams> | null)[];
+    synthB: (Partial<SynthParams> | null)[];
+    bass2: (Partial<Bass2Params> | null)[];
+  };
+  /** Preserved TRAK events for .rbs re-export. */
+  rbsTrakEvents?: ResolvedTrakEvent[];
   /** Per-song MIDI CC / note → control mappings */
   midiMappings?: import('./types/midi').MidiBinding[];
   /** WAM2 plugin slots (identity, version, param/plugin state). */

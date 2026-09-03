@@ -63,12 +63,12 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
       if (note.phonemes && note.phonemes.length > 0) {
         setPhonemes(note.phonemes);
       } else if (alignment && alignment.phonemes.length > 0) {
-        // Auto-populate from alignment if no existing phonemes
-        const alignedPhonemes: PhonemeData[] = alignment.phonemes.map((ph, idx) => ({
+        const totalDuration = audioBuffer?.duration || alignment.duration || 1;
+        const alignedPhonemes: PhonemeData[] = alignment.phonemes.map((ph) => ({
           id: generateId(),
           symbol: ph.phoneme,
-          start: idx / alignment.phonemes.length,
-          end: (idx + 1) / alignment.phonemes.length,
+          start: Math.max(0, Math.min(1, ph.start / totalDuration)),
+          end: Math.max(0, Math.min(1, ph.end / totalDuration)),
           pitchBend: 0,
           volume: 1
         }));
@@ -81,7 +81,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
       }
       setSelectedId(null);
     }
-  }, [isOpen, note, alignment]);
+  }, [isOpen, note, alignment, audioBuffer]);
 
   // Focus trap and escape key handling
   useEffect(() => {

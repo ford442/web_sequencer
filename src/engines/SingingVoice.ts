@@ -115,6 +115,7 @@ export class SingingVoice implements SingingVoicePublic {
       enableFormantShifting: config.enableFormantShifting ?? false,
       voiceCharacter: config.voiceCharacter ?? "default",
       phonemeAlignerUrl: config.phonemeAlignerUrl,
+      enableCtcAlignment: config.enableCtcAlignment ?? config.enablePhonemeStretching ?? false,
     };
 
     // Initialize phoneme aligner if enabled
@@ -122,6 +123,7 @@ export class SingingVoice implements SingingVoicePublic {
       this.phonemeAligner = new PhonemeAligner({
         alignerServiceUrl: this.config.phonemeAlignerUrl,
         useLocalAlignment: !this.config.phonemeAlignerUrl,
+        enableCtcAlignment: this.config.enableCtcAlignment ?? true,
       });
     }
 

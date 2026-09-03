@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SamplerPanel } from '../components/SamplerPanel';
 
@@ -221,6 +221,18 @@ describe('SamplerPanel TTS per-bank functionality', () => {
 
     expect(input.value).toBe("Hello World");
   });
+
+    it('enables Apply Harmonization when onHarmonize is provided', async () => {
+      const onHarmonize = vi.fn().mockResolvedValue(undefined);
+      render(<SamplerPanel {...defaultProps} onHarmonize={onHarmonize} />);
+      const btn = screen.getByLabelText('Apply Harmonization');
+      expect(btn).toBeEnabled();
+      fireEvent.click(btn);
+      await waitFor(() => {
+        expect(onHarmonize).toHaveBeenCalled();
+      });
+      expect(screen.getByLabelText('Harmony mix')).toBeInTheDocument();
+    });
 
   it('has accessible labels and live region for status', () => {
     render(<SamplerPanel {...defaultProps} />);

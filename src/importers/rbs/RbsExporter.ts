@@ -4,9 +4,10 @@
  * Supports IFF CAT RB40 pattern-mode and song-mode (GLOB + DEVL + TRKL/TRAK) export.
  */
 
-import type { HyphonSong } from './types';
-import type { SavedSongData } from '../../types';
+import type { HyphonAutomationLane, HyphonSong, RbsTrakEvent } from './types';
+import type { PartSequence, ResolvedTrakEvent, SavedSongData, UnifiedAutomationLane } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
+import { resolveTrakEventKind } from './trakControllers';
 import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 import { buildIffRbsFile } from './iffBuilder';
 import {
@@ -77,13 +78,13 @@ export class RbsExporter {
         countUsedPatternSlots(arrangement.trackStorage),
       );
 
-      if (slotCount > 8) {
+      if (slotCount > MAX_TRACK_PATTERN_SLOTS) {
         warnings.push(
-          `Song uses ${slotCount} pattern slots; Hyphon supports 8 per track — exporting first 8 slots.`,
+          `Song uses ${slotCount} pattern slots; Hyphon supports ${MAX_TRACK_PATTERN_SLOTS} per track — exporting first ${MAX_TRACK_PATTERN_SLOTS} slots.`,
         );
       }
 
-      const exportSlots = Math.min(8, slotCount);
+      const exportSlots = Math.min(MAX_TRACK_PATTERN_SLOTS, slotCount);
 
       tb303ASteps = arrangement.trackStorage.partA
         .slice(0, exportSlots)
@@ -159,9 +160,9 @@ export class RbsExporter {
 
     if (isSongExport && arrangement?.trakEvents?.length) {
       const usage = summarizePatternSelectUsage(arrangement.trakEvents);
-      if (usage.maxPatternIndex >= 8) {
+      if (usage.maxPatternIndex >= MAX_TRACK_PATTERN_SLOTS) {
         warnings.push(
-          `Arrangement references pattern index ${usage.maxPatternIndex}; Hyphon maps to 8 slots per track.`,
+          `Arrangement references pattern index ${usage.maxPatternIndex}; Hyphon maps to ${MAX_TRACK_PATTERN_SLOTS} slots per track.`,
         );
       }
     }
@@ -231,9 +232,88 @@ export function exportRbsFile(
   return result.blob;
 }
 
-/** Build a minimal HyphonSong from saved project data for export. */
-export function hyphonSongFromSavedData(data: SavedSongData): HyphonSong {
-  return {
+const HYPHON_LANE_TARGETS = new Set<HyphonAutomationLane['target']>([
+  'synthA', 'synthB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'master',
+]);
+
+function asPartSlots(raw: unknown): (PartSequence | null)[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((slot) => {
+    if (slot && typeof slot === 'object' && 'steps' in slot) {
+      return slot as PartSequence;
+    }
+    return null;
+  });
+}
+
+function unifiedLanesToHyphon(lanes?: UnifiedAutomationLane[]): HyphonAutomationLane[] | undefined {
+  if (!lanes?.length) return undefined;
+  const converted: HyphonAutomationLane[] = [];
+  for (const lane of lanes) {
+    if (!HYPHON_LANE_TARGETS.has(lane.target as HyphonAutomationLane['target'])) continue;
+    converted.push({
+      target: lane.target as HyphonAutomationLane['target'],
+      parameter: lane.parameter,
+      name: lane.name,
+      points: lane.points.map((p) => [p.step, p.value]),
+      interpolation: lane.interpolation,
+      originalRange: lane.originalRange ?? [0, 1],
+    });
+  }
+  return converted.length > 0 ? converted : undefined;
+}
+
+export function resolvedTrakToRbsEvents(events: ResolvedTrakEvent[]): RbsTrakEvent[] {
+  return events.map((ev) => ({
+    deltaTicks: 0,
+    absoluteTicks: ev.tick,
+    trackIndex: ev.trackIndex,
+    controllerId: ev.ctrlId,
+    value: ev.value,
+    eventKind: ev.eventKind ?? resolveTrakEventKind(ev.trackIndex, ev.ctrlId),
+  }));
+}
+
+/** True when song mode is active or the arrangement uses more than slot 0. */
+export function shouldExportRbsSongMode(
+  data: SavedSongData,
+  isSongModeActive?: boolean,
+): boolean {
+  if (isSongModeActive) return true;
+  const structure = data.songStructure as Array<Record<string, number | null>> | undefined;
+  if (!structure?.length) return false;
+  for (const measure of structure) {
+    if (!measure) continue;
+    for (const value of Object.values(measure)) {
+      if (typeof value === 'number' && value > 0) return true;
+    }
+  }
+  return false;
+}
+
+export interface HyphonSongFromSavedExtras {
+  trakEvents?: ResolvedTrakEvent[] | null;
+  isSongModeActive?: boolean;
+}
+
+/** Build a HyphonSong from saved project data for export (includes arrangement when present). */
+export function hyphonSongFromSavedData(
+  data: SavedSongData,
+  extras: HyphonSongFromSavedExtras = {},
+): HyphonSong {
+  const ts = data.trackStorage as Record<string, unknown> | undefined;
+  const structure = (data.songStructure ?? []) as Array<Record<string, number | null>>;
+  const trakFromData = data.rbsTrakEvents?.length
+    ? resolvedTrakToRbsEvents(data.rbsTrakEvents)
+    : undefined;
+  const trakFromRef = extras.trakEvents?.length
+    ? resolvedTrakToRbsEvents(extras.trakEvents)
+    : undefined;
+  const trakEvents = trakFromRef ?? trakFromData;
+
+  const isSong = shouldExportRbsSongMode(data, extras.isSongModeActive);
+
+  const song: HyphonSong = {
     version: 1,
     metadata: {
       name: data.pattern ? 'Hyphon Song' : 'Untitled',
@@ -254,7 +334,32 @@ export function hyphonSongFromSavedData(data: SavedSongData): HyphonSong {
       openHat: data.params.openHat,
       drumKit: data.params.kick ? '808' : undefined,
     },
+    automation: unifiedLanesToHyphon(data.automationLanes),
+    pcfFilter: data.pcfFilter,
   };
+
+  if (ts && structure.length > 0) {
+    song.songArrangement = {
+      mode: isSong ? 'song' : 'pattern',
+      trackStorage: {
+        partA: asPartSlots(ts.partA),
+        partB: asPartSlots(ts.partB),
+        bass2: asPartSlots(ts.bass2),
+        kick: asPartSlots(ts.kick),
+        snare: asPartSlots(ts.snare),
+        closedHat: asPartSlots(ts.closedHat),
+        openHat: asPartSlots(ts.openHat),
+      },
+      songStructure: structure,
+      activeTrackSlots: data.activeTrackSlots,
+      loopStart: data.rbsLoopStart,
+      loopEnd: data.rbsLoopEnd,
+      trakEvents,
+      trackParamStorage: data.trackParamStorage,
+    };
+  }
+
+  return song;
 }
 
 export default RbsExporter;

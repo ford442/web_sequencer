@@ -29,12 +29,13 @@ export function usePatternHandlers(deps: {
     setTrackStorage: React.Dispatch<React.SetStateAction<TrackStorage>>;
     setActiveTrackSlots: React.Dispatch<React.SetStateAction<Record<TrackKey, number>>>;
     setSelectedTrack: React.Dispatch<React.SetStateAction<TrackKey>>;
+    onTrackSlotRecall?: (track: TrackKey, slotIndex: number) => void;
 }) {
     const {
         patternRef, setPattern, undoRedo, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
-        setSelectedTrack,
+        setSelectedTrack, onTrackSlotRecall,
     } = deps;
 
     const updateStorageForTrackInner = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => {
@@ -298,7 +299,8 @@ export function usePatternHandlers(deps: {
             });
             setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
         }
-    }, [patternRef, trackStorageRef, setPattern, setTrackStorage, setActiveTrackSlots]);
+        onTrackSlotRecall?.(track, slotIndex);
+    }, [patternRef, trackStorageRef, setPattern, setTrackStorage, setActiveTrackSlots, onTrackSlotRecall]);
 
     const handleSelectRow = useCallback((k: TrackKey) => setSelectedTrack(k), [setSelectedTrack]);
 

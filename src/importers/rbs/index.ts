@@ -59,6 +59,7 @@ export {
   isTrakPatternSelectEvent,
   isTrakParamAutomationEvent,
   resolveTrakParamMapping,
+  resolveHyphonLaneToTrak,
   normaliseTrakParamValue,
   TICKS_PER_BAR,
   TICKS_PER_STEP,
@@ -85,6 +86,9 @@ export { RbsImporter, convertToHyphonSong } from './RbsImporter';
 export type { RbsImportResult, ImportReport, RbsImportError } from './importer-types';
 
 // Exporter
-export { RbsExporter, exportRbsFile, hyphonSongFromSavedData } from './RbsExporter';
+export { RbsExporter, exportRbsFile, hyphonSongFromSavedData, shouldExportRbsSongMode } from './RbsExporter';
+export { applyPcfFilterToEffect, applyTrackParamSlotToEngine, pcfFilterToPcfSettings } from './applyImportedEngineState';
+export type { TrackParamStorage } from './applyImportedEngineState';
+export { trakEventsFromAutomationLanes } from './trakExport';
 export type { RbsExportOptions, RbsExportResult, RbsExportVersionTarget, RbsExportMode } from './exporter-types';
 export { DEFAULT_RBS_EXPORT_OPTIONS } from './exporter-types';

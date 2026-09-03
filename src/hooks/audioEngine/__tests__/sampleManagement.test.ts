@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SingingVoiceManager } from '../../../engines/SingingVoiceManager';
-import { applySamplerVoiceParamUpdate, applyVoiceParamUpdate } from '../sampleManagement';
+import { applySamplerVoiceParamUpdate, applyVoiceParamUpdate, createSampleLibraryControls } from '../sampleManagement';
 
 function createVoiceMock() {
     return {
@@ -75,5 +75,24 @@ describe('sampleManagement helpers', () => {
 
         expect(firstVoice.setCoarseTune).toHaveBeenCalledWith(-12);
         expect(secondVoice.setCoarseTune).toHaveBeenCalledWith(-12);
+    });
+
+    it('stores sampler buffers at the live context sample rate', async () => {
+        const context = { sampleRate: 48000 } as AudioContext;
+        const loaded = new Map<string, AudioBuffer>();
+        const banks = new Map();
+        const { loadSampleToEngine } = createSampleLibraryControls({
+            audioContextRef: { current: context },
+            loadedSampleBuffersRef: { current: loaded },
+            multisampleBanksRef: { current: banks },
+            multisampleGeneratorRef: { current: null },
+            vocalAlignmentsRef: { current: new Map() },
+            singingVoiceManagerRef: { current: null },
+        });
+
+        const buffer = { sampleRate: 48000, duration: 1, numberOfChannels: 1 } as AudioBuffer;
+        await loadSampleToEngine('bank_0', buffer);
+        expect(loaded.get('bank_0')).toBe(buffer);
+        expect(loaded.get('bank_0')?.sampleRate).toBe(context.sampleRate);
     });
 });
