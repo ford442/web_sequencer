@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SingingVoiceManager } from '../../../engines/SingingVoiceManager';
+import type { MultisampleBank } from '../../../engines/MultisampleGenerator';
 import { applySamplerVoiceParamUpdate, applyVoiceParamUpdate, createSampleLibraryControls } from '../sampleManagement';
 
 function createVoiceMock() {
@@ -80,7 +81,7 @@ describe('sampleManagement helpers', () => {
     it('stores sampler buffers at the live context sample rate', async () => {
         const context = { sampleRate: 48000 } as AudioContext;
         const loaded = new Map<string, AudioBuffer>();
-        const banks = new Map();
+        const banks = new Map<string, MultisampleBank>();
         const { loadSampleToEngine } = createSampleLibraryControls({
             audioContextRef: { current: context },
             loadedSampleBuffersRef: { current: loaded },

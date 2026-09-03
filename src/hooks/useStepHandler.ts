@@ -47,6 +47,7 @@ import {
 } from '../audio/playback/PlaybackHealthMonitor';
 import { Open303Manager } from '../engines/Open303Manager';
 import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
+import { getWamHost } from '../audio/wam';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];

@@ -263,11 +263,14 @@ export class CtcForcedAligner {
   }
 
   private async runOnnx(audio16k: Float32Array): Promise<CtcInferResult | null> {
-    if (!this.session) return null;
-    const inputName = this.session.inputNames[0];
+    const session = this.session;
+    if (!session) return null;
+    const inputName = session.inputNames?.[0];
+    const outputName = session.outputNames?.[0];
+    if (!inputName || !outputName) return null;
     const tensor = new ort.Tensor('float32', audio16k, [1, audio16k.length]);
-    const out = await this.session.run({ [inputName]: tensor });
-    const first = out[this.session.outputNames[0]];
+    const out = await session.run({ [inputName]: tensor });
+    const first = out[outputName];
     if (!first) return null;
     const dims = first.dims;
     const timeSteps = dims.length === 3 ? Number(dims[1]) : Number(dims[0]);

@@ -18,6 +18,7 @@ import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
 import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
+import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
 import {

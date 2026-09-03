@@ -3,7 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('onnxruntime-web', () => ({
   env: { wasm: { wasmPaths: '', numThreads: 1 } },
   Tensor: class {
-    constructor(public type: string, public data: Float32Array, public dims: number[]) {}
+    type: string;
+    data: Float32Array;
+    dims: number[];
+    constructor(type: string, data: Float32Array, dims: number[]) {
+      this.type = type;
+      this.data = data;
+      this.dims = dims;
+    }
   },
   InferenceSession: { create: vi.fn() },
 }));
