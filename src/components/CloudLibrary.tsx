@@ -294,7 +294,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                                         </svg>
                                     </div>
-                                    <h3 className="text-gray-300 font-bold mb-1 text-xs">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                    <h3 className="text-gray-300 font-bold mb-1 text-sm">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
                                     <p className="text-gray-500 text-[10px] max-w-[200px] mb-4">
                                         Try changing or clearing your active filters to see more results.
                                     </p>
