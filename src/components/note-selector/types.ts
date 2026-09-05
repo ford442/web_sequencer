@@ -14,6 +14,7 @@ export type PropertyChangeKey =
   | "grainPitchEnvDepth"
   | "grainLfoRate"
   | "grainLfoDepth"
+  | "grainPosOscillation"
   | "grainJitter"
   | "grainPitchQuantize"
   | "windowShape"
@@ -139,6 +140,7 @@ export interface NoteSelectorProps {
   currentGrainPitchEnvDepth?: number;
   currentGrainLfoRate?: number;
   currentGrainLfoDepth?: number;
+  currentGrainPosOscillation?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;

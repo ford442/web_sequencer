@@ -44,8 +44,10 @@
 
 - [ ] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
 - [ ] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
-- [ ] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
+- [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
 - [ ] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
+- [ ] Investigate reverse-playback buffer wrapping for granular streams allowing continuous ping-pong looping of arbitrary grain segments.
+- [ ] What if we applied spectral morphing based on the phoneme transition matrix to smoothly interpolate between distinct TTS syllables?
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -55,6 +57,8 @@
 ## Architecture Review
 - Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?" by applying a 1-pole IIR lowpass filter to the combined grain output in the `RubberBandProcessor`. Muffled syllables (lower volume) exponentially map to a lower cutoff frequency, creating a dynamic dampening effect for speech.
 - Velocity Check: Moving the cutoff calculation outside the inner granular loop fixed the initial performance regression where filter state sharing and heavy Math operations were causing audio artifacts. The current approach is computationally cheap and correctly isolates states.
+- Completed "What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?". Implemented `posMod` inside the `RubberBandProcessor` freeze logic to modulate the `grainCenterActive`. Wired the `grainPosOscillation` parameter up through the AudioWorklet into the Sampler UI and granular note effect properties.
+- Velocity Check: By isolating the offset modification strictly within the `initGrain` loop for freeze streaming, we safely avoided smearing the Rubber Band real-time stretchy processor which avoids latency hunting artifacts.
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
 - Velocity Check: Refactoring went smoothly. The architecture is much cleaner without duplicate voice maps. Also completed linking voice affinity directly to WebGPU/WASM buffers to prevent redundant host-to-device memory copies by correctly providing a bankId to `acquireVoiceForBank`.
 - Completed the "Implement per-phoneme granular synthesis grain size control" task from the Innovation Lab backlog by adding `grainSize` and `formantShift` fully to `PhonemeData`, updating the `PhonemeAligner` SharedArrayBuffer stride to 10, and modifying the `RubberBandProcessor` AudioWorklet to natively read and apply the `grainSize` parameter during FREEZE stream synthesis.

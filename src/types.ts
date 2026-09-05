@@ -141,6 +141,7 @@ export interface SamplerBankParams {
   grainEnvDepth?: number;
   grainLfoRate?: number;
   grainLfoDepth?: number;
+  grainPosOscillation?: number;
   grainPitchQuantize?: number;
   grainPanSpread?: number;
   granularPitchShift?: number;
@@ -494,6 +495,7 @@ export interface Note {
   grainEnvDepth?: number;
   grainLfoRate?: number;
   grainLfoDepth?: number;
+  grainPosOscillation?: number;
   grainPanSpread?: number;
   volumeFilterMod?: number;
   vibratoDepth?: number;
