@@ -285,7 +285,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-pos-osc">Pos Oscillation</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-            {Math.round(((props.currentGrainPosOscillation || 0) + 0.0001) * 100)}%
+            {Math.round(((props.currentGrainPosLfoDepth || 0) + 0.0001) * 100)}%
           </span>
         </div>
         <input
@@ -294,7 +294,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           min="0"
           max="1"
           step="0.01"
-          value={props.currentGrainPosOscillation || 0}
+          value={props.currentGrainPosLfoDepth || 0}
           onChange={(e) =>
             onPropertyChange?.(
               "grainPosLfoDepth",
@@ -302,7 +302,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
             )
           }
           className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-          aria-valuetext={`${Math.round(((props.currentGrainPosOscillation || 0) + 0.0001) * 100)}%`}
+          aria-valuetext={`${Math.round(((props.currentGrainPosLfoDepth || 0) + 0.0001) * 100)}%`}
           aria-label="Grain Position Oscillation Depth"
         />
       </div>
