@@ -1,0 +1,1399 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - link "Skip to main content" [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - status [ref=e5]
+    - alert [ref=e6]
+    - alert [ref=e7]:
+      - generic [ref=e8]: ⚠
+      - generic [ref=e9]: pyodide using JS fallback (bootstrap timeout (60000ms) — hyphon_native.js may not have loaded)
+      - button "Close notification" [ref=e10] [cursor=pointer]: ✕
+    - dialog "HYPHON" [ref=e11]:
+      - generic [ref=e12]:
+        - heading "HYPHON" [level=1] [ref=e13]
+        - paragraph [ref=e14]: BROWSER AUDIO WORKSTATION
+        - status [ref=e15]:
+          - paragraph: "SYSTEM CHECK:"
+          - generic:
+            - generic [ref=e16]: "NATIVE MODULE:"
+            - generic [ref=e17]: MISSING
+          - generic:
+            - generic [ref=e18]: "WEBGPU:"
+            - generic [ref=e19]: READY
+          - generic:
+            - generic [ref=e20]: "CORE (PYODIDE):"
+            - generic "Python engine timed out (check hyphon_native.js + CDN)": FAILED
+        - button "Initialize System" [disabled] [ref=e21]:
+          - img [ref=e22]
+          - text: LOADING RESOURCES...
+    - banner [ref=e25]:
+      - generic [ref=e26]:
+        - heading "HYPHON" [level=1] [ref=e27]
+        - group "Song slots" [ref=e28]:
+          - generic [ref=e29]: SONG
+          - button "Song Slot 1" [ref=e30] [cursor=pointer]: "1"
+          - button "Song Slot 2" [ref=e31] [cursor=pointer]: "2"
+          - button "Song Slot 3" [ref=e32] [cursor=pointer]: "3"
+          - button "Song Slot 4" [ref=e33] [cursor=pointer]: "4"
+        - status [ref=e34]:
+          - button "Wake up cloud storage" [ref=e35] [cursor=pointer]: CLOUD ASLEEP
+        - status "Active engine indicators" [ref=e38]:
+          - 'button "pyodide degraded: bootstrap timeout (60000ms) — hyphon_native.js may not have loaded. Click to retry." [disabled] [ref=e39]': "! pyodide:js-fallback"
+          - 'button "gpu-knobs degraded: requestAdapter() returned null (no compatible GPU adapter). Click to retry." [ref=e40] [cursor=pointer]': "! gpu-knobs:canvas-2d"
+      - generic [ref=e41]:
+        - button "Start Playback" [ref=e42] [cursor=pointer]: ▶ PLAY
+        - button "Toggle Recording" [ref=e43] [cursor=pointer]: REC
+        - generic [ref=e45]:
+          - generic [ref=e46]: BPM
+          - generic [ref=e47]:
+            - button "Decrease Tempo" [ref=e48] [cursor=pointer]: −
+            - 'status "Tempo: 120 BPM" [ref=e49]': "120"
+            - button "Increase Tempo" [ref=e50] [cursor=pointer]: +
+        - group "Transport sync" [ref=e52]:
+          - generic [ref=e53]: SYNC
+          - generic [ref=e54]:
+            - button "INT" [pressed] [ref=e55] [cursor=pointer]
+            - button "MSTR" [ref=e56] [cursor=pointer]
+            - button "SLV" [ref=e57] [cursor=pointer]
+        - button "Key Lock" [ref=e60] [cursor=pointer]: 🔑 KEY
+        - button "Toggle MIDI Learn" [ref=e62] [cursor=pointer]: MIDI ○
+        - button "Open MIDI Map" [ref=e63] [cursor=pointer]: MAP
+      - generic [ref=e64]:
+        - button "Switch to compact touch layout" [ref=e65] [cursor=pointer]: FIT
+        - button "Clear Current Pattern" [ref=e66] [cursor=pointer]: CLEAR
+        - button "Toggle Song Mode" [ref=e69] [cursor=pointer]: SONG
+        - button "Toggle Session Launcher" [ref=e71] [cursor=pointer]: CLIP
+        - button "Toggle 3D Studio View" [ref=e72] [cursor=pointer]: 3D
+        - button "Panic Stop All Notes" [ref=e73] [cursor=pointer]: "!"
+    - status "Engine degradation warnings" [ref=e74]:
+      - generic:
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]: ⚠ pyodide
+            - generic [ref=e78]: pyodide using JS fallback
+            - generic "bootstrap timeout (60000ms) — hyphon_native.js may not have loaded" [ref=e79]: (js-fallback ← pyodide)
+          - generic [ref=e80]:
+            - generic [ref=e81]: ⚠ gpu-knobs
+            - generic [ref=e82]: GPU knobs using 2D fallback
+            - generic "requestAdapter() returned null (no compatible GPU adapter)" [ref=e83]: (canvas-2d ← webgpu)
+        - button "Retry gpu-knobs" [ref=e85] [cursor=pointer]
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - heading "SONG ARRANGER" [level=2] [ref=e89]
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]: "BG IMG:"
+            - textbox "BG IMG:" [ref=e93]:
+              - /placeholder: https://...
+          - button "Remove Measure" [ref=e94] [cursor=pointer]: "- BAR"
+          - button "Add Measure" [ref=e95] [cursor=pointer]: + BAR
+          - button "Loop Pattern Mode Active" [ref=e96] [cursor=pointer]: LOOP PATT
+          - button "Export as XM file" [ref=e97] [cursor=pointer]: EXPORT XM
+          - button "Close Song Mode" [ref=e98] [cursor=pointer]: ✕
+      - generic [ref=e100]:
+        - generic [ref=e101]:
+          - generic [ref=e103]: "1"
+          - generic [ref=e104]: "2"
+          - generic [ref=e105]: "3"
+          - generic [ref=e106]: "4"
+          - generic [ref=e107]: "5"
+          - generic [ref=e108]: "6"
+          - generic [ref=e109]: "7"
+          - generic [ref=e110]: "8"
+          - generic [ref=e111]: "9"
+          - generic [ref=e112]: "10"
+          - generic [ref=e113]: "11"
+          - generic [ref=e114]: "12"
+          - generic [ref=e115]: "13"
+          - generic [ref=e116]: "14"
+          - generic [ref=e117]: "15"
+          - generic [ref=e118]: "16"
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - generic [ref=e122]: LEAD
+            - gridcell "LEAD Measure 1, Empty" [ref=e123] [cursor=pointer]
+            - gridcell "LEAD Measure 2, Empty" [ref=e124] [cursor=pointer]
+            - gridcell "LEAD Measure 3, Empty" [ref=e125] [cursor=pointer]
+            - gridcell "LEAD Measure 4, Empty" [ref=e126] [cursor=pointer]
+            - gridcell "LEAD Measure 5, Empty" [ref=e127] [cursor=pointer]
+            - gridcell "LEAD Measure 6, Empty" [ref=e128] [cursor=pointer]
+            - gridcell "LEAD Measure 7, Empty" [ref=e129] [cursor=pointer]
+            - gridcell "LEAD Measure 8, Empty" [ref=e130] [cursor=pointer]
+            - gridcell "LEAD Measure 9, Empty" [ref=e131] [cursor=pointer]
+            - gridcell "LEAD Measure 10, Empty" [ref=e132] [cursor=pointer]
+            - gridcell "LEAD Measure 11, Empty" [ref=e133] [cursor=pointer]
+            - gridcell "LEAD Measure 12, Empty" [ref=e134] [cursor=pointer]
+            - gridcell "LEAD Measure 13, Empty" [ref=e135] [cursor=pointer]
+            - gridcell "LEAD Measure 14, Empty" [ref=e136] [cursor=pointer]
+            - gridcell "LEAD Measure 15, Empty" [ref=e137] [cursor=pointer]
+            - gridcell "LEAD Measure 16, Empty" [ref=e138] [cursor=pointer]
+          - generic [ref=e139]:
+            - generic [ref=e141]: BASS
+            - gridcell "BASS Measure 1, Empty" [ref=e142] [cursor=pointer]
+            - gridcell "BASS Measure 2, Empty" [ref=e143] [cursor=pointer]
+            - gridcell "BASS Measure 3, Empty" [ref=e144] [cursor=pointer]
+            - gridcell "BASS Measure 4, Empty" [ref=e145] [cursor=pointer]
+            - gridcell "BASS Measure 5, Empty" [ref=e146] [cursor=pointer]
+            - gridcell "BASS Measure 6, Empty" [ref=e147] [cursor=pointer]
+            - gridcell "BASS Measure 7, Empty" [ref=e148] [cursor=pointer]
+            - gridcell "BASS Measure 8, Empty" [ref=e149] [cursor=pointer]
+            - gridcell "BASS Measure 9, Empty" [ref=e150] [cursor=pointer]
+            - gridcell "BASS Measure 10, Empty" [ref=e151] [cursor=pointer]
+            - gridcell "BASS Measure 11, Empty" [ref=e152] [cursor=pointer]
+            - gridcell "BASS Measure 12, Empty" [ref=e153] [cursor=pointer]
+            - gridcell "BASS Measure 13, Empty" [ref=e154] [cursor=pointer]
+            - gridcell "BASS Measure 14, Empty" [ref=e155] [cursor=pointer]
+            - gridcell "BASS Measure 15, Empty" [ref=e156] [cursor=pointer]
+            - gridcell "BASS Measure 16, Empty" [ref=e157] [cursor=pointer]
+          - generic [ref=e158]:
+            - generic [ref=e160]: BASS2
+            - gridcell "BASS2 Measure 1, Empty" [ref=e161] [cursor=pointer]
+            - gridcell "BASS2 Measure 2, Empty" [ref=e162] [cursor=pointer]
+            - gridcell "BASS2 Measure 3, Empty" [ref=e163] [cursor=pointer]
+            - gridcell "BASS2 Measure 4, Empty" [ref=e164] [cursor=pointer]
+            - gridcell "BASS2 Measure 5, Empty" [ref=e165] [cursor=pointer]
+            - gridcell "BASS2 Measure 6, Empty" [ref=e166] [cursor=pointer]
+            - gridcell "BASS2 Measure 7, Empty" [ref=e167] [cursor=pointer]
+            - gridcell "BASS2 Measure 8, Empty" [ref=e168] [cursor=pointer]
+            - gridcell "BASS2 Measure 9, Empty" [ref=e169] [cursor=pointer]
+            - gridcell "BASS2 Measure 10, Empty" [ref=e170] [cursor=pointer]
+            - gridcell "BASS2 Measure 11, Empty" [ref=e171] [cursor=pointer]
+            - gridcell "BASS2 Measure 12, Empty" [ref=e172] [cursor=pointer]
+            - gridcell "BASS2 Measure 13, Empty" [ref=e173] [cursor=pointer]
+            - gridcell "BASS2 Measure 14, Empty" [ref=e174] [cursor=pointer]
+            - gridcell "BASS2 Measure 15, Empty" [ref=e175] [cursor=pointer]
+            - gridcell "BASS2 Measure 16, Empty" [ref=e176] [cursor=pointer]
+          - generic [ref=e177]:
+            - generic [ref=e179]: KICK
+            - gridcell "KICK Measure 1, Empty" [ref=e180] [cursor=pointer]
+            - gridcell "KICK Measure 2, Empty" [ref=e181] [cursor=pointer]
+            - gridcell "KICK Measure 3, Empty" [ref=e182] [cursor=pointer]
+            - gridcell "KICK Measure 4, Empty" [ref=e183] [cursor=pointer]
+            - gridcell "KICK Measure 5, Empty" [ref=e184] [cursor=pointer]
+            - gridcell "KICK Measure 6, Empty" [ref=e185] [cursor=pointer]
+            - gridcell "KICK Measure 7, Empty" [ref=e186] [cursor=pointer]
+            - gridcell "KICK Measure 8, Empty" [ref=e187] [cursor=pointer]
+            - gridcell "KICK Measure 9, Empty" [ref=e188] [cursor=pointer]
+            - gridcell "KICK Measure 10, Empty" [ref=e189] [cursor=pointer]
+            - gridcell "KICK Measure 11, Empty" [ref=e190] [cursor=pointer]
+            - gridcell "KICK Measure 12, Empty" [ref=e191] [cursor=pointer]
+            - gridcell "KICK Measure 13, Empty" [ref=e192] [cursor=pointer]
+            - gridcell "KICK Measure 14, Empty" [ref=e193] [cursor=pointer]
+            - gridcell "KICK Measure 15, Empty" [ref=e194] [cursor=pointer]
+            - gridcell "KICK Measure 16, Empty" [ref=e195] [cursor=pointer]
+          - generic [ref=e196]:
+            - generic [ref=e198]: SNARE
+            - gridcell "SNARE Measure 1, Empty" [ref=e199] [cursor=pointer]
+            - gridcell "SNARE Measure 2, Empty" [ref=e200] [cursor=pointer]
+            - gridcell "SNARE Measure 3, Empty" [ref=e201] [cursor=pointer]
+            - gridcell "SNARE Measure 4, Empty" [ref=e202] [cursor=pointer]
+            - gridcell "SNARE Measure 5, Empty" [ref=e203] [cursor=pointer]
+            - gridcell "SNARE Measure 6, Empty" [ref=e204] [cursor=pointer]
+            - gridcell "SNARE Measure 7, Empty" [ref=e205] [cursor=pointer]
+            - gridcell "SNARE Measure 8, Empty" [ref=e206] [cursor=pointer]
+            - gridcell "SNARE Measure 9, Empty" [ref=e207] [cursor=pointer]
+            - gridcell "SNARE Measure 10, Empty" [ref=e208] [cursor=pointer]
+            - gridcell "SNARE Measure 11, Empty" [ref=e209] [cursor=pointer]
+            - gridcell "SNARE Measure 12, Empty" [ref=e210] [cursor=pointer]
+            - gridcell "SNARE Measure 13, Empty" [ref=e211] [cursor=pointer]
+            - gridcell "SNARE Measure 14, Empty" [ref=e212] [cursor=pointer]
+            - gridcell "SNARE Measure 15, Empty" [ref=e213] [cursor=pointer]
+            - gridcell "SNARE Measure 16, Empty" [ref=e214] [cursor=pointer]
+          - generic [ref=e215]:
+            - generic [ref=e217]: CH
+            - gridcell "CH Measure 1, Empty" [ref=e218] [cursor=pointer]
+            - gridcell "CH Measure 2, Empty" [ref=e219] [cursor=pointer]
+            - gridcell "CH Measure 3, Empty" [ref=e220] [cursor=pointer]
+            - gridcell "CH Measure 4, Empty" [ref=e221] [cursor=pointer]
+            - gridcell "CH Measure 5, Empty" [ref=e222] [cursor=pointer]
+            - gridcell "CH Measure 6, Empty" [ref=e223] [cursor=pointer]
+            - gridcell "CH Measure 7, Empty" [ref=e224] [cursor=pointer]
+            - gridcell "CH Measure 8, Empty" [ref=e225] [cursor=pointer]
+            - gridcell "CH Measure 9, Empty" [ref=e226] [cursor=pointer]
+            - gridcell "CH Measure 10, Empty" [ref=e227] [cursor=pointer]
+            - gridcell "CH Measure 11, Empty" [ref=e228] [cursor=pointer]
+            - gridcell "CH Measure 12, Empty" [ref=e229] [cursor=pointer]
+            - gridcell "CH Measure 13, Empty" [ref=e230] [cursor=pointer]
+            - gridcell "CH Measure 14, Empty" [ref=e231] [cursor=pointer]
+            - gridcell "CH Measure 15, Empty" [ref=e232] [cursor=pointer]
+            - gridcell "CH Measure 16, Empty" [ref=e233] [cursor=pointer]
+          - generic [ref=e234]:
+            - generic [ref=e236]: OH
+            - gridcell "OH Measure 1, Empty" [ref=e237] [cursor=pointer]
+            - gridcell "OH Measure 2, Empty" [ref=e238] [cursor=pointer]
+            - gridcell "OH Measure 3, Empty" [ref=e239] [cursor=pointer]
+            - gridcell "OH Measure 4, Empty" [ref=e240] [cursor=pointer]
+            - gridcell "OH Measure 5, Empty" [ref=e241] [cursor=pointer]
+            - gridcell "OH Measure 6, Empty" [ref=e242] [cursor=pointer]
+            - gridcell "OH Measure 7, Empty" [ref=e243] [cursor=pointer]
+            - gridcell "OH Measure 8, Empty" [ref=e244] [cursor=pointer]
+            - gridcell "OH Measure 9, Empty" [ref=e245] [cursor=pointer]
+            - gridcell "OH Measure 10, Empty" [ref=e246] [cursor=pointer]
+            - gridcell "OH Measure 11, Empty" [ref=e247] [cursor=pointer]
+            - gridcell "OH Measure 12, Empty" [ref=e248] [cursor=pointer]
+            - gridcell "OH Measure 13, Empty" [ref=e249] [cursor=pointer]
+            - gridcell "OH Measure 14, Empty" [ref=e250] [cursor=pointer]
+            - gridcell "OH Measure 15, Empty" [ref=e251] [cursor=pointer]
+            - gridcell "OH Measure 16, Empty" [ref=e252] [cursor=pointer]
+          - generic [ref=e253]:
+            - generic [ref=e255]: SMP
+            - gridcell "SMP Measure 1, Empty" [ref=e256] [cursor=pointer]
+            - gridcell "SMP Measure 2, Empty" [ref=e257] [cursor=pointer]
+            - gridcell "SMP Measure 3, Empty" [ref=e258] [cursor=pointer]
+            - gridcell "SMP Measure 4, Empty" [ref=e259] [cursor=pointer]
+            - gridcell "SMP Measure 5, Empty" [ref=e260] [cursor=pointer]
+            - gridcell "SMP Measure 6, Empty" [ref=e261] [cursor=pointer]
+            - gridcell "SMP Measure 7, Empty" [ref=e262] [cursor=pointer]
+            - gridcell "SMP Measure 8, Empty" [ref=e263] [cursor=pointer]
+            - gridcell "SMP Measure 9, Empty" [ref=e264] [cursor=pointer]
+            - gridcell "SMP Measure 10, Empty" [ref=e265] [cursor=pointer]
+            - gridcell "SMP Measure 11, Empty" [ref=e266] [cursor=pointer]
+            - gridcell "SMP Measure 12, Empty" [ref=e267] [cursor=pointer]
+            - gridcell "SMP Measure 13, Empty" [ref=e268] [cursor=pointer]
+            - gridcell "SMP Measure 14, Empty" [ref=e269] [cursor=pointer]
+            - gridcell "SMP Measure 15, Empty" [ref=e270] [cursor=pointer]
+            - gridcell "SMP Measure 16, Empty" [ref=e271] [cursor=pointer]
+    - main [ref=e272]:
+      - region "What's new in Hyphon" [ref=e273]:
+        - generic [ref=e274]:
+          - generic [ref=e275]:
+            - heading "WHAT'S NEW" [level=2] [ref=e276]
+            - paragraph [ref=e277]: Quick paths to recently added workflows. Dismiss anytime — open Help (?) later.
+            - list [ref=e278]:
+              - listitem [ref=e279]:
+                - generic [ref=e280]:
+                  - button "High-fidelity 303 (offline CPU / GPU)" [ref=e281] [cursor=pointer]:
+                    - generic [ref=e282]: →
+                    - text: High-fidelity 303 (offline CPU / GPU)
+                  - button "Contextual help (highfid-303-offline)" [ref=e283] [cursor=pointer]: "?"
+              - listitem [ref=e284]:
+                - generic [ref=e285]:
+                  - button "303 Voice selector (Open303 / JC303 / high-fid)" [ref=e286] [cursor=pointer]:
+                    - generic [ref=e287]: →
+                    - text: 303 Voice selector (Open303 / JC303 / high-fid)
+                  - button "Contextual help (engine-303-switch)" [ref=e288] [cursor=pointer]: "?"
+              - listitem [ref=e289]:
+                - generic [ref=e290]:
+                  - button "Prophecy formant oscillators" [ref=e291] [cursor=pointer]:
+                    - generic [ref=e292]: →
+                    - text: Prophecy formant oscillators
+                  - button "Contextual help (prophecy-formants)" [ref=e293] [cursor=pointer]: "?"
+              - listitem [ref=e294]:
+                - generic [ref=e295]:
+                  - button "Knob automation lanes + REC AUTO" [ref=e296] [cursor=pointer]:
+                    - generic [ref=e297]: →
+                    - text: Knob automation lanes + REC AUTO
+                  - button "Contextual help (automation-filter)" [ref=e298] [cursor=pointer]: "?"
+              - listitem [ref=e299]:
+                - generic [ref=e300]:
+                  - button "ReBirth .rbs import" [ref=e301] [cursor=pointer]:
+                    - generic [ref=e302]: →
+                    - text: ReBirth .rbs import
+                  - button "Contextual help (rbs-import)" [ref=e303] [cursor=pointer]: "?"
+              - listitem [ref=e304]:
+                - generic [ref=e305]:
+                  - button "Per-bank sampler TTS" [ref=e306] [cursor=pointer]:
+                    - generic [ref=e307]: →
+                    - text: Per-bank sampler TTS
+                  - button "Contextual help (sampler-tts)" [ref=e308] [cursor=pointer]: "?"
+              - listitem [ref=e309]:
+                - generic [ref=e310]:
+                  - button "Voice Designer DSP editor" [ref=e311] [cursor=pointer]:
+                    - generic [ref=e312]: →
+                    - text: Voice Designer DSP editor
+                  - button "Contextual help (voice-designer)" [ref=e313] [cursor=pointer]: "?"
+              - listitem [ref=e314]:
+                - generic [ref=e315]:
+                  - button "Song mode arrangement" [ref=e316] [cursor=pointer]:
+                    - generic [ref=e317]: →
+                    - text: Song mode arrangement
+                  - button "Contextual help (song-mode)" [ref=e318] [cursor=pointer]: "?"
+          - button "Dismiss what's new banner" [ref=e319] [cursor=pointer]: ✕
+      - grid "Step sequencer" [ref=e321]:
+        - paragraph [ref=e322]: Arrow keys move between steps and tracks. Space or Enter toggles a step. Shift plus arrow extends the selection range.
+        - generic: Alt+Click sampler step for Phoneme Painter
+        - img [ref=e323]:
+          - generic [ref=e324]:
+            - row [ref=e325]:
+              - rowheader "Select Lead track, Selected" [ref=e326] [cursor=pointer]:
+                - generic [ref=e328]: LEAD
+              - generic [ref=e329]:
+                - button "Pattern Slot 1" [pressed] [ref=e330] [cursor=pointer]:
+                  - generic [ref=e332]: "1"
+                - button "Pattern Slot 2" [ref=e334] [cursor=pointer]:
+                  - generic [ref=e336]: "2"
+                - button "Pattern Slot 3" [ref=e338] [cursor=pointer]:
+                  - generic [ref=e340]: "3"
+                - button "Pattern Slot 4" [ref=e342] [cursor=pointer]:
+                  - generic [ref=e344]: "4"
+                - button "Pattern Slot 5" [ref=e346] [cursor=pointer]:
+                  - generic [ref=e348]: "5"
+                - button "Pattern Slot 6" [ref=e350] [cursor=pointer]:
+                  - generic [ref=e352]: "6"
+                - button "Pattern Slot 7" [ref=e354] [cursor=pointer]:
+                  - generic [ref=e356]: "7"
+                - button "Pattern Slot 8" [ref=e358] [cursor=pointer]:
+                  - generic [ref=e360]: "8"
+                - button "Pattern Slot 9" [ref=e362] [cursor=pointer]:
+                  - generic [ref=e364]: "9"
+                - button "Pattern Slot 10" [ref=e366] [cursor=pointer]:
+                  - generic [ref=e368]: "10"
+                - button "Pattern Slot 11" [ref=e370] [cursor=pointer]:
+                  - generic [ref=e372]: "11"
+                - button "Pattern Slot 12" [ref=e374] [cursor=pointer]:
+                  - generic [ref=e376]: "12"
+                - button "Pattern Slot 13" [ref=e378] [cursor=pointer]:
+                  - generic [ref=e380]: "13"
+                - button "Pattern Slot 14" [ref=e382] [cursor=pointer]:
+                  - generic [ref=e384]: "14"
+                - button "Pattern Slot 15" [ref=e386] [cursor=pointer]:
+                  - generic [ref=e388]: "15"
+                - button "Pattern Slot 16" [ref=e390] [cursor=pointer]:
+                  - generic [ref=e392]: "16"
+                - button "Pattern Slot 17" [ref=e394] [cursor=pointer]:
+                  - generic [ref=e396]: "17"
+                - button "Pattern Slot 18" [ref=e398] [cursor=pointer]:
+                  - generic [ref=e400]: "18"
+                - button "Pattern Slot 19" [ref=e402] [cursor=pointer]:
+                  - generic [ref=e404]: "19"
+                - button "Pattern Slot 20" [ref=e406] [cursor=pointer]:
+                  - generic [ref=e408]: "20"
+                - button "Pattern Slot 21" [ref=e410] [cursor=pointer]:
+                  - generic [ref=e412]: "21"
+                - button "Pattern Slot 22" [ref=e414] [cursor=pointer]:
+                  - generic [ref=e416]: "22"
+                - button "Pattern Slot 23" [ref=e418] [cursor=pointer]:
+                  - generic [ref=e420]: "23"
+                - button "Pattern Slot 24" [ref=e422] [cursor=pointer]:
+                  - generic [ref=e424]: "24"
+                - button "Pattern Slot 25" [ref=e426] [cursor=pointer]:
+                  - generic [ref=e428]: "25"
+                - button "Pattern Slot 26" [ref=e430] [cursor=pointer]:
+                  - generic [ref=e432]: "26"
+                - button "Pattern Slot 27" [ref=e434] [cursor=pointer]:
+                  - generic [ref=e436]: "27"
+                - button "Pattern Slot 28" [ref=e438] [cursor=pointer]:
+                  - generic [ref=e440]: "28"
+                - button "Pattern Slot 29" [ref=e442] [cursor=pointer]:
+                  - generic [ref=e444]: "29"
+                - button "Pattern Slot 30" [ref=e446] [cursor=pointer]:
+                  - generic [ref=e448]: "30"
+                - button "Pattern Slot 31" [ref=e450] [cursor=pointer]:
+                  - generic [ref=e452]: "31"
+                - button "Pattern Slot 32" [ref=e454] [cursor=pointer]:
+                  - generic [ref=e456]: "32"
+              - generic [ref=e458]:
+                - gridcell "Lead step 1, Active" [ref=e475] [cursor=pointer]
+                - gridcell "Lead step 2, Inactive" [ref=e483] [cursor=pointer]
+                - gridcell "Lead step 3, Inactive" [ref=e490] [cursor=pointer]
+                - gridcell "Lead step 4, Inactive" [ref=e497] [cursor=pointer]
+                - gridcell "Lead step 5, Active" [ref=e504] [cursor=pointer]
+                - gridcell "Lead step 6, Inactive" [ref=e512] [cursor=pointer]
+                - gridcell "Lead step 7, Inactive" [ref=e519] [cursor=pointer]
+                - gridcell "Lead step 8, Inactive" [ref=e526] [cursor=pointer]
+                - gridcell "Lead step 9, Active" [ref=e533] [cursor=pointer]
+                - gridcell "Lead step 10, Inactive" [ref=e541] [cursor=pointer]
+                - gridcell "Lead step 11, Inactive" [ref=e548] [cursor=pointer]
+                - gridcell "Lead step 12, Inactive" [ref=e555] [cursor=pointer]
+                - gridcell "Lead step 13, Active" [ref=e562] [cursor=pointer]
+                - gridcell "Lead step 14, Inactive" [ref=e570] [cursor=pointer]
+                - gridcell "Lead step 15, Inactive" [ref=e577] [cursor=pointer]
+                - gridcell "Lead step 16, Inactive" [ref=e584] [cursor=pointer]
+                - gridcell "Lead step 17, Active" [ref=e591] [cursor=pointer]
+                - gridcell "Lead step 18, Inactive" [ref=e599] [cursor=pointer]
+                - gridcell "Lead step 19, Inactive" [ref=e606] [cursor=pointer]
+                - gridcell "Lead step 20, Inactive" [ref=e613] [cursor=pointer]
+                - gridcell "Lead step 21, Active" [ref=e620] [cursor=pointer]
+                - gridcell "Lead step 22, Inactive" [ref=e628] [cursor=pointer]
+                - gridcell "Lead step 23, Inactive" [ref=e635] [cursor=pointer]
+                - gridcell "Lead step 24, Inactive" [ref=e642] [cursor=pointer]
+                - gridcell "Lead step 25, Active" [ref=e649] [cursor=pointer]
+                - gridcell "Lead step 26, Inactive" [ref=e657] [cursor=pointer]
+                - gridcell "Lead step 27, Inactive" [ref=e664] [cursor=pointer]
+                - gridcell "Lead step 28, Inactive" [ref=e671] [cursor=pointer]
+                - gridcell "Lead step 29, Active" [ref=e678] [cursor=pointer]
+                - gridcell "Lead step 30, Inactive" [ref=e686] [cursor=pointer]
+                - gridcell "Lead step 31, Inactive" [ref=e693] [cursor=pointer]
+                - gridcell "Lead step 32, Inactive" [ref=e700] [cursor=pointer]
+            - row [ref=e707]:
+              - rowheader "Select Bass track, Unselected" [ref=e708] [cursor=pointer]:
+                - generic [ref=e709]: BASS
+              - generic [ref=e710]:
+                - button "Pattern Slot 1" [pressed] [ref=e711] [cursor=pointer]:
+                  - generic [ref=e713]: "1"
+                - button "Pattern Slot 2" [ref=e715] [cursor=pointer]:
+                  - generic [ref=e717]: "2"
+                - button "Pattern Slot 3" [ref=e719] [cursor=pointer]:
+                  - generic [ref=e721]: "3"
+                - button "Pattern Slot 4" [ref=e723] [cursor=pointer]:
+                  - generic [ref=e725]: "4"
+                - button "Pattern Slot 5" [ref=e727] [cursor=pointer]:
+                  - generic [ref=e729]: "5"
+                - button "Pattern Slot 6" [ref=e731] [cursor=pointer]:
+                  - generic [ref=e733]: "6"
+                - button "Pattern Slot 7" [ref=e735] [cursor=pointer]:
+                  - generic [ref=e737]: "7"
+                - button "Pattern Slot 8" [ref=e739] [cursor=pointer]:
+                  - generic [ref=e741]: "8"
+                - button "Pattern Slot 9" [ref=e743] [cursor=pointer]:
+                  - generic [ref=e745]: "9"
+                - button "Pattern Slot 10" [ref=e747] [cursor=pointer]:
+                  - generic [ref=e749]: "10"
+                - button "Pattern Slot 11" [ref=e751] [cursor=pointer]:
+                  - generic [ref=e753]: "11"
+                - button "Pattern Slot 12" [ref=e755] [cursor=pointer]:
+                  - generic [ref=e757]: "12"
+                - button "Pattern Slot 13" [ref=e759] [cursor=pointer]:
+                  - generic [ref=e761]: "13"
+                - button "Pattern Slot 14" [ref=e763] [cursor=pointer]:
+                  - generic [ref=e765]: "14"
+                - button "Pattern Slot 15" [ref=e767] [cursor=pointer]:
+                  - generic [ref=e769]: "15"
+                - button "Pattern Slot 16" [ref=e771] [cursor=pointer]:
+                  - generic [ref=e773]: "16"
+                - button "Pattern Slot 17" [ref=e775] [cursor=pointer]:
+                  - generic [ref=e777]: "17"
+                - button "Pattern Slot 18" [ref=e779] [cursor=pointer]:
+                  - generic [ref=e781]: "18"
+                - button "Pattern Slot 19" [ref=e783] [cursor=pointer]:
+                  - generic [ref=e785]: "19"
+                - button "Pattern Slot 20" [ref=e787] [cursor=pointer]:
+                  - generic [ref=e789]: "20"
+                - button "Pattern Slot 21" [ref=e791] [cursor=pointer]:
+                  - generic [ref=e793]: "21"
+                - button "Pattern Slot 22" [ref=e795] [cursor=pointer]:
+                  - generic [ref=e797]: "22"
+                - button "Pattern Slot 23" [ref=e799] [cursor=pointer]:
+                  - generic [ref=e801]: "23"
+                - button "Pattern Slot 24" [ref=e803] [cursor=pointer]:
+                  - generic [ref=e805]: "24"
+                - button "Pattern Slot 25" [ref=e807] [cursor=pointer]:
+                  - generic [ref=e809]: "25"
+                - button "Pattern Slot 26" [ref=e811] [cursor=pointer]:
+                  - generic [ref=e813]: "26"
+                - button "Pattern Slot 27" [ref=e815] [cursor=pointer]:
+                  - generic [ref=e817]: "27"
+                - button "Pattern Slot 28" [ref=e819] [cursor=pointer]:
+                  - generic [ref=e821]: "28"
+                - button "Pattern Slot 29" [ref=e823] [cursor=pointer]:
+                  - generic [ref=e825]: "29"
+                - button "Pattern Slot 30" [ref=e827] [cursor=pointer]:
+                  - generic [ref=e829]: "30"
+                - button "Pattern Slot 31" [ref=e831] [cursor=pointer]:
+                  - generic [ref=e833]: "31"
+                - button "Pattern Slot 32" [ref=e835] [cursor=pointer]:
+                  - generic [ref=e837]: "32"
+              - generic [ref=e839]:
+                - gridcell "Bass step 1, Inactive" [ref=e856] [cursor=pointer]
+                - gridcell "Bass step 2, Inactive" [ref=e863] [cursor=pointer]
+                - gridcell "Bass step 3, Active" [ref=e870] [cursor=pointer]
+                - gridcell "Bass step 4, Inactive" [ref=e878] [cursor=pointer]
+                - gridcell "Bass step 5, Inactive" [ref=e885] [cursor=pointer]
+                - gridcell "Bass step 6, Inactive" [ref=e892] [cursor=pointer]
+                - gridcell "Bass step 7, Active" [ref=e899] [cursor=pointer]
+                - gridcell "Bass step 8, Inactive" [ref=e907] [cursor=pointer]
+                - gridcell "Bass step 9, Inactive" [ref=e914] [cursor=pointer]
+                - gridcell "Bass step 10, Inactive" [ref=e921] [cursor=pointer]
+                - gridcell "Bass step 11, Active" [ref=e928] [cursor=pointer]
+                - gridcell "Bass step 12, Inactive" [ref=e936] [cursor=pointer]
+                - gridcell "Bass step 13, Inactive" [ref=e943] [cursor=pointer]
+                - gridcell "Bass step 14, Inactive" [ref=e950] [cursor=pointer]
+                - gridcell "Bass step 15, Active" [ref=e957] [cursor=pointer]
+                - gridcell "Bass step 16, Inactive" [ref=e965] [cursor=pointer]
+                - gridcell "Bass step 17, Inactive" [ref=e972] [cursor=pointer]
+                - gridcell "Bass step 18, Inactive" [ref=e979] [cursor=pointer]
+                - gridcell "Bass step 19, Active" [ref=e986] [cursor=pointer]
+                - gridcell "Bass step 20, Inactive" [ref=e994] [cursor=pointer]
+                - gridcell "Bass step 21, Inactive" [ref=e1001] [cursor=pointer]
+                - gridcell "Bass step 22, Inactive" [ref=e1008] [cursor=pointer]
+                - gridcell "Bass step 23, Active" [ref=e1015] [cursor=pointer]
+                - gridcell "Bass step 24, Inactive" [ref=e1023] [cursor=pointer]
+                - gridcell "Bass step 25, Inactive" [ref=e1030] [cursor=pointer]
+                - gridcell "Bass step 26, Inactive" [ref=e1037] [cursor=pointer]
+                - gridcell "Bass step 27, Active" [ref=e1044] [cursor=pointer]
+                - gridcell "Bass step 28, Inactive" [ref=e1052] [cursor=pointer]
+                - gridcell "Bass step 29, Inactive" [ref=e1059] [cursor=pointer]
+                - gridcell "Bass step 30, Inactive" [ref=e1066] [cursor=pointer]
+                - gridcell "Bass step 31, Active" [ref=e1073] [cursor=pointer]
+                - gridcell "Bass step 32, Inactive" [ref=e1081] [cursor=pointer]
+            - row [ref=e1088]:
+              - rowheader "Select Bass2 track, Unselected" [ref=e1089] [cursor=pointer]:
+                - generic [ref=e1090]: BASS2
+              - generic [ref=e1091]:
+                - button "Pattern Slot 1" [pressed] [ref=e1092] [cursor=pointer]:
+                  - generic [ref=e1094]: "1"
+                - button "Pattern Slot 2" [ref=e1096] [cursor=pointer]:
+                  - generic [ref=e1098]: "2"
+                - button "Pattern Slot 3" [ref=e1100] [cursor=pointer]:
+                  - generic [ref=e1102]: "3"
+                - button "Pattern Slot 4" [ref=e1104] [cursor=pointer]:
+                  - generic [ref=e1106]: "4"
+                - button "Pattern Slot 5" [ref=e1108] [cursor=pointer]:
+                  - generic [ref=e1110]: "5"
+                - button "Pattern Slot 6" [ref=e1112] [cursor=pointer]:
+                  - generic [ref=e1114]: "6"
+                - button "Pattern Slot 7" [ref=e1116] [cursor=pointer]:
+                  - generic [ref=e1118]: "7"
+                - button "Pattern Slot 8" [ref=e1120] [cursor=pointer]:
+                  - generic [ref=e1122]: "8"
+                - button "Pattern Slot 9" [ref=e1124] [cursor=pointer]:
+                  - generic [ref=e1126]: "9"
+                - button "Pattern Slot 10" [ref=e1128] [cursor=pointer]:
+                  - generic [ref=e1130]: "10"
+                - button "Pattern Slot 11" [ref=e1132] [cursor=pointer]:
+                  - generic [ref=e1134]: "11"
+                - button "Pattern Slot 12" [ref=e1136] [cursor=pointer]:
+                  - generic [ref=e1138]: "12"
+                - button "Pattern Slot 13" [ref=e1140] [cursor=pointer]:
+                  - generic [ref=e1142]: "13"
+                - button "Pattern Slot 14" [ref=e1144] [cursor=pointer]:
+                  - generic [ref=e1146]: "14"
+                - button "Pattern Slot 15" [ref=e1148] [cursor=pointer]:
+                  - generic [ref=e1150]: "15"
+                - button "Pattern Slot 16" [ref=e1152] [cursor=pointer]:
+                  - generic [ref=e1154]: "16"
+                - button "Pattern Slot 17" [ref=e1156] [cursor=pointer]:
+                  - generic [ref=e1158]: "17"
+                - button "Pattern Slot 18" [ref=e1160] [cursor=pointer]:
+                  - generic [ref=e1162]: "18"
+                - button "Pattern Slot 19" [ref=e1164] [cursor=pointer]:
+                  - generic [ref=e1166]: "19"
+                - button "Pattern Slot 20" [ref=e1168] [cursor=pointer]:
+                  - generic [ref=e1170]: "20"
+                - button "Pattern Slot 21" [ref=e1172] [cursor=pointer]:
+                  - generic [ref=e1174]: "21"
+                - button "Pattern Slot 22" [ref=e1176] [cursor=pointer]:
+                  - generic [ref=e1178]: "22"
+                - button "Pattern Slot 23" [ref=e1180] [cursor=pointer]:
+                  - generic [ref=e1182]: "23"
+                - button "Pattern Slot 24" [ref=e1184] [cursor=pointer]:
+                  - generic [ref=e1186]: "24"
+                - button "Pattern Slot 25" [ref=e1188] [cursor=pointer]:
+                  - generic [ref=e1190]: "25"
+                - button "Pattern Slot 26" [ref=e1192] [cursor=pointer]:
+                  - generic [ref=e1194]: "26"
+                - button "Pattern Slot 27" [ref=e1196] [cursor=pointer]:
+                  - generic [ref=e1198]: "27"
+                - button "Pattern Slot 28" [ref=e1200] [cursor=pointer]:
+                  - generic [ref=e1202]: "28"
+                - button "Pattern Slot 29" [ref=e1204] [cursor=pointer]:
+                  - generic [ref=e1206]: "29"
+                - button "Pattern Slot 30" [ref=e1208] [cursor=pointer]:
+                  - generic [ref=e1210]: "30"
+                - button "Pattern Slot 31" [ref=e1212] [cursor=pointer]:
+                  - generic [ref=e1214]: "31"
+                - button "Pattern Slot 32" [ref=e1216] [cursor=pointer]:
+                  - generic [ref=e1218]: "32"
+              - generic [ref=e1220]:
+                - gridcell "Bass2 step 1, Inactive" [ref=e1237] [cursor=pointer]
+                - gridcell "Bass2 step 2, Inactive" [ref=e1244] [cursor=pointer]
+                - gridcell "Bass2 step 3, Active" [ref=e1251] [cursor=pointer]
+                - gridcell "Bass2 step 4, Inactive" [ref=e1259] [cursor=pointer]
+                - gridcell "Bass2 step 5, Inactive" [ref=e1266] [cursor=pointer]
+                - gridcell "Bass2 step 6, Inactive" [ref=e1273] [cursor=pointer]
+                - gridcell "Bass2 step 7, Active" [ref=e1280] [cursor=pointer]
+                - gridcell "Bass2 step 8, Inactive" [ref=e1288] [cursor=pointer]
+                - gridcell "Bass2 step 9, Inactive" [ref=e1295] [cursor=pointer]
+                - gridcell "Bass2 step 10, Inactive" [ref=e1302] [cursor=pointer]
+                - gridcell "Bass2 step 11, Active" [ref=e1309] [cursor=pointer]
+                - gridcell "Bass2 step 12, Inactive" [ref=e1317] [cursor=pointer]
+                - gridcell "Bass2 step 13, Inactive" [ref=e1324] [cursor=pointer]
+                - gridcell "Bass2 step 14, Inactive" [ref=e1331] [cursor=pointer]
+                - gridcell "Bass2 step 15, Active" [ref=e1338] [cursor=pointer]
+                - gridcell "Bass2 step 16, Inactive" [ref=e1346] [cursor=pointer]
+                - gridcell "Bass2 step 17, Inactive" [ref=e1353] [cursor=pointer]
+                - gridcell "Bass2 step 18, Inactive" [ref=e1360] [cursor=pointer]
+                - gridcell "Bass2 step 19, Active" [ref=e1367] [cursor=pointer]
+                - gridcell "Bass2 step 20, Inactive" [ref=e1375] [cursor=pointer]
+                - gridcell "Bass2 step 21, Inactive" [ref=e1382] [cursor=pointer]
+                - gridcell "Bass2 step 22, Inactive" [ref=e1389] [cursor=pointer]
+                - gridcell "Bass2 step 23, Active" [ref=e1396] [cursor=pointer]
+                - gridcell "Bass2 step 24, Inactive" [ref=e1404] [cursor=pointer]
+                - gridcell "Bass2 step 25, Inactive" [ref=e1411] [cursor=pointer]
+                - gridcell "Bass2 step 26, Inactive" [ref=e1418] [cursor=pointer]
+                - gridcell "Bass2 step 27, Active" [ref=e1425] [cursor=pointer]
+                - gridcell "Bass2 step 28, Inactive" [ref=e1433] [cursor=pointer]
+                - gridcell "Bass2 step 29, Inactive" [ref=e1440] [cursor=pointer]
+                - gridcell "Bass2 step 30, Inactive" [ref=e1447] [cursor=pointer]
+                - gridcell "Bass2 step 31, Active" [ref=e1454] [cursor=pointer]
+                - gridcell "Bass2 step 32, Inactive" [ref=e1462] [cursor=pointer]
+            - row [ref=e1469]:
+              - rowheader "Select Kick track, Unselected" [ref=e1470] [cursor=pointer]:
+                - generic [ref=e1471]: KICK
+              - generic [ref=e1472]:
+                - button "Pattern Slot 1" [pressed] [ref=e1473] [cursor=pointer]:
+                  - generic [ref=e1475]: "1"
+                - button "Pattern Slot 2" [ref=e1477] [cursor=pointer]:
+                  - generic [ref=e1479]: "2"
+                - button "Pattern Slot 3" [ref=e1481] [cursor=pointer]:
+                  - generic [ref=e1483]: "3"
+                - button "Pattern Slot 4" [ref=e1485] [cursor=pointer]:
+                  - generic [ref=e1487]: "4"
+                - button "Pattern Slot 5" [ref=e1489] [cursor=pointer]:
+                  - generic [ref=e1491]: "5"
+                - button "Pattern Slot 6" [ref=e1493] [cursor=pointer]:
+                  - generic [ref=e1495]: "6"
+                - button "Pattern Slot 7" [ref=e1497] [cursor=pointer]:
+                  - generic [ref=e1499]: "7"
+                - button "Pattern Slot 8" [ref=e1501] [cursor=pointer]:
+                  - generic [ref=e1503]: "8"
+                - button "Pattern Slot 9" [ref=e1505] [cursor=pointer]:
+                  - generic [ref=e1507]: "9"
+                - button "Pattern Slot 10" [ref=e1509] [cursor=pointer]:
+                  - generic [ref=e1511]: "10"
+                - button "Pattern Slot 11" [ref=e1513] [cursor=pointer]:
+                  - generic [ref=e1515]: "11"
+                - button "Pattern Slot 12" [ref=e1517] [cursor=pointer]:
+                  - generic [ref=e1519]: "12"
+                - button "Pattern Slot 13" [ref=e1521] [cursor=pointer]:
+                  - generic [ref=e1523]: "13"
+                - button "Pattern Slot 14" [ref=e1525] [cursor=pointer]:
+                  - generic [ref=e1527]: "14"
+                - button "Pattern Slot 15" [ref=e1529] [cursor=pointer]:
+                  - generic [ref=e1531]: "15"
+                - button "Pattern Slot 16" [ref=e1533] [cursor=pointer]:
+                  - generic [ref=e1535]: "16"
+                - button "Pattern Slot 17" [ref=e1537] [cursor=pointer]:
+                  - generic [ref=e1539]: "17"
+                - button "Pattern Slot 18" [ref=e1541] [cursor=pointer]:
+                  - generic [ref=e1543]: "18"
+                - button "Pattern Slot 19" [ref=e1545] [cursor=pointer]:
+                  - generic [ref=e1547]: "19"
+                - button "Pattern Slot 20" [ref=e1549] [cursor=pointer]:
+                  - generic [ref=e1551]: "20"
+                - button "Pattern Slot 21" [ref=e1553] [cursor=pointer]:
+                  - generic [ref=e1555]: "21"
+                - button "Pattern Slot 22" [ref=e1557] [cursor=pointer]:
+                  - generic [ref=e1559]: "22"
+                - button "Pattern Slot 23" [ref=e1561] [cursor=pointer]:
+                  - generic [ref=e1563]: "23"
+                - button "Pattern Slot 24" [ref=e1565] [cursor=pointer]:
+                  - generic [ref=e1567]: "24"
+                - button "Pattern Slot 25" [ref=e1569] [cursor=pointer]:
+                  - generic [ref=e1571]: "25"
+                - button "Pattern Slot 26" [ref=e1573] [cursor=pointer]:
+                  - generic [ref=e1575]: "26"
+                - button "Pattern Slot 27" [ref=e1577] [cursor=pointer]:
+                  - generic [ref=e1579]: "27"
+                - button "Pattern Slot 28" [ref=e1581] [cursor=pointer]:
+                  - generic [ref=e1583]: "28"
+                - button "Pattern Slot 29" [ref=e1585] [cursor=pointer]:
+                  - generic [ref=e1587]: "29"
+                - button "Pattern Slot 30" [ref=e1589] [cursor=pointer]:
+                  - generic [ref=e1591]: "30"
+                - button "Pattern Slot 31" [ref=e1593] [cursor=pointer]:
+                  - generic [ref=e1595]: "31"
+                - button "Pattern Slot 32" [ref=e1597] [cursor=pointer]:
+                  - generic [ref=e1599]: "32"
+              - generic [ref=e1601]:
+                - gridcell "Kick step 1, Active" [ref=e1618] [cursor=pointer]
+                - gridcell "Kick step 2, Inactive" [ref=e1626] [cursor=pointer]
+                - gridcell "Kick step 3, Inactive" [ref=e1633] [cursor=pointer]
+                - gridcell "Kick step 4, Inactive" [ref=e1640] [cursor=pointer]
+                - gridcell "Kick step 5, Active" [ref=e1647] [cursor=pointer]
+                - gridcell "Kick step 6, Inactive" [ref=e1655] [cursor=pointer]
+                - gridcell "Kick step 7, Inactive" [ref=e1662] [cursor=pointer]
+                - gridcell "Kick step 8, Inactive" [ref=e1669] [cursor=pointer]
+                - gridcell "Kick step 9, Active" [ref=e1676] [cursor=pointer]
+                - gridcell "Kick step 10, Inactive" [ref=e1684] [cursor=pointer]
+                - gridcell "Kick step 11, Inactive" [ref=e1691] [cursor=pointer]
+                - gridcell "Kick step 12, Inactive" [ref=e1698] [cursor=pointer]
+                - gridcell "Kick step 13, Active" [ref=e1705] [cursor=pointer]
+                - gridcell "Kick step 14, Inactive" [ref=e1713] [cursor=pointer]
+                - gridcell "Kick step 15, Inactive" [ref=e1720] [cursor=pointer]
+                - gridcell "Kick step 16, Inactive" [ref=e1727] [cursor=pointer]
+                - gridcell "Kick step 17, Active" [ref=e1734] [cursor=pointer]
+                - gridcell "Kick step 18, Inactive" [ref=e1742] [cursor=pointer]
+                - gridcell "Kick step 19, Inactive" [ref=e1749] [cursor=pointer]
+                - gridcell "Kick step 20, Inactive" [ref=e1756] [cursor=pointer]
+                - gridcell "Kick step 21, Active" [ref=e1763] [cursor=pointer]
+                - gridcell "Kick step 22, Inactive" [ref=e1771] [cursor=pointer]
+                - gridcell "Kick step 23, Inactive" [ref=e1778] [cursor=pointer]
+                - gridcell "Kick step 24, Inactive" [ref=e1785] [cursor=pointer]
+                - gridcell "Kick step 25, Active" [ref=e1792] [cursor=pointer]
+                - gridcell "Kick step 26, Inactive" [ref=e1800] [cursor=pointer]
+                - gridcell "Kick step 27, Inactive" [ref=e1807] [cursor=pointer]
+                - gridcell "Kick step 28, Inactive" [ref=e1814] [cursor=pointer]
+                - gridcell "Kick step 29, Active" [ref=e1821] [cursor=pointer]
+                - gridcell "Kick step 30, Inactive" [ref=e1829] [cursor=pointer]
+                - gridcell "Kick step 31, Inactive" [ref=e1836] [cursor=pointer]
+                - gridcell "Kick step 32, Inactive" [ref=e1843] [cursor=pointer]
+            - row [ref=e1850]:
+              - rowheader "Select Snare track, Unselected" [ref=e1851] [cursor=pointer]:
+                - generic [ref=e1852]: SNARE
+              - generic [ref=e1853]:
+                - button "Pattern Slot 1" [pressed] [ref=e1854] [cursor=pointer]:
+                  - generic [ref=e1856]: "1"
+                - button "Pattern Slot 2" [ref=e1858] [cursor=pointer]:
+                  - generic [ref=e1860]: "2"
+                - button "Pattern Slot 3" [ref=e1862] [cursor=pointer]:
+                  - generic [ref=e1864]: "3"
+                - button "Pattern Slot 4" [ref=e1866] [cursor=pointer]:
+                  - generic [ref=e1868]: "4"
+                - button "Pattern Slot 5" [ref=e1870] [cursor=pointer]:
+                  - generic [ref=e1872]: "5"
+                - button "Pattern Slot 6" [ref=e1874] [cursor=pointer]:
+                  - generic [ref=e1876]: "6"
+                - button "Pattern Slot 7" [ref=e1878] [cursor=pointer]:
+                  - generic [ref=e1880]: "7"
+                - button "Pattern Slot 8" [ref=e1882] [cursor=pointer]:
+                  - generic [ref=e1884]: "8"
+                - button "Pattern Slot 9" [ref=e1886] [cursor=pointer]:
+                  - generic [ref=e1888]: "9"
+                - button "Pattern Slot 10" [ref=e1890] [cursor=pointer]:
+                  - generic [ref=e1892]: "10"
+                - button "Pattern Slot 11" [ref=e1894] [cursor=pointer]:
+                  - generic [ref=e1896]: "11"
+                - button "Pattern Slot 12" [ref=e1898] [cursor=pointer]:
+                  - generic [ref=e1900]: "12"
+                - button "Pattern Slot 13" [ref=e1902] [cursor=pointer]:
+                  - generic [ref=e1904]: "13"
+                - button "Pattern Slot 14" [ref=e1906] [cursor=pointer]:
+                  - generic [ref=e1908]: "14"
+                - button "Pattern Slot 15" [ref=e1910] [cursor=pointer]:
+                  - generic [ref=e1912]: "15"
+                - button "Pattern Slot 16" [ref=e1914] [cursor=pointer]:
+                  - generic [ref=e1916]: "16"
+                - button "Pattern Slot 17" [ref=e1918] [cursor=pointer]:
+                  - generic [ref=e1920]: "17"
+                - button "Pattern Slot 18" [ref=e1922] [cursor=pointer]:
+                  - generic [ref=e1924]: "18"
+                - button "Pattern Slot 19" [ref=e1926] [cursor=pointer]:
+                  - generic [ref=e1928]: "19"
+                - button "Pattern Slot 20" [ref=e1930] [cursor=pointer]:
+                  - generic [ref=e1932]: "20"
+                - button "Pattern Slot 21" [ref=e1934] [cursor=pointer]:
+                  - generic [ref=e1936]: "21"
+                - button "Pattern Slot 22" [ref=e1938] [cursor=pointer]:
+                  - generic [ref=e1940]: "22"
+                - button "Pattern Slot 23" [ref=e1942] [cursor=pointer]:
+                  - generic [ref=e1944]: "23"
+                - button "Pattern Slot 24" [ref=e1946] [cursor=pointer]:
+                  - generic [ref=e1948]: "24"
+                - button "Pattern Slot 25" [ref=e1950] [cursor=pointer]:
+                  - generic [ref=e1952]: "25"
+                - button "Pattern Slot 26" [ref=e1954] [cursor=pointer]:
+                  - generic [ref=e1956]: "26"
+                - button "Pattern Slot 27" [ref=e1958] [cursor=pointer]:
+                  - generic [ref=e1960]: "27"
+                - button "Pattern Slot 28" [ref=e1962] [cursor=pointer]:
+                  - generic [ref=e1964]: "28"
+                - button "Pattern Slot 29" [ref=e1966] [cursor=pointer]:
+                  - generic [ref=e1968]: "29"
+                - button "Pattern Slot 30" [ref=e1970] [cursor=pointer]:
+                  - generic [ref=e1972]: "30"
+                - button "Pattern Slot 31" [ref=e1974] [cursor=pointer]:
+                  - generic [ref=e1976]: "31"
+                - button "Pattern Slot 32" [ref=e1978] [cursor=pointer]:
+                  - generic [ref=e1980]: "32"
+              - generic [ref=e1982]:
+                - gridcell "Snare step 1, Inactive" [ref=e1999] [cursor=pointer]
+                - gridcell "Snare step 2, Inactive" [ref=e2006] [cursor=pointer]
+                - gridcell "Snare step 3, Inactive" [ref=e2013] [cursor=pointer]
+                - gridcell "Snare step 4, Inactive" [ref=e2020] [cursor=pointer]
+                - gridcell "Snare step 5, Active" [ref=e2027] [cursor=pointer]
+                - gridcell "Snare step 6, Inactive" [ref=e2035] [cursor=pointer]
+                - gridcell "Snare step 7, Inactive" [ref=e2042] [cursor=pointer]
+                - gridcell "Snare step 8, Inactive" [ref=e2049] [cursor=pointer]
+                - gridcell "Snare step 9, Inactive" [ref=e2056] [cursor=pointer]
+                - gridcell "Snare step 10, Inactive" [ref=e2063] [cursor=pointer]
+                - gridcell "Snare step 11, Inactive" [ref=e2070] [cursor=pointer]
+                - gridcell "Snare step 12, Inactive" [ref=e2077] [cursor=pointer]
+                - gridcell "Snare step 13, Active" [ref=e2084] [cursor=pointer]
+                - gridcell "Snare step 14, Inactive" [ref=e2092] [cursor=pointer]
+                - gridcell "Snare step 15, Inactive" [ref=e2099] [cursor=pointer]
+                - gridcell "Snare step 16, Inactive" [ref=e2106] [cursor=pointer]
+                - gridcell "Snare step 17, Inactive" [ref=e2113] [cursor=pointer]
+                - gridcell "Snare step 18, Inactive" [ref=e2120] [cursor=pointer]
+                - gridcell "Snare step 19, Inactive" [ref=e2127] [cursor=pointer]
+                - gridcell "Snare step 20, Inactive" [ref=e2134] [cursor=pointer]
+                - gridcell "Snare step 21, Active" [ref=e2141] [cursor=pointer]
+                - gridcell "Snare step 22, Inactive" [ref=e2149] [cursor=pointer]
+                - gridcell "Snare step 23, Inactive" [ref=e2156] [cursor=pointer]
+                - gridcell "Snare step 24, Inactive" [ref=e2163] [cursor=pointer]
+                - gridcell "Snare step 25, Inactive" [ref=e2170] [cursor=pointer]
+                - gridcell "Snare step 26, Inactive" [ref=e2177] [cursor=pointer]
+                - gridcell "Snare step 27, Inactive" [ref=e2184] [cursor=pointer]
+                - gridcell "Snare step 28, Inactive" [ref=e2191] [cursor=pointer]
+                - gridcell "Snare step 29, Active" [ref=e2198] [cursor=pointer]
+                - gridcell "Snare step 30, Inactive" [ref=e2206] [cursor=pointer]
+                - gridcell "Snare step 31, Active" [ref=e2213] [cursor=pointer]
+                - gridcell "Snare step 32, Inactive" [ref=e2221] [cursor=pointer]
+            - row [ref=e2228]:
+              - rowheader "Select CH track, Unselected" [ref=e2229] [cursor=pointer]:
+                - generic [ref=e2230]: CH
+              - generic [ref=e2231]:
+                - button "Pattern Slot 1" [pressed] [ref=e2232] [cursor=pointer]:
+                  - generic [ref=e2234]: "1"
+                - button "Pattern Slot 2" [ref=e2236] [cursor=pointer]:
+                  - generic [ref=e2238]: "2"
+                - button "Pattern Slot 3" [ref=e2240] [cursor=pointer]:
+                  - generic [ref=e2242]: "3"
+                - button "Pattern Slot 4" [ref=e2244] [cursor=pointer]:
+                  - generic [ref=e2246]: "4"
+                - button "Pattern Slot 5" [ref=e2248] [cursor=pointer]:
+                  - generic [ref=e2250]: "5"
+                - button "Pattern Slot 6" [ref=e2252] [cursor=pointer]:
+                  - generic [ref=e2254]: "6"
+                - button "Pattern Slot 7" [ref=e2256] [cursor=pointer]:
+                  - generic [ref=e2258]: "7"
+                - button "Pattern Slot 8" [ref=e2260] [cursor=pointer]:
+                  - generic [ref=e2262]: "8"
+                - button "Pattern Slot 9" [ref=e2264] [cursor=pointer]:
+                  - generic [ref=e2266]: "9"
+                - button "Pattern Slot 10" [ref=e2268] [cursor=pointer]:
+                  - generic [ref=e2270]: "10"
+                - button "Pattern Slot 11" [ref=e2272] [cursor=pointer]:
+                  - generic [ref=e2274]: "11"
+                - button "Pattern Slot 12" [ref=e2276] [cursor=pointer]:
+                  - generic [ref=e2278]: "12"
+                - button "Pattern Slot 13" [ref=e2280] [cursor=pointer]:
+                  - generic [ref=e2282]: "13"
+                - button "Pattern Slot 14" [ref=e2284] [cursor=pointer]:
+                  - generic [ref=e2286]: "14"
+                - button "Pattern Slot 15" [ref=e2288] [cursor=pointer]:
+                  - generic [ref=e2290]: "15"
+                - button "Pattern Slot 16" [ref=e2292] [cursor=pointer]:
+                  - generic [ref=e2294]: "16"
+                - button "Pattern Slot 17" [ref=e2296] [cursor=pointer]:
+                  - generic [ref=e2298]: "17"
+                - button "Pattern Slot 18" [ref=e2300] [cursor=pointer]:
+                  - generic [ref=e2302]: "18"
+                - button "Pattern Slot 19" [ref=e2304] [cursor=pointer]:
+                  - generic [ref=e2306]: "19"
+                - button "Pattern Slot 20" [ref=e2308] [cursor=pointer]:
+                  - generic [ref=e2310]: "20"
+                - button "Pattern Slot 21" [ref=e2312] [cursor=pointer]:
+                  - generic [ref=e2314]: "21"
+                - button "Pattern Slot 22" [ref=e2316] [cursor=pointer]:
+                  - generic [ref=e2318]: "22"
+                - button "Pattern Slot 23" [ref=e2320] [cursor=pointer]:
+                  - generic [ref=e2322]: "23"
+                - button "Pattern Slot 24" [ref=e2324] [cursor=pointer]:
+                  - generic [ref=e2326]: "24"
+                - button "Pattern Slot 25" [ref=e2328] [cursor=pointer]:
+                  - generic [ref=e2330]: "25"
+                - button "Pattern Slot 26" [ref=e2332] [cursor=pointer]:
+                  - generic [ref=e2334]: "26"
+                - button "Pattern Slot 27" [ref=e2336] [cursor=pointer]:
+                  - generic [ref=e2338]: "27"
+                - button "Pattern Slot 28" [ref=e2340] [cursor=pointer]:
+                  - generic [ref=e2342]: "28"
+                - button "Pattern Slot 29" [ref=e2344] [cursor=pointer]:
+                  - generic [ref=e2346]: "29"
+                - button "Pattern Slot 30" [ref=e2348] [cursor=pointer]:
+                  - generic [ref=e2350]: "30"
+                - button "Pattern Slot 31" [ref=e2352] [cursor=pointer]:
+                  - generic [ref=e2354]: "31"
+                - button "Pattern Slot 32" [ref=e2356] [cursor=pointer]:
+                  - generic [ref=e2358]: "32"
+              - generic [ref=e2360]:
+                - gridcell "CH step 1, Active" [ref=e2377] [cursor=pointer]
+                - gridcell "CH step 2, Active" [ref=e2385] [cursor=pointer]
+                - gridcell "CH step 3, Active" [ref=e2393] [cursor=pointer]
+                - gridcell "CH step 4, Active" [ref=e2401] [cursor=pointer]
+                - gridcell "CH step 5, Active" [ref=e2409] [cursor=pointer]
+                - gridcell "CH step 6, Active" [ref=e2417] [cursor=pointer]
+                - gridcell "CH step 7, Active" [ref=e2425] [cursor=pointer]
+                - gridcell "CH step 8, Active" [ref=e2433] [cursor=pointer]
+                - gridcell "CH step 9, Active" [ref=e2441] [cursor=pointer]
+                - gridcell "CH step 10, Active" [ref=e2449] [cursor=pointer]
+                - gridcell "CH step 11, Active" [ref=e2457] [cursor=pointer]
+                - gridcell "CH step 12, Active" [ref=e2465] [cursor=pointer]
+                - gridcell "CH step 13, Active" [ref=e2473] [cursor=pointer]
+                - gridcell "CH step 14, Active" [ref=e2481] [cursor=pointer]
+                - gridcell "CH step 15, Active" [ref=e2489] [cursor=pointer]
+                - gridcell "CH step 16, Active" [ref=e2497] [cursor=pointer]
+                - gridcell "CH step 17, Active" [ref=e2505] [cursor=pointer]
+                - gridcell "CH step 18, Active" [ref=e2513] [cursor=pointer]
+                - gridcell "CH step 19, Active" [ref=e2521] [cursor=pointer]
+                - gridcell "CH step 20, Active" [ref=e2529] [cursor=pointer]
+                - gridcell "CH step 21, Active" [ref=e2537] [cursor=pointer]
+                - gridcell "CH step 22, Active" [ref=e2545] [cursor=pointer]
+                - gridcell "CH step 23, Active" [ref=e2553] [cursor=pointer]
+                - gridcell "CH step 24, Active" [ref=e2561] [cursor=pointer]
+                - gridcell "CH step 25, Active" [ref=e2569] [cursor=pointer]
+                - gridcell "CH step 26, Active" [ref=e2577] [cursor=pointer]
+                - gridcell "CH step 27, Active" [ref=e2585] [cursor=pointer]
+                - gridcell "CH step 28, Active" [ref=e2593] [cursor=pointer]
+                - gridcell "CH step 29, Active" [ref=e2601] [cursor=pointer]
+                - gridcell "CH step 30, Active" [ref=e2609] [cursor=pointer]
+                - gridcell "CH step 31, Active" [ref=e2617] [cursor=pointer]
+                - gridcell "CH step 32, Active" [ref=e2625] [cursor=pointer]
+            - row [ref=e2633]:
+              - rowheader "Select OH track, Unselected" [ref=e2634] [cursor=pointer]:
+                - generic [ref=e2635]: OH
+              - generic [ref=e2636]:
+                - button "Pattern Slot 1" [pressed] [ref=e2637] [cursor=pointer]:
+                  - generic [ref=e2639]: "1"
+                - button "Pattern Slot 2" [ref=e2641] [cursor=pointer]:
+                  - generic [ref=e2643]: "2"
+                - button "Pattern Slot 3" [ref=e2645] [cursor=pointer]:
+                  - generic [ref=e2647]: "3"
+                - button "Pattern Slot 4" [ref=e2649] [cursor=pointer]:
+                  - generic [ref=e2651]: "4"
+                - button "Pattern Slot 5" [ref=e2653] [cursor=pointer]:
+                  - generic [ref=e2655]: "5"
+                - button "Pattern Slot 6" [ref=e2657] [cursor=pointer]:
+                  - generic [ref=e2659]: "6"
+                - button "Pattern Slot 7" [ref=e2661] [cursor=pointer]:
+                  - generic [ref=e2663]: "7"
+                - button "Pattern Slot 8" [ref=e2665] [cursor=pointer]:
+                  - generic [ref=e2667]: "8"
+                - button "Pattern Slot 9" [ref=e2669] [cursor=pointer]:
+                  - generic [ref=e2671]: "9"
+                - button "Pattern Slot 10" [ref=e2673] [cursor=pointer]:
+                  - generic [ref=e2675]: "10"
+                - button "Pattern Slot 11" [ref=e2677] [cursor=pointer]:
+                  - generic [ref=e2679]: "11"
+                - button "Pattern Slot 12" [ref=e2681] [cursor=pointer]:
+                  - generic [ref=e2683]: "12"
+                - button "Pattern Slot 13" [ref=e2685] [cursor=pointer]:
+                  - generic [ref=e2687]: "13"
+                - button "Pattern Slot 14" [ref=e2689] [cursor=pointer]:
+                  - generic [ref=e2691]: "14"
+                - button "Pattern Slot 15" [ref=e2693] [cursor=pointer]:
+                  - generic [ref=e2695]: "15"
+                - button "Pattern Slot 16" [ref=e2697] [cursor=pointer]:
+                  - generic [ref=e2699]: "16"
+                - button "Pattern Slot 17" [ref=e2701] [cursor=pointer]:
+                  - generic [ref=e2703]: "17"
+                - button "Pattern Slot 18" [ref=e2705] [cursor=pointer]:
+                  - generic [ref=e2707]: "18"
+                - button "Pattern Slot 19" [ref=e2709] [cursor=pointer]:
+                  - generic [ref=e2711]: "19"
+                - button "Pattern Slot 20" [ref=e2713] [cursor=pointer]:
+                  - generic [ref=e2715]: "20"
+                - button "Pattern Slot 21" [ref=e2717] [cursor=pointer]:
+                  - generic [ref=e2719]: "21"
+                - button "Pattern Slot 22" [ref=e2721] [cursor=pointer]:
+                  - generic [ref=e2723]: "22"
+                - button "Pattern Slot 23" [ref=e2725] [cursor=pointer]:
+                  - generic [ref=e2727]: "23"
+                - button "Pattern Slot 24" [ref=e2729] [cursor=pointer]:
+                  - generic [ref=e2731]: "24"
+                - button "Pattern Slot 25" [ref=e2733] [cursor=pointer]:
+                  - generic [ref=e2735]: "25"
+                - button "Pattern Slot 26" [ref=e2737] [cursor=pointer]:
+                  - generic [ref=e2739]: "26"
+                - button "Pattern Slot 27" [ref=e2741] [cursor=pointer]:
+                  - generic [ref=e2743]: "27"
+                - button "Pattern Slot 28" [ref=e2745] [cursor=pointer]:
+                  - generic [ref=e2747]: "28"
+                - button "Pattern Slot 29" [ref=e2749] [cursor=pointer]:
+                  - generic [ref=e2751]: "29"
+                - button "Pattern Slot 30" [ref=e2753] [cursor=pointer]:
+                  - generic [ref=e2755]: "30"
+                - button "Pattern Slot 31" [ref=e2757] [cursor=pointer]:
+                  - generic [ref=e2759]: "31"
+                - button "Pattern Slot 32" [ref=e2761] [cursor=pointer]:
+                  - generic [ref=e2763]: "32"
+              - generic [ref=e2765]:
+                - gridcell "OH step 1, Inactive" [ref=e2782] [cursor=pointer]
+                - gridcell "OH step 2, Inactive" [ref=e2789] [cursor=pointer]
+                - gridcell "OH step 3, Inactive" [ref=e2796] [cursor=pointer]
+                - gridcell "OH step 4, Inactive" [ref=e2803] [cursor=pointer]
+                - gridcell "OH step 5, Inactive" [ref=e2810] [cursor=pointer]
+                - gridcell "OH step 6, Inactive" [ref=e2817] [cursor=pointer]
+                - gridcell "OH step 7, Inactive" [ref=e2824] [cursor=pointer]
+                - gridcell "OH step 8, Inactive" [ref=e2831] [cursor=pointer]
+                - gridcell "OH step 9, Inactive" [ref=e2838] [cursor=pointer]
+                - gridcell "OH step 10, Inactive" [ref=e2845] [cursor=pointer]
+                - gridcell "OH step 11, Active" [ref=e2852] [cursor=pointer]
+                - gridcell "OH step 12, Inactive" [ref=e2860] [cursor=pointer]
+                - gridcell "OH step 13, Inactive" [ref=e2867] [cursor=pointer]
+                - gridcell "OH step 14, Inactive" [ref=e2874] [cursor=pointer]
+                - gridcell "OH step 15, Inactive" [ref=e2881] [cursor=pointer]
+                - gridcell "OH step 16, Inactive" [ref=e2888] [cursor=pointer]
+                - gridcell "OH step 17, Inactive" [ref=e2895] [cursor=pointer]
+                - gridcell "OH step 18, Inactive" [ref=e2902] [cursor=pointer]
+                - gridcell "OH step 19, Inactive" [ref=e2909] [cursor=pointer]
+                - gridcell "OH step 20, Inactive" [ref=e2916] [cursor=pointer]
+                - gridcell "OH step 21, Inactive" [ref=e2923] [cursor=pointer]
+                - gridcell "OH step 22, Inactive" [ref=e2930] [cursor=pointer]
+                - gridcell "OH step 23, Inactive" [ref=e2937] [cursor=pointer]
+                - gridcell "OH step 24, Inactive" [ref=e2944] [cursor=pointer]
+                - gridcell "OH step 25, Inactive" [ref=e2951] [cursor=pointer]
+                - gridcell "OH step 26, Inactive" [ref=e2958] [cursor=pointer]
+                - gridcell "OH step 27, Active" [ref=e2965] [cursor=pointer]
+                - gridcell "OH step 28, Inactive" [ref=e2973] [cursor=pointer]
+                - gridcell "OH step 29, Inactive" [ref=e2980] [cursor=pointer]
+                - gridcell "OH step 30, Inactive" [ref=e2987] [cursor=pointer]
+                - gridcell "OH step 31, Inactive" [ref=e2994] [cursor=pointer]
+                - gridcell "OH step 32, Inactive" [ref=e3001] [cursor=pointer]
+            - row [ref=e3008]:
+              - rowheader "Select SMP 1 track, Unselected" [ref=e3009] [cursor=pointer]:
+                - generic [ref=e3010]: SMP 1
+              - generic [ref=e3011]:
+                - button "Pattern Slot 1" [pressed] [ref=e3012] [cursor=pointer]:
+                  - generic [ref=e3014]: "1"
+                - button "Pattern Slot 2" [ref=e3016] [cursor=pointer]:
+                  - generic [ref=e3018]: "2"
+                - button "Pattern Slot 3" [ref=e3020] [cursor=pointer]:
+                  - generic [ref=e3022]: "3"
+                - button "Pattern Slot 4" [ref=e3024] [cursor=pointer]:
+                  - generic [ref=e3026]: "4"
+                - button "Pattern Slot 5" [ref=e3028] [cursor=pointer]:
+                  - generic [ref=e3030]: "5"
+                - button "Pattern Slot 6" [ref=e3032] [cursor=pointer]:
+                  - generic [ref=e3034]: "6"
+                - button "Pattern Slot 7" [ref=e3036] [cursor=pointer]:
+                  - generic [ref=e3038]: "7"
+                - button "Pattern Slot 8" [ref=e3040] [cursor=pointer]:
+                  - generic [ref=e3042]: "8"
+                - button "Pattern Slot 9" [ref=e3044] [cursor=pointer]:
+                  - generic [ref=e3046]: "9"
+                - button "Pattern Slot 10" [ref=e3048] [cursor=pointer]:
+                  - generic [ref=e3050]: "10"
+                - button "Pattern Slot 11" [ref=e3052] [cursor=pointer]:
+                  - generic [ref=e3054]: "11"
+                - button "Pattern Slot 12" [ref=e3056] [cursor=pointer]:
+                  - generic [ref=e3058]: "12"
+                - button "Pattern Slot 13" [ref=e3060] [cursor=pointer]:
+                  - generic [ref=e3062]: "13"
+                - button "Pattern Slot 14" [ref=e3064] [cursor=pointer]:
+                  - generic [ref=e3066]: "14"
+                - button "Pattern Slot 15" [ref=e3068] [cursor=pointer]:
+                  - generic [ref=e3070]: "15"
+                - button "Pattern Slot 16" [ref=e3072] [cursor=pointer]:
+                  - generic [ref=e3074]: "16"
+                - button "Pattern Slot 17" [ref=e3076] [cursor=pointer]:
+                  - generic [ref=e3078]: "17"
+                - button "Pattern Slot 18" [ref=e3080] [cursor=pointer]:
+                  - generic [ref=e3082]: "18"
+                - button "Pattern Slot 19" [ref=e3084] [cursor=pointer]:
+                  - generic [ref=e3086]: "19"
+                - button "Pattern Slot 20" [ref=e3088] [cursor=pointer]:
+                  - generic [ref=e3090]: "20"
+                - button "Pattern Slot 21" [ref=e3092] [cursor=pointer]:
+                  - generic [ref=e3094]: "21"
+                - button "Pattern Slot 22" [ref=e3096] [cursor=pointer]:
+                  - generic [ref=e3098]: "22"
+                - button "Pattern Slot 23" [ref=e3100] [cursor=pointer]:
+                  - generic [ref=e3102]: "23"
+                - button "Pattern Slot 24" [ref=e3104] [cursor=pointer]:
+                  - generic [ref=e3106]: "24"
+                - button "Pattern Slot 25" [ref=e3108] [cursor=pointer]:
+                  - generic [ref=e3110]: "25"
+                - button "Pattern Slot 26" [ref=e3112] [cursor=pointer]:
+                  - generic [ref=e3114]: "26"
+                - button "Pattern Slot 27" [ref=e3116] [cursor=pointer]:
+                  - generic [ref=e3118]: "27"
+                - button "Pattern Slot 28" [ref=e3120] [cursor=pointer]:
+                  - generic [ref=e3122]: "28"
+                - button "Pattern Slot 29" [ref=e3124] [cursor=pointer]:
+                  - generic [ref=e3126]: "29"
+                - button "Pattern Slot 30" [ref=e3128] [cursor=pointer]:
+                  - generic [ref=e3130]: "30"
+                - button "Pattern Slot 31" [ref=e3132] [cursor=pointer]:
+                  - generic [ref=e3134]: "31"
+                - button "Pattern Slot 32" [ref=e3136] [cursor=pointer]:
+                  - generic [ref=e3138]: "32"
+              - generic [ref=e3140]:
+                - gridcell "SMP 1 step 1, Inactive" [ref=e3157] [cursor=pointer]
+                - gridcell "SMP 1 step 2, Inactive" [ref=e3164] [cursor=pointer]
+                - gridcell "SMP 1 step 3, Inactive" [ref=e3171] [cursor=pointer]
+                - gridcell "SMP 1 step 4, Inactive" [ref=e3178] [cursor=pointer]
+                - gridcell "SMP 1 step 5, Inactive" [ref=e3185] [cursor=pointer]
+                - gridcell "SMP 1 step 6, Inactive" [ref=e3192] [cursor=pointer]
+                - gridcell "SMP 1 step 7, Inactive" [ref=e3199] [cursor=pointer]
+                - gridcell "SMP 1 step 8, Inactive" [ref=e3206] [cursor=pointer]
+                - gridcell "SMP 1 step 9, Inactive" [ref=e3213] [cursor=pointer]
+                - gridcell "SMP 1 step 10, Inactive" [ref=e3220] [cursor=pointer]
+                - gridcell "SMP 1 step 11, Inactive" [ref=e3227] [cursor=pointer]
+                - gridcell "SMP 1 step 12, Inactive" [ref=e3234] [cursor=pointer]
+                - gridcell "SMP 1 step 13, Inactive" [ref=e3241] [cursor=pointer]
+                - gridcell "SMP 1 step 14, Inactive" [ref=e3248] [cursor=pointer]
+                - gridcell "SMP 1 step 15, Inactive" [ref=e3255] [cursor=pointer]
+                - gridcell "SMP 1 step 16, Inactive" [ref=e3262] [cursor=pointer]
+                - gridcell "SMP 1 step 17, Inactive" [ref=e3269] [cursor=pointer]
+                - gridcell "SMP 1 step 18, Inactive" [ref=e3276] [cursor=pointer]
+                - gridcell "SMP 1 step 19, Inactive" [ref=e3283] [cursor=pointer]
+                - gridcell "SMP 1 step 20, Inactive" [ref=e3290] [cursor=pointer]
+                - gridcell "SMP 1 step 21, Inactive" [ref=e3297] [cursor=pointer]
+                - gridcell "SMP 1 step 22, Inactive" [ref=e3304] [cursor=pointer]
+                - gridcell "SMP 1 step 23, Inactive" [ref=e3311] [cursor=pointer]
+                - gridcell "SMP 1 step 24, Inactive" [ref=e3318] [cursor=pointer]
+                - gridcell "SMP 1 step 25, Inactive" [ref=e3325] [cursor=pointer]
+                - gridcell "SMP 1 step 26, Inactive" [ref=e3332] [cursor=pointer]
+                - gridcell "SMP 1 step 27, Inactive" [ref=e3339] [cursor=pointer]
+                - gridcell "SMP 1 step 28, Inactive" [ref=e3346] [cursor=pointer]
+                - gridcell "SMP 1 step 29, Inactive" [ref=e3353] [cursor=pointer]
+                - gridcell "SMP 1 step 30, Inactive" [ref=e3360] [cursor=pointer]
+                - gridcell "SMP 1 step 31, Inactive" [ref=e3367] [cursor=pointer]
+                - gridcell "SMP 1 step 32, Inactive" [ref=e3374] [cursor=pointer]
+      - generic [ref=e3385]:
+        - generic:
+          - generic [ref=e3386]:
+            - generic [ref=e3387]: SYNTH A // LEAD
+            - img "SYNTH A // LEAD activity" [ref=e3388]
+            - button "AUTO" [ref=e3389] [cursor=pointer]
+          - generic:
+            - generic: ATK
+            - generic: 0.01s
+          - button "Record Automation for ATK" [ref=e3390] [cursor=pointer]:
+            - generic [ref=e3391]: R
+          - slider "ATK"
+          - generic:
+            - generic: DEC
+            - generic: 0.20s
+          - button "Record Automation for DEC" [ref=e3392] [cursor=pointer]:
+            - generic [ref=e3393]: R
+          - slider "DEC"
+          - generic:
+            - generic: SUS
+            - generic: 50%
+          - button "Record Automation for SUS" [ref=e3394] [cursor=pointer]:
+            - generic [ref=e3395]: R
+          - slider "SUS"
+          - generic:
+            - generic: REL
+            - generic: 0.10s
+          - button "Record Automation for REL" [ref=e3396] [cursor=pointer]:
+            - generic [ref=e3397]: R
+          - slider "REL"
+          - generic:
+            - generic: CUTOFF
+            - generic: 2500Hz
+          - button "Record Automation for CUTOFF" [ref=e3398] [cursor=pointer]:
+            - generic [ref=e3399]: R
+          - slider "CUTOFF"
+          - generic:
+            - generic: RES
+            - generic: "5.0"
+          - button "Record Automation for RES" [ref=e3400] [cursor=pointer]:
+            - generic [ref=e3401]: R
+          - slider "RES"
+          - generic:
+            - generic: MODE
+            - generic: 18dB
+          - button "Record Automation for MODE" [ref=e3402] [cursor=pointer]:
+            - generic [ref=e3403]: R
+          - slider "MODE"
+          - generic:
+            - generic: TUNE
+            - generic: 0.0st
+          - button "Record Automation for TUNE" [ref=e3404] [cursor=pointer]:
+            - generic [ref=e3405]: R
+          - slider "TUNE"
+          - generic:
+            - generic: DRIVE
+            - generic: 0%
+          - button "Record Automation for DRIVE" [ref=e3406] [cursor=pointer]:
+            - generic [ref=e3407]: R
+          - slider "DRIVE"
+          - generic:
+            - generic: GATE
+            - generic: 0.25s
+          - button "Record Automation for GATE" [ref=e3408] [cursor=pointer]:
+            - generic [ref=e3409]: R
+          - slider "GATE"
+          - generic:
+            - generic: LEVEL
+            - generic: 50%
+          - button "Record Automation for LEVEL" [ref=e3410] [cursor=pointer]:
+            - generic [ref=e3411]: R
+          - slider "LEVEL"
+          - generic:
+            - generic: DLY MIX
+            - generic: 35%
+          - button "Record Automation for DLY MIX" [ref=e3412] [cursor=pointer]:
+            - generic [ref=e3413]: R
+          - slider "DLY MIX"
+          - generic:
+            - generic: DLY TIME
+            - generic: 0.30s
+          - button "Record Automation for DLY TIME" [ref=e3414] [cursor=pointer]:
+            - generic [ref=e3415]: R
+          - slider "DLY TIME"
+        - generic [ref=e3416]:
+          - group "Oscillator type selection" [ref=e3417]:
+            - generic [ref=e3418]:
+              - generic [ref=e3419]: Oscillator
+              - 'generic "Active oscillator family: JavaScript" [ref=e3420]': JS
+            - generic [ref=e3421]:
+              - button "JS" [pressed] [ref=e3422] [cursor=pointer]
+              - button "WAV" [ref=e3423] [cursor=pointer]
+              - button "303" [ref=e3424] [cursor=pointer]
+              - button "JC" [ref=e3425] [cursor=pointer]
+              - button "PRO" [ref=e3426] [cursor=pointer]
+              - button "PY" [ref=e3427] [cursor=pointer]
+              - button "RS" [ref=e3428] [cursor=pointer]
+              - button "GPU" [ref=e3429] [cursor=pointer]
+              - button "WAM" [ref=e3430] [cursor=pointer]
+              - button "CPP" [ref=e3431] [cursor=pointer]
+          - group "JavaScript waveform variants" [ref=e3432]:
+            - generic [ref=e3433]:
+              - generic [ref=e3434]: Shape
+              - generic [ref=e3435]: JS
+            - generic [ref=e3436]:
+              - button "Select JavaScript SAW waveform" [pressed] [ref=e3437] [cursor=pointer]: SAW
+              - button "Select JavaScript SQR waveform" [ref=e3438] [cursor=pointer]: SQR
+              - button "Select JavaScript TRI waveform" [ref=e3439] [cursor=pointer]: TRI
+              - button "Select JavaScript SIN waveform" [ref=e3440] [cursor=pointer]: SIN
+      - region "Master loudness" [ref=e3442]:
+        - generic [ref=e3443]:
+          - generic [ref=e3444]: Master LUFS
+          - button "Reset" [ref=e3445] [cursor=pointer]
+        - generic [ref=e3446]:
+          - generic "Momentary loudness (400 ms)" [ref=e3447]:
+            - generic [ref=e3448]: M
+            - generic [ref=e3449]: "-inf"
+          - generic "Short-term loudness (3 s)" [ref=e3450]:
+            - generic [ref=e3451]: S
+            - generic [ref=e3452]: "-inf"
+          - generic "Gated integrated loudness since last reset" [ref=e3453]:
+            - generic [ref=e3454]: I
+            - generic [ref=e3455]: "-inf"
+          - generic "Held true peak (inter-sample), dBTP" [ref=e3456]:
+            - generic [ref=e3457]: dBTP
+            - generic [ref=e3458]: "-inf"
+        - meter "Momentary loudness" [ref=e3459]:
+          - generic "Target -14 LUFS" [ref=e3460]
+        - generic [ref=e3461]:
+          - generic [ref=e3462]: GR
+          - generic [ref=e3464]: "0.0"
+          - generic "Clip indicator off" [ref=e3465]
+        - generic [ref=e3466]:
+          - generic [ref=e3467]:
+            - checkbox "Limiter enabled" [checked] [disabled] [ref=e3468]
+            - text: Limiter
+          - generic "Zero-latency hard clip for live monitoring" [ref=e3469]:
+            - checkbox "Monitor-only mode" [disabled] [ref=e3470]
+            - text: Live
+          - generic [ref=e3471]:
+            - text: Ceiling
+            - slider "Limiter ceiling in dBTP" [disabled] [ref=e3472]: "-1"
+            - generic [ref=e3473]: "-1.0"
+        - paragraph [ref=e3474]: Master meter offline
+      - group [ref=e3475]:
+        - generic "Patch Bay" [ref=e3476] [cursor=pointer]
+      - generic [ref=e3479]:
+        - generic [ref=e3481]:
+          - generic [ref=e3482]:
+            - button "Octave down" [ref=e3483] [cursor=pointer]: −
+            - generic [ref=e3484]: OCT 5
+            - button "Octave up" [ref=e3485] [cursor=pointer]: +
+            - status [ref=e3486]: Octave 5, keys C5 to C6
+          - button "Show Keyboard Layout Guide" [ref=e3488] [cursor=pointer]:
+            - generic [ref=e3489]: ⌨
+            - text: PIANO LAYOUT INFO
+          - img [ref=e3490]:
+            - button [ref=e3491] [cursor=pointer]:
+              - generic [ref=e3493]:
+                - generic: C5
+                - generic: F8
+            - button [ref=e3497] [cursor=pointer]:
+              - generic [ref=e3499]:
+                - generic: D5
+                - generic: F7
+            - button [ref=e3503] [cursor=pointer]:
+              - generic [ref=e3505]:
+                - generic: E5
+                - generic: F6
+            - button [ref=e3509] [cursor=pointer]:
+              - generic [ref=e3511]:
+                - generic: F5
+                - generic: F5
+            - button [ref=e3515] [cursor=pointer]:
+              - generic [ref=e3517]:
+                - generic: G5
+                - generic: F4
+            - button [ref=e3521] [cursor=pointer]:
+              - generic [ref=e3523]:
+                - generic: A5
+                - generic: F3
+            - button [ref=e3527] [cursor=pointer]:
+              - generic [ref=e3529]:
+                - generic: B5
+                - generic: F2
+            - button [ref=e3533] [cursor=pointer]:
+              - generic [ref=e3535]:
+                - generic: C6
+                - generic: F1
+            - button [ref=e3539] [cursor=pointer]:
+              - generic [ref=e3541]:
+                - generic: C#5
+                - generic: "[9]"
+            - button [ref=e3544] [cursor=pointer]:
+              - generic [ref=e3546]:
+                - generic: D#5
+                - generic: "[8]"
+            - button [ref=e3549] [cursor=pointer]:
+              - generic [ref=e3551]:
+                - generic: F#5
+                - generic: "[6]"
+            - button [ref=e3554] [cursor=pointer]:
+              - generic [ref=e3556]:
+                - generic: G#5
+                - generic: "[5]"
+            - button [ref=e3559] [cursor=pointer]:
+              - generic [ref=e3561]:
+                - generic: A#5
+                - generic: "[4]"
+        - generic [ref=e3565]:
+          - heading "LIVE PADS" [level=3] [ref=e3567]
+          - group "Live drum pads" [ref=e3569]:
+            - button "Play KICK" [ref=e3570] [cursor=pointer]: KICK
+            - button "Play SNARE" [ref=e3571] [cursor=pointer]: SNARE
+            - button "Play CH HAT" [ref=e3572] [cursor=pointer]: CH HAT
+            - button "Play OH HAT" [ref=e3573] [cursor=pointer]: OH HAT
+            - button "Play KICK L" [ref=e3574] [cursor=pointer]: KICK L
+            - button "Play SNR L" [ref=e3575] [cursor=pointer]: SNR L
+            - button "Play CH L" [ref=e3576] [cursor=pointer]: CH L
+            - button "Play OH L" [ref=e3577] [cursor=pointer]: OH L
+    - generic [ref=e3578]:
+      - generic [ref=e3579]:
+        - group "Sequencer view mode" [ref=e3580]:
+          - button "Notes View" [pressed] [ref=e3581] [cursor=pointer]: NOTES
+          - button "Automation View" [ref=e3582] [cursor=pointer]: AUTO
+        - generic [ref=e3584]:
+          - button "Start playback to record automation" [disabled] [ref=e3585]: REC AUTO
+          - tooltip "REC AUTO — live automation recording Bottom bar REC AUTO arms capture while the transport is playing. Learn more Dismiss" [ref=e3586]:
+            - generic [ref=e3587]: REC AUTO — live automation recording
+            - generic [ref=e3588]: Bottom bar REC AUTO arms capture while the transport is playing.
+            - generic [ref=e3589]:
+              - button "Learn more" [ref=e3590] [cursor=pointer]
+              - button "Dismiss" [ref=e3591] [cursor=pointer]
+        - button "Toggle automation curve overlay on hardware knobs" [ref=e3592] [cursor=pointer]: AUTO VIEW
+        - button "Toggle Global Lyric Track" [ref=e3593] [cursor=pointer]: LYRICS
+      - generic [ref=e3594]:
+        - button "Save project to JSON" [ref=e3595] [cursor=pointer]: 💾 SAVE
+        - button "Load project from JSON" [ref=e3596] [cursor=pointer]: 📂 LOAD
+        - button "Import ReBirth RB-338 .rbs file" [ref=e3598] [cursor=pointer]: 🎹 Import .rbs
+        - button "Export project as ReBirth RB-338 .rbs file" [ref=e3599] [cursor=pointer]: 💾 Export .rbs
+        - button "Export dry stems as ZIP" [ref=e3600] [cursor=pointer]: 🎚 Export Stems
+        - button "Import AI-generated song" [ref=e3601] [cursor=pointer]:
+          - generic [ref=e3602]: 🤖 Import AI Song
+        - button "Open Cloud Library" [ref=e3603] [cursor=pointer]: ☁️ CLOUD
+      - generic [ref=e3604]:
+        - button "Auto-Mix Assistant" [ref=e3606] [cursor=pointer]: ✨ AUTO-MIX
+        - combobox "Master Reverb Type" [ref=e3608] [cursor=pointer]:
+          - option "Room"
+          - option "Plate" [selected]
+          - option "Hall"
+        - slider "Master Saturation" [ref=e3611] [cursor=pointer]: "0"
+        - slider "Master Volume" [ref=e3614] [cursor=pointer]: "0.8"
+        - slider "Global Pan" [ref=e3617] [cursor=pointer]: "0"
+        - button "Trigger Tape Stop Effect" [ref=e3619] [cursor=pointer]: Tape Stop
+        - button "Open Gamepad Debugger" [ref=e3621] [cursor=pointer]:
+          - generic [ref=e3622]: 🎮
+        - button "Enable ScriptProcessor fallback" [ref=e3623] [cursor=pointer]: 🔊 AW
+        - 'button "Surface texture: TX OFF. Click to cycle." [ref=e3624] [cursor=pointer]': TX OFF
+        - button "Help — search workflows and shortcuts (?)" [ref=e3626] [cursor=pointer]: "?"
+  - generic [ref=e3629]:
+    - generic [ref=e3630]: "Failed to load url /hyphon_native.js (resolved id: /hyphon_native.js). This file is in /public and will be copied as-is during build without going through the plugin transforms, and therefore should not be imported from source code. It can only be referenced via HTML tags."
+    - generic [ref=e3631]: at loadAndTransform (file:///app/node_modules/.pnpm/vite@5.4.21_@types+node@24.10.4/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51969:17) at process.processTicksAndRejections (node:internal/process/task_queues:103:5) at async viteTransformMiddleware (file:///app/node_modules/.pnpm/vite@5.4.21_@types+node@24.10.4/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:62106:24
+    - generic [ref=e3632]:
+      - text: Click outside, press Esc key, or fix the code to dismiss.
+      - text: You can also disable this overlay by setting
+      - code [ref=e3633]: server.hmr.overlay
+      - text: to
+      - code [ref=e3634]: "false"
+      - text: in
+      - code [ref=e3635]: vite.config.ts
+      - text: .
+```
