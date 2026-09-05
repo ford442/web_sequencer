@@ -50,7 +50,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                     </svg>
                   </div>
-                  <h3 className="text-gray-300 font-bold text-xs mb-1">No MIDI devices</h3>
+                  <h3 className="text-gray-300 font-bold text-sm mb-1">No MIDI devices</h3>
                   <p className="text-gray-500 text-[10px] text-center max-w-[200px]">Connect a USB MIDI controller and refresh.</p>
                 </div>
               )}

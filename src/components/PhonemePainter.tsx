@@ -721,7 +721,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <h3 className="text-gray-300 font-bold mb-2 font-mono">No phonemes yet</h3>
+                  <h3 className="text-gray-300 font-bold mb-2 text-sm font-mono">No phonemes yet</h3>
                   <p className="text-zinc-500 text-xs mb-6 max-w-[250px] text-center font-mono">
                     Paint phonemes on the timeline to create realistic vocal articulations.
                   </p>
