@@ -151,6 +151,20 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set grain position oscillation depth.
+   * @param depth Oscillation depth (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainPosOscillation(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainPosLfoDepth", depth, time);
+  },
+
+
+  /**
    * Set envelope follower depth for time stretch modulation.
    * @param depth Depth (-1 to 1)
    * @param time Optional time to apply the change (default: now)
