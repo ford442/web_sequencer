@@ -588,7 +588,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
             // Position oscillation based on bipolar grainLfoValue
             const maxPosScanSamples = Math.floor(0.25 * sRate); // Max scan ±250ms
-            const sliceLengthSamples = Math.max(0, this.endSamplePtr - this.startSamplePtr);
+            const hasActiveSlice = this.endSamplePtr > this.startSamplePtr;
+            const sliceStart = hasActiveSlice ? this.startSamplePtr : 0;
+            const sliceEnd = hasActiveSlice ? this.endSamplePtr : buf.length;
+            const sliceLengthSamples = Math.max(0, sliceEnd - sliceStart);
             const allowedScanSamples = Math.min(maxPosScanSamples, Math.floor(sliceLengthSamples * 0.5));
             const posMod = Math.floor(grainLfoValue * grainPosLfoDepth * allowedScanSamples);
 
@@ -600,8 +603,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
                 const rawCenter = this.currentSamplePtr + jitterOffsetActive + posMod;
                 const clampedCenter = Math.max(
-                  this.startSamplePtr + Math.floor(grainSizeSamplesActive / 2),
-                  Math.min(this.endSamplePtr - Math.floor(grainSizeSamplesActive / 2), rawCenter)
+                  sliceStart + Math.floor(grainSizeSamplesActive / 2),
+                  Math.min(sliceEnd - Math.floor(grainSizeSamplesActive / 2), rawCenter)
                 );
                 const grainCenterActive = clampedCenter;
                 g.start = Math.max(0, Math.min(buf.length - grainSizeSamplesActive, grainCenterActive - Math.floor(grainSizeSamplesActive / 2)));
