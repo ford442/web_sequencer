@@ -341,6 +341,7 @@ export function createPlaySamplerVoice(
         if (pFreezeLfoDepth !== undefined) voice.setFreezeLfoDepth(pFreezeLfoDepth, triggerTime);
         if (pGrainLfoRate !== undefined) voice.setGrainLfoRate(pGrainLfoRate, triggerTime);
         if (pGrainLfoDepth !== undefined) voice.setGrainLfoDepth(pGrainLfoDepth, triggerTime);
+        if (pGrainPosLfoDepth !== undefined) voice.setGrainPosLfoDepth(pGrainPosLfoDepth, triggerTime);
 
         if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
         if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);

@@ -16,6 +16,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentFreezeEnvDepth = 0,
     currentGrainLfoRate = 0,
     currentGrainLfoDepth = 0,
+    currentGrainPosLfoDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
     currentGrainJitter = 0,

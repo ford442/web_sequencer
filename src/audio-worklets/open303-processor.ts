@@ -383,19 +383,16 @@ class Open303Processor extends AudioWorkletProcessor {
         return n >>> 2;
     }
 
-    /** Returns the starting float index in the WASM heap for the samples, or -1 if invalid. */
+    /** Ensures the heap view is up to date and returns the Float32 offset, or -1 if invalid. */
     private getWasmSampleOffset(ptr: number | bigint, numFrames: number): number {
         this.updateHeap();
-        const memory =
-            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory
-            ?? this.importedMemory;
-        if (!memory?.buffer) return -1;
+        if (!this.heapFloat32) return -1;
 
         const byteOffset = typeof ptr === 'bigint' ? Number(ptr) : ptr;
         if (!Number.isFinite(byteOffset) || byteOffset <= 0) return -1;
-        if (byteOffset + numFrames * 4 > memory.buffer.byteLength) return -1;
+        if (byteOffset + numFrames * 4 > this.heapFloat32.buffer.byteLength) return -1;
 
-        return byteOffset >> 2; // Divide by 4 to get float index
+        return byteOffset >>> 2;
     }
 
     private writeOutputSamples(
