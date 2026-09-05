@@ -383,34 +383,33 @@ class Open303Processor extends AudioWorkletProcessor {
         return n >>> 2;
     }
 
-    /** Read a WASM heap float buffer using a fresh view (safe after memory growth). */
-    private readWasmSamples(ptr: number | bigint, numFrames: number): Float32Array | null {
+    /** Returns the starting float index in the WASM heap for the samples, or -1 if invalid. */
+    private getWasmSampleOffset(ptr: number | bigint, numFrames: number): number {
         this.updateHeap();
         const memory =
             (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory
             ?? this.importedMemory;
-        if (!memory?.buffer) return null;
+        if (!memory?.buffer) return -1;
 
         const byteOffset = typeof ptr === 'bigint' ? Number(ptr) : ptr;
-        if (!Number.isFinite(byteOffset) || byteOffset <= 0) return null;
-        if (byteOffset + numFrames * 4 > memory.buffer.byteLength) return null;
+        if (!Number.isFinite(byteOffset) || byteOffset <= 0) return -1;
+        if (byteOffset + numFrames * 4 > memory.buffer.byteLength) return -1;
 
-        try {
-            return new Float32Array(memory.buffer, byteOffset, numFrames);
-        } catch {
-            return null;
-        }
+        return byteOffset >> 2; // Divide by 4 to get float index
     }
 
     private writeOutputSamples(
-        samples: Float32Array,
+        floatOffset: number,
         numFrames: number,
         channelL: Float32Array | undefined,
         channelR: Float32Array | undefined,
         gain: number,
     ): void {
+        const heap = this.heapFloat32;
+        if (!heap) return;
+
         for (let i = 0; i < numFrames; i++) {
-            const sample = samples[i] * gain;
+            const sample = heap[floatOffset + i] * gain;
             if (channelL) channelL[i] = sample;
             if (channelR) channelR[i] = sample;
         }
@@ -850,7 +849,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private updateHeap() {
         const memory = (this.wasmInstance?.exports as any)?.memory || this.importedMemory;
-        if (memory) {
+        if (memory && (!this.heapFloat32 || this.heapFloat32.buffer !== memory.buffer)) {
             this.heapFloat32 = new Float32Array(memory.buffer);
         }
     }
@@ -927,8 +926,8 @@ class Open303Processor extends AudioWorkletProcessor {
                 this.liveHighFid.process(this.nativeOutputPtr, numFrames);
                 const renderUs = (getTime() - t0) * 1000;
 
-                const samples = this.readWasmSamples(this.nativeOutputPtr, numFrames);
-                if (!samples) {
+                const floatOffset = this.getWasmSampleOffset(this.nativeOutputPtr, numFrames);
+                if (floatOffset < 0) {
                     if (this.processErrorCount++ < 5) {
                         console.error('[Open303] highfid303_process output buffer unreadable');
                     }
@@ -936,7 +935,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                     return true;
                 }
-                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
+                this.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
 
                 // CPU meter / glitch gate — degrade to stock rather than glitch.
                 const quantumUs = (numFrames / this.sampleRateHz) * 1_000_000;
@@ -950,8 +949,8 @@ class Open303Processor extends AudioWorkletProcessor {
                     this.toWasmHandle(this.jc303Handle),
                     numFrames,
                 );
-                const samples = this.readWasmSamples(ptr, numFrames);
-                if (!samples) {
+                const floatOffset = this.getWasmSampleOffset(ptr, numFrames);
+                if (floatOffset < 0) {
                     if (this.allocationErrorCount++ < 5) {
                         console.error('[Open303] jc303_process_handle returned invalid pointer');
                     }
@@ -959,7 +958,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                     return true;
                 }
-                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
+                this.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
             } else if (this.isNativeApi) {
                 // ── Custom open303 multi-instance API ────────────────────────
                 if (this.isInvalidHandle(this.nativeOutputPtr)) {
@@ -974,8 +973,8 @@ class Open303Processor extends AudioWorkletProcessor {
                     numFrames,
                 );
 
-                const samples = this.readWasmSamples(this.nativeOutputPtr, numFrames);
-                if (!samples) {
+                const floatOffset = this.getWasmSampleOffset(this.nativeOutputPtr, numFrames);
+                if (floatOffset < 0) {
                     if (this.processErrorCount++ < 5) {
                         console.error('[Open303] open303_process output buffer unreadable');
                     }
@@ -983,7 +982,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                     return true;
                 }
-                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
+                this.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
             } else {
                 // ── Legacy jc303_* API ───────────────────────────────────────
                 const ptr = exports.jc303_process(numFrames);
@@ -997,8 +996,8 @@ class Open303Processor extends AudioWorkletProcessor {
                     return true;
                 }
 
-                const samples = this.readWasmSamples(ptr, numFrames);
-                if (!samples) {
+                const floatOffset = this.getWasmSampleOffset(ptr, numFrames);
+                if (floatOffset < 0) {
                     if (this.processErrorCount++ < 5) {
                         console.error('[Open303] jc303_process buffer unreadable');
                     }
@@ -1006,7 +1005,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     if (channelR) channelR.fill(0);
                     return true;
                 }
-                this.writeOutputSamples(samples, numFrames, channelL, channelR, gain);
+                this.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
 
                 if (exports.free) {
                     exports.free(ptr);

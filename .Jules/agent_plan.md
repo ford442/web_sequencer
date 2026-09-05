@@ -13,6 +13,8 @@
 
 
 ## Innovation Lab
+- [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
+- [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
@@ -103,3 +105,6 @@
 - Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount. UI/state wiring landed; worklet existed earlier. Velocity check: thin vertical slice, same shape as `spectralComp`.
 - Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?". Added a new `phonemeFilterMod` parameter that applies a simple 1-pole Low-Pass Filter to the grain output path. The cutoff frequency scales dynamically with the phoneme volume `pVol`, making louder syllables sound brighter and softer syllables sound darker. The parameter is exposed via the UI for sequencing.
 - Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount.
+
+- Completed "What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?" by adding `grainPosLfoDepth` parameter. This introduces a position oscillation by calculating a bipolar `posMod` applied to the `grainCenterActive` during the freeze stream (`initGrain`).
+- Velocity Check: Utilizing the existing `grainLfoPhase` avoids creating new block-rate oscillators and keeps the plumbing clean. Modifying the grain center rather than drifting the RubberBand `timeRatio` prevents latency hunting and preserves audio fidelity. I added new ideas to the Innovation Lab.

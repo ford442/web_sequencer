@@ -297,7 +297,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           value={props.currentGrainPosOscillation || 0}
           onChange={(e) =>
             onPropertyChange?.(
-              "grainPosOscillation",
+              "grainPosLfoDepth",
               parseFloat(e.target.value)
             )
           }

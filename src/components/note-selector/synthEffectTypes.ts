@@ -13,7 +13,7 @@ export interface SynthEffectPropertiesProps {
   currentGrainPitchEnvDepth?: number;
   currentGrainLfoRate?: number;
   currentGrainLfoDepth?: number;
-  currentGrainPosOscillation?: number;
+  currentGrainPosLfoDepth?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
