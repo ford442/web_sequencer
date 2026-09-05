@@ -16,6 +16,7 @@ import {
     supportsLiveHighFid,
     type LiveHighFidOversample,
 } from './liveHighFid303';
+import { resolveWorkletSampleRate } from '../utils/workletSampleRate';
 
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
@@ -351,7 +352,12 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         // 5. Initialize the synth with stack protection
-        return this.initializeSynth(exports, data.sampleRate || 44100);
+        return this.initializeSynth(
+            exports,
+            resolveWorkletSampleRate({
+                sampleRate: data.sampleRate ?? (globalThis as { sampleRate?: number }).sampleRate,
+            }),
+        );
     }
 
     private getExports(): Record<string, any> {
@@ -398,6 +404,7 @@ class Open303Processor extends AudioWorkletProcessor {
     ): void {
         const heap = this.heapFloat32;
         if (!heap) return;
+
         for (let i = 0; i < numFrames; i++) {
             const sample = heap[floatOffset + i] * gain;
             if (channelL) channelL[i] = sample;
@@ -420,7 +427,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private initializeSynth(exports: any, sampleRate: number): boolean {
-        this.sampleRateHz = sampleRate > 0 ? sampleRate : 44100;
+        this.sampleRateHz = resolveWorkletSampleRate({ sampleRate });
         // Prefer the new multi-instance native API (hyphon_native with open303_wrapper.cpp).
         // Fall back to the single-instance jc303_* API (standalone jc303-single.wasm).
         if (typeof exports.open303_create === 'function' &&

@@ -36,6 +36,7 @@ export function useSamplerPanelState({
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isProcessingHarmonize, setIsProcessingHarmonize] = useState(false);
   const [chordType, setChordType] = useState('minor');
+  const [harmonyMix, setHarmonyMix] = useState(0.65);
   const [localProgress, setLocalProgress] = useState<{ bankIdx: number; progress: number; isProcessing: boolean } | null>(null);
   const [autoSliceSensitivity, setAutoSliceSensitivity] = useState(50);
 
@@ -65,7 +66,7 @@ export function useSamplerPanelState({
       'playbackSpeed', 'volume', 'filterCutoff', 'drive',
       'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainLfoRate', 'grainLfoDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
+      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainLfoRate', 'grainLfoDepth', 'grainPosLfoDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
       'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
@@ -259,7 +260,7 @@ export function useSamplerPanelState({
     setIsProcessingHarmonize(true);
     setStatus('Harmonizing...');
     try {
-      await onHarmonize(activeBankIdx, chordType);
+      await onHarmonize(activeBankIdx, chordType, harmonyMix);
       setStatus('Harmonized!');
     } catch (e) {
       console.error(e);
@@ -267,7 +268,7 @@ export function useSamplerPanelState({
     } finally {
       setIsProcessingHarmonize(false);
     }
-  }, [onHarmonize, activeBankIdx, chordType]);
+  }, [onHarmonize, activeBankIdx, chordType, harmonyMix]);
 
   const handleBankKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
     let nextIndex = -1;
@@ -378,6 +379,8 @@ export function useSamplerPanelState({
     isProcessingHarmonize,
     chordType,
     setChordType,
+    harmonyMix,
+    setHarmonyMix,
     activeProgress,
     tabRefs,
     modeRefs,

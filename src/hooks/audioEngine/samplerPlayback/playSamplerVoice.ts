@@ -114,6 +114,7 @@ export function createPlaySamplerVoice(
     const pFreezeLfoDepth = noteParams?.freezeLfoDepth !== undefined ? noteParams.freezeLfoDepth : params.freezeLfoDepth;
     const pGrainLfoRate = noteParams?.grainLfoRate !== undefined ? noteParams.grainLfoRate : params.grainLfoRate;
     const pGrainLfoDepth = noteParams?.grainLfoDepth !== undefined ? noteParams.grainLfoDepth : params.grainLfoDepth;
+    const pGrainPosLfoDepth = noteParams?.grainPosLfoDepth !== undefined ? noteParams.grainPosLfoDepth : params.grainPosLfoDepth;
 
     // Envelopes
     const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;

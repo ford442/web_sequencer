@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { RbsParser } from '../importers/rbs/RbsParser';
 import { RbsImporter } from '../importers/rbs/RbsImporter';
-import { RbsExporter } from '../importers/rbs/RbsExporter';
+import { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } from '../importers/rbs/RbsExporter';
 import { parseTb303DeviceChunk, parseTr808DeviceChunk } from '../importers/rbs/devlLayout';
 import { buildSyntheticIffFile } from './rbs/fixtures';
 import type { Tb303Step } from '../importers/rbs/types';
@@ -323,5 +323,140 @@ describe('RbsExporter', () => {
 
     const { warnings } = new RbsExporter({ mode: 'song' }).exportToBytes(song);
     expect(warnings.some((w) => w.includes('no song arrangement'))).toBe(true);
+  });
+
+  it('builds song arrangement from SavedSongData and exports TRAK when mode is song', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false, tb303BTarget: 'partB' });
+    const source = await parser.parseBytes(buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 1,
+      trakEvents: [
+        { delta: 0, ctrl: 0x01, value: 0 },
+        { delta: 768, ctrl: 0x01, value: 1 },
+      ],
+    }));
+    expect(source.success).toBe(true);
+    if (!source.success) return;
+
+    const imported = importer.convertToHyphonSong(source.data);
+    const arrangement = imported.song.songArrangement!;
+    const saved = {
+      version: 3,
+      pattern: imported.song.pattern,
+      tempo: imported.song.tempo,
+      params: imported.song.params,
+      trackStorage: arrangement.trackStorage,
+      activeTrackSlots: arrangement.activeTrackSlots ?? {},
+      songStructure: arrangement.songStructure,
+      rbsLoopStart: 0,
+      rbsLoopEnd: 4,
+    };
+
+    const reconstructed = hyphonSongFromSavedData(saved as any, { isSongModeActive: true });
+    expect(reconstructed.songArrangement?.mode).toBe('song');
+    expect(shouldExportRbsSongMode(saved as any, true)).toBe(true);
+
+    const { bytes, warnings } = new RbsExporter({ mode: 'song', tb303BSource: 'partB' })
+      .exportToBytes(reconstructed);
+    expect(warnings.some((w) => w.includes('writing pattern mode'))).toBe(false);
+
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success) return;
+    expect(reParsed.data.songData?.glob.playMode).toBe(1);
+  });
+
+  it('exports 9 used pattern slots without truncating to 8', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const source = await parser.parseBytes(buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 1,
+      trakEvents: [{ delta: 0, ctrl: 0x01, value: 0 }],
+    }));
+    if (!source.success) return;
+
+    const song = importer.convertToHyphonSong(source.data).song;
+    const empty = { steps: Array(16).fill(null) };
+    const noteAt = (note: string) => ({
+      steps: [{ note, velocity: 1, length: 1 }, ...Array(15).fill(null)],
+    });
+
+    song.songArrangement = {
+      ...song.songArrangement!,
+      mode: 'song',
+      trakEvents: undefined,
+      trakParamEvents: undefined,
+      trackStorage: {
+        ...song.songArrangement!.trackStorage,
+        partA: Array.from({ length: 9 }, (_, i) => noteAt(`C${(i % 5) + 2}`)),
+        partB: Array.from({ length: 9 }, () => empty),
+        bass2: Array.from({ length: 9 }, () => empty),
+        kick: Array.from({ length: 9 }, () => empty),
+        snare: Array.from({ length: 9 }, () => empty),
+        closedHat: Array.from({ length: 9 }, () => empty),
+        openHat: Array.from({ length: 9 }, () => empty),
+      },
+      songStructure: Array.from({ length: 9 }, (_, i) => ({
+        partA: i, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: null,
+      })),
+    };
+
+    const { bytes, warnings } = new RbsExporter({ mode: 'song', collapse32Steps: true })
+      .exportToBytes(song);
+    expect(warnings.some((w) => w.includes('supports 8 per track'))).toBe(false);
+
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success || !reParsed.data.songData) return;
+
+    const banks = reParsed.data.songData.patternBanks.tb303A;
+    expect(banks.length).toBeGreaterThanOrEqual(9);
+    expect(banks[8].steps.some((s) => s.note >= 0)).toBe(true);
+
+    const tb303Track = reParsed.data.songData.tracks.find(
+      (t) => t.trackIndex === TRAK_TRACK_INDEX.TB303_1,
+    );
+    const patternSelects = tb303Track?.events.filter((e) => e.eventKind === 'patternSelect') ?? [];
+    expect(patternSelects.map((e) => e.value)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('synthesizes TRAK cutoff events from automation lanes when trakEvents are absent', async () => {
+    const parser = new RbsParser();
+    const importer = new RbsImporter({ expandTo32Steps: false });
+    const source = await parser.parseBytes(buildSyntheticIffFile({
+      includeDevl: true,
+      playMode: 1,
+      trakEvents: [{ delta: 0, ctrl: 0x01, value: 0 }],
+    }));
+    if (!source.success) return;
+
+    const song = importer.convertToHyphonSong(source.data).song;
+    song.songArrangement = {
+      ...song.songArrangement!,
+      mode: 'song',
+      trakEvents: undefined,
+      trakParamEvents: undefined,
+    };
+    song.automation = [{
+      target: 'synthA',
+      parameter: 'filterCutoff',
+      name: 'Cutoff',
+      points: [[0, 0.5], [4, 1]],
+      interpolation: 'linear',
+      originalRange: [0, 127],
+    }];
+
+    const { bytes } = new RbsExporter({ mode: 'song' }).exportToBytes(song);
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success || !reParsed.data.songData) return;
+
+    const tb303Track = reParsed.data.songData.tracks.find(
+      (t) => t.trackIndex === TRAK_TRACK_INDEX.TB303_1,
+    );
+    const cutoffs = tb303Track?.events.filter((e) => e.eventKind === 'paramChange') ?? [];
+    expect(cutoffs.length).toBeGreaterThanOrEqual(2);
   });
 });
