@@ -268,12 +268,14 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
               value={currentParams.windowShape ?? 0}
               onChange={(e) => handlers.windowShape(parseFloat(e.target.value))}
               aria-label="Granular Window Shape"
-              className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus:border-indigo-400 mt-1"
+              className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus-visible:border-indigo-400 mt-1"
             >
               <option value={0}>Hann</option>
               <option value={1}>Hamming</option>
               <option value={2}>Blackman</option>
               <option value={3}>None</option>
+              <option value={4}>Gaussian</option>
+              <option value={5}>Sharp</option>
             </select>
           </div>
           <div className="flex flex-col items-center justify-start gap-1 col-span-2">
@@ -315,7 +317,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
               value={currentParams.morphTarget ?? 'female'}
               onChange={(e) => onMorphTargetChange(e.target.value)}
               aria-label="Morph Target Character"
-              className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus:border-indigo-400 mt-1"
+              className="w-[50px] bg-indigo-950 text-[8px] text-indigo-300 border border-indigo-700 rounded px-0.5 py-0.5 outline-none focus-visible:border-indigo-400 mt-1"
               title="Morph Target Character"
             >
               <option value="male">Male</option>

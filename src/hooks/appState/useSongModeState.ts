@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TrackKey } from '../../constants/appDefaults'
+import type { TrackParamStorage } from '../../importers/rbs/applyImportedEngineState'
+import type { SavedSongData } from '../../types'
+
+export interface RbsArrangementExtras {
+  loopStart?: number;
+  loopEnd?: number;
+  trackParamStorage?: TrackParamStorage;
+  pcfFilter?: SavedSongData['pcfFilter'];
+}
 
 export function useSongModeState() {
     const [isSongModeOpen, setIsSongModeOpen] = useState(false);
@@ -17,6 +26,7 @@ export function useSongModeState() {
     useEffect(() => { isSongModeActiveRef.current = isSongModeActive; }, [isSongModeActive]);
     const songMeasureRef = useRef(0);
     const isFirstStepRef = useRef(true);
+    const rbsArrangementExtrasRef = useRef<RbsArrangementExtras | null>(null);
 
     return {
         isSongModeOpen, setIsSongModeOpen,
@@ -27,5 +37,6 @@ export function useSongModeState() {
         isSongModeActiveRef,
         songMeasureRef,
         isFirstStepRef,
+        rbsArrangementExtrasRef,
     }
 }

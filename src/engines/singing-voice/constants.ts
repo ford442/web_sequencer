@@ -77,4 +77,6 @@ export interface SingingVoiceConfig {
   voiceCharacter?: VoiceCharacter;
   /** Phoneme aligner service URL (optional, uses local if not provided) */
   phonemeAlignerUrl?: string;
+  /** Enable wav2vec2 CTC forced alignment (download-on-demand ONNX) */
+  enableCtcAlignment?: boolean;
 }

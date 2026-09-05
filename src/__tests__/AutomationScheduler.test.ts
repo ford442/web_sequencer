@@ -1,4 +1,4 @@
-import type { PcfEffect } from '../audio/graph/pcfEffect';
+import type { PcfEffect } from '../engines/PcfEffect';
 import type { Open303Manager } from '../engines/Open303Manager';
 /**
  * AutomationScheduler.test.ts

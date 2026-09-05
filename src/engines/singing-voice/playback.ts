@@ -319,6 +319,7 @@ export const PlaybackMixin = {
     this: SingingVoiceHost,
     audio: Float32Array,
     text: string,
+    options?: { durationPriors?: number[] },
   ): Promise<AlignmentResult | null> {
     if (!this.phonemeAligner) {
       console.warn(
@@ -331,6 +332,7 @@ export const PlaybackMixin = {
       audio,
       text,
       this.audioContext.sampleRate,
+      options,
     );
 
     return this.lastAlignment;

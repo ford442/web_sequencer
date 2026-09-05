@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 /// <reference types="vite/client" />
 
+import { resolveWorkletSampleRate } from '../utils/workletSampleRate';
+
 /**
  * ExpressiveVoiceProcessor — AudioWorkletProcessor for formant-preserving
  * pitch-shift correction on harmony voices.
@@ -173,12 +175,7 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
       return;
     }
 
-    const sr = globalThis.sampleRate > 0 ? globalThis.sampleRate : (() => {
-      // sampleRate must always be valid in an AudioWorkletGlobalScope.
-      // A fallback here indicates a test/mock environment.
-      console.warn('[ExpressiveVoiceProcessor] globalThis.sampleRate is not set; defaulting to 44100');
-      return 44100;
-    })();
+    const sr = resolveWorkletSampleRate();
     const ratio = Math.pow(2.0, pitchShiftSemitones / 12.0);
 
     for (let i = 0; i < N_FORMANTS; i++) {

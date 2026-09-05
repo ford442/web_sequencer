@@ -78,6 +78,14 @@ type RuntimeTelemetry = {
   liveHighFidOversample: number | null;
   /** P0 audio foundation — live AudioContext.sampleRate at construction. */
   sampleRate: number | null;
+  /** Sample rate passed to AudioContextOptions, or null for device native. */
+  requestedSampleRate: number | null;
+  /** Why the requested rate was not used (null if match or native). */
+  sampleRateFallback: string | null;
+  /** AudioContext.sinkId when setSinkId is supported. */
+  sinkId: string | null;
+  /** Human-readable output device label. */
+  sinkLabel: string | null;
   /** P0 audio foundation — live AudioContext.baseLatency, in ms. */
   baseLatencyMs: number | null;
   /** P0 audio foundation — latencyHint requested when the context was created. */
@@ -220,6 +228,10 @@ export interface RuntimeSnapshot {
   liveHighFidOversample: number | null;
   /** Live AudioContext.sampleRate at construction (Hz). */
   sampleRate: number | null;
+  requestedSampleRate: number | null;
+  sampleRateFallback: string | null;
+  sinkId: string | null;
+  sinkLabel: string | null;
   /** Live AudioContext.baseLatency at construction, in ms. */
   baseLatencyMs: number | null;
   /** latencyHint requested when the context was created. */
@@ -320,6 +332,10 @@ export class EngineTelemetry {
     liveHighFidCpuPercent: null,
     liveHighFidOversample: null,
     sampleRate: null,
+    requestedSampleRate: null,
+    sampleRateFallback: null,
+    sinkId: null,
+    sinkLabel: null,
     baseLatencyMs: null,
     latencyHint: null,
     transportSync: null,
@@ -380,12 +396,25 @@ export class EngineTelemetry {
    */
   recordAudioContextInfo(info: {
     sampleRate: number;
+    requestedSampleRate?: number | null;
+    sampleRateFallback?: string | null;
     baseLatencyMs: number;
     latencyHint: string | null;
+    sinkId?: string | null;
+    sinkLabel?: string | null;
   }): void {
     this.runtime.sampleRate = info.sampleRate;
+    this.runtime.requestedSampleRate = info.requestedSampleRate ?? null;
+    this.runtime.sampleRateFallback = info.sampleRateFallback ?? null;
     this.runtime.baseLatencyMs = info.baseLatencyMs;
     this.runtime.latencyHint = info.latencyHint;
+    if (info.sinkId !== undefined) this.runtime.sinkId = info.sinkId;
+    if (info.sinkLabel !== undefined) this.runtime.sinkLabel = info.sinkLabel;
+  }
+
+  recordAudioOutputSink(info: { sinkId: string | null; sinkLabel: string | null }): void {
+    this.runtime.sinkId = info.sinkId;
+    this.runtime.sinkLabel = info.sinkLabel;
   }
 
   recordDegradation(step: string, active: boolean, reason: string): void {
@@ -537,6 +566,10 @@ export class EngineTelemetry {
       liveHighFidCpuPercent: this.runtime.liveHighFidCpuPercent,
       liveHighFidOversample: this.runtime.liveHighFidOversample,
       sampleRate: this.runtime.sampleRate,
+      requestedSampleRate: this.runtime.requestedSampleRate,
+      sampleRateFallback: this.runtime.sampleRateFallback,
+      sinkId: this.runtime.sinkId,
+      sinkLabel: this.runtime.sinkLabel,
       baseLatencyMs: this.runtime.baseLatencyMs,
       latencyHint: this.runtime.latencyHint,
       transportSync: this.runtime.transportSync,

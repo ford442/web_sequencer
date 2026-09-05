@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { TRACK_KEYS } from '../constants';
 import type { TrackKey } from '../constants/appDefaults';
 import { midiMapStore } from '../stores/midiMapStore';
@@ -7,6 +7,8 @@ import { LAUNCH_QUANTIZATIONS, SESSION_TRACK_LABELS, type LaunchQuantization, ty
 import { moveSessionFocus, type SessionGridFocus } from '../session/gridKeyboard';
 import { sessionClipControlId, sessionSceneControlId } from '../session/midiMap';
 import { startMidiLearnForControl } from '../hooks/useMidi';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { a11yAnnouncerStore } from '../stores/a11yAnnouncerStore';
 
 interface SessionLauncherProps {
   isVisible: boolean;
@@ -56,7 +58,30 @@ export const SessionLauncher = memo(function SessionLauncher({
   const [focus, setFocus] = useState<SessionGridFocus>({ kind: 'scene', row: 0 });
   const rowCount = document.columns.partA.clips.length;
 
+  const containerRef = useFocusTrap<HTMLDivElement>(isVisible, onClose);
+
+  useEffect(() => {
+    if (!isVisible || !containerRef.current) return;
+    const selector = focus.kind === 'scene'
+      ? `[data-testid="session-scene-${focus.row}"]`
+      : `[data-testid="session-clip-${focus.track}-${focus.row}"]`;
+    const el = containerRef.current.querySelector<HTMLElement>(selector);
+    if (el) {
+      el.focus();
+    }
+  }, [focus, isVisible]);
+
   const queuedHint = useMemo(() => `Step ${currentStep + 1}`, [currentStep]);
+
+  const handleLaunchScene = useCallback((row: number) => {
+    onLaunchScene(row);
+    a11yAnnouncerStore.announce(`launched scene ${row + 1}`);
+  }, [onLaunchScene]);
+
+  const handleLaunchClip = useCallback((track: TrackKey, row: number) => {
+    onLaunchClip(track, row);
+    a11yAnnouncerStore.announce(`clip ${SESSION_TRACK_LABELS[track]} playing`);
+  }, [onLaunchClip]);
 
   const onGridKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -66,14 +91,14 @@ export const SessionLauncher = memo(function SessionLauncher({
         setFocus(next);
         return;
       }
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ControlLeft') {
+      if (e.key === 'Enter' || e.key === ' ' || e.code === 'ControlLeft') {
         e.preventDefault();
-        if (focus.kind === 'scene') onLaunchScene(focus.row);
-        else onLaunchClip(focus.track, focus.row);
+        if (focus.kind === 'scene') handleLaunchScene(focus.row);
+        else handleLaunchClip(focus.track, focus.row);
       }
-      if (e.key === 'AltLeft') {
+      if (e.code === 'AltLeft') {
         e.preventDefault();
-        onLaunchScene(focus.kind === 'scene' ? focus.row : focus.row);
+        handleLaunchScene(focus.kind === 'scene' ? focus.row : focus.row);
       }
       if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
@@ -81,7 +106,7 @@ export const SessionLauncher = memo(function SessionLauncher({
         else onStopAll();
       }
     },
-    [focus, rowCount, onLaunchClip, onLaunchScene, onStopTrack, onStopAll],
+    [focus, rowCount, handleLaunchClip, handleLaunchScene, onStopTrack, onStopAll],
   );
 
   if (!isVisible) return null;
@@ -93,6 +118,7 @@ export const SessionLauncher = memo(function SessionLauncher({
       onClick={onClose}
     >
       <div
+        ref={containerRef}
         className="w-full max-w-[1000px] max-h-[min(78vh,640px)] bg-[#0c1014] border border-cyan-900/50 rounded-xl shadow-[0_0_40px_rgba(6,182,212,0.15)] flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
@@ -188,7 +214,7 @@ export const SessionLauncher = memo(function SessionLauncher({
                       : 'border-zinc-800 bg-zinc-900 text-gray-300'
                   }`}
                   onFocus={() => setFocus({ kind: 'scene', row })}
-                  onClick={() => onLaunchScene(row)}
+                  onClick={() => handleLaunchScene(row)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     startMidiLearnForControl('session', `scene:${row}`);
@@ -221,7 +247,7 @@ export const SessionLauncher = memo(function SessionLauncher({
                               : 'bg-zinc-900 border-zinc-700 text-gray-200'
                       }`}
                       onFocus={() => setFocus({ kind: 'clip', track, row })}
-                      onClick={() => onLaunchClip(track, row)}
+                      onClick={() => handleLaunchClip(track, row)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         startMidiLearnForControl('session', `clip:${track}:${row}`);

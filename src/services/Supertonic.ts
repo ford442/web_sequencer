@@ -92,6 +92,7 @@ export class SupertonicService {
     private currentStyle: Style | null = null;
     private preloadManifest: boolean[] = new Array(8).fill(false);
     private isPreloading = false;
+    private lastTokenDurations: number[] | null = null;
 
     private constructor() { }
 
@@ -261,6 +262,7 @@ export class SupertonicService {
             text_mask: textMaskTensor
         });
         const duration = Array.from(dpOut.duration.data as Float32Array).map(d => d / speed);
+        this.lastTokenDurations = duration;
 
         // OPTIMIZATION 3: Dispose Tensors
         // Running on GPU consumes VRAM. We must explicitly dispose intermediate tensors.
@@ -320,6 +322,14 @@ export class SupertonicService {
 
         // Return raw data
         return vocOut.wav_tts.data as Float32Array;
+    }
+
+    getLastTokenDurations(): number[] | null {
+        return this.lastTokenDurations ? [...this.lastTokenDurations] : null;
+    }
+
+    getOutputSampleRate(): number {
+        return this.cfgs?.ae.sample_rate ?? 44100;
     }
 
     getStyle(): Style | null {

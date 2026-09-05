@@ -447,13 +447,15 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
               parseFloat(e.target.value)
             )
           }
-          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus:border-cyan-400"
+          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus-visible:border-cyan-400"
           aria-label="Granular Window Shape"
         >
           <option value={0}>Hann</option>
           <option value={1}>Hamming</option>
           <option value={2}>Blackman</option>
           <option value={3}>Rectangular (None)</option>
+          <option value={4}>Gaussian</option>
+          <option value={5}>Sharp</option>
         </select>
       </div>
       <div className="flex flex-col items-center justify-start gap-1 col-span-2 mt-2">
