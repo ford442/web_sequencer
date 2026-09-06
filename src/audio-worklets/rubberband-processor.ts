@@ -91,6 +91,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Grain Panning State
   private grainWrapPending = false;
   private wasFrozen = false;
+  private scratchBands = new Float32Array(3);
+  private scratchPhonemeData = new Float32Array([1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0]);
   private grainPanL = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2]; // Low, Mid, High
   private grainPanR = [Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
 
@@ -425,7 +427,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     let currentVibDepth = vibDepth;
     let currentVibRate = vibRate;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, _pBend, pVibDepth, pVibRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pVibDepth = pData[3];
+        const pVibRate = pData[4];
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
     }
@@ -470,7 +474,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Apply Phoneme Pitch Bend (if we're streaming from a buffer and have it calculated)
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        const [_, _vol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pBend = pData[2];
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
@@ -496,7 +501,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         let phonemeVolume = 1.0;
         let phonemePitchBendCents = 0.0;
         if (this.phonemeData && this.phonemeRatios) {
-          const [pRatio, pVol, pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+          const pRatio = pData[0];
+          const pVol = pData[1];
+          const pBend = pData[2];
           ratio = pRatio;
           phonemeVolume = pVol;
           phonemePitchBendCents = pBend;
@@ -527,7 +535,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Let's do it per sample below when processing if it's frozen, OR just compute it once per block if we just need a single freeze decision for the block.
         // Actually, the freeze decision is for the *entire block* because we feed `samplesRequired` to RubberBand.
         // So we just advance it once by block size (128 samples).
-        const sRate = resolveWorkletSampleRate();
+        const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
         const framesInBlock = 128; // standard Web Audio block size
         this.freezeLfoPhase += (2 * Math.PI * freezeLfoRate * framesInBlock) / sRate;
         if (this.freezeLfoPhase > 2 * Math.PI) {
@@ -565,14 +573,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const buf = this.fullSampleBuffer;
 
             // Define grain size: ~100ms
-            const sRate = resolveWorkletSampleRate();
+            const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
             let baseGrainSize = Math.floor(sRate * 0.1);
 
             let grainJitter = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
 
             // Check for per-phoneme overrides
             if (this.phonemeData && this.phonemeRatios) {
-                const [_, _pVol, _pBend, _vDepth, _vRate, pGrainJitter, pGrainSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                const pGrainJitter = pData[5];
+                const pGrainSize = pData[6];
                 if (pGrainJitter !== -1.0) {
                     grainJitter = pGrainJitter;
                 }
@@ -624,7 +634,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
               // Map TTS syllable volume directly to filter cutoff in the granular engine
               let cutoff = 20000; // default bypassed
               if (this.phonemeData && this.phonemeRatios) {
-                  const [_, pVol, __, ___, ____, _____, ______, _______] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                  const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+                  const pVol = pData[1];
                   if (pVol < 1.0) {
                       // Map volume [0, 1] to cutoff frequency [200, 20000] exponentially
                       cutoff = 200 * Math.pow(100, pVol);
@@ -803,7 +814,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Apply phoneme volume and filter mod
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-            const [_, pVol, _pBend, _vDepth, _vRate, _gJit, _gSize, _isVow] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+            const pVol = pData[1];
 
             if (phonemeFilterMod > 0.0) {
                 const minFc = 200;
@@ -813,7 +825,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 const brightness = Math.pow(clampedVol, 0.7);
                 const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
 
-                const sRate = resolveWorkletSampleRate();
+                const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
 
                 for (let i = 0; i < outputChannel.length; i++) {
                     // Smooth fc over time to prevent zippering
@@ -847,7 +859,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       // Apply Syllable Volume Filter
       const volFilterMod = parameters.volumeFilterMod ? parameters.volumeFilterMod[0] : 0.0;
       if (volFilterMod > 0 && this.isPlaying && this.phonemeData) {
-        const [_, pVol, __, ___, ____, _____, ______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pVol = pData[1];
+            const isVowel = pData[7];
         const amount = volFilterMod * (0.25 + 0.75 * isVowel);
         // Log scale mapping from 400Hz to 8000Hz based on clamped pVol
         const targetCutoff = 400 * Math.pow(8000 / 400, Math.min(1.0, Math.max(0.0, pVol)) * amount);
@@ -872,7 +886,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       }
 
       if (gateDepth > 0 && gateRate > 0) {
-        const sampleRate = resolveWorkletSampleRate();
+        const sampleRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
         const phaseIncrement = (2 * Math.PI * gateRate) / sampleRate;
 
         for (let i = 0; i < outputChannel.length; i++) {
@@ -898,7 +912,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // spectralComp already read earlier on main
   if (grainPanSpread > 0 && this.grainWrapPending) {
     this.grainWrapPending = false;
-    const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+    const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const isVowel = pData[7];
     const finalPanSpread = isVowel > 0 ? grainPanSpread : grainPanSpread * 0.3;
 
     for (let b = 0; b < 3; b++) {
@@ -994,7 +1009,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       if (spectralComp > 0) {
         const f1 = 300;
         const f2 = 3000;
-        const fs = resolveWorkletSampleRate();
+        const fs = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
 
         // Chamberlin SVF coefficients
         const f1_c = 2 * Math.sin(Math.PI * f1 / fs);
@@ -1033,11 +1048,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             this.scState.bp2[channel] += f2_c * high;
             const mid = this.scState.lp2[channel];
 
-            const bands = [low, mid, high];
+            this.scratchBands[0] = low;
+            this.scratchBands[1] = mid;
+            this.scratchBands[2] = high;
             let outSum = 0;
 
             for (let b = 0; b < 3; b++) {
-              const absIn = Math.abs(bands[b]);
+              const absIn = Math.abs(this.scratchBands[b]);
 
               if (absIn > this.scState.env[b]) {
                 this.scState.env[b] = attackCoef * this.scState.env[b] + (1 - attackCoef) * absIn;
@@ -1054,7 +1071,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
                 grDb = Math.min(grDb, maxGR);
                 gain = Math.pow(10, -grDb / 20);
               }
-              outSum += bands[b] * gain;
+              outSum += this.scratchBands[b] * gain;
             }
             outCh[i] = outSum;
           }
@@ -1066,7 +1083,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
       // Vocal Stack Chorus Effect (Post-Retrieve Micro-Delay Taps)
       if (vocalChorusAmount > 0) {
-        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const isVowel = pData[7];
 
         // Consonants get 30% of the wet amount to prevent smearing plosives
         const wetMod = isVowel > 0 ? 1.0 : 0.3;
@@ -1148,7 +1166,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       // Generate Sub-Harmonics (Vowels only)
       if (subHarmonicsAmount > 0) {
         // Evaluate vowel state via phoneme stride
-        const [_, __, ___, ____, _____, ______, _______, isVowel] = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const isVowel = pData[7];
 
         if (isVowel > 0) {
           const fs = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
