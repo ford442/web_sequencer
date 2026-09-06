@@ -47,3 +47,6 @@
 ## 2026-09-04 - Standardizing Empty State Titles (Continued)
 **Learning:** Some empty states throughout the application were still using `text-xs` or omitting the font size entirely for their `<h3>` titles, falling back to inconsistent sizes. Standardizing these to `text-sm` ensures a consistent visual hierarchy across all panels and modals, aligning with established UX guidelines.
 **Action:** Always verify that newly created or existing empty state titles use the `text-sm` class to maintain application-wide consistency.
+## 2026-09-06 - [Standardizing Empty States for Import Modals]
+**Learning:** Modals that handle file imports (like AI Song or RBS) have nested content panels for displaying parsed data (like track stats and parameter summaries). These panels previously just returned `null` when empty. However, replacing the `null` return with a standardized empty state (dashed border, centered icon) makes the UI feel more cohesive and intentionally designed, signaling to the user where data *will* appear once the parsing is complete.
+**Action:** Continue replacing plain `return null` statements in data-display panels with standardized empty states, keeping in mind that status/alert banners should still return `null` to avoid visual noise.
