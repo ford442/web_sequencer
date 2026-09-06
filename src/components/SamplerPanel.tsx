@@ -96,6 +96,8 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           isProcessingHarmonize={state.isProcessingHarmonize}
           handleHarmonizeClick={state.handleHarmonizeClick}
           onHarmonize={!!onHarmonize}
+          harmonyMix={state.harmonyMix}
+          setHarmonyMix={state.setHarmonyMix}
         />
 
         <SamplerModeSelector

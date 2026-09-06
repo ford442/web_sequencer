@@ -17,6 +17,7 @@ import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
+import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
 import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
@@ -174,6 +175,7 @@ export function useAppState() {
         isSongModeActiveRef,
         songMeasureRef,
         isFirstStepRef,
+        rbsArrangementExtrasRef,
     } = useSongModeState();
 
     const session = useSessionState();
@@ -290,6 +292,37 @@ export function useAppState() {
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
         setSelectedTrack,
+        onTrackSlotRecall: (track, slotIndex) => {
+            if (track !== 'partA' && track !== 'partB' && track !== 'bass2') return;
+            const storage = rbsArrangementExtrasRef.current?.trackParamStorage;
+            if (!storage) return;
+            const open303 = audioEngine?.open303Engine instanceof Open303Manager
+                ? audioEngine.open303Engine
+                : null;
+            const applied = applyTrackParamSlotToEngine(
+                storage,
+                track,
+                slotIndex,
+                open303,
+                {
+                    synthA: synthARef.current,
+                    synthB: synthBRef.current,
+                    bass2: bass2Ref.current,
+                },
+            );
+            if (applied.synthA) {
+                synthARef.current = applied.synthA;
+                setSynthA(applied.synthA);
+            }
+            if (applied.synthB) {
+                synthBRef.current = applied.synthB;
+                setSynthB(applied.synthB);
+            }
+            if (applied.bass2) {
+                bass2Ref.current = applied.bass2;
+                setBass2(applied.bass2);
+            }
+        },
     });
 
     const { handleSelectionStart, handleSelectionEnter, handleSelectionEnd } = useSelectionHandlers(
@@ -332,6 +365,10 @@ export function useAppState() {
         setCurrentSongMeasure,
         automationSchedulerRef,
         trakEventsRef,
+        rbsArrangementExtrasRef,
+        setSynthA,
+        setSynthB,
+        setBass2,
         sessionEngineRef: session.sessionEngineRef,
         sessionClockRef: session.sessionClockRef,
         setIsSongModeActive,
@@ -523,6 +560,8 @@ export function useAppState() {
         setIsAISongModalOpen, setIsRbsImportModalOpen,
         setDrumKit: updateDrumKit,
         setIsSongModeActive,
+        isSongModeActive,
+        rbsArrangementExtrasRef,
         trakEventsRef,
     });
 
@@ -536,6 +575,7 @@ export function useAppState() {
         loadedBanks, sampleBuffers, sliceHighlightRef,
         melodicMode, setMelodicMode, multisampleReady, multisampleProcessing,
         activeAlignment, setActiveAlignment,
+        handleHarmonizerConfigChange,
     });
 
     const synthAControls = useStableKnobConfig(getSynthControls, synthA);

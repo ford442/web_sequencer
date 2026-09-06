@@ -20,7 +20,13 @@
  * ----------------------
  * - Section 1 (Vocal Fidelity): IMPLEMENTED in rubberband-processor.ts
  * - Section 2 (Multi-Resolution Pitch): IMPLEMENTED in SingingVoice.ts
- * - Sections 3-10: STUB files created with interface definitions
+ * - Section 3 (Phoneme Alignment): CTC (wav2vec2 ONNX) + G2P heuristic fallback
+ * - Section 4 (Formant): IMPLEMENTED in FormantShifter.ts (wired when enableFormantShifting)
+ * - Section 5 (Expression): IMPLEMENTED in ExpressiveVoiceProcessor / worklet
+ * - Section 6 (Hybrid Neural): library + tests; freeze/export wiring is V4 follow-up
+ * - Section 8 (Concatenative): STUB — V2 follow-up
+ * - Section 9 (Latency): LatencyCompensator deleted; MIDI clock is TransportClockController
+ * - Section 10 (Artifacts): ArtifactDetector present
  * 
  * Usage:
  * ------
@@ -43,6 +49,7 @@
 
 // Section 3: Phoneme-Aware Time Stretching
 export * from './PhonemeAligner';
+export { CtcForcedAligner, CTC_MODEL_URL } from './alignment/ctcForcedAligner';
 
 // Section 4: Formant Shifting for Vocal Character
 export * from './FormantShifter';

@@ -29,12 +29,13 @@ export function usePatternHandlers(deps: {
     setTrackStorage: React.Dispatch<React.SetStateAction<TrackStorage>>;
     setActiveTrackSlots: React.Dispatch<React.SetStateAction<Record<TrackKey, number>>>;
     setSelectedTrack: React.Dispatch<React.SetStateAction<TrackKey>>;
+    onTrackSlotRecall?: (track: TrackKey, slotIndex: number) => void;
 }) {
     const {
         patternRef, setPattern, undoRedo, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
-        setSelectedTrack,
+        setSelectedTrack, onTrackSlotRecall,
     } = deps;
 
     const updateStorageForTrackInner = useCallback((track: TrackKey, sequence: PartSequence | PartSequence[]) => {
@@ -207,7 +208,7 @@ export function usePatternHandlers(deps: {
              'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
              'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
              'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
-             'grainLfoRate' | 'grainLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
+             'grainLfoRate' | 'grainLfoDepth' | 'grainPosLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
              'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
              'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
              'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
@@ -298,7 +299,8 @@ export function usePatternHandlers(deps: {
             });
             setActiveTrackSlots(prev => ({ ...prev, [track]: slotIndex }));
         }
-    }, [patternRef, trackStorageRef, setPattern, setTrackStorage, setActiveTrackSlots]);
+        onTrackSlotRecall?.(track, slotIndex);
+    }, [patternRef, trackStorageRef, setPattern, setTrackStorage, setActiveTrackSlots, onTrackSlotRecall]);
 
     const handleSelectRow = useCallback((k: TrackKey) => setSelectedTrack(k), [setSelectedTrack]);
 
