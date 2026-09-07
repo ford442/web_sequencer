@@ -886,9 +886,31 @@ class Open303Processor extends AudioWorkletProcessor {
         // Drain pending parameters
         if (this.pendingParams.length > 0 && typeof currentTime !== 'undefined') {
             const exports = this.getExports();
-            while (this.pendingParams.length > 0 && this.pendingParams[0].audioTime <= currentTime) {
-                const paramMsg = this.pendingParams.shift()!;
-                this.applyParamMessage(exports, paramMsg);
+
+            // ⚡ Bolt Optimization: Avoid O(N) Array.shift() per parameter which degrades audio budget.
+            let processedCount = 0;
+            const len = this.pendingParams.length;
+
+            for (let i = 0; i < len; i++) {
+                if (this.pendingParams[i].audioTime <= currentTime) {
+                    this.applyParamMessage(exports, this.pendingParams[i]);
+                    processedCount++;
+                } else {
+                    break;
+                }
+            }
+
+            // Fast shift-in-place without Array.splice() allocation
+            if (processedCount > 0) {
+                if (processedCount === len) {
+                    this.pendingParams.length = 0;
+                } else {
+                    const remaining = len - processedCount;
+                    for (let i = 0; i < remaining; i++) {
+                        this.pendingParams[i] = this.pendingParams[i + processedCount];
+                    }
+                    this.pendingParams.length = remaining;
+                }
             }
         }
 
