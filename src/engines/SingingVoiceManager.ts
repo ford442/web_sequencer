@@ -6,18 +6,25 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private audioContext: AudioContext;
     private loadedBanks: Map<number, string> = new Map();
     private config: SingingVoiceConfig;
+    private drumSidechainSAB: SharedArrayBuffer;
 
     constructor(audioContext: AudioContext, maxVoices: number = 12, config: SingingVoiceConfig = {}) {
         super(maxVoices);
         this.audioContext = audioContext;
+        this.drumSidechainSAB = new SharedArrayBuffer(4 * 4); // 4 floats: [triggerTime, velocity, decay, isSnare]
         this.config = {
             useHighQuality: false,
             preserveFormants: true,
             channels: 1,
             bufferSize: 16384,
             enablePhonemeStretching: true,
+            drumSidechainSAB: this.drumSidechainSAB,
             ...config
         };
+    }
+
+    public getDrumSidechainSAB(): SharedArrayBuffer {
+        return this.drumSidechainSAB;
     }
 
     async init(
