@@ -18,6 +18,7 @@ import { Open303Manager } from '../../engines/Open303Manager'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../types'
+import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
 
 export function useHardwarePanels(deps: {
     synthA: SynthParams;
@@ -47,6 +48,7 @@ export function useHardwarePanels(deps: {
     multisampleProcessing: boolean[];
     activeAlignment: AlignmentResult | null;
     setActiveAlignment: React.Dispatch<React.SetStateAction<AlignmentResult | null>>;
+    handleHarmonizerConfigChange: (config: HarmonizerConfig, isActive: boolean) => void;
 }) {
     const {
         synthA, synthB, bass2, sampler,
@@ -58,6 +60,7 @@ export function useHardwarePanels(deps: {
         loadedBanks, sampleBuffers, sliceHighlightRef,
         melodicMode, setMelodicMode, multisampleReady, multisampleProcessing,
         activeAlignment, setActiveAlignment,
+        handleHarmonizerConfigChange,
     } = deps;
 
     const synthAChild = useMemo(() => {
@@ -292,9 +295,15 @@ export function useHardwarePanels(deps: {
                     audioEngine?.setAlignment?.(activeSamplerBank, newAlignment);
                     setActiveAlignment(newAlignment);
                 }}
+                onHarmonize={async (_bank, chordType, mix) => {
+                    const preset = HARMONIZE_PRESETS.layers();
+                    preset.customIntervals = layersIntervalsForChord(chordType);
+                    if (typeof mix === 'number') preset.busGain = mix;
+                    handleHarmonizerConfigChange(preset, true);
+                }}
             />
         </div>
-    ), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment, setActiveSamplerBank, sliceHighlightRef, setMelodicMode]);
+    ), [sampler, updateSampler, handleSamplerParamChange, audioEngine, setIsVoiceEditorOpen, isVoiceEditorOpen, activeSamplerBank, handleLoadSample, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS, loadedBanks, sampleBuffers, melodicMode, multisampleReady, multisampleProcessing, activeAlignment, setActiveAlignment, setActiveSamplerBank, sliceHighlightRef, setMelodicMode, handleHarmonizerConfigChange]);
 
     return { synthAChild, synthBChild, bass2Child, samplerChild };
 }

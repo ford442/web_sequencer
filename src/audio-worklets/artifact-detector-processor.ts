@@ -9,6 +9,7 @@
 
 import { ArtifactDetector, DEFAULT_ARTIFACT_CONFIG } from '../engines/rubberband/ArtifactDetector';
 import type { ArtifactDetectorConfig, ArtifactDetection, QualityMetrics } from '../engines/rubberband/ArtifactDetector';
+import { resolveWorkletSampleRate } from '../utils/workletSampleRate';
 
 // AudioWorklet processor interface declarations
 declare const globalThis: {
@@ -55,6 +56,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     // Dry signal buffer for fallback blending
     private dryBuffer: Float32Array | null = null;
     private dryBufferIndex: number = 0;
+    private alignedDryScratch = new Float32Array(128);
     
     // Reporting state
     private reportingEnabled: boolean = true;
@@ -77,9 +79,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         this.port.onmessage = this.handleMessage.bind(this);
         
         // Get sample rate from global scope
-        this.sampleRate = typeof globalThis.sampleRate === 'number' 
-            ? globalThis.sampleRate 
-            : 44100;
+        this.sampleRate = resolveWorkletSampleRate();
         
         // Initialize with default config
         this.initializeDetector();
@@ -208,12 +208,10 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         }
 
         // Store dry signal for potential fallback
-        const dryBlock = new Float32Array(input);
-        
         // Update dry buffer circular buffer
         if (this.dryBuffer) {
-            for (let i = 0; i < dryBlock.length; i++) {
-                this.dryBuffer[this.dryBufferIndex] = dryBlock[i];
+            for (let i = 0; i < input.length; i++) {
+                this.dryBuffer[this.dryBufferIndex] = input[i];
                 this.dryBufferIndex = (this.dryBufferIndex + 1) % this.dryBuffer.length;
             }
         }
@@ -274,20 +272,24 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
      * Get aligned dry samples for blending
      */
     private getAlignedDrySamples(length: number): Float32Array {
-        if (!this.dryBuffer) {
-            return new Float32Array(length);
+        if (this.alignedDryScratch.length !== length) {
+            this.alignedDryScratch = new Float32Array(length);
         }
 
-        const result = new Float32Array(length);
+        if (!this.dryBuffer) {
+            this.alignedDryScratch.fill(0);
+            return this.alignedDryScratch;
+        }
+
         const bufferLen = this.dryBuffer.length;
         
         // Read from circular buffer with wraparound
         for (let i = 0; i < length; i++) {
             const idx = (this.dryBufferIndex - length + i + bufferLen) % bufferLen;
-            result[i] = this.dryBuffer[idx];
+            this.alignedDryScratch[i] = this.dryBuffer[idx];
         }
 
-        return result;
+        return this.alignedDryScratch;
     }
 
     /**
@@ -303,27 +305,16 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
-        const pendingArtifacts = new Array(this.pendingArtifacts.length);
-        for (let i = 0; i < this.pendingArtifacts.length; i++) {
-            const a = this.pendingArtifacts[i];
-            pendingArtifacts[i] = {
-                detected: a.detected,
-                severity: a.severity,
-                type: a.type,
-                timestamp: a.timestamp
-            };
-        }
-
         this.port.postMessage({
             type: 'quality-update',
             quality: avgQuality,
             artifactRate: stats.artifactRate,
             averageSeverity: stats.averageSeverity,
-            pendingArtifacts
+            pendingArtifacts: this.pendingArtifacts
         });
 
         // Reset accumulators
-        this.pendingArtifacts = [];
+        this.pendingArtifacts.length = 0;
         this.qualitySum = 0;
         this.qualityCount = 0;
     }

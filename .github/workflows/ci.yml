@@ -184,7 +184,7 @@ jobs:
         run: pnpm run build:native:changed
 
       - name: Validate WASM export map
-        run: pnpm run check:exports --glue public/hyphon_native.js
+        run: pnpm run check:exports --glue public/hyphon_native.js --wasm public/hyphon_native.wasm
 
       - name: Validate WAM2 catalog integrity
         # A community package edited without `pnpm run wam:integrity` would be

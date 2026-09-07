@@ -18,7 +18,9 @@ import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 import { midiMapStore } from '../stores/midiMapStore';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
-import { RbsExporter, hyphonSongFromSavedData } from '../importers/rbs';
+import { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } from '../importers/rbs';
+import { applyPcfFilterToEffect, convert303Waveform } from '../importers/rbs/applyImportedEngineState';
+import type { RbsArrangementExtras } from './appState/useSongModeState';
 import { migrateSavedSongSession } from '../session/migrate';
 import { getWamHost } from '../audio/wam';
 import {
@@ -95,6 +97,10 @@ export interface SongStorageDeps {
     setDrumKit?: (kit: DrumKitType) => void;
     /** Activates song mode after a full-song RBS import. */
     setIsSongModeActive?: React.Dispatch<React.SetStateAction<boolean>>;
+    /** Whether song arranger playback is currently active (RBS export mode). */
+    isSongModeActive?: boolean;
+    /** RBS arrangement extras persisted across import/export. */
+    rbsArrangementExtrasRef?: MutableRefObject<RbsArrangementExtras | null>;
     /** Clears song-structure undo history after a full song replace (load/import). */
     clearSongUndo?: () => void;
     /** Ref populated with resolved TRAK events from the imported RBS song for sub-step automation. */
@@ -129,11 +135,6 @@ export interface SongStorageReturn {
     setIsImportingAISong: React.Dispatch<React.SetStateAction<boolean>>;
     setAiImportProgress: React.Dispatch<React.SetStateAction<number>>;
     setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>;
-}
-
-/** Convert a 303-waveform string (e.g. '303-sqr', '303-saw') to the Open303 shorthand */
-function convert303Waveform(waveform: string): 'saw' | 'sqr' {
-    return waveform === '303-sqr' ? 'sqr' : 'saw';
 }
 
 export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
@@ -198,6 +199,21 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             ttsPhrases,
             ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
             ...(exportedMidi.length > 0 ? { midiMappings: exportedMidi } : {}),
+            ...(deps.rbsArrangementExtrasRef?.current?.loopStart != null
+                ? { rbsLoopStart: deps.rbsArrangementExtrasRef.current.loopStart }
+                : {}),
+            ...(deps.rbsArrangementExtrasRef?.current?.loopEnd != null
+                ? { rbsLoopEnd: deps.rbsArrangementExtrasRef.current.loopEnd }
+                : {}),
+            ...(deps.rbsArrangementExtrasRef?.current?.pcfFilter
+                ? { pcfFilter: deps.rbsArrangementExtrasRef.current.pcfFilter }
+                : {}),
+            ...(deps.rbsArrangementExtrasRef?.current?.trackParamStorage
+                ? { trackParamStorage: deps.rbsArrangementExtrasRef.current.trackParamStorage }
+                : {}),
+            ...(deps.trakEventsRef?.current?.length
+                ? { rbsTrakEvents: deps.trakEventsRef.current }
+                : {}),
             ...(() => {
                 const host = getWamHost();
                 if (!host) return {};
@@ -311,6 +327,18 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 await wamHost.restore(songData.wam2);
             }
             restorePatchFromSong(songData.audioGraph);
+            if (deps.rbsArrangementExtrasRef) {
+                deps.rbsArrangementExtrasRef.current = {
+                    loopStart: songData.rbsLoopStart,
+                    loopEnd: songData.rbsLoopEnd,
+                    trackParamStorage: songData.trackParamStorage,
+                    pcfFilter: songData.pcfFilter,
+                };
+            }
+            if (songData.rbsTrakEvents?.length && deps.trakEventsRef) {
+                deps.trakEventsRef.current = songData.rbsTrakEvents;
+            }
+            applyPcfFilterToEffect(songData.pcfFilter, audioEngine?.pcfEffect ?? null);
             if (isE2eMode()) {
                 setE2eLaneCount(automationStore.getState().lanes.length);
             }
@@ -405,9 +433,16 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         try {
             const songData = await getSongData();
             const exporter = new RbsExporter();
-            const song = hyphonSongFromSavedData(songData);
+            const song = hyphonSongFromSavedData(songData, {
+                trakEvents: deps.trakEventsRef?.current,
+                isSongModeActive: deps.isSongModeActive,
+            });
+            const exportMode = shouldExportRbsSongMode(songData, deps.isSongModeActive)
+                ? 'song'
+                : 'pattern';
             const result = exporter.exportToBlob(song, {
                 songName: song.metadata.name,
+                mode: exportMode,
             });
             if (!result.success || !result.blob) {
                 showToast(result.error ?? 'RBS export failed', 'error');
@@ -634,6 +669,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             songStructure,
             ttsPhrases: Array(8).fill('Hello World'),
             ...(automationLanes ? { automationLanes } : {}),
+            ...(arrangement?.loopStart != null ? { rbsLoopStart: arrangement.loopStart } : {}),
+            ...(arrangement?.loopEnd != null ? { rbsLoopEnd: arrangement.loopEnd } : {}),
+            ...(song.pcfFilter ? { pcfFilter: song.pcfFilter } : {}),
+            ...(arrangement?.trackParamStorage ? { trackParamStorage: arrangement.trackParamStorage } : {}),
         };
 
         // Also set bass2 params if they exist
@@ -698,6 +737,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 open303Engine.applyBass2Params(song.params.bass2);
             }
         }
+
+        applyPcfFilterToEffect(song.pcfFilter, audioEngine?.pcfEffect ?? null);
 
         // Keep the import modal open so ImportReportPanel stays visible until the user clicks Done.
     }, [loadCloudData, audioEngine, deps]);

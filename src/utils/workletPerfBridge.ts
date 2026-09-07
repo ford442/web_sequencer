@@ -90,8 +90,17 @@ function pollOutputLatency(): void {
   lastOutputLatencyMs = latencyMs;
 }
 
+export interface GlitchMonitorMeta {
+  latencyHint?: string | null;
+  requestedSampleRate?: number | null;
+  sampleRateFallback?: string | null;
+}
+
 /** Start monitoring AudioContext state + output latency (idempotent). */
-export function startGlitchMonitor(context: AudioContext, latencyHint?: string | null): void {
+export function startGlitchMonitor(
+  context: AudioContext,
+  latencyHintOrMeta?: string | null | GlitchMonitorMeta,
+): void {
   if (glitchMonitorStarted && monitoredContext === context) return;
   stopGlitchMonitor();
 
@@ -99,10 +108,17 @@ export function startGlitchMonitor(context: AudioContext, latencyHint?: string |
   glitchMonitorStarted = true;
   lastOutputLatencyMs = null;
 
+  const meta: GlitchMonitorMeta =
+    latencyHintOrMeta && typeof latencyHintOrMeta === 'object'
+      ? latencyHintOrMeta
+      : { latencyHint: latencyHintOrMeta ?? null };
+
   engineTelemetry.recordAudioContextInfo({
     sampleRate: context.sampleRate,
+    requestedSampleRate: meta.requestedSampleRate ?? null,
+    sampleRateFallback: meta.sampleRateFallback ?? null,
     baseLatencyMs: (context.baseLatency ?? 0) * 1000,
-    latencyHint: latencyHint ?? null,
+    latencyHint: meta.latencyHint ?? null,
   });
 
   context.addEventListener('statechange', onContextStateChange);

@@ -89,6 +89,17 @@ export default defineConfig([
       ...legacyRelaxedRules,
       ...deferredTypeCheckedRules,
       ...gradualTypeRules,
+      // AudioWorklet modules must use Vite ?worker&url — raw .ts hrefs 404 in production.
+      // (new URL(...audio-worklets/*.ts) is guarded by src/__tests__/audioWorkletModuleUrls.test.ts)
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='addModule'] > Literal[value=/\\.(ts|tsx)$/]",
+          message:
+            'audioWorklet.addModule must use a bundler-emitted URL (?worker&url), not a raw .ts path.',
+        },
+      ],
     },
   },
   // Phase 1: pure library surface (utils + engines)

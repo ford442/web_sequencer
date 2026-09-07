@@ -28,6 +28,19 @@ describe('startGlitchMonitor', () => {
     expect(runtime.latencyHint).toBe('playback');
   });
 
+  it('records requested vs actual sample rate when given meta', () => {
+    startGlitchMonitor(fakeContext(), {
+      latencyHint: 'interactive',
+      requestedSampleRate: 48000,
+      sampleRateFallback: 'browser-ignored-sampleRate:48000->48000',
+    });
+
+    const runtime = engineTelemetry.getRuntimeSnapshot();
+    expect(runtime.requestedSampleRate).toBe(48000);
+    expect(runtime.sampleRateFallback).toMatch(/browser-ignored/);
+    expect(runtime.latencyHint).toBe('interactive');
+  });
+
   it('records a null latencyHint when none is provided', () => {
     startGlitchMonitor(fakeContext());
 

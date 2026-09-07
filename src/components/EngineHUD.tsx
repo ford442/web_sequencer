@@ -1,6 +1,19 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
+import {
+  SAMPLE_RATE_PREFS,
+  getStoredSampleRatePref,
+  setStoredSampleRatePref,
+  type SampleRatePref,
+} from '../utils/audioContextPolicy';
+import {
+  applyAudioOutputSink,
+  listAudioOutputDevices,
+  requestAudioOutputPermission,
+  setStoredAudioOutput,
+  supportsSetSinkId,
+} from '../utils/audioOutputDevice';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
@@ -42,6 +55,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
   #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
   #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
+  #${CONTAINER_ID} button:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }
   #${CONTAINER_ID} button[disabled] { opacity:0.4; cursor:default; }
   #${CONTAINER_ID} .hud-wam-actions { display:flex; gap:4px; margin-left:8px; }
   #${CONTAINER_ID} .hud-wam-actions button { padding:2px 6px; font-size:10px; }
@@ -49,6 +63,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   document.head.appendChild(style);
 
   let visible = new URLSearchParams(location.search).get('hud') === '1';
+  let audioOutputDevices: MediaDeviceInfo[] = [];
+  let sinkListError: string | null = null;
 
   function cpuClass(pct: number): string {
     if (pct >= 80) return 'cpu-hot';
@@ -75,7 +91,10 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const summary = `<div class="subheader">Audio thread</div>
       <div class="row"><div style="flex:1">Master budget</div><div class="${budgetClass}" style="min-width:72px;text-align:right">${runtime.masterBudgetPercent.toFixed(1)}%</div></div>
       <div class="row"><div style="flex:1">Underruns</div><div style="min-width:72px;text-align:right">${runtime.totalUnderruns}</div></div>
-      <div class="row"><div style="flex:1">Sample rate</div><div style="min-width:72px;text-align:right">${runtime.sampleRate != null ? runtime.sampleRate + ' Hz' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Sample rate (actual)</div><div style="min-width:72px;text-align:right">${runtime.sampleRate != null ? runtime.sampleRate + ' Hz' : '—'}</div></div>
+      <div class="row"><div style="flex:1">Sample rate (requested)</div><div style="min-width:72px;text-align:right">${runtime.requestedSampleRate != null ? runtime.requestedSampleRate + ' Hz' : 'native'}</div></div>
+      ${runtime.sampleRateFallback ? `<div class="row"><div style="flex:1">Rate fallback</div><div class="cpu-warn" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${runtime.sampleRateFallback}">mismatch</div></div>` : ''}
+      <div class="row"><div style="flex:1">Output sink</div><div style="min-width:72px;text-align:right;font-size:10px">${runtime.sinkLabel ?? (runtime.sinkId ? runtime.sinkId : 'default')}</div></div>
       <div class="row"><div style="flex:1">Base latency</div><div style="min-width:72px;text-align:right">${runtime.baseLatencyMs != null ? runtime.baseLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Latency hint (active)</div><div style="min-width:72px;text-align:right">${runtime.latencyHint ?? '—'}</div></div>
@@ -89,11 +108,38 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         : '';
       return `<button type="button" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}</button>`;
     }).join('');
-    const modeAppliesNote = storedMode === runtime.latencyHint
-      ? ''
-      : '<div style="font-size:10px;opacity:0.7;margin-top:4px">Restart audio (reload) to apply</div>';
+    const storedRate = getStoredSampleRatePref();
+    const rateButtons = SAMPLE_RATE_PREFS.map((pref) => {
+      const active = pref === storedRate;
+      const style = active ? 'background:#0ea5e9;border-color:#0ea5e9;' : '';
+      const label = pref === 'native' ? 'native' : pref === 44100 ? '44.1 kHz' : '48 kHz';
+      return `<button type="button" class="hud-rate-btn" data-rate="${pref}" style="${style}">${label}</button>`;
+    }).join('');
+    const requestedMatchesStored = storedRate === 'native'
+      ? runtime.requestedSampleRate == null
+      : runtime.requestedSampleRate === storedRate;
+    const needsRestart =
+      (runtime.latencyHint != null && storedMode !== runtime.latencyHint)
+      || (runtime.sampleRate != null && !requestedMatchesStored);
+    const restartNote = needsRestart
+      ? '<button type="button" id="hud-apply-restart" style="margin-top:4px">Apply &amp; restart audio</button>'
+      : '';
     const latencySection = `<div class="subheader">Latency mode</div>
-      <div class="row" style="gap:4px">${modeButtons}</div>${modeAppliesNote}`;
+      <div class="row" style="gap:4px">${modeButtons}</div>
+      <div class="subheader">Sample rate</div>
+      <div class="row" style="gap:4px">${rateButtons}</div>${restartNote}`;
+
+    const sinkSection = supportsSetSinkId()
+      ? `<div class="subheader">Audio output</div>
+      <div class="row" style="gap:4px;flex-wrap:wrap">
+        <button type="button" id="hud-sink-grant">List outputs</button>
+        <select id="hud-sink-select" style="flex:1;min-width:140px;background:#111;color:#fff;border:1px solid rgba(255,255,255,0.2);font-size:11px">
+          <option value="">Default device</option>
+          ${audioOutputDevices.map((d) => `<option value="${d.deviceId.replace(/"/g, '&quot;')}">${(d.label || d.deviceId).replace(/</g, '&lt;')}</option>`).join('')}
+        </select>
+      </div>
+      ${sinkListError ? `<div style="font-size:10px;color:#f87171">${sinkListError.replace(/</g, '&lt;')}</div>` : ''}`
+      : '';
 
     const probe = getLastWebGpuProbe();
     const probeSnap = runtime.webgpuProbe;
@@ -240,7 +286,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         : '<span title="Cannot be rendered in an OfflineAudioContext — track freeze is unavailable for this slot" style="color:#fbbf24">no freeze</span>';
       const mounted = slot.status === 'ready' || slot.status === 'bypassed';
       const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
-      const controls = `<button type="button" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
+      const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
       return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
@@ -250,7 +296,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${gpuSessionSection}${liveSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -284,6 +330,26 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         setStoredLatencyMode(mode);
         render();
       }
+    } else if (target.classList.contains('hud-rate-btn')) {
+      const raw = target.getAttribute('data-rate');
+      const pref: SampleRatePref | null = raw === 'native' ? 'native' : raw === '44100' ? 44100 : raw === '48000' ? 48000 : null;
+      if (pref) {
+        setStoredSampleRatePref(pref);
+        render();
+      }
+    } else if (target.id === 'hud-apply-restart') {
+      location.reload();
+    } else if (target.id === 'hud-sink-grant') {
+      void (async () => {
+        try {
+          await requestAudioOutputPermission();
+          audioOutputDevices = await listAudioOutputDevices();
+          sinkListError = null;
+        } catch (err) {
+          sinkListError = err instanceof Error ? err.message : 'Could not list audio outputs';
+        }
+        render();
+      })();
     } else if (target.id === 'hud-copy-btn') {
       const json = engineTelemetry.generateReportJSON();
       if (navigator.clipboard?.writeText) {
@@ -293,6 +359,22 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
           setTimeout(() => { target.textContent = orig; }, 1500);
         }).catch(() => { /* clipboard denied; no-op */ });
       }
+    }
+  });
+
+  container.addEventListener('change', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || target.id !== 'hud-sink-select') return;
+    const select = target as HTMLSelectElement;
+    const deviceId = select.value;
+    const device = audioOutputDevices.find((d) => d.deviceId === deviceId);
+    setStoredAudioOutput(device ? { groupId: device.groupId, label: device.label } : null);
+    const ctx = (window as Window & { audioContext?: AudioContext }).audioContext;
+    if (ctx) {
+      void applyAudioOutputSink(ctx, deviceId).then((sink) => {
+        if (sink) engineTelemetry.recordAudioOutputSink(sink);
+        render();
+      });
     }
   });
 

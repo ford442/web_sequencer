@@ -93,11 +93,11 @@ const HOVER_CARD: Record<string, string> = {
 };
 
 const FOCUS_RING: Record<string, string> = {
-  'analog-saw':   'focus:ring-amber-500/60',
-  'digital-sqr':  'focus:ring-sky-500/60',
-  'sine-sub':     'focus:ring-violet-500/60',
-  'aggressive':   'focus:ring-rose-500/60',
-  'textural':     'focus:ring-teal-500/60',
+  'analog-saw':   'focus-visible:ring-amber-500/60',
+  'digital-sqr':  'focus-visible:ring-sky-500/60',
+  'sine-sub':     'focus-visible:ring-violet-500/60',
+  'aggressive':   'focus-visible:ring-rose-500/60',
+  'textural':     'focus-visible:ring-teal-500/60',
 };
 
 // ── Waveform → module mapping ────────────────────────────────────────────────
@@ -160,7 +160,7 @@ export const OscillatorModuleSelector: React.FC<OscillatorModuleSelectorProps> =
             className={[
               'flex flex-col items-center gap-0.5 px-1 pt-1.5 pb-1 rounded-md border',
               'transition-all duration-150 active:scale-95',
-              'focus:outline-none focus-visible:ring-2 focus:ring-offset-1 focus:ring-offset-zinc-900',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-900',
               FOCUS_RING[m.id],
               isActive
                 ? ACTIVE_CARD[m.id]

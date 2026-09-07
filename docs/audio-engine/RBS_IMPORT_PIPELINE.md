@@ -122,26 +122,29 @@ Manifest and invariants: `src/__tests__/rbs/corpusUtils.ts`. Provenance: `test-f
 
 `test-fixtures/10_isotherms.mid` is Standard MIDI (`MThd`), not ReBirth. Parser tests assert `.rbs` import **fails loudly** — no mock fallback (`RbsParser.test.ts`, `RbsCorpus.test.ts`).
 
-## Export (Phase 1 — pattern mode)
+## Export (pattern + song mode)
 
-`RbsExporter` (`src/importers/rbs/RbsExporter.ts`) writes IFF `CAT RB40` files from the current Hyphon pattern:
+`RbsExporter` (`src/importers/rbs/RbsExporter.ts`) writes IFF `CAT RB40` files from the current Hyphon project:
 
 | Chunk | Content |
 |-------|---------|
 | `HEAD` | `ReBirth RB-338 v2.0` (or v1.5 subset) |
-| `GLOB` | Pattern mode (`playMode = 0`), tempo × 1000 BE, shuffle |
-| `CAT DEVL` | `303 ` A/B, `808 `/`909 ` drums, `PCF `, `MIXR`, FX stubs |
-| `CAT TRKL` | Six empty `TRAK` tracks (song-mode TRAK export is Phase 2) |
+| `GLOB` | Pattern mode (`playMode = 0`) or song mode (`playMode = 1`), tempo × 1000 BE, shuffle, loop bars |
+| `CAT DEVL` | `303 ` A/B banks (up to 32 slots), `808 `/`909 ` drums, `PCF `, `MIXR`, FX stubs |
+| `CAT TRKL` | Nine `TRAK` tracks. Song mode writes pattern-select (and param events from preserved TRAK / `trakParamEvents` / automation lanes). Pattern mode writes empty TRAK lists. |
 
-**UI:** Bottom bar **Export .rbs** (next to Import .rbs).
+**UI:** Bottom bar **Export .rbs** (next to Import .rbs). `hyphonSongFromSavedData` now copies `trackStorage` / `songStructure` / automation / PCF / loop bars. Export uses `mode: 'song'` when Song Mode is active **or** the arrangement references a slot greater than 0.
 
 **Limitations (warnings emitted):**
 - Sampler, Prophecy, and non–TB-303 waveforms are not exported
-- Song-mode arrangement (`songStructure` / TRAK) not written in Phase 1
 - Hyphon 32-step patterns collapse to ReBirth 16-step (`collapse32Steps: true` default)
+- Pattern banks above 32 slots are truncated (Hyphon `MAX_TRACK_PATTERN_SLOTS`)
+- Tempo automation stays in Hyphon lanes (IFF tempo is GLOB only)
 - Manual QA: open exported `.rbs` in original ReBirth RB-338 to verify device compatibility
 
-**Round-trip:** `src/__tests__/RbsExporter.test.ts` — export → `RbsParser.parseBytes` → step/knob structural compare.
+**Round-trip:** `src/__tests__/RbsExporter.test.ts` — export → `RbsParser.parseBytes` for pattern mode, song-mode TRAK, v1.5 single-303, 9+ slot banks, and `SavedSongData` reconstruction.
+
+GitHub **#1139** landed as **#1154**; remaining leftovers (UI song export, 32-slot DEVL, PCF/`trackParamStorage` apply) are this slice. Close or retitle #1139 after merge so the weekly-plan owner action is done.
 
 ## Playwright E2E (CI)
 
@@ -165,7 +168,7 @@ Use original ReBirth RB-338 exports under appropriate license. Do **not** commit
 3. **Playback** — **Start Playback** → playhead advances through arrangement measures; pattern steps trigger on expected tracks.
 4. **Automation** — During playback, SYNTH A/B **CUTOFF** / **RESONANCE** knobs move when source had TRAK/PCF automation; cyan automation ring on driven params.
 5. **303 engines** — Toggle `engine303` (`open303` / `jc303`) per voice; confirm filter/decay timbre matches file.
-6. **Round-trip spot-check** — Export pattern-mode `.rbs` from Hyphon, re-import, compare step grid + knob snapshot.
+6. **Round-trip spot-check** — Export `.rbs` from Hyphon (song mode if the arranger is active), re-import, compare step grid, arrangement slots, and knob snapshot.
 
 ## Related files
 
