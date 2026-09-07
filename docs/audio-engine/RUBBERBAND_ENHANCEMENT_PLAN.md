@@ -382,9 +382,9 @@ This plan enhances Rubber Band's role in high-quality time stretching while inte
 
 ### Suggested Dependencies
 
-- **Montreal Forced Aligner (MFA)** - For phoneme alignment (Section 3)
-- **HiFi-GAN WASM** - For neural vocoding (Section 6)
-- **soundtouch-js** - For formant shifting (Section 4)
+- **wav2vec2 CTC ONNX** (onnxruntime-web) — Section 3 forced alignment, download-on-demand
+- **HiFi-GAN / vocos ONNX** — Section 6 offline vocoder (V4)
+- Heuristic G2P remains in-tree; no MFA Python/Pyodide server
 
 ### Follow-up Code Changes
 
@@ -452,14 +452,14 @@ Exposed option constants for JavaScript:
 
 | Section | File | Status |
 |---------|------|--------|
-| **Section 3: Phoneme Alignment** | `src/engines/rubberband/PhonemeAligner.ts` | STUB |
-| **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | STUB |
+| **Section 3: Phoneme Alignment** | `src/engines/rubberband/PhonemeAligner.ts` | ✅ CTC + heuristic |
+| **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | ✅ wired |
 | **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ IMPLEMENTED |
-| **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | ✅ IMPLEMENTED |
-| **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | STUB |
-| **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (partial impl) |
-| **Section 9: Latency Sync** | `src/engines/rubberband/LatencyCompensator.ts` | STUB (partial impl) |
-| **Section 10: Artifact Detection** | `src/engines/rubberband/ArtifactDetector.ts` | STUB (partial impl) |
+| **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | library; not on live voice path (V4) |
+| **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | present |
+| **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (V2) |
+| **Section 9: Latency Sync** | `LatencyCompensator.ts` | **Deleted** — MIDI clock is `TransportClockController` |
+| **Section 10: Artifact Detection** | `src/engines/rubberband/ArtifactDetector.ts` | present |
 
 ### File Structure
 
@@ -468,13 +468,13 @@ src/engines/
 ├── SingingVoice.ts              # Enhanced with multi-resolution pitch caching
 └── rubberband/
     ├── index.ts                  # Module exports
-    ├── PhonemeAligner.ts         # Section 3: Phoneme alignment
+    ├── PhonemeAligner.ts         # Section 3: CTC + heuristic
+    ├── alignment/                # CTC Viterbi + G2P
     ├── FormantShifter.ts         # Section 4: Formant control
     ├── ExpressiveVoiceProcessor.ts # Section 5: Vibrato, tremolo, breath
-    ├── HybridNeuralPipeline.ts   # Section 6: Neural vocoding
-    ├── PerformanceOptimizer.ts   # Section 7: WASM optimization
-    ├── ConcatenativeHybrid.ts    # Section 8: Sample blending
-    ├── LatencyCompensator.ts     # Section 9: MIDI sync
+    ├── HybridNeuralPipeline.ts   # Section 6: Neural vocoding (offline V4)
+    ├── PerformanceOptimizer.ts    # Section 7: WASM optimization
+    ├── ConcatenativeHybrid.ts    # Section 8: Sample blending (V2)
     └── ArtifactDetector.ts       # Section 10: Quality monitoring
 ```
 
@@ -482,5 +482,5 @@ src/engines/
 
 1. **Rebuild WASM module** - Run `./emscripten/build_rubberband.sh` to compile updated wrapper
 2. **Test Section 1 & 2** - Verify vocal fidelity improvements with TTS output
-3. **Integrate MFA** - Add phoneme alignment backend for Section 3
-4. **Add HiFi-GAN WASM** - Find or compile neural vocoder for Section 6
+3. **CTC alignment** - Optional `assets/onnx/wav2vec2-ctc.onnx` (not MFA)
+4. **Add HiFi-GAN ONNX** - Offline vocoder for Section 6 (V4)

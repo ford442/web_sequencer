@@ -42,9 +42,21 @@ export function useAISongPreviewElements(parsedData: AISongData | null, trackSta
   const parsedAutomationRows = useMemo(() => {
     if (!parsedData?.automation) return null;
     return parsedData.automation.map((lane, idx) => {
-      const nonNullSteps = lane.steps.map((v, i) => ({ value: v, step: i })).filter(s => s.value !== null);
-      const minVal = Math.min(...nonNullSteps.map(s => s.value!));
-      const maxVal = Math.max(...nonNullSteps.map(s => s.value!));
+      // ⚡ Bolt Optimization: Removed .map()/.filter() and replaced Math.max(...array) with a single pass O(n) loop.
+      // This prevents "Maximum call stack size exceeded" errors on large datasets and eliminates intermediate array GC allocations.
+      let minVal = Infinity;
+      let maxVal = -Infinity;
+      let validPointCount = 0;
+      for (let i = 0; i < lane.steps.length; i++) {
+        const val = lane.steps[i];
+        if (val !== null) {
+          validPointCount++;
+          if (val < minVal) minVal = val;
+          if (val > maxVal) maxVal = val;
+        }
+      }
+      if (minVal === Infinity) minVal = 0;
+      if (maxVal === -Infinity) maxVal = 0;
 
       return (
         <div key={idx} className="bg-gray-800/50 rounded p-2">
@@ -56,7 +68,7 @@ export function useAISongPreviewElements(parsedData: AISongData | null, trackSta
             </div>
             <div className="flex items-center gap-2 text-[10px] text-gray-500">
               <span className="px-1.5 py-0.5 bg-gray-700 rounded">{String(lane.interpolation || 'step')}</span>
-              <span>{String(nonNullSteps.length)} pts</span>
+              <span>{String(validPointCount)} pts</span>
               <span className="text-gray-600">|</span>
               <span>range: {String(minVal)}-{String(maxVal)}</span>
             </div>

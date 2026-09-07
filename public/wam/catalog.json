@@ -1,4 +1,13 @@
 {
+  "schema": 2,
+  "$comment": [
+    "WAM2 allowlist. There is deliberately NO url/src/href field: a community",
+    "package is addressed only by a relative path under wam/community/, fetched",
+    "same-origin, and verified byte-for-byte against `integrity` before import.",
+    "Community hashes are maintained by `pnpm run wam:integrity`; CI runs",
+    "`--check`, so editing a package without refreshing this file fails the build.",
+    "See docs/adr/0001-wam2-host.md (Phase B addendum)."
+  ],
   "sdk": {
     "package": "@webaudiomodules/sdk",
     "version": "0.0.12",
@@ -10,15 +19,90 @@
       "id": "hyphon.tone",
       "version": "1.0.0",
       "kind": "instrument",
+      "title": "Hyphon Tone",
+      "vendor": "Hyphon",
       "license": "MIT",
-      "origin": "bundled"
+      "origin": "bundled",
+      "capabilities": [
+        "audio",
+        "midi",
+        "automation",
+        "offline-native"
+      ],
+      "params": [
+        {
+          "id": "gain",
+          "label": "Gain",
+          "min": 0,
+          "max": 1,
+          "defaultValue": 0.8
+        }
+      ]
     },
     {
       "id": "hyphon.gain",
       "version": "1.0.0",
       "kind": "effect",
+      "title": "Hyphon Gain",
+      "vendor": "Hyphon",
       "license": "MIT",
-      "origin": "bundled"
+      "origin": "bundled",
+      "capabilities": [
+        "audio",
+        "automation",
+        "offline-native"
+      ],
+      "params": [
+        {
+          "id": "gain",
+          "label": "Gain",
+          "min": 0,
+          "max": 1,
+          "defaultValue": 0.8
+        }
+      ]
+    },
+    {
+      "id": "hyphon.pulsar",
+      "version": "1.0.0",
+      "kind": "instrument",
+      "title": "Pulsar",
+      "vendor": "Hyphon Community",
+      "license": "MIT",
+      "origin": "community",
+      "entry": "wam/community/hyphon.pulsar/index.js",
+      "integrity": {
+        "alg": "sha256",
+        "value": "3103a17dd7ede9f68d87f2697e25bf2f4cce6fb7689fc4b753a1c21ee9e3577e"
+      },
+      "capabilities": [
+        "audio",
+        "midi",
+        "automation"
+      ],
+      "params": [
+        {
+          "id": "cutoff",
+          "label": "Cutoff",
+          "min": 80,
+          "max": 12000,
+          "defaultValue": 2400
+        },
+        {
+          "id": "detune",
+          "label": "Detune",
+          "min": -50,
+          "max": 50,
+          "defaultValue": 12
+        },
+        {
+          "id": "gain",
+          "label": "Gain",
+          "min": 0,
+          "max": 1,
+          "defaultValue": 0.7
+        }
+      ]
     }
   ]
 }

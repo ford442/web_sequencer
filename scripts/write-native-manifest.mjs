@@ -68,6 +68,15 @@ function memoryFor(world, budget, rel) {
       pthreadPoolSize: budget.hyphonNative.pthreadPoolSize,
     };
   }
+  if (world.world === 'rubberband') {
+    // Owns its memory (not imported by the worklet), and NO_THREADING: no pool.
+    return {
+      initialMb: budget.rubberband.initialMemoryMb,
+      maximumMb: budget.rubberband.maximumMemoryMb,
+      stackMb: budget.rubberband.stackSizeMb,
+      pthreadPoolSize: 0,
+    };
+  }
   if (world.world === 'jc303') {
     return {
       initialMb: budget.standaloneJc303.initialMemoryMb,

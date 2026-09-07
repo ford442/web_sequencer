@@ -113,11 +113,16 @@ export function useSynthParamHandlers(deps: {
         }
     }, [activeSamplerBank, setSampler, currentStepRef]);
 
-    const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: any) => {
+    const handleSamplerParamChange = useCallback((bankIdx: number, key: string, val: unknown) => {
         setSampler(prev => {
             const next = [...prev];
-            if (next[bankIdx]) {
-                next[bankIdx] = { ...next[bankIdx], [key as keyof SamplerBankParams]: val };
+            const currentBank = next[bankIdx];
+            if (currentBank) {
+                const nextBank: SamplerBankParams = { ...currentBank };
+                // `key` names one of many differently-typed SamplerBankParams fields;
+                // the caller supplies a matching value at runtime for the given key.
+                (nextBank as unknown as Record<string, unknown>)[key] = val;
+                next[bankIdx] = nextBank;
             }
             samplerRef.current = next;
             return next;

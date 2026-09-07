@@ -1,12 +1,15 @@
 import { useCallback, useEffect } from 'react'
 import { midiToNote, noteToMidi } from '../../utils/musicTheory'
-import type { Pattern, SynthParams, DrumSound } from '../../types'
+import type {
+    AudioEngine, Pattern, SynthParams, DrumSound,
+    Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, SamplerVoiceParams,
+} from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
 import type { PartSequence } from '../../types'
 import { updateSamplerStep, updateTrackStep } from './patternUpdates'
 
 export function useKeyboardHandlers(deps: {
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     selectedTrack: TrackKey;
     isRecording: boolean;
     isPlaying: boolean;
@@ -23,16 +26,16 @@ export function useKeyboardHandlers(deps: {
     currentStepRef: React.MutableRefObject<number>;
     synthARef: React.MutableRefObject<SynthParams>;
     synthBRef: React.MutableRefObject<SynthParams>;
-    bass2Ref: React.MutableRefObject<any>;
-    kickRef: React.MutableRefObject<any>;
-    snareRef: React.MutableRefObject<any>;
-    closedHatRef: React.MutableRefObject<any>;
-    openHatRef: React.MutableRefObject<any>;
-    samplerRef: React.MutableRefObject<any>;
-    samplerVoiceParamsRef: React.MutableRefObject<any>;
+    bass2Ref: React.MutableRefObject<Bass2Params>;
+    kickRef: React.MutableRefObject<KickParams>;
+    snareRef: React.MutableRefObject<SnareParams>;
+    closedHatRef: React.MutableRefObject<HatParams>;
+    openHatRef: React.MutableRefObject<HatParams>;
+    samplerRef: React.MutableRefObject<SamplerParams>;
+    samplerVoiceParamsRef: React.MutableRefObject<SamplerVoiceParams>;
     activeKeyboardNotesRef: React.MutableRefObject<Map<string, number>>;
     noteDragRef: React.MutableRefObject<{ track: TrackKey; step: number; startY: number; startMidi: number; hasMoved: boolean; lastMidi: number; pendingSequence?: PartSequence | PartSequence[]; } | null>;
-    updateStorageForTrack: (track: TrackKey, sequence: any) => void;
+    updateStorageForTrack: (track: TrackKey, sequence: PartSequence | PartSequence[]) => void;
 }) {
     const {
         audioEngine, selectedTrack, isRecording, isPlaying, isNoteDragging, isDrawing,
@@ -68,16 +71,16 @@ export function useKeyboardHandlers(deps: {
 
         if (selectedTrack === 'partA') {
             const maybe = audioEngine.noteOnSynth?.(synthARef.current, note, time, 'partA');
-            Promise.resolve(maybe).then((id) => {
+            void Promise.resolve(maybe).then((id) => {
                 if (id != null) activeKeyboardNotesRef.current.set(note, id);
             });
-        } 
+        }
         else if (selectedTrack === 'partB') {
             const maybe = audioEngine.noteOnSynth?.(synthBRef.current, note, time, 'partB');
-            Promise.resolve(maybe).then((id) => {
+            void Promise.resolve(maybe).then((id) => {
                 if (id != null) activeKeyboardNotesRef.current.set(note, id);
             });
-        } 
+        }
         else if (selectedTrack === 'bass2') {
             const bass2Params: SynthParams = {
                 waveform: bass2Ref.current.waveform,
@@ -96,10 +99,10 @@ export function useKeyboardHandlers(deps: {
                 delayMix: 0,
             };
             const maybe = audioEngine.noteOnSynth?.(bass2Params, note, time, 'bass2');
-            Promise.resolve(maybe).then((id) => {
+            void Promise.resolve(maybe).then((id) => {
                 if (id != null) activeKeyboardNotesRef.current.set(note, id);
             });
-        } 
+        }
         else if (selectedTrack === 'kick') {
             audioEngine.playDrum('kick', kickRef.current, time, null, undefined, note);
         } 
@@ -197,7 +200,8 @@ export function useKeyboardHandlers(deps: {
                 noteDragRef.current.lastMidi = clampedMidi;
                 const newNote = midiToNote(clampedMidi);
                 setPattern(prev => {
-                    const updater = (stepData: any) => stepData ? { ...stepData, note: newNote } : { note: newNote, velocity: 1, length: 1 };
+                    const updater = (stepData: import('../../types').Note | null) =>
+                        stepData ? { ...stepData, note: newNote } : { note: newNote, velocity: 1, length: 1 };
                     let newPattern;
 
                     if (track === 'sampler') {
@@ -230,13 +234,14 @@ export function useKeyboardHandlers(deps: {
     }, [isNoteDragging, updateStorageForTrack, isDrawing, setIsDrawing, setDrawMode, setContextMenu, setIsNoteDragging, noteDragRef]);
 
     useEffect(() => {
-        window.addEventListener('pointerup', handleGlobalMouseUp as any);
+        const handlePointerUp = (e: PointerEvent) => handleGlobalMouseUp(e as unknown as MouseEvent);
+        window.addEventListener('pointerup', handlePointerUp);
         if (isNoteDragging) {
             window.addEventListener('mousemove', handleGlobalMouseMove);
             window.addEventListener('mouseup', handleGlobalMouseUp);
         }
         return () => {
-            window.removeEventListener('pointerup', handleGlobalMouseUp as any);
+            window.removeEventListener('pointerup', handlePointerUp);
             window.removeEventListener('mousemove', handleGlobalMouseMove);
             window.removeEventListener('mouseup', handleGlobalMouseUp);
         };

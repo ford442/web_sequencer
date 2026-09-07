@@ -40,11 +40,11 @@ export const useTTSPreloader = (): TTSPreloaderState => {
             }
         };
 
-        runPreload();
+        void runPreload();
 
         const intervalId = window.setInterval(() => {
             if (!scheduledRef.current && service.isServiceReady()) {
-                runPreload();
+                void runPreload();
                 window.clearInterval(intervalId);
             }
         }, TTS_READY_POLL_MS);

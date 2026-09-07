@@ -45,6 +45,8 @@ import {
     playbackHealthMonitor,
     PLAYBACK_THRESHOLDS,
 } from '../audio/playback/PlaybackHealthMonitor';
+import { Open303Manager } from '../engines/Open303Manager';
+import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
 import { getWamHost } from '../audio/wam';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
@@ -143,6 +145,10 @@ export interface UseStepHandlerOptions {
     automationSchedulerRef?: React.MutableRefObject<AutomationScheduler | null>;
     /** Resolved TRAK events from an imported RBS song for sub-step automation scheduling. */
     trakEventsRef?: React.MutableRefObject<ResolvedTrakEvent[] | null>;
+    rbsArrangementExtrasRef?: React.MutableRefObject<import('./appState/useSongModeState').RbsArrangementExtras | null>;
+    setSynthA?: React.Dispatch<React.SetStateAction<SynthParams>>;
+    setSynthB?: React.Dispatch<React.SetStateAction<SynthParams>>;
+    setBass2?: React.Dispatch<React.SetStateAction<Bass2Params>>;
     sessionEngineRef?: React.MutableRefObject<import('../session/SessionLaunchEngine').SessionLaunchEngine | null>;
     sessionClockRef?: React.MutableRefObject<{ step: number; audioTime: number; tempo: number }>;
     setIsSongModeActive?: (active: boolean) => void;
@@ -179,6 +185,10 @@ export const useStepHandler = ({
     setCurrentSongMeasure,
     automationSchedulerRef,
     trakEventsRef,
+    rbsArrangementExtrasRef,
+    setSynthA,
+    setSynthB,
+    setBass2,
     sessionEngineRef,
     sessionClockRef,
     setIsSongModeActive,
@@ -186,6 +196,9 @@ export const useStepHandler = ({
 }: UseStepHandlerOptions) => {
     const lastHandledStepRef = useRef({ step: -1, audioTime: 0 });
     const lastTrakBarRef = useRef(-1);
+    const lastParamSlotsRef = useRef<{ partA: number | null; partB: number | null; bass2: number | null }>({
+        partA: null, partB: null, bass2: null,
+    });
 
     const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
@@ -233,8 +246,14 @@ export const useStepHandler = ({
             }
             onSessionTick?.(sessionEngine.playingSlots());
             if (isE2eMode()) {
+                let pCount = 0;
+                for (let i = 0; i < TRACK_KEYS.length; i++) {
+                    if (sessionEngine.playingSlot(TRACK_KEYS[i]) != null) {
+                        pCount++;
+                    }
+                }
                 setE2eSessionState({
-                    playingCount: TRACK_KEYS.filter((t) => sessionEngine.playingSlot(t) != null).length,
+                    playingCount: pCount,
                     lastApplyStep: tick.applied[0]?.step ?? (typeof window !== 'undefined' ? window.__HYPHON_E2E_SESSION__?.lastApplyStep ?? -1 : -1),
                     captureCount: sessionEngine.captureEvents.length,
                 });
@@ -310,6 +329,44 @@ export const useStepHandler = ({
                     openHat: getSeq('openHat'),
                     sampler: getSeq('sampler'),
                 } as Pattern;
+
+                const storage = rbsArrangementExtrasRef?.current?.trackParamStorage;
+                if (storage) {
+                    const open303 = audioEngine.open303Engine instanceof Open303Manager
+                        ? audioEngine.open303Engine
+                        : null;
+                    const last = lastParamSlotsRef.current;
+                    const recall = (track: 'partA' | 'partB' | 'bass2', slot: number | null) => {
+                        if (slot === null || slot === last[track]) return;
+                        last[track] = slot;
+                        const applied = applyTrackParamSlotToEngine(
+                            storage,
+                            track,
+                            slot,
+                            open303,
+                            {
+                                synthA: synthARef.current,
+                                synthB: synthBRef.current,
+                                bass2: bass2Ref.current,
+                            },
+                        );
+                        if (applied.synthA) {
+                            synthARef.current = applied.synthA;
+                            setSynthA?.(applied.synthA);
+                        }
+                        if (applied.synthB) {
+                            synthBRef.current = applied.synthB;
+                            setSynthB?.(applied.synthB);
+                        }
+                        if (applied.bass2) {
+                            bass2Ref.current = applied.bass2;
+                            setBass2?.(applied.bass2);
+                        }
+                    };
+                    recall('partA', measureData.partA ?? null);
+                    recall('partB', measureData.partB ?? null);
+                    recall('bass2', measureData.bass2 ?? null);
+                }
             }
         }
 
@@ -573,7 +630,7 @@ export const useStepHandler = ({
             let hasLiveValues = false;
             // Clear scratch object
             for (let i = 0; i < _liveValuesKeys.length; i++) {
-                liveValues[_liveValuesKeys[i]] = undefined as any;
+                delete liveValues[_liveValuesKeys[i]];
             }
             _liveValuesKeys.length = 0;
 

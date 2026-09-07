@@ -82,7 +82,7 @@ describe('AudioDSP OpenMP Module', () => {
 
         it('should fallback to JS implementation when WASM unavailable', () => {
             // Remove WASM module and create new instance
-            (globalThis.window as any).AudioDSP = undefined;
+            (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).AudioDSP = undefined;
             const jsDSP = new AudioDSP();
             
             const buffer = new Float32Array([0.1, 0.2, 0.3, 0.4]);
@@ -105,7 +105,7 @@ describe('AudioDSP OpenMP Module', () => {
         });
 
         it('should fallback to JS implementation when WASM unavailable', () => {
-            (globalThis.window as any).AudioDSP = undefined;
+            (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).AudioDSP = undefined;
             
             const jsDSP = new AudioDSP();
             const buffer = new Float32Array([0.1, -0.5, 0.3, -0.8]);
@@ -124,7 +124,7 @@ describe('AudioDSP OpenMP Module', () => {
         });
 
         it('should fallback to JS when WASM unavailable', () => {
-            (globalThis.window as any).AudioDSP = undefined;
+            (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).AudioDSP = undefined;
             
             const jsDSP = new AudioDSP();
             const interleaved = new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
@@ -150,7 +150,7 @@ describe('AudioDSP OpenMP Module', () => {
         });
 
         it('should fallback to JS when WASM unavailable', () => {
-            (globalThis.window as any).AudioDSP = undefined;
+            (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).AudioDSP = undefined;
             
             const jsDSP = new AudioDSP();
             const floatBuffer = new Float32Array([0.5, -0.5, 1.0, -1.0]);
@@ -224,8 +224,8 @@ describe('AudioDSP Performance Characteristics', () => {
         }
         
         // Without WASM, this should still work
-        (globalThis.window as any).AudioDSP = undefined;
-        (globalThis.window as any).Module = undefined;
+        (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).AudioDSP = undefined;
+        (globalThis.window as { AudioDSP?: unknown; Module?: unknown }).Module = undefined;
         
         const jsDSP = new AudioDSP();
         const start = performance.now();

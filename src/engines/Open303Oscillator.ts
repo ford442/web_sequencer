@@ -2,12 +2,17 @@ import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
 import {
+    isLiveHighFidModel,
     legacyEngine303ForModel,
     normalizeTB303Model,
     reportTB303ModelFallback,
     resolveRealtimeTB303Model,
     stockModelForFamily,
+    tb303ModelFamily,
+    type Engine303Family,
 } from './TB303Models';
+import { clampLiveOversample, type LiveHighFidOversample } from '../audio-worklets/liveHighFid303';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
@@ -16,7 +21,13 @@ import {
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
 import { attachWorkletPerf } from '../utils/workletPerfBridge';
-import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
+import {
+    formatMissingWasmExports,
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    OPEN303_REQUIRED_WASM_EXPORTS,
+    open303ExportMapInsufficient,
+    wasmExportNameSnapshot,
+} from '../audio-worklets/hyphonNativeImports';
 // Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
@@ -41,6 +52,14 @@ export class Open303Oscillator {
     private engine303: 'open303' | 'jc303' = 'open303';
     /** Persisted 303 voice/model choice — applied once the worklet is ready. */
     private model303: TB303ModelId = 'stock-open303';
+    /**
+     * Oversample factor for the live high-fid voice (Phase-L1). 1× is the
+     * shipping default: 2× roughly doubles the audio-thread cost and is only
+     * worth it on machines with headroom to spare.
+     */
+    private liveHighFidOversample: LiveHighFidOversample = 1;
+    /** Cleanup for the worklet status listener (live high-fid fallbacks). */
+    private detachStatusListener: (() => void) | null = null;
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
@@ -69,7 +88,7 @@ export class Open303Oscillator {
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                const exportMap = await this.fetchExportMap();
+                const exportMap = await this.fetchExportMap(wasmBytes);
                 return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true, exportMap);
 
             } catch (e) {
@@ -92,15 +111,33 @@ export class Open303Oscillator {
      * Complete the worklet init given pre-fetched WASM bytes.
      * Extracted so that the native/legacy retry path can reuse it.
      */
-    private async fetchExportMap(): Promise<Record<string, string>> {
+    private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
         const map = await loadHyphonWasmExportMap();
+        const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
+        const glueUrl = resolvePublicAsset('hyphon_native.js');
+        const wasmModule = await WebAssembly.compile(wasmBytes);
+        const rawExports = wasmExportNameSnapshot(wasmModule);
+
         if (Object.keys(map).length === 0) {
             logEngineFallback(
                 'open303',
                 'wasm-worklet',
-                'hyphon_wasm_export_map.json empty and glue parse found no exports — worklet cannot resolve minified WASM symbols',
+                `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+                `(tried ${mapUrl} and ${glueUrl}). ` +
+                formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
+            );
+            return map;
+        }
+
+        if (open303ExportMapInsufficient(wasmModule, map)) {
+            logEngineFallback(
+                'open303',
+                'wasm-worklet',
+                `export map did not resolve open303_* / jc303_* against WASM. ` +
+                formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
             );
         }
+
         return map;
     }
 
@@ -148,6 +185,7 @@ export class Open303Oscillator {
             if (!this.gainNode) throw new Error('gainNode not initialized');
             this.workletNode.connect(this.gainNode);
             attachWorkletPerf(this.workletNode, 'open303');
+            this.attachStatusListener(this.workletNode);
 
             // Wait for worklet to confirm initialization
             const initSuccess = await new Promise<boolean>((resolve) => {
@@ -161,7 +199,18 @@ export class Open303Oscillator {
                         try { engineTelemetry.registerResolution('jc303', backend, 'worklet-ready'); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'error') {
-                        logEngineFallback('open303', 'wasm-worklet', 'worklet init-wasm error', e.data.error);
+                        const payload = e.data as { error?: unknown };
+                        const errDetail =
+                            typeof payload.error === 'string'
+                                ? payload.error
+                                : payload.error != null
+                                  ? String(payload.error)
+                                  : 'unknown worklet error';
+                        logEngineFallback(
+                            'open303',
+                            'wasm-worklet',
+                            `worklet init-wasm error: ${errDetail}`,
+                        );
                         resolve(false);
                     }
                 };
@@ -313,7 +362,26 @@ export class Open303Oscillator {
         }
         this.model303 = resolved;
         this.engine303 = legacyEngine303ForModel(this.model303);
+        if (isLiveHighFidModel(this.model303)) {
+            engineDegradationStore.resolve('live-highfid');
+            try {
+                engineTelemetry.recordLiveHighFid({
+                    requested: this.model303,
+                    active: true,
+                    oversample: this.liveHighFidOversample,
+                });
+            } catch { /* telemetry optional */ }
+        }
         this.applyModel303();
+    }
+
+    /**
+     * Oversample factor for the live high-fid voice (1× default, 2× when the
+     * CPU budget allows). Takes effect on the next model apply.
+     */
+    setLiveHighFidOversample(factor: number): void {
+        this.liveHighFidOversample = clampLiveOversample(factor);
+        if (isLiveHighFidModel(this.model303)) this.applyModel303();
     }
 
     /** Currently selected 303 voice/model. */
@@ -323,11 +391,18 @@ export class Open303Oscillator {
 
     private applyModel303(): void {
         if (!this.workletNode) return;
+        // The worklet routes on engine family: `highfid` selects the live
+        // diode-ladder voice, the other two keep their existing meaning.
+        const family: Engine303Family = tb303ModelFamily(this.model303);
         this.workletNode.port.postMessage({
             type: 'set-303-model',
             // engine is included so the worklet can route correctly even when
             // the WASM build has no native model registry (pre-voices builds).
-            data: { model: this.model303, engine: this.engine303 },
+            data: {
+                model: this.model303,
+                engine: family,
+                oversample: this.liveHighFidOversample,
+            },
         });
         if (this.isReady) {
             // Params were routed to the previous engine — push them to the new one.
@@ -365,7 +440,61 @@ export class Open303Oscillator {
         if (this.outputNode) this.outputNode.disconnect();
     }
 
+    /**
+     * Listen for worklet-side status messages that outlive init — today the
+     * live high-fid CPU/glitch gate. Uses addEventListener so it coexists with
+     * the `port.onmessage` handler the init handshake installs.
+     */
+    private attachStatusListener(node: AudioWorkletNode): void {
+        this.detachStatusListener?.();
+
+        const onMessage = (event: MessageEvent) => {
+            const payload = event.data as { type?: string; data?: Record<string, unknown> } | null;
+            if (!payload || typeof payload !== 'object') return;
+            if (payload.type === 'live-highfid-degraded') {
+                this.handleLiveHighFidFallback(
+                    String(payload.data?.reason ?? 'CPU budget exceeded'),
+                    typeof payload.data?.cpuPercent === 'number' ? payload.data.cpuPercent : null,
+                );
+            } else if (payload.type === 'live-highfid-unavailable') {
+                this.handleLiveHighFidFallback(
+                    String(payload.data?.reason ?? 'live high-fid unavailable'),
+                    null,
+                );
+            }
+        };
+
+        node.port.addEventListener('message', onMessage);
+        this.detachStatusListener = () => node.port.removeEventListener('message', onMessage);
+    }
+
+    /**
+     * The worklet handed the live high-fid voice back to Stock Open303.
+     * Mirror that on this side so the HUD, telemetry and any later param
+     * pushes all agree on which path is actually audible.
+     */
+    private handleLiveHighFidFallback(reason: string, cpuPercent: number | null): void {
+        const requested = this.model303;
+        this.model303 = 'stock-open303';
+        this.engine303 = 'open303';
+        try {
+            engineTelemetry.recordLiveHighFid({
+                requested,
+                active: false,
+                reason,
+                cpuPercent,
+                oversample: this.liveHighFidOversample,
+            });
+        } catch { /* telemetry optional */ }
+        try {
+            engineDegradationStore.reportLiveHighFidFallback({ requested, reason, cpuPercent });
+        } catch { /* store optional in tests */ }
+        reportTB303ModelFallback(requested, 'stock-open303', reason, 'live-highfid');
+    }
+
     private cleanupWorklet() {
+        this.detachStatusListener?.();
+        this.detachStatusListener = null;
         if (this.workletNode) {
             this.workletNode.disconnect();
             this.workletNode.port.close();

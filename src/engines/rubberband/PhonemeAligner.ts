@@ -1,19 +1,30 @@
 /**
  * PhonemeAligner - Phoneme-aware time stretching for natural vocal articulation
- * 
- * Part of RUBBERBAND_ENHANCEMENT_PLAN Section 3: Phoneme-Aware Time Stretching
- * 
- * This module provides phoneme alignment capabilities for TTS output,
- * enabling vowel stretching while preserving consonant timing.
- * 
- * STUB FILE - Implementation pending.
- * 
- * Dependencies to consider:
- * - Montreal Forced Aligner (MFA) for phoneme alignment
- * - SharedArrayBuffer for efficient main thread to AudioWorklet communication
- * 
+ *
+ * Part of RUBBERBAND_ENHANCEMENT_PLAN Section 3.
+ *
+ * English TTS uses onnxruntime-web CTC forced alignment when the wav2vec2
+ * model is available (download-on-demand). Heuristic G2P + uniform splits
+ * remain the fallback. Optional remote MFA is still supported via
+ * alignerServiceUrl but is not configured in engineLifecycle.
+ *
  * @see RUBBERBAND_ENHANCEMENT_PLAN.md Section 3
  */
+
+import type { PhonemeData } from '../../types';
+import { CtcForcedAligner } from './alignment/ctcForcedAligner';
+import {
+    categorizePhoneme as categorizeArpabet,
+    estimatePhonemesForWord as g2pWordFallback,
+    g2pText,
+    isArpabetVowel,
+} from './alignment/g2p';
+import type { AlignPassOptions } from './alignment/types';
+import {
+    ALIGNMENT_BOUNDARY_TOLERANCE_MS,
+    type AlignmentResult,
+    type PhonemeSegment,
+} from './alignment/types';
 
 /** Remote alignment service response shape. */
 interface AlignmentServicePhoneme {
@@ -26,42 +37,24 @@ interface AlignmentServiceResponse {
     phonemes: AlignmentServicePhoneme[];
 }
 
-/** Phoneme timing information from forced alignment */
-import type { PhonemeData } from '../../types';
-
-export interface PhonemeSegment {
-    /** The phoneme symbol (e.g., 'AH', 'T', 'K') */
-    phoneme: string;
-    /** Start time in seconds */
-    start: number;
-    /** End time in seconds */
-    end: number;
-    /** Whether this is a vowel (can be stretched) */
-    isVowel: boolean;
-    /** Optional phoneme category for advanced processing */
-    category?: 'vowel' | 'consonant' | 'fricative' | 'plosive' | 'nasal' | 'liquid';
-}
-
-/** Result from phoneme alignment */
-export interface AlignmentResult {
-    /** Array of phoneme segments with timing */
-    phonemes: PhonemeSegment[];
-    /** Original audio sample rate */
-    sampleRate: number;
-    /** Total duration in seconds */
-    duration: number;
-    /** The aligned text/lyrics */
-    text: string;
-}
+export type { AlignmentResult, PhonemeSegment, AlignPassOptions };
+export { ALIGNMENT_BOUNDARY_TOLERANCE_MS };
 
 /** Configuration for phoneme alignment */
 export interface PhonemeAlignerConfig {
-    /** URL of the alignment service (e.g., MFA backend) */
+    /** URL of the alignment service (e.g. MFA backend) */
     alignerServiceUrl?: string;
-    /** Whether to use local WASM-based alignment (future) */
+    /** Use local G2P + heuristic when CTC is unavailable (default true) */
     useLocalAlignment?: boolean;
     /** Language code for alignment (default: 'en-us') */
     language?: string;
+    /**
+     * Try wav2vec2 CTC first. Default false so unit tests stay fetch-free;
+     * live SingingVoice enables this.
+     */
+    enableCtcAlignment?: boolean;
+    /** Injected CTC backend (tests). */
+    ctcAligner?: CtcForcedAligner;
 }
 
 /**
@@ -76,42 +69,60 @@ export interface PhonemeAlignerConfig {
 export class PhonemeAligner {
     private config: PhonemeAlignerConfig;
     private alignerServiceUrl: string | null = null;
+    private ctcAligner: CtcForcedAligner | null = null;
     
     constructor(config: PhonemeAlignerConfig = {}) {
         this.config = {
             alignerServiceUrl: config.alignerServiceUrl,
             useLocalAlignment: config.useLocalAlignment ?? true,
-            language: config.language ?? 'en-us'
+            language: config.language ?? 'en-us',
+            enableCtcAlignment: config.enableCtcAlignment ?? false,
+            ctcAligner: config.ctcAligner,
         };
         
         if (config.alignerServiceUrl) {
             this.alignerServiceUrl = config.alignerServiceUrl;
         }
+        if (config.ctcAligner) {
+            this.ctcAligner = config.ctcAligner;
+        } else if (config.enableCtcAlignment) {
+            this.ctcAligner = new CtcForcedAligner();
+        }
     }
     
     /**
      * Align phonemes to the given audio and text.
-     * 
-     * If alignerServiceUrl is provided, uses external MFA service.
-     * Otherwise, uses lightweight local estimation based on energy/spectral analysis.
-     * 
-     * @param audio Float32Array of audio samples
-     * @param text The text/lyrics to align
-     * @param sampleRate Sample rate of the audio
-     * @returns Promise resolving to alignment result
+     *
+     * Order: optional remote service → CTC (English) → local heuristic.
      */
     async alignPhonemes(
         audio: Float32Array,
         text: string,
-        sampleRate: number
+        sampleRate: number,
+        options: AlignPassOptions = {},
     ): Promise<AlignmentResult> {
-        // If external service is configured, use it
         if (this.alignerServiceUrl) {
-            return this.alignWithExternalService(audio, text, sampleRate);
+            try {
+                return await this.alignWithExternalService(audio, text, sampleRate);
+            } catch (error) {
+                console.warn('PhonemeAligner: remote alignment failed, falling back', error);
+            }
+        }
+
+        const lang = (this.config.language ?? 'en-us').toLowerCase();
+        const english = lang.startsWith('en');
+        if (this.ctcAligner && english) {
+            try {
+                const ctc = await this.ctcAligner.align(audio, text, sampleRate, options);
+                if (ctc && ctc.phonemes.length > 0) {
+                    return ctc;
+                }
+            } catch (error) {
+                console.warn('PhonemeAligner: CTC alignment failed, using heuristic', error);
+            }
         }
         
-        // Otherwise, use local lightweight estimation
-        return this.localPhonemeEstimation(audio, text, sampleRate);
+        return this.localPhonemeEstimation(audio, text, sampleRate, options);
     }
     
     /**
@@ -186,34 +197,43 @@ export class PhonemeAligner {
     private localPhonemeEstimation(
         audio: Float32Array,
         text: string,
-        sampleRate: number
+        sampleRate: number,
+        options: AlignPassOptions = {},
     ): Promise<AlignmentResult> {
         const duration = audio.length / sampleRate;
         
-        // Extract words from text
-        const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
-        
-        // Estimate phonemes per word (simplified)
-        const estimatedPhonemes: string[] = [];
-        for (const word of words) {
-            estimatedPhonemes.push(...this.estimatePhonemesForWord(word));
-        }
-        
-        // Detect segment boundaries using energy analysis
-        const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
-        
-        // Map phonemes to segments
+        const estimatedPhonemes = g2pText(text);
         const phonemeSegments: PhonemeSegment[] = new Array<PhonemeSegment>(estimatedPhonemes.length);
-        for (let i = 0; i < estimatedPhonemes.length; i++) {
-            const phoneme = estimatedPhonemes[i];
-            const segment = segments[i] || { start: duration * 0.9, end: duration };
-            phonemeSegments[i] = {
-                phoneme,
-                start: segment.start,
-                end: segment.end,
-                isVowel: PhonemeAligner.isVowelPhoneme(phoneme),
-                category: this.categorizePhoneme(phoneme)
-            };
+        
+        if (options.durationPriors && options.durationPriors.length === estimatedPhonemes.length && estimatedPhonemes.length > 0) {
+            const total = options.durationPriors.reduce((a, b) => a + Math.max(1e-6, b), 0);
+            let t = 0;
+            for (let i = 0; i < estimatedPhonemes.length; i++) {
+                const w = Math.max(1e-6, options.durationPriors[i]);
+                const next = i === estimatedPhonemes.length - 1 ? duration : t + duration * (w / total);
+                const phoneme = estimatedPhonemes[i];
+                phonemeSegments[i] = {
+                    phoneme,
+                    start: t,
+                    end: next,
+                    isVowel: PhonemeAligner.isVowelPhoneme(phoneme),
+                    category: this.categorizePhoneme(phoneme),
+                };
+                t = next;
+            }
+        } else {
+            const segments = PhonemeAligner.detectSegmentBoundaries(audio, sampleRate, estimatedPhonemes.length);
+            for (let i = 0; i < estimatedPhonemes.length; i++) {
+                const phoneme = estimatedPhonemes[i];
+                const segment = segments[i] || { start: duration * 0.9, end: duration };
+                phonemeSegments[i] = {
+                    phoneme,
+                    start: segment.start,
+                    end: segment.end,
+                    isVowel: PhonemeAligner.isVowelPhoneme(phoneme),
+                    category: this.categorizePhoneme(phoneme)
+                };
+            }
         }
         
         return Promise.resolve({
@@ -224,49 +244,8 @@ export class PhonemeAligner {
         });
     }
     
-    /**
-     * Estimate phonemes for a word using simple letter-to-phoneme rules.
-     * This is a very simplified approach - a real implementation would use
-     * a pronunciation dictionary or G2P model.
-     * 
-     * @param word Word to convert
-     * @returns Array of phoneme symbols
-     */
     private estimatePhonemesForWord(word: string): string[] {
-        // Very simplified phoneme estimation
-        // In a real implementation, use CMU Pronouncing Dictionary or similar
-        const phonemes: string[] = [];
-        
-        for (let i = 0; i < word.length; i++) {
-            const char = word[i];
-            const nextChar = word[i + 1] || '';
-            
-            // Map common letter patterns to ARPABET phonemes
-            if ('aeiou'.includes(char)) {
-                // Vowels
-                if (char === 'a') phonemes.push('AE');
-                else if (char === 'e') phonemes.push('EH');
-                else if (char === 'i') phonemes.push('IH');
-                else if (char === 'o') phonemes.push('OW');
-                else if (char === 'u') phonemes.push('UH');
-            } else {
-                // Consonants
-                if (char === 't' && nextChar === 'h') {
-                    phonemes.push('TH');
-                    i++; // Skip next char
-                } else if (char === 's' && nextChar === 'h') {
-                    phonemes.push('SH');
-                    i++;
-                } else if (char === 'c' && nextChar === 'h') {
-                    phonemes.push('CH');
-                    i++;
-                } else {
-                    phonemes.push(char.toUpperCase());
-                }
-            }
-        }
-        
-        return phonemes;
+        return g2pWordFallback(word);
     }
     
     /**
@@ -400,23 +379,7 @@ export class PhonemeAligner {
      * @returns Category of the phoneme
      */
     private categorizePhoneme(phoneme: string): 'vowel' | 'consonant' | 'fricative' | 'plosive' | 'nasal' | 'liquid' {
-        const ph = phoneme.toUpperCase();
-        
-        if (PhonemeAligner.isVowelPhoneme(ph)) return 'vowel';
-        
-        // Fricatives: continuous turbulent airflow
-        if (['F', 'V', 'TH', 'DH', 'S', 'Z', 'SH', 'ZH', 'H'].includes(ph)) return 'fricative';
-        
-        // Plosives: stop consonants with release burst
-        if (['P', 'B', 'T', 'D', 'K', 'G'].includes(ph)) return 'plosive';
-        
-        // Nasals
-        if (['M', 'N', 'NG'].includes(ph)) return 'nasal';
-        
-        // Liquids
-        if (['L', 'R'].includes(ph)) return 'liquid';
-        
-        return 'consonant';
+        return categorizeArpabet(phoneme);
     }
     
     /**
@@ -565,9 +528,7 @@ export class PhonemeAligner {
      * Basic classification - can be extended for more accuracy.
      */
     static isVowelPhoneme(phoneme: string): boolean {
-        const vowels = ['AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY', 
-                        'IH', 'IY', 'OW', 'OY', 'UH', 'UW'];
-        return vowels.includes(phoneme.toUpperCase());
+        return isArpabetVowel(phoneme);
     }
 }
 

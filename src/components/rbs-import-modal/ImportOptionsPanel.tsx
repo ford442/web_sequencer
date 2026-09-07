@@ -122,7 +122,7 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             <select
               value={importOptions.drumKitMapping}
               onChange={(e) => updateOption('drumKitMapping', e.target.value as RbsImportOptions['drumKitMapping'])}
-              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus-visible:border-amber-500/50 outline-none"
               aria-label="Drum Kit Mapping"
             >
               <option value="auto">Auto</option>
@@ -137,7 +137,7 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             <select
               value={importOptions.tb303ATarget}
               onChange={(e) => updateOption('tb303ATarget', e.target.value as RbsImportOptions['tb303ATarget'])}
-              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus-visible:border-amber-500/50 outline-none"
               aria-label="TB-303 A Target"
             >
               <option value="partA">Part A</option>
@@ -152,7 +152,7 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
             <select
               value={importOptions.tb303BTarget}
               onChange={(e) => updateOption('tb303BTarget', e.target.value as RbsImportOptions['tb303BTarget'])}
-              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:border-amber-500/50 outline-none"
+              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus-visible:border-amber-500/50 outline-none"
               aria-label="TB-303 B Target"
             >
               <option value="partB">Part B</option>

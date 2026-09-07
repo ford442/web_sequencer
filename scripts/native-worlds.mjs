@@ -143,9 +143,16 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     excludeDirNames: new Set(['.git']),
   });
 
+  // Rubber Band lives in its own world now (see BUILD_NOTES#module-split), so its
+  // sources must not re-stale the voice module on every stretcher change.
+  const RUBBERBAND_OWNED = new Set([
+    'emscripten/build_rubberband.sh',
+    'emscripten/rubberband_wrapper.cpp',
+    'emscripten/rubberband-pre.js',
+  ]);
   const emccFiles = walkFiles(repoRoot, 'emscripten', {
-    excludeDirNames: new Set(['temp_build', 'tests']),
-  });
+    excludeDirNames: new Set(['temp_build', 'temp_build_rubberband', 'tests']),
+  }).filter((rel) => !RUBBERBAND_OWNED.has(rel));
   const rubberbandSrc = walkFiles(repoRoot, 'rubberband/src', {
     excludeDirNames: new Set(['.git']),
   });
@@ -200,7 +207,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       rebuildCommand: 'pnpm run build:emcc',
       inputs: [
         ...emccFiles.map(fileInput),
-        ...rubberbandSrc.map(fileInput),
         ...open303Dsp.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
         fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
@@ -211,6 +217,21 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         'public/hyphon_native.wasm',
         'public/hyphon_native.worker.js',
         'public/hyphon_wasm_export_map.json',
+      ],
+      toolchain: 'emcc',
+    },
+    {
+      id: 'rubberband',
+      world: 'rubberband',
+      rebuildCommand: 'pnpm run build:wasm:rubberband',
+      inputs: [
+        ...rubberbandSrc.map(fileInput),
+        ...[...RUBBERBAND_OWNED].sort().map(fileInput),
+        fileInput(budgetRel),
+      ],
+      outputs: [
+        'public/rubberband.wasm',
+        'src/audio-worklets/rubberband-lib.js',
       ],
       toolchain: 'emcc',
     },

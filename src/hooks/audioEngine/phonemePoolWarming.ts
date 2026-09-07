@@ -31,11 +31,11 @@ export function warmPoolForBank(
 
 export function createPhonemeAlignmentWrappers(
     refs: PhonemePoolRefs,
-    prepareVocalBase: (bankIndex: number, text: string) => Promise<void>,
+    prepareVocalBase: (bankIndex: number, text: string, durationPriors?: number[]) => Promise<void>,
     setAlignmentBase: (bankIndex: number, alignment: AlignmentResult | null) => void,
 ) {
-    const prepareVocal = async (bankIndex: number, text: string): Promise<void> => {
-        await prepareVocalBase(bankIndex, text);
+    const prepareVocal = async (bankIndex: number, text: string, durationPriors?: number[]): Promise<void> => {
+        await prepareVocalBase(bankIndex, text, durationPriors);
         const sampleName = `bank_${bankIndex}`;
         const alignment = refs.vocalAlignmentsRef.current.get(sampleName);
         const audioBuffer = (refs.multisampleBanksRef.current.get(sampleName)?.baseBuffer)

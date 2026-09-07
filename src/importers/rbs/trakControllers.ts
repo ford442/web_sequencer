@@ -297,3 +297,41 @@ export function normaliseTrakParamValue(
   }
   return Math.max(0, Math.min(1, rawValue / 127));
 }
+
+/** Inverse of resolveTrakParamMapping — Hyphon lane → TRAK track + controller. */
+export function resolveHyphonLaneToTrak(
+  target: string,
+  parameter: string,
+): { trackIndex: number; controllerId: number } | null {
+  const cutoff = parameter === 'filterCutoff' || parameter === 'cutoff';
+  const resonance = parameter === 'filterResonance' || parameter === 'resonance';
+
+  if (target === 'synthA') {
+    if (cutoff) return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.CUTOFF };
+    if (resonance) return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.RESONANCE };
+    if (parameter === 'envMod') return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.ENVMOD };
+    if (parameter === 'decay') return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.DECAY };
+    if (parameter === 'accent') return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.ACCENT };
+    if (parameter === 'tune') return { trackIndex: 1, controllerId: TB303_TRAK_CONTROLLER.TUNE };
+    if (parameter === 'volume') return { trackIndex: 0, controllerId: MIXER_TRAK_CONTROLLER.TB303A_MIX_LEVEL };
+  }
+
+  if (target === 'synthB' || target === 'bass2') {
+    const trackIndex = 2;
+    if (cutoff) return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.CUTOFF };
+    if (resonance) return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.RESONANCE };
+    if (parameter === 'envMod') return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.ENVMOD };
+    if (parameter === 'decay') return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.DECAY };
+    if (parameter === 'accent') return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.ACCENT };
+    if (parameter === 'tune') return { trackIndex, controllerId: TB303_TRAK_CONTROLLER.TUNE };
+    if (parameter === 'volume') return { trackIndex: 0, controllerId: MIXER_TRAK_CONTROLLER.TB303B_MIX_LEVEL };
+  }
+
+  if (target === 'master') {
+    if (parameter === 'pcfCutoff') return { trackIndex: 7, controllerId: PCF_TRAK_CONTROLLER.FREQUENCY };
+    if (parameter === 'pcfResonance') return { trackIndex: 7, controllerId: PCF_TRAK_CONTROLLER.RESONANCE };
+    if (parameter === 'pcfEnvAmount') return { trackIndex: 7, controllerId: PCF_TRAK_CONTROLLER.AMOUNT };
+  }
+
+  return null;
+}

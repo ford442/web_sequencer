@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
+import type { PyodideLike } from '../utils/pyodideBuffers';
 
 const PYODIDE_BOOTSTRAP_TIMEOUT_MS = 60_000;
 
 // This hook encapsulates the "Spectral Puppet" engine
 export const usePyodideEngine = () => {
     // Check global state initially
-    const [pyodide, setPyodide] = useState<any>(globalThis.hyphonPyodide || null);
+    const [pyodide, setPyodide] = useState<PyodideLike | null>(
+        (globalThis.hyphonPyodide as PyodideLike | undefined) ?? null,
+    );
     const [isPyodideReady, setIsPyodideReady] = useState(!!globalThis.hyphonPyodideReady);
     const [pyodideStatus, setPyodideStatus] = useState(
         globalThis.hyphonPyodideReady ? 'Python Engine Ready!' : 'Waiting for C++ Orchestrator...'
@@ -16,7 +19,7 @@ export const usePyodideEngine = () => {
         if (isPyodideReady) return;
 
         const handleReady = () => {
-            setPyodide(globalThis.hyphonPyodide);
+            setPyodide(globalThis.hyphonPyodide as PyodideLike);
             setIsPyodideReady(true);
             setPyodideStatus('Python Engine Ready!');
             try { engineTelemetry.registerResolution('pyodide', 'pyodide', 'bootstrap-ready'); } catch (e) { /* noop */ }

@@ -17,6 +17,27 @@ export const OFFICIAL_WAM_SDK_LICENSE = 'MIT' as const;
 
 export type Wam2PackageKind = 'instrument' | 'effect';
 
+/**
+ * Where a package's code comes from. This is a security boundary, not a label:
+ * `bundled` packages are compiled into the app chunk, `community` packages are
+ * separate files under `public/wam/community/` fetched, hashed and imported at
+ * runtime by the installer.
+ */
+export type Wam2Origin = 'bundled' | 'community';
+
+/** Declared, coarse-grained abilities. Used for UI affordances, never for trust. */
+export type Wam2Capability =
+  | 'audio'
+  | 'midi'
+  | 'automation'
+  | 'offline-native'
+  | 'custom-ui';
+
+export interface Wam2Integrity {
+  alg: 'sha256' | 'fnv1a32';
+  value: string;
+}
+
 export type Wam2Placement = 'instrument' | 'trackInsert' | 'masterInsert' | 'sendReturn';
 
 export type Wam2SlotStatus =
@@ -60,20 +81,58 @@ export interface Wam2PackageDescriptor {
   title: string;
   vendor: string;
   license: string;
-  origin: 'bundled';
+  origin: Wam2Origin;
   params: Wam2ParamDesc[];
-  /** SHA-256 (or test-only fnv1a32) of the canonical fingerprint. */
-  integrity: { alg: 'sha256' | 'fnv1a32'; value: string };
+  /**
+   * For `bundled`: SHA-256 (or test-only fnv1a32) of the canonical descriptor
+   * fingerprint. For `community`: SHA-256 of the package file's real bytes, as
+   * declared in `public/wam/catalog.json` and verified before import.
+   */
+  integrity: Wam2Integrity;
   offline: Wam2OfflineSupport;
   isolation: 'audio-graph-slot';
   permissions: Wam2Permissions;
+  capabilities?: Wam2Capability[];
+}
+
+/** One row of the allowlist in `public/wam/catalog.json`. */
+export type Wam2CatalogEntry =
+  | {
+      id: string;
+      version: string;
+      kind: Wam2PackageKind;
+      title: string;
+      vendor: string;
+      license: string;
+      capabilities: Wam2Capability[];
+      params: Wam2ParamDesc[];
+      origin: 'bundled';
+    }
+  | {
+      id: string;
+      version: string;
+      kind: Wam2PackageKind;
+      title: string;
+      vendor: string;
+      license: string;
+      capabilities: Wam2Capability[];
+      params: Wam2ParamDesc[];
+      origin: 'community';
+      /** Relative path under `wam/community/`. Never a URL — see catalogSource.ts. */
+      entry: string;
+      integrity: Wam2Integrity;
+    };
+
+export interface Wam2Catalog {
+  schema: 2;
+  packages: Wam2CatalogEntry[];
 }
 
 export interface Wam2PluginInstanceState {
   slotId: string;
   packageId: string;
   version: string;
-  integrity: { alg: 'sha256' | 'fnv1a32'; value: string };
+  integrity: Wam2Integrity;
   placement: Wam2Placement;
   /** Graph node the slot feeds (instrument) or sits in front of (insert). */
   attachToNodeId: string;
@@ -97,6 +156,11 @@ export interface Wam2NoteEvent {
 export interface Wam2Plugin {
   readonly descriptor: Wam2PackageDescriptor;
   readonly audioNode: AudioNode;
+  /**
+   * Optional self-reported DSP load, 0–100. Only a plugin that owns a worklet
+   * can know this; hosts must treat its absence as "unknown", not "zero".
+   */
+  cpuLoad?(): number | null;
   initialize(context: AudioContext, signal?: AbortSignal): Promise<void>;
   setParam(id: string, value: number, time?: number): void;
   getParam(id: string): number;
@@ -111,10 +175,15 @@ export interface Wam2SlotTelemetry {
   slotId: string;
   packageId: string;
   version: string;
-  origin: 'bundled';
+  origin: Wam2Origin;
   placement: Wam2Placement;
   status: Wam2SlotStatus;
-  cpuPercent: number;
+  /**
+   * Null when the plugin exposes no meter. Native-node fixtures have nothing to
+   * measure per slot, and reporting 0% for them would read as "free" rather than
+   * "unknown" — the HUD renders null as "—". See {@link Wam2Plugin.cpuLoad}.
+   */
+  cpuPercent: number | null;
   latencyMs: number;
   lastError?: string;
   isolation: 'audio-graph-slot';

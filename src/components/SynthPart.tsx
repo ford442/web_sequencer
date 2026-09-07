@@ -28,8 +28,8 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
   const filterModeValue = (params.filterMode ?? 0) > 0 ? FILTER_MODE_24_DB : FILTER_MODE_18_DB;
 
   const accentClasses = {
-    cyan: { border: 'border-cyan-500', text: 'text-cyan-400', knob: 'cyan' as const, ring: 'focus:ring-cyan-400' },
-    pink: { border: 'border-pink-500', text: 'text-pink-400', knob: 'pink' as const, ring: 'focus:ring-pink-400' },
+    cyan: { border: 'border-cyan-500', text: 'text-cyan-400', knob: 'cyan' as const, ring: 'focus-visible:ring-cyan-400' },
+    pink: { border: 'border-pink-500', text: 'text-pink-400', knob: 'pink' as const, ring: 'focus-visible:ring-pink-400' },
   };
   const isDisabled = isFrozen || isRendering;
 
@@ -60,7 +60,7 @@ export const SynthPart: React.FC<SynthPartProps> = memo(({ title, accentColor, p
           loadingText="Rendering..."
           spinnerColor="text-gray-400"
           title={isRendering ? 'Rendering audio to track, please wait...' : isFrozen ? 'Unfreeze to edit track parameters (uses more CPU)' : 'Mixdown to freeze track (saves CPU)'}
-          className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 focus:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
+          className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1.5 focus-visible:ring-offset-gray-900 ${accentClasses[accentColor].ring} ${
             isRendering ? 'bg-gray-600 text-gray-400' :
             isFrozen ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900' :
             'bg-indigo-500 hover:bg-indigo-600 text-white'

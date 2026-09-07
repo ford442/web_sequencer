@@ -145,6 +145,47 @@ export function buildDrumPatternFromHyphon(
   };
 }
 
+/** Build drum pattern bank from per-slot track storage (song mode). */
+export function buildDrumPatternsFromTrackStorage(
+  trackStorage: {
+    kick: (PartSequence | null)[];
+    snare: (PartSequence | null)[];
+    closedHat: (PartSequence | null)[];
+    openHat: (PartSequence | null)[];
+  },
+  slotCount: number,
+  collapse32: boolean,
+  kitType: '808' | '909',
+): DrumPattern[] {
+  const patterns: DrumPattern[] = [];
+  for (let i = 0; i < slotCount; i++) {
+    const kick = trackStorage.kick[i];
+    const snare = trackStorage.snare[i];
+    const closedHat = trackStorage.closedHat[i];
+    const openHat = trackStorage.openHat[i];
+    if (!kick && !snare && !closedHat && !openHat) {
+      patterns.push({
+        kick: Array(16).fill(false),
+        snare: Array(16).fill(false),
+        closedHat: Array(16).fill(false),
+        openHat: Array(16).fill(false),
+        accent: Array(16).fill(0),
+        kitType,
+      });
+      continue;
+    }
+    patterns.push({
+      kick: partSequenceToDrumBooleans(kick ?? { steps: Array(16).fill(null) }, collapse32),
+      snare: partSequenceToDrumBooleans(snare ?? { steps: Array(16).fill(null) }, collapse32),
+      closedHat: partSequenceToDrumBooleans(closedHat ?? { steps: Array(16).fill(null) }, collapse32),
+      openHat: partSequenceToDrumBooleans(openHat ?? { steps: Array(16).fill(null) }, collapse32),
+      accent: Array(16).fill(0),
+      kitType,
+    });
+  }
+  return patterns;
+}
+
 export function pcfSettingsToDevlPayload(pcf: PcfSettings): {
   enabled?: boolean;
   cutoff?: number;
@@ -186,10 +227,6 @@ export function collectExportWarnings(song: HyphonSong): string[] {
   checkWave(song.params.synthB.waveform, 'Synth B');
   if (song.params.bass2) {
     checkWave(song.params.bass2.waveform, 'Bass 2');
-  }
-
-  if (song.songArrangement?.mode === 'song') {
-    warnings.push('Song-mode arrangement is not exported in Phase 1 — only the current pattern is written.');
   }
 
   return warnings;

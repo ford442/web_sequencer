@@ -3,6 +3,7 @@ import { Harmonizer } from '../../engines/Harmonizer';
 import { compileAudioGraph } from '../../audio/graph/compileGraph';
 import { CLASSIC_ELECTRIBE_GRAPH } from '../../audio/graph/defaultElectribeGraph';
 import type { MasterChainRefs } from '../../audio/graph';
+import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
 
 const MASTER_CHAIN_NODE_IDS = new Set([
     'masterSaturation',
@@ -111,7 +112,8 @@ export async function loadWavBuffer(context: AudioContext, url: string): Promise
             throw new Error(`HTTP ${response.status}`);
         }
         const arrayBuffer = await response.arrayBuffer();
-        return await context.decodeAudioData(arrayBuffer);
+        const decoded = await context.decodeAudioData(arrayBuffer);
+        return ensureBufferMatchesContext(decoded, context);
     } catch (error) {
         console.error(`Failed to load ${url}`, error);
         return null;

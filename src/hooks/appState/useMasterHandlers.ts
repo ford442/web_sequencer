@@ -1,13 +1,13 @@
 import { useCallback } from 'react'
 import { automationStore } from '../../stores/automationStore'
-import type { ReverbType } from '../../types'
+import type { AudioEngine, ReverbType } from '../../types'
 
 export function useMasterHandlers(deps: {
     setMasterVolume: React.Dispatch<React.SetStateAction<number>>;
     setMasterSaturation: React.Dispatch<React.SetStateAction<number>>;
     setGlobalPan: React.Dispatch<React.SetStateAction<number>>;
     setReverbType: React.Dispatch<React.SetStateAction<ReverbType>>;
-    audioEngine: any;
+    audioEngine: AudioEngine | null;
     currentStepRef: React.MutableRefObject<number>;
 }) {
     const { setMasterVolume, setMasterSaturation, setGlobalPan, setReverbType, audioEngine, currentStepRef } = deps;

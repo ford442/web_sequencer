@@ -167,6 +167,32 @@ class EngineDegradationStore {
         });
     }
 
+    /**
+     * Phase-L1: the live high-fid 303 voice could not be used (missing WASM
+     * exports) or the CPU/glitch gate handed it back to Stock Open303.
+     */
+    reportLiveHighFidFallback(meta: {
+        requested: string;
+        reason: string;
+        cpuPercent?: number | null;
+    }): void {
+        const cpu =
+            meta.cpuPercent != null && Number.isFinite(meta.cpuPercent)
+                ? ` (${meta.cpuPercent.toFixed(0)}% of quantum)`
+                : '';
+        this.report({
+            id: 'live-highfid',
+            subsystem: 'live-highfid',
+            category: 'worklet',
+            message: 'Live High-Fidelity 303 using Stock Open303',
+            reason: `${meta.reason}${cpu}`,
+            status: 'active',
+            activeBackend: 'stock-open303',
+            requestedBackend: meta.requested,
+            retryable: true,
+        });
+    }
+
     private maybeToast(issue: DegradationIssue, type: 'info' | 'warning' | 'error' = 'warning'): void {
         if (!this.toastHandler) return;
         const now = Date.now();

@@ -13,9 +13,9 @@ This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](../audio-engin
 | RubberBand AudioWorklet Processor | `src/audio-worklets/rubberband-processor.ts` | ✅ |
 | Multi-Resolution Pitch Caching | `src/engines/SingingVoice.ts` | ✅ |
 | Expressive Voice Processor (Vibrato, Breath) | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ |
-| PhonemeAligner (Stub) | `src/engines/rubberband/PhonemeAligner.ts` | 📝 |
-| FormantShifter (Stub) | `src/engines/rubberband/FormantShifter.ts` | 📝 |
-| Basic Harmonize UI | `src/components/SamplerPanel.tsx` | ✅ |
+| PhonemeAligner (CTC + heuristic) | `src/engines/rubberband/PhonemeAligner.ts` | ✅ |
+| FormantShifter | `src/engines/rubberband/FormantShifter.ts` | ✅ |
+| Harmonize one-button (3rd/5th/octave + mix) | `SamplerPanel` + `HARMONIZE_PRESETS.layers` | ✅ |
 | **Open303 Stack Overflow Fix** | `OPEN303_STACK_OVERFLOW_FIX.md` | ✅ |
 
 ---
@@ -111,19 +111,17 @@ All standard ARPABET phonemes mapped to readable symbols:
 
 ---
 
-### Phase 4: Instant Harmonizer Layers 📋 PLANNED
+### Phase 4: Instant Harmonizer Layers ✅ COMPLETE
 **Goal**: One-button harmonization with multiple voice layers
 
-**Components**:
-- Updates to `SamplerPanel.tsx` - Harmonize button (already exists)
-- `HarmonizerEngine.ts` - Layer generation and management
-- Integration with `SingingVoice.ts`
+**Shipped**:
+- `HARMONIZE_PRESETS.layers` — 4 voices: dry + major 3rd + 5th + octave, formant spread, detune
+- SamplerPanel **HARM** applies layers via `onHarmonize` (was previously unwired)
+- Harmony **mix** slider maps to `busGain`
+- Chord dropdown still retargets the three intervals (`layersIntervalsForChord`)
+- Advanced editor remains `SamplerVoicePanel` / `HarmonizerPopover`
 
-**Features**:
-- Generate 3 harmony layers (3rd, 5th, octave)
-- Slight formant variation per layer
-- Tiny detune for thickness
-- Mix control for blend
+Live preview only; freeze/export of harmony layers is not in this slice.
 
 ---
 
@@ -149,8 +147,11 @@ All standard ARPABET phonemes mapped to readable symbols:
 | Phase 1 | ✅ COMPLETE | 2026-02-23 |
 | Phase 2 | ✅ COMPLETE | 2026-02-23 |
 | Phase 3 | ✅ COMPLETE | 2026-02-23 |
-| Phase 4 | 📋 PLANNED | - |
+| Alignment V1 (CTC) | ✅ COMPLETE | 2026-09-01 |
+| Phase 4 | ✅ COMPLETE | 2026-09-01 |
 | Phase 5 | 📋 PLANNED | - |
+| V2 Concatenative vowel pack | 📋 FOLLOW-UP | - |
+| V4 Offline neural vocoder | 📋 FOLLOW-UP | - |
 
 ---
 
@@ -204,10 +205,30 @@ interface SamplerBankParams {
 
 - `SingingVoice.ts` - ✅ Already exists
 - `RubberBandProcessor.ts` - ✅ Already exists
-- `PhonemeAligner.ts` - 📝 Needs completion for Phase 3
-- `FormantShifter.ts` - 📝 Needs completion for Phase 1 formant control
+- `PhonemeAligner.ts` - CTC forced align (onnxruntime-web wav2vec2) with heuristic fallback
+- `FormantShifter.ts` - wired when `enableFormantShifting: true`
 
----
+## Alignment backend (V1)
+
+- **Model**: download-on-demand quantized wav2vec2-base CTC at `assets/onnx/wav2vec2-ctc.onnx` (Apache-2.0). Gitignored with other ONNX weights.
+- **Algorithm**: CTC Viterbi of the letter sequence, G2P (CMU subset + letter rules) to ARPABET, word-level time mapping.
+- **TTS priors**: `Supertonic.getLastTokenDurations()` passed into `prepareVocal` after generate.
+- **Fallback**: existing energy/uniform heuristic when the ONNX is missing or inference fails.
+- **Painter**: Phoneme Painter uses real `start`/`end` (normalized). After TTS generate, `prepareVocal` runs automatically.
+- **Tolerance**: median phoneme boundary error vs the committed `ah ee` fixture must be **≤ 40 ms** (`ALIGNMENT_BOUNDARY_TOLERANCE_MS`).
+
+## Follow-up PRs
+
+### V2 — Concatenative hybrid
+Implement `VowelLibrary.loadFromUrl` for `public/assets/vowels/` (`manifest.json` + WAV loop points), Rubber Band pitch-match with formant preservation, cosine crossfade, `minNoteDurationMs` gate, per-bank `useVowelSamplesOnLongNotes`. Pack via `scripts/` (not a root `.py`). Header of `ConcatenativeHybrid.ts` must no longer say STUB.
+
+### V4 — Offline neural vocoder
+Hook `HybridNeuralPipeline.synthesize` into freeze/export only. Resample ONNX output with the AudioContext sampleRate policy (#1136). Missing model → unsupported, no crash. Live preview stays Rubber Band.
+
+### V5 — Per-step elasticity
+Add `elasticity` on `PhonemeData`; painter handles; write `createSharedPhonemeBuffer` stretch-ratio slot (currently always `1.0`).
+
+Do not expand `LatencyCompensator` (deleted). RBS import wiring (`handleRbsImport` / PCF / song TRAK) is documented in `docs/audio-engine/RBS_IMPORT_PIPELINE.md` (historical #651 / #1139).
 
 ## Notes
 
@@ -218,5 +239,5 @@ interface SamplerBankParams {
 
 ---
 
-*Last Updated: 2026-02-23*
-*Status: Phase 1 Implementation In Progress*
+*Last Updated: 2026-09-01*
+*Status: Phase 4 + CTC alignment shipped; V2/V4/V5 follow-ups*

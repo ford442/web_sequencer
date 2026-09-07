@@ -8,6 +8,7 @@
  * Engine id: `highfid-cpu` (offline-only).
  */
 
+import { LIVE_HIGHFID_MODEL_ID } from '../../audio-worklets/liveHighFid303';
 import type { OversampleFactor } from './OfflineOpen303Engine';
 import {
   clampOversample,
@@ -350,8 +351,18 @@ export class OfflineHighFid303Engine {
   }
 }
 
+/**
+ * Models rendered by the diode-ladder CPU engine offline.
+ * `live-highfid` (Phase-L1) is included so a freeze / export of a track that
+ * plays the live diode ladder bounces through the same topology instead of
+ * silently reverting to the stock voice.
+ */
 export function isHighFidCpuModel(modelId: string): boolean {
-  return modelId === HIGHFID_CPU_MODEL_ID || modelId === 'highfid';
+  return (
+    modelId === HIGHFID_CPU_MODEL_ID ||
+    modelId === 'highfid' ||
+    modelId === LIVE_HIGHFID_MODEL_ID
+  );
 }
 
 /** Render a pattern through the highfid-cpu diode-ladder engine. */

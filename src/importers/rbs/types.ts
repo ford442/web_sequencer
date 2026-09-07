@@ -226,6 +226,7 @@ export {
   isTrakPatternSelectEvent,
   isTrakParamAutomationEvent,
   resolveTrakParamMapping,
+  resolveHyphonLaneToTrak,
   normaliseTrakParamValue,
 } from './trakControllers';
 

@@ -55,7 +55,16 @@ const fakeRuntime = {
   highFidActiveEngine: null as string | null,
   highFidRealtimeModel: null as string | null,
   highFidFallbackReason: null as string | null,
+  liveHighFidRequested: null as string | null,
+  liveHighFidActive: null as boolean | null,
+  liveHighFidFallbackReason: null as string | null,
+  liveHighFidCpuPercent: null as number | null,
+  liveHighFidOversample: null as number | null,
   sampleRate: null as number | null,
+  requestedSampleRate: null as number | null,
+  sampleRateFallback: null as string | null,
+  sinkId: null as string | null,
+  sinkLabel: null as string | null,
   baseLatencyMs: null as number | null,
   latencyHint: null as string | null,
   transportSync: null,
@@ -171,10 +180,21 @@ describe('EngineTelemetry.snapshot', () => {
     const t = new EngineTelemetry();
     expect(t.getRuntimeSnapshot().sampleRate).toBeNull();
 
-    t.recordAudioContextInfo({ sampleRate: 48000, baseLatencyMs: 5.8, latencyHint: 'playback' });
+    t.recordAudioContextInfo({
+      sampleRate: 48000,
+      requestedSampleRate: 48000,
+      sampleRateFallback: null,
+      baseLatencyMs: 5.8,
+      latencyHint: 'playback',
+      sinkId: '',
+      sinkLabel: 'default',
+    });
 
     const runtime = t.getRuntimeSnapshot();
     expect(runtime.sampleRate).toBe(48000);
+    expect(runtime.requestedSampleRate).toBe(48000);
+    expect(runtime.sampleRateFallback).toBeNull();
+    expect(runtime.sinkLabel).toBe('default');
     expect(runtime.baseLatencyMs).toBe(5.8);
     expect(runtime.latencyHint).toBe('playback');
   });

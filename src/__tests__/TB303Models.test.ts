@@ -246,7 +246,7 @@ describe('Open303Oscillator.setModel303()', () => {
 
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-303-model',
-            data: { model: 'experimental-01', engine: 'open303' },
+            data: { model: 'experimental-01', engine: 'open303', oversample: 1 },
         });
         expect(mockPostMessage.mock.calls.some(
             (call) => call[0]?.type === 'param' && call[0]?.data?.func === 'jc303_setCutoff',
@@ -257,7 +257,7 @@ describe('Open303Oscillator.setModel303()', () => {
         oscillator.setModel303('jc303');
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-303-model',
-            data: { model: 'jc303', engine: 'jc303' },
+            data: { model: 'jc303', engine: 'jc303', oversample: 1 },
         });
     });
 
@@ -265,7 +265,7 @@ describe('Open303Oscillator.setModel303()', () => {
         oscillator.setModel303('definitely-not-a-voice');
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-303-model',
-            data: { model: 'stock-open303', engine: 'open303' },
+            data: { model: 'stock-open303', engine: 'open303', oversample: 1 },
         });
         expect(oscillator.getModel303()).toBe('stock-open303');
     });
@@ -274,7 +274,7 @@ describe('Open303Oscillator.setModel303()', () => {
         oscillator.setModel303('gpu-highfid');
         expect(mockPostMessage).toHaveBeenCalledWith({
             type: 'set-303-model',
-            data: { model: 'stock-open303', engine: 'open303' },
+            data: { model: 'stock-open303', engine: 'open303', oversample: 1 },
         });
         expect(oscillator.getModel303()).toBe('stock-open303');
     });

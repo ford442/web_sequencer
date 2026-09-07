@@ -29,10 +29,11 @@ songs — **never rename** a shipped id.
 | `rebirth-2.0` | ReBirth 2.0 | `open303` | Cleaner/tighter filter than 1.5, punchier accent, snappier envelope | ReBirth RB-338 2.0 *(not a clone)* |
 | `mb33-mkii` | MB33 mkII | `open303` | Boxier digital filter, distinct accent punch, square/saw grit | MAM MB33 mkII *(not a clone)* |
 | `raveolution` | Raveolution 309 | `open303` | Bright harsh self-osc, aggressive resonance, snappy envelope, heavy drive | Quasimidi Raveolution 309 *(not a clone)* |
+| `live-highfid` | Live High-Fidelity | `highfid` | Phase-L1 diode ladder in the AudioWorklet @ 1× — **realtime**, auto-degrades to Stock Open303 | TB-303 authenticity tier |
 | `highfid-cpu` | High-Fidelity CPU (offline) | `highfid` | Phase-2 diode-ladder reference @ 4× OS — **offline only** | TB-303 authenticity tier |
 | `gpu-highfid` | GPU High-Fidelity (offline) | `highfid` | Phase-3 WGSL diode-ladder — **offline only**; falls back to CPU without WebGPU | TB-303 authenticity tier |
 
-**Status badges** (Voice303Selector): realtime voices show **OPEN303** / **JC303**; offline high-fid shows **HIFID** + amber **Offline** pill. When WebGPU is unavailable, a **No GPU** badge appears and offline render uses `highfid-cpu`. See the architecture guide [303-gpu-highfid.md](./303-gpu-highfid.md), [303-A-B-checklist.md](./303-A-B-checklist.md) for manual verification, and [303-authenticity-gaps.md](./303-authenticity-gaps.md) for automated thresholds.
+**Status badges** (Voice303Selector): realtime voices show **OPEN303** / **JC303**; offline high-fid shows **HIFID** + amber **Offline** pill, and the realtime `live-highfid` voice shows **HIFID** + amber **Live** pill ([303-realtime-highfid.md](./303-realtime-highfid.md)). When WebGPU is unavailable, a **No GPU** badge appears and offline render uses `highfid-cpu`. See the architecture guide [303-gpu-highfid.md](./303-gpu-highfid.md), [303-A-B-checklist.md](./303-A-B-checklist.md) for manual verification, and [303-authenticity-gaps.md](./303-authenticity-gaps.md) for automated thresholds.
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
@@ -344,6 +345,11 @@ cannot drift further unnoticed.
 
 Keep both out of the real-time selector (`getAvailableTB303Models()` excludes
 `offlineOnly` by default). See Phase-4 for freeze/export UI selection.
+
+The third `highfid`-family voice, `live-highfid`, is **not** `offlineOnly`: it
+runs the same diode-ladder topology inside the AudioWorklet at oversample 1
+behind a CPU/glitch gate, and freezes through `highfid-cpu` so play and bounce
+agree. See [303-realtime-highfid.md](./303-realtime-highfid.md).
 `Voice303Selector` lists them with an **Offline** badge (Phase-4 /
 `includeOfflineOnly: true`). Tooltips explain they are best for freeze /
 export / multisample; live playback stays on Stock Open303 via
@@ -357,6 +363,8 @@ Tooltip / status copy (must stay aligned with docs):
 |---------|------|
 | `highfid-cpu` description | Offline only — best for freeze / export / multisample. Diode-ladder CPU reference (Phase-2). Live playback uses Stock Open303. |
 | `gpu-highfid` description | Offline only — best for freeze / export / multisample. WGSL diode-ladder (Phase-3); falls back to High-Fidelity CPU when WebGPU is unavailable. Live playback uses Stock Open303. |
+| `live-highfid` description | Diode-ladder high-fidelity voice running live in the AudioWorklet (oversample 1×). Falls back to Stock Open303 automatically if it exceeds the CPU budget. |
+| Live status line | `Live diode ladder · freeze uses highfid-cpu · falls back to Stock Open303 over CPU budget` |
 | **No GPU** badge title | WebGPU unavailable — GPU High-Fidelity falls back to High-Fidelity CPU for offline render |
 | Status (no fallback) | `Offline engine: {id} · live uses Stock Open303` |
 | Status (GPU→CPU) | `WebGPU unavailable — using High-Fidelity CPU for offline render` |

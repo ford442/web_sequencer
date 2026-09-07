@@ -61,6 +61,28 @@ The HUD / session report also tracks:
 3. **Artifact detector** — `artifact-detected` and elevated `artifactRate` from
    `artifact-detector-processor` (when wired)
 
+## Live high-fid 303 voice gate (Phase-L1)
+
+The `live-highfid` voice runs the diode-ladder DSP inside `open303-processor`.
+It carries its **own** gate, separate from the master ladder below: the master
+ladder sheds global features when the *sum* of worklets overruns, while this
+gate sheds a single voice that is individually too expensive.
+
+| Signal | Default | Action |
+|--------|---------|--------|
+| Rolling CPU (EMA) ≥ 60 % of the quantum for 24 consecutive blocks | ~64 ms @ 48 kHz | Fall back to Stock Open303 |
+| ≥ 8 blocks over 100 % of the quantum inside a 200-block window | — | Fall back to Stock Open303 |
+| First 32 blocks after activation | — | Ignored (JIT / cache warm-up) |
+
+The gate trips once per session and posts `live-highfid-degraded` to the main
+thread, which records `liveHighFid*` telemetry, raises a degradation banner, and
+shows `stock (degraded)` in the Engine HUD's **Live 303 path** section.
+Implementation: `src/audio-worklets/liveHighFid303.ts`; details in
+[303-realtime-highfid.md](audio-engine/303-realtime-highfid.md).
+
+Stock voices never enter this path — the WASM instance is created lazily on
+first selection of the live voice.
+
 ## Auto-degrade order
 
 Applied **one step at a time** when `masterBudgetPercent ≥ 80`. Recovered **one step
@@ -97,10 +119,13 @@ high-fid CPU/GPU authenticity tiers) run on a **worker pool** /
 | `gpuFallbackReason` | Why GPU fell back to `highfid-cpu` (null if GPU used) |
 
 These are shown in Engine HUD under **Offline 303**. They never feed
-`masterBudgetPercent` — only AudioWorklet `process()` cost does.
+`masterBudgetPercent` — only AudioWorklet `process()` cost does. The live
+diode-ladder voice *does* feed it: it renders inside `open303-processor` and is
+reported under the `open303` worklet key, plus its own `liveHighFid*` fields.
 
-See [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) and
-[303-gpu-highfid.md](audio-engine/303-gpu-highfid.md).
+See [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md),
+[303-gpu-highfid.md](audio-engine/303-gpu-highfid.md) and
+[303-realtime-highfid.md](audio-engine/303-realtime-highfid.md).
 
 ## Synthetic stress test
 

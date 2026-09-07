@@ -71,3 +71,6 @@
 ## 2026-06-15 - Persistent VoiceFXStrip
 **Learning:** Creating complex audio graphs (like BiquadFilterNode + StereoPannerNode + LFOs) inside a high-frequency trigger path (like `playSamplerVoice`) incurs massive memory allocations and GC thrashing. `setTimeout` teardowns further overload the event loop.
 **Action:** Extract reusable Web Audio chains into a `VoiceFXStrip` instantiated once inside the pooled voice class (e.g., `SingingVoice`). In the trigger path, only mutate `AudioParam.setValueAtTime` (e.g. `gain.value`, `frequency.value`). This effectively eliminates per-note Web Audio Node allocations.
+## 2026-08-19 - Removed Float32Array allocations in AudioWorklet process
+**Learning:** Instantiating new `Float32Array` objects inside an AudioWorklet's `process` method or its high-frequency sub-calls causes rapid accumulation of garbage, leading to GC pauses that can interrupt the audio thread and cause audible stuttering or dropouts.
+**Action:** Pre-allocate scratch buffers as class properties and reuse them, avoiding `new` allocations during the critical audio processing loop.

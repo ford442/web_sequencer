@@ -105,6 +105,37 @@ export const HELP_TOPICS: HelpTopic[] = [
     docLink: 'docs/audio-engine/303-gpu-highfid.md',
   },
   {
+    id: 'highfid-303-live',
+    title: 'Live high-fidelity 303',
+    summary:
+      'Play the diode-ladder high-fid voice in real time — it steps back to Stock Open303 rather than glitching when CPU runs short.',
+    body:
+      'Live High-Fidelity runs the same diode-ladder topology as the offline high-fid voices, inside the AudioWorklet at 1x oversample, so you can A/B authenticity while the sequencer plays.\n\n' +
+      'A CPU meter watches the voice on the audio thread. If it uses too much of the audio budget for too long, or causes repeated underruns, it hands playback back to Stock Open303 and tells you why — check Engine HUD (Ctrl+Shift+E) under Live 303 path to see which engine is audible. Freeze and export of the same part render through High-Fidelity CPU, so a bounce matches what you heard.',
+    keywords: [
+      'live',
+      'realtime',
+      'highfid',
+      'high-fidelity',
+      'live-highfid',
+      'diode',
+      'ladder',
+      'cpu',
+      'budget',
+      'degrade',
+      'fallback',
+      '303',
+    ],
+    category: 'engine',
+    steps: [
+      'Open SYNTH A, SYNTH B, or BASS 2 and select a 303-* waveform.',
+      'In 303 Voice, choose Live High-Fidelity (amber Live pill).',
+      'Play — Engine HUD shows LIVE HIFID and the rolling CPU share.',
+      'If it shows stock (degraded), the CPU gate stepped in; the reason is listed next to it.',
+    ],
+    docLink: 'docs/audio-engine/303-realtime-highfid.md',
+  },
+  {
     id: 'prophecy-formants',
     title: 'Prophecy formant waveforms',
     summary: 'Select prophecy-* waves on SYNTH A/B, then use the Vowel / Formant / Portamento panel.',

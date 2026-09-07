@@ -17,6 +17,8 @@ import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
+import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
+import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
 import {
@@ -173,6 +175,7 @@ export function useAppState() {
         isSongModeActiveRef,
         songMeasureRef,
         isFirstStepRef,
+        rbsArrangementExtrasRef,
     } = useSongModeState();
 
     const session = useSessionState();
@@ -223,8 +226,9 @@ export function useAppState() {
     const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null);
     useEffect(() => {
         const ctx = audioEngine?.context;
-        const mgr = (audioEngine as any)?.open303Engine ?? null;
-        const pcf: PcfEffect | null = (audioEngine as any)?.pcfEffect ?? null;
+        const open303Engine = audioEngine?.open303Engine;
+        const mgr = open303Engine instanceof Open303Manager ? open303Engine : null;
+        const pcf: PcfEffect | null = audioEngine?.pcfEffect ?? null;
         if (ctx) {
             if (!automationSchedulerRef.current) {
                 automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null, { ppq: 192 });
@@ -240,8 +244,8 @@ export function useAppState() {
     }, [audioEngine, prophecyManagerRef]);
 
     useEffect(() => {
-        const mgr = (audioEngine as any)?.open303Engine;
-        if (!mgr) return;
+        const mgr = audioEngine?.open303Engine;
+        if (!(mgr instanceof Open303Manager)) return;
         // normalize + realtime resolve: persist high-fid ids in song state, but
         // AudioWorklet always gets a realtime-safe voice (stock for offline-only).
         if (typeof mgr.syncModel303Settings === 'function') {
@@ -288,6 +292,37 @@ export function useAppState() {
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
         setSelectedTrack,
+        onTrackSlotRecall: (track, slotIndex) => {
+            if (track !== 'partA' && track !== 'partB' && track !== 'bass2') return;
+            const storage = rbsArrangementExtrasRef.current?.trackParamStorage;
+            if (!storage) return;
+            const open303 = audioEngine?.open303Engine instanceof Open303Manager
+                ? audioEngine.open303Engine
+                : null;
+            const applied = applyTrackParamSlotToEngine(
+                storage,
+                track,
+                slotIndex,
+                open303,
+                {
+                    synthA: synthARef.current,
+                    synthB: synthBRef.current,
+                    bass2: bass2Ref.current,
+                },
+            );
+            if (applied.synthA) {
+                synthARef.current = applied.synthA;
+                setSynthA(applied.synthA);
+            }
+            if (applied.synthB) {
+                synthBRef.current = applied.synthB;
+                setSynthB(applied.synthB);
+            }
+            if (applied.bass2) {
+                bass2Ref.current = applied.bass2;
+                setBass2(applied.bass2);
+            }
+        },
     });
 
     const { handleSelectionStart, handleSelectionEnter, handleSelectionEnd } = useSelectionHandlers(
@@ -330,6 +365,10 @@ export function useAppState() {
         setCurrentSongMeasure,
         automationSchedulerRef,
         trakEventsRef,
+        rbsArrangementExtrasRef,
+        setSynthA,
+        setSynthB,
+        setBass2,
         sessionEngineRef: session.sessionEngineRef,
         sessionClockRef: session.sessionClockRef,
         setIsSongModeActive,
@@ -521,6 +560,8 @@ export function useAppState() {
         setIsAISongModalOpen, setIsRbsImportModalOpen,
         setDrumKit: updateDrumKit,
         setIsSongModeActive,
+        isSongModeActive,
+        rbsArrangementExtrasRef,
         trakEventsRef,
     });
 
@@ -534,6 +575,7 @@ export function useAppState() {
         loadedBanks, sampleBuffers, sliceHighlightRef,
         melodicMode, setMelodicMode, multisampleReady, multisampleProcessing,
         activeAlignment, setActiveAlignment,
+        handleHarmonizerConfigChange,
     });
 
     const synthAControls = useStableKnobConfig(getSynthControls, synthA);

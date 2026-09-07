@@ -1,4 +1,4 @@
-import type { Pattern, SynthParams, KickParams, SnareParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
+import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { INITIAL_PATTERN, NUM_STEPS, MAX_TRACK_PATTERN_SLOTS } from '../constants';
 
@@ -17,6 +17,7 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     freezeLfoRate: 0,
     freezeLfoDepth: 0,
     timeStretchEnvDepth: 0,
+    grainPosLfoDepth: 0,
     granularPitchShift: 0,
     expressiveness: {
         vibratoRate: 5.5,
@@ -50,8 +51,8 @@ export type SongSnapshot = {
         bass2: Bass2Params;
         kick: KickParams;
         snare: SnareParams;
-        closedHat: any;
-        openHat: any;
+        closedHat: HatParams;
+        openHat: HatParams;
         sampler: SamplerParams;
     }
 };
