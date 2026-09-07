@@ -128,6 +128,7 @@ export const PlaybackMixin = {
     endSample?: number,
     pitch: number = 1.0,
     reverse: boolean = false,
+    targetHz?: number,
   ): void {
     if (!this.workletNode) {
       throw new Error(
@@ -142,6 +143,7 @@ export const PlaybackMixin = {
         startSample,
         endSample,
         reverse,
+        targetHz,
       },
     });
   },
