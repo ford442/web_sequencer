@@ -66,6 +66,7 @@ export const WorkletSetupMixin = {
         wasmBinary: binary,
         moduleUrl: "/rubberband.js",
         baseUrl: import.meta.env.BASE_URL,
+        drumSidechainSAB: this.config.drumSidechainSAB,
       });
 
       // Wait for ready signal.

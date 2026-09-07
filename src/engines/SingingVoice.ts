@@ -116,6 +116,7 @@ export class SingingVoice implements SingingVoicePublic {
       voiceCharacter: config.voiceCharacter ?? "default",
       phonemeAlignerUrl: config.phonemeAlignerUrl,
       enableCtcAlignment: config.enableCtcAlignment ?? config.enablePhonemeStretching ?? false,
+      drumSidechainSAB: config.drumSidechainSAB,
     };
 
     // Initialize phoneme aligner if enabled

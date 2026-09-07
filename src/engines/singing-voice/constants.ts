@@ -79,4 +79,6 @@ export interface SingingVoiceConfig {
   phonemeAlignerUrl?: string;
   /** Enable wav2vec2 CTC forced alignment (download-on-demand ONNX) */
   enableCtcAlignment?: boolean;
+  /** Cross-engine shared array buffer for drum envelope follower sidechaining */
+  drumSidechainSAB?: SharedArrayBuffer;
 }
