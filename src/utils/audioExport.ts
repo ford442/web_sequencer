@@ -6,6 +6,9 @@
 
 import initAudioExport from '../wasm/audioExport.wasm?init';
 import { engineTelemetry } from '@/utils/engineTelemetry';
+import { resampleAudioBuffer } from './resampleAudioBuffer';
+
+export { resampleAudioBuffer } from './resampleAudioBuffer';
 
 // WASM Module Loader
 interface WasmExports {
@@ -61,27 +64,6 @@ export interface WavEncodeOptions {
     sampleRate?: 44100 | 48000;
     /** PCM bit depth. Defaults to 16. */
     bitDepth?: WavBitDepth;
-}
-
-export async function resampleAudioBuffer(
-    buffer: AudioBuffer,
-    targetSampleRate: number,
-    signal?: AbortSignal,
-): Promise<AudioBuffer> {
-    if (buffer.sampleRate === targetSampleRate) return buffer;
-    if (signal?.aborted) {
-        throw new DOMException('Export cancelled', 'AbortError');
-    }
-    const offlineCtx = new OfflineAudioContext(
-        buffer.numberOfChannels,
-        Math.ceil(buffer.duration * targetSampleRate),
-        targetSampleRate,
-    );
-    const source = offlineCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(offlineCtx.destination);
-    source.start(0);
-    return offlineCtx.startRendering();
 }
 
 export async function audioBufferToWav(

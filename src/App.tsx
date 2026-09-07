@@ -161,7 +161,7 @@ export const App: React.FC = () => {
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && (
                 <StartOverlay
-                    onStart={handleStart}
+                    onStart={() => void handleStart()}
                     isPyodideReady={isPyodideReady}
                     pyodideStatus={pyodideStatus}
                     hasWebGpu={typeof navigator !== 'undefined' && 'gpu' in navigator}
@@ -186,7 +186,7 @@ export const App: React.FC = () => {
                 showToast={showToast}
             />
 
-            <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={loadCloudData} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
+            <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={(...args) => void loadCloudData(...args)} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
             <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} />
             <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
             <ExportModal
@@ -250,7 +250,7 @@ export const App: React.FC = () => {
                 tempo={tempo}
                 isSongModeOpen={isSongModeOpen}
                 isSessionOpen={isSessionOpen}
-                onPlayToggle={handlePlayToggle}
+                onPlayToggle={() => void handlePlayToggle()}
                 onRecordToggle={() => setIsRecording(!isRecording)}
                 onTempoNudgeStart={handleTempoHoldStart}
                 onTempoNudgeEnd={handleTempoHoldEnd}
@@ -263,7 +263,7 @@ export const App: React.FC = () => {
                 isVisible={isLyricTrackVisible}
                 initialText={ttsPhrases[activeSamplerBank] || ""}
                 isGenerating={isGenerating}
-                onApply={handleLyricApply}
+                onApply={(...args) => void handleLyricApply(...args)}
                 onClose={() => setIsLyricTrackVisible(false)}
             />
 

@@ -6,6 +6,8 @@
 import {
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     buildHyphonWasmImports,
+    formatMissingWasmExports,
+    hasProphecyApi,
     normalizeWasmExports,
 } from './hyphonNativeImports';
 
@@ -158,10 +160,16 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             this.importedMemory = mem;
             this.heapFloat32 = new Float32Array(mem.buffer);
 
-            // Verify the Prophecy API is present
-            if (typeof instanceExp.prophecy_create !== 'function' ||
-                typeof instanceExp.prophecy_init   !== 'function') {
-                throw new Error('[Prophecy] prophecy_* API not found in WASM exports');
+            // Verify the Prophecy API on *normalized* exports — release builds
+            // minify the raw names (prophecy_create → V, etc.).
+            if (!hasProphecyApi(exp)) {
+                throw new Error(
+                    '[Prophecy] prophecy_* API not found in WASM exports. ' +
+                    formatMissingWasmExports(instance.exports, [
+                        'prophecy_create',
+                        'prophecy_init',
+                    ]),
+                );
             }
 
             // Create and initialise an engine instance

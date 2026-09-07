@@ -1,10 +1,12 @@
 import type { MutableRefObject } from 'react';
+import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import type { MultisampleBank, SamplerBankParams } from '../../types';
 
 interface SampleManagementRefs {
+    audioContextRef: MutableRefObject<AudioContext | null>;
     loadedSampleBuffersRef: MutableRefObject<Map<string, AudioBuffer>>;
     multisampleBanksRef: MutableRefObject<Map<string, MultisampleBank>>;
     multisampleGeneratorRef: MutableRefObject<MultisampleGenerator | null>;
@@ -18,15 +20,17 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
         buffer: AudioBuffer,
         onProgress?: (progress: number) => void,
     ): Promise<void> => {
+        const context = refs.audioContextRef.current;
+        const matched = context ? await ensureBufferMatchesContext(buffer, context) : buffer;
         const sampleBank: MultisampleBank = {
-            baseBuffer: buffer,
-            pitchBank: new Map([[60, buffer]]),
+            baseBuffer: matched,
+            pitchBank: new Map([[60, matched]]),
             isProcessing: true,
             processingProgress: 0,
             rootNote: 60,
         };
 
-        refs.loadedSampleBuffersRef.current.set(name, buffer);
+        refs.loadedSampleBuffersRef.current.set(name, matched);
         refs.multisampleBanksRef.current.set(name, sampleBank);
 
         if (refs.multisampleGeneratorRef.current && onProgress) {
@@ -34,7 +38,7 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
 
             try {
                 const pitchBank = await refs.multisampleGeneratorRef.current.generateMultisamples(
-                    buffer,
+                    matched,
                     {
                         rootNote: 60,
                         range: [-12, 12],
@@ -74,7 +78,7 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
         return bank ? !bank.isProcessing : false;
     };
 
-    const prepareVocal = async (bankIndex: number, text: string) => {
+    const prepareVocal = async (bankIndex: number, text: string, durationPriors?: number[]) => {
         if (!refs.singingVoiceManagerRef.current) {
             return;
         }
@@ -92,7 +96,11 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
 
         const audio = buffer.getChannelData(0);
         try {
-            const alignment = await alignmentVoice.alignPhonemes(audio, text);
+            const alignment = await alignmentVoice.alignPhonemes(
+                audio,
+                text,
+                durationPriors ? { durationPriors } : undefined,
+            );
             if (alignment) {
                 refs.vocalAlignmentsRef.current.set(bankName, alignment);
                 console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);

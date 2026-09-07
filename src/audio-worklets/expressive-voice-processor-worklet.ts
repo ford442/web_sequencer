@@ -1,4 +1,5 @@
 import { ExpressiveVoiceProcessor } from '../engines/rubberband/ExpressiveVoiceProcessor';
+import { resolveWorkletSampleRate } from '../utils/workletSampleRate';
 
 interface AudioWorkletProcessor {
   readonly port: MessagePort;
@@ -49,7 +50,7 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.expressiveProcessor = new ExpressiveVoiceProcessor({
-      sampleRate: globalThis.sampleRate || 44100,
+      sampleRate: resolveWorkletSampleRate(),
     });
     this.expressiveProcessor.noteOn();
   }
@@ -110,7 +111,7 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
     const now =
       typeof globalThis.currentTime === 'number'
         ? globalThis.currentTime
-        : (typeof currentFrame === 'number' ? currentFrame / (globalThis.sampleRate || 44100) : 0);
+        : (typeof currentFrame === 'number' ? currentFrame / resolveWorkletSampleRate() : 0);
     this.expressiveProcessor.setCurrentTime(now);
     this.expressiveProcessor.updateConfig({
       vibrato: { rate: vibratoRate, depth: vibratoDepth, enabled: vibratoDepth > 0 },

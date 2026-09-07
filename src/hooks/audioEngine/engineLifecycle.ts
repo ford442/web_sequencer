@@ -35,6 +35,7 @@ import {
 } from '../../audio/loudness';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
+import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
 import { createAudioContext } from './audioContextFactory';
 import {
     createNoiseBuffer,
@@ -106,10 +107,18 @@ export async function initializeAudioContextAndEngines(
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
     loadingProgressStore.startStep('audioContext');
-    const context = createAudioContext(latencyHint);
+    const created = createAudioContext(latencyHint);
+    const context = created.context;
     loadingProgressStore.completeStep('audioContext');
     audioWindow.audioContext = context;
-    startGlitchMonitor(context, latencyHint);
+    startGlitchMonitor(context, {
+        latencyHint,
+        requestedSampleRate: created.requestedSampleRate,
+        sampleRateFallback: created.sampleRateFallback,
+    });
+    void applyAudioOutputSink(context).then((sink) => {
+        if (sink) engineTelemetry.recordAudioOutputSink(sink);
+    });
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {
@@ -284,7 +293,8 @@ export async function initializeAudioContextAndEngines(
             channels: 1,
             bufferSize: 16384,
             enablePhonemeStretching: true,
-            enableFormantShifting: true
+            enableFormantShifting: true,
+            enableCtcAlignment: true,
         });
 
         await manager.init(wasmBinary);

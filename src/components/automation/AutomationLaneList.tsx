@@ -11,7 +11,7 @@
  */
 
 import React, { memo, useCallback } from 'react';
-import { useAutomationStore, automationStore } from '../../stores/automationStore';
+import { useAutomationStore, automationStore, generateLaneId } from '../../stores/automationStore';
 import type { UnifiedAutomationLane, AutomationInterpolation } from '../../types';
 
 export interface AutomationLaneListProps {
@@ -146,16 +146,39 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
 
   if (state.lanes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-[#1a1d24]/50 border border-dashed border-gray-700 rounded-lg m-2">
+      <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-[#1a1d24]/50 border border-dashed border-gray-700 rounded-lg m-2">
         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         </div>
         <h3 className="text-gray-300 font-bold mb-2 text-sm">No automation lanes</h3>
-        <p className="text-gray-500 text-xs max-w-[250px]">
+        <p className="text-gray-500 text-xs mb-4 max-w-[250px]">
           Record knob movements or import an .rbs file to see automation here.
         </p>
+        <button
+          type="button"
+          onClick={() => {
+            automationStore.addLane({
+              id: generateLaneId(),
+              target: 'sampler',
+              parameter: 'cutoff',
+              name: 'Filter Cutoff (Example)',
+              points: [
+                { step: 0, value: 0.8 },
+                { step: 8, value: 0.2 },
+                { step: 15, value: 0.8 }
+              ],
+              interpolation: 'smooth',
+              source: 'recorded',
+              scope: 'pattern',
+              enabled: true,
+            });
+          }}
+          className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+        >
+          Add Example Lane
+        </button>
       </div>
     );
   }

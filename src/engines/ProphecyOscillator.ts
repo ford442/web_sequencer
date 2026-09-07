@@ -21,7 +21,13 @@ import {
     logEngineFallback,
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
-import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
+import {
+    formatMissingWasmExports,
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    PROPHECY_REQUIRED_WASM_EXPORTS,
+    prophecyExportMapInsufficient,
+    wasmExportNameSnapshot,
+} from '../audio-worklets/hyphonNativeImports';
 
 // hyphon_native.wasm bundles all engines (Open303, JC303, Prophecy, Rubberband)
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
@@ -82,7 +88,7 @@ export class ProphecyOscillator {
             const wasmBytes = await response.arrayBuffer();
             console.log(`[ProphecyOscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-            const exportMap = await this.fetchExportMap();
+            const exportMap = await this.fetchExportMap(wasmBytes);
             return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, exportMap);
 
         } catch (e) {
@@ -95,15 +101,33 @@ export class ProphecyOscillator {
      * Complete worklet initialisation given pre-fetched WASM bytes.
      * Extracted so the init path stays testable without a real network.
      */
-    private async fetchExportMap(): Promise<Record<string, string>> {
+    private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
         const map = await loadHyphonWasmExportMap();
+        const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
+        const glueUrl = resolvePublicAsset('hyphon_native.js');
+        const wasmModule = await WebAssembly.compile(wasmBytes);
+        const rawExports = wasmExportNameSnapshot(wasmModule);
+
         if (Object.keys(map).length === 0) {
             logEngineFallback(
                 'prophecy',
                 'wasm-worklet',
-                'hyphon_wasm_export_map.json empty and glue parse found no exports — worklet cannot resolve minified WASM symbols',
+                `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+                `(tried ${mapUrl} and ${glueUrl}). ` +
+                formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS]),
+            );
+            return map;
+        }
+
+        if (prophecyExportMapInsufficient(wasmModule, map)) {
+            logEngineFallback(
+                'prophecy',
+                'wasm-worklet',
+                `export map did not resolve prophecy_* against WASM. ` +
+                formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS]),
             );
         }
+
         return map;
     }
 
@@ -152,7 +176,18 @@ export class ProphecyOscillator {
                         console.log('[ProphecyOscillator] Engine ready');
                         resolve(true);
                     } else if (e.data.type === 'error') {
-                        logEngineFallback('prophecy', 'wasm-worklet', 'worklet init-wasm error', e.data.error);
+                        const payload = e.data as { error?: unknown };
+                        const errDetail =
+                            typeof payload.error === 'string'
+                                ? payload.error
+                                : payload.error != null
+                                  ? String(payload.error)
+                                  : 'unknown worklet error';
+                        logEngineFallback(
+                            'prophecy',
+                            'wasm-worklet',
+                            `worklet init-wasm error: ${errDetail}`,
+                        );
                         resolve(false);
                     }
                 };

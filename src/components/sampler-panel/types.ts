@@ -15,7 +15,7 @@ export interface SamplerPanelProps {
   ttsPhrases: string[];
   onTtsPhraseChange: (phrases: string[]) => void;
   onGenerateTTS?: (text: string) => Promise<void>;
-  onHarmonize?: (bankIndex: number, chordType: string) => Promise<void>;
+  onHarmonize?: (bankIndex: number, chordType: string, mix?: number) => Promise<void>;
   onParamChange?: (bankIndex: number, key: string, value: unknown) => void;
   loadedBanks?: boolean[];
   sampleBuffer?: AudioBuffer | null;
@@ -59,6 +59,7 @@ export const DEFAULT_BANK_PARAMS: SamplerBankParams = {
   grainJitter: 0,
   grainLfoRate: 0,
   grainLfoDepth: 0,
+  grainPosLfoDepth: 0,
   grainPitchQuantize: 0,
   granularPitchShift: 0,
   windowShape: 0,

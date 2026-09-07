@@ -7,6 +7,7 @@
  */
 
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
+import masterLoudnessProcessorUrl from '../../audio-worklets/master-loudness-processor.ts?worker&url';
 import { loadLimiterSettings, saveLimiterSettings } from './settings';
 import {
     DEFAULT_LIMITER_SETTINGS,
@@ -17,11 +18,6 @@ import {
     type MasterLoudnessCommand,
     type MasterLoudnessReport,
 } from './types';
-
-const MASTER_LOUDNESS_PROCESSOR_URL = new URL(
-    '../../audio-worklets/master-loudness-processor.ts',
-    import.meta.url,
-).href;
 
 /** Coalesce rapid knob movements into one message per animation-ish frame. */
 const PARAM_DEBOUNCE_MS = 30;
@@ -152,7 +148,7 @@ export async function createMasterLoudnessStage(
     };
 
     try {
-        await context.audioWorklet.addModule(MASTER_LOUDNESS_PROCESSOR_URL);
+        await context.audioWorklet.addModule(masterLoudnessProcessorUrl);
         const node = new AudioWorkletNode(context, MASTER_LOUDNESS_PROCESSOR_NAME, {
             numberOfInputs: 1,
             numberOfOutputs: 1,

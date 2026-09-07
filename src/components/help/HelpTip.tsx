@@ -99,7 +99,7 @@ export const HelpTip = memo(({
           <button
             type="button"
             onClick={openMore}
-            className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 underline focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
+            className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
           >
             Learn more
           </button>
@@ -107,7 +107,7 @@ export const HelpTip = memo(({
             <button
               type="button"
               onClick={dismissFirstUse}
-              className="text-[10px] text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
+              className="text-[10px] text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
             >
               Dismiss
             </button>

@@ -266,9 +266,9 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
                                 </div>
                             ) : songs.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+                                <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
                                     <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                                         </svg>
                                     </div>
@@ -279,7 +279,6 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     <button type="button"
                                         onClick={() => setActiveTab('upload')}
                                         className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-                                        aria-label="Upload your first creation"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -288,20 +287,19 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     </button>
                                 </div>
                             ) : filteredSongs.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+                                <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
                                     <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                                         </svg>
                                     </div>
-                                    <h3 className="text-gray-300 font-bold mb-1 text-xs">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                    <h3 className="text-gray-300 font-bold mb-1 text-sm">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
                                     <p className="text-gray-500 text-[10px] max-w-[200px] mb-4">
                                         Try changing or clearing your active filters to see more results.
                                     </p>
                                     <button type="button"
                                         onClick={() => setFilterType('all')}
                                         className="bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-600 px-4 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-                                        aria-label="Clear filter"
                                     >
                                         Clear Filter
                                     </button>
@@ -346,15 +344,15 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     <legend className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</legend>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save full song"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save full song"/>
                                             <span className="text-sm text-gray-300">Full Song</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save pattern bank"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save pattern bank"/>
                                             <span className="text-sm text-gray-300">Pattern Bank</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus:ring-pink-500" aria-label="Save current pattern"/>
+                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save current pattern"/>
                                             <span className="text-sm text-gray-300">Current Pattern</span>
                                         </label>
                                     </div>
@@ -374,7 +372,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={40}
                                         value={uploadForm.name}
                                         onChange={e => setUploadForm({...uploadForm, name: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors"
                                         placeholder={uploadType === 'song' ? "My Song" : "My Pattern"}
                                     />
                                 </div>
@@ -387,7 +385,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={20}
                                         value={uploadForm.author}
                                         onChange={e => setUploadForm({...uploadForm, author: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors"
                                         placeholder="Your Name"
                                     />
                                 </div>
@@ -398,7 +396,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                         maxLength={100}
                                         value={uploadForm.description}
                                         onChange={e => setUploadForm({...uploadForm, description: e.target.value})}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-pink-500 focus:outline-none transition-colors h-20 resize-none"
+                                        className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus-visible:border-pink-500 focus:outline-none transition-colors h-20 resize-none"
                                         placeholder="Style, bpm, mood..."
                                     />
                                 </div>

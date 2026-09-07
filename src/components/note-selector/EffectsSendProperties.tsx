@@ -160,7 +160,7 @@ export const EffectsSendProperties: React.FC<EffectsSendPropertiesProps> = React
                 onChange={(e) =>
                   onPropertyChange?.("reverbType", e.target.value)
                 }
-                className="bg-gray-800/80 text-[10px] text-indigo-200 rounded border border-indigo-900/30 px-1 py-0.5 outline-none focus:border-indigo-500 transition-colors"
+                className="bg-gray-800/80 text-[10px] text-indigo-200 rounded border border-indigo-900/30 px-1 py-0.5 outline-none focus-visible:border-indigo-500 transition-colors"
                 aria-label="Reverb Type Override"
               >
                 <option value="">Global</option>

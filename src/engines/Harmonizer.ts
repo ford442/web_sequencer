@@ -406,7 +406,38 @@ export const HARMONIZE_PRESETS = {
         envRelease: 0.3,
         harmonyAttack: 0.1,
         harmonyRelease: 0.4
-    })
+    }),
+
+    /** Phase 4 one-button: base + 3rd + 5th + octave */
+    layers: (): HarmonizerConfig => ({
+        voiceCount: 4,
+        harmonyType: 'custom',
+        customIntervals: [4, 7, 12],
+        detuneSpread: 12,
+        formantSpread: 4,
+        busGain: 0.65,
+        busCompressorThreshold: -18,
+        busEqGain: -3.0,
+        busWidener: 0.35,
+        envAttack: 0.01,
+        envDecay: 0.1,
+        envSustain: 1.0,
+        envRelease: 0.3,
+        harmonyAttack: 0.12,
+        harmonyRelease: 0.35
+    }),
 };
+
+/** Harmony intervals (semitones above the dry voice) for SamplerPanel chord types. */
+export function layersIntervalsForChord(chordType: string): number[] {
+    switch (chordType) {
+        case 'minor': return [3, 7, 12];
+        case 'maj7': return [4, 11, 12];
+        case 'min7': return [3, 10, 12];
+        case 'octave': return [12, 19, 24];
+        case 'stack': return [7, 12, 19];
+        default: return [4, 7, 12];
+    }
+}
 
 export default Harmonizer;

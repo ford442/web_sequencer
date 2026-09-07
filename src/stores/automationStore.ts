@@ -521,7 +521,15 @@ class AutomationStore {
     }
     if (!changed) return;
 
-    const merged = Object.assign({}, this.state.liveAutomatedValues, values);
+    const merged: Record<string, number> = {};
+    const oldValues = this.state.liveAutomatedValues;
+    for (const key in oldValues) {
+      merged[key] = oldValues[key];
+    }
+    for (const key in values) {
+      merged[key] = values[key];
+    }
+
     this.state = { ...this.state, liveAutomatedValues: merged };
 
     // Coalesce React notify() into the next animation frame

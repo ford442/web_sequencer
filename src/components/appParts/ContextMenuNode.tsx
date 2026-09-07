@@ -68,6 +68,7 @@ export const ContextMenuNode = React.memo(() => {
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}
           currentGrainLfoRate={stepData?.grainLfoRate}
           currentGrainLfoDepth={stepData?.grainLfoDepth}
+          currentGrainPosLfoDepth={stepData?.grainPosLfoDepth}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}
@@ -77,6 +78,7 @@ export const ContextMenuNode = React.memo(() => {
           currentBitcrush={stepData?.bitcrush}
           currentDownsample={stepData?.downsample}
           currentSpectralCompression={stepData?.spectralCompression}
+          currentVolumeFilterMod={stepData?.volumeFilterMod}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}

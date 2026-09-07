@@ -41,11 +41,11 @@ export function useAutomationHandlers(deps: {
             nextParamArray[step] = value;
 
             nextAutomation[automationParam] = nextParamArray;
+            const newSampler = [...prev.sampler];
+            newSampler[bankIdx] = { ...newSampler[bankIdx], automation: nextAutomation };
             newPattern = {
                 ...prev,
-                sampler: prev.sampler.map((b, i) => 
-                    i === bankIdx ? { ...b, automation: nextAutomation } : b
-                )
+                sampler: newSampler
             };
             updateStorageForTrack(trackKey, newPattern.sampler);
         } else {

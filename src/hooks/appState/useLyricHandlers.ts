@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { SupertonicService } from '../../services/Supertonic'
+import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer'
 import type { AudioEngine, Note, Pattern, PartSequence, SamplerParams } from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
 import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/PhonemeAligner'
@@ -46,11 +47,22 @@ export function useLyricHandlers(deps: {
         if (!audioEngine) return;
         setIsGenerating(true);
         try {
-            const rawData = await SupertonicService.getInstance().generate(text);
-            const buffer = audioEngine.context.createBuffer(1, rawData.length, 44100);
-            buffer.getChannelData(0).set(rawData);
+            const tts = SupertonicService.getInstance();
+            const rawData = await tts.generate(text);
+            const nativeRate = tts.getOutputSampleRate();
+            const nativeBuffer = audioEngine.context.createBuffer(1, rawData.length, nativeRate);
+            nativeBuffer.getChannelData(0).set(rawData);
+            const buffer = await ensureBufferMatchesContext(nativeBuffer, audioEngine.context);
             const bankName = `bank_${activeSamplerBankRef.current}`;
             await handleLoadSample(bankName, buffer);
+            const bankIdx = activeSamplerBankRef.current;
+            const priors = tts.getLastTokenDurations() ?? undefined;
+            if (audioEngine.prepareVocal) {
+                await audioEngine.prepareVocal(bankIdx, text, priors);
+                if (audioEngine.getAlignment) {
+                    setActiveAlignment(audioEngine.getAlignment(bankIdx));
+                }
+            }
             showToast(`Generated: ${text.substring(0, 15)}...`, "success");
         } catch (e) {
             console.error(e);
@@ -137,7 +149,7 @@ export function useLyricHandlers(deps: {
 
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                 const stepTime = 60 / tempoRef.current / 4;
-                const newSteps = Array(32).fill(null);
+                const newSteps = new Array<Note | null>(32).fill(null);
 
                 for (let i = 0; i < alignment.phonemes.length; i++) {
                     const p: PhonemeSegment = alignment.phonemes[i];
@@ -154,13 +166,11 @@ export function useLyricHandlers(deps: {
                     }
                 }
 
+                const newSampler = [...prev.sampler];
+                newSampler[bankIdx] = { ...newSampler[bankIdx], steps: newSteps };
                 newPattern = {
                     ...prev,
-                    sampler: prev.sampler.map((bank, idx) =>
-                        idx === bankIdx
-                            ? { ...bank, steps: newSteps }
-                            : bank
-                    ),
+                    sampler: newSampler,
                 };
             } else {
                 newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
