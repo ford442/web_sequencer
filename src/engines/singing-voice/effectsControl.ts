@@ -134,6 +134,14 @@ export const EffectsControlMixin = {
    * @param depth LFO depth (0-1)
    * @param time Optional time to apply the change (default: now)
    */
+  setGrainPosLfoDepth(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainPosLfoDepth", depth, time);
+  },
+
   setGrainLfoDepth(
     this: SingingVoiceHost,
     depth: number,
@@ -141,6 +149,20 @@ export const EffectsControlMixin = {
   ): void {
     setWorkletParam(this, "grainLfoDepth", depth, time);
   },
+
+  /**
+   * Set grain position oscillation depth.
+   * @param depth Oscillation depth (0-1)
+   * @param time Optional time to apply the change (default: now)
+   */
+  setGrainPosOscillation(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "grainPosLfoDepth", depth, time);
+  },
+
 
   /**
    * Set envelope follower depth for time stretch modulation.
@@ -335,12 +357,30 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set vocal stack chorus amount.
+   * @param amount Chorus amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setVocalChorus(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "vocalChorus", amount, time);
+  },
+
+  /**
    * Set downsample factor.
    * @param factor Downsample factor (1-32)
    * @param time Optional time to apply the change
    */
   setDownsample(this: SingingVoiceHost, factor: number, time?: number): void {
     setWorkletParam(this, "downsample", factor, time);
+  },
+
+  /**
+   * Set syllable volume filter modulation depth.
+   * @param depth Modulation depth (0-1)
+   * @param time Optional time to apply the change
+   */
+  setVolumeFilterMod(this: SingingVoiceHost, depth: number, time?: number): void {
+    setWorkletParam(this, "volumeFilterMod", depth, time);
   },
 
   /**

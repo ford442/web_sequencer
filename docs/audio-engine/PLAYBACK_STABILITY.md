@@ -57,27 +57,48 @@ Simulates 32 steps × 8 automation lanes + TRAK burst + voice steals without exc
 3. Lower sampler choir width under heavy polyphony.
 4. Use `pnpm exec vitest run src/__tests__/AutomationScheduler.test.ts` after scheduler changes.
 
-## AudioContext latency mode & sample-rate policy (#1033)
+## AudioContext latency mode & sample-rate policy (#1033 / #1136)
 
 Live playback creates its `AudioContext` with an explicit `latencyHint`
-(`interactive` | `balanced` | `playback`), never the browser default. The
-mode is user-selectable in the Engine HUD (`Ctrl+Shift+E`, or `?hud=1`) and
-persisted in `localStorage` under `hyphon.audioLatencyMode` via
-`src/utils/audioLatencyMode.ts`; construction itself is centralized in
-`src/hooks/audioEngine/audioContextFactory.ts` so it stays independently
-testable. A mode change only takes effect on the next context construction
-(app reload) — it is not hot-swapped into a running context.
+(`interactive` | `balanced` | `playback`) and an optional `sampleRate`.
+Both are user-selectable in the Engine HUD (`Ctrl+Shift+E`, or `?hud=1`)
+and persisted in `localStorage`:
 
-Sample rate: prefer the device's native rate (no `sampleRate` override in
-`AudioContextOptions`). Engines that load fixed-rate assets (sampler banks,
-TTS phoneme buffers, WAV oscillators) must convert once on load against
-`context.sampleRate`, not re-resample per voice-trigger. Offline export
-paths are unaffected — they keep constructing `OfflineAudioContext` at a
-fixed 44100/48000 regardless of the live-playback latency mode.
+- `hyphon.audioLatencyMode` via `src/utils/audioLatencyMode.ts`
+- `hyphon.audioSampleRate` (`native` | `44100` | `48000`) via
+  `src/utils/audioContextPolicy.ts`
 
-The negotiated `sampleRate`, `baseLatency`, and `outputLatency` are logged
-to `engineTelemetry` (`recordAudioContextInfo` / `recordOutputLatency`) and
-surfaced in the Engine HUD's "Audio thread" section.
+Construction is centralized in `src/hooks/audioEngine/audioContextFactory.ts`.
+**Device native is the default** (`sampleRate` omitted from
+`AudioContextOptions`). A 44.1 / 48 kHz request that throws or is ignored
+by the browser **falls back to native** without crashing init; Engine HUD
+shows requested vs actual rate and the fallback reason.
+
+A latency or sample-rate change only takes effect on the next context
+construction. Use **Apply & restart audio** in the HUD (page reload). It is
+not hot-swapped into a running graph.
+
+**Convert once on load:** sampler banks, TTS/ONNX PCM, and WAV oscillators
+must match `context.sampleRate` after load (`ensureBufferMatchesContext` in
+`src/utils/resampleAudioBuffer.ts`). Never resample inside worklet
+`process()`. `AudioWorkletGlobalScope.sampleRate` is the live rate;
+`?? 44100` / `resolveWorkletSampleRate` only runs when that value is
+missing (tests / non-worklet hosts).
+
+**Output device:** Chromium `AudioContext.setSinkId` is optional and
+feature-detected (`src/utils/audioOutputDevice.ts`). Firefox/Safari hide
+the HUD picker and stay on the default device. Prefs store `groupId` +
+`label` (`hyphon.audioOutputDevice`), not a session-only `deviceId`.
+
+Offline export paths are unaffected — they keep constructing
+`OfflineAudioContext` at a user-chosen 44100/48000 regardless of the live
+playback policy. The export modal still prefers the **actual** live
+`context.sampleRate` when it is 44.1 or 48 kHz.
+
+The negotiated `sampleRate`, requested rate, sink label, `baseLatency`,
+and `outputLatency` are logged to `engineTelemetry`
+(`recordAudioContextInfo` / `recordAudioOutputSink` / `recordOutputLatency`)
+and surfaced in the Engine HUD's "Audio thread" section.
 
 ## Related
 

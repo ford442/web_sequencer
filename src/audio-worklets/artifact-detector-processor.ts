@@ -9,6 +9,7 @@
 
 import { ArtifactDetector, DEFAULT_ARTIFACT_CONFIG } from '../engines/rubberband/ArtifactDetector';
 import type { ArtifactDetectorConfig, ArtifactDetection, QualityMetrics } from '../engines/rubberband/ArtifactDetector';
+import { resolveWorkletSampleRate } from '../utils/workletSampleRate';
 
 // AudioWorklet processor interface declarations
 declare const globalThis: {
@@ -78,9 +79,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         this.port.onmessage = this.handleMessage.bind(this);
         
         // Get sample rate from global scope
-        this.sampleRate = typeof globalThis.sampleRate === 'number' 
-            ? globalThis.sampleRate 
-            : 44100;
+        this.sampleRate = resolveWorkletSampleRate();
         
         // Initialize with default config
         this.initializeDetector();

@@ -51,6 +51,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
+    const liveContextRef = useRef<AudioContext | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
@@ -207,6 +208,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 prophecyProcessorUrl,
             });
 
+            liveContextRef.current = context;
+
             // --- Helper: warm the phoneme pool for all phonemes in a bank ---
             const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
                 const pool = phonemeBufferPoolRef.current;
@@ -231,6 +234,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 getAlignment,
                 setAlignment: setAlignmentBase
             } = createSampleLibraryControls({
+                audioContextRef: liveContextRef,
                 loadedSampleBuffersRef,
                 multisampleBanksRef,
                 multisampleGeneratorRef,
@@ -239,8 +243,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             });
 
             // Wrap prepareVocal to warm the pool once alignment is computed
-            const prepareVocal = async (bankIndex: number, text: string): Promise<void> => {
-                await prepareVocalBase(bankIndex, text);
+            const prepareVocal = async (bankIndex: number, text: string, durationPriors?: number[]): Promise<void> => {
+                await prepareVocalBase(bankIndex, text, durationPriors);
                 const sampleName = `bank_${bankIndex}`;
                 const alignment = vocalAlignmentsRef.current.get(sampleName);
                 const audioBuffer = (multisampleBanksRef.current.get(sampleName)?.baseBuffer)

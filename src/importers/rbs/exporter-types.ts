@@ -10,7 +10,7 @@ export type RbsExportMode = 'pattern' | 'song';
 export interface RbsExportOptions {
   /** ReBirth file version string target. */
   versionTarget: RbsExportVersionTarget;
-  /** Pattern mode (Phase 1) or song mode (Phase 2 stretch). */
+  /** Pattern mode (GLOB playMode 0) or song mode (GLOB + TRKL/TRAK). */
   mode: RbsExportMode;
   /** Collapse Hyphon 32-step patterns to native 16-step ReBirth format. */
   collapse32Steps: boolean;

@@ -13,6 +13,7 @@ export interface SynthEffectPropertiesProps {
   currentGrainPitchEnvDepth?: number;
   currentGrainLfoRate?: number;
   currentGrainLfoDepth?: number;
+  currentGrainPosLfoDepth?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
@@ -58,4 +59,5 @@ export interface SynthEffectPropertiesProps {
   currentSpectralPanDepth?: number;
   currentReverse?: boolean;
   currentCustomWindowShape?: number[];
+  currentVolumeFilterMod?: number;
 }

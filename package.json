@@ -30,8 +30,8 @@
     "build:native:changed": "node scripts/native-build.mjs --changed",
     "build:web": "tsc -b && vite build",
     "build:web:debug": "tsc -b && HYPHON_SOURCEMAP=1 vite build",
-    "build:release": "pnpm run build:native && node tools/check_wasm_export_map.mjs --glue public/hyphon_native.js && pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs",
-    "build:release:changed": "pnpm run build:native:changed && node tools/check_wasm_export_map.mjs --glue public/hyphon_native.js && pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs",
+    "build:release": "pnpm run build:native && node tools/check_wasm_export_map.mjs --glue public/hyphon_native.js --wasm public/hyphon_native.wasm && pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs",
+    "build:release:changed": "pnpm run build:native:changed && node tools/check_wasm_export_map.mjs --glue public/hyphon_native.js --wasm public/hyphon_native.wasm && pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs",
     "optimize": "bash tools/optimize.sh",
     "build": "pnpm run build:release",
     "preview": "vite preview",
@@ -104,5 +104,6 @@
     "overrides": {
       "protobufjs": "^7.5.8"
     }
-  }
+  },
+  "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457"
 }

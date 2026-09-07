@@ -34,6 +34,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentPitchDecay = 0,
     currentReverse = false,
     currentRetrigger = 1,
+    currentVolumeFilterMod = 0,
     currentFreeze = 0,
     currentFormantShift,
     currentSlideFormant = false,
@@ -68,6 +69,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentFreezeEnvDepth = 0,
     currentGrainLfoRate = 0,
     currentGrainLfoDepth = 0,
+    currentGrainPosLfoDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
     currentGrainJitter = 0,
@@ -156,6 +158,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentFreezeEnvDepth={currentFreezeEnvDepth}
                 currentGrainLfoRate={currentGrainLfoRate}
                 currentGrainLfoDepth={currentGrainLfoDepth}
+                currentGrainPosLfoDepth={currentGrainPosLfoDepth}
                 currentGrainEnvDepth={currentGrainEnvDepth}
                 currentGrainPitchEnvDepth={currentGrainPitchEnvDepth}
                 currentGrainJitter={currentGrainJitter}
@@ -168,6 +171,7 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentDownsample={currentDownsample}
                 currentSpectralCompression={currentSpectralCompression}
                 currentTranceGate={currentTranceGate}
+                currentVolumeFilterMod={currentVolumeFilterMod}
               />
 
               <EffectsSendProperties

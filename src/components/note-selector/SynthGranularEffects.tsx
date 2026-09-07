@@ -16,6 +16,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentFreezeEnvDepth = 0,
     currentGrainLfoRate = 0,
     currentGrainLfoDepth = 0,
+    currentGrainPosLfoDepth = 0,
     currentGrainEnvDepth = 0,
     currentGrainPitchEnvDepth = 0,
     currentGrainJitter = 0,
@@ -49,6 +50,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentFormantEnvFollower = 0,
     currentDrive,
     currentVibratoDepth = 0,
+    currentVolumeFilterMod = 0,
     currentCustomWindowShape,
     currentVowel = 0,
     currentPortamento = 0,
@@ -279,6 +281,32 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           aria-label="Grain Size LFO Depth"
         />
       </div>
+
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <label htmlFor="note-grain-pos-osc">Pos Oscillation</label>
+          <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
+            {Math.round(((props.currentGrainPosLfoDepth || 0) + 0.0001) * 100)}%
+          </span>
+        </div>
+        <input
+          id="note-grain-pos-osc"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={props.currentGrainPosLfoDepth || 0}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "grainPosLfoDepth",
+              parseFloat(e.target.value)
+            )
+          }
+          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+          aria-valuetext={`${Math.round(((props.currentGrainPosLfoDepth || 0) + 0.0001) * 100)}%`}
+          aria-label="Grain Position Oscillation Depth"
+        />
+      </div>
        <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-jitter">Grain Jitter</label>
@@ -420,13 +448,15 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
               parseFloat(e.target.value)
             )
           }
-          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus:border-cyan-400"
+          className="w-full bg-gray-900 border border-cyan-900/30 text-cyan-300 text-[10px] rounded px-1 py-0.5 outline-none focus-visible:border-cyan-400"
           aria-label="Granular Window Shape"
         >
           <option value={0}>Hann</option>
           <option value={1}>Hamming</option>
           <option value={2}>Blackman</option>
           <option value={3}>Rectangular (None)</option>
+          <option value={4}>Gaussian</option>
+          <option value={5}>Sharp</option>
         </select>
       </div>
       <div className="flex flex-col items-center justify-start gap-1 col-span-2 mt-2">
@@ -470,6 +500,18 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         onChange={(v) => onPropertyChange?.("spectralComp", v)}
         valueFormatter={() =>
           `${((currentSpectralComp ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-indigo-400 hover:accent-indigo-300"
+        borderColor="border-indigo-900/30"
+      />
+      <PropertySlider
+        label="Syllable Filter"
+        id="note-vol-filter-mod"
+        ariaLabel="Syllable Filter Amount Override"
+        value={currentVolumeFilterMod ?? 0}
+        onChange={(v) => onPropertyChange?.("volumeFilterMod", v)}
+        valueFormatter={() =>
+          `${((currentVolumeFilterMod ?? 0) * 100).toFixed(0)}%`
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"

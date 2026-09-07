@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { midiPortManager } from '../midi/MidiPortManager';
 import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore';
 import { formatMidiBindingLabel, parseMidiControlId } from '../types/midi';
 
@@ -44,14 +45,30 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
                   ● {connectedInputs.length} input{connectedInputs.length !== 1 ? 's' : ''}: {connectedInputs.join(', ')}
                 </span>
               ) : (
-                <div className="flex flex-col items-center justify-center p-4 bg-gray-800/20 border border-dashed border-gray-700 rounded w-full mt-2">
+                <div role="status" aria-live="polite" className="flex flex-col items-center justify-center p-4 bg-gray-800/20 border border-dashed border-gray-700 rounded w-full mt-2">
                   <div className="w-8 h-8 rounded-full bg-purple-900/30 flex items-center justify-center mb-2 text-purple-400" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                     </svg>
                   </div>
                   <h3 className="text-gray-300 font-bold text-xs mb-1">No MIDI devices</h3>
-                  <p className="text-gray-500 text-[10px] text-center max-w-[200px]">Connect a USB MIDI controller and refresh.</p>
+                  <p className="text-gray-500 text-[10px] text-center max-w-[200px] mb-3">Connect a USB MIDI controller and refresh.</p>
+                  <button type="button"
+                    onClick={() => {
+                      void midiPortManager.ensureAccess().then((access) => {
+                        if (access) {
+                          const inputs = Array.from(access.inputs.values());
+                          midiMapStore.setInputAvailable(
+                            inputs.length > 0,
+                            inputs.map((i) => i.name || 'Unknown Device')
+                          );
+                        }
+                      });
+                    }}
+                    className="bg-purple-900/30 text-purple-400 border border-purple-800/50 hover:bg-purple-900/50 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                  >
+                    Refresh Devices
+                  </button>
                 </div>
               )}
             </div>
@@ -78,9 +95,9 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
           )}
 
           {mappings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+            <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
               <div className="w-12 h-12 rounded-full bg-purple-900/30 flex items-center justify-center mb-4 text-purple-400" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
               </div>
@@ -92,7 +109,6 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
                 <button type="button"
                   onClick={() => midiMapStore.toggleLearnMode()}
                   className="bg-purple-900/30 text-purple-400 border border-purple-800/50 hover:bg-purple-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-                  aria-label="Start MIDI Learn"
                 >
                   Start MIDI Learn
                 </button>

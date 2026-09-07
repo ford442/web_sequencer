@@ -78,6 +78,14 @@ type RuntimeTelemetry = {
   liveHighFidOversample: number | null;
   /** P0 audio foundation — live AudioContext.sampleRate at construction. */
   sampleRate: number | null;
+  /** Sample rate passed to AudioContextOptions, or null for device native. */
+  requestedSampleRate: number | null;
+  /** Why the requested rate was not used (null if match or native). */
+  sampleRateFallback: string | null;
+  /** AudioContext.sinkId when setSinkId is supported. */
+  sinkId: string | null;
+  /** Human-readable output device label. */
+  sinkLabel: string | null;
   /** P0 audio foundation — live AudioContext.baseLatency, in ms. */
   baseLatencyMs: number | null;
   /** P0 audio foundation — latencyHint requested when the context was created. */
@@ -220,6 +228,10 @@ export interface RuntimeSnapshot {
   liveHighFidOversample: number | null;
   /** Live AudioContext.sampleRate at construction (Hz). */
   sampleRate: number | null;
+  requestedSampleRate: number | null;
+  sampleRateFallback: string | null;
+  sinkId: string | null;
+  sinkLabel: string | null;
   /** Live AudioContext.baseLatency at construction, in ms. */
   baseLatencyMs: number | null;
   /** latencyHint requested when the context was created. */
@@ -320,6 +332,10 @@ export class EngineTelemetry {
     liveHighFidCpuPercent: null,
     liveHighFidOversample: null,
     sampleRate: null,
+    requestedSampleRate: null,
+    sampleRateFallback: null,
+    sinkId: null,
+    sinkLabel: null,
     baseLatencyMs: null,
     latencyHint: null,
     transportSync: null,
@@ -380,12 +396,25 @@ export class EngineTelemetry {
    */
   recordAudioContextInfo(info: {
     sampleRate: number;
+    requestedSampleRate?: number | null;
+    sampleRateFallback?: string | null;
     baseLatencyMs: number;
     latencyHint: string | null;
+    sinkId?: string | null;
+    sinkLabel?: string | null;
   }): void {
     this.runtime.sampleRate = info.sampleRate;
+    this.runtime.requestedSampleRate = info.requestedSampleRate ?? null;
+    this.runtime.sampleRateFallback = info.sampleRateFallback ?? null;
     this.runtime.baseLatencyMs = info.baseLatencyMs;
     this.runtime.latencyHint = info.latencyHint;
+    if (info.sinkId !== undefined) this.runtime.sinkId = info.sinkId;
+    if (info.sinkLabel !== undefined) this.runtime.sinkLabel = info.sinkLabel;
+  }
+
+  recordAudioOutputSink(info: { sinkId: string | null; sinkLabel: string | null }): void {
+    this.runtime.sinkId = info.sinkId;
+    this.runtime.sinkLabel = info.sinkLabel;
   }
 
   recordDegradation(step: string, active: boolean, reason: string): void {
@@ -537,6 +566,10 @@ export class EngineTelemetry {
       liveHighFidCpuPercent: this.runtime.liveHighFidCpuPercent,
       liveHighFidOversample: this.runtime.liveHighFidOversample,
       sampleRate: this.runtime.sampleRate,
+      requestedSampleRate: this.runtime.requestedSampleRate,
+      sampleRateFallback: this.runtime.sampleRateFallback,
+      sinkId: this.runtime.sinkId,
+      sinkLabel: this.runtime.sinkLabel,
       baseLatencyMs: this.runtime.baseLatencyMs,
       latencyHint: this.runtime.latencyHint,
       transportSync: this.runtime.transportSync,
@@ -703,41 +736,87 @@ export function parseHyphonGlueExportMap(glueSource: string): Record<string, str
   return map;
 }
 
-/**
- * Load the WASM export map: JSON first, then glue-source fallback.
- */
-export async function loadHyphonWasmExportMap(): Promise<Record<string, string>> {
+/** Keys present in either map whose values disagree (including absent vs present). */
+export function countExportMapDrift(
+  jsonMap: Record<string, string>,
+  glueMap: Record<string, string>,
+): number {
+  const keys = new Set([...Object.keys(jsonMap), ...Object.keys(glueMap)]);
+  let drift = 0;
+  for (const key of keys) {
+    if (jsonMap[key] !== glueMap[key]) drift += 1;
+  }
+  return drift;
+}
+
+async function fetchJsonExportMap(): Promise<Record<string, string>> {
   const jsonUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
   try {
     const response = await fetch(jsonUrl);
-    if (response.ok) {
-      const fromJson = (await response.json()) as Record<string, string>;
-      if (fromJson && Object.keys(fromJson).length > 0) {
-        return fromJson;
-      }
+    if (!response.ok) return {};
+    const fromJson = (await response.json()) as Record<string, string>;
+    if (fromJson && typeof fromJson === 'object' && !Array.isArray(fromJson)) {
+      return fromJson;
     }
   } catch {
-    /* try glue fallback */
+    /* missing or invalid */
   }
+  return {};
+}
 
+async function fetchGlueExportMap(): Promise<Record<string, string>> {
   const glueUrl = resolvePublicAsset('hyphon_native.js');
   try {
     const response = await fetch(glueUrl);
-    if (response.ok) {
-      const glue = await response.text();
-      const fromGlue = parseHyphonGlueExportMap(glue);
-      if (Object.keys(fromGlue).length > 0) {
-        console.warn(
-          `[EngineTelemetry] hyphon_wasm_export_map.json empty or missing; recovered ${Object.keys(fromGlue).length} exports from glue`,
-        );
-        return fromGlue;
-      }
-    }
+    if (!response.ok) return {};
+    return parseHyphonGlueExportMap(await response.text());
   } catch {
-    /* fall through */
+    return {};
+  }
+}
+
+async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>> {
+  const [fromJson, fromGlue] = await Promise.all([fetchJsonExportMap(), fetchGlueExportMap()]);
+  const jsonCount = Object.keys(fromJson).length;
+  const glueCount = Object.keys(fromGlue).length;
+
+  if (glueCount > 0 && jsonCount > 0) {
+    const drift = countExportMapDrift(fromJson, fromGlue);
+    if (drift > 0) {
+      console.warn(
+        `[EngineTelemetry] hyphon_wasm_export_map.json disagrees with hyphon_native.js glue on ${drift} export(s); using glue`,
+      );
+      return fromGlue;
+    }
+    return fromJson;
   }
 
-  return {};
+  if (glueCount > 0) {
+    console.warn(
+      `[EngineTelemetry] hyphon_wasm_export_map.json empty or missing; recovered ${glueCount} exports from glue`,
+    );
+    return fromGlue;
+  }
+
+  return fromJson;
+}
+
+let exportMapPromise: Promise<Record<string, string>> | null = null;
+
+/** Drop the memoized export-map fetch. For tests only. */
+export function resetHyphonWasmExportMapCache(): void {
+  exportMapPromise = null;
+}
+
+/**
+ * Load the WASM export map: JSON and glue in parallel.
+ * Glue wins when it is non-empty and disagrees with JSON (stale identity maps).
+ */
+export async function loadHyphonWasmExportMap(): Promise<Record<string, string>> {
+  if (!exportMapPromise) {
+    exportMapPromise = loadHyphonWasmExportMapUncached();
+  }
+  return exportMapPromise;
 }
 
 /** Active engine fallbacks for UI/diagnostics (subsystem → reason). */

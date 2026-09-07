@@ -3,12 +3,16 @@
  * Controller IDs come from trakControllers.ts (single source of truth with import).
  */
 
-import type { HyphonSong, RbsTrakEvent } from './types';
-import { TICKS_PER_BAR, TRAK_TRACK_INDEX } from './types';
+import type { HyphonAutomationLane, HyphonSong, RbsTrakEvent } from './types';
+import { TICKS_PER_BAR, TICKS_PER_STEP, TRAK_TRACK_INDEX } from './types';
 import {
   TB303_TRAK_CONTROLLER,
   DRUM_TRAK_CONTROLLER,
+  isTrakParamAutomationEvent,
   isTrakPatternSelectEvent,
+  resolveHyphonLaneToTrak,
+  resolveTrakEventKind,
+  type TrakEventKind,
 } from './trakControllers';
 
 export const TRKL_TRACK_COUNT = 9;
@@ -77,54 +81,136 @@ function emptyTrakTracks(): Array<{ events: TrakWireEvent[] }> {
   return Array.from({ length: TRKL_TRACK_COUNT }, () => ({ events: [] }));
 }
 
+function groupEventsByTrack(events: RbsTrakEvent[]): Array<{ events: TrakWireEvent[] }> {
+  const tracks = emptyTrakTracks();
+  const byTrack = new Map<number, RbsTrakEvent[]>();
+  for (const ev of events) {
+    const list = byTrack.get(ev.trackIndex) ?? [];
+    list.push(ev);
+    byTrack.set(ev.trackIndex, list);
+  }
+  for (const [trackIndex, trackEvents] of byTrack) {
+    if (trackIndex >= 0 && trackIndex < TRKL_TRACK_COUNT) {
+      tracks[trackIndex].events = trakEventsToWireFormat(trackEvents);
+    }
+  }
+  return tracks;
+}
+
+function wireToAbsoluteEvents(
+  events: TrakWireEvent[],
+  trackIndex: number,
+  eventKind: TrakEventKind,
+): RbsTrakEvent[] {
+  let abs = 0;
+  return events.map((ev) => {
+    abs += ev.delta;
+    return {
+      deltaTicks: ev.delta,
+      absoluteTicks: abs,
+      trackIndex,
+      controllerId: ev.ctrl,
+      value: ev.value,
+      eventKind,
+    };
+  });
+}
+
+/** Convert Hyphon automation lanes into TRAK param-change events. */
+export function trakEventsFromAutomationLanes(lanes: HyphonAutomationLane[]): RbsTrakEvent[] {
+  const events: RbsTrakEvent[] = [];
+  for (const lane of lanes) {
+    const mapping = resolveHyphonLaneToTrak(lane.target, lane.parameter);
+    if (!mapping) continue;
+    const eventKind = resolveTrakEventKind(mapping.trackIndex, mapping.controllerId);
+    for (const [step, value] of lane.points) {
+      events.push({
+        deltaTicks: 0,
+        absoluteTicks: Math.max(0, Math.round(step * TICKS_PER_STEP)),
+        trackIndex: mapping.trackIndex,
+        controllerId: mapping.controllerId,
+        value: Math.max(0, Math.min(127, Math.round(value * 127))),
+        eventKind,
+      });
+    }
+  }
+  return events;
+}
+
+function synthesizeArrangementEvents(song: HyphonSong): RbsTrakEvent[] {
+  const arrangement = song.songArrangement;
+  if (!arrangement) return [];
+
+  const structure = arrangement.songStructure;
+  const collected: RbsTrakEvent[] = [];
+
+  collected.push(
+    ...wireToAbsoluteEvents(
+      buildPatternSelectEventsFromStructure(
+        structure,
+        'partA',
+        TB303_TRAK_CONTROLLER.PATTERN_SELECT,
+      ),
+      TRAK_TRACK_INDEX.TB303_1,
+      'patternSelect',
+    ),
+  );
+  collected.push(
+    ...wireToAbsoluteEvents(
+      buildPatternSelectEventsFromStructure(
+        structure,
+        'partB',
+        TB303_TRAK_CONTROLLER.PATTERN_SELECT,
+      ),
+      TRAK_TRACK_INDEX.TB303_2,
+      'patternSelect',
+    ),
+  );
+
+  const drumKit = song.params.drumKit ?? '808';
+  const drumTrackIndex = drumKit === '909' ? TRAK_TRACK_INDEX.TR909 : TRAK_TRACK_INDEX.TR808;
+  collected.push(
+    ...wireToAbsoluteEvents(
+      buildPatternSelectEventsFromStructure(
+        structure,
+        'kick',
+        DRUM_TRAK_CONTROLLER.PATTERN_SELECT,
+      ),
+      drumTrackIndex,
+      'patternSelect',
+    ),
+  );
+
+  const paramEvents = arrangement.trakParamEvents ?? [];
+  collected.push(...paramEvents);
+
+  const hasParamChange = collected.some((ev) =>
+    isTrakParamAutomationEvent(ev.trackIndex, ev.controllerId, ev.eventKind),
+  );
+  if (!hasParamChange && song.automation?.length) {
+    collected.push(...trakEventsFromAutomationLanes(song.automation));
+  }
+
+  return collected;
+}
+
 /**
  * Build per-track TRAK event lists for IFF TRKL export.
- * Prefers preserved trakEvents (accurate round-trip); falls back to songStructure.
+ * Prefers preserved trakEvents (accurate round-trip); falls back to songStructure
+ * plus trakParamEvents / automation lanes for knob moves.
  */
 export function buildSongModeTrakTracks(
   song: HyphonSong,
 ): Array<{ events: TrakWireEvent[] }> {
   const arrangement = song.songArrangement;
-  const tracks = emptyTrakTracks();
-  if (!arrangement) return tracks;
+  if (!arrangement) return emptyTrakTracks();
 
   const preserved = arrangement.trakEvents ?? [];
   if (preserved.length > 0) {
-    const byTrack = new Map<number, RbsTrakEvent[]>();
-    for (const ev of preserved) {
-      const list = byTrack.get(ev.trackIndex) ?? [];
-      list.push(ev);
-      byTrack.set(ev.trackIndex, list);
-    }
-    for (const [trackIndex, events] of byTrack) {
-      if (trackIndex >= 0 && trackIndex < TRKL_TRACK_COUNT) {
-        tracks[trackIndex].events = trakEventsToWireFormat(events);
-      }
-    }
-    return tracks;
+    return groupEventsByTrack(preserved);
   }
 
-  const structure = arrangement.songStructure;
-  tracks[TRAK_TRACK_INDEX.TB303_1].events = buildPatternSelectEventsFromStructure(
-    structure,
-    'partA',
-    TB303_TRAK_CONTROLLER.PATTERN_SELECT,
-  );
-  tracks[TRAK_TRACK_INDEX.TB303_2].events = buildPatternSelectEventsFromStructure(
-    structure,
-    'partB',
-    TB303_TRAK_CONTROLLER.PATTERN_SELECT,
-  );
-
-  const drumKit = song.params.drumKit ?? '808';
-  const drumTrackIndex = drumKit === '909' ? TRAK_TRACK_INDEX.TR909 : TRAK_TRACK_INDEX.TR808;
-  tracks[drumTrackIndex].events = buildPatternSelectEventsFromStructure(
-    structure,
-    'kick',
-    DRUM_TRAK_CONTROLLER.PATTERN_SELECT,
-  );
-
-  return tracks;
+  return groupEventsByTrack(synthesizeArrangementEvents(song));
 }
 
 /** Count non-null pattern slots used across track storage banks. */
