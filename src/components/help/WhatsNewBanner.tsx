@@ -53,7 +53,7 @@ export const WhatsNewBanner = memo(() => {
           className="shrink-0 text-gray-500 hover:text-white text-sm px-2 py-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           aria-label="Dismiss what's new banner"
         >
-          ✕
+          <span aria-hidden="true">✕</span>
         </button>
       </div>
     </aside>
