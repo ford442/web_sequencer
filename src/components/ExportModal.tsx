@@ -175,7 +175,7 @@ export const ExportModal = React.memo(function ExportModal({
                         title={isExporting ? "Cannot close while exporting" : "Close export dialog"}
                         className="text-gray-400 hover:text-white disabled:opacity-40"
                     >
-                        ✕
+                        <span aria-hidden="true">✕</span>
                     </button>
                 </div>
 

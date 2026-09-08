@@ -156,7 +156,7 @@ export const SessionLauncher = memo(function SessionLauncher({
             {isCapturing ? 'CAPTURING' : 'CAPTURE'}
           </button>
           <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded" onClick={onStopAll} aria-label="Stop all clips">STOP</button>
-          <button type="button" className="h-7 w-7 text-gray-400" onClick={onClose} aria-label="Close Session Launcher">✕</button>
+          <button type="button" className="h-7 w-7 text-gray-400" onClick={onClose} aria-label="Close Session Launcher" title="Close Session Launcher"><span aria-hidden="true">✕</span></button>
         </header>
 
         <div className="px-3 py-2 flex gap-2 overflow-x-auto border-b border-gray-800">
