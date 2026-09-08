@@ -879,6 +879,20 @@ export interface SavedSongData {
   activeTrackSlots: Record<string, number>;
   songStructure: unknown[];
   tempo: number;
+  /**
+   * Time signature as `[numerator, denominator]` (e.g. `[4, 4]`, `[3, 4]`).
+   * Optional: songs saved before this field existed load unchanged and are
+   * treated as `[4, 4]`.
+   */
+  timeSignature?: [number, number];
+  /**
+   * Shuffle amount, 0–100 where 50 = straight (the unit shared by the `.rbs`
+   * header and the AI song format). Optional: absent means straight.
+   *
+   * Storage only for now — the transport's swing input is not yet wired to
+   * song state, so loading a song does not change playback feel.
+   */
+  swing?: number;
   ambianceUrl?: string;
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };

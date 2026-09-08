@@ -1,6 +1,15 @@
 import type { AISongData } from '../../importers/ai-song/types';
-import type { SavedSongData } from '../../types';
+import type { Pattern, PartSequence, SavedSongData } from '../../types';
 import type { StorageErrorInfo } from './types';
+
+/** True when any track sequence in the pattern holds at least one note. */
+function hasAnyNote(pattern: Pattern): boolean {
+  const sequences: (PartSequence | PartSequence[] | undefined)[] = Object.values(pattern);
+  return sequences.some((entry) => {
+    const parts = Array.isArray(entry) ? entry : entry ? [entry] : [];
+    return parts.some((part) => part?.steps?.some((step) => step !== null));
+  });
+}
 
 /**
  * Validate song data before upload
@@ -44,28 +53,40 @@ export function validateBeforeUpload(
     };
   }
 
-  // Validate Hyphon data
-  // @ts-expect-error - Auto-generated to fix CI build
-  if (!hyphonSong.tracks || hyphonSong.tracks.length === 0) {
+  // Validate Hyphon data.
+  // SavedSongData stores note data on `pattern` (plus the per-slot
+  // `trackStorage`) and the transport rate on `tempo` — there are no
+  // `tracks` / `bpm` fields.
+  if (!hyphonSong.pattern || !hyphonSong.trackStorage) {
     return {
       category: 'VALIDATION',
       message: 'Song must have at least one track',
       userMessage: 'Please add at least one track to the song before uploading.',
       retryable: false,
       timestamp: new Date().toISOString(),
-      field: 'tracks'
+      field: 'pattern'
     };
   }
 
-  // @ts-expect-error - Auto-generated to fix CI build
-  if (!hyphonSong.bpm || hyphonSong.bpm < 1 || hyphonSong.bpm > 999) {
+  if (!hasAnyNote(hyphonSong.pattern)) {
     return {
       category: 'VALIDATION',
-      message: 'Invalid BPM value',
-      userMessage: 'Please set a valid BPM (1-999) before uploading.',
+      message: 'Song must have at least one note',
+      userMessage: 'This song is empty. Please add at least one note before uploading.',
       retryable: false,
       timestamp: new Date().toISOString(),
-      field: 'bpm'
+      field: 'pattern'
+    };
+  }
+
+  if (!hyphonSong.tempo || hyphonSong.tempo < 1 || hyphonSong.tempo > 999) {
+    return {
+      category: 'VALIDATION',
+      message: 'Invalid tempo value',
+      userMessage: 'Please set a valid tempo (1-999 BPM) before uploading.',
+      retryable: false,
+      timestamp: new Date().toISOString(),
+      field: 'tempo'
     };
   }
 

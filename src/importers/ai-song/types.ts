@@ -105,7 +105,8 @@ export interface AISongData {
   /** Global song settings */
   globals: {
     tempo: number; // BPM (30-300)
-    timeSignature: [number, number]; // [4, 4], [3, 4], etc.
+    /** [numerator, denominator] — optional, defaults to [4, 4] */
+    timeSignature?: [number, number]; // [4, 4], [3, 4], etc.
     swing?: number; // 0-100 (50 = no swing)
   };
 
@@ -155,89 +156,6 @@ export interface AISamplerBankData {
   ttsText?: string;
   sampleUrl?: string;
   phonemePainter?: AIPhonemePainterConfig;
-}
-
-// ============================================================================
-// EFFECTS TYPES
-// ============================================================================
-
-/** Complete effects chain configuration */
-export interface AIEffectsChain {
-  /** Master effects applied to the mix */
-  master?: AIMasterEffects;
-  /** Per-track effects */
-  tracks?: Partial<Record<TrackKey, AITrackEffects>>;
-}
-
-/** Master bus effects */
-export interface AIMasterEffects {
-  compressor?: AICompressorSettings;
-  limiter?: boolean;
-  reverb?: AIReverbSettings;
-}
-
-/** Per-track effects */
-export interface AITrackEffects {
-  distortion?: AIDistortionSettings;
-  delay?: AIDelaySettings;
-  filter?: AIFilterSettings;
-  chorus?: AIChorusSettings;
-  phaser?: AIPhaserSettings;
-}
-
-/** Compressor settings */
-export interface AICompressorSettings {
-  threshold: number;  // -60 to 0 dB
-  ratio: number;      // 1 to 20
-  attack: number;     // 0.1 to 100 ms
-  release: number;    // 10 to 1000 ms
-  makeupGain?: number;
-}
-
-/** Distortion settings */
-export interface AIDistortionSettings {
-  type: 'soft' | 'hard' | 'tube' | 'bitcrush';
-  amount: number;     // 0 to 100
-  tone?: number;      // -50 to 50 (filter)
-}
-
-/** Delay settings */
-export interface AIDelaySettings {
-  time: number;       // 1/32 to 2 bars in ms or note values
-  feedback: number;   // 0 to 100%
-  mix: number;        // 0 to 100%
-  pingPong?: boolean;
-}
-
-/** Reverb settings */
-export interface AIReverbSettings {
-  size: number;       // 0 to 100 (room size)
-  decay: number;      // 0.1 to 10 seconds
-  mix: number;        // 0 to 100%
-  preDelay?: number;  // 0 to 100 ms
-}
-
-/** Filter settings */
-export interface AIFilterSettings {
-  type: 'lowpass' | 'highpass' | 'bandpass' | 'notch';
-  cutoff: number;     // 20 to 20000 Hz
-  resonance: number;  // 0 to 100
-  envelope?: number;  // -100 to 100 (env amount)
-}
-
-/** Chorus settings */
-export interface AIChorusSettings {
-  rate: number;       // 0.1 to 10 Hz
-  depth: number;      // 0 to 100%
-  mix: number;        // 0 to 100%
-}
-
-/** Phaser settings */
-export interface AIPhaserSettings {
-  rate: number;       // 0.1 to 10 Hz
-  depth: number;      // 0 to 100%
-  feedback: number;   // 0 to 100%
-  stages?: number;    // 2, 4, 6, 8, 12
 }
 
 // ============================================================================
@@ -330,80 +248,6 @@ export interface AIUploadError {
 export type AIUploadResultType = AIUploadResult | AIUploadError;
 
 // ============================================================================
-// EXTENDED SONG TYPE (for effects storage)
-// ============================================================================
-
-/** Extended SavedSongData with effects for DSP chain integration */
-export interface HyphonSong extends SavedSongData {
-  /** Effects data for DSP chain */
-  effects?: HyphonEffectsData;
-  /** Harmonizer configurations per track */
-  harmonizers?: Partial<Record<TrackKey, AIHarmonizerConfig>>;
-  /** Phoneme painter configurations per sampler bank */
-  phonemePainters?: Record<number, AIPhonemePainterConfig>;
-}
-
-// ============================================================================
-// HYPHON EFFECTS DATA TYPES (Internal DSP representation)
-// ============================================================================
-
-/** Internal representation of converted effects for Hyphon DSP */
-export interface HyphonEffectsData {
-  master: HyphonMasterEffects;
-  tracks: Partial<Record<TrackKey, HyphonTrackEffects>>;
-}
-
-/** Converted master effects */
-export interface HyphonMasterEffects {
-  compressor?: {
-    threshold: number;
-    ratio: number;
-    attack: number;
-    release: number;
-    makeupGain: number;
-  };
-  limiter?: { enabled: boolean };
-  reverb?: {
-    size: number;
-    decay: number;
-    mix: number;
-    preDelay: number;
-  };
-}
-
-/** Converted track effects */
-export interface HyphonTrackEffects {
-  distortion?: {
-    type: 'soft' | 'hard' | 'tube' | 'bitcrush';
-    amount: number;
-    tone: number;
-  };
-  delay?: {
-    time: number;
-    feedback: number;
-    mix: number;
-    pingPong: boolean;
-  };
-  filter?: {
-    type: 'lowpass' | 'highpass' | 'bandpass' | 'notch';
-    cutoff: number;
-    resonance: number;
-    envelope: number;
-  };
-  chorus?: {
-    rate: number;
-    depth: number;
-    mix: number;
-  };
-  phaser?: {
-    rate: number;
-    depth: number;
-    feedback: number;
-    stages: 2 | 4 | 6 | 8 | 12;
-  };
-}
-
-// ============================================================================
 // VALIDATION (Runtime type checking without external deps)
 // ============================================================================
 
@@ -450,6 +294,18 @@ export function validateAISongData(data: unknown): { valid: true } | { valid: fa
   if (song.meta.version !== "1.0") {
     return { valid: false, error: { type: 'UNSUPPORTED_VERSION', version: song.meta.version || 'undefined' } };
   }
+  // author / generator / prompt are required by the upload path, so they are
+  // validated here too — the failure belongs in the import modal, not after
+  // the user has already tried to save.
+  for (const field of ['author', 'generator', 'prompt'] as const) {
+    const value = song.meta[field];
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      return {
+        valid: false,
+        error: { type: 'VALIDATION_ERROR', field: `meta.${field}`, message: `${field} string required` }
+      };
+    }
+  }
 
   // Check globals
   if (!song.globals || typeof song.globals !== 'object') {
@@ -457,6 +313,30 @@ export function validateAISongData(data: unknown): { valid: true } | { valid: fa
   }
   if (typeof song.globals.tempo !== 'number' || song.globals.tempo < 30 || song.globals.tempo > 300) {
     return { valid: false, error: { type: 'VALIDATION_ERROR', field: 'globals.tempo', message: 'tempo must be 30-300' } };
+  }
+  // timeSignature is optional at runtime (defaults to 4/4) so songs written
+  // before it was applied still import, but a malformed one is an error rather
+  // than something silently dropped.
+  if (song.globals.timeSignature !== undefined) {
+    const ts = song.globals.timeSignature;
+    if (
+      !Array.isArray(ts) || ts.length !== 2 ||
+      !ts.every((n) => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 32)
+    ) {
+      return {
+        valid: false,
+        error: {
+          type: 'VALIDATION_ERROR',
+          field: 'globals.timeSignature',
+          message: 'timeSignature must be [numerator, denominator], each an integer 1-32'
+        }
+      };
+    }
+  }
+  if (song.globals.swing !== undefined) {
+    if (typeof song.globals.swing !== 'number' || song.globals.swing < 0 || song.globals.swing > 100) {
+      return { valid: false, error: { type: 'VALIDATION_ERROR', field: 'globals.swing', message: 'swing must be 0-100 (50 = straight)' } };
+    }
   }
 
   // Check tracks exist
