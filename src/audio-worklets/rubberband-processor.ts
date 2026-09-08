@@ -150,7 +150,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-      { name: 'drumDuckDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'drumDuckDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+      { name: 'autoTune', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -173,6 +174,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private chorusBuffer: Float32Array[] = [new Float32Array(48000), new Float32Array(48000)];
   private chorusWritePtr: number = 0;
   private chorusLfoPhase: number = 0;
+
+  // Auto-Tune State
+  private autoTuneLastSign: number = 0;
+  private autoTuneSamplesSinceZero: number = 0;
+  private autoTuneSmoothedPeriod: number = 0;
 
   constructor() {
     super();
@@ -527,6 +533,25 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       finalPitch = Math.pow(2.0, quantizedSemitones / 12.0);
     }
 
+    // Apply Auto-Tune Pitch Correction based on previous block's detected pitch
+    const autoTune = parameters.autoTune ? parameters.autoTune[0] : 0.0;
+    if (autoTune > 0.0 && this.autoTuneSmoothedPeriod > 0) {
+      const fs = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+      const detectedFreq = fs / this.autoTuneSmoothedPeriod;
+
+      // Quantize detected frequency to nearest MIDI note
+      if (detectedFreq > 20 && detectedFreq < 20000) {
+        const midiNote = 12.0 * Math.log2(detectedFreq / 440.0) + 69.0;
+        const nearestMidiNote = Math.round(midiNote);
+        const targetFreq = 440.0 * Math.pow(2.0, (nearestMidiNote - 69.0) / 12.0);
+
+        const correctionRatio = targetFreq / detectedFreq;
+
+        // Blend between uncorrected and fully corrected based on autoTune depth
+        finalPitch *= (1.0 - autoTune) + (autoTune * correctionRatio);
+      }
+    }
+
     this.rubberBand.setPitchScale(finalPitch);
 
     try {
@@ -849,6 +874,32 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.expressiveProcessor.process(outputChannel, outputChannel);
 
         const phonemeFilterMod = parameters.phonemeFilterMod ? parameters.phonemeFilterMod[0] : 0.0;
+
+        // Zero-Crossing Pitch Detection for Auto-Tune
+        if (autoTune > 0.0 && outputChannel.length > 0) {
+            for (let i = 0; i < outputChannel.length; i++) {
+                const sample = outputChannel[i];
+                const currentSign = sample >= 0 ? 1 : -1;
+
+                this.autoTuneSamplesSinceZero++;
+
+                if (currentSign !== this.autoTuneLastSign) {
+                    if (currentSign === 1) { // Positive edge
+                        if (this.autoTuneSamplesSinceZero > 10) { // Filter out very high freq noise (> ~4kHz)
+                            const currentPeriod = this.autoTuneSamplesSinceZero;
+                            if (this.autoTuneSmoothedPeriod === 0) {
+                                this.autoTuneSmoothedPeriod = currentPeriod;
+                            } else {
+                                // Smooth the period measurement
+                                this.autoTuneSmoothedPeriod = this.autoTuneSmoothedPeriod * 0.9 + currentPeriod * 0.1;
+                            }
+                        }
+                        this.autoTuneSamplesSinceZero = 0;
+                    }
+                    this.autoTuneLastSign = currentSign;
+                }
+            }
+        }
 
         // Apply phoneme volume and filter mod
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
