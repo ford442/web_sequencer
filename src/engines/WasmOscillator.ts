@@ -99,6 +99,8 @@ function loadOrder(): Array<{ variant: OscillatorVariant; init: WasmInit }> {
     return [{ variant: 'baseline', init: initOscillatorsBaseline }];
 }
 
+const typeMap = { saw: 0, sqr: 1, tri: 2, sin: 3 };
+
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
@@ -153,7 +155,6 @@ export class WasmOscillator {
         if (!this.isReady || !this.instance || !this.memory) return null;
 
         const exports = this.instance.exports as unknown as OscillatorWasmExports;
-        const typeMap = { saw: 0, sqr: 1, tri: 2, sin: 3 };
 
         // Constraints
         const safeCutoff = Math.max(20, Math.min(rate / 2.1, cutoff));
@@ -163,8 +164,11 @@ export class WasmOscillator {
         // We use offset 0 in the shared memory
         const numSamples = exports.generate(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes);
 
-        // Copy the data out safely using slice()
-        // If we don't slice, the view changes when the next note is generated!
-        return new Float32Array(this.memory.buffer).slice(0, numSamples);
+        // Copy the data out safely by explicitly allocating the returned array size
+        // If we don't copy, the view changes when the next note is generated!
+        // Bolt Optimization: Avoiding .slice() which creates an intermediate view
+        const out = new Float32Array(numSamples);
+        out.set(new Float32Array(this.memory.buffer, 0, numSamples));
+        return out;
     }
 }

@@ -31,11 +31,20 @@ export class WorkletPerfReporter {
   private readonly port: MessagePort;
   private readonly name: string;
   private readonly reportIntervalFrames: number;
+  private readonly cachedSampleRate: number;
   private accProcessUs = 0;
   private accQuantumUs = 0;
   private accBlockFrames = 0;
   private totalUnderruns = 0;
   private lastReportFrame = 0;
+
+  // Bolt Optimization: Instance fields to prevent closure allocations
+  private t0 = 0;
+  private blockFrames = 0;
+  private quantumUs = 0;
+
+  // Bolt Optimization: Pre-allocate message to prevent GC
+  private readonly msg: WorkletPerfMessage;
 
   constructor(
     port: MessagePort,
@@ -44,26 +53,37 @@ export class WorkletPerfReporter {
   ) {
     this.port = port;
     this.name = name;
-    const sr = typeof sampleRate === 'number' && sampleRate > 0 ? sampleRate : 48000;
-    this.reportIntervalFrames = Math.max(128, Math.floor((sr * reportIntervalMs) / 1000));
+    this.cachedSampleRate = typeof sampleRate === 'number' && sampleRate > 0 ? sampleRate : 48000;
+    this.reportIntervalFrames = Math.max(128, Math.floor((this.cachedSampleRate * reportIntervalMs) / 1000));
     this.lastReportFrame = typeof currentFrame === 'number' ? currentFrame : 0;
+
+    this.msg = {
+      type: WORKLET_PERF_MSG_TYPE,
+      name: this.name,
+      cpuPercent: 0,
+      underruns: 0,
+      blockFrames: 0,
+      processUs: 0,
+      quantumUs: 0,
+    };
   }
 
-  /** Call at start of process(); invoke returned fn at end (prefer finally). */
-  beginProcess(blockFrames: number): () => void {
-    const t0 = nowUs();
-    const sr = typeof sampleRate === 'number' && sampleRate > 0 ? sampleRate : 48000;
-    const quantumUs = (blockFrames / sr) * 1_000_000;
-    return () => {
-      const processUs = nowUs() - t0;
-      this.accProcessUs += processUs;
-      this.accQuantumUs += quantumUs;
-      this.accBlockFrames += blockFrames;
-      if (processUs > quantumUs) {
-        this.totalUnderruns += 1;
-      }
-      this.maybeFlush();
-    };
+  /** Call at start of process(); invoke endProcess() at end (prefer finally). */
+  beginProcess(blockFrames: number): void {
+    this.t0 = nowUs();
+    this.blockFrames = blockFrames;
+    this.quantumUs = (blockFrames / this.cachedSampleRate) * 1_000_000;
+  }
+
+  endProcess(): void {
+    const processUs = nowUs() - this.t0;
+    this.accProcessUs += processUs;
+    this.accQuantumUs += this.quantumUs;
+    this.accBlockFrames += this.blockFrames;
+    if (processUs > this.quantumUs) {
+      this.totalUnderruns += 1;
+    }
+    this.maybeFlush();
   }
 
   private maybeFlush(): void {
@@ -78,18 +98,14 @@ export class WorkletPerfReporter {
         ? Math.min(100, (this.accProcessUs / this.accQuantumUs) * 100)
         : 0;
 
-    const msg: WorkletPerfMessage = {
-      type: WORKLET_PERF_MSG_TYPE,
-      name: this.name,
-      cpuPercent,
-      underruns: this.totalUnderruns,
-      blockFrames: this.accBlockFrames,
-      processUs: this.accProcessUs,
-      quantumUs: this.accQuantumUs,
-    };
+    this.msg.cpuPercent = cpuPercent;
+    this.msg.underruns = this.totalUnderruns;
+    this.msg.blockFrames = this.accBlockFrames;
+    this.msg.processUs = this.accProcessUs;
+    this.msg.quantumUs = this.accQuantumUs;
 
     try {
-      this.port.postMessage(msg);
+      this.port.postMessage(this.msg);
     } catch {
       /* port may be closed during teardown */
     }

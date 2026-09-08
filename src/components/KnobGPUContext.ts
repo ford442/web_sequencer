@@ -277,6 +277,7 @@ class KnobGPUContextClass {
     private pipeline: GPURenderPipeline | null = null;
     private format: GPUTextureFormat | null = null;
     private slots = new Map<number, Slot>();
+    private scratchUniforms = new Float32Array(4);
     private registrations = new Map<number, Registration>();
     private pendingIds = new Set<number>();
     private nextId = 1;
@@ -939,8 +940,11 @@ class KnobGPUContextClass {
 
                 const value = slot.getValue();
                 const time = resolveKnobTimeUniform(nowSeconds, slot.animated, reduced);
-                const uniforms = new Float32Array([time, value, slot.width, slot.height]);
-                this.device.queue.writeBuffer(slot.uniformBuffer, 0, uniforms);
+                this.scratchUniforms[0] = time;
+                this.scratchUniforms[1] = value;
+                this.scratchUniforms[2] = slot.width;
+                this.scratchUniforms[3] = slot.height;
+                this.device.queue.writeBuffer(slot.uniformBuffer, 0, this.scratchUniforms);
 
                 const pass = encoder.beginRenderPass({
                     colorAttachments: [{

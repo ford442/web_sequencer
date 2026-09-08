@@ -179,7 +179,7 @@ private envelopes: number[] = [];
         }
 
         const blockFrames = carrierInput.length;
-        const endPerf = this.perf.beginProcess(blockFrames);
+        this.perf.beginProcess(blockFrames);
         try {
         const mixParams = parameters.mix;
         const isMixConstant = mixParams.length === 1;
@@ -226,7 +226,7 @@ private envelopes: number[] = [];
 
         return true;
         } finally {
-            endPerf();
+            this.perf.endProcess();
         }
     }
 

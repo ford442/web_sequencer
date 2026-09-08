@@ -246,6 +246,11 @@ export const useWebGPUScope = (
       // ---------------------------------------------------------
       // 3. Render Loop
       // ---------------------------------------------------------
+      const paramData = new Float32Array(8);
+      const uintView = new Uint32Array(paramData.buffer);
+      const colorDataCyan = new Float32Array([0.2, 0.9, 1.0, 1.0]);
+      const colorDataPink = new Float32Array([1.0, 0.2, 0.8, 1.0]);
+
       const renderFrame = () => {
         if (isCleanedUp || !deviceRef.current) return;
 
@@ -268,25 +273,20 @@ export const useWebGPUScope = (
         // Structure must match WGSL struct Params exactly
         // slot 3: sustain level derived from volume (0-1 range) — filterResonance repurposed
         const sustainLevel = Math.max(0, Math.min(1, currentParams.volume));
-        const paramData = new Float32Array([
-          0, // placeholder for u32 waveform (we'll cast view)
-          freq,
-          currentParams.filterCutoff,
-          sustainLevel,       // sustain (was filterResonance)
-          currentParams.attack,
-          currentParams.decay,
-          currentParams.volume,
-          (Date.now() - startTimeRef.current) / 1000.0 // Update time
-        ]);
+
+        paramData[1] = freq;
+        paramData[2] = currentParams.filterCutoff;
+        paramData[3] = sustainLevel;
+        paramData[4] = currentParams.attack;
+        paramData[5] = currentParams.decay;
+        paramData[6] = currentParams.volume;
+        paramData[7] = (Date.now() - startTimeRef.current) / 1000.0;
 
         // Cast to uint32 for the first slot
-        const uintView = new Uint32Array(paramData.buffer);
         uintView[0] = waveIndex;
 
         // UPDATE ACCENT COLOR
-        const colorData = currentAccent === 'cyan'
-          ? new Float32Array([0.2, 0.9, 1.0, 1.0])
-          : new Float32Array([1.0, 0.2, 0.8, 1.0]);
+        const colorData = currentAccent === 'cyan' ? colorDataCyan : colorDataPink;
 
         // Check refs before writing to avoid null access if something went wrong
         if (accentColorBufferRef.current) {
