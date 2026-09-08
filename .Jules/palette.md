@@ -50,3 +50,10 @@
 ## 2026-09-06 - [Standardizing Empty States for Import Modals]
 **Learning:** Modals that handle file imports (like AI Song or RBS) have nested content panels for displaying parsed data (like track stats and parameter summaries). These panels previously just returned `null` when empty. However, replacing the `null` return with a standardized empty state (dashed border, centered icon) makes the UI feel more cohesive and intentionally designed, signaling to the user where data *will* appear once the parsing is complete.
 **Action:** Continue replacing plain `return null` statements in data-display panels with standardized empty states, keeping in mind that status/alert banners should still return `null` to avoid visual noise.
+
+## 2026-09-08 - Accessible Decorative Icons in Buttons
+**Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
+**Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
+## 2026-09-08 - Accessible Decorative Icons in Buttons
+**Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
+**Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.

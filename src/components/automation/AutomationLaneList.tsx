@@ -118,7 +118,7 @@ const LaneRow = memo(({
         className="text-gray-500 hover:text-red-400 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] rounded"
         onClick={(e) => { e.stopPropagation(); onRemove(lane.id); }}
       >
-        ✕
+        <span aria-hidden="true">✕</span>
       </button>
     </div>
   );

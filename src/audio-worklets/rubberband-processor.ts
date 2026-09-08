@@ -108,6 +108,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private startSamplePtr = 0;
   private endSamplePtr = 0;
   private basePitch = 1.0;
+  private targetHz: number = 0;
   static get parameterDescriptors() {
     return [
       { name: 'pitchScale', defaultValue: 1.0, minValue: 0.1, maxValue: 4.0 },
@@ -158,6 +159,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Syllable Volume Filter State
   private volFilterLp: number[] = [0, 0];
   private volFilterCutoffSmooth: number = 20000;
+
+  // Pitch Correction State
+  private pitchDetectState = {
+    lastSample: 0,
+    lastCrossIndex: 0,
+    periods: new Float32Array(5),
+    periodIndex: 0,
+    lastValidF0: 0,
+    smoothCorr: 1.0
+  };
 
   // Sub Harmonics State
   private subState = {
@@ -271,6 +282,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Store base pitch for combination with parameters
         this.basePitch = data.pitch || 1.0;
+        if (data.targetHz) {
+           this.targetHz = data.targetHz;
+        }
         this.rubberBand.setPitchScale(this.basePitch);
         this.rubberBand.setTimeRatio(1.0);
         this.expressiveProcessor.reset();
@@ -525,12 +539,87 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
     }
 
-    // Granular Pitch Quantization: snap pitch to intervals when active
-    const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
-    if (grainPitchQuantize > 0.0 && finalPitch > 0.0) {
-      const semitones = 12.0 * Math.log2(finalPitch);
-      const quantizedSemitones = Math.round(semitones / grainPitchQuantize) * grainPitchQuantize;
-      finalPitch = Math.pow(2.0, quantizedSemitones / 12.0);
+    // Pitch Correction (AutoTune)
+    const autoTuneAmount = parameters.autoTune ? parameters.autoTune[0] : 0.0;
+    const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+
+    if (autoTuneAmount > 0.0 && this.isPlaying && this.fullSampleBuffer && this.targetHz > 0) {
+      const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+      const isVowel = pData[7] > 0;
+
+      // Only attempt detection on voiced vowels with sufficient envelope
+      if (isVowel && envelopeValue > 0.01) {
+        // Fast zero-crossing period detector on the input buffer slice
+        const searchFrames = Math.min(1024, this.fullSampleBuffer.length - this.currentSamplePtr);
+        const minPeriod = Math.floor(sRate / 400); // 400 Hz max
+        const maxPeriod = Math.floor(sRate / 70);  // 70 Hz min
+
+        let crosses = 0;
+
+        for (let i = 0; i < searchFrames; i++) {
+          const idx = this.currentSamplePtr + i;
+          const x = this.fullSampleBuffer[idx];
+
+          // Hysteresis threshold to avoid noise false triggers
+          if (x > 0.02 && this.pitchDetectState.lastSample <= 0.02) {
+            // Positive edge crossing
+            const currentCrossIndex = idx;
+            if (this.pitchDetectState.lastCrossIndex > 0) {
+              const period = currentCrossIndex - this.pitchDetectState.lastCrossIndex;
+              if (period >= minPeriod && period <= maxPeriod) {
+                 this.pitchDetectState.periods[this.pitchDetectState.periodIndex] = period;
+                 this.pitchDetectState.periodIndex = (this.pitchDetectState.periodIndex + 1) % 5;
+                 crosses++;
+                 // We only need one valid period to update the state, but we can search for a few to fill the median buffer quickly if empty
+                 if (crosses >= 2) break;
+              }
+            }
+            this.pitchDetectState.lastCrossIndex = currentCrossIndex;
+          }
+          this.pitchDetectState.lastSample = x;
+        }
+
+        // Calculate median period if we have valid data
+        let validPeriods = 0;
+        let sum = 0;
+        for (let i = 0; i < 5; i++) {
+          if (this.pitchDetectState.periods[i] > 0) {
+             validPeriods++;
+             sum += this.pitchDetectState.periods[i];
+          }
+        }
+
+        if (validPeriods > 0) {
+           const avgPeriod = sum / validPeriods;
+           this.pitchDetectState.lastValidF0 = sRate / avgPeriod;
+        }
+      }
+
+      // Apply correction based on last valid F0 (held during consonants)
+      if (this.pitchDetectState.lastValidF0 > 0) {
+         const rawCorr = Math.max(0.5, Math.min(2.0, this.targetHz / this.pitchDetectState.lastValidF0));
+         const corr = 1.0 + autoTuneAmount * (rawCorr - 1.0);
+
+         // Medium-fast block rate smoothing (alpha ~0.2)
+         this.pitchDetectState.smoothCorr = this.pitchDetectState.smoothCorr * 0.8 + corr * 0.2;
+         finalPitch *= this.pitchDetectState.smoothCorr;
+      } else {
+         // Decay back to 1.0 if no valid F0 ever detected
+         this.pitchDetectState.smoothCorr = this.pitchDetectState.smoothCorr * 0.8 + 1.0 * 0.2;
+         finalPitch *= this.pitchDetectState.smoothCorr;
+      }
+    } else {
+      // Decay back to 1.0 if bypassed
+      this.pitchDetectState.smoothCorr = this.pitchDetectState.smoothCorr * 0.8 + 1.0 * 0.2;
+      finalPitch *= this.pitchDetectState.smoothCorr;
+
+      // Granular Pitch Quantization: snap pitch to intervals when active (only if autoTune is off to prevent fighting)
+      const grainPitchQuantize = parameters.grainPitchQuantize ? parameters.grainPitchQuantize[0] : 0.0;
+      if (grainPitchQuantize > 0.0 && finalPitch > 0.0) {
+        const semitones = 12.0 * Math.log2(finalPitch);
+        const quantizedSemitones = Math.round(semitones / grainPitchQuantize) * grainPitchQuantize;
+        finalPitch = Math.pow(2.0, quantizedSemitones / 12.0);
+      }
     }
 
     // Apply Auto-Tune Pitch Correction based on previous block's detected pitch

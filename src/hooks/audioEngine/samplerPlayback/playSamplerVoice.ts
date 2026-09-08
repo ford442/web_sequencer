@@ -1,6 +1,7 @@
 import type { SingingVoice } from "../../../engines/SingingVoice";
 import { noteToMidi } from "../../../utils/musicTheory";
 import { getSyncedSeconds, getSyncedLfoHz } from "../syncUtils";
+import { tunedNoteToFrequency } from "../../../utils/musicTheory";
 import { makeDistortionCurve } from "../distortion";
 import { resolveExpressiveness } from "./expressiveness";
 import { releaseStretchFxRouting, wireStretchFxRouting } from "./samplerStretchFx";
@@ -416,6 +417,8 @@ export function createPlaySamplerVoice(
 
         // 2. Pitch Shift (with offset for harmonizer and slide support)
         const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
+        const targetHz = tunedNoteToFrequency(noteStr, tuning ?? null) * Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
+
         if (noteParams?.slideFromMidi !== undefined) {
           const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
           voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
@@ -450,7 +453,7 @@ export function createPlaySamplerVoice(
           voice.setPitchAmount(pPitchAmount, triggerTime);
         }
 
-        voice.play(undefined, undefined, 1.0, noteParams?.reverse);
+        voice.play(undefined, undefined, 1.0, noteParams?.reverse, targetHz);
 
         const releaseTime = triggerTime + targetDuration;
         // ⚡ Bolt Optimization: Replace main-thread setTimeout with worklet-scheduled noteOff
