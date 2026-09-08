@@ -138,7 +138,7 @@ describe('RbsImporter TB-303 fidelity', () => {
       })
     );
 
-    const lane = result.song.automation?.find((l) => l.name === 'PCF → Synth A Filter');
+    const lane = result.song.automation?.find((l) => l.name === 'PCF → TB-303 A Filter');
     expect(lane).toBeDefined();
     expect(lane!.parameter).toBe('filterCutoff');
     const values = lane!.points.map((p) => p[1]);

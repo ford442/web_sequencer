@@ -4,6 +4,11 @@
  */
 
 import type { AutomationTarget } from '../../types';
+import { DEFAULT_RBS_IMPORT_OPTIONS, resolveTb303Target } from './importOptions';
+import type { RbsImportOptions } from './types';
+
+/** Subset of the import options that decides which voice a TB-303 track drives. */
+export type TrakRoutingOptions = Pick<RbsImportOptions, 'tb303ATarget' | 'tb303BTarget'>;
 
 /** Semantic category for a TRAK event after track + ctrl resolution. */
 export type TrakEventKind =
@@ -209,42 +214,28 @@ export function isTrakParamAutomationEvent(
 export function resolveTrakParamMapping(
   trackIndex: number,
   controllerId: number,
+  options: TrakRoutingOptions = DEFAULT_RBS_IMPORT_OPTIONS,
 ): TrakParamMapping | null {
-  // TB-303 #1 → synthA (partA / lead303)
-  if (trackIndex === 1) {
-    switch (controllerId) {
-      case TB303_TRAK_CONTROLLER.CUTOFF:
-        return { target: 'synthA', parameter: 'filterCutoff', valueScale: '0-127' };
-      case TB303_TRAK_CONTROLLER.RESONANCE:
-        return { target: 'synthA', parameter: 'filterResonance', valueScale: '0-127' };
-      case TB303_TRAK_CONTROLLER.ENVMOD:
-        return { target: 'synthA', parameter: 'envMod', valueScale: '0-127' };
-      case TB303_TRAK_CONTROLLER.DECAY:
-        return { target: 'synthA', parameter: 'decay', valueScale: '0-127' };
-      case TB303_TRAK_CONTROLLER.ACCENT:
-        return { target: 'synthA', parameter: 'accent', valueScale: '0-127' };
-      case TB303_TRAK_CONTROLLER.TUNE:
-        return { target: 'synthA', parameter: 'tune', valueScale: '0-127' };
-      default:
-        return null;
-    }
-  }
+  // TB-303 #1 / #2 follow the same routing options as the imported notes, so a
+  // track's knob automation lands on the voice that plays its notes.
+  const tb303A = resolveTb303Target(options.tb303ATarget);
+  const tb303B = resolveTb303Target(options.tb303BTarget);
 
-  // TB-303 #2 → synthB (partB / bass1)
-  if (trackIndex === 2) {
+  if (trackIndex === 1 || trackIndex === 2) {
+    const target = trackIndex === 1 ? tb303A : tb303B;
     switch (controllerId) {
       case TB303_TRAK_CONTROLLER.CUTOFF:
-        return { target: 'synthB', parameter: 'filterCutoff', valueScale: '0-127' };
+        return { target, parameter: 'filterCutoff', valueScale: '0-127' };
       case TB303_TRAK_CONTROLLER.RESONANCE:
-        return { target: 'synthB', parameter: 'filterResonance', valueScale: '0-127' };
+        return { target, parameter: 'filterResonance', valueScale: '0-127' };
       case TB303_TRAK_CONTROLLER.ENVMOD:
-        return { target: 'synthB', parameter: 'envMod', valueScale: '0-127' };
+        return { target, parameter: 'envMod', valueScale: '0-127' };
       case TB303_TRAK_CONTROLLER.DECAY:
-        return { target: 'synthB', parameter: 'decay', valueScale: '0-127' };
+        return { target, parameter: 'decay', valueScale: '0-127' };
       case TB303_TRAK_CONTROLLER.ACCENT:
-        return { target: 'synthB', parameter: 'accent', valueScale: '0-127' };
+        return { target, parameter: 'accent', valueScale: '0-127' };
       case TB303_TRAK_CONTROLLER.TUNE:
-        return { target: 'synthB', parameter: 'tune', valueScale: '0-127' };
+        return { target, parameter: 'tune', valueScale: '0-127' };
       default:
         return null;
     }
@@ -268,9 +259,9 @@ export function resolveTrakParamMapping(
   if (trackIndex === 0) {
     switch (controllerId) {
       case MIXER_TRAK_CONTROLLER.TB303A_MIX_LEVEL:
-        return { target: 'synthA', parameter: 'volume', valueScale: '0-127' };
+        return { target: tb303A, parameter: 'volume', valueScale: '0-127' };
       case MIXER_TRAK_CONTROLLER.TB303B_MIX_LEVEL:
-        return { target: 'synthB', parameter: 'volume', valueScale: '0-127' };
+        return { target: tb303B, parameter: 'volume', valueScale: '0-127' };
       default:
         return null;
     }
@@ -284,8 +275,9 @@ export function normaliseTrakParamValue(
   trackIndex: number,
   controllerId: number,
   rawValue: number,
+  options?: TrakRoutingOptions,
 ): number {
-  const mapping = resolveTrakParamMapping(trackIndex, controllerId);
+  const mapping = resolveTrakParamMapping(trackIndex, controllerId, options);
   if (!mapping) {
     return Math.max(0, Math.min(1, rawValue / 127));
   }

@@ -1,5 +1,6 @@
 import { render, fireEvent } from '@testing-library/react';
 import { LiveKeyboard } from '../components/LiveKeyboard';
+import { MIN_KEYBOARD_OCTAVE, MAX_KEYBOARD_OCTAVE } from '../utils/keyboardOctave';
 
 describe('LiveKeyboard', () => {
   beforeEach(() => {
@@ -110,7 +111,7 @@ describe('LiveKeyboard', () => {
       expect(getByText('OCT 5')).toBeTruthy();
     });
 
-    test('re-triggers held notes at the new octave when shifted mid-hold', () => {
+    test('leaves held notes at the pitch they were pressed at', () => {
       const onPlay = vi.fn();
       const onStop = vi.fn();
       render(<LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#fff" />);
@@ -120,8 +121,46 @@ describe('LiveKeyboard', () => {
 
       onPlay.mockClear();
       fireEvent.keyDown(window, { code: 'BracketLeft' });
+
+      // The sounding voice is untouched: no retune, no stray note-off.
+      expect(onStop).not.toHaveBeenCalled();
+      expect(onPlay).not.toHaveBeenCalled();
+    });
+
+    test('releases a note shifted mid-hold at its original pitch', () => {
+      const onPlay = vi.fn();
+      const onStop = vi.fn();
+      render(<LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#fff" />);
+
+      fireEvent.keyDown(window, { code: 'F8' });
+      expect(onPlay).toHaveBeenCalledWith('C5');
+
+      fireEvent.keyDown(window, { code: 'BracketLeft' });
+      fireEvent.keyUp(window, { code: 'F8' });
+
+      // The note-off must match the note-on, not the octave now displayed.
+      expect(onStop).toHaveBeenCalledTimes(1);
       expect(onStop).toHaveBeenCalledWith('C5');
-      expect(onPlay).toHaveBeenCalledWith('C4');
+      expect(onStop).not.toHaveBeenCalledWith('C4');
+    });
+
+    test('presses after a shift use the new octave', () => {
+      const onPlay = vi.fn();
+      const onStop = vi.fn();
+      render(<LiveKeyboard onPlayNote={onPlay} onStopNote={onStop} activeTrackColor="#fff" />);
+
+      // Hold one key across the shift, then press a second one.
+      fireEvent.keyDown(window, { code: 'F8' });
+      fireEvent.keyDown(window, { code: 'BracketLeft' });
+      fireEvent.keyDown(window, { code: 'F7' });
+
+      expect(onPlay).toHaveBeenCalledWith('C5');  // pressed at octave 5
+      expect(onPlay).toHaveBeenCalledWith('D4');  // pressed at octave 4
+
+      fireEvent.keyUp(window, { code: 'F8' });
+      fireEvent.keyUp(window, { code: 'F7' });
+      expect(onStop).toHaveBeenCalledWith('C5');
+      expect(onStop).toHaveBeenCalledWith('D4');
     });
 
     test('clamps at the range bounds and disables the button', () => {
@@ -129,12 +168,13 @@ describe('LiveKeyboard', () => {
         <LiveKeyboard onPlayNote={vi.fn()} onStopNote={vi.fn()} activeTrackColor="#fff" />
       );
 
+      // Overshoot both edges: the octave must saturate, never wrap around.
       for (let i = 0; i < 10; i++) fireEvent.keyDown(window, { code: 'BracketLeft' });
-      expect(getByText('OCT 1')).toBeTruthy();
+      expect(getByText(`OCT ${MIN_KEYBOARD_OCTAVE}`)).toBeTruthy();
       expect((getByLabelText('Octave down') as HTMLButtonElement).disabled).toBe(true);
 
       for (let i = 0; i < 20; i++) fireEvent.keyDown(window, { code: 'BracketRight' });
-      expect(getByText('OCT 7')).toBeTruthy();
+      expect(getByText(`OCT ${MAX_KEYBOARD_OCTAVE}`)).toBeTruthy();
       expect((getByLabelText('Octave up') as HTMLButtonElement).disabled).toBe(true);
     });
 

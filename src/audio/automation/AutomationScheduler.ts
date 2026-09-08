@@ -103,6 +103,30 @@ function clamp01(v: number): number {
 const PROPHECY_AUTOMATION_PARAMS = new Set(['vowel', 'portamento', 'formantShift']);
 
 /**
+ * Dev-only guard for the lane value invariant: every `AutomationLanePoint.value`
+ * is normalised to [0, 1] (see `AutomationLanePoint` in types.ts).  A lane that
+ * stores raw engine units (Hz, 0–127 MIDI …) would be silently clamped to the
+ * parameter maximum, so reject the point instead of scheduling a wrong value.
+ *
+ * @returns `true` when the value may be scheduled.
+ */
+function assertNormalizedLaneValue(
+  lane: UnifiedAutomationLane,
+  step: number,
+  value: number,
+): boolean {
+  if (!import.meta.env.DEV) return true;
+  if (Number.isFinite(value) && value >= 0 && value <= 1) return true;
+  console.error(
+    `[AutomationScheduler] Lane "${lane.name}" (${lane.target}.${lane.parameter}, ` +
+    `source=${lane.source}) has a non-normalised point value ${value} at step ${step}. ` +
+    'AutomationPoint.value must be in [0, 1]; originalRange is display metadata only. ' +
+    'Point rejected.',
+  );
+  return false;
+}
+
+/**
  * Convert a normalised MIDI value to Hz using an exponential curve that
  * spans the human-audible range: `normMidi = 0` → 20 Hz, `normMidi = 1`
  * → 20 000 Hz.  The formula is `20 × 1000^normMidi`.
@@ -223,15 +247,12 @@ export class AutomationScheduler {
       for (const lane of lanes) {
         if (!lane.enabled) continue;
 
-        const rawVal = automationStore.getValueAtStep(lane, step);
-        if (rawVal === null) continue;
+        const value = automationStore.getValueAtStep(lane, step);
+        if (value === null) continue;
 
-        // Denormalise using the lane's originalRange if present.
-        let value = rawVal;
-        if (lane.originalRange) {
-          const [min, max] = lane.originalRange;
-          value = min + rawVal * (max - min);
-        }
+        // Lane point values are normalised to [0, 1] by contract; `originalRange`
+        // is display metadata and is deliberately NOT applied here.
+        if (!assertNormalizedLaneValue(lane, step, value)) continue;
 
         this._scheduleParam(
           lane.target,
@@ -465,6 +486,10 @@ export class AutomationScheduler {
         break;
       case 'drive':
         mgr.scheduleParamAtTime(voice, 'setDrive', v, effectiveTime);
+        break;
+      case 'tune':
+        // TRAK TUNE controller (rbs.h tb303_event_t 0x02) → OPEN303_TUNING.
+        mgr.scheduleParamAtTime(voice, 'setTuning', v, effectiveTime);
         break;
       default:
         break;

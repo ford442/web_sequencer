@@ -49,6 +49,15 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     ],
   },
   {
+    title: 'Live Keyboard',
+    items: [
+      { key: '[', desc: 'Shift live keyboard down one octave' },
+      { key: ']', desc: 'Shift live keyboard up one octave' },
+      { key: 'F1 - F8', desc: 'Play white keys (C to C)' },
+      { key: '4, 5, 6, 8, 9', desc: 'Play black keys' },
+    ],
+  },
+  {
     title: 'Navigation',
     items: [
       { key: 'Tab', desc: 'Focus Next Element' },

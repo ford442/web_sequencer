@@ -2,18 +2,35 @@ import type {
   Tb303Step, PcfSettings, AutomationLane, HyphonAutomationLane,
 } from '../types';
 import { clampNormalized } from '../importer-types';
+import { resolveTb303Target } from '../importOptions';
 import { convertCutoffToHz } from './parameterCurves';
 import type { ImporterContext } from './importerContext';
 
-/** Resolve a tb303ATarget / tb303BTarget option string to HyphonAutomationLane target. */
-export function resolveTb303Target(
-  option: 'partA' | 'partB' | 'bass2',
-): HyphonAutomationLane['target'] {
-  switch (option) {
-    case 'bass2': return 'bass2';
-    case 'partB': return 'synthB';
-    case 'partA':
-    default: return 'synthA';
+export { resolveTb303Target };
+
+/**
+ * Parameter name for a filter knob on a resolved target.
+ *
+ * `SynthParams` (partA/partB) names them `filterCutoff` / `filterResonance`;
+ * `Bass2Params` names them `cutoff` / `resonance`.  The scheduler accepts both
+ * spellings, but emitting the target's own key keeps lanes bindable to the
+ * hardware knobs for that track.
+ */
+function filterParamForTarget(
+  target: HyphonAutomationLane['target'],
+  knob: 'cutoff' | 'resonance',
+): string {
+  if (target === 'bass2') return knob;
+  return knob === 'cutoff' ? 'filterCutoff' : 'filterResonance';
+}
+
+/** Display label for a resolved TB-303 lane target. */
+function trackLabelForTarget(target: HyphonAutomationLane['target']): string {
+  switch (target) {
+    case 'synthA': return 'TB-303 A';
+    case 'synthB': return 'TB-303 B';
+    case 'bass2': return 'Bass 2';
+    default: return String(target);
   }
 }
 
@@ -55,10 +72,11 @@ export function convertPcfToAutomation(
   const baseCutoffHz = convertCutoffToHz(pcf.cutoff);
 
   if (pcf.target.tb303A) {
+    const target = resolveTb303Target(ctx.options.tb303ATarget);
     automation.push({
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      name: 'PCF → Synth A Filter',
+      target,
+      parameter: filterParamForTarget(target, 'cutoff'),
+      name: `PCF → ${trackLabelForTarget(target)} Filter`,
       points: convertPcfPatternToPoints(ctx, pcf.pattern, baseCutoffHz),
       interpolation: ctx.options.interpolateAutomation ? 'smooth' : 'linear',
       originalRange: [0, 127],
@@ -66,26 +84,22 @@ export function convertPcfToAutomation(
   }
 
   if (pcf.target.tb303B) {
+    const target = resolveTb303Target(ctx.options.tb303BTarget);
     automation.push({
-      target: 'synthB',
-      parameter: 'filterCutoff',
-      name: 'PCF → Synth B Filter',
+      target,
+      parameter: filterParamForTarget(target, 'cutoff'),
+      name: `PCF → ${trackLabelForTarget(target)} Filter`,
       points: convertPcfPatternToPoints(ctx, pcf.pattern, baseCutoffHz),
       interpolation: ctx.options.interpolateAutomation ? 'smooth' : 'linear',
       originalRange: [0, 127],
     });
   }
 
-  if (pcf.target.drums) {
-    automation.push({
-      target: 'master',
-      parameter: 'drumPcfModulation',
-      name: 'PCF → Drum Filter',
-      points: convertPcfPatternToPoints(ctx, pcf.pattern, pcf.envAmount / 127),
-      interpolation: ctx.options.interpolateAutomation ? 'smooth' : 'linear',
-      originalRange: [0, 127],
-    });
-  }
+  // `pcf.target.drums` is intentionally not converted to a lane: Hyphon has no
+  // per-drum-bus PCF endpoint, so a `master.drumPcfModulation` lane would only
+  // schedule into a no-op.  The flag is preserved losslessly in
+  // `song.rbsMetadata.pcfSettings` (and in `song.pcfFilter` when
+  // `importPcfAsFilter` is set) for re-export and future routing.
 
   return automation;
 }
@@ -111,10 +125,7 @@ export function generateAccentSlideAutomation(
     if (src.slide) hasSlide = true;
   }
 
-  const trackLabel =
-    target === 'synthA' ? 'TB-303 A' :
-      target === 'synthB' ? 'TB-303 B' :
-        'Bass 2';
+  const trackLabel = trackLabelForTarget(target);
 
   const lanes: HyphonAutomationLane[] = [];
 
@@ -190,51 +201,46 @@ export function convertAutomationLane(
   let parameter: string;
   let name: string;
 
+  // TB-303 lanes follow the same routing option as the notes for that voice.
+  const tb303A = resolveTb303Target(ctx.options.tb303ATarget);
+  const tb303B = resolveTb303Target(ctx.options.tb303BTarget);
+
   switch (lane.parameter) {
-    case 'tempo':
-      target = 'master';
-      parameter = 'tempo';
-      name = lane.name || 'Tempo';
-      break;
-    case 'swing':
-      target = 'master';
-      parameter = 'swing';
-      name = lane.name || 'Swing';
-      break;
     case 'tb303Acutoff':
-      target = 'synthA';
-      parameter = 'filterCutoff';
-      name = lane.name || 'TB-303 A Cutoff';
+      target = tb303A;
+      parameter = filterParamForTarget(tb303A, 'cutoff');
+      name = lane.name || `${trackLabelForTarget(tb303A)} Cutoff`;
       break;
     case 'tb303Bcutoff':
-      target = 'synthB';
-      parameter = 'filterCutoff';
-      name = lane.name || 'TB-303 B Cutoff';
+      target = tb303B;
+      parameter = filterParamForTarget(tb303B, 'cutoff');
+      name = lane.name || `${trackLabelForTarget(tb303B)} Cutoff`;
       break;
     case 'tb303Aresonance':
-      target = 'synthA';
-      parameter = 'filterResonance';
-      name = lane.name || 'TB-303 A Resonance';
+      target = tb303A;
+      parameter = filterParamForTarget(tb303A, 'resonance');
+      name = lane.name || `${trackLabelForTarget(tb303A)} Resonance`;
       break;
     case 'tb303Bresonance':
-      target = 'synthB';
-      parameter = 'filterResonance';
-      name = lane.name || 'TB-303 B Resonance';
+      target = tb303B;
+      parameter = filterParamForTarget(tb303B, 'resonance');
+      name = lane.name || `${trackLabelForTarget(tb303B)} Resonance`;
       break;
     case 'tb303Adecay':
-      target = 'synthA';
+      target = tb303A;
       parameter = 'decay';
-      name = lane.name || 'TB-303 A Decay';
+      name = lane.name || `${trackLabelForTarget(tb303A)} Decay`;
       break;
     case 'tb303Bdecay':
-      target = 'synthB';
+      target = tb303B;
       parameter = 'decay';
-      name = lane.name || 'TB-303 B Decay';
+      name = lane.name || `${trackLabelForTarget(tb303B)} Decay`;
       break;
     case 'pcfCutoff':
       target = 'master';
-      parameter = 'pcfModulation';
-      name = lane.name || 'PCF Modulation';
+      // Must match the name AutomationScheduler._applyPcfParam dispatches on.
+      parameter = 'pcfCutoff';
+      name = lane.name || 'PCF Cutoff';
       break;
     case 'pcfResonance':
       target = 'master';
@@ -246,11 +252,11 @@ export function convertAutomationLane(
       parameter = 'pcfEnvAmount';
       name = lane.name || 'PCF Env Amount';
       break;
-    case 'masterVolume':
-      target = 'master';
-      parameter = 'volume';
-      name = lane.name || 'Master Volume';
-      break;
+    // 'tempo', 'swing' and 'masterVolume' are deliberately dropped: the
+    // scheduler has no audio-clock endpoint for them (tempo/swing are transport
+    // state applied from `song.tempo` / `song.swing`; master volume has no node
+    // wired into AutomationScheduler), so a lane would schedule into a no-op.
+    // The values remain available in `song.rbsMetadata.automation`.
     default:
       return null;
   }

@@ -20,6 +20,7 @@ declare function registerProcessor(name: string, processorCtor: new () => AudioW
 // (keeps the existing message protocol while supporting the new native API)
 const JC303_PARAM_MAP: Record<string, number> = {
     jc303_setWaveform:   0,  // OPEN303_WAVEFORM
+    jc303_setTuning:     1,  // OPEN303_TUNING
     jc303_setCutoff:     2,  // OPEN303_CUTOFF
     jc303_setResonance:  3,  // OPEN303_RESONANCE
     jc303_setEnvMod:     4,  // OPEN303_ENV_MOD

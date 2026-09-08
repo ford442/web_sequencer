@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RbsImporter } from '../importers/rbs/RbsImporter';
-import type { RawRbsData, Tb303Step } from '../importers/rbs/types';
+import { DEFAULT_RBS_IMPORT_OPTIONS } from '../importers/rbs/types';
+import type { HyphonAutomationLane, RawRbsData, Tb303Step } from '../importers/rbs/types';
 
 function makeSteps(): Tb303Step[] {
   return Array.from({ length: 16 }, (_, index) => ({
@@ -97,9 +98,13 @@ describe('RbsImporter', () => {
     expect(result.song.pattern.partB.steps).toHaveLength(32);
 
     const lanes = result.song.automation ?? [];
-    expect(lanes.some((lane) => lane.name === 'PCF → Synth A Filter')).toBe(true);
-    expect(lanes.some((lane) => lane.name === 'PCF → Synth B Filter')).toBe(true);
-    expect(lanes.some((lane) => lane.name === 'PCF → Drum Filter')).toBe(true);
+    // PCF lanes follow the tb303A/tb303B routing options (defaults: partA, bass2).
+    expect(lanes.some((lane) => lane.name === 'PCF → TB-303 A Filter')).toBe(true);
+    expect(lanes.some((lane) => lane.name === 'PCF → Bass 2 Filter')).toBe(true);
+    // The drum PCF target has no schedulable endpoint, so no lane is emitted;
+    // it stays in rbsMetadata.pcfSettings instead.
+    expect(lanes.some((lane) => lane.parameter === 'drumPcfModulation')).toBe(false);
+    expect(result.song.rbsMetadata?.pcfSettings.target.drums).toBe(true);
 
     const importedCutoffLane = lanes.find((lane) => lane.name === 'Cutoff A');
     expect(importedCutoffLane).toBeDefined();
@@ -219,10 +224,12 @@ describe('RbsImporter', () => {
     expect(resA?.target).toBe('synthA');
     expect(resA?.parameter).toBe('filterResonance');
 
+    // TB-303 #2 routing follows tb303BTarget (default 'bass2').
     const resB = lanes.find((l) => l.name === 'Resonance B');
     expect(resB).toBeDefined();
-    expect(resB?.target).toBe('synthB');
-    expect(resB?.parameter).toBe('filterResonance');
+    expect(resB?.target).toBe('bass2');
+    // Bass2Params names the knob 'resonance' (SynthParams uses 'filterResonance').
+    expect(resB?.parameter).toBe('resonance');
 
     const decayA = lanes.find((l) => l.name === 'Decay A');
     expect(decayA).toBeDefined();
@@ -231,7 +238,7 @@ describe('RbsImporter', () => {
 
     const decayB = lanes.find((l) => l.name === 'Decay B');
     expect(decayB).toBeDefined();
-    expect(decayB?.target).toBe('synthB');
+    expect(decayB?.target).toBe('bass2');
     expect(decayB?.parameter).toBe('decay');
 
     const pcfRes = lanes.find((l) => l.name === 'PCF Res');
@@ -460,5 +467,66 @@ describe('RbsImporter – per-step accent/slide automation lanes', () => {
     );
     expect(accentB).toBeDefined();
     expect(accentB?.name).toContain('TB-303 B');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance: notes and knob automation for TB-303 #2 land on the same track
+// ---------------------------------------------------------------------------
+
+/** Pattern key that receives notes for a given automation lane target. */
+const PATTERN_KEY_FOR_TARGET = {
+  synthA: 'partA',
+  synthB: 'partB',
+  bass2: 'bass2',
+} as const;
+
+describe('RbsImporter TB-303 #2 routing', () => {
+  const rawWithBAutomation = () =>
+    makeRawData({
+      automation: [
+        {
+          parameter: 'tb303Bcutoff',
+          name: 'Cutoff B',
+          points: [
+            [0, 0],
+            [8, 127],
+          ],
+          interpolation: 'linear',
+          range: [0, 127],
+        },
+      ],
+    });
+
+  it('routes tb303B notes and tb303B automation to the same track under default options', () => {
+    const result = new RbsImporter().convertToHyphonSong(rawWithBAutomation());
+    expect(result.success).toBe(true);
+
+    const laneB = result.song.automation?.find(
+      (lane: HyphonAutomationLane) => lane.name === 'Cutoff B',
+    );
+    expect(laneB).toBeDefined();
+
+    // The lane target must be the track the option routes TB-303 #2 notes to.
+    const expectedTarget = DEFAULT_RBS_IMPORT_OPTIONS.tb303BTarget === 'bass2'
+      ? 'bass2'
+      : DEFAULT_RBS_IMPORT_OPTIONS.tb303BTarget === 'partB' ? 'synthB' : 'synthA';
+    expect(laneB?.target).toBe(expectedTarget);
+
+    // …and that track must actually carry the TB-303 #2 notes.
+    const patternKey = PATTERN_KEY_FOR_TARGET[expectedTarget];
+    const notes = result.song.pattern[patternKey].steps.filter((s) => s !== null);
+    expect(notes.length).toBeGreaterThan(0);
+  });
+
+  it('follows tb303BTarget when it is overridden to partB', () => {
+    const result = new RbsImporter({ tb303BTarget: 'partB' })
+      .convertToHyphonSong(rawWithBAutomation());
+
+    const laneB = result.song.automation?.find(
+      (lane: HyphonAutomationLane) => lane.name === 'Cutoff B',
+    );
+    expect(laneB?.target).toBe('synthB');
+    expect(result.song.pattern.partB.steps.filter((s) => s !== null).length).toBeGreaterThan(0);
   });
 });
