@@ -10,15 +10,18 @@
 
 import {
     createModule, createPattern, createInstrument, createSample, addSampleToInstrument,
-    XMWriter, noteNameToValue, LoopType
+    XMWriter, LoopType
 } from './xm_save_lib/index';
-import type { PartSequence, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../types';
+import type { PartSequence, Pattern, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, TrackKey } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
+import {
+    XM_PATTERN_ROWS, XM_CHANNEL_COUNT, XM_TRACK_MAP, XM_SAMPLER_BANK_COUNT,
+    createTruncationReport, fillPatternFromSequence, formatTruncationMessage,
+    type XmTruncationReport
+} from './xmPatternFill';
 
 // WASM module import
 import initXmExport from '../wasm/xmExport.wasm?init';
-
-type TrackKey = 'partA' | 'partB' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 
 // --- WASM Module State ---
 interface XmExportWasmExports {
@@ -472,17 +475,54 @@ const calculateXMPitchParams = (sampleRate: number) => {
     };
 };
 
+/** Outcome of an XM export. The file is always written; `truncationMessage` is
+ *  non-null only when the module could not hold everything the song contained. */
+export interface XmExportResult {
+    truncation: XmTruncationReport;
+    /** Ready-to-display summary of what was dropped, or null if nothing was. */
+    truncationMessage: string | null;
+}
+
+/**
+ * Project the TB-303 bass2 parameters onto the SynthParams shape that
+ * renderSynthToBuffer consumes. The '303-saw'/'303-sqr' waveforms take the same
+ * oscillator + lowpass path partA/partB use when set to a 303 voice.
+ *
+ * The envelope is a fixed one-shot pluck: near-instant attack, decay to silence,
+ * which is what the 303 VCA does and what the exported sample needs to be.
+ */
+const bass2ToSynthParams = (p: Bass2Params): SynthParams => ({
+    waveform: p.waveform,
+    pitch: p.pitch,
+    filterCutoff: p.cutoff,
+    filterResonance: p.resonance,
+    filterMode: p.filterMode,
+    drive: p.drive,
+    attack: 0.003,
+    decay: p.decay,
+    sustain: 0,
+    release: 0.01,
+    length: p.decay,
+    volume: p.volume,
+    pan: p.pan,
+    delayTime: 0,
+    delayFeedback: 0,
+    delayMix: 0,
+    engine303: p.engine303,
+    model303: p.model303,
+});
+
 export const exportSongToXM = async (
     songStructure: { [key in TrackKey]: number | null }[],
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
     params: {
-        synthA: SynthParams, synthB: SynthParams, kick: KickParams, snare: SnareParams, closedHat: HatParams, openHat: HatParams, sampler: SamplerParams
+        synthA: SynthParams, synthB: SynthParams, bass2: Bass2Params, kick: KickParams, snare: SnareParams, closedHat: HatParams, openHat: HatParams, sampler: SamplerParams
     },
     tempo: number,
     currentPattern?: Pattern,
     engines?: RenderSynthEngines,
     sampleBuffers?: (AudioBuffer | null)[]
-) => {
+): Promise<XmExportResult> => {
     console.log("Starting XM Export with engines:", engines);
 
     // Initialize WASM module for export
@@ -491,7 +531,7 @@ export const exportSongToXM = async (
     // 1. Create Module
     const mod = createModule({
         moduleName: 'Hyphon Export',
-        numberOfChannels: 14,
+        numberOfChannels: XM_CHANNEL_COUNT,
         defaultTempo: 6,
         defaultBPM: tempo
     });
@@ -611,8 +651,8 @@ export const exportSongToXM = async (
     addSampleToInstrument(instOH, sampleOH);
     mod.instruments.push(instOH);
 
-    // --- SAMPLER BANKS (Indices 7-14) ---
-    for (let i = 0; i < 8; i++) {
+    // --- SAMPLER BANKS (instruments 7-14, channels 6-13) ---
+    for (let i = 0; i < XM_SAMPLER_BANK_COUNT; i++) {
         const instName = `Sampler Bank ${i+1}`;
         const inst = createInstrument(instName);
 
@@ -643,6 +683,29 @@ export const exportSongToXM = async (
         mod.instruments.push(inst);
     }
 
+    // --- BASS 2 (instrument 15, channel 14) ---
+    // Appended after the sampler banks so the existing instrument numbering is
+    // unchanged. Rendered as a one-shot: the 303 VCA decays to silence, so no
+    // loop points are searched for.
+    const bass2Synth = bass2ToSynthParams(params.bass2);
+    const bass2Duration = Math.max(SYNTH_RENDER_BASE_DURATION, (bass2Synth.attack + bass2Synth.decay) * SYNTH_RENDER_AD_MULTIPLIER);
+    const bufBass2 = await renderSynthToBuffer(bass2Synth, 'C4', bass2Duration, engines);
+    const rawDataBass2 = bufBass2.getChannelData(0);
+    const dataBass2 = normalizeAndConvertTo16Bit(rawDataBass2, -1);
+    const pitchBass2 = calculateXMPitchParams(bufBass2.sampleRate);
+
+    const sampleBass2 = createSample({
+        name: 'Bass 2',
+        data: dataBass2,
+        volume: 64,
+        loopType: LoopType.None,
+        relativeNoteNumber: pitchBass2.relativeNote,
+        fineTune: pitchBass2.fineTune
+    });
+    const instBass2 = createInstrument('Bass 2 (303)');
+    addSampleToInstrument(instBass2, sampleBass2);
+    mod.instruments.push(instBass2);
+
     mod.header.numberOfInstruments = mod.instruments.length;
 
     let lastActiveMeasure = -1;
@@ -658,58 +721,25 @@ export const exportSongToXM = async (
     const activeLength = Math.max(1, lastActiveMeasure + 1);
     const patternOrderTable: number[] = [];
 
-    const baseTrackMap: Record<TrackKey, { inst: number, chan: number }> = {
-        'partA': { inst: 1, chan: 0 },
-        'partB': { inst: 2, chan: 1 },
-        'kick': { inst: 3, chan: 2 },
-        'snare': { inst: 4, chan: 3 },
-        'closedHat': { inst: 5, chan: 4 },
-        'openHat': { inst: 6, chan: 5 },
-        'sampler': { inst: 7, chan: 6 }
-    };
+    // Every track the exporter knows how to place, sampler included.
+    const exportTrackKeys: TrackKey[] = [...(Object.keys(XM_TRACK_MAP) as Exclude<TrackKey, 'sampler'>[]), 'sampler'];
 
-    const fillPatternFromSequence = (xmPat: ReturnType<typeof createPattern>, sequence: PartSequence, trackKey: TrackKey, bankIdx: number = 0) => {
-        let inst, chan;
-
-        if (trackKey === 'sampler') {
-            inst = 7 + bankIdx;
-            chan = 6 + bankIdx;
-        } else {
-            inst = baseTrackMap[trackKey].inst;
-            chan = baseTrackMap[trackKey].chan;
-        }
-
-        sequence.steps.forEach((stepData, row) => {
-            if (stepData && row < 32) {
-                if (chan < 14) {
-                    const note = xmPat.data[row][chan];
-
-                    if (trackKey.startsWith('part') || trackKey === 'sampler') {
-                        const nVal = noteNameToValue(stepData.note);
-                        note.note = nVal;
-                    } else {
-                        note.note = 49;
-                    }
-
-                    note.instrument = inst;
-                    note.volume = 64;
-                }
-            }
-        });
-    };
+    // Collects anything the XM format cannot hold, so it can be reported rather
+    // than silently discarded.
+    const truncation: XmTruncationReport = createTruncationReport();
 
     if (useFallbackPattern) {
-        const xmPat = createPattern(32, 14);
+        const xmPat = createPattern(XM_PATTERN_ROWS, XM_CHANNEL_COUNT);
 
-        (Object.keys(baseTrackMap) as TrackKey[]).forEach(trackKey => {
+        exportTrackKeys.forEach(trackKey => {
             if (trackKey === 'sampler') {
                 currentPattern.sampler.forEach((seq, idx) => {
-                    fillPatternFromSequence(xmPat, seq, 'sampler', idx);
+                    fillPatternFromSequence(xmPat, seq, 'sampler', idx, 0, truncation);
                 });
             } else {
-                const sequence = currentPattern[trackKey] as PartSequence;
+                const sequence = currentPattern[trackKey] as PartSequence | undefined;
                 if (sequence) {
-                    fillPatternFromSequence(xmPat, sequence, trackKey);
+                    fillPatternFromSequence(xmPat, sequence, trackKey, 0, 0, truncation);
                 }
             }
         });
@@ -719,22 +749,22 @@ export const exportSongToXM = async (
     } else {
         for (let m = 0; m < activeLength; m++) {
             const measure = songStructure[m];
-            const xmPat = createPattern(32, 14);
+            const xmPat = createPattern(XM_PATTERN_ROWS, XM_CHANNEL_COUNT);
 
-            (Object.keys(baseTrackMap) as TrackKey[]).forEach(trackKey => {
+            exportTrackKeys.forEach(trackKey => {
                 const slotIndex = measure[trackKey];
-                if (slotIndex === null) return;
+                if (slotIndex === null || slotIndex === undefined) return;
 
-                const storedData = trackStorage[trackKey][slotIndex];
+                const storedData = trackStorage[trackKey]?.[slotIndex];
                 if (!storedData) return;
 
                 if (trackKey === 'sampler') {
                     const sequences = storedData as PartSequence[];
                     sequences.forEach((seq, idx) => {
-                        fillPatternFromSequence(xmPat, seq, 'sampler', idx);
+                        fillPatternFromSequence(xmPat, seq, 'sampler', idx, m, truncation);
                     });
                 } else {
-                    fillPatternFromSequence(xmPat, storedData as PartSequence, trackKey);
+                    fillPatternFromSequence(xmPat, storedData as PartSequence, trackKey, 0, m, truncation);
                 }
             });
 
@@ -753,4 +783,13 @@ export const exportSongToXM = async (
     const buffer = writer.write(mod);
     const blob = new Blob([buffer], { type: 'audio/xm' });
     downloadBlob(blob, 'song.xm');
+
+    // The file is written either way -- XM's row and channel limits are hard, and
+    // a truncated module is still worth having. Say what was lost.
+    const truncationMessage = formatTruncationMessage(truncation);
+    if (truncationMessage) {
+        console.warn('[xmExport]', truncationMessage, truncation);
+    }
+
+    return { truncation, truncationMessage };
 };

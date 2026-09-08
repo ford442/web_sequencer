@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { exportSongToXM } from '../../utils/xmExport'
-import type { AudioEngine, Pattern, PartSequence, SynthParams, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
+import type { AudioEngine, Pattern, PartSequence, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
 import type { TrackKey, SongSnapshot } from '../../constants/appDefaults'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { PyodideLike } from '../../utils/pyodideBuffers'
@@ -15,6 +15,7 @@ export function useSongHandlers(deps: {
     tempoRef: React.MutableRefObject<number>;
     synthARef: React.MutableRefObject<SynthParams>;
     synthBRef: React.MutableRefObject<SynthParams>;
+    bass2Ref: React.MutableRefObject<Bass2Params>;
     kickRef: React.MutableRefObject<KickParams>;
     snareRef: React.MutableRefObject<SnareParams>;
     closedHatRef: React.MutableRefObject<HatParams>;
@@ -23,12 +24,13 @@ export function useSongHandlers(deps: {
     audioEngine: AudioEngine | null;
     pyodide: PyodideLike | null;
     sampleBuffers: (AudioBuffer | null)[];
+    showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }) {
     const {
         songStructure, setSongStructure, setIsSongModeOpen,
         patternRef, songStructureRef, trackStorageRef, tempoRef,
-        synthARef, synthBRef, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        audioEngine, pyodide, sampleBuffers,
+        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
+        audioEngine, pyodide, sampleBuffers, showToast,
     } = deps;
 
     const handleSongModeToggle = useCallback(() => setIsSongModeOpen(prev => !prev), [setIsSongModeOpen]);
@@ -66,6 +68,7 @@ export function useSongHandlers(deps: {
             {
                 synthA: synthARef.current,
                 synthB: synthBRef.current,
+                bass2: bass2Ref.current,
                 kick: kickRef.current,
                 snare: snareRef.current,
                 closedHat: closedHatRef.current,
@@ -76,8 +79,14 @@ export function useSongHandlers(deps: {
             patternRef.current,
             { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide },
             sampleBuffers,
-        );
-    }, [audioEngine, pyodide, sampleBuffers, songStructureRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
+        ).then(result => {
+            // The .xm still downloaded; surface anything the format could not hold.
+            if (result.truncationMessage) showToast(result.truncationMessage, 'error');
+        }).catch((e: unknown) => {
+            console.error('XM export failed:', e);
+            showToast('XM export failed', 'error');
+        });
+    }, [audioEngine, pyodide, sampleBuffers, showToast, songStructureRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
 
     return {
         handleSongModeToggle,
