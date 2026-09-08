@@ -198,8 +198,11 @@ describe('CSP-legal boot path', () => {
 
     it('has no eval-family importer', () => {
         // ADR 0001: no `unsafe-eval`. `new Function` is eval for CSP purposes.
+        const mainTsx = read('src/main.tsx');
         expect(withoutJsLineComments(indexHtml)).not.toMatch(/new\s+Function\s*\(/);
-        expect(indexHtml).toContain('@vite-ignore');
+        expect(withoutJsLineComments(mainTsx)).not.toMatch(/new\s+Function\s*\(/);
+        expect(mainTsx).toContain('@vite-ignore');
+        expect(mainTsx).toContain('document.baseURI');
     });
 
     it('points Pyodide at the vendored same-origin copy', () => {
@@ -212,10 +215,12 @@ describe('CSP-legal boot path', () => {
     });
 
     it('sets the Pyodide base before the module that boots it', () => {
-        // hyphon_native.js runs pyodide_bootstrap.js via --post-js, and the first
-        // inline module script has a top-level await, which would defer a later one.
+        // hyphon_native.js is loaded from main.tsx (not a top-level-await in
+        // index.html — Vite was rewriting that import to ./hyphon_native.js next
+        // to the assets chunk, which 404s and blocked first paint).
         expect(indexHtml.indexOf('HYPHON_PYODIDE_BASE_URL'))
-            .toBeLessThan(indexHtml.indexOf('moduleUrl = `${import.meta.env.BASE_URL}hyphon_native.js`'));
+            .toBeLessThan(indexHtml.indexOf('src="/src/main.tsx"'));
+        expect(indexHtml).not.toMatch(/await import\(/);
     });
 
     it('can vendor Pyodide reproducibly from the pin', () => {

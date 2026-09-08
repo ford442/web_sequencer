@@ -10,6 +10,7 @@ import {
   getActiveEngineFallbacks,
   clearEngineFallbackWarning,
   resolvePublicAsset,
+  isAppleWebKit,
   engineTelemetry,
 } from '../utils/engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
@@ -40,6 +41,28 @@ describe('resolvePublicAsset', () => {
       value: { href: original },
       configurable: true,
     });
+  });
+});
+
+describe('isAppleWebKit', () => {
+  it('is true for Playwright WebKit / Safari and false for Chrome', () => {
+    const original = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      configurable: true,
+    });
+    expect(isAppleWebKit()).toBe(true);
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      configurable: true,
+    });
+    expect(isAppleWebKit()).toBe(false);
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (X11; Linux x64) AppleWebKit/537.36 (KHTML, like Gecko) HappyDOM/0.0.0',
+      configurable: true,
+    });
+    expect(isAppleWebKit()).toBe(false);
+    Object.defineProperty(navigator, 'userAgent', { value: original, configurable: true });
   });
 });
 

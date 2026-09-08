@@ -10,8 +10,13 @@ unset. Never hardcode the token here -- this repository is public.
 JC-303 / wasm assets served from wasm.noahcohn.com are NOT handled here;
 deploy those independently if they changed.
 
+dist/ is re-validated by scripts/check-release-dist.mjs before anything is
+uploaded: this script ships whatever is on disk, so a passing build:release
+earlier is not evidence about the bundle in front of it.
+
 Usage:
     DEPLOY_TOKEN=... python deploy.py [--dry-run] [--include-sourcemaps]
+                                      [--skip-checks]
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from __future__ import annotations
 import argparse
 import io
 import os
+import subprocess
 import sys
 import uuid
 import urllib.error
@@ -30,8 +36,31 @@ ENDPOINT = os.environ.get(
     "DEPLOY_ENDPOINT",
     "https://storage.noahcohn.com/api/deploy/web-sequencer/bundle",
 )
-DIST_DIR = Path(__file__).resolve().parent / "dist"
+REPO_ROOT = Path(__file__).resolve().parent
+DIST_DIR = REPO_ROOT / "dist"
 EXCLUDED_DIRS = {".git", "node_modules", "__pycache__"}
+RELEASE_CHECK = REPO_ROOT / "scripts" / "check-release-dist.mjs"
+
+
+def check_dist() -> bool:
+    """Re-run the release-bundle checks on the dist/ that is about to ship.
+
+    This script uploads whatever is on disk, so `pnpm run build:release` having
+    passed at some point is not evidence about *this* dist/. A dist assembled
+    from mismatched artifacts -- notably a hyphon_native.wasm that is not the one
+    its glue was linked with -- is what silently drops the Open303 and Prophecy
+    worklets to their JS fallbacks in production.
+    """
+    if not RELEASE_CHECK.is_file():
+        print(f"warning: {RELEASE_CHECK.name} not found -- skipping dist checks", file=sys.stderr)
+        return True
+    print(f"checking {DIST_DIR.name}/ ...")
+    try:
+        result = subprocess.run(["node", str(RELEASE_CHECK)], cwd=REPO_ROOT, check=False)
+    except FileNotFoundError:
+        print("warning: node not found -- skipping dist checks", file=sys.stderr)
+        return True
+    return result.returncode == 0
 
 
 def collect_files(root: Path, include_sourcemaps: bool) -> list[Path]:
@@ -106,11 +135,26 @@ def main() -> int:
         action="store_true",
         help="include .map files (excluded by default; they are large and public)",
     )
+    parser.add_argument(
+        "--skip-checks",
+        action="store_true",
+        help="upload even if scripts/check-release-dist.mjs fails (last resort)",
+    )
     args = parser.parse_args()
 
     if not DIST_DIR.is_dir():
         print(f"error: {DIST_DIR} not found -- run the build first", file=sys.stderr)
         return 1
+
+    if not check_dist():
+        if not args.skip_checks:
+            print(
+                "error: dist/ failed the release checks above -- not uploading. "
+                "Rebuild with `pnpm run build:release`, or pass --skip-checks to override.",
+                file=sys.stderr,
+            )
+            return 1
+        print("warning: dist/ failed the release checks; --skip-checks given", file=sys.stderr)
 
     token = os.environ.get("DEPLOY_TOKEN")
     if not token and not args.dry_run:

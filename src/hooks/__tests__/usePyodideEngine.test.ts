@@ -22,7 +22,7 @@ describe('usePyodideEngine init path', () => {
     expect(result.current.isPyodideReady).toBe(false);
 
     act(() => {
-      vi.advanceTimersByTime(60_001);
+      vi.advanceTimersByTime(180_001);
     });
 
     expect(console.error).toHaveBeenCalledWith(

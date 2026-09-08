@@ -1,4 +1,5 @@
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
+import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import type { StepCallback, TransportClock, TransportSyncTelemetry } from './types';
 
 let clockModulePromise: Promise<void> | null = null;
@@ -27,6 +28,9 @@ export class InternalClockAdapter implements TransportClock {
   private running = false;
   private stepListeners = new Set<StepCallback>();
   private startPromise: Promise<void> | null = null;
+  private mainThreadTimer: ReturnType<typeof setTimeout> | null = null;
+  private mainThreadNextStep = 0;
+  private mainThreadNextAt = 0;
 
   constructor(context: AudioContext, tempo: number, swing: number, steps: number) {
     this.context = context;
@@ -43,6 +47,21 @@ export class InternalClockAdapter implements TransportClock {
       if (this.context.state === 'suspended') {
         await this.context.resume();
       }
+
+      if (isAppleWebKit()) {
+        logEngineFallback(
+          'clock',
+          'wasm-worklet',
+          'clock-processor AudioWorklet skipped on WebKit; using main-thread timer',
+        );
+        this.stopMainThreadClock();
+        this.running = true;
+        this.mainThreadNextStep = 0;
+        this.mainThreadNextAt = this.context.currentTime;
+        this.tickMainThreadClock();
+        return;
+      }
+
       await ensureClockModule(this.context);
 
       if (this.clockNode) {
@@ -86,6 +105,7 @@ export class InternalClockAdapter implements TransportClock {
   }
 
   stop(): void {
+    this.stopMainThreadClock();
     if (this.clockNode) {
       this.clockNode.port.postMessage({ type: 'stop' });
       this.clockNode.disconnect();
@@ -111,6 +131,33 @@ export class InternalClockAdapter implements TransportClock {
 
   resync(): void {
     /* Internal clock resets on start/stop only. */
+  }
+
+  private stepDurationSec(parity: 0 | 1): number {
+    const base = 60 / (this.tempo * 4);
+    const shift = this.swing * base * 0.5;
+    return parity === 0 ? base + shift : base - shift;
+  }
+
+  private tickMainThreadClock(): void {
+    if (!this.running) return;
+    const now = this.context.currentTime;
+    while (this.mainThreadNextAt <= now + 0.002) {
+      const audioTime = this.mainThreadNextAt;
+      const step = this.mainThreadNextStep;
+      for (const cb of this.stepListeners) cb(step, audioTime);
+      const parity = (step % 2) as 0 | 1;
+      this.mainThreadNextAt += this.stepDurationSec(parity);
+      this.mainThreadNextStep = (step + 1) % this.steps;
+    }
+    this.mainThreadTimer = setTimeout(() => this.tickMainThreadClock(), 8);
+  }
+
+  private stopMainThreadClock(): void {
+    if (this.mainThreadTimer != null) {
+      clearTimeout(this.mainThreadTimer);
+      this.mainThreadTimer = null;
+    }
   }
 
   onStep(cb: StepCallback): () => void {

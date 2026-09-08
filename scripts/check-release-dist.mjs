@@ -7,6 +7,7 @@
  *
  *   node scripts/check-release-dist.mjs
  *   HYPHON_SOURCEMAP=1 node scripts/check-release-dist.mjs   # allow .map
+ *   HYPHON_DIST_DIR=/tmp/bundle node scripts/check-release-dist.mjs   # check a fixture
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +15,10 @@ import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const distDir = path.join(repoRoot, 'dist');
+// HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
+const distDir = process.env.HYPHON_DIST_DIR
+  ? path.resolve(process.env.HYPHON_DIST_DIR)
+  : path.join(repoRoot, 'dist');
 const allowMaps = process.env.HYPHON_SOURCEMAP === '1' || process.env.HYPHON_SOURCEMAP === 'hidden';
 
 function walk(dir) {
@@ -170,6 +174,70 @@ if (!fs.existsSync(wasmPath)) {
   process.exit(1);
 }
 
+// The map/glue checks above only prove the two *text* artifacts agree with each
+// other. They say nothing about the binary that actually ships, and a dist whose
+// .wasm came from a different link than its glue passes every one of them — which
+// is how a build reached production where the Open303 and Prophecy worklets
+// instantiated hyphon_native.wasm successfully and then found neither open303_*
+// nor prophecy_* on it, silently degrading both to their JS fallbacks.
+//
+// So resolve every required export the way the worklets do, against the real
+// export table: through the map, else the glue map, else the bare/underscored
+// name (src/audio-worklets/hyphonNativeImports.ts#normalizeWasmExports).
+let binaryExports;
+try {
+  const mod = new WebAssembly.Module(fs.readFileSync(wasmPath));
+  binaryExports = new Set(WebAssembly.Module.exports(mod).map((e) => e.name));
+} catch (err) {
+  console.error(
+    '[check-release-dist] dist/hyphon_native.wasm does not compile: ' +
+    `${err instanceof Error ? err.message : String(err)}`,
+  );
+  process.exit(1);
+}
+
+const glueMap = fs.existsSync(gluePath) ? parseExportMap(fs.readFileSync(gluePath, 'utf8')) : {};
+
+function resolvesInBinary(bare) {
+  return [exportMap[bare], glueMap[bare], bare, `_${bare}`].some(
+    (name) => name && binaryExports.has(name),
+  );
+}
+
+const unresolvable = requiredExports.filter((name) => !resolvesInBinary(name));
+if (unresolvable.length) {
+  const names = [...binaryExports].sort();
+  const preview = names.slice(0, 48).join(', ');
+  console.error(
+    `[check-release-dist] dist/hyphon_native.wasm is missing ${unresolvable.length} required ` +
+    `export(s): ${unresolvable.join(', ')}`,
+  );
+  console.error(
+    `  Actual exports (${names.length}): ${preview}` +
+    (names.length > 48 ? ` … (+${names.length - 48} more)` : ''),
+  );
+  console.error(
+    '  The shipped binary is not the one dist/hyphon_native.js was linked with. ' +
+    'Rebuild both together (`pnpm run build:release`) — do not copy a .wasm in by hand.',
+  );
+  process.exit(1);
+}
+
+// A mapped name that is not a real export is dead weight at best and a stale map
+// at worst; report it even when the bare-name fallback above rescued the API.
+const danglingMappings = Object.entries(exportMap)
+  .filter(([, minified]) => !binaryExports.has(minified))
+  .map(([bare, minified]) => `${bare} -> "${minified}"`);
+if (danglingMappings.length) {
+  console.error(
+    `[check-release-dist] dist/hyphon_wasm_export_map.json names ${danglingMappings.length} ` +
+    `symbol(s) absent from dist/hyphon_native.wasm:\n  ${danglingMappings.slice(0, 10).join('\n  ')}` +
+    (danglingMappings.length > 10 ? `\n  … (+${danglingMappings.length - 10} more)` : ''),
+  );
+  console.error('  Regenerate: node tools/extract_wasm_export_map.mjs dist/hyphon_native.js <map>');
+  process.exit(1);
+}
+
 const rawTsInDist = distJsFiles.filter((p) => /\.tsx?$/.test(p));
 if (rawTsInDist.length) {
   console.error('[check-release-dist] dist/ contains raw TypeScript assets:');
@@ -177,8 +245,10 @@ if (rawTsInDist.length) {
   process.exit(1);
 }
 
+const wasmSummary =
+  `${mapKeys.length} WASM export(s), ${requiredExports.length} resolved in the binary`;
 console.log(
   allowMaps
-    ? `[check-release-dist] OK — ${maps.length} source map(s) allowed, ${REQUIRED_WORKLET_PROCESSORS.length} worklet(s), ${mapKeys.length} WASM export(s).`
-    : `[check-release-dist] OK — no source maps, ${REQUIRED_WORKLET_PROCESSORS.length} worklet(s), ${mapKeys.length} WASM export(s).`,
+    ? `[check-release-dist] OK — ${maps.length} source map(s) allowed, ${REQUIRED_WORKLET_PROCESSORS.length} worklet(s), ${wasmSummary}.`
+    : `[check-release-dist] OK — no source maps, ${REQUIRED_WORKLET_PROCESSORS.length} worklet(s), ${wasmSummary}.`,
 );

@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-pnpm install --frozen-lockfile && pnpm exec tsc -b && pnpm lint
+pnpm install --frozen-lockfile && node scripts/check-pnpm-action-setup.mjs && pnpm exec tsc -b && pnpm lint

@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Guard pnpm/action-setup vs packageManager
+        run: node scripts/check-pnpm-action-setup.mjs
+
       - name: Type-check (tsc, no WASM build)
         run: pnpm exec tsc -b --pretty false
 

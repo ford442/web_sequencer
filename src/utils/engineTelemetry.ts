@@ -707,6 +707,16 @@ export function resolvePublicAsset(relativePath: string): string {
   return `${base}${normalized}`;
 }
 
+/** Playwright WebKit / Safari — pthread hyphon_native.wasm aborts in AudioWorklet. */
+export function isAppleWebKit(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  // happy-dom / many test UAs include AppleWebKit without being Safari.
+  // Chrome also includes "Safari/" — exclude Chromium family first.
+  if (/Chrome|Chromium|Edg|Android|Firefox|HeadlessChrome|HappyDOM|jsdom/i.test(ua)) return false;
+  return /AppleWebKit/i.test(ua) && /Safari\//i.test(ua);
+}
+
 /**
  * Loud fallback signal: always logs a concrete reason to the console and
  * records it in engineTelemetry before any JS-voice fallback is used.

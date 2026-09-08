@@ -17,6 +17,7 @@ import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from './ProphecyParams';
 
 import {
     engineTelemetry,
+    isAppleWebKit,
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
@@ -67,6 +68,15 @@ export class ProphecyOscillator {
         this.gainNode   = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
+
+        if (isAppleWebKit()) {
+            logEngineFallback(
+                'prophecy',
+                'wasm-worklet',
+                'threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet',
+            );
+            return false;
+        }
 
         if (!audioContext.audioWorklet || !workletUrl) {
             logEngineFallback(

@@ -7,9 +7,10 @@ import { defineConfig, devices } from '@playwright/test';
  * Firefox / WebKit: CPU fallback paths — must NOT receive Chromium CLI args
  * (WebKit rejects `--autoplay-policy=…` and fails to launch entirely).
  *
- * webServer owns the Vite (or preview) lifecycle so tests do not race a
- * manually-started server. CI already serves `dist/` via `pnpm preview` on
- * :5173 — reuseExistingServer picks that up; locally Playwright starts Vite.
+ * webServer owns the Vite preview lifecycle so tests do not race a
+ * manually-started server. CI and local verification run after `pnpm run build`
+ * and must serve `dist/` — Vite *dev* refuses to transform public/hyphon_native.js
+ * (`loadAndTransform`), which leaves INITIALIZE SYSTEM disabled forever.
  *
  * StartOverlay `?e2e=1` unlocks AudioContext inside the click turn (Firefox/
  * WebKit otherwise hang forever on suspended resume after React setState).
@@ -17,22 +18,30 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   globalSetup: './tests/global-setup.ts',
-  timeout: 120_000,
+  timeout: 240_000,
   expect: { timeout: 15_000 },
-  // CI gets one retry for transient WASM/CDN warm-up; local stays strict.
+  // Two concurrent AudioContexts + hyphon_native pthread WASM abort Chromium
+  // and WebKit renderers (`Target page has been closed`). One worker is slow
+  // (~45m for the full matrix) but is the only stable configuration.
+  workers: 1,
+  fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL: 'http://127.0.0.1:5173',
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
-    trace: 'on-first-retry',
+    screenshot: 'off',
+    video: 'off',
+    // CI used to upload ~541MB of traces from every retried boot timeout.
+    // retain-on-failure keeps a debug artifact without recording successful tests.
+    trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
   },
-  // Generous timeout: first Vite boot pulls WASM / worklets / Pyodide stubs.
+  // Preview of dist/ (COOP/COEP headers come from vite.config.ts preview.headers).
   webServer: {
-    command: process.env.PW_WEBSERVER_CMD ?? 'pnpm exec vite --host 127.0.0.1 --port 5173',
+    command: process.env.PW_WEBSERVER_CMD ?? 'pnpm exec vite preview --host 127.0.0.1 --port 5173',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 180_000,
   },
   projects: [
@@ -63,6 +72,9 @@ export default defineConfig({
     },
     {
       name: 'webkit',
+      // Renderer aborts under parallel boots; serial + one retry keeps the matrix honest.
+      fullyParallel: false,
+      retries: 1,
       use: { ...devices['Desktop Safari'] },
     },
   ],

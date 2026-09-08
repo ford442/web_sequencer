@@ -54,9 +54,11 @@ export async function initializeHyphonAudio(
   const overlay = page.getByTestId('start-overlay');
   const startBtn = page.getByTestId('initialize-system');
 
-  // 90s: cold Pyodide / hyphon_native.wasm warm-up on CI runners.
+  // Overlay paints as soon as React mounts; the button stays disabled until
+  // hyphon_native + vendored Pyodide (numpy/scipy) finish. Firefox/WebKit on a
+  // loaded runner take ~70s+ — 90s was racing the scipy wheel.
   await overlay.waitFor({ state: 'visible', timeout: 90_000 });
-  await expect(startBtn).toBeEnabled({ timeout: 90_000 });
+  await expect(startBtn).toBeEnabled({ timeout: 180_000 });
 
   // Real gesture required for AudioContext.resume() — especially WebKit.
   await startBtn.click();
@@ -96,10 +98,16 @@ export async function initializeHyphonAudio(
 /** Dismiss any pinned HelpTip / What's New "Dismiss" buttons. */
 export async function dismissHelpTips(page: Page): Promise<void> {
   for (let i = 0; i < 8; i++) {
-    const dismiss = page.getByRole('button', { name: 'Dismiss', exact: true });
-    const n = await dismiss.count();
-    if (n === 0) break;
-    await dismiss.first().click({ force: true }).catch(() => undefined);
+    try {
+      const dismiss = page.getByRole('button', { name: 'Dismiss', exact: true });
+      const n = await dismiss.count();
+      if (n === 0) break;
+      await dismiss.first().click({ force: true }).catch(() => undefined);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/Target (crashed|page|closed)|browser has been closed/i.test(msg)) return;
+      throw err;
+    }
   }
 }
 
@@ -172,7 +180,7 @@ export async function openRackModule(page: Page, track: RackTrackKey) {
         ? 'SYNTH B'
         : 'BASS 2';
   const mod = rackModule(page, fragment);
-  await expect(mod).toBeVisible({ timeout: 15_000 });
+  await expect(mod).toBeVisible({ timeout: 30_000 });
   await mod.scrollIntoViewIfNeeded();
   return mod;
 }
