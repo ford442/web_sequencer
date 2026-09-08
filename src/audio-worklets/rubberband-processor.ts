@@ -46,6 +46,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Custom Grain Envelope
   private customGrainEnvelope: number[] | null = null;
 
+  // Drum Envelope Sidechain
+  private drumSidechainSAB: Float32Array | null = null;
+  private drumDuckEnv: number = 0.0;
+  private drumDuckLastTrigger: number = 0.0;
+
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
@@ -147,6 +152,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
       { name: 'autoTune', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+      { name: 'drumDuckDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
     ];
   }
 
@@ -197,10 +203,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     switch (type) {
       case 'INIT_WASM':
         try {
-          const { inputBuffer, outputBuffer, wasmBinary, baseUrl } = event.data;
+          const { inputBuffer, outputBuffer, wasmBinary, baseUrl, drumSidechainSAB } = event.data;
 
           this.inputRingBuffer = new RingBuffer(inputBuffer);
           this.outputRingBuffer = new RingBuffer(outputBuffer);
+
+          if (drumSidechainSAB) {
+            this.drumSidechainSAB = new Float32Array(drumSidechainSAB);
+          }
 
           if (!wasmBinary) {
             throw new Error("WASM binary not provided in INIT_WASM message");
@@ -430,6 +440,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const vocalChorusAmount = parameters.vocalChorus ? parameters.vocalChorus[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
+    const drumDuckDepth = parameters.drumDuckDepth ? parameters.drumDuckDepth[0] : 0.0;
 
     const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
     const pitchDecay = parameters.pitchDecay ? parameters.pitchDecay[0] : 0.0;
@@ -447,6 +458,32 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const pVibRate = pData[4];
         if (pVibDepth !== -1.0) currentVibDepth = pVibDepth;
         if (pVibRate !== -1.0) currentVibRate = pVibRate;
+    }
+
+    // Drum sidechain envelope follower
+    let duckingScalar = 0.0;
+    let drumIsSnare = 0.0;
+    if (drumDuckDepth > 0 && this.drumSidechainSAB) {
+        const triggerTime = this.drumSidechainSAB[0];
+        const drumVelocity = this.drumSidechainSAB[1];
+        const drumDecay = this.drumSidechainSAB[2];
+        drumIsSnare = this.drumSidechainSAB[3];
+
+        if (triggerTime > this.drumDuckLastTrigger && currentTime >= triggerTime) {
+            this.drumDuckEnv = 1.0;
+            this.drumDuckLastTrigger = triggerTime;
+        }
+
+        const fs = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+        const releaseFrames = Math.max(1, fs * drumDecay);
+        const releaseMult = Math.exp(-1.0 / releaseFrames);
+
+        duckingScalar = this.drumDuckEnv * drumDuckDepth * drumVelocity;
+
+        // Fast attack (instant here since it's triggered per hit), exponential release
+        for(let i = 0; i < blockFrames; i++) {
+           this.drumDuckEnv *= releaseMult;
+        }
     }
 
     this.expressiveProcessor.updateConfig({
@@ -699,7 +736,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
 
             const initGrain = (g: any) => {
-                const grainSizeSamplesActive = Math.max(100, Math.floor(baseGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
+                const duckedGrainSize = baseGrainSize * (1.0 - (duckingScalar * 0.5));
+                const grainSizeSamplesActive = Math.max(100, Math.floor(duckedGrainSize * lfoMod * (1.0 - grainEnvDepth * envelopeValue)));
                 const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
                 const rawCenter = this.currentSamplePtr + jitterOffsetActive + posMod;
                 const clampedCenter = Math.max(
@@ -1254,7 +1292,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       }
 
       // Generate Sub-Harmonics (Vowels only)
-      if (subHarmonicsAmount > 0) {
+      // Duck sub harmonics heavily on Kick (drumIsSnare === 0)
+      const effectiveSubAmount = subHarmonicsAmount * (drumIsSnare === 0.0 ? Math.max(0, 1.0 - duckingScalar) : 1.0);
+      if (effectiveSubAmount > 0) {
         // Evaluate vowel state via phoneme stride
         const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
         const isVowel = pData[7];
@@ -1299,8 +1339,24 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
               // Compensate for gain loss and mix with the dry signal
               const finalSub = (saturatedSub / drive) * 4.0;
-              outCh[i] = x + (finalSub * subHarmonicsAmount);
+              outCh[i] = x + (finalSub * effectiveSubAmount);
             }
+          }
+        }
+      }
+
+      if (duckingScalar > 0) {
+        const pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+        const isVowel = pData[7];
+        // consonants already sit out of the way; vowels take the duck
+        const vowelWeight = 0.25 + 0.75 * isVowel; // same curve as volFilterMod
+        const masterDuck = 1.0 - duckingScalar * vowelWeight;
+
+        for (let channel = 0; channel < outputs[0].length; channel++) {
+          const outCh = outputs[0][channel];
+          if (!outCh) continue;
+          for (let i = 0; i < outCh.length; i++) {
+            outCh[i] *= masterDuck;
           }
         }
       }
