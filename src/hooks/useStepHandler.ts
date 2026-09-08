@@ -17,6 +17,7 @@ import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import { TRACK_KEYS } from '../constants';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
 import type { AutomationTarget, UnifiedAutomationLane } from '../types';
 
 // ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
@@ -199,6 +200,12 @@ export const useStepHandler = ({
     const lastParamSlotsRef = useRef<{ partA: number | null; partB: number | null; bass2: number | null }>({
         partA: null, partB: null, bass2: null,
     });
+    // Tracks the previous mute/solo audibility so a track that has just been
+    // silenced flushes its voices exactly once instead of every step.
+    const prevAudibleRef = useRef<Record<TrackKey, boolean>>({
+        partA: true, partB: true, bass2: true, kick: true,
+        snare: true, closedHat: true, openHat: true, sampler: true,
+    });
 
     const onStep = useCallback((step: number, audioTime?: number) => {
         currentStepRef.current = step;
@@ -221,6 +228,19 @@ export const useStepHandler = ({
             return;
         }
         lastHandledStepRef.current = { step, audioTime: time };
+
+        // Mute/solo: a track that has just been silenced releases its voices once.
+        // Because a silenced track never triggers, it cannot accumulate notes.
+        const prevAudible = prevAudibleRef.current;
+        for (let i = 0; i < TRACK_KEYS.length; i++) {
+            const key = TRACK_KEYS[i];
+            const audible = trackMuteSoloStore.isAudible(key);
+            if (prevAudible[key] && !audible) {
+                audioEngine.stopTrackNotes?.(key);
+                lastFreqRef.current[key] = 0;
+            }
+            prevAudible[key] = audible;
+        }
 
         let activePattern = patternRef.current;
 
@@ -375,6 +395,7 @@ export const useStepHandler = ({
         const currentScale = currentScaleRef.current;
 
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
+            if (!trackMuteSoloStore.isAudible(trackKey)) return;
             const stepData = p[trackKey].steps[step];
             if (!stepData) return;
 
@@ -447,6 +468,7 @@ export const useStepHandler = ({
 
         // === Bass 2 (TB-303) ===
         const triggerBass2 = () => {
+            if (!trackMuteSoloStore.isAudible('bass2')) return;
             const stepData = p.bass2.steps[step];
             if (!stepData) return;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
@@ -511,6 +533,7 @@ export const useStepHandler = ({
 
         // === Drums ===
         const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
+            if (!trackMuteSoloStore.isAudible(trackKey)) return;
             const stepData = p[trackKey].steps[step];
             if (stepData && !(stepData.probability !== undefined && Math.random() > stepData.probability)) {
                 audioEngine.playDrum(sound, params, time, currentScale, stepTime, stepData.note);
@@ -525,8 +548,10 @@ export const useStepHandler = ({
         }
 
         // === Sampler ===
+        // Track-level mute/solo only — per-bank muting is a separate concern.
         // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
-        for (let bankIdx = 0; bankIdx < p.sampler.length; bankIdx++) {
+        const samplerAudible = trackMuteSoloStore.isAudible('sampler');
+        for (let bankIdx = 0; samplerAudible && bankIdx < p.sampler.length; bankIdx++) {
             const seq = p.sampler[bankIdx];
             const stepData = seq.steps[step];
             if (!stepData) continue;

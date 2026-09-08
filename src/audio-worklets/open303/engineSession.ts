@@ -111,9 +111,18 @@ export class Open303EngineSession {
         return (this.normalizedExports ?? {}) as Record<string, any>;
     }
 
-    /** hyphon_native.wasm is built with WASM_BIGINT — preserve bigint handles/pointers. */
+    /**
+     * Pass a handle back to WASM in the representation the module handed us.
+     *
+     * WASM_BIGINT only changes how i64 values cross the boundary. The
+     * open303 and jc303 handles are plain i32 in this wasm32 build —
+     * open303_create() returns a JS number — so coercing to BigInt made every
+     * call throw "Cannot convert a BigInt value to a number" and the engine fell
+     * back to the JS voice. Preserving the representation keeps a future
+     * MEMORY64 build (where these come back as bigint) working too.
+     */
     toWasmHandle(handle: number | bigint): number | bigint {
-        return typeof handle === 'bigint' ? handle : BigInt(handle);
+        return handle;
     }
 
     isInvalidHandle(handle: number | bigint | null | undefined): boolean {
@@ -296,8 +305,8 @@ export class Open303EngineSession {
         const exports = this.getExports();
         const hasNative = typeof exports.open303_create === 'function'
                        && typeof exports.open303_init === 'function';
-        const hasLegacy = typeof exports.jc303_init === 'function'
-                       && typeof exports.jc303_process === 'function';
+        const hasLegacy = typeof exports.jc303_init_handle === 'function'
+                       && typeof exports.jc303_process_handle === 'function';
 
         if (!hasNative && !hasLegacy) {
             throw new Error(
@@ -305,8 +314,8 @@ export class Open303EngineSession {
                 formatMissingWasmExports(rawExports, [
                     'open303_create',
                     'open303_init',
-                    'jc303_init',
-                    'jc303_process',
+                    'jc303_init_handle',
+                    'jc303_process_handle',
                 ]),
             );
         }
@@ -387,7 +396,10 @@ export class Open303EngineSession {
             console.error('[Open303] Native API init failed:', e);
             this.nativeApi = false;
             this.handle = 0;
-            return false;
+            // Rethrow: initialize()'s retry loop records the message, and a bare
+            // `return false` here is what produced "Failed to initialize after 3
+            // attempts. Last error: " with nothing after the colon.
+            throw e instanceof Error ? e : new Error(String(e));
         }
     }
 
@@ -488,6 +500,19 @@ export class Open303EngineSession {
         // Initialize Emscripten stack tracking
         if (typeof exports.emscripten_stack_init === 'function') {
             exports.emscripten_stack_init();
+        }
+
+        // Run the C++ static constructors before touching any export.
+        //
+        // hyphon_native.wasm is an Emscripten C++ module: the model registry, the
+        // rosic wavetables and the embind registrations all live in global objects
+        // whose constructors run in __wasm_call_ctors. The Emscripten glue calls it
+        // for the main thread (see src/audio-worklets/rubberband-lib.js), but the
+        // worklets instantiate the module by hand and used to skip it — leaving the
+        // statics zeroed, so open303_create() handed back a null handle and the
+        // Prophecy entry points trapped on `unreachable`.
+        if (typeof exports.__wasm_call_ctors === 'function') {
+            exports.__wasm_call_ctors();
         }
 
         // Disable false stack overflow detection.

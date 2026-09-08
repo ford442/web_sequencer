@@ -84,8 +84,10 @@ export function formatMissingWasmExports(
 export const OPEN303_REQUIRED_WASM_EXPORTS = [
   'open303_create',
   'open303_init',
-  'jc303_init',
-  'jc303_process',
+  // emscripten/jc303_wrapper.cpp exports the multi-instance *_handle ABI;
+  // bare jc303_init/jc303_process have never existed in hyphon_native.wasm.
+  'jc303_init_handle',
+  'jc303_process_handle',
 ] as const;
 
 /** Bare export names the Prophecy worklet must resolve via the export map. */
@@ -95,11 +97,21 @@ export const PROPHECY_REQUIRED_WASM_EXPORTS = [
   'prophecy_process',
 ] as const;
 
-/** Name-only snapshot of a compiled module's exports (for main-thread diagnostics). */
+/**
+ * Name-only snapshot of a compiled module's exports (for main-thread diagnostics).
+ *
+ * Values are inert placeholder *functions*, not `null`: the sufficiency
+ * predicates below run `normalizeWasmExports` over this snapshot and ask
+ * `typeof … === 'function'`. With `null` values every predicate answered
+ * "insufficient" unconditionally, so a perfectly good binary was reported as
+ * `export map did not resolve …` — pointing debugging at the artifact instead of
+ * at the import table. A snapshot can only answer "is this name present", and
+ * the placeholder is what lets it answer that honestly.
+ */
 export function wasmExportNameSnapshot(module: WebAssembly.Module): WebAssembly.Exports {
   const out: Record<string, unknown> = {};
   for (const entry of WebAssembly.Module.exports(module)) {
-    out[entry.name] = null;
+    out[entry.name] = () => undefined;
   }
   return out as WebAssembly.Exports;
 }
@@ -117,8 +129,8 @@ export function open303ExportMapInsufficient(
     typeof normalized.open303_create === 'function' &&
     typeof normalized.open303_init === 'function';
   const hasLegacy =
-    typeof normalized.jc303_init === 'function' &&
-    typeof normalized.jc303_process === 'function';
+    typeof normalized.jc303_init_handle === 'function' &&
+    typeof normalized.jc303_process_handle === 'function';
   return !hasNative && !hasLegacy;
 }
 
@@ -300,6 +312,24 @@ export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<stri
     _embind_register_bigint: () => {},
     _embind_register_float: () => {},
     _embind_register_memory_view: () => {},
+
+    // hyphon_native.wasm links emscripten/main.cpp (the Pyodide bootstrap
+    // orchestrator) alongside the DSP wrappers, so these three come along even
+    // though no worklet code path calls them. Omitting any one of them makes
+    // WebAssembly.instantiate() fail outright with "function import requires a
+    // callable", and every 303/Prophecy voice degrades to a JS fallback that
+    // still makes sound — so the app looks fine while the native engine is gone.
+    //
+    // main() runs on the main thread through the Emscripten glue; in a worklet
+    // it must not run at all, hence the inert implementations.
+    emscripten_run_script: () => 0,
+    exit: () => {},
+    __cxa_throw: (ptr: number, type: number, destructor: number) => {
+      throw new Error(
+        `${logPrefix} C++ exception thrown in WASM ` +
+        `(ptr=${ptr}, type=${type}, destructor=${destructor})`,
+      );
+    },
   };
 
   const lowercaseAliases: Record<string, unknown> = {

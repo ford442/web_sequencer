@@ -7,6 +7,7 @@ import { AutomationStep } from './AutomationStep';
 import { SvgStep } from './SvgStep';
 import { TrackSlotStrip } from './TrackSlotButton';
 import { GridIndicators } from '../GridIndicators';
+import { TrackMuteSoloButtons } from './TrackMuteSoloButtons';
 
 export interface SequencerRowHandle { setHighlight: (step: number) => void; }
 
@@ -210,6 +211,9 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
                 {rowKey === 'bass2' && (
                     <line x1={-65} y1={36} x2={-20} y2={36} stroke={isSelected ? '#ff0066' : '#4b5563'} strokeWidth={1} opacity={isSelected ? 0.5 : 0.3} />
                 )}
+            </g>
+            <g transform="translate(0, 16)">
+                <TrackMuteSoloButtons trackKey={rowKey} label={label} />
             </g>
             <g transform="translate(30, 16)">
                 {renderedTrackSlots}

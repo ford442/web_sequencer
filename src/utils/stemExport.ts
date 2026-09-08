@@ -18,6 +18,7 @@ import {
     type PatternRenderEngines,
 } from './patternRenderer';
 import { createZipBlob } from './zipStore';
+import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
 import {
     analyzeLoudness,
     normalizeToTarget,
@@ -71,7 +72,16 @@ export interface StemExportParams {
     sampler: SamplerParams;
 }
 
+/**
+ * Snapshot of the runtime mute/solo mix, passed in rather than read from the
+ * singleton inside the renderer so exports stay deterministic and testable.
+ * Defaults to the live store.
+ */
+export type StemExportMuteSolo = (track: TrackKey) => boolean;
+
 export interface StemExportInput {
+    /** Per-track audibility. Defaults to the live mute/solo store. */
+    isTrackAudible?: StemExportMuteSolo;
     songStructure: { [key in TrackKey]: number | null }[];
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
     currentPattern: Pattern;
@@ -104,6 +114,12 @@ const STEM_RENDER_ORDER: Array<{ id: StemId; label: string }> = [
     { id: 'sampler-bank-8', label: 'Rendering sampler bank 8…' },
     { id: 'master', label: 'Building master stem…' },
 ];
+
+/** An all-zero stem, used in place of rendering a track the mix has silenced. */
+function silentBuffer(targetLength: number, sampleRate: number): AudioBuffer {
+    const ctx = new OfflineAudioContext(2, Math.max(1, targetLength), sampleRate);
+    return ctx.createBuffer(2, Math.max(1, targetLength), sampleRate);
+}
 
 function throwIfAborted(signal?: AbortSignal): void {
     if (signal?.aborted) {
@@ -207,6 +223,12 @@ export async function exportStemsToZip(
         engines: input.engines,
     };
 
+    // Mute and solo are honored here: a silenced track is rendered as silence
+    // rather than omitted, so the ZIP keeps a stable file set and the master
+    // stem (the sum of the dry stems) reflects the mix the user is hearing.
+    const isAudible: StemExportMuteSolo =
+        input.isTrackAudible ?? ((track) => trackMuteSoloStore.isAudible(track));
+
     const stems = new Map<StemId, AudioBuffer>();
     const totalStages = STEM_RENDER_ORDER.length;
 
@@ -219,57 +241,75 @@ export async function exportStemsToZip(
 
         switch (id) {
             case 'partA':
-                buffer = await renderSynthPattern(input.params.synthA, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.partA,
-                });
+                buffer = isAudible('partA')
+                    ? await renderSynthPattern(input.params.synthA, {
+                          ...renderOpts,
+                          sequence: timeline.sequences.partA,
+                      })
+                    : silentBuffer(targetLength, sampleRate);
                 break;
             case 'partB':
-                buffer = await renderSynthPattern(input.params.synthB, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.partB,
-                });
+                buffer = isAudible('partB')
+                    ? await renderSynthPattern(input.params.synthB, {
+                          ...renderOpts,
+                          sequence: timeline.sequences.partB,
+                      })
+                    : silentBuffer(targetLength, sampleRate);
                 break;
             case 'bass2':
-                buffer = await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
-                    ...renderOpts,
-                    sequence: timeline.sequences.bass2,
-                });
+                buffer = isAudible('bass2')
+                    ? await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
+                          ...renderOpts,
+                          sequence: timeline.sequences.bass2,
+                      })
+                    : silentBuffer(targetLength, sampleRate);
                 break;
             case 'drums': {
-                const kick = await renderDrumPattern('kick', input.params.kick, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.kick,
-                });
-                throwIfAborted(signal);
-                const snare = await renderDrumPattern('snare', input.params.snare, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.snare,
-                });
-                throwIfAborted(signal);
-                const ch = await renderDrumPattern('closedHat', input.params.closedHat, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.closedHat,
-                });
-                throwIfAborted(signal);
-                const oh = await renderDrumPattern('openHat', input.params.openHat, {
-                    ...renderOpts,
-                    sequence: timeline.sequences.openHat,
-                });
-                buffer = mixBuffers([kick, snare, ch, oh], targetLength, sampleRate);
+                // The drum stem mixes four tracks, so each is gated on its own.
+                const drumBuffers: AudioBuffer[] = [];
+                if (isAudible('kick')) {
+                    drumBuffers.push(await renderDrumPattern('kick', input.params.kick, {
+                        ...renderOpts,
+                        sequence: timeline.sequences.kick,
+                    }));
+                    throwIfAborted(signal);
+                }
+                if (isAudible('snare')) {
+                    drumBuffers.push(await renderDrumPattern('snare', input.params.snare, {
+                        ...renderOpts,
+                        sequence: timeline.sequences.snare,
+                    }));
+                    throwIfAborted(signal);
+                }
+                if (isAudible('closedHat')) {
+                    drumBuffers.push(await renderDrumPattern('closedHat', input.params.closedHat, {
+                        ...renderOpts,
+                        sequence: timeline.sequences.closedHat,
+                    }));
+                    throwIfAborted(signal);
+                }
+                if (isAudible('openHat')) {
+                    drumBuffers.push(await renderDrumPattern('openHat', input.params.openHat, {
+                        ...renderOpts,
+                        sequence: timeline.sequences.openHat,
+                    }));
+                }
+                buffer = mixBuffers(drumBuffers, targetLength, sampleRate);
                 break;
             }
             default:
                 if (id.startsWith('sampler-bank-')) {
                     const bankIndex = Number(id.replace('sampler-bank-', '')) - 1;
-                    buffer = await renderSamplerBankPattern(
-                        timeline.sequences.sampler[bankIndex],
-                        input.sampleBuffers?.[bankIndex] ?? null,
-                        input.params.sampler[bankIndex],
-                        input.tempo,
-                        sampleRate,
-                        signal,
-                    );
+                    buffer = isAudible('sampler')
+                        ? await renderSamplerBankPattern(
+                              timeline.sequences.sampler[bankIndex],
+                              input.sampleBuffers?.[bankIndex] ?? null,
+                              input.params.sampler[bankIndex],
+                              input.tempo,
+                              sampleRate,
+                              signal,
+                          )
+                        : silentBuffer(targetLength, sampleRate);
                 } else {
                     buffer = sumStemBuffers(stems, targetLength, sampleRate);
                 }
@@ -319,6 +359,9 @@ export async function exportStemsToZip(
         routingNote:
             'Master stem is the sample-sum of all dry stems without master reverb, saturation, or pan.',
         stems: Array.from(stems.keys()),
+        silencedTracks: (
+            ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
+        ).filter((t) => !isAudible(t)),
     };
 
     zipEntries.push({

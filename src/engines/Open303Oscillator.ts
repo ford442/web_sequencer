@@ -64,6 +64,25 @@ export class Open303Oscillator {
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
+    /**
+     * Triggers that arrived before the engine was up.
+     *
+     * `isReady` only turns true when the worklet reports ready or the JS fallback
+     * is activated, and the fallback is only reached after worklet init fails —
+     * up to OPEN303_INIT_TIMEOUT_MS per attempt. Notes the sequencer fires in that
+     * window used to be discarded by a bare `if (!this.isReady) return;`: no queue,
+     * no error, no telemetry. They are queued here and flushed on ready instead,
+     * so a trigger is never lost in silence.
+     */
+    private pendingTriggers: Array<
+        | { kind: 'on'; note: number; velocity: number }
+        | { kind: 'off'; note: number }
+    > = [];
+    /** Bound on the pre-ready queue; past this we refuse loudly rather than grow. */
+    private static readonly MAX_PENDING_TRIGGERS = 64;
+    /** One refusal per overflow episode — the audio thread must not spam the log. */
+    private pendingOverflowReported = false;
+
     async init(audioContext: AudioContext, workletUrl?: string, config?: Open303Config): Promise<boolean> {
         this.audioContext = audioContext;
         void config;
@@ -250,6 +269,7 @@ export class Open303Oscillator {
             this.isFallback = false;
             this.applyModel303();
             this.applyAllParameters();
+            this.flushPendingTriggers();
             try { engineTelemetry.registerResolution('open303', isNative ? 'wasm-native' : 'wasm', 'worklet-ready'); } catch (_) {}
             return true;
 
@@ -276,11 +296,19 @@ export class Open303Oscillator {
         this.fallbackSynth.setResonance(this.params.resonance);
         this.fallbackSynth.setDecay(this.params.decay);
         this.fallbackSynth.setVolume(this.params.volume);
+
+        this.flushPendingTriggers();
     }
 
     noteOn(midiNote: number, velocity: number = 100, audioTime?: number): void {
-        if (!this.isReady) return;
-        
+        if (!this.isReady) {
+            this.queueTrigger({ kind: 'on', note: midiNote, velocity });
+            return;
+        }
+        this.deliverNoteOn(midiNote, velocity, audioTime);
+    }
+
+    private deliverNoteOn(midiNote: number, velocity: number, audioTime?: number): void {
         if (this.isFallback && this.fallbackSynth) {
             const t0 = performance.now();
             this.fallbackSynth.noteOn(midiNote, velocity);
@@ -295,8 +323,14 @@ export class Open303Oscillator {
     }
 
     noteOff(midiNote: number, audioTime?: number): void {
-        if (!this.isReady) return;
-        
+        if (!this.isReady) {
+            this.queueTrigger({ kind: 'off', note: midiNote });
+            return;
+        }
+        this.deliverNoteOff(midiNote, audioTime);
+    }
+
+    private deliverNoteOff(midiNote: number, audioTime?: number): void {
         if (this.isFallback && this.fallbackSynth) {
             const t0 = performance.now();
             this.fallbackSynth.noteOff(midiNote);
@@ -307,6 +341,49 @@ export class Open303Oscillator {
             this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
+        }
+    }
+
+    /** Hold a trigger that arrived before the engine was up, or refuse it visibly. */
+    private queueTrigger(
+        trigger: { kind: 'on'; note: number; velocity: number } | { kind: 'off'; note: number },
+    ): void {
+        if (this.pendingTriggers.length >= Open303Oscillator.MAX_PENDING_TRIGGERS) {
+            if (!this.pendingOverflowReported) {
+                this.pendingOverflowReported = true;
+                logEngineFallback(
+                    'open303',
+                    'wasm-worklet',
+                    `pre-ready trigger queue overflow (> ${Open303Oscillator.MAX_PENDING_TRIGGERS}); ` +
+                    'dropping further notes until the engine reports ready',
+                );
+            }
+            return;
+        }
+        this.pendingTriggers.push(trigger);
+    }
+
+    /**
+     * Deliver everything queued while the engine was coming up.
+     *
+     * Queued notes carry no audioTime: the timestamps they were fired with are in
+     * the past by the time the engine is ready, and scheduling into the past is
+     * worse than playing them now.
+     */
+    private flushPendingTriggers(): void {
+        if (this.pendingTriggers.length === 0) {
+            this.pendingOverflowReported = false;
+            return;
+        }
+        const queued = this.pendingTriggers;
+        this.pendingTriggers = [];
+        this.pendingOverflowReported = false;
+        for (const trigger of queued) {
+            if (trigger.kind === 'on') {
+                this.deliverNoteOn(trigger.note, trigger.velocity);
+            } else {
+                this.deliverNoteOff(trigger.note);
+            }
         }
     }
 

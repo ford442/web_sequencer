@@ -2,6 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useCallback, useLayoutE
 import { MelodicStep } from './MelodicStep';
 import { GridIndicators } from './GridIndicators';
 import { TrackSlotStrip } from './sequencer/TrackSlotButton';
+import { TrackMuteSoloButtons } from './sequencer/TrackMuteSoloButtons';
 import { noteToMidi } from '../utils/musicTheory';
 import type { PartSequence, TrackKey } from '../types';
 
@@ -224,6 +225,11 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           >
             {label.toUpperCase()}
           </text>
+        </g>
+
+        {/* Mute / solo */}
+        <g transform="translate(0, 16)">
+          <TrackMuteSoloButtons trackKey={rowKey} label={label} />
         </g>
 
         {/* Pattern slots */}

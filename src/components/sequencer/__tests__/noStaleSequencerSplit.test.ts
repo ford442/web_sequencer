@@ -53,6 +53,7 @@ describe('sequencer/ split has no stale abandoned duplicates', () => {
             'SequencerRow.tsx',
             'SequencerRowWrapper.tsx',
             'SvgStep.tsx',
+            'TrackMuteSoloButtons.tsx',
             'TrackSlotButton.tsx',
             'constants.ts',
             'stepHitGeometry.ts',
