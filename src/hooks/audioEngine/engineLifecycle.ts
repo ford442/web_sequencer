@@ -18,7 +18,7 @@ import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { DEFAULT_DRUM_KIT } from '../../constants';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
-import { engineTelemetry } from '../../utils/engineTelemetry';
+import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
@@ -274,11 +274,24 @@ export async function initializeAudioContextAndEngines(
     refs.voiceManagerARef.current.updateEngineDeps(voiceEngineDeps);
     refs.voiceManagerBRef.current.updateEngineDeps(voiceEngineDeps);
 
-    await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
+    if (isAppleWebKit()) {
+        logEngineFallback('sustain', 'wasm-worklet', 'AudioWorklet addModule skipped on WebKit');
+    } else {
+        await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
+    }
 
     // --- Singing Voice Manager Init ---
     loadingProgressStore.startStep('singingVoice');
     try {
+        if (isAppleWebKit()) {
+            logEngineFallback(
+                'singingVoice',
+                'wasm',
+                'rubberband AudioWorklet aborts Playwright WebKit / Safari',
+            );
+            throw new Error('singing voice skipped on WebKit');
+        }
+
         let wasmBinary: ArrayBuffer | undefined = undefined;
         try {
             const response = await fetch(import.meta.env.BASE_URL + 'rubberband.wasm');

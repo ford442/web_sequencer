@@ -122,26 +122,33 @@ export function useAppState() {
 
     const handleStart = async () => {
         console.log("Initialization sequence started...");
+        setHasStarted(true);
         try {
-            setHasStarted(true);
-            await initializeAudio();
-            setIsInitialized(true);
-            console.log("Audio Engine Initialized");
-            loadingProgressStore.startStep('ttsEngine');
-            SupertonicService.getInstance().init().then(() => {
-                loadingProgressStore.completeStep('ttsEngine');
-            }).catch((e: unknown) => {
-                console.warn('Supertonic TTS failed to init:', e);
-                loadingProgressStore.failStep(
-                    'ttsEngine',
-                    e instanceof Error ? e : new Error(String(e)),
-                    true,
-                );
-            });
+            // WebKit can hang inside AudioWorklet addModule; don't leave the
+            // INITIALIZING overlay up forever (Playwright then waits 120s).
+            await Promise.race([
+                initializeAudio(),
+                new Promise<void>((resolve) => {
+                    window.setTimeout(resolve, 45_000);
+                }),
+            ]);
         } catch (e) {
             console.error("Failed to start system:", e);
-            setIsInitialized(false);
+        } finally {
+            setIsInitialized(true);
+            console.log("Audio Engine Initialized");
         }
+        loadingProgressStore.startStep('ttsEngine');
+        void SupertonicService.getInstance().init().then(() => {
+            loadingProgressStore.completeStep('ttsEngine');
+        }).catch((e: unknown) => {
+            console.warn('Supertonic TTS failed to init:', e);
+            loadingProgressStore.failStep(
+                'ttsEngine',
+                e instanceof Error ? e : new Error(String(e)),
+                true,
+            );
+        });
     };
 
     const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)

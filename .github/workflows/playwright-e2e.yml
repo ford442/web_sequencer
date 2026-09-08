@@ -35,6 +35,10 @@ jobs:
           no-cache: false
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Gitignored; without it hyphon_native cannot mark Pyodide ready and
+      # INITIALIZE SYSTEM stays disabled (canStart = isPyodideReady && hasNativeModule).
+      - name: Vendor Pyodide runtime
+        run: pnpm run vendor:pyodide
       - name: Cache native artifacts
         uses: actions/cache@v4
         with:
@@ -61,20 +65,21 @@ jobs:
         run: pnpm run build:release:changed
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
-      # Using `preview` instead of `http-server` because Vite sets the required COOP/COEP headers for Pyodide's SharedArrayBuffer.
-      - name: Serve dist on port 5173
-        run: pnpm run preview --port 5173 & sleep 5
+      # Playwright webServer starts `vite preview` (COOP/COEP via vite.config.ts).
+      # Do not background preview in a separate step — GHA kills that process group
+      # when the step ends, then Playwright falls back to Vite *dev*, which cannot
+      # load public/hyphon_native.js.
+      # One worker: two AudioContexts + pthread WASM abort Chromium/WebKit.
       - name: Run Playwright tests
-        run: pnpm exec playwright test --reporter=github
+        run: pnpm exec playwright test --workers=1 --reporter=github
 
-      # Traces are captured on first retry (playwright.config.ts). Without this,
+      # Traces are retain-on-failure (playwright.config.ts). Without this,
       # a red run leaves only the truncated GitHub-reporter log to debug from.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
+          path: test-results/
+          if-no-files-found: ignore
           retention-days: 7

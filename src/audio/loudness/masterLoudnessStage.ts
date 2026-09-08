@@ -7,6 +7,7 @@
  */
 
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
+import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import masterLoudnessProcessorUrl from '../../audio-worklets/master-loudness-processor.ts?worker&url';
 import { loadLimiterSettings, saveLimiterSettings } from './settings';
 import {
@@ -146,6 +147,17 @@ export async function createMasterLoudnessStage(
         ...(persist ? loadLimiterSettings() : {}),
         ...options.settings,
     };
+
+    // Playwright WebKit / Safari: any AudioWorklet addModule can abort the
+    // renderer (pthread + emscripten_run_script). Skip limiter so boot survives.
+    if (isAppleWebKit()) {
+        logEngineFallback(
+            'masterLoudness',
+            'wasm-worklet',
+            'AudioWorklet addModule skipped on WebKit',
+        );
+        return null;
+    }
 
     try {
         await context.audioWorklet.addModule(masterLoudnessProcessorUrl);

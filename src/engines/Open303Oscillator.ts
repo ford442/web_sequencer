@@ -16,6 +16,7 @@ import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
+    isAppleWebKit,
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
@@ -72,6 +73,18 @@ export class Open303Oscillator {
         this.gainNode = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
+
+        // Threaded hyphon_native.wasm aborts Playwright WebKit / Safari AudioWorklet
+        // (`emscripten_run_script` import + pthread). JS fallback keeps the rack up.
+        if (isAppleWebKit()) {
+            logEngineFallback(
+                'open303',
+                'wasm-worklet',
+                'threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet',
+            );
+            this.activateFallback();
+            return true;
+        }
 
         // Ensure AudioWorklet is supported and URL is provided
         if (audioContext.audioWorklet && workletUrl) {

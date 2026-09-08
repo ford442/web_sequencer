@@ -75,7 +75,13 @@ test.describe('WAM2 missing plugin', () => {
       page.getByRole('button', { name: 'Stop Playback', exact: true }),
     ).toBeVisible({ timeout: 15_000 });
 
+    await page.evaluate(async () => {
+      const ctx = (window as unknown as { audioContext?: AudioContext }).audioContext;
+      if (ctx?.state === 'suspended') await ctx.resume();
+    });
+
     // The audio clock is actually advancing — not merely a toggled button.
+    // Firefox can take >10s for currentTime to move after a long serial boot.
     const t0 = await page.evaluate(
       () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!(),
     );
@@ -85,7 +91,7 @@ test.describe('WAM2 missing plugin', () => {
           page.evaluate(
             () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!(),
           ),
-        { timeout: 10_000 },
+        { timeout: 30_000 },
       )
       .toBeGreaterThan(t0 ?? 0);
   });

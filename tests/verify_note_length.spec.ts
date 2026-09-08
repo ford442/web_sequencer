@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { initializeHyphonAudio } from './helpers/boot';
+import { clickControl, initializeHyphonAudio } from './helpers/boot';
 
 /**
  * Note length / auto-delete on overlapping steps.
@@ -15,15 +15,16 @@ test('verify note length controls and auto-delete', async ({ page }) => {
     const step2 = page.getByTestId('step-partA-2');
 
     await step0.waitFor({ state: 'visible', timeout: 30_000 });
-    await step0.scrollIntoViewIfNeeded();
 
     for (const step of [step0, step2]) {
+        await step.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
         if ((await step.getAttribute('aria-pressed')) !== 'true') {
-            await step.click();
+            await clickControl(step);
         }
         await expect(step).toHaveAttribute('aria-pressed', 'true');
     }
 
+    await step0.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await step0.click({ button: 'right' });
 
     const dialog = page.getByRole('dialog').filter({ hasText: 'NOTE PROPERTIES' });

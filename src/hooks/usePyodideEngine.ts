@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { PyodideLike } from '../utils/pyodideBuffers';
 
-const PYODIDE_BOOTSTRAP_TIMEOUT_MS = 60_000;
+const PYODIDE_BOOTSTRAP_TIMEOUT_MS = 180_000;
 
 // This hook encapsulates the "Spectral Puppet" engine
 export const usePyodideEngine = () => {
