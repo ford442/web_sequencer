@@ -100,6 +100,34 @@ export default defineConfig([
             'audioWorklet.addModule must use a bundler-emitted URL (?worker&url), not a raw .ts path.',
         },
       ],
+      // #1134: the monolithic samplerPlayback.ts and audio/playback/*Playback.ts
+      // barrel were deleted as unreachable duplicates. Ban both relative and
+      // @/-aliased re-imports so the shadow stack can't silently return.
+      // Anchored with regexes (not glob `patterns`) because gitignore-style
+      // glob matching can't distinguish the deleted flat file from the still
+      // -live `samplerPlayback/` split-module folder that shares its name.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)audioEngine/samplerPlayback$',
+              message:
+                'samplerPlayback.ts was deleted as a dead duplicate. Import from ./audioEngine/samplerPlayback/playSamplerVoice or ./audioEngine/samplerPlayback/samplerControls instead.',
+            },
+            {
+              regex: '(^|/)audio/playback/(synthPlayback|drumPlayback|samplerPlayback)$',
+              message:
+                'This module was deleted as a dead duplicate (#1134). The live sampler/synth/drum playback code lives under src/hooks/audioEngine/.',
+            },
+            {
+              regex: '(^|/)audio/playback(/index)?$',
+              message:
+                "audio/playback's barrel index.ts was deleted as a dead re-export. Import PlaybackHealthMonitor directly from '@/audio/playback/PlaybackHealthMonitor'.",
+            },
+          ],
+        },
+      ],
     },
   },
   // Phase 1: pure library surface (utils + engines)
