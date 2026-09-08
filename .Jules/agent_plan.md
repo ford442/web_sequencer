@@ -10,7 +10,7 @@
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
 - [x] What if we could modulate the grain size with an LFO or envelope to create "breathing" textures?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
-
+- [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
 - [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
@@ -49,6 +49,7 @@
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
 - [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [ ] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
+- [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -93,6 +94,9 @@
 
 - Completed "Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)". Added Gaussian and Sharp Exponential shapes to `RubberBandProcessor` logic. Exposed the shapes via `windowShape` values 4 and 5 in the `RubberBandProcessor` parameter descriptor and the UI dropdowns (`SamplerKnobControls.tsx` and `SynthGranularEffects.tsx`).
 - Velocity Check: Using mathematically straightforward algorithms for non-linear windowing preserves the audio thread performance budget without allocating massive new arrays.
+
+- Completed "Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection." by moving it into the Active Backlog and implementing a simple zero-crossing pitch tracker inside `RubberBandProcessor` that dynamically feeds the previous block's detected pitch correction ratio into RubberBand's pitch scalar.
+- Velocity Check: Detecting zero crossings on the generated output to apply a pitch offset to RubberBand's input works nicely as a rapid feedback look, enabling a basic hard-tuning effect inside the time-stretcher without expensive STFT operations. Added "Explore real-time cross-modulation between two TTS engines to create a vocoder-like effect." to the Innovation Lab.
 
 ## Roadmap
 - Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.

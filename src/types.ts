@@ -159,6 +159,7 @@ export interface SamplerBankParams {
   spectralComp?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  autoTune?: number;
   downsample?: number;
   spectralCompression?: number;
   phonemeFilterMod?: number;
@@ -520,6 +521,7 @@ export interface Note {
   tranceGate?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  autoTune?: number;
   formantEnvSync?: boolean;
   formantEnvAttack?: number;
   formantEnvDecay?: number;

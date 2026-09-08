@@ -28,6 +28,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set AutoTune amount.
+   * @param amount AutoTune amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setAutoTune(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "autoTune", amount, time);
+  },
+
+  /**
    * Set vibrato rate in Hz.
    * @param rate Vibrato rate in Hz
    * @param time Optional time to apply the change (default: now)
