@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   AISongImporter,
@@ -19,7 +19,9 @@ import {
 import { validateAISongData } from '../importers/ai-song/types';
 import { validateBeforeUpload } from '../services/ai-song-storage/validation';
 import { automationStore } from '../stores/automationStore';
-import type { Note, PartSequence, SavedSongData } from '../types';
+import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
+import type { Open303Manager } from '../engines/Open303Manager';
+import type { Note, PartSequence, SavedSongData, UnifiedAutomationLane } from '../types';
 
 const FIXTURE_DIR = resolve(process.cwd(), 'test-fixtures/ai-song');
 
@@ -172,8 +174,8 @@ describe('AI song ingest — full fixture', () => {
 
     expect(lanes?.map((lane) => `${lane.target}.${lane.parameter}`)).toEqual([
       'synthA.filterCutoff',
-      'synthB.delayMix',
-      'master.masterVolume',
+      'synthB.filterResonance',
+      'bass2.decay',
     ]);
 
     for (const lane of lanes ?? []) {
@@ -207,10 +209,10 @@ describe('AI song ingest — full fixture', () => {
     expect(Math.max(...cutoff.points.map((p) => p.value))).toBe(1);
     expect(cutoff.points).toHaveLength(32);
 
-    const delayMix = lanes[1];
-    expect(delayMix.points).toHaveLength(8);
-    expect(delayMix.points.map((p) => p.step)).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
-    expect(delayMix.points[0].value).toBe(0);
+    const resonance = lanes[1];
+    expect(resonance.points).toHaveLength(8);
+    expect(resonance.points.map((p) => p.step)).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
+    expect(resonance.points[0].value).toBeCloseTo(20 / 127, 5);
   });
 
   it('hands its lanes to automationStore.importLanes intact', () => {
@@ -222,13 +224,153 @@ describe('AI song ingest — full fixture', () => {
     expect(stored).toHaveLength(3);
     expect(stored.map((lane) => lane.parameter)).toEqual([
       'filterCutoff',
-      'delayMix',
-      'masterVolume',
+      'filterResonance',
+      'decay',
     ]);
     expect(stored.every((lane) => lane.source === 'ai')).toBe(true);
     expect(
       stored.every((lane) => lane.points.every((p) => p.value >= 0 && p.value <= 1)),
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The payoff: lanes imported from an AI song drive the scheduler, and the
+// values it applies actually move over the pattern.
+// ---------------------------------------------------------------------------
+
+/** Minimal Open303Manager double — records every scheduled parameter write. */
+function makeOpen303Manager() {
+  return {
+    isBass1Ready: vi.fn(() => true),
+    isBass2Ready: vi.fn(() => true),
+    isLead303Ready: vi.fn(() => true),
+    scheduleParamAtTime: vi.fn(),
+    scheduleParamRamp: vi.fn(),
+    scheduleSlideAtTime: vi.fn(),
+  };
+}
+
+type ScheduledCall = [voice: string, setter: string, value: number, time: number];
+
+/**
+ * Run the imported lanes through the scheduler for a whole 32-step pattern and
+ * return the values applied to one voice/setter pair, in scheduling order.
+ */
+function applyLanesToScheduler(
+  lanes: UnifiedAutomationLane[],
+  voice: string,
+  setter: string,
+): number[] {
+  const mgr = makeOpen303Manager();
+  const ctx = { currentTime: 0 } as unknown as AudioContext;
+  const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+
+  const stepTime = 0.125;
+  automationStore.importLanes(lanes);
+  scheduler.scheduleFromLanes(automationStore.getState().lanes, 0, 32, stepTime, 0);
+  vi.runAllTimers();
+
+  return (mgr.scheduleParamAtTime.mock.calls as ScheduledCall[])
+    .filter(([v, s]) => v === voice && s === setter)
+    .map(([, , value]) => value);
+}
+
+describe('AI song automation reaches the scheduler with varying applied values', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('drives the synthA cutoff sweep across the whole pattern', () => {
+    const song = importFixture('full');
+    const applied = applyLanesToScheduler(song.automationLanes ?? [], 'lead303', 'setCutoff');
+
+    // One applied value per step of the dense lane.
+    expect(applied).toHaveLength(32);
+
+    // VARYING: the sweep must actually move, not sit on one value.
+    expect(new Set(applied).size).toBeGreaterThan(8);
+    expect(Math.min(...applied)).toBeLessThan(0.25);
+    expect(Math.max(...applied)).toBe(1);
+
+    // Every applied value stays normalized — `originalRange: [0, 127]` is
+    // display metadata, so denormalizing here would pin the lane at 1.0.
+    for (const value of applied) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+    expect(applied.every((v) => v === 1)).toBe(false);
+
+    // The authored shape survives: rises to the peak, then falls back.
+    const peak = applied.indexOf(1);
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(31);
+    expect(applied[0]).toBeLessThan(applied[peak]);
+    expect(applied[31]).toBeLessThan(applied[peak]);
+  });
+
+  it('interpolates a sparse lane into a value on every step (smooth)', () => {
+    const song = importFixture('full');
+    const applied = applyLanesToScheduler(song.automationLanes ?? [], 'bass1', 'setResonance');
+
+    // The lane holds only 8 authored points but is sampled on all 32 steps.
+    expect(applied).toHaveLength(32);
+    expect(new Set(applied).size).toBeGreaterThan(8);
+
+    // Authored points are hit exactly; the holes between them are filled.
+    expect(applied[0]).toBeCloseTo(20 / 127, 5);
+    expect(applied[1]).toBeGreaterThan(applied[0]);
+    expect(applied[1]).toBeLessThan(applied[4]);
+    expect(applied.every((v) => v >= 0 && v <= 1)).toBe(true);
+  });
+
+  it('holds each plateau of a stepped lane, then jumps (step)', () => {
+    const song = importFixture('full');
+    const applied = applyLanesToScheduler(song.automationLanes ?? [], 'bass2', 'setDecay');
+
+    expect(applied).toHaveLength(32);
+
+    // Four authored plateaus: constant within each, different between them.
+    const plateaus = [0, 8, 16, 24].map((start) => applied.slice(start, start + 8));
+    for (const plateau of plateaus) {
+      expect(new Set(plateau).size).toBe(1);
+    }
+    const levels = plateaus.map((p) => p[0]);
+    expect(new Set(levels).size).toBe(4);
+    expect(levels).toEqual([30 / 127, 70 / 127, 100 / 127, 55 / 127]);
+  });
+
+  it('applies nothing when the lanes are disabled', () => {
+    const song = importFixture('full');
+    const disabled = (song.automationLanes ?? []).map((lane) => ({ ...lane, enabled: false }));
+
+    expect(applyLanesToScheduler(disabled, 'lead303', 'setCutoff')).toEqual([]);
+  });
+
+  it('pins the known dispatch gap: valid targets the scheduler does not route', () => {
+    // The schema accepts drum/sampler automation targets, but the scheduler
+    // only routes synthA/synthB/bass2 (plus three PCF params on master).
+    // Documented under "Silently ignored" in docs/ai-song-format.md.
+    const song = importFixture('full');
+    const lane: UnifiedAutomationLane = {
+      ...(song.automationLanes ?? [])[0],
+      target: 'kick',
+      parameter: 'decay',
+    };
+
+    const mgr = makeOpen303Manager();
+    const ctx = { currentTime: 0 } as unknown as AudioContext;
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+
+    automationStore.importLanes([lane]);
+    scheduler.scheduleFromLanes(automationStore.getState().lanes, 0, 32, 0.125, 0);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
   });
 });
 

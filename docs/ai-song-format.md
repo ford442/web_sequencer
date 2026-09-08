@@ -190,6 +190,22 @@ mismatch is a `VALIDATION_ERROR`.
 | `sampler` | `filterCutoff`, `filterResonance`, `drive`, `volume`, `playbackSpeed` |
 | `master` | `tempo`, `swing`, `masterVolume` |
 
+### Which lanes actually reach an engine
+
+Validation accepts every target/parameter pair in the table above, but
+`AutomationScheduler` only routes three targets today:
+
+| Target | Routed? | Parameters that reach an engine |
+|--------|---------|---------------------------------|
+| `synthA`, `synthB`, `bass2` | ✅ | `filterCutoff`, `filterResonance`, `decay`, `envMod`, `accent`, `volume`, `drive` |
+| `master` | partial | Only the PCF trio (`pcfCutoff`, `pcfResonance`, `pcfEnvAmount`) and only while a `PcfEffect` is attached. `tempo`, `swing` and `masterVolume` validate but no-op |
+| `kick`, `snare`, `closedHat`, `openHat`, `sampler` | ❌ | None — the scheduler has no case for these targets |
+
+A lane on an unrouted target is stored and saved with the song, and shows up in
+the automation UI, but changes nothing you can hear. `filterMode`, `waveform`,
+`pitch` and the three `delay*` parameters are likewise accepted and stored but
+have no dispatch case. Prefer the ✅ row when the point is audible movement.
+
 ### What the importer produces
 
 Each lane with at least one non-null step becomes a `UnifiedAutomationLane` on
@@ -217,6 +233,11 @@ and `enabled: true`.
 }
 ```
 
+`test-fixtures/ai-song/full.json` carries one lane per interpolation mode — a
+dense `linear` cutoff sweep, a `smooth` resonance lane with holes every fourth
+step, and a stepped `decay` staircase — and the golden test asserts each one
+reaches the scheduler as a *moving* applied value.
+
 ---
 
 ## Silently ignored
@@ -231,6 +252,7 @@ the imported song:
 | `meta.createdAt` | Stored as metadata; never parsed or range-checked. |
 | Extra/unknown top-level keys | Ignored by the validator. In particular there is **no `effects` field** — an effects chain was never part of `AISongData` and the dead converter for it has been removed. |
 | Drum voice parameters | Not expressible; kick/snare/hat params always come from importer defaults. |
+| Automation on unrouted targets/parameters | Validated, converted and saved, but never dispatched — see [Which lanes actually reach an engine](#which-lanes-actually-reach-an-engine). |
 
 ## Errors
 
