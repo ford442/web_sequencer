@@ -24,6 +24,7 @@ export interface SingingVoiceMixinMethods {
     endSample?: number,
     pitch?: number,
     reverse?: boolean,
+    targetHz?: number,
   ): void;
   getNearestBasePitch(
     targetMidiNote: number,
