@@ -28,6 +28,7 @@ export type PropertyChangeKey =
   | "subHarmonics"
   | "vocalChorus"
   | "autoTune"
+  | "drumDuckDepth"
   | "downsample"
   | "spectralCompression"
   | "tranceGate"
@@ -105,6 +106,7 @@ export interface NoteSelectorProps {
   currentBitcrush?: number;
   currentDownsample?: number;
   currentSpectralCompression?: number;
+  currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
   currentVolumeFilterMod?: number;
   currentFormantShift?: number;

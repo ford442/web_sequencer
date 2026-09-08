@@ -13,7 +13,7 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
-- [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
+- [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
 - [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
@@ -42,12 +42,12 @@
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
 - [x] Explore a TTS vocal stack chorus effect using post-retrieve micro-delay taps.
-- [ ] Investigate envelope follower ducking for sidechain effects (Needs cross-engine wiring, e.g. inputs[1] or SAB from drum path, do not use local vocal envelope).
+- [x] Investigate envelope follower ducking for sidechain effects (Needs cross-engine wiring, e.g. inputs[1] or SAB from drum path, do not use local vocal envelope).
 
 - [ ] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
-- [ ] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
+- [x] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
-- [ ] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
+- [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [ ] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
 
@@ -112,3 +112,5 @@
   - Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
   - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
   - Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
+- [ ] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
+- [ ] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).

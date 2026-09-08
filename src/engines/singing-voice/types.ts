@@ -27,6 +27,7 @@ export interface SingingVoiceCoreMethods {
   setSubHarmonics(amount: number, time?: number): void;
   setVocalChorus(amount: number, time?: number): void;
   setPhonemeFilterMod(amount: number, time?: number): void;
+  setDrumDuckDepth(amount: number, time?: number): void;
 }
 
 export interface SingingVoicePublic
