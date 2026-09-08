@@ -90,8 +90,8 @@ describe('WorkletPerfReporter synthetic stress', () => {
     const reporter = new WorkletPerfReporter(fakePort, 'stress-test', 10);
 
     for (let i = 0; i < 20; i++) {
-      const end = reporter.beginProcess(128);
-      end();
+      reporter.beginProcess(128);
+      reporter.endProcess();
       frame += 512;
     }
 

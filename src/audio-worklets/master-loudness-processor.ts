@@ -118,11 +118,11 @@ class MasterLoudnessProcessor extends AudioWorkletProcessor {
         if (!output || output.length === 0) return this.alive;
 
         const frames = output[0].length;
-        const endProcess = this.perf.beginProcess(frames);
+        this.perf.beginProcess(frames);
         try {
             this.render(inputs, output, frames);
         } finally {
-            endProcess();
+            this.perf.endProcess();
         }
         return this.alive;
     }

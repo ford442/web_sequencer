@@ -412,7 +412,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const outputChannel = outputs[0][0];
     const blockFrames = outputChannel?.length ?? 128;
-    const endPerf = this.perf.beginProcess(blockFrames);
+    this.perf.beginProcess(blockFrames);
     try {
     outputChannel.fill(0);
 
@@ -1451,7 +1451,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     return true;
     } finally {
-      endPerf();
+      this.perf.endProcess();
     }
   }
 

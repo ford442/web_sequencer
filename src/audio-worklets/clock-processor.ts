@@ -95,7 +95,7 @@ class ClockProcessor extends AudioWorkletProcessor {
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _params: Record<string, Float32Array>): boolean {
         const output = outputs[0]?.[0];
         const blockSize = output?.length ?? 128;
-        const endPerf = this.perf.beginProcess(blockSize);
+        this.perf.beginProcess(blockSize);
         try {
             if (output) {
                 output.fill(0);
@@ -125,7 +125,7 @@ class ClockProcessor extends AudioWorkletProcessor {
 
             return true; // keep processor alive
         } finally {
-            endPerf();
+            this.perf.endProcess();
         }
     }
 }

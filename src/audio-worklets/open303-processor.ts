@@ -879,7 +879,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         const channelL = output[0];
         const blockFrames = channelL ? channelL.length : 128;
-        const endPerf = this.perf.beginProcess(blockFrames);
+        this.perf.beginProcess(blockFrames);
         try {
         const channelR = output[1];
 
@@ -1044,7 +1044,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         return true;
         } finally {
-            endPerf();
+            this.perf.endProcess();
         }
     }
 
