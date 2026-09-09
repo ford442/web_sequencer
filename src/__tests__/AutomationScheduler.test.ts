@@ -296,7 +296,7 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('bass2', 'setDecay', expect.any(Number), expect.any(Number));
   });
 
-  it('uses originalRange to denormalise value before scheduling', () => {
+  it('ignores originalRange — the lane value is already normalised', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
@@ -311,8 +311,8 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
-    // denormalised = 0 + 0.5 * (2 - 0) = 1.0 → clamped to 1.0
-    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('lead303', 'setCutoff', 1, expect.any(Number));
+    // originalRange is display metadata: the applied value stays 0.5.
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('lead303', 'setCutoff', 0.5, expect.any(Number));
   });
 
   it('does not schedule when no manager is attached', () => {
@@ -431,7 +431,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
     );
   });
 
-  it('schedules a TB-303 #2 cutoff event for bass1 voice', () => {
+  it('schedules a TB-303 #2 cutoff event for the voice the notes go to (bass2 by default)', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { ppq: 24 });
@@ -441,7 +441,7 @@ describe('AutomationScheduler.scheduleFromTrakEvents', () => {
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('bass1', 'setCutoff', expect.any(Number), expect.any(Number));
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('bass2', 'setCutoff', expect.any(Number), expect.any(Number));
   });
 
   it('ignores pattern-select events (does not call setCutoff with pattern index)', () => {
@@ -671,5 +671,92 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
       'lead303', 'setCutoff', expect.any(Number), expect.any(Number)
     );
     expect(pcf.setAutomationCutoff).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance: a lane sweeping 0 → 1 must reach the applier as a varying value
+// ---------------------------------------------------------------------------
+
+describe('AutomationScheduler lane sweep (acceptance)', () => {
+  /** Collect the value handed to the Open303 applier for each scheduled step. */
+  function sweepValues(lane: UnifiedAutomationLane, steps: number): number[] {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, steps, 0.125, 0);
+    vi.runAllTimers();
+
+    return (mgr.scheduleParamAtTime as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call) => call[2] as number,
+    );
+  }
+
+  function makeSweepLane(overrides?: Partial<UnifiedAutomationLane>): UnifiedAutomationLane {
+    return makeLane({
+      target: 'synthA',
+      parameter: 'filterCutoff',
+      interpolation: 'linear',
+      source: 'rbs',
+      points: [
+        { step: 0, value: 0 },
+        { step: 8, value: 1 },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('applies a varying cutoff across a 0 → 1 sweep (not pinned at min or max)', () => {
+    const values = sweepValues(makeSweepLane({ originalRange: [0, 127] }), 9);
+
+    expect(values).toHaveLength(9);
+
+    // Not pinned: the applied values must actually move across the sweep.
+    expect(Math.min(...values)).toBeLessThan(0.05);
+    expect(Math.max(...values)).toBeGreaterThan(0.95);
+
+    // Distinct intermediate values — a sweep, not a two-state jump.
+    const intermediates = values.filter((v) => v > 0.05 && v < 0.95);
+    expect(new Set(intermediates).size).toBeGreaterThanOrEqual(3);
+
+    // Monotonically rising, matching the 0 → 1 ramp.
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+
+    // The applied value is the lane's normalised value — originalRange is display
+    // metadata and must not scale it.
+    expect(values[4]).toBeCloseTo(0.5, 5);
+  });
+
+  it('applies the same sweep whether or not originalRange is present', () => {
+    const withRange = sweepValues(makeSweepLane({ originalRange: [0, 127] }), 9);
+    automationStore.reset();
+    const withoutRange = sweepValues(makeSweepLane(), 9);
+
+    expect(withRange).toEqual(withoutRange);
+  });
+
+  it('rejects out-of-range point values instead of scheduling them (dev assertion)', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const lane = makeLane({
+      target: 'synthA',
+      parameter: 'filterCutoff',
+      points: [{ step: 0, value: 12000 }],
+    });
+    automationStore.addLane(lane);
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.125, 0);
+    vi.runAllTimers();
+
+    expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

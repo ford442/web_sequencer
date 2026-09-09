@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     clampOctave,
+    isOctaveAtEdge,
+    midiForOffset,
     noteForOffset,
     loadStoredOctave,
     storeOctave,
@@ -8,6 +10,8 @@ import {
     DEFAULT_KEYBOARD_OCTAVE,
     MIN_KEYBOARD_OCTAVE,
     MAX_KEYBOARD_OCTAVE,
+    OCTAVE_SHIFT_RANGE,
+    KEYBOARD_SPAN_SEMITONES,
 } from '../keyboardOctave';
 import { noteToMidi } from '../musicTheory';
 
@@ -58,6 +62,61 @@ describe('keyboardOctave', () => {
                     expect(midi).toBeLessThanOrEqual(127);
                 }
             }
+        });
+    });
+
+    describe('shift range', () => {
+        it('spans exactly -3..+3 octaves around the center', () => {
+            expect(OCTAVE_SHIFT_RANGE).toBe(3);
+            expect(MIN_KEYBOARD_OCTAVE).toBe(DEFAULT_KEYBOARD_OCTAVE - OCTAVE_SHIFT_RANGE);
+            expect(MAX_KEYBOARD_OCTAVE).toBe(DEFAULT_KEYBOARD_OCTAVE + OCTAVE_SHIFT_RANGE);
+        });
+
+        it('saturates at each edge instead of wrapping', () => {
+            // Repeated shifts past an edge must stay pinned to that edge, never
+            // reappear at the opposite one.
+            let octave = DEFAULT_KEYBOARD_OCTAVE;
+            for (let i = 0; i < 20; i++) octave = clampOctave(octave - 1);
+            expect(octave).toBe(MIN_KEYBOARD_OCTAVE);
+
+            for (let i = 0; i < 40; i++) octave = clampOctave(octave + 1);
+            expect(octave).toBe(MAX_KEYBOARD_OCTAVE);
+        });
+
+        it('reports both edges for disabling the controls', () => {
+            expect(isOctaveAtEdge(MIN_KEYBOARD_OCTAVE, -1)).toBe(true);
+            expect(isOctaveAtEdge(MIN_KEYBOARD_OCTAVE, 1)).toBe(false);
+            expect(isOctaveAtEdge(MAX_KEYBOARD_OCTAVE, 1)).toBe(true);
+            expect(isOctaveAtEdge(MAX_KEYBOARD_OCTAVE, -1)).toBe(false);
+            expect(isOctaveAtEdge(DEFAULT_KEYBOARD_OCTAVE, -1)).toBe(false);
+            expect(isOctaveAtEdge(DEFAULT_KEYBOARD_OCTAVE, 1)).toBe(false);
+        });
+    });
+
+    describe('MIDI 0-127 boundary', () => {
+        it('keeps every key of every reachable octave inside the MIDI range', () => {
+            for (let oct = MIN_KEYBOARD_OCTAVE; oct <= MAX_KEYBOARD_OCTAVE; oct++) {
+                for (let offset = 0; offset <= KEYBOARD_SPAN_SEMITONES; offset++) {
+                    const midi = midiForOffset(offset, oct);
+                    expect(midi).toBeGreaterThanOrEqual(0);
+                    expect(midi).toBeLessThanOrEqual(127);
+                }
+            }
+        });
+
+        it('agrees with noteToMidi on the resolved note name', () => {
+            for (let oct = MIN_KEYBOARD_OCTAVE; oct <= MAX_KEYBOARD_OCTAVE; oct++) {
+                for (let offset = 0; offset <= KEYBOARD_SPAN_SEMITONES; offset++) {
+                    expect(noteToMidi(noteForOffset(offset, oct))).toBe(midiForOffset(offset, oct));
+                }
+            }
+        });
+
+        it('stops one octave short of where the top key would exceed 127', () => {
+            // At the current center the +/-3 window and the MIDI ceiling agree
+            // on 8; one octave higher would put the closing C at 132.
+            expect(midiForOffset(KEYBOARD_SPAN_SEMITONES, MAX_KEYBOARD_OCTAVE)).toBeLessThanOrEqual(127);
+            expect(midiForOffset(KEYBOARD_SPAN_SEMITONES, MAX_KEYBOARD_OCTAVE + 1)).toBeGreaterThan(127);
         });
     });
 

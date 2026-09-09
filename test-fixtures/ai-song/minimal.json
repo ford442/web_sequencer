@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "title": "Minimal Acid",
+    "author": "hyphon-fixtures",
+    "version": "1.0",
+    "createdAt": "2026-09-08T00:00:00Z",
+    "generator": "claude-opus-5",
+    "prompt": "The smallest song that still plays: a four-on-the-floor kick and one 303 bass line.",
+    "tags": ["fixture", "minimal"]
+  },
+  "globals": {
+    "tempo": 128
+  },
+  "tracks": {
+    "synthA": {
+      "notes": [
+        { "step": 0, "note": "C2", "velocity": 0.9, "accent": true },
+        { "step": 3, "note": "C2" },
+        { "step": 6, "note": "Eb2", "slide": true },
+        { "step": 8, "note": "G2", "accent": true },
+        { "step": 11, "note": "C2" },
+        { "step": 14, "note": "Bb1" }
+      ],
+      "params": {
+        "waveform": "303-saw",
+        "filterCutoff": 1200,
+        "filterResonance": 16,
+        "decay": 0.35
+      }
+    },
+    "kick": [
+      true, false, false, false, true, false, false, false,
+      true, false, false, false, true, false, false, false
+    ]
+  }
+}

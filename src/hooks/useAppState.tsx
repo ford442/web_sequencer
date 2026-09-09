@@ -540,8 +540,8 @@ export function useAppState() {
     } = useSongHandlers({
         songStructure, setSongStructure, setIsSongModeOpen,
         patternRef, songStructureRef, trackStorageRef, tempoRef,
-        synthARef, synthBRef, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        audioEngine, pyodide, sampleBuffers,
+        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
+        audioEngine, pyodide, sampleBuffers, showToast,
     });
 
     const {

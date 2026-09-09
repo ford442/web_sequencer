@@ -2,8 +2,7 @@ import { useState, useEffect, memo, useRef, useMemo, useCallback } from 'react';
 import { getNoteColor } from '../utils/noteColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
-    clampOctave, noteForOffset, loadStoredOctave, storeOctave,
-    MIN_KEYBOARD_OCTAVE, MAX_KEYBOARD_OCTAVE,
+    clampOctave, noteForOffset, loadStoredOctave, storeOctave, isOctaveAtEdge,
 } from '../utils/keyboardOctave';
 
 interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
@@ -307,16 +306,23 @@ const PianoKey = memo(({
 });
 
 export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _activeTrackColor }: LiveKeyboardProps) => {
-    // Held keys are tracked as semitone offsets, not note names, so shifting
-    // the octave re-derives every sounding note. The diffing effect below then
-    // stops the old pitches and starts the new ones.
-    const [heldByKeys, setHeldByKeys] = useState<Set<number>>(new Set());
-    const [heldByMouse, setHeldByMouse] = useState<number | null>(null);
+    // A held key stores the note name resolved at the moment it was pressed,
+    // keyed by the semitone offset that keyup will look it up by. Because the
+    // sounding pitch is captured at press time rather than re-derived from the
+    // live octave, shifting mid-hold leaves every voice alone: nothing retunes,
+    // and the eventual note-off matches the note-on that started it.
+    const [heldByKeys, setHeldByKeys] = useState<Map<number, string>>(() => new Map());
+    const [heldByMouse, setHeldByMouse] = useState<{ offset: number; note: string } | null>(null);
     const [showGuide, setShowGuide] = useState(false);
     const [octave, setOctave] = useState(() => loadStoredOctave());
 
     const heldByMouseRef = useRef(heldByMouse);
     useEffect(() => { heldByMouseRef.current = heldByMouse; }, [heldByMouse]);
+
+    // Read by the press handlers so they resolve pitches against the current
+    // octave without re-subscribing the window listeners on every shift.
+    const octaveRef = useRef(octave);
+    useEffect(() => { octaveRef.current = octave; }, [octave]);
 
     const playingNotesRef = useRef<Set<string>>(new Set());
 
@@ -326,12 +332,14 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
         setOctave(prev => clampOctave(prev + delta));
     }, []);
 
+    // Deliberately independent of `octave`: the set only changes when a key is
+    // pressed or released, so an octave shift cannot add or drop a voice.
     const targetActiveNotes = useMemo(() => {
         const active = new Set<string>();
-        heldByKeys.forEach(offset => active.add(noteForOffset(offset, octave)));
-        if (heldByMouse !== null) active.add(noteForOffset(heldByMouse, octave));
+        heldByKeys.forEach(note => active.add(note));
+        if (heldByMouse !== null) active.add(heldByMouse.note);
         return active;
-    }, [heldByKeys, heldByMouse, octave]);
+    }, [heldByKeys, heldByMouse]);
 
     useEffect(() => {
         const currentlyPlaying = playingNotesRef.current;
@@ -367,7 +375,12 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             const offset = PC_KEY_MAPPING[e.code];
             if (offset !== undefined && !e.repeat) {
                 e.preventDefault();
-                setHeldByKeys(prev => new Set(prev).add(offset));
+                setHeldByKeys(prev => {
+                    if (prev.has(offset)) return prev;
+                    const next = new Map(prev);
+                    next.set(offset, noteForOffset(offset, octaveRef.current));
+                    return next;
+                });
             }
         };
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -377,13 +390,14 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             if (offset !== undefined) {
                 e.preventDefault();
                 setHeldByKeys(prev => {
-                    const next = new Set(prev);
+                    if (!prev.has(offset)) return prev;
+                    const next = new Map(prev);
                     next.delete(offset);
                     return next;
                 });
             }
         };
-        const handleBlur = () => setHeldByKeys(new Set());
+        const handleBlur = () => setHeldByKeys(new Map());
 
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
@@ -397,9 +411,14 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
     }, [shiftOctave]);
 
     // --- MOUSE EVENT HANDLERS ---
-    const handleMouseDownStable = useCallback((offset: number) => setHeldByMouse(offset), []);
+    const handleMouseDownStable = useCallback((offset: number) => {
+        setHeldByMouse({ offset, note: noteForOffset(offset, octaveRef.current) });
+    }, []);
     const handleMouseEnterStable = useCallback((offset: number) => {
-        if (heldByMouseRef.current !== null) setHeldByMouse(offset);
+        // Gliding onto a new key is a fresh press, so it takes the current octave.
+        if (heldByMouseRef.current !== null) {
+            setHeldByMouse({ offset, note: noteForOffset(offset, octaveRef.current) });
+        }
     }, []);
     const handleStopMouseStable = useCallback(() => setHeldByMouse(null), []);
 
@@ -439,7 +458,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                 <button
                     type="button"
                     onClick={() => shiftOctave(-1)}
-                    disabled={octave <= MIN_KEYBOARD_OCTAVE}
+                    disabled={isOctaveAtEdge(octave, -1)}
                     aria-label="Octave down"
                     title="Octave down ( [ )"
                     className="text-[10px] text-cyan-500/80 hover:text-cyan-400 disabled:text-gray-700 disabled:hover:text-gray-700 font-mono px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 disabled:bg-black/10 transition-all"
@@ -452,7 +471,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                 <button
                     type="button"
                     onClick={() => shiftOctave(1)}
-                    disabled={octave >= MAX_KEYBOARD_OCTAVE}
+                    disabled={isOctaveAtEdge(octave, 1)}
                     aria-label="Octave up"
                     title="Octave up ( ] )"
                     className="text-[10px] text-cyan-500/80 hover:text-cyan-400 disabled:text-gray-700 disabled:hover:text-gray-700 font-mono px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 disabled:bg-black/10 transition-all"
@@ -489,7 +508,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             label={whiteKeyCodes[i]}
                             isBlack={false}
                             isActive={targetActiveNotes.has(note)}
-                            isHeldByMouse={heldByMouse === offset}
+                            isHeldByMouse={heldByMouse?.offset === offset}
                             activeColor={getNoteColor(note)}
                             onMouseDown={handleMouseDownStable}
                             onMouseEnter={handleMouseEnterStable}
@@ -516,7 +535,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             label={keyCode.replace('Digit', '')}
                             isBlack={true}
                             isActive={targetActiveNotes.has(note)}
-                            isHeldByMouse={heldByMouse === offset}
+                            isHeldByMouse={heldByMouse?.offset === offset}
                             activeColor={getNoteColor(note)}
                             onMouseDown={handleMouseDownStable}
                             onMouseEnter={handleMouseEnterStable}

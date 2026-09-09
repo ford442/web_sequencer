@@ -727,19 +727,9 @@ export interface RbsImportOptions {
   importPcfAsFilter: boolean;
 }
 
-/** Default import options */
-export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
-  /** v1.5 files expose a single TB-303 — maps to partA (SYNTH A) by default. */
-  tb303ATarget: 'partA',
-  tb303BTarget: 'bass2',
-  convertPcfToAutomation: true,
-  importSwing: true,
-  drumKitMapping: 'auto',
-  expandTo32Steps: true,
-  interpolateAutomation: true,
-  quantizeTo16th: true,
-  importPcfAsFilter: false,
-};
+// Import option defaults + TB-303 routing live in importOptions.ts so that
+// trakControllers.ts can use them without an import cycle through this barrel.
+export { DEFAULT_RBS_IMPORT_OPTIONS, resolveTb303Target } from './importOptions';
 
 // ============================================================================
 // CONVERSION UTILITY TYPES

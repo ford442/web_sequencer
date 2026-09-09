@@ -726,6 +726,12 @@ export type AutomationScope = 'pattern' | 'song';
 /**
  * A single point in an automation lane.
  * Uses normalized 0–1 values for portability across parameter ranges.
+ *
+ * INVARIANT: `value` is ALWAYS normalized to [0, 1], for every lane source
+ * (`rbs`, `recorded`, `ai`, `manual`) and every target.  Producers normalize
+ * before creating the point; consumers scale into engine units themselves
+ * (e.g. AutomationScheduler maps 0–1 → Hz for the PCF cutoff).
+ * See {@link UnifiedAutomationLane.originalRange}.
  */
 export interface AutomationLanePoint {
   /**
@@ -775,7 +781,16 @@ export interface UnifiedAutomationLane {
   patternIndex?: number;
   /** Whether the lane is enabled for playback */
   enabled: boolean;
-  /** Original value range (for display/conversion), defaults to [0, 1] */
+  /**
+   * The parameter's real-world range in its source units (e.g. `[0, 127]` for
+   * an RBS knob, `[80, 12000]` for a WAM cutoff in Hz), defaults to `[0, 1]`.
+   *
+   * DISPLAY METADATA ONLY.  It exists so UI can label a normalized point with
+   * the value a user would recognise.  It MUST NEVER be used in scheduling
+   * arithmetic: {@link AutomationLanePoint.value} is already normalized, so
+   * denormalizing with this range at schedule time pins the applied parameter
+   * at its maximum.  See `AutomationScheduler.scheduleFromLanes`.
+   */
   originalRange?: [number, number];
   /**
    * Sampler bank index (0–7) for per-bank targeting.
@@ -866,6 +881,20 @@ export interface SavedSongData {
   activeTrackSlots: Record<string, number>;
   songStructure: unknown[];
   tempo: number;
+  /**
+   * Time signature as `[numerator, denominator]` (e.g. `[4, 4]`, `[3, 4]`).
+   * Optional: songs saved before this field existed load unchanged and are
+   * treated as `[4, 4]`.
+   */
+  timeSignature?: [number, number];
+  /**
+   * Shuffle amount, 0–100 where 50 = straight (the unit shared by the `.rbs`
+   * header and the AI song format). Optional: absent means straight.
+   *
+   * Storage only for now — the transport's swing input is not yet wired to
+   * song state, so loading a song does not change playback feel.
+   */
+  swing?: number;
   ambianceUrl?: string;
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };

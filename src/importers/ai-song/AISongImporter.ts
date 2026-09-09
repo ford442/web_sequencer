@@ -1,21 +1,21 @@
 import type {
   SavedSongData, Pattern, PartSequence, Note, SynthParams, Bass2Params,
-  KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams,
-  TrackKey, AutomationPoint
+  SamplerParams, AutomationPoint, UnifiedAutomationLane, AutomationTarget
 } from '../../types';
-import { noteToMidi } from '../../utils/musicTheory';
+import { generateLaneId } from '../../stores/automationStore';
 import { AISongStorage, type AISongUploadOptions, type AISongMetadata } from '../../services/AISongStorage';
-import type { StorageResult, UploadSuccess, StorageError } from '../../services/CloudStorage';
 import { validateAISongData } from './types';
 import {
-  type AISongData, type AIImportResultType, type AIImportErrorDetails, type AIAutomationTarget, type AITargetedParameter,
-  type AIInterpolationMode, type AIAutomationLane, type AITrackData, type AINoteEvent, type AISamplerBankData,
-  type AIEffectsChain, type AIMasterEffects, type AITrackEffects, type AICompressorSettings, type AIDistortionSettings,
-  type AIDelaySettings, type AIReverbSettings, type AIFilterSettings, type AIChorusSettings, type AIPhaserSettings,
-  type AIHarmonizerConfig, type AIPhonemePainterConfig, type AIPhonemeMapping, type AIImportResult, type AIImportError,
-  type AIImportReport, type AIUploadResult, type AIUploadError, type AIUploadResultType, type HyphonSong,
-  type HyphonEffectsData, type HyphonMasterEffects, type HyphonTrackEffects
+  type AISongData, type AIImportResultType, type AIAutomationTarget,
+  type AIInterpolationMode, type AITrackData, type AISamplerBankData,
+  type AIHarmonizerConfig, type AIPhonemePainterConfig, type AIUploadResultType
 } from './types';
+
+/** Time signature applied when a song does not declare one. */
+const DEFAULT_TIME_SIGNATURE: [number, number] = [4, 4];
+
+/** Swing applied when a song does not declare one (50 = straight). */
+const DEFAULT_SWING = 50;
 
 export function isValidNote(note: string): boolean {
   return /^[A-G][#b]?[0-8]$/.test(note);
@@ -70,14 +70,8 @@ export class AISongImporter {
       // Convert params
       const params = this.convertParams(aiSong);
 
-      // Convert effects (if present)
-      const effects = this.convertEffects(aiSong);
-
-      // Convert harmonizer configs
-      const harmonizers = this.convertAllHarmonizers(aiSong);
-
-      // Convert phoneme painter configs
-      const phonemePainters = this.convertAllPhonemePainters(aiSong);
+      // Convert automation lanes into the unified store format
+      const automationLanes = this.buildAutomationLanes(aiSong);
 
       // Build SavedSongData
       const song: SavedSongData = {
@@ -88,14 +82,12 @@ export class AISongImporter {
         activeTrackSlots: { partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0 },
         songStructure: [],
         tempo: aiSong.globals.tempo,
+        timeSignature: aiSong.globals.timeSignature ?? DEFAULT_TIME_SIGNATURE,
+        swing: aiSong.globals.swing ?? DEFAULT_SWING,
         ambianceUrl: '',
-        backgroundImage: ''
+        backgroundImage: '',
+        ...(automationLanes.length > 0 ? { automationLanes } : {})
       };
-
-      // Store effects data for DSP retrieval
-      (song as HyphonSong).effects = effects;
-      (song as HyphonSong).harmonizers = harmonizers;
-      (song as HyphonSong).phonemePainters = phonemePainters;
 
       // Count converted elements
       const notesConverted = this.countNotes(aiSong);
@@ -252,16 +244,15 @@ export class AISongImporter {
   /**
    * Convert sampler bank data to SamplerParams for SavedSongData['params']
    */
-  private convertSamplerTracks(banks: AISamplerBankData[] | undefined, numSteps: number): SamplerParams {
-    const sampler: SamplerParams = Array(8).fill(null).map(() => ({ 
+  private convertSamplerTracks(banks: AISamplerBankData[] | undefined): SamplerParams {
+    const sampler: SamplerParams = Array.from({ length: 8 }, () => ({
       sampleName: 'empty',
       playbackSpeed: 1.0,
       volume: 1.0,
       filterCutoff: 20000,
       filterResonance: 0,
       drive: 0,
-      delaySend: 0,
-      steps: Array(numSteps).fill(null)
+      delaySend: 0
     }));
 
     if (!banks) {
@@ -274,24 +265,12 @@ export class AISongImporter {
         continue;
       }
 
-      // Convert steps
-      const steps: (Note | null)[] = Array(numSteps).fill(null);
-      for (const event of bank.steps) {
-        if (event.step >= 0 && event.step < numSteps) {
-          steps[event.step] = {
-            note: event.note,
-            velocity: event.velocity ?? 0.8,
-            length: event.length ?? 1
-          };
-        }
-      }
-
+      // Note steps live on the Pattern (see convertSamplerToSequences);
+      // SamplerBankParams carries voice settings only.
       sampler[bank.bankIndex] = {
         ...sampler[bank.bankIndex],
         ...bank.params,
-        sampleName: bank.ttsText || bank.sampleUrl || `bank_${bank.bankIndex}`,
-        // @ts-expect-error - Auto-generated to fix CI build
-        steps
+        sampleName: bank.ttsText || bank.sampleUrl || `bank_${bank.bankIndex}`
       };
     }
 
@@ -334,8 +313,7 @@ export class AISongImporter {
     const mapBass2Params = (trackData?: AITrackData): Bass2Params => {
       const synth = mapSynthParams(trackData);
       return {
-        // @ts-expect-error - Auto-generated to fix CI build
-        waveform: synth.waveform === '303-sqr' ? 1 : 0,
+        waveform: synth.waveform === '303-sqr' ? '303-sqr' : '303-saw',
         pitch: synth.pitch,
         cutoff: synth.filterCutoff,
         resonance: synth.filterResonance,
@@ -350,11 +328,12 @@ export class AISongImporter {
     return {
       synthA: mapSynthParams(aiSong.tracks.synthA),
       synthB: mapSynthParams(aiSong.tracks.synthB),
+      bass2: mapBass2Params(aiSong.tracks.bass2),
       kick: { pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 },
       snare: { decay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
       closedHat: { pitch: 10000, decay: 0.1, volume: 0.8 },
       openHat: { pitch: 8000, decay: 0.4, volume: 0.8 },
-      sampler: this.convertSamplerTracks(aiSong.tracks.sampler, 32)
+      sampler: this.convertSamplerTracks(aiSong.tracks.sampler)
     };
   }
 
@@ -407,6 +386,7 @@ export class AISongImporter {
    */
   convertAutomation(aiSong: AISongData): Array<{
     paramId: string;
+    target: AIAutomationTarget;
     trackKey: string;
     points: AutomationPoint[];
     isRecording: boolean;
@@ -428,10 +408,12 @@ export class AISongImporter {
       for (let step = 0; step < lane.steps.length; step++) {
         const value = lane.steps[step];
         if (value !== null) {
-          // Convert 0-127 to 0-1 range for Hyphon
+          // Convert 0-127 to 0-1 range for Hyphon.
+          // AutomationLanePoint.value is normalized to [0, 1] for every lane
+          // source; clamp so a lane can never break that invariant.
           points.push({
             step,
-            value: value / 127
+            value: Math.max(0, Math.min(1, value / 127))
           });
         }
       }
@@ -440,6 +422,7 @@ export class AISongImporter {
       if (points.length > 0) {
         results.push({
           paramId: lane.parameter,
+          target: lane.target,
           trackKey,
           points,
           isRecording: false,
@@ -455,6 +438,38 @@ export class AISongImporter {
     }
 
     return results;
+  }
+
+  /**
+   * Build store-ready automation lanes from the AI song.
+   *
+   * Wraps {@link convertAutomation} in the `UnifiedAutomationLane` shape that
+   * `SavedSongData.automationLanes` carries, so lanes survive the save/load
+   * round trip and reach `automationStore.importLanes` on import.
+   *
+   * The AI target vocabulary (`synthA`, `master`, …) is already the
+   * `AutomationTarget` vocabulary, so targets pass through unmapped — the
+   * `partA`/`partB` track keys from {@link mapAutomationTargetToTrackKey} are
+   * for the legacy KnobAutomation shape, not for the store.
+   *
+   * @param aiSong - The AI song data containing automation lanes
+   * @returns Lanes whose point values are normalized to [0, 1]
+   */
+  private buildAutomationLanes(aiSong: AISongData): UnifiedAutomationLane[] {
+    return this.convertAutomation(aiSong).map((converted) => ({
+      id: generateLaneId(),
+      target: converted.target as AutomationTarget,
+      parameter: converted.paramId,
+      name: `${converted.target} ${converted.paramId}`,
+      points: converted.points.map((point) => ({ step: point.step, value: point.value })),
+      interpolation: converted.interpolation,
+      source: 'ai' as const,
+      scope: 'song' as const,
+      enabled: true,
+      // Display metadata only: the AI format expresses lane values as MIDI
+      // 0-127, while `points[].value` above is already normalized.
+      originalRange: [0, 127] as [number, number],
+    }));
   }
 
   /**
@@ -506,136 +521,6 @@ export class AISongImporter {
         interpolation: lane.interpolation || 'step'
       }))
     };
-  }
-
-  // ============================================================================
-  // EFFECTS CONVERSION METHODS
-  // ============================================================================
-
-  /**
-   * Convert AI effects chain to Hyphon DSP parameters
-   * Maps AI-generated effects to existing Hyphon effect parameters
-   */
-  convertEffects(aiSong: AISongData): HyphonEffectsData {
-    const effects: HyphonEffectsData = {
-      master: {},
-      tracks: {}
-    };
-
-    // @ts-expect-error - Auto-generated to fix CI build
-    if (!aiSong.effects) {
-      return effects;
-    }
-
-    // Convert master effects
-    // @ts-expect-error - Auto-generated to fix CI build
-    if (aiSong.effects.master) {
-      // @ts-expect-error - Auto-generated to fix CI build
-      effects.master = this.convertMasterEffects(aiSong.effects.master);
-    }
-
-    // Convert track effects
-    // @ts-expect-error - Auto-generated to fix CI build
-    if (aiSong.effects.tracks) {
-      // @ts-expect-error - Auto-generated to fix CI build
-      for (const [trackKey, trackEffects] of Object.entries(aiSong.effects.tracks)) {
-        if (trackEffects) {
-          effects.tracks[trackKey as TrackKey] = this.convertTrackEffects(trackEffects);
-        }
-      }
-    }
-
-    this.mappedParams.push({
-      source: 'AI.effects',
-      target: 'HyphonEffectsData',
-      value: effects
-    });
-
-    return effects;
-  }
-
-  /**
-   * Convert master bus effects
-   */
-  private convertMasterEffects(master: AIMasterEffects): HyphonMasterEffects {
-    const result: HyphonMasterEffects = {};
-
-    if (master.compressor) {
-      result.compressor = {
-        threshold: this.clamp(master.compressor.threshold, -60, 0),
-        ratio: this.clamp(master.compressor.ratio, 1, 20),
-        attack: this.clamp(master.compressor.attack, 0.1, 100),
-        release: this.clamp(master.compressor.release, 10, 1000),
-        makeupGain: master.compressor.makeupGain ?? 0
-      };
-    }
-
-    if (master.limiter) {
-      result.limiter = { enabled: true };
-    }
-
-    if (master.reverb) {
-      result.reverb = {
-        size: this.clamp(master.reverb.size, 0, 100),
-        decay: this.clamp(master.reverb.decay, 0.1, 10),
-        mix: this.clamp(master.reverb.mix, 0, 100),
-        preDelay: this.clamp(master.reverb.preDelay ?? 0, 0, 100)
-      };
-    }
-
-    return result;
-  }
-
-  /**
-   * Convert track-specific effects
-   */
-  private convertTrackEffects(trackEffects: AITrackEffects): HyphonTrackEffects {
-    const result: HyphonTrackEffects = {};
-
-    if (trackEffects.distortion) {
-      result.distortion = {
-        type: trackEffects.distortion.type,
-        amount: this.clamp(trackEffects.distortion.amount, 0, 100),
-        tone: this.clamp(trackEffects.distortion.tone ?? 0, -50, 50)
-      };
-    }
-
-    if (trackEffects.delay) {
-      result.delay = {
-        time: trackEffects.delay.time,
-        feedback: this.clamp(trackEffects.delay.feedback, 0, 100),
-        mix: this.clamp(trackEffects.delay.mix, 0, 100),
-        pingPong: trackEffects.delay.pingPong ?? false
-      };
-    }
-
-    if (trackEffects.filter) {
-      result.filter = {
-        type: trackEffects.filter.type,
-        cutoff: this.clamp(trackEffects.filter.cutoff, 20, 20000),
-        resonance: this.clamp(trackEffects.filter.resonance, 0, 100),
-        envelope: this.clamp(trackEffects.filter.envelope ?? 0, -100, 100)
-      };
-    }
-
-    if (trackEffects.chorus) {
-      result.chorus = {
-        rate: this.clamp(trackEffects.chorus.rate, 0.1, 10),
-        depth: this.clamp(trackEffects.chorus.depth, 0, 100),
-        mix: this.clamp(trackEffects.chorus.mix, 0, 100)
-      };
-    }
-
-    if (trackEffects.phaser) {
-      result.phaser = {
-        rate: this.clamp(trackEffects.phaser.rate, 0.1, 10),
-        depth: this.clamp(trackEffects.phaser.depth, 0, 100),
-        feedback: this.clamp(trackEffects.phaser.feedback, 0, 100),
-        stages: this.validatePhaserStages(trackEffects.phaser.stages)
-      };
-    }
-
-    return result;
   }
 
   /**
@@ -693,54 +578,6 @@ export class AISongImporter {
   }
 
   // ============================================================================
-  // HARMONIZER & PHONEME PAINTER CONVERSION HELPERS
-  // ============================================================================
-
-  /**
-   * Convert harmonizer configs for all tracks
-   */
-  private convertAllHarmonizers(aiSong: AISongData): Partial<Record<TrackKey, AIHarmonizerConfig>> {
-    const harmonizers: Partial<Record<TrackKey, AIHarmonizerConfig>> = {};
-
-    if (aiSong.tracks.synthA?.harmonizer) {
-      const config = this.convertHarmonizer(aiSong.tracks.synthA);
-      // @ts-expect-error - Auto-generated to fix CI build
-      if (config) harmonizers.synthA = config;
-    }
-
-    if (aiSong.tracks.synthB?.harmonizer) {
-      const config = this.convertHarmonizer(aiSong.tracks.synthB);
-      // @ts-expect-error - Auto-generated to fix CI build
-      if (config) harmonizers.synthB = config;
-    }
-
-    if (aiSong.tracks.bass2?.harmonizer) {
-      const config = this.convertHarmonizer(aiSong.tracks.bass2);
-      if (config) harmonizers.bass2 = config;
-    }
-
-    return harmonizers;
-  }
-
-  /**
-   * Convert phoneme painter configs for all sampler banks
-   */
-  private convertAllPhonemePainters(aiSong: AISongData): Record<number, AIPhonemePainterConfig> {
-    const painters: Record<number, AIPhonemePainterConfig> = {};
-
-    if (aiSong.tracks.sampler) {
-      for (const bank of aiSong.tracks.sampler) {
-        const config = this.convertPhonemePainter(bank);
-        if (config) {
-          painters[bank.bankIndex] = config;
-        }
-      }
-    }
-
-    return painters;
-  }
-
-  // ============================================================================
   // VALIDATION HELPERS
   // ============================================================================
 
@@ -753,14 +590,6 @@ export class AISongImporter {
       return voices;
     }
     return 3; // Default to 3 voices
-  }
-
-  private validatePhaserStages(stages?: number): 2 | 4 | 6 | 8 | 12 {
-    const validStages: (2 | 4 | 6 | 8 | 12)[] = [2, 4, 6, 8, 12];
-    if (stages && validStages.includes(stages as 2 | 4 | 6 | 8 | 12)) {
-      return stages as 2 | 4 | 6 | 8 | 12;
-    }
-    return 4; // Default
   }
 
   /**

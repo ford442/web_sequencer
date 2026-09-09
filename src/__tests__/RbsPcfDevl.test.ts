@@ -129,7 +129,7 @@ describe('PCF → automation (IFF + importer)', () => {
     const importer = new RbsImporter({ convertPcfToAutomation: true, expandTo32Steps: false });
     const importResult = importer.convertToHyphonSong(parseResult.data);
 
-    const lane = importResult.song.automation?.find((l) => l.name === 'PCF → Synth A Filter');
+    const lane = importResult.song.automation?.find((l) => l.name === 'PCF → TB-303 A Filter');
     expect(lane).toBeDefined();
     expect(lane!.parameter).toBe('filterCutoff');
     const values = lane!.points.map((p) => p[1]);
@@ -162,7 +162,7 @@ describe('legacy fixed-offset PCF (regression)', () => {
     const importResult = importer.convertToHyphonSong(result.data);
     expect(importResult.report.pcfStats?.source).toBe('legacy');
 
-    const lane = importResult.song.automation?.find((l) => l.name === 'PCF → Synth A Filter');
+    const lane = importResult.song.automation?.find((l) => l.name === 'PCF → TB-303 A Filter');
     const values = lane!.points.map((p) => p[1]);
     for (let i = 1; i < values.length; i++) {
       expect(values[i]).toBeGreaterThanOrEqual(values[i - 1]);

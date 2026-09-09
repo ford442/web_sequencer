@@ -58,8 +58,11 @@ const BASS2_PARAM_KEYS = new Set(Object.keys({
 
 const SYNTH_AUTOMATION_EXTENSIONS = new Set(['accent', 'slide']);
 
+// Master lanes the AutomationScheduler can actually apply (PcfEffect endpoints).
+// tempo/swing/volume/drumPcfModulation are intentionally not emitted — see
+// convertAutomationLane / convertPcfToAutomation.
 const MASTER_AUTOMATION_PARAMS = new Set([
-  'tempo', 'swing', 'volume', 'pcfModulation', 'pcfResonance', 'pcfEnvAmount', 'drumPcfModulation',
+  'pcfCutoff', 'pcfResonance', 'pcfEnvAmount',
 ]);
 
 const KICK_BOUNDS = { pitch: [40, 80] as const, decay: [0.1, 1.0] as const, tone: [0, 1] as const };

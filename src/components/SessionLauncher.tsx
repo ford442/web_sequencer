@@ -133,7 +133,7 @@ export const SessionLauncher = memo(function SessionLauncher({
           <label className="text-[10px] uppercase text-gray-500 flex items-center gap-1">
             Quant
             <select
-              className="bg-zinc-900 border border-zinc-700 text-cyan-200 text-[11px] rounded px-1 py-0.5"
+              className="bg-zinc-900 border border-zinc-700 text-cyan-200 text-[11px] rounded px-1 py-0.5 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800"
               value={quantization}
               aria-label="Launch quantization"
               onChange={(e) => onSetQuantization(e.target.value as LaunchQuantization)}
@@ -144,19 +144,19 @@ export const SessionLauncher = memo(function SessionLauncher({
             </select>
           </label>
           <span className="text-[10px] font-mono text-gray-500" aria-live="polite">{queuedHint}</span>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded" onClick={onUndo} disabled={!canUndo} aria-label="Undo session edit">UNDO</button>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded" onClick={onRedo} disabled={!canRedo} aria-label="Redo session edit">REDO</button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onUndo} disabled={!canUndo} aria-label="Undo session edit">UNDO</button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onRedo} disabled={!canRedo} aria-label="Redo session edit">REDO</button>
           <button
             type="button"
-            className={`h-7 px-2 text-[10px] font-orbitron border rounded ${isCapturing ? 'bg-red-700 text-white border-red-400' : 'border-zinc-700 text-gray-300'}`}
+            className={`h-7 px-2 text-[10px] font-orbitron border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isCapturing ? 'bg-red-700 text-white border-red-400' : 'border-zinc-700 text-gray-300 hover:bg-zinc-800'}`}
             aria-pressed={isCapturing}
             aria-label={isCapturing ? 'Stop capturing launches into Song Mode' : 'Capture launches into Song Mode'}
             onClick={() => (isCapturing ? onFinishCapture() : onBeginCapture())}
           >
             {isCapturing ? 'CAPTURING' : 'CAPTURE'}
           </button>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded" onClick={onStopAll} aria-label="Stop all clips">STOP</button>
-          <button type="button" className="h-7 w-7 text-gray-400" onClick={onClose} aria-label="Close Session Launcher" title="Close Session Launcher"><span aria-hidden="true">✕</span></button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onStopAll} aria-label="Stop all clips">STOP</button>
+          <button type="button" className="h-7 w-7 text-gray-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded" onClick={onClose} aria-label="Close Session Launcher" title="Close Session Launcher"><span aria-hidden="true">✕</span></button>
         </header>
 
         <div className="px-3 py-2 flex gap-2 overflow-x-auto border-b border-gray-800">
@@ -164,7 +164,7 @@ export const SessionLauncher = memo(function SessionLauncher({
             <button
               key={pack.id}
               type="button"
-              className="shrink-0 h-7 px-2 text-[10px] font-orbitron border border-cyan-900/60 text-cyan-300 rounded"
+              className="shrink-0 h-7 px-2 text-[10px] font-orbitron border border-cyan-900/60 text-cyan-300 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-cyan-900/30 hover:scale-105 active:scale-95"
               onClick={() => onLoadPack(pack.id)}
               aria-label={`Load starter pack ${pack.name}`}
             >

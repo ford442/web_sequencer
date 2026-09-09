@@ -1,0 +1,439 @@
+{
+  "meta": {
+    "title": "Full Ingest Reference",
+    "author": "hyphon-fixtures",
+    "version": "1.0",
+    "createdAt": "2026-09-08T00:00:00Z",
+    "generator": "claude-opus-5",
+    "prompt": "Every part of the AI song format that the importer actually applies: three melodic voices, four drum tracks, two sampler banks, three automation lanes across all three interpolation modes, 3/4 time and swing.",
+    "tags": [
+      "fixture",
+      "full",
+      "automation",
+      "swing"
+    ]
+  },
+  "globals": {
+    "tempo": 96,
+    "timeSignature": [
+      3,
+      4
+    ],
+    "swing": 62
+  },
+  "tracks": {
+    "synthA": {
+      "notes": [
+        {
+          "step": 0,
+          "note": "C3",
+          "velocity": 0.95,
+          "accent": true
+        },
+        {
+          "step": 4,
+          "note": "G3",
+          "velocity": 0.7
+        },
+        {
+          "step": 6,
+          "note": "Eb3",
+          "slide": true
+        },
+        {
+          "step": 12,
+          "note": "C3",
+          "velocity": 0.9,
+          "accent": true
+        },
+        {
+          "step": 16,
+          "note": "Bb3",
+          "velocity": 0.7
+        },
+        {
+          "step": 24,
+          "note": "F3",
+          "velocity": 0.85,
+          "accent": true
+        },
+        {
+          "step": 28,
+          "note": "G3",
+          "length": 2
+        }
+      ],
+      "params": {
+        "waveform": "303-saw",
+        "filterCutoff": 2200,
+        "filterResonance": 14,
+        "decay": 0.45,
+        "delayMix": 0.15
+      }
+    },
+    "synthB": {
+      "notes": [
+        {
+          "step": 2,
+          "note": "C4"
+        },
+        {
+          "step": 10,
+          "note": "Eb4"
+        },
+        {
+          "step": 14,
+          "note": "G4",
+          "accent": true
+        },
+        {
+          "step": 22,
+          "note": "Bb4"
+        },
+        {
+          "step": 26,
+          "note": "C5",
+          "velocity": 0.6
+        }
+      ],
+      "params": {
+        "waveform": "303-sqr",
+        "filterCutoff": 4800,
+        "filterResonance": 6
+      }
+    },
+    "bass2": {
+      "notes": [
+        {
+          "step": 0,
+          "note": "C1",
+          "accent": true
+        },
+        {
+          "step": 12,
+          "note": "C1"
+        },
+        {
+          "step": 18,
+          "note": "Ab1",
+          "slide": true
+        },
+        {
+          "step": 24,
+          "note": "F1",
+          "accent": true
+        }
+      ],
+      "params": {
+        "waveform": "303-sqr",
+        "filterCutoff": 900,
+        "filterResonance": 20,
+        "decay": 0.6,
+        "volume": 0.8
+      }
+    },
+    "kick": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ],
+    "snare": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ],
+    "closedHat": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true
+    ],
+    "openHat": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "sampler": [
+      {
+        "bankIndex": 0,
+        "steps": [
+          {
+            "step": 0,
+            "note": "C4",
+            "velocity": 1.0
+          },
+          {
+            "step": 12,
+            "note": "C4",
+            "velocity": 0.8
+          },
+          {
+            "step": 24,
+            "note": "D#4",
+            "velocity": 0.9
+          }
+        ],
+        "ttsText": "three four",
+        "params": {
+          "playbackSpeed": 1.0,
+          "volume": 0.9,
+          "filterCutoff": 12000
+        }
+      },
+      {
+        "bankIndex": 3,
+        "steps": [
+          {
+            "step": 6,
+            "note": "A4",
+            "velocity": 0.7
+          },
+          {
+            "step": 30,
+            "note": "A4",
+            "velocity": 0.5
+          }
+        ],
+        "sampleUrl": "sample://fixture/clap",
+        "params": {
+          "playbackSpeed": 1.25,
+          "volume": 0.6
+        }
+      }
+    ]
+  },
+  "automation": [
+    {
+      "target": "synthA",
+      "parameter": "filterCutoff",
+      "steps": [
+        24,
+        25,
+        28,
+        33,
+        39,
+        47,
+        56,
+        65,
+        76,
+        86,
+        95,
+        104,
+        112,
+        118,
+        123,
+        126,
+        127,
+        126,
+        123,
+        118,
+        112,
+        104,
+        95,
+        86,
+        76,
+        65,
+        56,
+        47,
+        39,
+        33,
+        28,
+        25
+      ],
+      "interpolation": "linear"
+    },
+    {
+      "target": "synthB",
+      "parameter": "filterResonance",
+      "steps": [
+        20,
+        null,
+        null,
+        null,
+        33,
+        null,
+        null,
+        null,
+        46,
+        null,
+        null,
+        null,
+        59,
+        null,
+        null,
+        null,
+        72,
+        null,
+        null,
+        null,
+        85,
+        null,
+        null,
+        null,
+        97,
+        null,
+        null,
+        null,
+        110,
+        null,
+        null,
+        null
+      ],
+      "interpolation": "smooth"
+    },
+    {
+      "target": "bass2",
+      "parameter": "decay",
+      "steps": [
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        70,
+        70,
+        70,
+        70,
+        70,
+        70,
+        70,
+        70,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        55,
+        55,
+        55,
+        55,
+        55,
+        55,
+        55,
+        55
+      ],
+      "interpolation": "step"
+    }
+  ]
+}

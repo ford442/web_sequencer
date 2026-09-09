@@ -106,27 +106,11 @@ export type {
   AIAutomationTarget,
   AITargetedParameter,
   AIInterpolationMode,
-  // Effects types
-  AIEffectsChain,
-  AIMasterEffects,
-  AITrackEffects,
-  AICompressorSettings,
-  AIDistortionSettings,
-  AIDelaySettings,
-  AIReverbSettings,
-  AIFilterSettings,
-  AIChorusSettings,
-  AIPhaserSettings,
   // Harmonizer types
   AIHarmonizerConfig,
   // Phoneme painter types
   AIPhonemePainterConfig,
-  AIPhonemeMapping,
-  // Internal types
-  HyphonEffectsData,
-  HyphonMasterEffects,
-  HyphonTrackEffects,
-  HyphonSong
+  AIPhonemeMapping
 } from './types';
 
 // AISongStorage for direct storage operations
@@ -157,72 +141,5 @@ export type {
 
 // Re-export for convenience
 export type { SavedSongData } from '../../types';
-
-// Example AI song with effects (for documentation/testing)
-// @ts-expect-error - Auto-generated to fix CI build
-export const EXAMPLE_WITH_EFFECTS: AISongData = {
-  meta: {
-    title: "Space Acid",
-    author: "AI Generator",
-    version: "1.0",
-    createdAt: new Date().toISOString(),
-    generator: "claude-3-opus",
-    prompt: "Generate a space acid techno track with effects",
-    tags: ["techno", "acid", "space"]
-  },
-  globals: {
-    tempo: 128,
-    timeSignature: [4, 4]
-  },
-  tracks: {
-    synthA: {
-      notes: [
-        { step: 0, note: "C3", velocity: 0.9, accent: true },
-        { step: 4, note: "E3", velocity: 0.8 },
-        { step: 8, note: "G3", velocity: 0.9, accent: true },
-        { step: 12, note: "A#3", velocity: 0.8 }
-      ],
-      harmonizer: { 
-        enabled: true, 
-        voices: 3, 
-        harmonyType: 'fifth', 
-        formantShift: 0, 
-        detune: 10,
-        spread: 50
-      }
-    },
-    sampler: [{
-      bankIndex: 0,
-      steps: [
-        { step: 0, note: "C4", velocity: 1.0 },
-        { step: 16, note: "C4", velocity: 1.0 }
-      ],
-      ttsText: "Cosmic voyager",
-      phonemePainter: {
-        enabled: true,
-        text: "Cosmic voyager",
-        mapping: [
-          { step: 0, phoneme: "KO", pitch: "C4" },
-          { step: 2, phoneme: "z", pitch: "E4" },
-          { step: 4, phoneme: "m", pitch: "G4" },
-          { step: 6, phoneme: "Ik", pitch: "C4" }
-        ]
-      }
-    }]
-  },
-  effects: {
-    master: { 
-      reverb: { size: 70, decay: 2.5, mix: 30 } 
-    },
-    tracks: {
-      synthA: { 
-        delay: { time: 300, feedback: 40, mix: 25, pingPong: true } 
-      },
-      synthB: { 
-        distortion: { type: 'soft', amount: 30 } 
-      }
-    }
-  }
-};
 
 export * from './AISongImporter';

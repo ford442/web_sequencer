@@ -1,15 +1,15 @@
 {
   "automationLaneNames": [
-    "PCF → Synth A Filter",
-    "PCF → Synth B Filter",
+    "PCF → Bass 2 Filter",
+    "PCF → TB-303 A Filter",
     "TB-303 A Accent",
     "TB-303 A Slide",
   ],
   "automationTargets": [
+    "bass2.cutoff",
     "synthA.accent",
     "synthA.filterCutoff",
     "synthA.slide",
-    "synthB.filterCutoff",
   ],
   "drumKit": "808",
   "kickPitch": 60,

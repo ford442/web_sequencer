@@ -635,6 +635,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             version: SAVED_SONG_DATA_VERSION,
             pattern: song.pattern,
             tempo: song.tempo,
+            timeSignature: song.timeSignature,
+            swing: song.swing,
             ambianceUrl: '',
             backgroundImage: '',
             params: {

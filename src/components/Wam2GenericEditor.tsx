@@ -45,6 +45,13 @@ export function wam2LaneParameter(slotId: string, paramId: string): string {
   return `${slotId}/${paramId}`;
 }
 
+/** Map a param's real-world value into the [0, 1] automation lane domain. */
+function normaliseParamValue(param: Wam2ParamDesc, value: number): number {
+  const span = param.max - param.min;
+  if (!Number.isFinite(span) || span === 0) return 0;
+  return Math.min(1, Math.max(0, (value - param.min) / span));
+}
+
 function stepFor(param: Wam2ParamDesc): number {
   const span = param.max - param.min;
   // 1000 steps across the range, rounded to something a keyboard user can land on.
@@ -126,7 +133,9 @@ export const Wam2GenericEditor: React.FC<Wam2GenericEditorProps> = ({
         target: 'wam',
         parameter,
         name: `${descriptor.title} · ${param.label}`,
-        points: [{ step: 0, value: values[param.id] ?? param.defaultValue }],
+        // AutomationLanePoint.value is normalised to [0, 1]; param.min/max is
+        // carried as display metadata in originalRange.
+        points: [{ step: 0, value: normaliseParamValue(param, values[param.id] ?? param.defaultValue) }],
         interpolation: 'linear',
         source: 'manual',
         scope: 'pattern',
