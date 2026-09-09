@@ -204,7 +204,8 @@ describe('FFT', () => {
             
             // Without window - more leakage
             const resultNoWindow = fft.forward(input);
-            const leakageNoWindow = calculateLeakage(resultNoWindow.magnitude);
+            const magnitudeNoWindow = new Float32Array(resultNoWindow.magnitude);
+            const leakageNoWindow = calculateLeakage(magnitudeNoWindow);
             
             // With window - less leakage
             const windowed = fft.applyHannWindow(input);
@@ -262,8 +263,8 @@ describe('Spectral Flux', () => {
         addNoise(frame2, 0.1);
         
         const fft = new FFT({ size });
-        const mag1 = fft.magnitude(frame1);
-        const mag2 = fft.magnitude(frame2);
+        const mag1 = new Float32Array(fft.magnitude(frame1));
+        const mag2 = new Float32Array(fft.magnitude(frame2));
         
         const flux = calculateSpectralFlux(mag1, mag2);
         
