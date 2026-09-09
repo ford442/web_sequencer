@@ -28,6 +28,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set drum ducking depth.
+   * @param amount Ducking amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setDrumDuckDepth(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "drumDuckDepth", amount, time);
+  },
+
+  /**
    * Set AutoTune amount.
    * @param amount AutoTune amount (0-1)
    * @param time Optional time to apply the change

@@ -36,6 +36,7 @@ interface SamplerKnobHandlers {
   downsample: (v: number) => void;
   vocalChorus: (v: number) => void;
   autoTune: (v: number) => void;
+  drumDuckDepth: (v: number) => void;
   spectralCompression: (v: number) => void;
   windowShape: (v: number) => void;
   customGrainEnvelope: (v: unknown) => void;
@@ -264,6 +265,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
               <Knob label="Fmt Env Amt" value={currentParams.formantEnvAmount ?? 0} onChange={onFormantEnvAmountChange} min={-24} max={24} step={1} color="indigo" unit="st" />
               <Knob label="Fmt Follower" value={currentParams.formantEnvFollower ?? 0} onChange={onFormantEnvFollowerChange} min={-24} max={24} step={1} color="indigo" unit="st" />
               <Knob label="Fmt Ducking" value={currentParams.formantSidechainDepth ?? 0} onChange={onFormantSidechainDepthChange} min={0} max={24} step={1} color="indigo" unit="st" />
+              <Knob label="Grain Duck" value={currentParams.drumDuckDepth || 0} onChange={handlers.drumDuckDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <div className="flex flex-col items-center justify-start gap-1">
             <div className="text-[8px] text-gray-400 font-bold mb-0.5">WNDW SHAPE</div>
             <select

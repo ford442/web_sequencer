@@ -134,6 +134,7 @@ export function createPlaySamplerVoice(
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
+    const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
     const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
     const pTranceGate = noteParams?.tranceGate;
     const pVolumeFilterMod = noteParams?.volumeFilterMod !== undefined ? noteParams.volumeFilterMod : params.volumeFilterMod;
@@ -361,6 +362,7 @@ export function createPlaySamplerVoice(
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
         if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);
+        if (pDrumDuckDepth !== undefined && (voice as any).setDrumDuckDepth) (voice as any).setDrumDuckDepth(pDrumDuckDepth, triggerTime);
         if (pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(pPhonemeFilterMod, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
         if (pVolumeFilterMod !== undefined && (voice as any).setVolumeFilterMod) (voice as any).setVolumeFilterMod(pVolumeFilterMod, triggerTime);

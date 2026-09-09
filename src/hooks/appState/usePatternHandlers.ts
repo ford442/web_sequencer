@@ -209,7 +209,7 @@ export function usePatternHandlers(deps: {
              'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
              'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
              'grainLfoRate' | 'grainLfoDepth' | 'grainPosLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
-             'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
+             'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'drumDuckDepth' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
              'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
              'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
         value: number | boolean | string | number[]
