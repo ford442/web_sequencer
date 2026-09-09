@@ -89,10 +89,12 @@ test.describe('WAM2 missing plugin', () => {
     );
     await expect
       .poll(
-        () =>
-          page.evaluate(
-            () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!(),
-          ),
+        async () => {
+          await page.waitForTimeout(100);
+          return page.evaluate(
+            () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!() ?? 0,
+          );
+        },
         { timeout: 30_000 },
       )
       .toBeGreaterThan(t0 ?? 0);
