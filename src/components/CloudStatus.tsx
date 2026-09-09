@@ -83,7 +83,7 @@ export const CloudStatus: React.FC = React.memo(() => {
         content = (
             <button type="button"
                 onClick={handleWake}
-                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/20 border border-yellow-800 rounded text-[10px] font-mono text-yellow-400 hover:bg-yellow-900/40 transition-colors"
+                className="flex items-center gap-1.5 px-2 py-1 bg-yellow-900/20 border border-yellow-800 rounded text-[10px] font-mono text-yellow-400 hover:bg-yellow-900/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014]"
                 aria-label="Wake up cloud storage"
                 title="Click to wake up cloud storage"
             >
