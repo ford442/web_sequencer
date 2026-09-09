@@ -46,6 +46,14 @@ export class FFT {
     private wasmModule: FFTWasmExports | null = null;
     private useWasm: boolean = false;
 
+    // Pre-allocated scratch buffers to prevent GC in AudioWorklet
+    private realScratch: Float32Array;
+    private imagScratch: Float32Array;
+    private outMagnitude: Float32Array;
+    private outPhase: Float32Array;
+    private outFrequencies: Float32Array;
+    private windowScratch: Float32Array;
+
     // WASM memory buffers
     private wasmReal: Float32Array | null = null;
     private wasmImag: Float32Array | null = null;
@@ -70,6 +78,18 @@ export class FFT {
         this.bitReversedIndices = this.computeBitReversedIndices();
         this.twiddleReal = new Float32Array(this.size / 2);
         this.twiddleImag = new Float32Array(this.size / 2);
+
+        this.realScratch = new Float32Array(this.size);
+        this.imagScratch = new Float32Array(this.size);
+        const halfSize = Math.floor(this.size / 2) + 1;
+        this.outMagnitude = new Float32Array(halfSize);
+        this.outPhase = new Float32Array(halfSize);
+        this.outFrequencies = new Float32Array(halfSize);
+        this.windowScratch = new Float32Array(this.size);
+
+        // Frequencies are uninitialized here to match original empty array behavior.
+        // Use getFrequencies(sampleRate) to get populated array.
+
         this.computeTwiddleFactors();
 
         // Try to initialize WASM module
@@ -238,15 +258,13 @@ export class FFT {
         );
 
         // Copy results back to JS
-        const magnitude = new Float32Array(halfSize);
-        const phase = new Float32Array(halfSize);
-        magnitude.set(this.wasmMagnitude);
-        phase.set(this.wasmPhase);
+        this.outMagnitude.set(this.wasmMagnitude);
+        this.outPhase.set(this.wasmPhase);
 
         return {
-            magnitude,
-            phase,
-            frequencies: new Float32Array(halfSize)
+            magnitude: this.outMagnitude,
+            phase: this.outPhase,
+            frequencies: this.outFrequencies
         };
     }
 
@@ -259,8 +277,8 @@ export class FFT {
         }
 
         // Create complex arrays
-        const real = new Float32Array(this.size);
-        const imag = new Float32Array(this.size);
+        const real = this.realScratch;
+        const imag = this.imagScratch;
 
         // Copy input and apply bit-reversal permutation
         for (let i = 0; i < this.size; i++) {
@@ -301,8 +319,8 @@ export class FFT {
 
         // Compute magnitude and phase (only first half for real input)
         const halfSize = Math.floor(this.size / 2) + 1;
-        const magnitude = new Float32Array(halfSize);
-        const phase = new Float32Array(halfSize);
+        const magnitude = this.outMagnitude;
+        const phase = this.outPhase;
 
         for (let i = 0; i < halfSize; i++) {
             magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
@@ -312,7 +330,7 @@ export class FFT {
         return {
             magnitude,
             phase,
-            frequencies: new Float32Array(halfSize)
+            frequencies: this.outFrequencies
         };
     }
 
@@ -385,7 +403,7 @@ export class FFT {
         );
 
         // Copy result back
-        const output = new Float32Array(n);
+        const output = this.windowScratch;
         for (let i = 0; i < n; i++) {
             output[i] = this.wasmReal![i];
         }
@@ -397,7 +415,7 @@ export class FFT {
      * JavaScript fallback Hann window
      */
     private applyHannWindowJs(input: Float32Array): Float32Array {
-        const output = new Float32Array(input.length);
+        const output = this.windowScratch;
         const n = input.length;
         
         for (let i = 0; i < n; i++) {
