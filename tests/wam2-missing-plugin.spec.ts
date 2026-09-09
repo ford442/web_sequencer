@@ -82,6 +82,8 @@ test.describe('WAM2 missing plugin', () => {
 
     // The audio clock is actually advancing — not merely a toggled button.
     // Firefox can take >10s for currentTime to move after a long serial boot.
+    // Wait a brief moment to ensure we aren't fetching t0 before the context even attempts to move
+    await page.waitForTimeout(500);
     const t0 = await page.evaluate(
       () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!(),
     );
