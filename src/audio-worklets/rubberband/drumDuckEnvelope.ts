@@ -5,6 +5,7 @@
 export class DrumDuckEnvelope {
   private env = 0.0;
   private lastTrigger = 0.0;
+  private readonly processResult = { duckingScalar: 0.0, isSnare: 0.0 };
 
   process(
     sidechain: Float32Array | null,
@@ -14,7 +15,9 @@ export class DrumDuckEnvelope {
     sampleRate: number
   ): { duckingScalar: number; isSnare: number } {
     if (!(drumDuckDepth > 0 && sidechain)) {
-      return { duckingScalar: 0.0, isSnare: 0.0 };
+      this.processResult.duckingScalar = 0.0;
+      this.processResult.isSnare = 0.0;
+      return this.processResult;
     }
 
     const triggerTime = sidechain[0];
@@ -37,7 +40,9 @@ export class DrumDuckEnvelope {
       this.env *= releaseMult;
     }
 
-    return { duckingScalar, isSnare };
+    this.processResult.duckingScalar = duckingScalar;
+    this.processResult.isSnare = isSnare;
+    return this.processResult;
   }
 
   /** Master-bus gain reduction applied post-retrieve, weighted toward vowels. */

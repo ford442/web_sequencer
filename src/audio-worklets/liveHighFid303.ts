@@ -201,10 +201,12 @@ export class LiveHighFidGuard {
   private windowUnderruns = 0;
   private totalUnderruns = 0;
   private tripped = false;
+  private readonly verdict: LiveHighFidGuardVerdict;
 
   private static readonly EMA_ALPHA = 0.2;
 
   constructor(options: LiveHighFidGuardOptions = {}) {
+    this.verdict = { degrade: false, reason: null, cpuPercent: 0, underruns: 0 };
     this.cpuBudgetPercent = options.cpuBudgetPercent ?? 60;
     this.sustainedBlocks = options.sustainedBlocks ?? 24;
     this.underrunLimit = options.underrunLimit ?? 8;
@@ -234,7 +236,11 @@ export class LiveHighFidGuard {
   /** Feed one rendered block. Returns whether the voice must step down. */
   record(processUs: number, quantumUs: number): LiveHighFidGuardVerdict {
     if (!(quantumUs > 0) || !Number.isFinite(processUs)) {
-      return { degrade: false, reason: null, cpuPercent: this.emaPercent, underruns: this.totalUnderruns };
+      this.verdict.degrade = false;
+      this.verdict.reason = null;
+      this.verdict.cpuPercent = this.emaPercent;
+      this.verdict.underruns = this.totalUnderruns;
+      return this.verdict;
     }
 
     const percent = Math.min(400, (processUs / quantumUs) * 100);
@@ -257,7 +263,11 @@ export class LiveHighFidGuard {
     this.overBudgetRun = this.emaPercent >= this.cpuBudgetPercent ? this.overBudgetRun + 1 : 0;
 
     if (this.tripped || this.blocksSeen <= this.warmupBlocks) {
-      return { degrade: false, reason: null, cpuPercent: this.emaPercent, underruns: this.totalUnderruns };
+      this.verdict.degrade = false;
+      this.verdict.reason = null;
+      this.verdict.cpuPercent = this.emaPercent;
+      this.verdict.underruns = this.totalUnderruns;
+      return this.verdict;
     }
 
     let reason: string | null = null;
@@ -270,11 +280,10 @@ export class LiveHighFidGuard {
     }
 
     if (reason) this.tripped = true;
-    return {
-      degrade: reason !== null,
-      reason,
-      cpuPercent: this.emaPercent,
-      underruns: this.totalUnderruns,
-    };
+    this.verdict.degrade = reason !== null;
+    this.verdict.reason = reason;
+    this.verdict.cpuPercent = this.emaPercent;
+    this.verdict.underruns = this.totalUnderruns;
+    return this.verdict;
   }
 }
