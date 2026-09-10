@@ -114,7 +114,7 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
                 {/* Heatmap Area */}
                 <div className="border border-gray-700 bg-black mb-4 h-48 relative rounded overflow-hidden">
                     {status === "No Voice Loaded" || status === "Ready" ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gray-800/20 border border-dashed border-gray-700">
+                        <div role="status" aria-live="polite" className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gray-800/20 border border-dashed border-gray-700">
                             <div className="w-12 h-12 rounded-full bg-purple-900/30 flex items-center justify-center mb-4 text-purple-500" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
