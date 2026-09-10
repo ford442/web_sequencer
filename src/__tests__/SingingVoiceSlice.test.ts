@@ -207,6 +207,50 @@ describe('SingingVoice Slice Triggering', () => {
         );
     });
 
+    it('should bypass pool and call fallback process when reverse is true', async () => {
+        const audio = new Float32Array(44100 * 0.6);
+        const phonemeId = 'test_slice_1';
+        const targetDuration = 0.2;
+        const mockPoolBuffer = {
+            numberOfChannels: 1,
+            length: 4410,
+            sampleRate: 44100,
+            getChannelData: vi.fn()
+        };
+
+        // Mock a pool with a matching buffer
+        const pool = {
+            getNearest: vi.fn().mockReturnValue(mockPoolBuffer),
+            init: vi.fn(),
+            warmPhoneme: vi.fn(),
+            onBPMChange: vi.fn(),
+            clear: vi.fn(),
+            dispose: vi.fn()
+        };
+
+        voice.setPool(pool as any);
+        voice.connectOutput(audioContext.createGain()); // Output destination required for pool hit
+
+        // triggerSlice with reverse: true
+        await voice.triggerSlice(audio, 1, mockAlignment, 1.0, true, targetDuration, 0, phonemeId);
+
+        // Should NOT have used the pool (pool.getNearest should not have been called, or if it was, source not played)
+        // Since we short-circuit early `&& !reverse`, `getNearest` shouldn't be called.
+        expect(pool.getNearest).not.toHaveBeenCalled();
+
+        // Should have called process/noteOn with reverse: true
+        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'noteOn',
+                data: expect.objectContaining({
+                    startSample: 4410,
+                    endSample: 13230,
+                    reverse: true
+                })
+            })
+        );
+    });
+
     it('should set grainPitchQuantize on the worklet parameter', () => {
         voice.setGrainPitchQuantize(7);
         expect(mockWorkletNode.parameters.get('grainPitchQuantize').setValueAtTime).toHaveBeenCalledWith(7, 0);

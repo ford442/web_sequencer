@@ -213,7 +213,8 @@ export const PlaybackMixin = {
       this.bufferPool !== null &&
       targetDuration !== undefined &&
       targetDuration > 0 &&
-      phonemeId !== undefined
+      phonemeId !== undefined &&
+      !reverse
     ) {
       const targetMs = Math.round(targetDuration * 1000);
       const poolBuffer = this.bufferPool.getNearest(phonemeId, targetMs);
