@@ -1,6 +1,11 @@
 {
+<<<<<<< HEAD
   "status": "failed",
   "failedTests": [
     "c24b728a3d9ae8813a71-133212d7a147bda0a60f"
   ]
+=======
+  "status": "passed",
+  "failedTests": []
+>>>>>>> origin/main
 }

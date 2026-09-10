@@ -123,12 +123,14 @@ export function useLyricHandlers(deps: {
 
     const handleLyricApply = useCallback(async (text: string) => {
         try {
-            // Parse pitch tags like (C4) or (C#4)
-            const pitchRegex = /\(([A-G][#b]?[0-9])\)/g;
-            const pitches: string[] = [];
+            // Parse pitch tags like (C4) or (C#4), and optional reverse tag like (C4, rev) or (rev)
+            const pitchRegex = /\(([A-G][#b]?[0-9])?(?:,?\s*(rev|reverse))?\)/gi;
+            const pitches: (string | undefined)[] = [];
+            const reverses: boolean[] = [];
             let match;
             while ((match = pitchRegex.exec(text)) !== null) {
                 pitches.push(match[1]);
+                reverses.push(!!match[2]);
             }
 
             // Clean text for TTS generation
@@ -208,6 +210,7 @@ export function useLyricHandlers(deps: {
                                     velocity: 1,
                                     length: 1,
                                     sliceIndex: noteIndex,
+                                    ...(reverses[currentPitchIdx] ? { reverse: true } : {})
                                 };
                                 noteIndex++;
                                 currentPitchIdx++;

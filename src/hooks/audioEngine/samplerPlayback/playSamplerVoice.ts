@@ -535,7 +535,24 @@ export function createPlaySamplerVoice(
         pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
       }
 
-      source.buffer = playbackBuffer;
+      if (noteParams?.reverse) {
+        const clonedBuffer = context.createBuffer(
+          playbackBuffer.numberOfChannels,
+          playbackBuffer.length,
+          playbackBuffer.sampleRate
+        );
+        for (let i = 0; i < playbackBuffer.numberOfChannels; i++) {
+          const srcData = playbackBuffer.getChannelData(i);
+          const destData = clonedBuffer.getChannelData(i);
+          for (let j = 0; j < srcData.length; j++) {
+            destData[j] = srcData[srcData.length - 1 - j];
+          }
+        }
+        source.buffer = clonedBuffer;
+      } else {
+        source.buffer = playbackBuffer;
+      }
+
       source.playbackRate.value = pitchRatio;
 
       const gain = context.createGain();
