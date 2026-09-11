@@ -57,3 +57,14 @@
 ## 2026-09-08 - Accessible Decorative Icons in Buttons
 **Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
 **Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
+## 2026-08-25 - Avoid forcing full empty-states into compact headers
+**Learning:** While the dashed-border empty state pattern is great for content wells and large panels, it should not be forced into compact spaces like panel headers or status rows (e.g., the "No MIDI devices" indicator in MidiMapPanel). In those cases, a compact inline status string (e.g. dot + text + button) is a better UX fit.
+**Action:** Before converting an empty state to the standard `border-dashed` pattern, evaluate if the component is a full content area or a compact utility row.
+
+## 2026-08-25 - Avoid redundant screen reader noise on static elements
+**Learning:** `aria-live="polite"` should be reserved for dynamic events or updates that occur *while* the user is interacting with the page. Adding it to static empty states that are simply rendered on initial mount creates unnecessary noise.
+**Action:** Keep `role="status"` for static empty states, but drop `aria-live="polite"` unless the component dynamically updates its emptiness while the panel remains open. Use `A11yAnnouncer` for true dynamic announcements.
+
+## 2026-08-25 - Accessible Canvas and Color-Only Grids
+**Learning:** Elements that communicate information entirely visually, such as raw `<canvas>` waveforms or color-coded pattern grids (where active vs rest is shown only via background color), are completely invisible to screen readers without ARIA roles.
+**Action:** Always ensure that visual-only data components have `role="img"` and a descriptive `aria-label` explaining what they represent.

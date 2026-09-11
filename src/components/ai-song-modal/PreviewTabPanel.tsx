@@ -17,6 +17,7 @@ interface PreviewTabPanelProps {
   parsedAutomationRows: React.ReactNode[] | null;
   audioEngine?: unknown;
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  onSwitchToPaste?: () => void;
 }
 
 export const PreviewTabPanel = React.memo(function PreviewTabPanel({
@@ -28,6 +29,7 @@ export const PreviewTabPanel = React.memo(function PreviewTabPanel({
   parsedAutomationRows,
   audioEngine,
   onShowToast,
+  onSwitchToPaste,
 }: PreviewTabPanelProps) {
   return (
     <div id="ai-modal-panel-preview" role="tabpanel" aria-labelledby="ai-modal-tab-preview" className="space-y-4">
@@ -74,9 +76,17 @@ export const PreviewTabPanel = React.memo(function PreviewTabPanel({
             </svg>
           </div>
           <h3 className="text-gray-300 font-bold mb-2 text-sm">No Preview Available</h3>
-          <p className="text-gray-500 text-xs max-w-[250px]">
+          <p className="text-gray-500 text-xs mb-6 max-w-[250px]">
             Paste or drop valid JSON in the Paste tab to see a preview of your song.
           </p>
+          {onSwitchToPaste && (
+            <button type="button"
+              onClick={onSwitchToPaste}
+              className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+            >
+              Go to Paste Tab
+            </button>
+          )}
         </div>
       )}
     </div>

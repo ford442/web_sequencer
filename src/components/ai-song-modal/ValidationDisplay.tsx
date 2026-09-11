@@ -47,7 +47,7 @@ export const ValidationErrorDisplay = React.memo(function ValidationErrorDisplay
     <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-lg animate-in fade-in slide-in-from-top-2">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-red-400">
-          <span>⚠️</span>
+          <span aria-hidden="true">⚠️</span>
           <span className="text-sm font-medium">
             {validationState.category === 'JSON_SYNTAX' && 'JSON Syntax Error'}
             {validationState.category === 'SCHEMA_VIOLATION' && 'Schema Violation'}
@@ -61,9 +61,8 @@ export const ValidationErrorDisplay = React.memo(function ValidationErrorDisplay
               <button type="button"
                 onClick={onFixCommonIssues}
                 className="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
-                aria-label="Fix Common JSON Issues"
               >
-                🔧 Fix Issues
+                <span aria-hidden="true">🔧</span> Fix Issues
               </button>
             </Tooltip>
           )}
@@ -71,9 +70,8 @@ export const ValidationErrorDisplay = React.memo(function ValidationErrorDisplay
             <button type="button"
               onClick={onCopyErrorReport}
               className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
-              aria-label="Copy error details to clipboard"
             >
-              {copiedError ? '✓ Copied!' : '📋 Copy'}
+                {copiedError ? <><span aria-hidden="true">✓</span> Copied</> : <><span aria-hidden="true">📋</span> Copy</>}
             </button>
           </Tooltip>
         </div>
@@ -95,7 +93,7 @@ export const ValidationErrorDisplay = React.memo(function ValidationErrorDisplay
                 <div className="text-red-300/80">{error.message}</div>
                 {error.suggestion && (
                   <div className="text-gray-500 mt-1 flex items-center gap-1">
-                    <span>💡</span>
+                    <span aria-hidden="true">💡</span>
                     <span>{error.suggestion}</span>
                   </div>
                 )}

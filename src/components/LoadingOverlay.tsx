@@ -128,7 +128,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
         {hasErrors && (
           <div className="mb-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg" role="alert">
             <p className="text-red-400 font-mono text-xs mb-1">
-              ⚠️ Some features may be unavailable:
+              <span aria-hidden="true">⚠️</span> Some features may be unavailable:
             </p>
             <ul className="text-red-300 font-mono text-xs list-disc list-inside">
               {errors.map((error, idx) => (
