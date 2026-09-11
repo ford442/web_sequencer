@@ -449,28 +449,43 @@ export class ExpressiveVoiceProcessor {
      * Update configuration parameters dynamically.
      */
     updateConfig(newConfig: Partial<ExpressiveConfig>): void {
-        // Deep merge logic simplified for specific nested objects
+        // Deep merge logic simplified for specific nested objects (in-place modification to prevent GC allocation)
         if (newConfig.vibrato) {
-            this.config.vibrato = { ...this.config.vibrato, ...newConfig.vibrato };
+            if (newConfig.vibrato.rate !== undefined) this.config.vibrato.rate = newConfig.vibrato.rate;
+            if (newConfig.vibrato.depth !== undefined) this.config.vibrato.depth = newConfig.vibrato.depth;
+            if (newConfig.vibrato.enabled !== undefined) this.config.vibrato.enabled = newConfig.vibrato.enabled;
+            if (newConfig.vibrato.delay !== undefined) this.config.vibrato.delay = newConfig.vibrato.delay;
+            if (newConfig.vibrato.rampTime !== undefined) this.config.vibrato.rampTime = newConfig.vibrato.rampTime;
         }
         if (newConfig.tremolo) {
-            this.config.tremolo = { ...this.config.tremolo, ...newConfig.tremolo };
+            if (newConfig.tremolo.rate !== undefined) this.config.tremolo.rate = newConfig.tremolo.rate;
+            if (newConfig.tremolo.depth !== undefined) this.config.tremolo.depth = newConfig.tremolo.depth;
+            if (newConfig.tremolo.enabled !== undefined) this.config.tremolo.enabled = newConfig.tremolo.enabled;
         }
         if (newConfig.breath) {
-            this.config.breath = { ...this.config.breath, ...newConfig.breath };
+            if (newConfig.breath.amount !== undefined) this.config.breath.amount = newConfig.breath.amount;
+            if (newConfig.breath.filterCutoff !== undefined) this.config.breath.filterCutoff = newConfig.breath.filterCutoff;
+            if (newConfig.breath.enabled !== undefined) this.config.breath.enabled = newConfig.breath.enabled;
         }
 
         if (newConfig.envelope) {
-            this.config.envelope = { ...this.config.envelope, ...newConfig.envelope };
+            if (newConfig.envelope.attack !== undefined) this.config.envelope.attack = newConfig.envelope.attack;
+            if (newConfig.envelope.decay !== undefined) this.config.envelope.decay = newConfig.envelope.decay;
+            if (newConfig.envelope.sustain !== undefined) this.config.envelope.sustain = newConfig.envelope.sustain;
+            if (newConfig.envelope.release !== undefined) this.config.envelope.release = newConfig.envelope.release;
         }
         if (newConfig.pitchEnvelope) {
-            this.config.pitchEnvelope = { ...this.config.pitchEnvelope, ...newConfig.pitchEnvelope };
+            if (newConfig.pitchEnvelope.attack !== undefined) this.config.pitchEnvelope.attack = newConfig.pitchEnvelope.attack;
+            if (newConfig.pitchEnvelope.decay !== undefined) this.config.pitchEnvelope.decay = newConfig.pitchEnvelope.decay;
+            if (newConfig.pitchEnvelope.amount !== undefined) this.config.pitchEnvelope.amount = newConfig.pitchEnvelope.amount;
         }
 
         if (newConfig.gate) {
-            this.config.gate = { ...this.config.gate, ...newConfig.gate };
+            if (newConfig.gate.rate !== undefined) this.config.gate.rate = newConfig.gate.rate;
+            if (newConfig.gate.depth !== undefined) this.config.gate.depth = newConfig.gate.depth;
+            if (newConfig.gate.enabled !== undefined) this.config.gate.enabled = newConfig.gate.enabled;
         }
-        if (newConfig.sampleRate) {
+        if (newConfig.sampleRate !== undefined) {
             this.config.sampleRate = newConfig.sampleRate;
         }
     }

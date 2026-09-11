@@ -49,6 +49,28 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly tranceGate = new TranceGate();
   private readonly drumDuck = new DrumDuckEnvelope();
 
+  // Pre-allocated configuration for expressive processor to avoid per-block GC allocations
+  private readonly currentExpressiveConfig = {
+    vibrato: { depth: 0, rate: 0, enabled: false },
+    tremolo: { depth: 0, rate: 0, enabled: false },
+    gate: { depth: 0, rate: 0, enabled: false },
+    breath: { amount: 0, enabled: false, filterCutoff: 2000 },
+    envelope: { attack: 0, decay: 0, sustain: 0, release: 0 },
+    pitchEnvelope: { attack: 0, decay: 0, amount: 0 }
+  };
+
+  private readonly bandSplitParams = {
+    outL: new Float32Array(0) as Float32Array | any,
+    outR: undefined as Float32Array | any | undefined,
+    hasStereo: false,
+    spectralComp: 0,
+    spectralCompression: 0,
+    grainPanSpread: 0,
+    grainPanL: [] as readonly number[],
+    grainPanR: [] as readonly number[],
+    sampleRate: 0
+  };
+
   // WASM Memory Management
   private inputHeapPtr: number = 0;
   private outputHeapPtr: number = 0;
@@ -345,16 +367,32 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       this.drumSidechainSAB, drumDuckDepth, currentTime, blockFrames, fsForDuck
     );
 
-    this.expressiveProcessor.updateConfig({
-      vibrato: { depth: currentVibDepth, rate: currentVibRate, enabled: currentVibDepth > 0 },
-      tremolo: { depth: tremDepth, rate: tremRate, enabled: tremDepth > 0 },
-      gate: { depth: gateDepth, rate: gateRate, enabled: gateDepth > 0 },
-      breath: { amount: breath, enabled: breath > 0, filterCutoff: 2000 },
+    const cfg = this.currentExpressiveConfig;
+    cfg.vibrato.depth = currentVibDepth;
+    cfg.vibrato.rate = currentVibRate;
+    cfg.vibrato.enabled = currentVibDepth > 0;
 
-      envelope: { attack, decay, sustain, release },
-      pitchEnvelope: { attack: pitchAttack, decay: pitchDecay, amount: pitchAmount }
+    cfg.tremolo.depth = tremDepth;
+    cfg.tremolo.rate = tremRate;
+    cfg.tremolo.enabled = tremDepth > 0;
 
-    });
+    cfg.gate.depth = gateDepth;
+    cfg.gate.rate = gateRate;
+    cfg.gate.enabled = gateDepth > 0;
+
+    cfg.breath.amount = breath;
+    cfg.breath.enabled = breath > 0;
+
+    cfg.envelope.attack = attack;
+    cfg.envelope.decay = decay;
+    cfg.envelope.sustain = sustain;
+    cfg.envelope.release = release;
+
+    cfg.pitchEnvelope.attack = pitchAttack;
+    cfg.pitchEnvelope.decay = pitchDecay;
+    cfg.pitchEnvelope.amount = pitchAmount;
+
+    this.expressiveProcessor.updateConfig(cfg);
 
     // Combine note pitch with parameter modulation
     let finalPitch = this.isPlaying ? this.basePitch * pitch : pitch;
@@ -701,25 +739,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const hasStereo = !!(outL && outR);
         const sRateForSpectral = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
 
-        this.spectral.applyBandSplitAndCompression({
-          outL,
-          outR,
-          hasStereo,
-          spectralComp,
-          spectralCompression,
-          grainPanSpread,
-          grainPanL: this.granular.grainPanL,
-          grainPanR: this.granular.grainPanR,
-          sampleRate: sRateForSpectral
-        });
-
-        this.spectral.applyLegacyCompressor({
-          outputs,
-          hasStereo,
-          outL,
-          spectralComp,
-          sampleRate: sRateForSpectral
-        });
+        this.bandSplitParams.outL = outL;
+        this.bandSplitParams.outR = outR;
+        this.bandSplitParams.hasStereo = hasStereo;
+        this.bandSplitParams.spectralComp = spectralComp;
+        this.bandSplitParams.spectralCompression = spectralCompression;
+        this.bandSplitParams.grainPanSpread = grainPanSpread;
+        this.bandSplitParams.grainPanL = this.granular.grainPanL;
+        this.bandSplitParams.grainPanR = this.granular.grainPanR;
+        this.bandSplitParams.sampleRate = sRateForSpectral;
+        this.spectral.applyBandSplitAndCompression(this.bandSplitParams);
 
         // Vocal Stack Chorus Effect (Post-Retrieve Micro-Delay Taps)
         if (vocalChorusAmount > 0) {
