@@ -32,6 +32,14 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
   private expressiveProcessor: ExpressiveVoiceProcessor;
   private lastGate = 0;
 
+  // Pre-allocated configuration for expressive processor to avoid per-block GC allocations
+  private readonly currentExpressiveConfig = {
+    vibrato: { rate: 0, depth: 0, enabled: false },
+    tremolo: { rate: 0, depth: 0, enabled: false },
+    breath: { amount: 0, filterCutoff: 2000, enabled: false },
+    envelope: { attack: 0, decay: 0, sustain: 0, release: 0 }
+  };
+
   static get parameterDescriptors() {
     return [
       { name: 'vibratoRate', defaultValue: 5.5, minValue: 0.0, maxValue: 10.0, automationRate: 'k-rate' as const },
@@ -113,12 +121,25 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
         ? globalThis.currentTime
         : (typeof currentFrame === 'number' ? currentFrame / resolveWorkletSampleRate() : 0);
     this.expressiveProcessor.setCurrentTime(now);
-    this.expressiveProcessor.updateConfig({
-      vibrato: { rate: vibratoRate, depth: vibratoDepth, enabled: vibratoDepth > 0 },
-      tremolo: { rate: tremoloRate, depth: tremoloDepth, enabled: tremoloDepth > 0 },
-      breath: { amount: breathAmount, filterCutoff: 2000, enabled: breathAmount > 0 },
-      envelope: { attack, decay, sustain, release },
-    });
+
+    const cfg = this.currentExpressiveConfig;
+    cfg.vibrato.rate = vibratoRate;
+    cfg.vibrato.depth = vibratoDepth;
+    cfg.vibrato.enabled = vibratoDepth > 0;
+
+    cfg.tremolo.rate = tremoloRate;
+    cfg.tremolo.depth = tremoloDepth;
+    cfg.tremolo.enabled = tremoloDepth > 0;
+
+    cfg.breath.amount = breathAmount;
+    cfg.breath.enabled = breathAmount > 0;
+
+    cfg.envelope.attack = attack;
+    cfg.envelope.decay = decay;
+    cfg.envelope.sustain = sustain;
+    cfg.envelope.release = release;
+
+    this.expressiveProcessor.updateConfig(cfg);
 
     this.expressiveProcessor.process(output, output);
     return true;
