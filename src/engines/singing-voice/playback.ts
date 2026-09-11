@@ -194,6 +194,7 @@ export const PlaybackMixin = {
     targetDuration?: number,
     scheduledTime?: number,
     phonemeId?: string,
+    velocity: number = 1.0,
   ): Promise<void> {
     if (sliceIndex < 0 || sliceIndex >= alignment.phonemes.length) {
       console.warn(
@@ -245,21 +246,24 @@ export const PlaybackMixin = {
     let scaledAttack = this.currentAttack;
     let scaledDecay = this.currentDecay;
 
+    // Apply Phoneme-Aware Velocity scaling
+    const velocityScale = velocity !== undefined ? velocity : 1.0;
+
     switch (phoneme.category) {
       case "plosive":
-        scaledAttack = Math.max(0.001, this.currentAttack * 0.1); // Extremely fast attack
-        scaledDecay = Math.max(0.001, this.currentDecay * 0.5); // Faster decay
+        scaledAttack = Math.max(0.001, this.currentAttack * 0.1) * (1.5 - velocityScale * 0.5); // Extremely fast attack, harder with high velocity
+        scaledDecay = Math.max(0.001, this.currentDecay * 0.5) * (1.5 - velocityScale * 0.5); // Faster decay
         break;
       case "fricative":
-        scaledAttack = Math.max(0.001, this.currentAttack * 0.5); // Fast attack
+        scaledAttack = Math.max(0.001, this.currentAttack * 0.5) * (1.5 - velocityScale * 0.5); // Fast attack
         break;
       case "liquid":
       case "nasal":
-        scaledAttack = Math.min(2.0, this.currentAttack * 1.2); // Smoother attack
+        scaledAttack = Math.min(2.0, this.currentAttack * 1.2) * (1.2 - velocityScale * 0.2); // Smoother attack
         break;
       case "vowel":
-        scaledAttack = Math.min(2.0, this.currentAttack * 1.5); // Smooth attack
-        scaledDecay = Math.min(2.0, this.currentDecay * 1.2); // Longer decay
+        scaledAttack = Math.min(2.0, this.currentAttack * 1.5) * (1.2 - velocityScale * 0.2); // Smooth attack
+        scaledDecay = Math.min(2.0, this.currentDecay * 1.2) * (1.2 - velocityScale * 0.2); // Longer decay
         break;
       default:
         break;
