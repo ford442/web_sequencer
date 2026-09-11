@@ -100,6 +100,7 @@ export const AISongModal = React.memo(function AISongModal({
               parsedAutomationRows={preview.parsedAutomationRows}
               audioEngine={audioEngine}
               onShowToast={onShowToast}
+              onSwitchToPaste={() => modal.setActiveTab('paste')}
             />
           )}
         </div>

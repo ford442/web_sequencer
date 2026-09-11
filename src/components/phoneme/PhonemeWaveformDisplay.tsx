@@ -7,9 +7,10 @@ export interface PhonemeWaveformDisplayProps {
   width: number;
   height: number;
   phonemes: PhonemeData[];
+  onLoadSample?: () => void;
 }
 
-export const PhonemeWaveformDisplay = memo(({ audioBuffer, width, height, phonemes }: PhonemeWaveformDisplayProps) => {
+export const PhonemeWaveformDisplay = memo(({ audioBuffer, width, height, phonemes, onLoadSample }: PhonemeWaveformDisplayProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -95,6 +96,11 @@ export const PhonemeWaveformDisplay = memo(({ audioBuffer, width, height, phonem
         </div>
         <h3 className="text-zinc-300 font-bold mb-2 text-sm">No sample loaded</h3>
         <p className="text-zinc-500 text-xs mb-6 max-w-[250px]">Load a vocal sample to view the waveform and phoneme slices.</p>
+        {onLoadSample && (
+            <button type="button" onClick={onLoadSample} className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-3 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                Load Sample
+            </button>
+        )}
       </div>
     );
   }
@@ -106,6 +112,8 @@ export const PhonemeWaveformDisplay = memo(({ audioBuffer, width, height, phonem
       height={height}
       className="w-full block rounded-md border border-zinc-800"
       style={{ background: 'linear-gradient(180deg, #09090b 0%, #18181b 100%)' }}
+      role="img"
+      aria-label="Phoneme Waveform Visualization"
     />
   );
 });

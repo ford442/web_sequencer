@@ -27,7 +27,7 @@ export const PatternVisualization: React.FC<PatternVisualizationProps> = React.m
   ], [drums.kick, drums.snare, drums.closedHat, drums.openHat]);
 
   return (
-    <>
+    <div role="img" aria-label="Pattern visualization">
       {/* TB-303 A */}
       <div className="mb-3">
         <div className="flex items-center gap-2 mb-1">
@@ -98,6 +98,6 @@ export const PatternVisualization: React.FC<PatternVisualizationProps> = React.m
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 });

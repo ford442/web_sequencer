@@ -11,7 +11,7 @@ export const ImportReportPanel: React.FC<ImportReportPanelProps> = React.memo(({
   return (
     <div className="p-4 bg-emerald-950/30 border border-emerald-700/50 rounded-lg" aria-live="polite" data-testid="rbs-import-report">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-emerald-400 text-lg">✓</span>
+        <span className="text-emerald-400 text-lg" aria-hidden="true">✓</span>
         <h3 className="text-sm font-semibold text-emerald-300">
           Loaded: {importedSongName}
         </h3>

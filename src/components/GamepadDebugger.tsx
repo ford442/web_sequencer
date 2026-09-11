@@ -44,6 +44,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose} >
       <div aria-hidden="true" className="absolute inset-0 z-0"></div>
       <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl p-6 relative" role="dialog" aria-modal="true" aria-labelledby="gamepad-debugger-title" aria-describedby="gamepad-debugger-desc" tabIndex={-1} ref={modalRef} onClick={e => e.stopPropagation()}>
+        <div id="gamepad-debugger-desc" className="sr-only">Displays real-time state of connected gamepads including buttons and axes. Connect a gamepad and press any button to wake it up.</div>
         <button type="button"
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 rounded p-1.5"
@@ -60,7 +61,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
         </h2>
 
         {gamepads.length === 0 ? (
-           <div id="gamepad-debugger-desc" role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+           <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
              <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -90,7 +91,6 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
            </div>
         ) : (
           <>
-            <div id="gamepad-debugger-desc" className="sr-only">Displays real-time state of connected gamepads including buttons and axes.</div>
             <div className="grid grid-cols-1 gap-6">
             {gamepads.map((gp) => (
               <GamepadCard key={gp.index} gamepad={gp} />

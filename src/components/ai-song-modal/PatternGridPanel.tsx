@@ -14,7 +14,7 @@ export const PatternGridPanel: React.FC<PatternGridPanelProps> = React.memo(({ p
     <div className="p-4 bg-gray-900/50 rounded-lg">
       <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern Preview (8 tracks × 32 steps)</h3>
       <div className="overflow-x-auto">
-        <div className="inline-block min-w-full">
+        <div className="inline-block min-w-full" role="img" aria-label="Pattern visualization">
           {patternGrid.grid.map((row, trackIdx) => (
             <div key={String(trackIdx)} className="flex items-center gap-1 mb-1">
               <span className="w-16 sm:w-20 text-[10px] sm:text-xs text-gray-500 text-right mr-2 shrink-0">
