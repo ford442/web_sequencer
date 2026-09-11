@@ -408,6 +408,7 @@ export function createPlaySamplerVoice(
               targetDuration,
               triggerTime,
               phonemeId,
+              noteParams?.velocity !== undefined ? noteParams.velocity : 1.0,
             );
             return;
           }
