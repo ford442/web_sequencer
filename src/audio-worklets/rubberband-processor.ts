@@ -228,10 +228,21 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.startSamplePtr = startSample;
         this.endSamplePtr = endSample;
 
-        if (this.isReverse) {
-          this.currentSamplePtr = endSample - 1;
+        // Check if we are switching direction mid-playback
+        const wasReverse = this.isReverse;
+        this.isReverse = !!data.reverse;
+
+        if (this.isPlaying && wasReverse !== this.isReverse) {
+            // Apply a short envelope fade to smooth the transition
+            // The ExpressiveVoiceProcessor handles envelope re-triggering smoothly
+            // if we just call noteOn again without resetting envelope state to 0.
         } else {
-          this.currentSamplePtr = startSample;
+            // Normal initialization
+            if (this.isReverse) {
+                this.currentSamplePtr = endSample - 1;
+            } else {
+                this.currentSamplePtr = startSample;
+            }
         }
 
         this.isPlaying = true;

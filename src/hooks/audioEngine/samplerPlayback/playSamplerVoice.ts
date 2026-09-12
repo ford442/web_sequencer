@@ -446,14 +446,26 @@ export function createPlaySamplerVoice(
         // 4. Play
 
         // Pitch Envelope
+        let finalPitchAmount = pPitchAmount;
+        let finalPitchAttack = pPitchAttack;
+        let finalPitchDecay = pPitchDecay;
+
+        // Auto-pitch envelope on high velocity (e.g., > 0.85) if not manually overridden
+        const velocity = noteParams?.velocity !== undefined ? noteParams.velocity : 1.0;
+        if (velocity > 0.85 && finalPitchAmount === 0) {
+            finalPitchAmount = 2.0; // 2 semitones
+            finalPitchAttack = 0.01; // Fast attack
+            finalPitchDecay = 0.08; // Fast decay
+        }
+
         if (voice.setPitchAttack) {
-          voice.setPitchAttack(pPitchAttack, triggerTime);
+          voice.setPitchAttack(finalPitchAttack, triggerTime);
         }
         if (voice.setPitchDecay) {
-          voice.setPitchDecay(pPitchDecay, triggerTime);
+          voice.setPitchDecay(finalPitchDecay, triggerTime);
         }
         if (voice.setPitchAmount) {
-          voice.setPitchAmount(pPitchAmount, triggerTime);
+          voice.setPitchAmount(finalPitchAmount, triggerTime);
         }
 
         voice.play(undefined, undefined, 1.0, noteParams?.reverse, targetHz);
