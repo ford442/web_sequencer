@@ -68,3 +68,7 @@
 ## 2026-08-25 - Accessible Canvas and Color-Only Grids
 **Learning:** Elements that communicate information entirely visually, such as raw `<canvas>` waveforms or color-coded pattern grids (where active vs rest is shown only via background color), are completely invisible to screen readers without ARIA roles.
 **Action:** Always ensure that visual-only data components have `role="img"` and a descriptive `aria-label` explaining what they represent.
+
+## 2026-09-12 - Remove redundant aria-live from static empty states
+**Learning:** Found several components (`AutomationLaneList`, `PhonemeWaveformDisplay`, `CurveEditor`) that had `aria-live="polite"` applied to their static empty state containers. As noted in previous learnings, `aria-live="polite"` should be reserved for dynamic updates. When applied to static elements rendered on mount, it creates unnecessary and redundant announcements for screen reader users.
+**Action:** Removed `aria-live="polite"` from these statically rendered empty states while preserving the `role="status"` and existing structural consistency to ensure a more professional and less noisy screen reader experience.

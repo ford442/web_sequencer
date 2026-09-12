@@ -224,7 +224,7 @@ export const CurveEditor = memo(({
   if (!lane) {
     return (
       <div
-        role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg"
+        role="status" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg"
         style={{ width, height }}
       >
         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
