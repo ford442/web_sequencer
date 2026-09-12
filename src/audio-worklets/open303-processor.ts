@@ -40,7 +40,8 @@ class Open303Processor extends AudioWorkletProcessor {
     private static readonly OUTPUT_GAIN = 1.0;
 
     // Stuck note protection
-    private activeNotes: Map<number, number> = new Map(); // note -> startTime (ms)
+    private activeNotes = new Float64Array(128); // note (0-127) -> startTime (ms). 0 means inactive.
+    private activeNoteCount = 0;
     private static readonly MAX_NOTE_DURATION_MS = 8000;
     private stuckNoteWarnings = 0;
 
@@ -166,8 +167,8 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         // Portamento fix
-        if (this.noteOffJustSent || this.activeNotes.size > 0) {
-            if (this.activeNotes.size > 0) {
+        if (this.noteOffJustSent || this.activeNoteCount > 0) {
+            if (this.activeNoteCount > 0) {
                 this.clearAllNotes();
             }
             this.pendingNote = { note, velocity };
@@ -192,7 +193,10 @@ class Open303Processor extends AudioWorkletProcessor {
             } else {
                 exports.jc303_noteOff(note);
             }
-            this.activeNotes.delete(note);
+            if (note >= 0 && note < 128 && this.activeNotes[note] !== 0) {
+                this.activeNotes[note] = 0;
+                this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
+            }
             this.noteOffJustSent = true;
         } catch (e) {
             console.error('[Open303] noteOff failed:', e);
@@ -213,14 +217,17 @@ class Open303Processor extends AudioWorkletProcessor {
             } else if (exports.jc303_allNotesOff) {
                 exports.jc303_allNotesOff();
             } else {
-                for (const note of this.activeNotes.keys()) {
-                    exports.jc303_noteOff(note);
+                for (let note = 0; note < 128; note++) {
+                    if (this.activeNotes[note] !== 0) {
+                        exports.jc303_noteOff(note);
+                    }
                 }
             }
         } catch (e) {
             console.error('[Open303] clearAllNotes failed:', e);
         }
-        this.activeNotes.clear();
+        this.activeNotes.fill(0);
+        this.activeNoteCount = 0;
     }
 
     private triggerNoteOn(note: number, velocity: number): void {
@@ -240,7 +247,12 @@ class Open303Processor extends AudioWorkletProcessor {
             const now = getTime();
             this.lastNoteOnTime = now;
             this.noteOnTimes.push(now);
-            this.activeNotes.set(note, now);
+            if (note >= 0 && note < 128 && this.activeNotes[note] === 0) {
+                this.activeNotes[note] = now || 0.1; // Ensure non-zero
+                this.activeNoteCount++;
+            } else if (note >= 0 && note < 128) {
+                this.activeNotes[note] = now || 0.1;
+            }
         } catch (e: any) {
             console.error(`[Open303] noteOn failed:`, e);
         }
@@ -393,25 +405,30 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private checkStuckNotes(exports: any): void {
+        if (this.activeNoteCount === 0) return;
         const now = getTime();
-        for (const [note, startTime] of this.activeNotes.entries()) {
-            const duration = now - startTime;
-            if (duration > Open303Processor.MAX_NOTE_DURATION_MS) {
-                if (this.stuckNoteWarnings++ < 5) {
-                    console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
-                }
-                try {
-                    if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
-                        this.engineSelection.liveHighFid.noteOff(note);
-                    } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                        exports.jc303_note_off(this.session.jc303Handle, note);
-                    } else if (this.session.isNativeApi) {
-                        exports.open303_note_off(this.session.instanceHandle, note);
-                    } else {
-                        exports.jc303_noteOff(note);
+        for (let note = 0; note < 128; note++) {
+            const startTime = this.activeNotes[note];
+            if (startTime !== 0) {
+                const duration = now - startTime;
+                if (duration > Open303Processor.MAX_NOTE_DURATION_MS) {
+                    if (this.stuckNoteWarnings++ < 5) {
+                        console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
                     }
-                } catch { }
-                this.activeNotes.delete(note);
+                    try {
+                        if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
+                            this.engineSelection.liveHighFid.noteOff(note);
+                        } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
+                            exports.jc303_note_off(this.session.jc303Handle, note);
+                        } else if (this.session.isNativeApi) {
+                            exports.open303_note_off(this.session.instanceHandle, note);
+                        } else {
+                            exports.jc303_noteOff(note);
+                        }
+                    } catch { }
+                    this.activeNotes[note] = 0;
+                    this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
+                }
             }
         }
     }
