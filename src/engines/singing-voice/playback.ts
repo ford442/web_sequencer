@@ -116,7 +116,21 @@ export const PlaybackMixin = {
   },
 
   /**
+   * Set reverse playback state dynamically.
+   * @param reverse True for reverse playback, false for forward
+   */
+  setReverse(this: SingingVoiceHost, reverse: boolean): void {
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({
+        type: "setReverse",
+        data: { reverse },
+      });
+    }
+  },
+
+  /**
    * Trigger playback of the currently loaded buffer.
+
    * @param startSample Optional start sample index
    * @param endSample Optional end sample index
    * @param pitch Optional pitch override (default 1.0)

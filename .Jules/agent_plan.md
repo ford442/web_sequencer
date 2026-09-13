@@ -1,3 +1,15 @@
+# Web Sequencer Active Backlog & Innovation Lab
+
+## Active Backlog
+- [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
+- [ ] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
+- [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
+
+## Innovation Lab
+- What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
+- Implement dynamic vocal chops by using the slice index and varying direction over time.
+- Implement Lyric Track parsing.
+
 # Agent Plan
 
 ## Active Backlog
