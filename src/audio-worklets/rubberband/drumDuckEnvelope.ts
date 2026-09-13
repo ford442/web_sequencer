@@ -33,7 +33,9 @@ export class DrumDuckEnvelope {
     const releaseFrames = Math.max(1, sampleRate * drumDecay);
     const releaseMult = Math.exp(-1.0 / releaseFrames);
 
-    const duckingScalar = this.env * drumDuckDepth * drumVelocity;
+    // Apply a non-linear convex curve to the envelope to hold the peak ducking slightly longer
+    const curvedEnv = this.env * (2.0 - this.env);
+    const duckingScalar = Math.min(1.0, curvedEnv * drumDuckDepth * drumVelocity);
 
     // Fast attack (instant here since it's triggered per hit), exponential release
     for (let i = 0; i < blockFrames; i++) {
