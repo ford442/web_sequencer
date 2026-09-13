@@ -249,6 +249,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.syllableVolumeFilter.resetHoldState();
         break;
 
+      case 'setReverse':
+        if (data && typeof data.reverse === 'boolean') {
+          this.isReverse = data.reverse;
+        }
+        break;
+
       case 'noteOff':
         const targetTime = data?.time;
         this.expressiveProcessor.noteOff(targetTime);

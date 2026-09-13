@@ -28,7 +28,9 @@ export interface SingingVoiceCoreMethods {
   setVocalChorus(amount: number, time?: number): void;
   setPhonemeFilterMod(amount: number, time?: number): void;
   setDrumDuckDepth(amount: number, time?: number): void;
+  setReverse(reverse: boolean): void;
 }
+
 
 export interface SingingVoicePublic
   extends SingingVoiceMixinApi,
