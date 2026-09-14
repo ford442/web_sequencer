@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLoadingProgress, type LoadingStep } from '../stores/loadingProgressStore';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface LoadingOverlayProps {
   isVisible: boolean;
@@ -34,6 +35,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
   const { isLoading, totalProgress, currentStep, steps, errors } = useLoadingProgress();
   const [showDetails, setShowDetails] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(isVisible);
 
   // Smooth progress animation using CSS transition
   useEffect(() => {
@@ -64,6 +66,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
 
   return (
     <div
+      ref={trapRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827] bg-opacity-98 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
