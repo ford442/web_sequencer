@@ -146,6 +146,7 @@ export async function createMasterLoudnessStage(
         ...DEFAULT_LIMITER_SETTINGS,
         ...(persist ? loadLimiterSettings() : {}),
         ...options.settings,
+        detectOversample: 4, // Live worklet: 4x detect oversample to save CPU
     };
 
     // Playwright WebKit / Safari: any AudioWorklet addModule can abort the

@@ -106,8 +106,9 @@ export class TruePeakLimiter {
             // The limiter detects at twice the metering factor: 4× ISP
             // estimation underestimates near-Nyquist transients badly enough to
             // break the brick wall, and one stereo pair can afford the taps.
+            const oversample = this.settings.detectOversample ?? Math.min(8, oversamplingFactorFor(sampleRate) * 2);
             this.detectors.push(
-                new TruePeakDetector(sampleRate, Math.min(8, oversamplingFactorFor(sampleRate) * 2)),
+                new TruePeakDetector(sampleRate, oversample),
             );
         }
 

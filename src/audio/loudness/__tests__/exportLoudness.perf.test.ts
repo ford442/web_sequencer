@@ -16,7 +16,8 @@ const SAMPLE_RATE = 48000;
 
 describe('audio-thread budget', () => {
   it('processes a stereo quantum within the documented budget (median vs baseline)', () => {
-    const limiter = new TruePeakLimiter(SAMPLE_RATE, 2);
+    // ⚡ Bolt: Simulate live master worklet config (4x detect) to get accurate performance baseline
+    const limiter = new TruePeakLimiter(SAMPLE_RATE, 2, { detectOversample: 4 });
     const meter = new LoudnessMeter({ sampleRate: SAMPLE_RATE, channelCount: 2 });
     const input = [new Float32Array(128), new Float32Array(128)];
     const output = [new Float32Array(128), new Float32Array(128)];

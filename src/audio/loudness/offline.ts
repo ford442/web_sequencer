@@ -129,6 +129,7 @@ export function normalizeToTarget(
         ...limiterSettings,
         enabled: true,
         monitorOnly: false,
+        detectOversample: 8,
     };
     const limiter = new TruePeakLimiter(sampleRate, Math.max(1, channels.length), settings);
 
