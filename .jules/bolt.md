@@ -8,3 +8,7 @@
 ## 2024-XX-XX - [Optimize Map Iteration in AudioWorklet]
 **Learning:** Using `.entries()`, `.keys()`, or `.values()` on a `Map` within an `AudioWorkletProcessor`'s `process()` loop (or functions called continuously from it, like `checkStuckNotes`) creates a new Iterator object on every single audio block. At ~344 blocks per second, this generates constant garbage collection pressure that degrades the real-time audio budget, leading to dropouts.
 **Action:** In high-frequency code paths, avoid Javascript `Map` entirely if possible. For bounded data (like 128 MIDI notes), replace `Map<number, number>` with a pre-allocated fixed-size typed array (e.g., `Float64Array(128)`), and use standard `for` loop integer indexing.
+
+## 2024-03-XX - [Optimize AudioWorklet Return Objects - takeStats/buildStats]
+**Learning:** Even low-frequency telemetry/reporting methods inside an `AudioWorkletProcessor` (like a 24Hz `takeStats` or `buildStats` call) can accumulate significant garbage collection (GC) pressure if they return inline object literals. While this is less severe than a per-block allocation, avoiding *any* object allocation on the audio thread is best practice.
+**Action:** Pre-allocate return objects for methods like `takeStats()` or `buildStats()` as class properties (e.g., `private readonly statsResult = { ... }`), mutate them in place, and return the reference. Because structured cloning (via `postMessage`) deeply copies the object for the main thread, returning a shared mutated reference is perfectly safe and prevents GC stalls.

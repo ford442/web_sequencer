@@ -61,6 +61,16 @@ class MasterLoudnessProcessor extends AudioWorkletProcessor {
     private reportInterval: number;
     private alive = true;
 
+    private readonly statsResult: LoudnessStats = {
+        momentary: 0,
+        shortTerm: 0,
+        integrated: 0,
+        truePeak: 0,
+        samplePeak: 0,
+        gainReduction: 0,
+        clipped: false,
+    };
+
     constructor(options?: unknown) {
         super();
         const processorOptions = (options as MasterLoudnessOptions | undefined)?.processorOptions ?? {};
@@ -102,15 +112,14 @@ class MasterLoudnessProcessor extends AudioWorkletProcessor {
 
     private buildStats(): LoudnessStats {
         const { gainReductionDb, clipped } = this.limiter.takeStats();
-        return {
-            momentary: this.meter.momentary,
-            shortTerm: this.meter.shortTerm,
-            integrated: this.meter.integrated,
-            truePeak: this.meter.truePeakDb,
-            samplePeak: this.meter.samplePeakDb,
-            gainReduction: gainReductionDb,
-            clipped,
-        };
+        this.statsResult.momentary = this.meter.momentary;
+        this.statsResult.shortTerm = this.meter.shortTerm;
+        this.statsResult.integrated = this.meter.integrated;
+        this.statsResult.truePeak = this.meter.truePeakDb;
+        this.statsResult.samplePeak = this.meter.samplePeakDb;
+        this.statsResult.gainReduction = gainReductionDb;
+        this.statsResult.clipped = clipped;
+        return this.statsResult;
     }
 
     process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
