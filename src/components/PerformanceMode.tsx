@@ -167,7 +167,7 @@ export const PerformanceMode = memo(forwardRef<PerformanceModeHandle, Performanc
             {/* Track grids */}
             <div className="flex flex-col gap-4 w-full max-w-5xl px-8">
                 {TRACKS.map((track, trackIdx) => {
-                    const steps = activeSteps[track.key] ?? Array(STEPS).fill(false);
+                    const steps = activeSteps[track.key] ?? Array<boolean>(STEPS).fill(false);
                     return (
                         <div key={track.key} className="flex items-center gap-3">
                             {/* Track label */}

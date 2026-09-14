@@ -109,7 +109,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     const renderedSteps = useMemo(() => {
         const stepsArray = [];
         if (viewMode === 'automation' && isSelected && onAutomationChange && automationParam) {
-             const values = automation?.[automationParam] || Array(32).fill(null);
+             const values = automation?.[automationParam] || Array<number | null>(32).fill(null);
              for (let i = 0; i < 32; i++) {
                  const val = values[i] ?? 0.5;
                  stepsArray.push(

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { useAppStateSelector, useAppStateSlice } from '../../contexts/AppStateContext'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
+import type { PartSequence } from '../../types'
 
 const CONTEXT_MENU_KEYS = [
   'contextMenu', 'pattern', 'activeSamplerBank', 'handleNoteSelect', 'handleNoteLengthChange',
@@ -25,7 +26,7 @@ const OpenContextMenu = React.memo(() => {
     if (!contextMenu) return null
     const track = contextMenu.track
     const step = contextMenu.step
-    const sequence = track === 'sampler' ? pattern.sampler[activeSamplerBank] : (pattern as any)[track]
+    const sequence: PartSequence | undefined = track === 'sampler' ? pattern.sampler[activeSamplerBank] : pattern[track]
     const stepData = sequence?.steps[step] || null
 
     // Determine if the active synth for this track is a Prophecy voice
@@ -99,7 +100,7 @@ const OpenContextMenu = React.memo(() => {
           currentPortamento={stepData?.portamento ?? 0}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
-          onPropertyChange={handleNotePropertyChange as any}
+          onPropertyChange={handleNotePropertyChange}
           onClose={() => setContextMenu(null)}
           getNoteColor={getNoteColor}
           currentScale={currentScale}

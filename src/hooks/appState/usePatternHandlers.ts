@@ -1,9 +1,10 @@
 import { useCallback } from 'react'
-import { NUM_STEPS } from '../../constants'
-import { midiToNote, noteToMidi } from '../../utils/musicTheory'
-import type { Note, Pattern, PartSequence, PhonemeData } from '../../types'
-import type { TrackKey } from '../../constants/appDefaults'
-import type { useUndoRedo } from '../useUndoRedo'
+import { NUM_STEPS } from '@/constants'
+import { midiToNote, noteToMidi } from '@/utils/musicTheory'
+import type { Note, Pattern, PartSequence, PhonemeData } from '@/types'
+import type { TrackKey } from '@/constants/appDefaults'
+import type { useUndoRedo } from '@/hooks/useUndoRedo'
+import type { PropertyChangeKey } from '@/components/note-selector/types'
 import { updateSamplerStep, updateTrackStep, updateSamplerRange, updateTrackRange } from './patternUpdates'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
@@ -199,19 +200,7 @@ export function usePatternHandlers(deps: {
     }, [contextMenu, updateStorageForTrackInner, patternRef, activeSamplerBankRef, setPattern, setContextMenu]);
 
     const handleNotePropertyChange = useCallback((
-        key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'formantPitchLink' |
-             'filterCutoff' | 'filterResonance' | 'envMod' |
-             'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
-             'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
-             'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvFollower' | 'formantSidechainDepth' | 'formantEnvSync' |
-             'vibratoDepth' | 'drive' | 'characterMorph' |
-             'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
-             'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-             'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
-             'grainLfoRate' | 'grainLfoDepth' | 'grainPosLfoDepth' | 'timeSmear' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
-             'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'drumDuckDepth' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
-             'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
-             'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
+        key: PropertyChangeKey,
         value: number | boolean | string | number[]
     ) => {
         if (!contextMenu) return;

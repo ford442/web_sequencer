@@ -47,8 +47,9 @@ export const VoiceEditor: React.FC<VoiceEditorProps> = React.memo(({ onClose }) 
     useEffect(() => {
         if (import.meta.env.DEV) {
             const service = SupertonicService.getInstance();
-            (window as any).__devtools = (window as any).__devtools || {};
-            (window as any).__devtools.purgeTTSCache = () => {
+            const w = window as unknown as { __devtools?: Record<string, unknown> };
+            w.__devtools = w.__devtools || {};
+            w.__devtools.purgeTTSCache = () => {
                 service.purgeCache();
             };
         }

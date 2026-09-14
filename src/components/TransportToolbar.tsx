@@ -112,8 +112,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                             <button type="button"
                                 key={slot}
                                 data-song-slot={slot}
-                                onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
-                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
+                                onClick={() => { if (isSaved) loadSong(slot); else void handleSaveSong(slot); }} 
+                                onContextMenu={(e) => { e.preventDefault(); void handleSaveSong(slot); }}
                                 onKeyDown={(e) => handleSongSlotKeyDown(e, slot, isSaved)}
                                 title={`Song Slot ${slot + 1}`}
                                 className={`w-7 h-6 text-xs font-mono transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${isActive ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' : (isSaved ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`}

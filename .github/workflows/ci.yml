@@ -88,9 +88,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Full gradualTypeRules set project-wide (see AGENTS.md's rollout tracker).
-      # Non-blocking: most of src/stores/** and src/components/** aren't cleaned
-      # up yet, so this is expected to fail until that ratchet finishes — it
-      # exists so the ratchet's progress is visible in CI without gating merges.
+      # Non-blocking: utils/engines/hooks/stores/components have only the first
+      # two rules (no-floating-promises + no-unsafe-assignment) on, so the other
+      # seven are expected to fail until that ratchet finishes — this job exists
+      # so the ratchet's progress is visible in CI without gating merges.
       - name: Lint (ESLint, full strict rule set)
         run: pnpm run lint:strict
 

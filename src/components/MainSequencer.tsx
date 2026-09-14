@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useImperativeHandle, forwardRef, memo, useRef, useLayoutEffect, useEffect, useState } from 'react';
 import { MelodicSequencerRow, type MelodicSequencerRowHandle } from './MelodicSequencerRow';
 import { PhonemePainter } from './PhonemePainter';
-import type { Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
+import type { Note, Pattern, PartSequence, TrackKey, PhonemeData } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { useTimelineZoom } from '../hooks/useTimelineZoom';
 import { DEFAULT_ZOOM, ROWS, SEQUENCER_STYLES } from './sequencer/constants';
@@ -108,7 +108,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const [phonemePainterState, setPhonemePainterState] = useState<{
         isOpen: boolean;
         stepIndex: number;
-        note: any | null;
+        note: Note | null;
     }>({ isOpen: false, stepIndex: 0, note: null });
 
     useImperativeHandle(ref, () => ({
@@ -277,8 +277,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 row={row}
                                 rIdx={rIdx}
                                 rowRefs={rowRefs}
-                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : (pattern as any)[row.key].steps)}
-                                automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : (pattern as any)[row.key].automation)}
+                                steps={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].steps : pattern[row.key].steps)}
+                                automation={(row.key === 'sampler' ? pattern.sampler[activeSamplerBank].automation : pattern[row.key].automation)}
                                 isSelected={selectedTrack === row.key}
                                 activeSlot={activeTrackSlots[row.key]}
                                 trackSlots={trackStorage[row.key]}

@@ -4,7 +4,7 @@ import { GridIndicators } from './GridIndicators';
 import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { TrackMuteSoloButtons } from './sequencer/TrackMuteSoloButtons';
 import { noteToMidi } from '../utils/musicTheory';
-import type { PartSequence, TrackKey } from '../types';
+import type { Note, PartSequence, TrackKey } from '../types';
 
 /**
  * MelodicSequencerRow - Sequencer row for Melodic Lyric Mode
@@ -21,7 +21,8 @@ interface MelodicSequencerRowProps {
   rowKey: TrackKey;
   label: string;
   rowIndex: number;
-  steps: (any | null)[];
+  /** Sampler steps; `pitch` (MIDI) overrides the note name when present. */
+  steps: ((Note & { pitch?: number }) | null)[];
   isSelected: boolean;
   activeSlot: number;
   trackSlots: (PartSequence | PartSequence[] | null)[];

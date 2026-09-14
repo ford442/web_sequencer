@@ -222,7 +222,7 @@ export function useAISongModal({
         if (content) {
           setDroppedFiles(prev => [...prev, { file, id: fileId, content }]);
           if (index === 0) {
-            handleJsonChange(content);
+            void handleJsonChange(content);
             setJsonInput(content);
           }
         }
@@ -245,7 +245,7 @@ export function useAISongModal({
         const nextFile = filtered[0];
         if (nextFile.content) {
           setJsonInput(nextFile.content);
-          handleJsonChange(nextFile.content);
+          void handleJsonChange(nextFile.content);
         }
       } else if (filtered.length === 0) {
         setJsonInput('');
@@ -269,7 +269,7 @@ export function useAISongModal({
         if (content) {
           setDroppedFiles(prev => [...prev, { file, id: fileId, content }]);
           if (index === 0) {
-            handleJsonChange(content);
+            void handleJsonChange(content);
             setJsonInput(content);
           }
         }
@@ -331,7 +331,7 @@ export function useAISongModal({
       updateStage(4, 'complete', 100);
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      onImport(result.song, parsedData);
+      void onImport(result.song, parsedData);
       onShowToast(`✓ Song '${parsedData.meta.title}' imported successfully`, 'success');
       onClose();
     } catch (error) {
@@ -345,15 +345,17 @@ export function useAISongModal({
   }, [parsedData, onImport, onClose, onShowToast]);
 
   const copyTemplate = useCallback(() => {
-    navigator.clipboard.writeText(PROMPT_TEMPLATE);
-    onShowToast('✓ Prompt template copied!', 'success');
+    navigator.clipboard.writeText(PROMPT_TEMPLATE).then(
+      () => onShowToast('✓ Prompt template copied!', 'success'),
+      () => onShowToast('✗ Could not copy prompt template', 'error'),
+    );
   }, [onShowToast]);
 
   const loadExample = useCallback((exampleKey: keyof typeof EXAMPLES) => {
     const example = EXAMPLES[exampleKey];
     const json = JSON.stringify(example.data, null, 2);
     setJsonInput(json);
-    handleJsonChange(json, true);
+    void handleJsonChange(json, true);
     onShowToast(`ℹ Loaded "${example.name}" example`, 'info');
   }, [handleJsonChange, onShowToast]);
 
@@ -377,10 +379,14 @@ export function useAISongModal({
       errors: validationState.fieldErrors,
       inputPreview: jsonInput.substring(0, 500) + (jsonInput.length > 500 ? '...' : ''),
     };
-    navigator.clipboard.writeText(JSON.stringify(report, null, 2));
-    setCopiedError(true);
-    onShowToast('✓ Error report copied!', 'success');
-    setTimeout(() => setCopiedError(false), 2000);
+    navigator.clipboard.writeText(JSON.stringify(report, null, 2)).then(
+      () => {
+        setCopiedError(true);
+        onShowToast('✓ Error report copied!', 'success');
+        setTimeout(() => setCopiedError(false), 2000);
+      },
+      () => onShowToast('✗ Could not copy error report', 'error'),
+    );
   }, [validationState, jsonInput, onShowToast]);
 
   const trackStats = useMemo<TrackStats | null>(() => {
@@ -461,7 +467,7 @@ export function useAISongModal({
     const grid: boolean[][] = [];
 
     tracks.forEach((trackName) => {
-      const row: boolean[] = Array(32).fill(false);
+      const row = new Array<boolean>(32).fill(false);
 
       if (trackName === 'sampler0' && parsedData.tracks.sampler?.[0]) {
         parsedData.tracks.sampler[0].steps.forEach((note: { step: number }) => {
@@ -524,7 +530,7 @@ export function useAISongModal({
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && parsedData && !isImporting) {
         e.preventDefault();
-        handleImport();
+        void handleImport();
       }
 
       if (e.key === 'Tab' && !e.shiftKey && e.target === document.activeElement) {

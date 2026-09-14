@@ -8,7 +8,7 @@ import type { UnifiedAutomationLane } from '../../../types';
 beforeEach(() => {
   // @ts-ignore
   if (!global.navigator) {
-    global.navigator = {} as any;
+    global.navigator = {} as Navigator;
   }
   // Ensure navigator.gpu is explicitly undefined
   // @ts-ignore

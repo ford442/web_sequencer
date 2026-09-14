@@ -92,7 +92,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
 
     const performUpload = async (retryCount = 0): Promise<void> => {
         try {
-            let dataToUpload: any;
+            let dataToUpload: unknown;
             if (uploadType === 'song') dataToUpload = getSongData();
             else if (uploadType === 'bank') dataToUpload = getBankData();
             else if (uploadType === 'pattern') dataToUpload = getPatternData();
@@ -111,7 +111,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                 setTimeout(() => {
                     setUploadStatus('idle');
                     setActiveTab('browse');
-                    loadLibrary();
+                    void loadLibrary();
                 }, 1500);
             } else {
                 // Retry Logic
@@ -149,7 +149,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
         try {
             const res = await CloudStorage.getSongData(item.id, item.type);
             // Some backends wrap the payload under a `data` key; prefer inner payload if present
-            const payload = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res;
+            const payload: unknown = (res && typeof res === 'object' && 'data' in res) ? res.data : res;
             // Pass both data and type so App.tsx knows how to handle it
             onLoadData(payload, item.type);
             onClose();

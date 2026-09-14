@@ -489,7 +489,8 @@ class KnobGPUContextClass {
         this.setStatus('initializing');
         this.bumpSnapshot();
 
-        this.ensureInit().then((success) => {
+        // ensureInit/doInit and attachSlot catch internally and report degradation.
+        void this.ensureInit().then((success) => {
             if (!this.pendingIds.has(id) && !this.registrations.has(id)) return;
             this.pendingIds.delete(id);
 

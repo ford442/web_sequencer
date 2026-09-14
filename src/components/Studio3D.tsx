@@ -83,7 +83,14 @@ const CameraRig = () => {
 };
 
 // Helper component to wrap DOM elements in 3D planes
-const Panel = ({ children, position, rotation, scale = 1 }: any) => {
+interface PanelProps {
+  children: React.ReactNode;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale?: number;
+}
+
+const Panel = ({ children, position, rotation, scale = 1 }: PanelProps) => {
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <Html
