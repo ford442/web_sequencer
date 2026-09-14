@@ -24,7 +24,7 @@ describe('WaveformDisplay', () => {
 
         render(<WaveformDisplay buffer={mockBuffer} alignment={null} sliceHighlightRef={sliceHighlightRef} />);
 
-        const display = screen.getByRole('img');
+        const display = screen.getAllByRole('img')[0];
         expect(display).toHaveAttribute('aria-label', 'Waveform visualization: Sample loaded');
         expect(display).toHaveAttribute('title', 'Waveform visualization: Sample loaded');
     });
@@ -48,7 +48,7 @@ describe('WaveformDisplay', () => {
 
         render(<WaveformDisplay buffer={mockBuffer} alignment={mockAlignment} sliceHighlightRef={sliceHighlightRef} />);
 
-        const display = screen.getByRole('img');
+        const display = screen.getAllByRole('img')[0];
         expect(display).toHaveAttribute('aria-label', 'Waveform visualization: Sample loaded with phoneme alignment');
         expect(display).toHaveAttribute('title', 'Waveform visualization: Sample loaded with phoneme alignment');
     });

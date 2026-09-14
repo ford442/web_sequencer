@@ -678,7 +678,7 @@ return (
                 tabIndex={0}
                 aria-description="Use Left/Right arrows to move slices, Ctrl+Left/Right to select slice, Space/Enter to split slice, Delete to remove."
             >
-                <canvas ref={canvasRef} className="w-full h-full block" />
+                <canvas ref={canvasRef} className="w-full h-full block" role="img" aria-label="Waveform display" />
             </div>
         )}
         {/* Auto-Slice Overlay Button */}
