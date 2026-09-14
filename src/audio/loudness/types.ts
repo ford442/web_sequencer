@@ -50,6 +50,8 @@ export interface LimiterSettings {
      * Trades transparency for latency during live performance.
      */
     monitorOnly: boolean;
+    /** Optional oversample factor for the true peak detector. Default 8x. */
+    detectOversample?: number;
 }
 
 export const DEFAULT_LIMITER_SETTINGS: LimiterSettings = {
