@@ -56,6 +56,8 @@
 - [x] Explore a TTS vocal stack chorus effect using post-retrieve micro-delay taps.
 - [x] Investigate envelope follower ducking for sidechain effects (Needs cross-engine wiring, e.g. inputs[1] or SAB from drum path, do not use local vocal envelope).
 
+- [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
+- [ ] Explore a 'breathing' noise gate for TTS that slightly increases noise floor gain during vowels and cuts it during silence for a vintage sampler feel.
 - [ ] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
 - [x] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
@@ -124,5 +126,5 @@
   - Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
   - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
   - Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
-- [ ] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
+- [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
 - [ ] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
