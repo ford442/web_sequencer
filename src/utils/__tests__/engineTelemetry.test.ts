@@ -71,6 +71,7 @@ const fakeRuntime = {
   wam2Slots: [] as [],
   wam2Constraints: null,
   webgpuProbe: null,
+  hyphonNativeHeap: null,
 };
 
 describe('serializeEngineReport', () => {

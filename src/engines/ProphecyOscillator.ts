@@ -17,26 +17,19 @@ import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from './ProphecyParams';
 
 import {
     engineTelemetry,
-    isAppleWebKit,
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
 } from '../utils/engineTelemetry';
 import {
     formatMissingWasmExports,
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
     PROPHECY_REQUIRED_WASM_EXPORTS,
     prophecyExportMapInsufficient,
     wasmExportNameSnapshot,
+    HYPHON_NATIVE_ARTIFACTS,
+    type HyphonNativeArtifact,
 } from '../audio-worklets/hyphonNativeImports';
-
-// hyphon_native.wasm bundles all engines (Open303, JC303, Prophecy, Rubberband)
-const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
-
-/** Minimum WebAssembly memory pages for the threaded hyphon_native.wasm build.
- *  Derived from emscripten/wasm_memory_budget.json via hyphonNativeImports so the
- *  worklet, the engine and the emcc link flags cannot drift apart. */
-const PROPHECY_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
+import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 
 /** Milliseconds to wait for the Prophecy worklet to signal readiness. */
 const PROPHECY_INIT_TIMEOUT_MS = 8000;
@@ -60,6 +53,9 @@ export class ProphecyOscillator {
      * @param audioContext  The Web Audio context to attach to.
      * @param workletUrl    URL of the compiled `prophecy-processor.js` worklet module.
      * @returns             `true` when the worklet is ready; `false` on fatal failure.
+     *
+     * Prophecy shares the audio session's hyphon_native instance with the 303
+     * voices, so it loads whichever profile (pthread / st) the context is bound to.
      */
     async init(audioContext: AudioContext, workletUrl: string): Promise<boolean> {
         this.audioContext = audioContext;
@@ -68,15 +64,6 @@ export class ProphecyOscillator {
         this.gainNode   = audioContext.createGain();
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
-
-        if (isAppleWebKit()) {
-            logEngineFallback(
-                'prophecy',
-                'wasm-worklet',
-                'threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet',
-            );
-            return false;
-        }
 
         if (!audioContext.audioWorklet || !workletUrl) {
             logEngineFallback(
@@ -88,18 +75,20 @@ export class ProphecyOscillator {
         }
 
         try {
-            console.log(`[ProphecyOscillator] Fetching WASM: ${HYPHON_NATIVE_WASM_URL}`);
-            const response = await fetch(HYPHON_NATIVE_WASM_URL);
+            const { artifact, reason } = resolveHyphonNativeArtifact(audioContext);
+            const wasmUrl = resolvePublicAsset(artifact.wasm);
+            console.log(`[ProphecyOscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
+            const response = await fetch(wasmUrl);
             if (!response.ok) {
-                logEngineFallback('prophecy', 'wasm-worklet', `hyphon_native.wasm fetch HTTP ${response.status} (${HYPHON_NATIVE_WASM_URL})`);
+                logEngineFallback('prophecy', 'wasm-worklet', `${artifact.wasm} fetch HTTP ${response.status} (${wasmUrl})`);
                 return false;
             }
 
             const wasmBytes = await response.arrayBuffer();
             console.log(`[ProphecyOscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-            const exportMap = await this.fetchExportMap(wasmBytes);
-            return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, exportMap);
+            const exportMap = await this.fetchExportMap(wasmBytes, artifact);
+            return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, exportMap, artifact);
 
         } catch (e) {
             logEngineFallback('prophecy', 'wasm-worklet', 'init exception before worklet load', e);
@@ -111,10 +100,13 @@ export class ProphecyOscillator {
      * Complete worklet initialisation given pre-fetched WASM bytes.
      * Extracted so the init path stays testable without a real network.
      */
-    private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
-        const map = await loadHyphonWasmExportMap();
-        const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
-        const glueUrl = resolvePublicAsset('hyphon_native.js');
+    private async fetchExportMap(
+        wasmBytes: ArrayBuffer,
+        artifact: HyphonNativeArtifact,
+    ): Promise<Record<string, string>> {
+        const map = await loadHyphonWasmExportMap(artifact.threading);
+        const mapUrl = resolvePublicAsset(artifact.exportMap);
+        const glueUrl = resolvePublicAsset(artifact.glue);
         const wasmModule = await WebAssembly.compile(wasmBytes);
         const rawExports = wasmExportNameSnapshot(wasmModule);
 
@@ -122,7 +114,7 @@ export class ProphecyOscillator {
             logEngineFallback(
                 'prophecy',
                 'wasm-worklet',
-                `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+                `${artifact.exportMap} empty and glue parse found no exports ` +
                 `(tried ${mapUrl} and ${glueUrl}). ` +
                 formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS]),
             );
@@ -145,7 +137,8 @@ export class ProphecyOscillator {
         audioContext: AudioContext,
         workletUrl:   string,
         wasmBytes:    ArrayBuffer,
-        exportMap:    Record<string, string> = {}
+        exportMap:    Record<string, string> = {},
+        artifact:     HyphonNativeArtifact = HYPHON_NATIVE_ARTIFACTS.pthread,
     ): Promise<boolean> {
         try {
             await audioContext.audioWorklet.addModule(workletUrl);
@@ -154,22 +147,18 @@ export class ProphecyOscillator {
                 outputChannelCount: [2],
             });
 
-            // Detect threading support via memory import
-            const module      = await WebAssembly.compile(wasmBytes);
-            const imports     = WebAssembly.Module.imports(module);
-            const isThreaded  = imports.some(i => i.kind === 'memory');
-            const memoryPages = isThreaded ? PROPHECY_MIN_MEMORY_PAGES : undefined;
-
-            console.log(`[ProphecyOscillator] WASM variant: ${isThreaded ? 'threaded' : 'single'}`);
+            // Both profiles import memory; the selection (not the import table,
+            // which does not report `shared`) decides shared vs plain + page floor.
+            console.log(`[ProphecyOscillator] WASM variant: ${artifact.threading}`);
 
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
                 data: {
                     wasmBytes,
                     sampleRate: audioContext.sampleRate,
-                    isThreaded,
-                    variant:    isThreaded ? 'threaded' : 'single',
-                    memoryPages,
+                    isThreaded:  artifact.sharedMemory,
+                    variant:     artifact.threading,
+                    memoryPages: artifact.minMemoryPages,
                     exportMap,
                 },
             });
@@ -184,7 +173,10 @@ export class ProphecyOscillator {
                     if (e.data.type === 'ready') {
                         readyReceived = true;
                         console.log('[ProphecyOscillator] Engine ready');
+                        try { engineTelemetry.recordHyphonNativeHeap(e.data.heap); } catch (_) {}
                         resolve(true);
+                    } else if (e.data.type === 'hyphon-heap') {
+                        try { engineTelemetry.recordHyphonNativeHeap(e.data.data); } catch (_) {}
                     } else if (e.data.type === 'error') {
                         const payload = e.data as { error?: unknown };
                         const errDetail =
@@ -218,7 +210,7 @@ export class ProphecyOscillator {
 
             this.isReady = true;
             this.applyAllParameters();
-            try { engineTelemetry.registerResolution('prophecy', 'wasm-worklet', 'worklet-ready'); } catch (_) {}
+            try { engineTelemetry.registerResolution('prophecy', hyphonNativeBackendName(artifact.threading), `worklet-ready (${artifact.wasm})`); } catch (_) {}
             return true;
 
         } catch (e) {
@@ -298,6 +290,9 @@ export class ProphecyOscillator {
 
     private cleanupWorklet(): void {
         if (this.workletNode) {
+            // hyphon_native is shared by every voice in the audio session: ask the
+            // processor to destroy its handle before the port goes away.
+            this.workletNode.port.postMessage({ type: 'dispose' });
             this.workletNode.disconnect();
             this.workletNode.port.close();
             this.workletNode = null;

@@ -14,8 +14,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+    HYPHON_NATIVE_ARTIFACTS,
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     HYPHON_NATIVE_MAX_MEMORY_PAGES,
+    HYPHON_NATIVE_ST_MIN_MEMORY_PAGES,
+    HYPHON_NATIVE_ST_MAX_MEMORY_PAGES,
 } from '../audio-worklets/hyphonNativeImports';
 
 const REPO_ROOT = join(__dirname, '../..');
@@ -30,6 +33,11 @@ const budget = JSON.parse(
         maximumMemoryMb: number;
         stackSizeMb: number;
         pthreadPoolSize: number;
+    };
+    hyphonNativeSt: {
+        initialMemoryMb: number;
+        maximumMemoryMb: number;
+        stackSizeMb: number;
     };
     rubberband: {
         initialMemoryMb: number;
@@ -109,6 +117,47 @@ describe('hyphon_native memory budget', () => {
             expect(match, `${script} has no --initialMemory`).toBeTruthy();
             expect(Number(match![1]), `${script} --initialMemory`).toBe(pages);
         }
+    });
+});
+
+describe('hyphon_native single-threaded (st) memory budget', () => {
+    const mbToPages = (mb: number) => (mb * 1024 * 1024) / WASM_PAGE_BYTES;
+
+    it('worklet ST page constants match the budget', () => {
+        expect(HYPHON_NATIVE_ST_MIN_MEMORY_PAGES).toBe(mbToPages(budget.hyphonNativeSt.initialMemoryMb));
+        expect(HYPHON_NATIVE_ST_MAX_MEMORY_PAGES).toBe(mbToPages(budget.hyphonNativeSt.maximumMemoryMb));
+    });
+
+    it('artifact table routes each profile to its own budget', () => {
+        expect(HYPHON_NATIVE_ARTIFACTS.pthread).toMatchObject({
+            wasm: 'hyphon_native.wasm',
+            sharedMemory: true,
+            minMemoryPages: HYPHON_NATIVE_MIN_MEMORY_PAGES,
+        });
+        expect(HYPHON_NATIVE_ARTIFACTS.st).toMatchObject({
+            wasm: 'hyphon_native.st.wasm',
+            exportMap: 'hyphon_wasm_export_map.st.json',
+            sharedMemory: false,
+            minMemoryPages: HYPHON_NATIVE_ST_MIN_MEMORY_PAGES,
+        });
+    });
+
+    it('is smaller than the pthread reservation', () => {
+        expect(budget.hyphonNativeSt.initialMemoryMb).toBeLessThan(budget.hyphonNative.initialMemoryMb);
+        expect(budget.hyphonNativeSt.initialMemoryMb).toBeLessThan(budget.hyphonNativeSt.maximumMemoryMb);
+    });
+
+    it('build.sh links the ST profile from the budget, without pthreads', () => {
+        expect(buildSh).toContain('hyphonNativeSt.initialMemoryMb');
+        expect(buildSh).toContain('-s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb');
+        expect(buildSh).toContain('-s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb');
+        expect(buildSh).toContain('-s STACK_SIZE=${ST_STACK_SIZE_MB}mb');
+        const stLink = /ST_LINK_FLAGS="([^"]*)"/.exec(buildSh)?.[1] ?? '';
+        expect(stLink).toContain('-s USE_PTHREADS=0');
+        expect(stLink).toContain('-s IMPORTED_MEMORY=1');
+        expect(stLink).not.toMatch(/-pthread\b|PTHREAD_POOL_SIZE|pyodide_bootstrap/);
+        expect(buildSh).toContain('hyphon_native.st.js');
+        expect(buildSh).toContain('hyphon_wasm_export_map.st.json');
     });
 });
 

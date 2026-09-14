@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
+import { checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
@@ -120,123 +121,148 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
   process.exit(1);
 }
 
-// hyphon_wasm_export_map.json must ship in dist/ with a non-empty, non-stale contract.
-const mapPath = path.join(distDir, 'hyphon_wasm_export_map.json');
-const gluePath = path.join(distDir, 'hyphon_native.js');
-const wasmPath = path.join(distDir, 'hyphon_native.wasm');
+// Both hyphon_native link profiles ship (docs/wasm/BUILD_NOTES.md#threading-profiles):
+// the pthread build for crossOriginIsolated pages, the single-threaded build for
+// WebKit / no COOP+COEP / forceSingleThreaded. Each must carry the full export
+// contract against its own glue and binary.
+const HYPHON_PROFILES = [
+  { map: 'hyphon_wasm_export_map.json', glue: 'hyphon_native.js', wasm: 'hyphon_native.wasm', singleThreaded: false },
+  { map: 'hyphon_wasm_export_map.st.json', glue: 'hyphon_native.st.js', wasm: 'hyphon_native.st.wasm', singleThreaded: true },
+];
 
-if (!fs.existsSync(mapPath)) {
-  console.error('[check-release-dist] dist/hyphon_wasm_export_map.json is missing.');
-  process.exit(1);
-}
+function checkHyphonProfile(profile) {
+  // hyphon_wasm_export_map.json must ship in dist/ with a non-empty, non-stale contract.
+  const mapPath = path.join(distDir, profile.map);
+  const gluePath = path.join(distDir, profile.glue);
+  const wasmPath = path.join(distDir, profile.wasm);
 
-const exportMap = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
-const mapKeys = Object.keys(exportMap);
-if (!mapKeys.length) {
-  console.error('[check-release-dist] dist/hyphon_wasm_export_map.json has zero entries.');
-  process.exit(1);
-}
+  if (!fs.existsSync(mapPath)) {
+    console.error(`[check-release-dist] dist/${profile.map} is missing.`);
+    process.exit(1);
+  }
 
-const manifestPath = path.join(repoRoot, 'emscripten', 'wasm_export_manifest.json');
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const requiredExports = manifest.required ?? [];
-const missingRequired = requiredExports.filter((name) => !(name in exportMap));
-if (missingRequired.length) {
-  console.error(
-    `[check-release-dist] export map missing ${missingRequired.length} required export(s): ` +
-    missingRequired.join(', '),
-  );
-  process.exit(1);
-}
+  const exportMap = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+  const mapKeys = Object.keys(exportMap);
+  if (!mapKeys.length) {
+    console.error(`[check-release-dist] dist/${profile.map} has zero entries.`);
+    process.exit(1);
+  }
 
-if (fs.existsSync(gluePath)) {
-  const fromGlue = parseExportMap(fs.readFileSync(gluePath, 'utf8'));
-  const staleIdentity = requiredExports.filter(
-    (name) => exportMap[name] === name && fromGlue[name] && fromGlue[name] !== name,
-  );
-  if (staleIdentity.length) {
+  const manifestPath = path.join(repoRoot, 'emscripten', 'wasm_export_manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const requiredExports = manifest.required ?? [];
+  const missingRequired = requiredExports.filter((name) => !(name in exportMap));
+  if (missingRequired.length) {
     console.error(
-      '[check-release-dist] dist/hyphon_wasm_export_map.json is a stale identity map; ' +
-      `glue has minified names for: ${staleIdentity.slice(0, 5).join(', ')}` +
-      (staleIdentity.length > 5 ? ` … (+${staleIdentity.length - 5} more)` : ''),
+      `[check-release-dist] ${profile.map} missing ${missingRequired.length} required export(s): ` +
+      missingRequired.join(', '),
     );
     process.exit(1);
   }
+
+  if (fs.existsSync(gluePath)) {
+    const fromGlue = parseExportMap(fs.readFileSync(gluePath, 'utf8'));
+    const staleIdentity = requiredExports.filter(
+      (name) => exportMap[name] === name && fromGlue[name] && fromGlue[name] !== name,
+    );
+    if (staleIdentity.length) {
+      console.error(
+        `[check-release-dist] dist/${profile.map} is a stale identity map; ` +
+        `glue has minified names for: ${staleIdentity.slice(0, 5).join(', ')}` +
+        (staleIdentity.length > 5 ? ` … (+${staleIdentity.length - 5} more)` : ''),
+      );
+      process.exit(1);
+    }
+  }
+
+  if (!fs.existsSync(gluePath)) {
+    console.error(`[check-release-dist] dist/${profile.glue} is missing (glue fallback for export map).`);
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(wasmPath)) {
+    console.error(`[check-release-dist] dist/${profile.wasm} is missing.`);
+    process.exit(1);
+  }
+
+  // The map/glue checks above only prove the two *text* artifacts agree with each
+  // other. They say nothing about the binary that actually ships, and a dist whose
+  // .wasm came from a different link than its glue passes every one of them — which
+  // is how a build reached production where the Open303 and Prophecy worklets
+  // instantiated hyphon_native.wasm successfully and then found neither open303_*
+  // nor prophecy_* on it, silently degrading both to their JS fallbacks.
+  //
+  // So resolve every required export the way the worklets do, against the real
+  // export table: through the map, else the glue map, else the bare/underscored
+  // name (src/audio-worklets/hyphonNativeImports.ts#normalizeWasmExports).
+  let binaryExports;
+  try {
+    const mod = new WebAssembly.Module(fs.readFileSync(wasmPath));
+    binaryExports = new Set(WebAssembly.Module.exports(mod).map((e) => e.name));
+  } catch (err) {
+    console.error(
+      `[check-release-dist] dist/${profile.wasm} does not compile: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  }
+
+  const glueMap = fs.existsSync(gluePath) ? parseExportMap(fs.readFileSync(gluePath, 'utf8')) : {};
+
+  function resolvesInBinary(bare) {
+    return [exportMap[bare], glueMap[bare], bare, `_${bare}`].some(
+      (name) => name && binaryExports.has(name),
+    );
+  }
+
+  const unresolvable = requiredExports.filter((name) => !resolvesInBinary(name));
+  if (unresolvable.length) {
+    const names = [...binaryExports].sort();
+    const preview = names.slice(0, 48).join(', ');
+    console.error(
+      `[check-release-dist] dist/${profile.wasm} is missing ${unresolvable.length} required ` +
+      `export(s): ${unresolvable.join(', ')}`,
+    );
+    console.error(
+      `  Actual exports (${names.length}): ${preview}` +
+      (names.length > 48 ? ` … (+${names.length - 48} more)` : ''),
+    );
+    console.error(
+      `  The shipped binary is not the one dist/${profile.glue} was linked with. ` +
+      'Rebuild both together (`pnpm run build:release`) — do not copy a .wasm in by hand.',
+    );
+    process.exit(1);
+  }
+
+  // A mapped name that is not a real export is dead weight at best and a stale map
+  // at worst; report it even when the bare-name fallback above rescued the API.
+  const danglingMappings = Object.entries(exportMap)
+    .filter(([, minified]) => !binaryExports.has(minified))
+    .map(([bare, minified]) => `${bare} -> "${minified}"`);
+  if (danglingMappings.length) {
+    console.error(
+      `[check-release-dist] dist/${profile.map} names ${danglingMappings.length} ` +
+      `symbol(s) absent from dist/${profile.wasm}:\n  ${danglingMappings.slice(0, 10).join('\n  ')}` +
+      (danglingMappings.length > 10 ? `\n  … (+${danglingMappings.length - 10} more)` : ''),
+    );
+    console.error(`  Regenerate: node tools/extract_wasm_export_map.mjs dist/${profile.glue} <map>`);
+    process.exit(1);
+  }
+
+  if (profile.singleThreaded) {
+    const problems = checkSingleThreadedModule(fs.readFileSync(wasmPath));
+    if (problems.length) {
+      console.error(
+        `[check-release-dist] dist/${profile.wasm} is not a single-threaded build:\n  ${problems.join('\n  ')}`,
+      );
+      process.exit(1);
+    }
+  }
+
+  return { mapKeys: mapKeys.length, required: requiredExports.length };
 }
 
-if (!fs.existsSync(gluePath)) {
-  console.error('[check-release-dist] dist/hyphon_native.js is missing (glue fallback for export map).');
-  process.exit(1);
-}
-
-if (!fs.existsSync(wasmPath)) {
-  console.error('[check-release-dist] dist/hyphon_native.wasm is missing.');
-  process.exit(1);
-}
-
-// The map/glue checks above only prove the two *text* artifacts agree with each
-// other. They say nothing about the binary that actually ships, and a dist whose
-// .wasm came from a different link than its glue passes every one of them — which
-// is how a build reached production where the Open303 and Prophecy worklets
-// instantiated hyphon_native.wasm successfully and then found neither open303_*
-// nor prophecy_* on it, silently degrading both to their JS fallbacks.
-//
-// So resolve every required export the way the worklets do, against the real
-// export table: through the map, else the glue map, else the bare/underscored
-// name (src/audio-worklets/hyphonNativeImports.ts#normalizeWasmExports).
-let binaryExports;
-try {
-  const mod = new WebAssembly.Module(fs.readFileSync(wasmPath));
-  binaryExports = new Set(WebAssembly.Module.exports(mod).map((e) => e.name));
-} catch (err) {
-  console.error(
-    '[check-release-dist] dist/hyphon_native.wasm does not compile: ' +
-    `${err instanceof Error ? err.message : String(err)}`,
-  );
-  process.exit(1);
-}
-
-const glueMap = fs.existsSync(gluePath) ? parseExportMap(fs.readFileSync(gluePath, 'utf8')) : {};
-
-function resolvesInBinary(bare) {
-  return [exportMap[bare], glueMap[bare], bare, `_${bare}`].some(
-    (name) => name && binaryExports.has(name),
-  );
-}
-
-const unresolvable = requiredExports.filter((name) => !resolvesInBinary(name));
-if (unresolvable.length) {
-  const names = [...binaryExports].sort();
-  const preview = names.slice(0, 48).join(', ');
-  console.error(
-    `[check-release-dist] dist/hyphon_native.wasm is missing ${unresolvable.length} required ` +
-    `export(s): ${unresolvable.join(', ')}`,
-  );
-  console.error(
-    `  Actual exports (${names.length}): ${preview}` +
-    (names.length > 48 ? ` … (+${names.length - 48} more)` : ''),
-  );
-  console.error(
-    '  The shipped binary is not the one dist/hyphon_native.js was linked with. ' +
-    'Rebuild both together (`pnpm run build:release`) — do not copy a .wasm in by hand.',
-  );
-  process.exit(1);
-}
-
-// A mapped name that is not a real export is dead weight at best and a stale map
-// at worst; report it even when the bare-name fallback above rescued the API.
-const danglingMappings = Object.entries(exportMap)
-  .filter(([, minified]) => !binaryExports.has(minified))
-  .map(([bare, minified]) => `${bare} -> "${minified}"`);
-if (danglingMappings.length) {
-  console.error(
-    `[check-release-dist] dist/hyphon_wasm_export_map.json names ${danglingMappings.length} ` +
-    `symbol(s) absent from dist/hyphon_native.wasm:\n  ${danglingMappings.slice(0, 10).join('\n  ')}` +
-    (danglingMappings.length > 10 ? `\n  … (+${danglingMappings.length - 10} more)` : ''),
-  );
-  console.error('  Regenerate: node tools/extract_wasm_export_map.mjs dist/hyphon_native.js <map>');
-  process.exit(1);
-}
+const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
 
 const rawTsInDist = distJsFiles.filter((p) => /\.tsx?$/.test(p));
 if (rawTsInDist.length) {
@@ -245,8 +271,9 @@ if (rawTsInDist.length) {
   process.exit(1);
 }
 
-const wasmSummary =
-  `${mapKeys.length} WASM export(s), ${requiredExports.length} resolved in the binary`;
+const wasmSummary = profileResults
+  .map((r, i) => `${HYPHON_PROFILES[i].wasm}: ${r.mapKeys} WASM export(s), ${r.required} resolved in the binary`)
+  .join('; ');
 console.log(
   allowMaps
     ? `[check-release-dist] OK — ${maps.length} source map(s) allowed, ${REQUIRED_WORKLET_PROCESSORS.length} worklet(s), ${wasmSummary}.`

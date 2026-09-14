@@ -50,7 +50,13 @@ function gitRev(repoRoot, dir = '.') {
   }
 }
 
+/** hyphon_native.st.* — the single-threaded emcc profile. */
+function isHyphonSt(world, rel) {
+  return world.world === 'emcc' && /\.st\.(js|wasm|json)$/.test(rel);
+}
+
 function artifactMeta(rel, world) {
+  if (isHyphonSt(world, rel)) return { threaded: false, requiresCoopCoep: false };
   const threaded =
     world.world === 'emcc' ||
     rel.includes('threaded') ||
@@ -60,6 +66,14 @@ function artifactMeta(rel, world) {
 }
 
 function memoryFor(world, budget, rel) {
+  if (isHyphonSt(world, rel)) {
+    return {
+      initialMb: budget.hyphonNativeSt.initialMemoryMb,
+      maximumMb: budget.hyphonNativeSt.maximumMemoryMb,
+      stackMb: budget.hyphonNativeSt.stackSizeMb,
+      pthreadPoolSize: 0,
+    };
+  }
   if (world.world === 'emcc') {
     return {
       initialMb: budget.hyphonNative.initialMemoryMb,
@@ -90,6 +104,7 @@ function memoryFor(world, budget, rel) {
 
 function linkFlagsFor(world, rel) {
   const flags = ['ALLOW_MEMORY_GROWTH=1'];
+  if (isHyphonSt(world, rel)) return ['USE_PTHREADS=0', 'IMPORTED_MEMORY=1', ...flags];
   if (world.world === 'emcc' || rel.includes('threaded')) flags.unshift('USE_PTHREADS=1');
   return flags;
 }

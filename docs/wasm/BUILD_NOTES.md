@@ -57,9 +57,10 @@ Stamps live in `.cache/native/stamps.json` (gitignored). The generated inventory
 | Stack checks | off | `-s STACK_OVERFLOW_CHECK=2` |
 | Legacy `jc303_*` single-instance API | compiled out | compiled in |
 
-Shared by both profiles: `-msimd128 -pthread`, `-s USE_PTHREADS=1`,
-`-s PTHREAD_POOL_SIZE=4`, `-s WASM_BIGINT=1`, `-s ALLOW_MEMORY_GROWTH=1`,
-`-s EXPORT_ES6=1`, `--bind`.
+Shared by both profiles: `-msimd128`, `-s WASM_BIGINT=1`,
+`-s ALLOW_MEMORY_GROWTH=1`, `-s EXPORT_ES6=1`, `--bind`. Threading is per
+*threading profile*, not per build profile — every `build.sh` run emits both, see
+[Threading profiles](#threading-profiles).
 
 `HYPHON_LEGACY_JC303=1` forces the legacy export surface back into a release
 build; `HYPHON_LEGACY_JC303=0` strips it from a debug build.
@@ -81,13 +82,73 @@ requires `public/jc303-threaded.worker.js` and `public/hyphon_native.worker.js`.
 and otherwise writes a stamp stub so Colab/`emsdk install latest` builds do
 not fail after a successful compile.
 
+<a id="threading-profiles"></a>
+### Threading profiles: pthread and single-threaded (ST)
+
+Every `emscripten/build.sh` run links the voice sources **twice**, into separate
+object directories (pthread objects carry the atomics feature and cannot be linked
+into a non-pthread module):
+
+| | pthread | single-threaded (ST) |
+|---|---|---|
+| Artifacts | `public/hyphon_native.{js,wasm,worker.js}` | `public/hyphon_native.st.{js,wasm}` |
+| Export map | `public/hyphon_wasm_export_map.json` | `public/hyphon_wasm_export_map.st.json` |
+| Threading | `-pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4` | `-s USE_PTHREADS=0` |
+| Memory | imported, `shared: true` — budget key `hyphonNative` | imported, plain `ArrayBuffer` — budget key `hyphonNativeSt` |
+| Sources | voices + `audio_dsp.cpp` (OpenMP) + `main.cpp` / Pyodide bootstrap | voices only; `--no-entry`, so no `emscripten_run_script` |
+| Link opt | `-O1` (see [wasm-opt](#wasm-opt)) | `-O1`, same toolchain constraints |
+
+Both builds get the full `wasm_export_manifest.json` check against their own glue
+and binary. The ST glue quotes its export assignments with `'`, which
+`tools/extract_wasm_export_map.mjs` and `parseHyphonGlueExportMap` both parse.
+`tools/check_hyphon_st_module.mjs` then parses the ST import section and fails the
+build if the memory import is shared or any pthread/worker import slipped in.
+`check:native` lists both builds' outputs under the `emcc` world, and
+`scripts/check-release-dist.mjs` repeats all of these checks against `dist/`.
+
+**Which one loads.** `src/engines/hyphonNativeVariant.ts` decides once per
+AudioContext, and every Open303 / Prophecy voice on that context follows. They
+share one instance (`hyphonNativeSession.ts`), so a context cannot mix builds:
+
+1. `Open303Config.forceSingleThreaded` → ST
+2. WebKit (Safari / Playwright WebKit) → ST
+3. not `crossOriginIsolated`, or no `SharedArrayBuffer` → ST
+4. otherwise → pthread
+
+`FallbackBassSynth` (JS) runs only when the chosen module fails to fetch,
+instantiate or report ready. The Engine HUD's "Voice WASM heap → Build" row and the
+`open303` / `prophecy` telemetry resolution (`wasm-native` vs `wasm-native-st`)
+name the build that actually loaded.
+
+**ST memory budget — measured.** Release ST build under Node (2026-09-14): 3×
+Open303 at 4× oversample, 3× JC303, 3× live high-fid at 2×, and 2× Prophecy, at
+192 kHz with 4096-frame blocks, peak about **2 MB** of heap above the 1 MB
+stack + data. `initialMemoryMb: 16` is 8× that. Because the memory is not
+shared, growing toward the 512 MB ceiling is an ordinary buffer grow, not a new
+SharedArrayBuffer reservation.
+
+**WebKit evidence.** In a standalone AudioWorklet probe on Playwright WebKit 26.5
+(v2311) and Chromium, `hyphon_native.st.wasm` instantiates with plain memory,
+renders Open303 at the same peak as the pthread build and runs Prophecy, with
+and without COOP/COEP. The same probe also instantiated the **pthread** module
+inside the WebKit worklet without error. So the historical WebKit abort is not
+reproduced by the raw pthread module in a worklet; the main-thread Emscripten
+glue (`src/main.tsx`) is the more likely trigger. ST is still the WebKit choice
+because it removes shared memory and the pthread runtime from the worklet
+entirely.
+
+**Standalone `public/jc303*`.** Still built and still the fourth world. Retire it
+only once ST plus the shared heap are proven on WebKit end to end (tracked in the
+issue, not done here).
+
 ---
 
 <a id="module-split"></a>
 ## Module split
 
 `hyphon_native.wasm` is the **voice** module: Open303, JC303, Prophecy,
-HighFid303 and `audio_dsp`. Rubber Band is **not** in it.
+HighFid303 and `audio_dsp`. `hyphon_native.st.wasm` carries the same voices,
+without `audio_dsp` and `main()`. Rubber Band is in neither.
 
 ### Why Rubber Band moved out
 
@@ -165,6 +226,16 @@ in `createHyphonMemory()`, which now distinguishes "no SharedArrayBuffer" from
 
 128 MB still covers that peak with room to spare, and growth to 1 GB remains
 available for long offline renders.
+
+**One heap per audio session.** This table sums every voice into a single heap,
+and since `src/audio-worklets/hyphonNativeSession.ts` that is how the worklets
+run: bass1 / bass2 / lead303, Prophecy A / B and any live high-fid voice all take
+handles on one `hyphon_native` instance per AudioContext (they share the
+AudioWorkletGlobalScope). Before that, each of the five processors instantiated
+the module with its own 128 MB `shared: true` memory. The Engine HUD's
+"Voice WASM heap" row reports the live heap count (expected `1`), and
+`src/audio-worklets/__tests__/hyphonNativeSession.sharedHeap.test.ts` fails if a
+second memory is allocated during init.
 
 **Why 128 MB was not lowered along with the peak.** The ~40 MB that left is real,
 but the number it left behind is still an analytic budget, not a device capture

@@ -8,6 +8,7 @@ import {
   createEmscriptenEnv,
   createWASIImports,
   buildHyphonWasmImports,
+  HYPHON_NATIVE_ST_MIN_MEMORY_PAGES,
   open303ExportMapInsufficient,
   prophecyExportMapInsufficient,
   OPEN303_REQUIRED_WASM_EXPORTS,
@@ -191,5 +192,55 @@ describe('hyphon_native.wasm worklet handshake', () => {
     // "Cannot convert a BigInt value to a number" at the boundary.
     const init = exports.open303_init as (h: number | bigint, sr: number, n: number) => number;
     expect(init(handle, 48000, 128)).toBe(1);
+  });
+});
+
+/**
+ * The single-threaded profile must work through the exact same worklet import
+ * wiring: plain (non-shared) imported memory sized from the ST budget, ctors,
+ * and a voice that actually renders. Skips when artifacts are not built.
+ */
+describe('hyphon_native.st.wasm worklet handshake', () => {
+  it('instantiates with a non-shared memory and renders a native 303 voice', async () => {
+    const wasmPath = resolve(__dirname, '../../public/hyphon_native.st.wasm');
+    if (!existsSync(wasmPath)) return;
+
+    const bytes = readFileSync(wasmPath);
+    const { checkSingleThreadedModule } = await import('../../tools/check_hyphon_st_module.mjs');
+    expect(checkSingleThreadedModule(bytes)).toEqual([]);
+
+    const module = await WebAssembly.compile(bytes);
+    let instance: WebAssembly.Instance | null = null;
+    let importedMemory: WebAssembly.Memory | null = null;
+    const { imports, memory } = buildHyphonWasmImports(
+      module,
+      {
+        getWasmInstance: () => instance,
+        getImportedMemory: () => importedMemory,
+        setImportedMemory: (m) => { importedMemory = m; },
+        onHeapUpdate: () => {},
+        logPrefix: '[test]',
+      },
+      { isThreaded: false },
+    );
+    expect(memory).not.toBeNull();
+    expect(memory!.buffer).toBeInstanceOf(ArrayBuffer);
+    expect(memory!.buffer.byteLength / 65536).toBe(HYPHON_NATIVE_ST_MIN_MEMORY_PAGES);
+
+    instance = await WebAssembly.instantiate(module, imports);
+    const x = instance.exports as Record<string, (...a: number[]) => number>;
+    x.__wasm_call_ctors();
+
+    const handle = x.open303_create();
+    expect(handle).toBeTruthy();
+    expect(x.open303_init(handle, 48000, 128)).toBe(1);
+    x.open303_note_on(handle, 45, 127);
+    const out = x.malloc(128 * 2 * 4);
+    let peak = 0;
+    for (let block = 0; block < 20; block++) {
+      x.open303_process(handle, out, 128);
+      for (const sample of new Float32Array(memory!.buffer, out, 256)) peak = Math.max(peak, Math.abs(sample));
+    }
+    expect(peak).toBeGreaterThan(0.01);
   });
 });

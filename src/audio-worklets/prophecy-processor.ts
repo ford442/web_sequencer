@@ -1,15 +1,14 @@
 // src/audio-worklets/prophecy-processor.ts
 // AudioWorklet processor for the Korg Prophecy formant synthesis engine.
 // Uses the prophecy_* multi-instance C API exposed by prophecy_wrapper.cpp
-// inside hyphon_native.wasm.
+// inside hyphon_native.wasm, on the audio session's shared instance
+// (see hyphonNativeSession.ts) — this processor owns only its handle.
 
 import {
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
-    buildHyphonWasmImports,
     formatMissingWasmExports,
     hasProphecyApi,
-    normalizeWasmExports,
 } from './hyphonNativeImports';
+import { acquireHyphonNativeSession, type HyphonNativeSession } from './hyphonNativeSession';
 
 // Definitions for the AudioWorklet scope
 declare class AudioWorkletProcessor {
@@ -29,17 +28,14 @@ const ProphecyState = {
 
 type ProphecyStateType = typeof ProphecyState[keyof typeof ProphecyState];
 
-/** Minimum pages for the shared hyphon_native.wasm threaded build (512 MB). */
-const PROPHECY_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
-
 class ProphecyProcessor extends AudioWorkletProcessor {
-    private wasmInstance:   WebAssembly.Instance | null = null;
-    private normalizedExports: Record<string, unknown> | null = null;
-    private importedMemory: WebAssembly.Memory   | null = null;
-    private heapFloat32:    Float32Array         | null = null;
+    /** Shared per-audio-session hyphon_native instance. */
+    private native:         HyphonNativeSession | null = null;
+    private heapFloat32:    Float32Array        | null = null;
+    private detachHeapListener: (() => void) | null = null;
+    private disposed = false;
 
     private synthState: ProphecyStateType = ProphecyState.UNINITIALIZED;
-    private isThreaded: boolean = false;
 
     /** Handle returned by prophecy_create(). */
     private instanceHandle: number = 0;
@@ -50,8 +46,6 @@ class ProphecyProcessor extends AudioWorkletProcessor {
     // Error rate-limiting
     private processErrorCount    = 0;
     private allocationErrorCount = 0;
-
-    private exports: Record<string, any> | null = null;
 
     constructor() {
         super();
@@ -68,7 +62,12 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             return;
         }
 
-        if (this.synthState !== ProphecyState.READY || !this.wasmInstance) return;
+        if (type === 'dispose') {
+            this.dispose();
+            return;
+        }
+
+        if (this.synthState !== ProphecyState.READY || !this.native) return;
 
         const exports = this.getExports();
 
@@ -125,47 +124,31 @@ class ProphecyProcessor extends AudioWorkletProcessor {
 
         try {
             const { wasmBytes, sampleRate, isThreaded, memoryPages, exportMap } = data;
-            this.isThreaded = !!isThreaded;
 
-            const module = await WebAssembly.compile(wasmBytes);
-            const importCtx = {
-                getWasmInstance: () => this.wasmInstance,
-                getImportedMemory: () => this.importedMemory,
-                setImportedMemory: (m: WebAssembly.Memory) => {
-                    this.importedMemory = m;
+            // Compile/allocate/instantiate happens once per audio session; the
+            // second Prophecy part and every 303 voice reuse the same instance.
+            const native = await acquireHyphonNativeSession(
+                {
+                    wasmBytes,
+                    isThreaded: !!isThreaded,
+                    // createHyphonMemory floors this per profile (pthread / st).
+                    memoryPages,
+                    exportMap,
                 },
-                onHeapUpdate: () => this.updateHeap(),
-                logPrefix: '[Prophecy]',
-            };
-
-            const { imports, memory } = buildHyphonWasmImports(module, importCtx, {
-                memoryPages: memoryPages ?? PROPHECY_MIN_MEMORY_PAGES,
-                isThreaded: this.isThreaded,
-            });
-
-            const instance = await WebAssembly.instantiate(module, imports);
-            this.wasmInstance = instance;
-            this.normalizedExports = normalizeWasmExports(instance.exports, exportMap ?? {});
-            this.configureWasmStack();
-
-            const exp = this.getExports();
-
-            const instanceExp = instance.exports as Record<string, any>;
-
-            const mem: WebAssembly.Memory =
-                memory ??
-                (instanceExp.memory as WebAssembly.Memory) ??
-                this.importedMemory;
-            if (!mem) throw new Error('[Prophecy] No memory export/import found');
-            this.importedMemory = mem;
-            this.heapFloat32 = new Float32Array(mem.buffer);
+                '[Prophecy]',
+            );
+            if (this.disposed) return;
+            this.native = native;
+            this.updateHeap();
+            if (!native.memory) throw new Error('[Prophecy] No memory export/import found');
+            const exp = native.exports;
 
             // Verify the Prophecy API on *normalized* exports — release builds
             // minify the raw names (prophecy_create → V, etc.).
             if (!hasProphecyApi(exp)) {
                 throw new Error(
                     '[Prophecy] prophecy_* API not found in WASM exports. ' +
-                    formatMissingWasmExports(instance.exports, [
+                    formatMissingWasmExports(native.instance.exports, [
                         'prophecy_create',
                         'prophecy_init',
                     ]),
@@ -179,11 +162,22 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             const ok = exp.prophecy_init(this.instanceHandle, sampleRate, this.bufFrames);
             if (ok !== 1) throw new Error(`[Prophecy] prophecy_init() returned ${ok}`);
 
+            native.retain();
+            const unsubscribe = native.onHeapGrow((stats) => {
+                this.updateHeap();
+                this.port.postMessage({ type: 'hyphon-heap', data: stats });
+            });
+            this.detachHeapListener = () => {
+                unsubscribe();
+                native.release();
+            };
+
             this.synthState = ProphecyState.READY;
             console.log(`[Prophecy] Engine ready: handle=${this.instanceHandle}, sr=${sampleRate}`);
-            this.port.postMessage({ type: 'ready' });
+            this.port.postMessage({ type: 'ready', heap: native.stats });
 
         } catch (e: any) {
+            this.destroyHandle();
             this.synthState = ProphecyState.FAILED;
             console.error('[Prophecy] WASM init failed:', e);
             this.port.postMessage({ type: 'error', error: String(e?.message ?? e) });
@@ -191,57 +185,48 @@ class ProphecyProcessor extends AudioWorkletProcessor {
     }
 
     private getExports(): Record<string, any> {
-        return (this.normalizedExports ?? {}) as Record<string, any>;
+        return this.native?.exports ?? {};
     }
 
     private updateHeap(): void {
-        const memory =
-            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory ??
-            this.importedMemory;
-        if (memory) {
+        const memory = this.native?.memory;
+        if (memory && this.heapFloat32?.buffer !== memory.buffer) {
             this.heapFloat32 = new Float32Array(memory.buffer);
         }
     }
 
-    private configureWasmStack(): void {
-        const exports = this.getExports() as Record<string, (...args: number[]) => number>;
-        if (typeof exports.emscripten_stack_init === 'function') {
-            exports.emscripten_stack_init();
+    private destroyHandle(): void {
+        if (!this.instanceHandle) return;
+        try {
+            this.getExports().prophecy_destroy?.(this.instanceHandle);
+        } catch (e) {
+            console.warn('[Prophecy] prophecy_destroy failed:', e);
         }
+        this.instanceHandle = 0;
+    }
 
-        // Run the C++ static constructors before touching any export.
-        //
-        // hyphon_native.wasm is an Emscripten C++ module: the model registry, the
-        // rosic wavetables and the embind registrations all live in global objects
-        // whose constructors run in __wasm_call_ctors. The Emscripten glue calls it
-        // for the main thread (see src/audio-worklets/rubberband-lib.js), but the
-        // worklets instantiate the module by hand and used to skip it — leaving the
-        // statics zeroed, so open303_create() handed back a null handle and the
-        // Prophecy entry points trapped on `unreachable`.
-        if (typeof exports.__wasm_call_ctors === 'function') {
-            exports.__wasm_call_ctors();
-        }
-        if (
-            typeof exports.__set_stack_limits === 'function' &&
-            typeof exports.emscripten_stack_get_base === 'function'
-        ) {
-            const stackBase = exports.emscripten_stack_get_base();
-            if (stackBase > 0) {
-                exports.__set_stack_limits(stackBase, 0);
-            }
-        }
+    /** Node teardown: the instance is shared, so hand the handle back explicitly. */
+    private dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.destroyHandle();
+        this.detachHeapListener?.();
+        this.detachHeapListener = null;
+        this.synthState = ProphecyState.FAILED;
+        this.heapFloat32 = null;
     }
 
     // ── Audio render ──────────────────────────────────────────────────────────
 
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
+        if (this.disposed) return false;
         const output = outputs[0];
         if (!output) return true;
 
         const channelL = output[0];
         const channelR = output[1] ?? null;
 
-        if (this.synthState !== ProphecyState.READY || !this.wasmInstance || !this.heapFloat32) {
+        if (this.synthState !== ProphecyState.READY || !this.native || !this.heapFloat32) {
             channelL?.fill(0);
             channelR?.fill(0);
             return true;
@@ -252,10 +237,7 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             const numFrames = channelL?.length ?? this.bufFrames;
 
             // Refresh heap view when memory grows (SharedArrayBuffer may be detached)
-            if (this.importedMemory &&
-                this.heapFloat32.buffer !== this.importedMemory.buffer) {
-                this.heapFloat32 = new Float32Array(this.importedMemory.buffer);
-            }
+            this.updateHeap();
 
             // prophecy_process returns a pointer to the internal float buffer
             const ptr: number = exports.prophecy_process(this.instanceHandle, numFrames);
@@ -269,7 +251,7 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             }
 
             const offset = ptr >>> 2;  // Convert byte pointer to Float32Array index (divide by 4 bytes per float)
-            const heap   = this.heapFloat32;
+            const heap   = this.heapFloat32!;
 
             if (offset >= 0 && offset + numFrames <= heap.length) {
                 for (let i = 0; i < numFrames; i++) {

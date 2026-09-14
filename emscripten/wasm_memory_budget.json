@@ -24,6 +24,23 @@
     "stackSizeMb": 8,
     "pthreadPoolSize": 4
   },
+  "hyphonNativeSt": {
+    "$comment": [
+      "Single-threaded voice module public/hyphon_native.st.{js,wasm} (USE_PTHREADS=0,",
+      "IMPORTED_MEMORY=1, non-shared). Same voices as hyphonNative minus audio_dsp.cpp",
+      "and main(). Loaded when the page is not crossOriginIsolated, on WebKit, or when",
+      "Open303Config.forceSingleThreaded is set. Consumed by emscripten/build.sh and by",
+      "src/audio-worklets/hyphonNativeImports.ts (HYPHON_NATIVE_ST_* pages).",
+      "Measured (2026-09-14, release ST build, node): the full voice set — 3x Open303 at",
+      "4x oversample, 3x JC303, 3x live high-fid at 2x, 2x Prophecy, 192 kHz / 4096-frame",
+      "blocks — peaks at ~2 MB above the 1 MB stack + data. 16 MB is 8x that; the memory",
+      "is non-shared, so growth past it is a cheap ArrayBuffer grow, not a new SAB.",
+      "See docs/wasm/BUILD_NOTES.md#threading-profiles."
+    ],
+    "initialMemoryMb": 16,
+    "maximumMemoryMb": 512,
+    "stackSizeMb": 1
+  },
   "rubberband": {
     "$comment": [
       "Standalone public/rubberband.wasm, built by emscripten/build_rubberband.sh and",

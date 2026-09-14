@@ -10,6 +10,8 @@ export const INTEGRATION_ARTIFACTS = [
   'src/wasm/trackFreezer.wasm',
   'public/hyphon_native.js',
   'public/hyphon_native.wasm',
+  'public/hyphon_native.st.js',
+  'public/hyphon_native.st.wasm',
   'docs/audio-engine/303-baseline/jc303_canonical.wav',
 ] as const;
 

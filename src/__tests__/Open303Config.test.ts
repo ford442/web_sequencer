@@ -1,35 +1,42 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
+import { ProphecyOscillator } from '../engines/ProphecyOscillator';
+import { resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
 
-// Mock WebAssembly.compile and Module.imports to avoid needing a real WASM binary
+// Mock WebAssembly.compile and Module.imports to avoid needing a real WASM binary.
+// Re-stubbed per test because afterEach unstubs the environment globals below.
 const mockWasmModule = {} as WebAssembly.Module;
-vi.stubGlobal('WebAssembly', {
-    ...WebAssembly,
-    compile: vi.fn().mockResolvedValue(mockWasmModule),
-    Module: {
-        imports: vi.fn().mockReturnValue([]),
-        exports: vi.fn().mockReturnValue([
-            { name: 'da', kind: 'function' },
-            { name: 'fa', kind: 'function' },
-        ]),
-    },
-});
+const realWebAssembly = WebAssembly;
+function stubWebAssembly() {
+    vi.stubGlobal('WebAssembly', {
+        ...realWebAssembly,
+        compile: vi.fn().mockResolvedValue(mockWasmModule),
+        Module: {
+            imports: vi.fn().mockReturnValue([]),
+            exports: vi.fn().mockReturnValue([
+                { name: 'da', kind: 'function' },
+                { name: 'fa', kind: 'function' },
+            ]),
+        },
+    });
+}
 
 function mockOpen303Fetch(url: string | Request | URL): Promise<Response> {
     const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
-    if (href.includes('hyphon_native.wasm')) {
+    // Both link profiles: hyphon_native.wasm (pthread) and hyphon_native.st.wasm.
+    if (/hyphon_native(\.st)?\.wasm/.test(href)) {
         return Promise.resolve({
             ok: true,
             arrayBuffer: () => Promise.resolve(new ArrayBuffer(2048)),
         } as Response);
     }
-    if (href.includes('hyphon_wasm_export_map.json')) {
+    if (/hyphon_wasm_export_map(\.st)?\.json/.test(href)) {
         return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ open303_create: 'da', open303_init: 'fa' }),
         } as Response);
     }
-    if (href.includes('hyphon_native.js')) {
+    if (/hyphon_native(\.st)?\.js/.test(href)) {
         return Promise.resolve({
             ok: true,
             text: () => Promise.resolve(''),
@@ -45,7 +52,13 @@ describe('Open303 Oscillator', () => {
     let mockAudioContext: AudioContext;
     let mockWorkletNode: any;
 
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     beforeEach(() => {
+        resetHyphonWasmExportMapCache();
+        stubWebAssembly();
         vi.mocked(global.fetch).mockImplementation(mockOpen303Fetch as typeof fetch);
 
         mockWorkletNode = {
@@ -119,8 +132,9 @@ describe('Open303 Oscillator', () => {
         expect(success).toBe(true);
         expect(engine.isReady).toBe(true);
 
-        // Verify fetch was called for the merged hyphon_native WASM
-        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('hyphon_native.wasm'));
+        // Verify fetch was called for a hyphon_native build (the test env is not
+        // crossOriginIsolated, so this is the single-threaded one)
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringMatching(/hyphon_native(\.st)?\.wasm$/));
 
         // Verify addModule was called
         expect(mockAudioContext.audioWorklet.addModule).toHaveBeenCalledWith('worklet-url.js');
@@ -187,5 +201,75 @@ describe('Open303 Oscillator', () => {
         expect(success).toBe(true);
         expect(engine.isReady).toBe(true);
         expect(engine.isFallback).toBe(true);
+    });
+    describe('hyphon_native build selection (Open303Config)', () => {
+        const fetchedWasm = () =>
+            vi.mocked(global.fetch).mock.calls
+                .map(([u]) => String(u))
+                .filter((u) => /\.wasm$/.test(u));
+        const initMessage = () =>
+            mockWorkletNode.port.postMessage.mock.calls
+                .map(([m]: [any]) => m)
+                .find((m: any) => m.type === 'init-wasm');
+        const crossOriginIsolated = () => {
+            vi.stubGlobal('crossOriginIsolated', true);
+            vi.stubGlobal('SharedArrayBuffer', globalThis.SharedArrayBuffer ?? ArrayBuffer);
+        };
+
+        it('loads the pthread build on a crossOriginIsolated page without config', async () => {
+            crossOriginIsolated();
+            const engine = new Open303Oscillator();
+            await engine.init(mockAudioContext, 'worklet-url.js');
+
+            expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.wasm$/)]);
+            expect(initMessage().data).toMatchObject({ isThreaded: true, variant: 'pthread', memoryPages: 2048 });
+            expect(engine.isFallback).toBe(false);
+        });
+
+        it('honours forceSingleThreaded even when the pthread build could run', async () => {
+            crossOriginIsolated();
+            const engine = new Open303Oscillator();
+            await engine.init(mockAudioContext, 'worklet-url.js', { forceSingleThreaded: true });
+
+            expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.st\.wasm$/)]);
+            expect(global.fetch).toHaveBeenCalledWith(expect.stringMatching(/hyphon_wasm_export_map\.st\.json$/));
+            expect(initMessage().data).toMatchObject({ isThreaded: false, variant: 'st', memoryPages: 256 });
+            expect(engine.isFallback).toBe(false);
+        });
+
+        it('loads the single-threaded build when the page is not crossOriginIsolated', async () => {
+            vi.stubGlobal('crossOriginIsolated', false);
+            const engine = new Open303Oscillator();
+            await engine.init(mockAudioContext, 'worklet-url.js');
+
+            expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.st\.wasm$/)]);
+            expect(initMessage().data).toMatchObject({ isThreaded: false, variant: 'st' });
+        });
+
+        it('runs the native single-threaded voice on WebKit instead of the JS fallback', async () => {
+            crossOriginIsolated();
+            vi.stubGlobal('navigator', {
+                userAgent:
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+            });
+            const engine = new Open303Oscillator();
+            await engine.init(mockAudioContext, 'worklet-url.js');
+
+            expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.st\.wasm$/)]);
+            expect(engine.isFallback).toBe(false);
+            expect(engine.isReady).toBe(true);
+        });
+
+        it('binds one build per audio context so Prophecy joins the 303 voices', async () => {
+            crossOriginIsolated();
+            const bass = new Open303Oscillator();
+            await bass.init(mockAudioContext, 'worklet-url.js', { forceSingleThreaded: true });
+
+            const prophecy = new ProphecyOscillator();
+            await prophecy.init(mockAudioContext, 'prophecy-worklet.js');
+
+            expect(fetchedWasm()).toHaveLength(2);
+            for (const url of fetchedWasm()) expect(url).toMatch(/\/hyphon_native\.st\.wasm$/);
+        });
     });
 });

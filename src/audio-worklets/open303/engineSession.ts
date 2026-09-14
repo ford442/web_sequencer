@@ -1,27 +1,21 @@
 // src/audio-worklets/open303/engineSession.ts
-// Owns the hyphon_native.wasm instance for one Open303Processor: compiling and
-// instantiating the module, resolving which native API(s) it exposes, the
-// heap view used to read rendered samples back out, and the native/jc303
-// instance handles. Everything here either runs once at init or is called
-// from the process() hot path — no allocation-adding indirection.
+// The native/jc303 instance handles for one Open303Processor, on the audio
+// session's shared hyphon_native.wasm instance (see ../hyphonNativeSession.ts):
+// resolving which native API(s) the module exposes, the heap view used to read
+// rendered samples back out, and handle teardown. Everything here either runs
+// once at init or is called from the process() hot path — no allocation-adding
+// indirection.
 
-import {
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
-    buildHyphonWasmImports,
-    formatMissingWasmExports,
-    normalizeWasmExports,
-} from '../hyphonNativeImports';
+import { formatMissingWasmExports } from '../hyphonNativeImports';
+import { acquireHyphonNativeSession, type HyphonNativeSession } from '../hyphonNativeSession';
 import { resolveWorkletSampleRate } from '../../utils/workletSampleRate';
 import { SynthState, type SynthStateType, getTime } from './shared';
 
-/** Minimum WebAssembly memory pages for hyphon_native.wasm (threaded Emscripten build).
- *  Must stay in sync with OPEN303_MIN_MEMORY_PAGES in Open303Oscillator.ts. */
-const OPEN303_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
-
 export class Open303EngineSession {
-    private wasmInstance: WebAssembly.Instance | null = null;
-    private normalizedExports: Record<string, unknown> | null = null;
-    private importedMemory: WebAssembly.Memory | null = null;
+    /** Shared per-audio-session instance; this processor only owns handles on it. */
+    private native: HyphonNativeSession | null = null;
+    private detachHeapListener: (() => void) | null = null;
+    private disposed = false;
     private heap: Float32Array | null = null;
     private synthState: SynthStateType = SynthState.UNINITIALIZED;
     private isThreadedFlag: boolean = false;
@@ -64,11 +58,11 @@ export class Open303EngineSession {
 
     /** True once the WASM module has instantiated successfully and the synth is live. */
     get isReady(): boolean {
-        return this.synthState === SynthState.READY && this.wasmInstance !== null;
+        return this.synthState === SynthState.READY && this.native !== null;
     }
 
     get isInstantiated(): boolean {
-        return this.wasmInstance !== null;
+        return this.native !== null;
     }
 
     get heapFloat32(): Float32Array | null {
@@ -108,7 +102,7 @@ export class Open303EngineSession {
     }
 
     getExports(): Record<string, any> {
-        return (this.normalizedExports ?? {}) as Record<string, any>;
+        return this.native?.exports ?? {};
     }
 
     /**
@@ -169,7 +163,7 @@ export class Open303EngineSession {
     }
 
     updateHeap(): void {
-        const memory = (this.wasmInstance?.exports as any)?.memory || this.importedMemory;
+        const memory = this.native?.memory;
         if (memory && (!this.heap || this.heap.buffer !== memory.buffer)) {
             this.heap = new Float32Array(memory.buffer);
         }
@@ -177,9 +171,7 @@ export class Open303EngineSession {
 
     /** Read a null-terminated UTF-8 string from the WASM heap. */
     readWasmCString(ptr: number | bigint | null | undefined): string | null {
-        const memory =
-            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory
-            ?? this.importedMemory;
+        const memory = this.native?.memory;
         const start = typeof ptr === 'bigint' ? Number(ptr) : ptr;
         if (!memory?.buffer || !start || !Number.isFinite(start) || start <= 0) return null;
 
@@ -205,20 +197,27 @@ export class Open303EngineSession {
 
         this.synthState = SynthState.INITIALIZING;
 
-        while (this.initAttempts < Open303EngineSession.MAX_INIT_ATTEMPTS) {
+        while (this.initAttempts < Open303EngineSession.MAX_INIT_ATTEMPTS && !this.disposed) {
             this.initAttempts++;
             console.log(`[Open303] Initialization attempt ${this.initAttempts}/${Open303EngineSession.MAX_INIT_ATTEMPTS}`);
 
             try {
                 const success = await this.tryInitialize(data);
+                if (this.disposed) {
+                    // The node was torn down while the shared instance was coming up.
+                    this.releaseHandles();
+                    return;
+                }
                 if (success) {
                     this.synthState = SynthState.READY;
                     console.log('[Open303] WASM initialized successfully');
+                    this.attachToSession();
                     onReady();
-                    this.port.postMessage({ type: 'ready' });
+                    this.port.postMessage({ type: 'ready', heap: this.native?.stats });
                     return;
                 }
             } catch (e) {
+                this.releaseHandles();
                 const errorMsg = e instanceof Error ? e.message : String(e);
                 console.warn(`[Open303] Init attempt ${this.initAttempts} failed:`, errorMsg);
                 this.lastErrorMessage = errorMsg;
@@ -232,6 +231,8 @@ export class Open303EngineSession {
             }
         }
 
+        if (this.disposed) return;
+
         // All attempts failed
         console.error('[Open303] All initialization attempts failed');
         this.synthState = SynthState.FAILED;
@@ -243,61 +244,26 @@ export class Open303EngineSession {
     }
 
     private async tryInitialize(data: any): Promise<boolean> {
-        const variant = data.variant || 'single';
+        const variant = data.variant || (data.isThreaded ? 'pthread' : 'st');
         this.isThreadedFlag = data.isThreaded || false;
 
         console.log(`[Open303] Initializing with ${variant} WASM variant (threaded: ${this.isThreadedFlag})`);
 
-        if (!data.wasmBytes || data.wasmBytes.byteLength === 0) {
-            throw new Error('No WASM bytes received');
-        }
-
-        // 1. Compile the WASM module
-        console.log('[Open303] Compiling WASM module...');
-        const module = await WebAssembly.compile(data.wasmBytes);
-        console.log('[Open303] WASM module compiled successfully');
-
-        // Debug: Inspect imports
-        this.inspectModuleImports(module);
-
-        const importCtx = {
-            getWasmInstance: () => this.wasmInstance,
-            getImportedMemory: () => this.importedMemory,
-            setImportedMemory: (m: WebAssembly.Memory) => {
-                this.importedMemory = m;
+        // Compile, allocate the imported memory, instantiate and run the C++
+        // constructors — once per audio session. Every 303 and Prophecy voice
+        // after the first gets the already-live instance and just creates handles.
+        this.native = await acquireHyphonNativeSession(
+            {
+                wasmBytes: data.wasmBytes,
+                isThreaded: this.isThreadedFlag,
+                // createHyphonMemory floors this per profile (pthread / st).
+                memoryPages: data.memoryPages,
+                exportMap: data.exportMap,
             },
-            onHeapUpdate: () => this.updateHeap(),
-            logPrefix: '[Open303]',
-        };
-
-        const { imports: importsObject } = buildHyphonWasmImports(module, importCtx, {
-            memoryPages: data.memoryPages,
-            isThreaded: this.isThreadedFlag,
-        });
-
-        console.log('[Open303] Instantiating WASM module...');
-
-        // 3. Instantiate with timeout protection
-        const instantiatePromise = WebAssembly.instantiate(module, importsObject);
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('WASM instantiation timeout (5s)')), 5000);
-        });
-
-        this.wasmInstance = await Promise.race([instantiatePromise, timeoutPromise]);
-        const rawExports = this.wasmInstance.exports;
-        this.normalizedExports = normalizeWasmExports(rawExports, data.exportMap ?? {});
-        console.log('[Open303] WASM instantiated successfully');
-
+            '[Open303]',
+        );
+        const rawExports = this.native.instance.exports;
         this.updateHeap();
-
-        // 3b. Initialize the Emscripten stack tracking and disable false overflow detection.
-        // The jc303 WASM triggers __handle_stack_overflow during jc303_init even though
-        // the stack pointer never actually falls below the stack limit. This is caused by
-        // how Emscripten's stack overflow check is compiled into the binary. Calling
-        // emscripten_stack_init() sets up the stack tracking, and __set_stack_limits with
-        // stackEnd=0 disables the false check (sp < 0 is always false), allowing jc303_init
-        // to succeed without spurious overflow calls.
-        this.configureWasmStack();
 
         // 4. Verify exports — accept either the native multi-instance API
         // (open303_create/open303_init, exported by hyphon_native.wasm) or the
@@ -327,20 +293,6 @@ export class Open303EngineSession {
                 sampleRate: data.sampleRate ?? (globalThis as { sampleRate?: number }).sampleRate,
             }),
         );
-    }
-
-    private inspectModuleImports(module: WebAssembly.Module) {
-        try {
-            const importDescriptors = WebAssembly.Module.imports(module);
-            console.log("[Open303] WASM Imports:", JSON.stringify(importDescriptors.slice(0, 10)) + "...");
-
-            const importNames = importDescriptors.map((d: any) => d.name || '');
-            if (importNames.some((n: string) => /^[A-Za-z]$/.test(n))) {
-                console.warn("[Open303] Detected minified import names. Using alias mappings.");
-            }
-        } catch (e) {
-            console.warn("[Open303] Failed to inspect imports:", e);
-        }
     }
 
     private initializeSynth(exports: any, sampleRate: number): boolean {
@@ -395,7 +347,8 @@ export class Open303EngineSession {
         } catch (e) {
             console.error('[Open303] Native API init failed:', e);
             this.nativeApi = false;
-            this.handle = 0;
+            // Leave this.handle set: initialize()'s catch destroys it on the shared
+            // instance. Zeroing it here would leak the open303 handle there.
             // Rethrow: initialize()'s retry loop records the message, and a bare
             // `return false` here is what produced "Failed to initialize after 3
             // attempts. Last error: " with nothing after the colon.
@@ -494,38 +447,47 @@ export class Open303EngineSession {
         return false;
     }
 
-    private configureWasmStack(): void {
+    /** Subscribe to heap growth so the HUD sees grow events from the shared heap. */
+    private attachToSession(): void {
+        if (!this.native || this.detachHeapListener) return;
+        this.native.retain();
+        const unsubscribe = this.native.onHeapGrow((stats) => {
+            this.updateHeap();
+            this.port.postMessage({ type: 'hyphon-heap', data: stats });
+        });
+        const native = this.native;
+        this.detachHeapListener = () => {
+            unsubscribe();
+            native.release();
+        };
+    }
+
+    /** Destroy this processor's handles on the shared instance. The instance
+     *  itself outlives the processor — other voices are still using it. */
+    private releaseHandles(): void {
         const exports = this.getExports();
-
-        // Initialize Emscripten stack tracking
-        if (typeof exports.emscripten_stack_init === 'function') {
-            exports.emscripten_stack_init();
+        try {
+            if (!this.isInvalidHandle(this.handle)) exports.open303_destroy?.(this.toWasmHandle(this.handle));
+            if (!this.isInvalidHandle(this.jc303HandleValue)) exports.jc303_destroy?.(this.toWasmHandle(this.jc303HandleValue));
+            if (!this.isInvalidHandle(this.outputPtr)) (exports._free ?? exports.free)?.(this.outputPtr);
+        } catch (e) {
+            console.warn('[Open303] Handle teardown failed:', e);
         }
+        this.handle = 0;
+        this.jc303HandleValue = 0;
+        this.outputPtr = 0;
+        this.nativeApi = false;
+        this.jc303MultiApi = false;
+    }
 
-        // Run the C++ static constructors before touching any export.
-        //
-        // hyphon_native.wasm is an Emscripten C++ module: the model registry, the
-        // rosic wavetables and the embind registrations all live in global objects
-        // whose constructors run in __wasm_call_ctors. The Emscripten glue calls it
-        // for the main thread (see src/audio-worklets/rubberband-lib.js), but the
-        // worklets instantiate the module by hand and used to skip it — leaving the
-        // statics zeroed, so open303_create() handed back a null handle and the
-        // Prophecy entry points trapped on `unreachable`.
-        if (typeof exports.__wasm_call_ctors === 'function') {
-            exports.__wasm_call_ctors();
-        }
-
-        // Disable false stack overflow detection.
-        // The jc303 WASM calls __handle_stack_overflow during jc303_init even though
-        // the stack pointer never falls below the actual stack limit. Setting stackEnd=0
-        // makes the overflow check (sp < 0) always false, preventing spurious calls.
-        if (typeof exports.__set_stack_limits === 'function' &&
-            typeof exports.emscripten_stack_get_base === 'function') {
-            const stackBase = exports.emscripten_stack_get_base();
-            if (stackBase > 0) {
-                exports.__set_stack_limits(stackBase, 0);
-                console.log(`[Open303] Stack configured: base=${stackBase}, end=0 (overflow check disabled)`);
-            }
-        }
+    /** Tear down for good: free handles and detach from the shared session. */
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.releaseHandles();
+        this.detachHeapListener?.();
+        this.detachHeapListener = null;
+        this.synthState = SynthState.FAILED;
+        this.heap = null;
     }
 }

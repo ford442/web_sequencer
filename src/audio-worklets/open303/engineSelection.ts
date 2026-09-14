@@ -158,6 +158,13 @@ export class Open303EngineSelection {
         return true;
     }
 
+    /** Destroy the live high-fid handle (processor teardown). */
+    dispose(): void {
+        this.highFid?.destroy();
+        this.highFid = null;
+        this.engine = 'open303';
+    }
+
     /** Tell the main thread the requested live high-fid voice cannot be used. */
     private reportLiveHighFidUnavailable(model: string, reason: string): void {
         this.port.postMessage({

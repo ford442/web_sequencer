@@ -4,6 +4,7 @@ import { engineDegradationStore } from '../stores/engineDegradationStore';
 import type { TransportSyncTelemetry } from '../midi/clock/types';
 import type { Wam2RuntimeConstraints, Wam2SlotTelemetry } from '../audio/wam/types';
 import type { WebGpuProbeSnapshot } from '../engines/backends/webgpuProbe';
+import { HYPHON_NATIVE_ARTIFACTS, type HyphonNativeThreading } from '../audio-worklets/hyphonNativeImports';
 
 type Resolution = { backend: string; reason?: string; ts: number };
 
@@ -95,6 +96,7 @@ type RuntimeTelemetry = {
   wam2Constraints: Wam2RuntimeConstraints | null;
   /** Session WebGPU probe (JSON-safe; no GPUDevice). */
   webgpuProbe: WebGpuProbeSnapshot | null;
+  hyphonNativeHeap: HyphonNativeHeapTelemetry | null;
 };
 
 function emptyData(): TelemetryData {
@@ -185,6 +187,19 @@ export interface SubsystemReport {
   worklet?: WorkletPerfReport;
 }
 
+/** Shared hyphon_native.wasm heap for the live audio session (#1134 follow-up). */
+export interface HyphonNativeHeapTelemetry {
+  /** Live hyphon_native memories in the audio session. Expected: 1. */
+  heapCount: number;
+  initialPages: number;
+  currentPages: number;
+  growEvents: number;
+  /** Voice processors holding handles on the shared instance. */
+  voices: number;
+  /** Which link profile the shared instance was built from. */
+  threading: HyphonNativeThreading | 'unknown';
+}
+
 export interface RuntimeSnapshot {
   masterBudgetPercent: number;
   totalUnderruns: number;
@@ -243,6 +258,8 @@ export interface RuntimeSnapshot {
   wam2Constraints: Wam2RuntimeConstraints | null;
   /** Session WebGPU probe breadcrumb (browser, reason, adapter). */
   webgpuProbe: WebGpuProbeSnapshot | null;
+  /** Shared hyphon_native heap (303 + Prophecy + live high-fid); null until a voice is ready. */
+  hyphonNativeHeap: HyphonNativeHeapTelemetry | null;
 }
 
 export interface EngineReport {
@@ -342,6 +359,7 @@ export class EngineTelemetry {
     wam2Slots: [],
     wam2Constraints: null,
     webgpuProbe: null,
+    hyphonNativeHeap: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
 
@@ -516,6 +534,33 @@ export class EngineTelemetry {
     }
   }
 
+  /**
+   * Record the shared hyphon_native heap as reported by a voice worklet. Every
+   * voice reports the same session, so the latest report wins.
+   */
+  recordHyphonNativeHeap(stats: unknown): void {
+    if (!stats || typeof stats !== 'object') return;
+    const s = stats as Record<string, unknown>;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const next: HyphonNativeHeapTelemetry = {
+      heapCount: num(s.heapCount),
+      initialPages: num(s.initialPages),
+      currentPages: num(s.currentPages),
+      growEvents: num(s.growEvents),
+      voices: num(s.voices),
+      threading: s.threading === 'pthread' || s.threading === 'st' ? s.threading : 'unknown',
+    };
+    const prev = this.runtime.hyphonNativeHeap;
+    this.runtime.hyphonNativeHeap = next;
+    if (next.heapCount > 1 && (!prev || prev.heapCount <= 1)) {
+      this.recordDegradation(
+        'hyphon-native-heap',
+        true,
+        `${next.heapCount} hyphon_native heaps allocated in one audio session (expected 1)`,
+      );
+    }
+  }
+
   /** Session WebGPU probe (voices may still use WASM/JS; GPU HUD hard-fails). */
   recordWebGpuProbe(snapshot: WebGpuProbeSnapshot): void {
     this.runtime.webgpuProbe = snapshot;
@@ -576,6 +621,7 @@ export class EngineTelemetry {
       wam2Slots: this.runtime.wam2Slots.slice(),
       wam2Constraints: this.runtime.wam2Constraints,
       webgpuProbe: this.runtime.webgpuProbe,
+      hyphonNativeHeap: this.runtime.hyphonNativeHeap ? { ...this.runtime.hyphonNativeHeap } : null,
     };
   }
 
@@ -728,20 +774,17 @@ const lastUserWarnAt = new Map<string, number>();
 const activeFallbacks = new Map<string, { requestedBackend: string; reason: string }>();
 
 /**
- * Parse hyphon_native.js glue to recover minified WASM export names.
- * Used when hyphon_wasm_export_map.json is missing or stale (wasm-opt renames).
+ * Parse hyphon_native glue to recover minified WASM export names.
+ * Used when the export map JSON is missing or stale (wasm-opt renames).
+ * Mirrors tools/extract_wasm_export_map.mjs: the pthread glue quotes with `"`,
+ * the single-threaded glue (hyphon_native.st.js) with `'`.
  */
 export function parseHyphonGlueExportMap(glueSource: string): Record<string, string> {
   const map: Record<string, string> = {};
-  const patterns = [
-    /Module\["(_[^"]+)"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
-    /(_[a-zA-Z0-9_]+)\s*=\s*Module\["\1"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
-  ];
-  for (const re of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(glueSource)) !== null) {
-      map[match[1].slice(1)] = match[2];
-    }
+  const re = /Module\[(["'])(_[^"']+)\1\]\s*=\s*wasmExports\[(["'])([^"']+)\3\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(glueSource)) !== null) {
+    map[match[2].slice(1)] = match[4];
   }
   return map;
 }
@@ -759,8 +802,8 @@ export function countExportMapDrift(
   return drift;
 }
 
-async function fetchJsonExportMap(): Promise<Record<string, string>> {
-  const jsonUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
+async function fetchJsonExportMap(threading: HyphonNativeThreading): Promise<Record<string, string>> {
+  const jsonUrl = resolvePublicAsset(HYPHON_NATIVE_ARTIFACTS[threading].exportMap);
   try {
     const response = await fetch(jsonUrl);
     if (!response.ok) return {};
@@ -774,8 +817,8 @@ async function fetchJsonExportMap(): Promise<Record<string, string>> {
   return {};
 }
 
-async function fetchGlueExportMap(): Promise<Record<string, string>> {
-  const glueUrl = resolvePublicAsset('hyphon_native.js');
+async function fetchGlueExportMap(threading: HyphonNativeThreading): Promise<Record<string, string>> {
+  const glueUrl = resolvePublicAsset(HYPHON_NATIVE_ARTIFACTS[threading].glue);
   try {
     const response = await fetch(glueUrl);
     if (!response.ok) return {};
@@ -785,8 +828,9 @@ async function fetchGlueExportMap(): Promise<Record<string, string>> {
   }
 }
 
-async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>> {
-  const [fromJson, fromGlue] = await Promise.all([fetchJsonExportMap(), fetchGlueExportMap()]);
+async function loadHyphonWasmExportMapUncached(threading: HyphonNativeThreading): Promise<Record<string, string>> {
+  const { exportMap, glue } = HYPHON_NATIVE_ARTIFACTS[threading];
+  const [fromJson, fromGlue] = await Promise.all([fetchJsonExportMap(threading), fetchGlueExportMap(threading)]);
   const jsonCount = Object.keys(fromJson).length;
   const glueCount = Object.keys(fromGlue).length;
 
@@ -794,7 +838,7 @@ async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>
     const drift = countExportMapDrift(fromJson, fromGlue);
     if (drift > 0) {
       console.warn(
-        `[EngineTelemetry] hyphon_wasm_export_map.json disagrees with hyphon_native.js glue on ${drift} export(s); using glue`,
+        `[EngineTelemetry] ${exportMap} disagrees with ${glue} glue on ${drift} export(s); using glue`,
       );
       return fromGlue;
     }
@@ -803,7 +847,7 @@ async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>
 
   if (glueCount > 0) {
     console.warn(
-      `[EngineTelemetry] hyphon_wasm_export_map.json empty or missing; recovered ${glueCount} exports from glue`,
+      `[EngineTelemetry] ${exportMap} empty or missing; recovered ${glueCount} exports from glue`,
     );
     return fromGlue;
   }
@@ -811,22 +855,26 @@ async function loadHyphonWasmExportMapUncached(): Promise<Record<string, string>
   return fromJson;
 }
 
-let exportMapPromise: Promise<Record<string, string>> | null = null;
+const exportMapPromises = new Map<HyphonNativeThreading, Promise<Record<string, string>>>();
 
 /** Drop the memoized export-map fetch. For tests only. */
 export function resetHyphonWasmExportMapCache(): void {
-  exportMapPromise = null;
+  exportMapPromises.clear();
 }
 
 /**
- * Load the WASM export map: JSON and glue in parallel.
+ * Load the WASM export map for one hyphon_native profile: JSON and glue in parallel.
  * Glue wins when it is non-empty and disagrees with JSON (stale identity maps).
  */
-export async function loadHyphonWasmExportMap(): Promise<Record<string, string>> {
-  if (!exportMapPromise) {
-    exportMapPromise = loadHyphonWasmExportMapUncached();
+export async function loadHyphonWasmExportMap(
+  threading: HyphonNativeThreading = 'pthread',
+): Promise<Record<string, string>> {
+  let promise = exportMapPromises.get(threading);
+  if (!promise) {
+    promise = loadHyphonWasmExportMapUncached(threading);
+    exportMapPromises.set(threading, promise);
   }
-  return exportMapPromise;
+  return promise;
 }
 
 /** Active engine fallbacks for UI/diagnostics (subsystem → reason). */
