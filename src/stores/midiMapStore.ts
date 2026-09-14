@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { MidiBinding, MidiControlId, MidiMessageKey } from '../types/midi';
-import { midiKeyToString } from '../types/midi';
+import { isMidiBinding, midiKeyToString } from '../types/midi';
 
 const USER_PREFS_KEY = 'hyphon-midi-mappings';
 
@@ -30,8 +30,8 @@ function loadUserMappings(): MidiBinding[] {
   try {
     const raw = localStorage.getItem(USER_PREFS_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isMidiBinding) : [];
   } catch {
     return [];
   }

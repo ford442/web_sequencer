@@ -153,6 +153,14 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'error',
     },
   },
+  // Phase 3: stores surface
+  {
+    files: ['src/stores/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+    },
+  },
   // `ESLINT_RATCHET=1` (scripts/lint-ratchet.mjs) — every rule this file keeps
   // 'off' is switched to 'error' so its violations can be counted and compared
   // against eslint-baseline.json. Any NEW 'off' entry above is picked up

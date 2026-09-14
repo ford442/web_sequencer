@@ -407,7 +407,7 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 
 1. `src/utils/**` + `src/engines/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 2. `src/hooks/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
-3. `src/stores/**`
+3. `src/stores/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 4. `src/components/**`
 
 **Commands:**
