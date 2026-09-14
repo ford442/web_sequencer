@@ -89,6 +89,7 @@ export class TruePeakLimiter {
     /** Minimum gain applied since the last `takeStats()`, linear. */
     private minGainSinceReport = 1;
     private clippedSinceReport = false;
+    private readonly statsResult = { gainReductionDb: 0, clipped: false };
 
     constructor(sampleRate: number, channelCount = 2, settings?: Partial<LimiterSettings>) {
         this.sampleRate = sampleRate;
@@ -187,11 +188,11 @@ export class TruePeakLimiter {
      * Reading resets the accumulators so the UI sees per-report extremes.
      */
     takeStats(): { gainReductionDb: number; clipped: boolean } {
-        const gainReductionDb = this.minGainSinceReport >= 1 ? 0 : linearToDb(this.minGainSinceReport);
-        const clipped = this.clippedSinceReport;
+        this.statsResult.gainReductionDb = this.minGainSinceReport >= 1 ? 0 : linearToDb(this.minGainSinceReport);
+        this.statsResult.clipped = this.clippedSinceReport;
         this.minGainSinceReport = 1;
         this.clippedSinceReport = false;
-        return { gainReductionDb, clipped };
+        return this.statsResult;
     }
 
     /**
