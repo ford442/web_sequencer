@@ -72,3 +72,7 @@
 ## 2026-09-12 - Remove redundant aria-live from static empty states
 **Learning:** Found several components (`AutomationLaneList`, `PhonemeWaveformDisplay`, `CurveEditor`) that had `aria-live="polite"` applied to their static empty state containers. As noted in previous learnings, `aria-live="polite"` should be reserved for dynamic updates. When applied to static elements rendered on mount, it creates unnecessary and redundant announcements for screen reader users.
 **Action:** Removed `aria-live="polite"` from these statically rendered empty states while preserving the `role="status"` and existing structural consistency to ensure a more professional and less noisy screen reader experience.
+
+## 2026-09-14 - Trap focus in LoadingOverlay
+**Learning:** The `LoadingOverlay` is a critical full-screen modal during initial load, but it lacked focus trapping, allowing keyboard navigation to access elements underneath it. Applying `useFocusTrap` to untrapped dialogs like `LoadingOverlay` is crucial for maintaining an accessible and expected modal experience.
+**Action:** Always ensure full-screen overlays with `role="dialog"` and `aria-modal="true"` implement `useFocusTrap` to prevent keyboard users from tabbing outside the modal content.
