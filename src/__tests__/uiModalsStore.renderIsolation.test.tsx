@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom';
 import { act, fireEvent, render } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AppStateProvider, useAppStateContext } from '../contexts/AppStateContext';
-import { uiModalsStore, useUIModalsStore } from '../stores/uiModalsStore';
+import { AppStateProvider, useAppStateContext } from '@/contexts/AppStateContext';
+import { uiModalsStore, useUIModalsStore } from '@/stores/uiModalsStore';
 
 vi.mock('../services/AISongStorage', () => ({
     AISongStorage: {

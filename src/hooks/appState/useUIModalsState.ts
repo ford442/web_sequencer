@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { uiModalsStore, useUIModalsStore } from '../../stores/uiModalsStore'
+import { uiModalsStore, useUIModalsStore } from '@/stores/uiModalsStore'
 
 /**
  * Compatibility wrapper around `uiModalsStore` — preserves the field shape

@@ -1,47 +1,22 @@
 import '@testing-library/jest-dom';
 import { act, render } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import App from '../App';
-import { AppStateProvider, useAppStateContext } from '../contexts/AppStateContext';
-import { CompactLayoutProvider } from '../contexts/CompactLayoutContext';
-import { NUM_STEPS } from '../constants';
+import App from '@/App';
+import { AppStateProvider, useAppStateContext } from '@/contexts/AppStateContext';
+import { CompactLayoutProvider } from '@/contexts/CompactLayoutContext';
+import { NUM_STEPS } from '@/constants';
+import TransportHeader from '@/components/appParts/TransportHeader';
+import RackNode from '@/components/appParts/RackNode';
+import SequencerNode from '@/components/appParts/SequencerNode';
+import KeyboardNode from '@/components/appParts/KeyboardNode';
+import { BottomBar } from '@/components/BottomBar';
 
-vi.mock('../services/AISongStorage', () => ({
+vi.mock('@/services/AISongStorage', () => ({
     AISongStorage: {
         saveSong: vi.fn(),
         loadSong: vi.fn(),
     },
 }));
-
-// Stub the heavy top-level regions so this test measures *how many times
-// React calls them*, not what they render. Each stub still exercises the
-// real memo/context wiring around it — only its own JSX body is replaced.
-vi.mock('../components/appParts/TransportHeader', () => {
-    const Stub = vi.fn(() => null);
-    return { __esModule: true, default: Stub, TransportHeader: Stub };
-});
-vi.mock('../components/appParts/RackNode', () => {
-    const Stub = vi.fn(() => null);
-    return { __esModule: true, default: Stub, RackNode: Stub };
-});
-vi.mock('../components/appParts/SequencerNode', () => {
-    const Stub = vi.fn(() => null);
-    return { __esModule: true, default: Stub };
-});
-vi.mock('../components/appParts/KeyboardNode', () => {
-    const Stub = vi.fn(() => null);
-    return { __esModule: true, default: Stub };
-});
-vi.mock('../components/BottomBar', () => {
-    const Stub = vi.fn(() => null);
-    return { BottomBar: Stub };
-});
-
-import TransportHeader from '../components/appParts/TransportHeader';
-import RackNode from '../components/appParts/RackNode';
-import SequencerNode from '../components/appParts/SequencerNode';
-import KeyboardNode from '../components/appParts/KeyboardNode';
-import { BottomBar } from '../components/BottomBar';
 
 /**
  * Render budget for the app's top-level UI regions across one full pass of
@@ -57,26 +32,58 @@ import { BottomBar } from '../components/BottomBar';
  * region that reads `useAppStateContext()`, whether or not it uses
  * `pattern`.
  *
+ * Instrumentation: each region (`TransportHeader`, `RackNode`,
+ * `SequencerNode`, `KeyboardNode`, `BottomBar`) is exported as
+ * `React.memo(fn)`, an object of shape `{ type: fn, compare, ... }`. Rather
+ * than replacing the component with a stub (which would only measure
+ * whether `App` re-renders and passes it a new element — a *different*
+ * question, since `React.memo`'s prop-equality bailout and each region's own
+ * `useAppStateContext()`/store subscriptions are what actually decide
+ * whether it re-renders), this patches `.type` in place so the real render
+ * function still runs, still subject to memo's bailout and each region's own
+ * context/store subscriptions — only the call itself is also counted. This
+ * mutates the same singleton module object `App` imports, so it observes
+ * exactly what `App` would trigger.
+ *
  * The budget recorded here (see docs/PERFORMANCE_BUDGET.md) is today's
- * *baseline*, not an already-met target — TransportHeader, BottomBar and
- * RackNode still pull most of their fields from the shared context and are
- * expected to shrink toward ~0 renders here only once the remaining
- * migration phases (transport/mix, sampler banks, pattern edit, instrument
- * state, session/song) land. This test exists so that number can only go
- * down from here, not silently regress upward.
+ * *baseline*, not an already-met target — TransportHeader, RackNode,
+ * SequencerNode and BottomBar still pull most of their fields from the
+ * shared context and re-render on every one of the 32 edits; only
+ * KeyboardNode (which takes props from App rather than reading
+ * useAppStateContext() itself) is already at 0. The other four are expected
+ * to shrink toward 0 only once the remaining migration phases (transport/mix,
+ * sampler banks, pattern edit, instrument state, session/song) land. This
+ * test exists so that number can only go down from here, not silently
+ * regress upward.
  */
 
-const REGIONS: Array<{ name: string; mock: ReturnType<typeof vi.fn> }> = [
-    { name: 'TransportHeader', mock: TransportHeader as unknown as ReturnType<typeof vi.fn> },
-    { name: 'RackNode', mock: RackNode as unknown as ReturnType<typeof vi.fn> },
-    { name: 'SequencerNode', mock: SequencerNode as unknown as ReturnType<typeof vi.fn> },
-    { name: 'KeyboardNode', mock: KeyboardNode as unknown as ReturnType<typeof vi.fn> },
-    { name: 'BottomBar', mock: BottomBar as unknown as ReturnType<typeof vi.fn> },
-];
-
-function totalRenders(): number {
-    return REGIONS.reduce((sum, r) => sum + r.mock.mock.calls.length, 0);
+interface MemoComponent {
+    type: (...args: unknown[]) => unknown;
 }
+
+function spyOnRender(component: unknown): { spy: ReturnType<typeof vi.fn>; restore: () => void } {
+    const memoComponent = component as MemoComponent;
+    const originalType = memoComponent.type;
+    const spy = vi.fn();
+    memoComponent.type = (...args: unknown[]) => {
+        spy();
+        return originalType(...args);
+    };
+    return {
+        spy,
+        restore: () => {
+            memoComponent.type = originalType;
+        },
+    };
+}
+
+const REGIONS: Array<{ name: string; component: unknown }> = [
+    { name: 'TransportHeader', component: TransportHeader },
+    { name: 'RackNode', component: RackNode },
+    { name: 'SequencerNode', component: SequencerNode },
+    { name: 'KeyboardNode', component: KeyboardNode },
+    { name: 'BottomBar', component: BottomBar },
+];
 
 function StepEditDriver({ captureToggle }: { captureToggle: (toggle: (i: number) => void) => void }) {
     const { handleStepToggle } = useAppStateContext();
@@ -91,40 +98,50 @@ function StepEditDriver({ captureToggle }: { captureToggle: (toggle: (i: number)
     return null;
 }
 
-// Current measured baseline is 160 (all 5 regions re-render on every one of
-// the 32 edits: 5 × 32 = 160 — 100% fan-out, exactly the problem this PR's
-// migration targets). Budget adds modest headroom above that measured
-// baseline so incidental fluctuations don't flake the gate — see
+// Current measured baseline is 128: TransportHeader, RackNode, SequencerNode
+// and BottomBar each re-render on all 32 edits (4 × 32 = 128); KeyboardNode
+// renders 0 times because it takes its props from App instead of reading
+// useAppStateContext() itself, and none of those props change for a step
+// edit — a preview of what the other regions look like once they've made
+// the same move. Budget adds modest headroom above that measured baseline
+// so incidental fluctuations don't flake the gate — see
 // docs/PERFORMANCE_BUDGET.md.
-const RENDER_BUDGET = 175;
+const RENDER_BUDGET = 145;
 
 describe('App top-level render budget', () => {
     it('stays within the documented budget across a full 32-step edit pass', () => {
-        let toggleStep: (i: number) => void = () => {};
+        const spies = REGIONS.map((region) => ({ name: region.name, ...spyOnRender(region.component) }));
 
-        render(
-            <AppStateProvider>
-                <CompactLayoutProvider>
-                    <App />
-                    <StepEditDriver captureToggle={(fn) => { toggleStep = fn; }} />
-                </CompactLayoutProvider>
-            </AppStateProvider>,
-        );
+        try {
+            let toggleStep: (i: number) => void = () => {};
 
-        // Only budget the pass itself, not the initial mount.
-        REGIONS.forEach((r) => r.mock.mockClear());
+            render(
+                <AppStateProvider>
+                    <CompactLayoutProvider>
+                        <App />
+                        <StepEditDriver captureToggle={(fn) => { toggleStep = fn; }} />
+                    </CompactLayoutProvider>
+                </AppStateProvider>,
+            );
 
-        // Each step toggle is its own act() — a real step edit (a click, a
-        // MIDI event, a recorded step) is its own event-loop turn, not
-        // batched together with the other 31 the way one shared act() would.
-        for (let i = 0; i < NUM_STEPS; i += 1) {
-            act(() => {
-                toggleStep(i);
-            });
+            // Only budget the pass itself, not the initial mount.
+            spies.forEach((s) => s.spy.mockClear());
+
+            // Each step toggle is its own act() — a real step edit (a click, a
+            // MIDI event, a recorded step) is its own event-loop turn, not
+            // batched together with the other 31 the way one shared act() would.
+            for (let i = 0; i < NUM_STEPS; i += 1) {
+                act(() => {
+                    toggleStep(i);
+                });
+            }
+
+            const renders = spies.reduce((sum, s) => sum + s.spy.mock.calls.length, 0);
+            const breakdown = spies.map((s) => `${s.name}=${s.spy.mock.calls.length}`).join(', ');
+            console.log(`[perf] appRenderBudget.32StepPass: ${renders} renders across ${REGIONS.length} regions (budget ${RENDER_BUDGET}) — ${breakdown}`);
+            expect(renders).toBeLessThanOrEqual(RENDER_BUDGET);
+        } finally {
+            spies.forEach((s) => s.restore());
         }
-
-        const renders = totalRenders();
-        console.log(`[perf] appRenderBudget.32StepPass: ${renders} renders across ${REGIONS.length} regions (budget ${RENDER_BUDGET})`);
-        expect(renders).toBeLessThanOrEqual(RENDER_BUDGET);
     });
 });

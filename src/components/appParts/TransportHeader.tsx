@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { useAppStateContext } from '../../contexts/AppStateContext'
-import { useUIModalsStore, uiModalsStore } from '../../stores/uiModalsStore'
+import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 import { TransportToolbar } from '../TransportToolbar'
 import { EngineStatusPill } from '../EngineStatusPill'
 

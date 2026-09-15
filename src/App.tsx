@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
-import { useUIModalsStore, uiModalsStore } from './stores/uiModalsStore'
+import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 
 import TransportHeader from './components/appParts/TransportHeader'
 import SequencerNode from './components/appParts/SequencerNode'

@@ -158,24 +158,36 @@ the fields they need.
 
 ### Baseline: full 32-step edit pass
 
-`src/__tests__/appRenderBudget.test.tsx` mounts the real `<App/>` (with stubbed
-top-level regions, so only *render count* is measured, not render cost) and
-performs 32 sequential `handleStepToggle` calls — one full pass over a track's
-steps, each its own commit (not batched together), matching a real step edit,
-a MIDI event, or a recorded step.
+`src/__tests__/appRenderBudget.test.tsx` mounts the real `<App/>` and performs
+32 sequential `handleStepToggle` calls — one full pass over a track's steps,
+each its own commit (not batched together), matching a real step edit, a MIDI
+event, or a recorded step. Each region is `React.memo(fn)`; the test patches
+`.type` on that same singleton object so the real render function still runs
+— subject to memo's prop-equality bailout and the region's own
+`useAppStateContext()`/store subscriptions — with only the call itself also
+counted. (An earlier version of this test replaced each region with a stub
+component instead; that measured whether `App` re-renders and passes a new
+element, not whether the real region actually re-renders, so a future fix
+that stopped `App`'s cascade without also fixing a region's own context
+subscription could have passed unnoticed. Patching `.type` avoids that gap.)
 
 | Metric | Value |
 |--------|-------|
-| Regions instrumented | `TransportHeader`, `BottomBar`, `RackNode`, `SequencerNode`, `KeyboardNode` (5) |
+| Regions instrumented | `TransportHeader`, `RackNode`, `SequencerNode`, `KeyboardNode`, `BottomBar` (5) |
 | Edits per pass | 32 (one per sequencer step) |
-| **Measured baseline (this PR)** | **160 renders** (5 regions × 32 edits — 100% fan-out: every region re-renders on every edit) |
-| Enforced budget | ≤ 175 renders (small headroom over the measured baseline) |
+| **Measured baseline (this PR)** | **128 renders**: `TransportHeader`, `RackNode`, `SequencerNode`, `BottomBar` re-render on all 32 edits (4 × 32 = 128); `KeyboardNode` renders **0** times |
+| Enforced budget | ≤ 145 renders (small headroom over the measured baseline) |
 
-160/160 is the *worst case* — every instrumented region reads
-`useAppStateContext()` and re-renders on every edit, exactly the problem
-described above. It is **today's starting point, not a target**: the budget
-exists so a future change can't make fan-out *worse* without failing CI, while
-each migration phase below should drive the measured number down.
+`KeyboardNode` already sits at 0 because it takes its props from `App`
+instead of reading `useAppStateContext()` itself, and none of those props
+(`selectedTrack`, the keyboard/drum-pad handlers) change for a step edit —
+`React.memo`'s prop-equality bailout does the rest. It's a preview of what
+the other four regions look like once they've made the same move: they still
+read the shared context directly and re-render on every edit regardless of
+whether they use `pattern`. This is **today's starting point, not a
+target**: the budget exists so a future change can't make fan-out *worse*
+without failing CI, while each migration phase below should drive the
+measured number down toward `KeyboardNode`'s 0.
 
 `src/stores/uiModalsStore.ts` is the first slice moved off the mega-context (the
 `is3DMode` flag `TransportHeader`, `RackNode` and `App` now read directly via

@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, memo } from "react";
 import { useAppStateContext } from "../../contexts/AppStateContext";
-import { useUIModalsStore } from "../../stores/uiModalsStore";
+import { useUIModalsStore } from "@/stores/uiModalsStore";
 import { HardwareModule, type KnobConfig } from "../HardwareModule";
 import { SamplerVoicePanel } from "../SamplerVoicePanel";
 import { Rack } from "../Rack";
