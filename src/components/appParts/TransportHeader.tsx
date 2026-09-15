@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useAppStateContext } from '../../contexts/AppStateContext'
+import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 import { TransportToolbar } from '../TransportToolbar'
 import { EngineStatusPill } from '../EngineStatusPill'
 
@@ -12,7 +13,6 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     isPlaying,
     isSongModeOpen,
     isSessionOpen,
-    is3DMode,
     loadSong,
     handleSaveSong,
     handleClearPattern,
@@ -24,7 +24,6 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     setIsRecording,
     setIsSongModeOpen,
     setIsSessionOpen,
-    setIs3DMode,
     currentScale,
     setCurrentScale,
     synthA,
@@ -33,6 +32,12 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     tempoLocked,
     slavePlayLabel,
   } = useAppStateContext()
+
+  // Sourced directly from the store (not the mega-context) so a step toggle
+  // or any other unrelated app-state update doesn't force this to re-render
+  // just to read a flag that didn't change.
+  const is3DMode = useUIModalsStore((s) => s.is3DMode);
+  const setIs3DMode = uiModalsStore.setIs3DMode;
 
   const engineStatus = (
     <EngineStatusPill

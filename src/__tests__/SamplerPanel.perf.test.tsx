@@ -47,12 +47,23 @@ describe('SamplerPanel Memoization', () => {
         vi.clearAllMocks();
     });
 
-    it('re-renders children when active bank params change', () => {
+    /**
+     * Renders SamplerPanel and captures how many knobs the initial render
+     * produced. Asserting against this baseline (rather than a hard-coded
+     * literal) keeps the test asserting the *relationship* the test name
+     * promises — full re-render vs. no re-render — so it doesn't need
+     * updating every time a knob is added to or removed from a bank.
+     */
+    function renderSampler() {
         const { rerender } = render(<SamplerPanel {...defaultProps} />);
-
-        // Initial render: 49 knobs
-        expect(Knob).toHaveBeenCalledTimes(49);
+        const initialKnobCount = (Knob as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+        expect(initialKnobCount).toBeGreaterThan(0);
         vi.clearAllMocks();
+        return { rerender, initialKnobCount };
+    }
+
+    it('re-renders children when active bank params change', () => {
+        const { rerender, initialKnobCount } = renderSampler();
 
         // Update params for ACTIVE bank (0)
         // Maintain referential equality for other banks
@@ -61,16 +72,12 @@ describe('SamplerPanel Memoization', () => {
 
         rerender(<SamplerPanel {...defaultProps} params={newParams} />);
 
-        // Should re-render (49 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(49);
+        // Active bank changed: every knob for that bank re-renders.
+        expect(Knob).toHaveBeenCalledTimes(initialKnobCount);
     });
 
     it('does NOT re-render children when inactive bank params change', () => {
-        const { rerender } = render(<SamplerPanel {...defaultProps} />);
-
-        // Initial render
-        expect(Knob).toHaveBeenCalledTimes(49);
-        vi.clearAllMocks();
+        const { rerender } = renderSampler();
 
         // Update params for INACTIVE bank (1)
         // Maintain referential equality for active bank (0)
@@ -84,12 +91,11 @@ describe('SamplerPanel Memoization', () => {
     });
 
     it('re-renders children when activeBankIdx changes', () => {
-        const { rerender } = render(<SamplerPanel {...defaultProps} />);
-        vi.clearAllMocks();
+        const { rerender, initialKnobCount } = renderSampler();
 
         rerender(<SamplerPanel {...defaultProps} activeBankIdx={1} />);
 
-        // Should re-render (49 knobs now)
-        expect(Knob).toHaveBeenCalledTimes(49);
+        // Switching banks re-renders the same number of knobs as the initial render.
+        expect(Knob).toHaveBeenCalledTimes(initialKnobCount);
     });
 });
