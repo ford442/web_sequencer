@@ -84,6 +84,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Phoneme Data
   private phonemeData: Float32Array | null = null;
   private phonemeRatios: number[] | null = null;
+  private readonly phonemeTuple = new Float32Array(8);
 
   // Drum Envelope Sidechain
   private drumSidechainSAB: Float32Array | null = null;
@@ -91,6 +92,29 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Playback State (Unified)
   private isPlaying = false;
   private isReverse = false;
+
+  private readonly boundEnsureHeapSize = (frames: number) => this.ensureHeapSize(frames);
+  private readonly boundGetInputHeapPtr = () => this.inputHeapPtr;
+  private readonly frozenGrainParams = {
+    rubberBand: null,
+    ensureHeapSize: this.boundEnsureHeapSize,
+    getInputHeapPtr: this.boundGetInputHeapPtr,
+    fullSampleBuffer: new Float32Array(0) as Float32Array | null,
+    sampleRate: 0,
+    phonemeData: null as Float32Array | null,
+    phonemeRatios: null as number[] | null,
+    currentSamplePtr: 0,
+    startSamplePtr: 0,
+    endSamplePtr: 0,
+    duckingScalar: 0,
+    envelopeValue: 0,
+    grainJitterParam: 0,
+    grainEnvDepth: 0,
+    windowShape: 0,
+    grainLfoDepth: 0,
+    grainPosLfoDepth: 0,
+    samplesRequired: 0
+  };
 
   private currentSamplePtr = 0;
   private startSamplePtr = 0;
@@ -318,8 +342,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     }
   }
 
-  private getPhonemeDataAtSample(currentSample: number): PhonemeSample {
-    return getPhonemeDataAtSample(this.phonemeData, this.phonemeRatios, currentSample);
+  private getPhonemeDataAtSample(currentSample: number): Float32Array {
+    return getPhonemeDataAtSample(this.phonemeData, this.phonemeRatios, currentSample, this.phonemeTuple);
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
@@ -599,26 +623,24 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.granular.enterFreeze();
 
           // FREEZE STREAMING (Spectral Granulator)
-          this.granular.renderFrozenBlock({
-            rubberBand: this.rubberBand,
-            ensureHeapSize: (frames) => this.ensureHeapSize(frames),
-            getInputHeapPtr: () => this.inputHeapPtr,
-            fullSampleBuffer: this.fullSampleBuffer,
-            sampleRate: resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate }),
-            phonemeData: this.phonemeData,
-            phonemeRatios: this.phonemeRatios,
-            currentSamplePtr: this.currentSamplePtr,
-            startSamplePtr: this.startSamplePtr,
-            endSamplePtr: this.endSamplePtr,
-            duckingScalar,
-            envelopeValue,
-            grainJitterParam: parameters.grainJitter ? parameters.grainJitter[0] : 0.0,
-            grainEnvDepth,
-            windowShape,
-            grainLfoDepth,
-            grainPosLfoDepth,
-            samplesRequired
-          });
+          this.frozenGrainParams.rubberBand = this.rubberBand;
+          this.frozenGrainParams.fullSampleBuffer = this.fullSampleBuffer;
+          this.frozenGrainParams.sampleRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+          this.frozenGrainParams.phonemeData = this.phonemeData;
+          this.frozenGrainParams.phonemeRatios = this.phonemeRatios;
+          this.frozenGrainParams.currentSamplePtr = this.currentSamplePtr;
+          this.frozenGrainParams.startSamplePtr = this.startSamplePtr;
+          this.frozenGrainParams.endSamplePtr = this.endSamplePtr;
+          this.frozenGrainParams.duckingScalar = duckingScalar;
+          this.frozenGrainParams.envelopeValue = envelopeValue;
+          this.frozenGrainParams.grainJitterParam = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
+          this.frozenGrainParams.grainEnvDepth = grainEnvDepth;
+          this.frozenGrainParams.windowShape = windowShape;
+          this.frozenGrainParams.grainLfoDepth = grainLfoDepth;
+          this.frozenGrainParams.grainPosLfoDepth = grainPosLfoDepth;
+          this.frozenGrainParams.samplesRequired = samplesRequired;
+
+          this.granular.renderFrozenBlock(this.frozenGrainParams);
         } else {
           const wasUnfrozen = this.granular.exitFreeze();
           if (wasUnfrozen) {
@@ -656,11 +678,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
               this.ensureHeapSize(samplesToFeed);
 
               // Copy directly to WASM heap
-              const slice = this.fullSampleBuffer.subarray(
-                this.currentSamplePtr,
-                this.currentSamplePtr + samplesToFeed
-              );
-              this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+              const heap = this.rubberBand.module.HEAPF32;
+              const ptr = this.inputHeapPtr >> 2;
+              for (let i = 0; i < samplesToFeed; i++) {
+                heap[ptr + i] = this.fullSampleBuffer[this.currentSamplePtr + i];
+              }
 
               this.rubberBand.process(this.inputHeapPtr, samplesToFeed, false);
               this.currentSamplePtr += samplesToFeed;
@@ -674,10 +696,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const available = this.inputRingBuffer.availableRead();
         if (available >= required && required > 0) {
           this.ensureHeapSize(required);
-          const inputView = this.rubberBand.module.HEAPF32.subarray(
-            this.inputHeapPtr >> 2, (this.inputHeapPtr >> 2) + required
-          );
-          this.inputRingBuffer.pull(inputView);
+          this.inputRingBuffer.pull(this.rubberBand.module.HEAPF32, this.inputHeapPtr >> 2);
           this.rubberBand.process(this.inputHeapPtr, required, false);
         }
       }
@@ -689,12 +708,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.ensureHeapSize(framesToRead);
 
         const retrieved = this.rubberBand.retrieve(this.outputHeapPtr, framesToRead);
-        const outputView = this.rubberBand.module.HEAPF32.subarray(
-          this.outputHeapPtr >> 2,
-          (this.outputHeapPtr >> 2) + retrieved
-        );
-
-        outputChannel.set(outputView);
+        const heap = this.rubberBand.module.HEAPF32;
+        const ptr = this.outputHeapPtr >> 2;
+        for (let i = 0; i < retrieved; i++) {
+          outputChannel[i] = heap[ptr + i];
+        }
         this.expressiveProcessor.process(outputChannel, outputChannel);
 
         // Zero-Crossing Pitch Detection for Auto-Tune

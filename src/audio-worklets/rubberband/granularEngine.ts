@@ -11,7 +11,7 @@ export interface FrozenGrainParams {
   rubberBand: any;
   ensureHeapSize: (frames: number) => void;
   getInputHeapPtr: () => number;
-  fullSampleBuffer: Float32Array;
+  fullSampleBuffer: Float32Array | null;
   sampleRate: number;
   phonemeData: Float32Array | null;
   phonemeRatios: number[] | null;
@@ -35,6 +35,7 @@ export interface FrozenGrainParams {
  * pan spread applied post-retrieve.
  */
 export class GranularEngine {
+  private readonly phonemeTuple = new Float32Array(8);
   private grains: [Grain, Grain] = [
     { phase: 0, start: 0, size: 0, active: false },
     { phase: 0, start: 0, size: 0, active: false }
@@ -114,6 +115,22 @@ export class GranularEngine {
     }
   }
 
+  private initGrain(g: Grain, p: FrozenGrainParams, baseGrainSize: number, lfoMod: number, maxJitterSamples: number, posMod: number, sliceStart: number, sliceEnd: number, bufLength: number) {
+    const duckedGrainSize = baseGrainSize * (1.0 - (p.duckingScalar * 0.5));
+    const grainSizeSamplesActive = Math.max(100, Math.floor(duckedGrainSize * lfoMod * (1.0 - p.grainEnvDepth * p.envelopeValue)));
+    const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
+    const rawCenter = p.currentSamplePtr + jitterOffsetActive + posMod;
+    const clampedCenter = Math.max(
+      sliceStart + Math.floor(grainSizeSamplesActive / 2),
+      Math.min(sliceEnd - Math.floor(grainSizeSamplesActive / 2), rawCenter)
+    );
+    const grainCenterActive = clampedCenter;
+    g.start = Math.max(0, Math.min(bufLength - grainSizeSamplesActive, grainCenterActive - Math.floor(grainSizeSamplesActive / 2)));
+    g.size = Math.min(bufLength, g.start + grainSizeSamplesActive) - g.start;
+    g.phase = 0;
+    g.active = g.size > 0;
+  }
+
   renderFrozenBlock(p: FrozenGrainParams): void {
     if (p.samplesRequired <= 0) {
       return;
@@ -125,6 +142,7 @@ export class GranularEngine {
     const heap = p.rubberBand.module.HEAPF32;
     const ptr = p.getInputHeapPtr() >> 2;
     const buf = p.fullSampleBuffer;
+    if (!buf) return;
     const sRate = p.sampleRate;
 
     // Define grain size: ~100ms
@@ -133,7 +151,7 @@ export class GranularEngine {
 
     // Check for per-phoneme overrides
     if (p.phonemeData && p.phonemeRatios) {
-      const pData = getPhonemeDataAtSample(p.phonemeData, p.phonemeRatios, p.currentSamplePtr);
+      const pData = getPhonemeDataAtSample(p.phonemeData, p.phonemeRatios, p.currentSamplePtr, this.phonemeTuple);
       const pGrainJitter = pData[5];
       const pGrainSize = pData[6];
       if (pGrainJitter !== -1.0) {
@@ -159,25 +177,9 @@ export class GranularEngine {
 
     const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
 
-    const initGrain = (g: Grain) => {
-      const duckedGrainSize = baseGrainSize * (1.0 - (p.duckingScalar * 0.5));
-      const grainSizeSamplesActive = Math.max(100, Math.floor(duckedGrainSize * lfoMod * (1.0 - p.grainEnvDepth * p.envelopeValue)));
-      const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
-      const rawCenter = p.currentSamplePtr + jitterOffsetActive + posMod;
-      const clampedCenter = Math.max(
-        sliceStart + Math.floor(grainSizeSamplesActive / 2),
-        Math.min(sliceEnd - Math.floor(grainSizeSamplesActive / 2), rawCenter)
-      );
-      const grainCenterActive = clampedCenter;
-      g.start = Math.max(0, Math.min(buf.length - grainSizeSamplesActive, grainCenterActive - Math.floor(grainSizeSamplesActive / 2)));
-      g.size = Math.min(buf.length, g.start + grainSizeSamplesActive) - g.start;
-      g.phase = 0;
-      g.active = g.size > 0;
-    };
-
     // Ensure at least one grain is active
     if (!this.grains[0].active && !this.grains[1].active) {
-      initGrain(this.grains[0]);
+      this.initGrain(this.grains[0], p, baseGrainSize, lfoMod, maxJitterSamples, posMod, sliceStart, sliceEnd, buf.length);
     }
 
     const hasActiveGrain = this.grains[0].active || this.grains[1].active;
@@ -186,7 +188,7 @@ export class GranularEngine {
       // Map TTS syllable volume directly to filter cutoff in the granular engine
       let cutoff = 20000; // default bypassed
       if (p.phonemeData && p.phonemeRatios) {
-        const pData = getPhonemeDataAtSample(p.phonemeData, p.phonemeRatios, p.currentSamplePtr);
+        const pData = getPhonemeDataAtSample(p.phonemeData, p.phonemeRatios, p.currentSamplePtr, this.phonemeTuple);
         const pVol = pData[1];
         if (pVol < 1.0) {
           // Map volume [0, 1] to cutoff frequency [200, 20000] exponentially
@@ -247,7 +249,7 @@ export class GranularEngine {
             const otherIdx = gIdx === 0 ? 1 : 0;
             const otherG = this.grains[otherIdx];
             if (g.phase === Math.floor(g.size / 2) && !otherG.active) {
-              initGrain(otherG);
+              this.initGrain(otherG, p, baseGrainSize, lfoMod, maxJitterSamples, posMod, sliceStart, sliceEnd, buf.length);
             }
 
             if (g.phase >= g.size) {
