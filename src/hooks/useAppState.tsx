@@ -1,3 +1,35 @@
+/**
+ * Composes the app's ~25 state/handler sub-hooks into one object, currently
+ * handed to a single React context (`AppStateContext`) with no memo boundary
+ * or selector. Every field returned here is folded into one flat object that
+ * is a fresh reference on every render, so any state change anywhere — a
+ * knob turn, a step toggle, a transport tick — re-renders every component
+ * that reads *anything* off `useAppStateContext()`, regardless of which
+ * field it actually needs. See docs/PERFORMANCE_BUDGET.md's "React render
+ * budget" section for the measured cost of this.
+ *
+ * Migration plan (mirrors the repo's existing `useSyncExternalStore` slice
+ * stores under src/stores/, e.g. automationStore.ts, midiMapStore.ts,
+ * transportSyncStore.ts — each lets a component subscribe to exactly the
+ * slice it needs via `useXStore(selector)`, independent of everything else):
+ *
+ *   1. UI modals      → src/stores/uiModalsStore.ts (done — see below)
+ *   2. Transport/mix   → tempo, swing, master volume/saturation, pan, reverb
+ *   3. Sampler banks   → active bank, track storage, TTS phrases
+ *   4. Pattern edit    → selection, clipboard, scale, zoom
+ *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params
+ *   6. Session/song    → song structure, session launcher state
+ *
+ * Each phase lands as its own PR: extract the sub-hook's `useState` calls
+ * into an external store class + `useXStore(selector)` hook, keep this
+ * function returning the same field names so `AppStateContext` keeps working
+ * as a compatibility shim, and move any component that can read the new
+ * store directly off `useAppStateContext()` for that slice (see
+ * `TransportHeader.tsx` / `RackNode.tsx` / `App.tsx`'s `is3DMode` reads for
+ * the pattern to follow). Once every phase lands, stable `handle*` callbacks
+ * should move to a separate, never-changing actions context, and
+ * `AppStateContext` can be deleted once nothing destructures from it anymore.
+ */
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'

@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, memo } from "react";
 import { useAppStateContext } from "../../contexts/AppStateContext";
+import { useUIModalsStore } from "../../stores/uiModalsStore";
 import { HardwareModule, type KnobConfig } from "../HardwareModule";
 import { SamplerVoicePanel } from "../SamplerVoicePanel";
 import { Rack } from "../Rack";
@@ -197,8 +198,10 @@ function applyAutomationPreviewFlags(
 }
 
 export const RackNode = React.memo(() => {
+  // Sourced directly from the store (not the mega-context) so this flag
+  // alone never forces a re-render on an unrelated app-state update.
+  const is3DMode = useUIModalsStore((s) => s.is3DMode);
   const {
-    is3DMode,
     synthAControls,
     synthBControls,
     bass2Controls,

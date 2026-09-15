@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
+import { useUIModalsStore, uiModalsStore } from './stores/uiModalsStore'
 
 import TransportHeader from './components/appParts/TransportHeader'
 import SequencerNode from './components/appParts/SequencerNode'
@@ -44,7 +45,7 @@ export const App: React.FC = () => {
     const state = useAppStateContext();
 
     const {
-        is3DMode, setIs3DMode, selectedTrack, setSelectedTrack,
+        selectedTrack, setSelectedTrack,
         pattern, activeSamplerBank, activeTrackSlots, trackStorage,
         selection, isDrawing, handleStepToggle, handleRightMouseDown,
         handleEditLength, handleSelectRow, handleTrackSlotClick,
@@ -101,6 +102,11 @@ export const App: React.FC = () => {
         audioEngine, forceScriptProcessorFallback, setForceScriptProcessorFallback,
         setViewMode, setAutomationParam, exportSongToFile, exportRbsToFile, importSongFromFile,
     } = state;
+
+    // Sourced directly from the store (not the mega-context) so this flag
+    // alone never forces a re-render on an unrelated app-state update.
+    const is3DMode = useUIModalsStore((s) => s.is3DMode);
+    const setIs3DMode = uiModalsStore.setIs3DMode;
 
     const { isCompact, toggleCompact } = useCompactLayoutContext();
     const { panelOpen: isMidiMapPanelOpen } = useMidiMapStore();

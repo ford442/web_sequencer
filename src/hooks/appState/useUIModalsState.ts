@@ -1,40 +1,33 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
+import { uiModalsStore, useUIModalsStore } from '../../stores/uiModalsStore'
 
+/**
+ * Compatibility wrapper around `uiModalsStore` — preserves the field shape
+ * `useAppState()` (and everything that reads modal flags off
+ * `useAppStateContext()`) already expects, while the store itself lets new
+ * consumers subscribe to a single flag directly via `useUIModalsStore(selector)`.
+ */
 export function useUIModalsState() {
-    const [isVoiceEditorOpen, setIsVoiceEditorOpen] = useState(false);
-    const [isCloudLibraryOpen, setIsCloudLibraryOpen] = useState(false);
-    const [isAISongModalOpen, setIsAISongModalOpen] = useState(false);
-    const [isRbsImportModalOpen, setIsRbsImportModalOpen] = useState(false);
-    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-    const [isLyricTrackVisible, setIsLyricTrackVisible] = useState(false);
-    const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
-    const [showGamepadDebug, setShowGamepadDebug] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [hasStarted, setHasStarted] = useState(false);
-    const [forceScriptProcessorFallback, setForceScriptProcessorFallback] = useState(() => {
-        return localStorage.getItem('forceScriptProcessorFallback') === 'true';
-    });
-    const [is3DMode, setIs3DMode] = useState(false);
+    const state = useUIModalsStore();
 
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-        setToast({ message, type });
+        uiModalsStore.showToast(message, type);
     }, []);
 
     return {
-        isVoiceEditorOpen, setIsVoiceEditorOpen,
-        isCloudLibraryOpen, setIsCloudLibraryOpen,
-        isAISongModalOpen, setIsAISongModalOpen,
-        isRbsImportModalOpen, setIsRbsImportModalOpen,
-        isExportModalOpen, setIsExportModalOpen,
-        isLyricTrackVisible, setIsLyricTrackVisible,
-        isShortcutsHelpOpen, setIsShortcutsHelpOpen,
-        showGamepadDebug, setShowGamepadDebug,
-        isGenerating, setIsGenerating,
-        hasStarted, setHasStarted,
-        forceScriptProcessorFallback, setForceScriptProcessorFallback,
-        is3DMode, setIs3DMode,
-        toast, setToast,
+        isVoiceEditorOpen: state.isVoiceEditorOpen, setIsVoiceEditorOpen: uiModalsStore.setIsVoiceEditorOpen,
+        isCloudLibraryOpen: state.isCloudLibraryOpen, setIsCloudLibraryOpen: uiModalsStore.setIsCloudLibraryOpen,
+        isAISongModalOpen: state.isAISongModalOpen, setIsAISongModalOpen: uiModalsStore.setIsAISongModalOpen,
+        isRbsImportModalOpen: state.isRbsImportModalOpen, setIsRbsImportModalOpen: uiModalsStore.setIsRbsImportModalOpen,
+        isExportModalOpen: state.isExportModalOpen, setIsExportModalOpen: uiModalsStore.setIsExportModalOpen,
+        isLyricTrackVisible: state.isLyricTrackVisible, setIsLyricTrackVisible: uiModalsStore.setIsLyricTrackVisible,
+        isShortcutsHelpOpen: state.isShortcutsHelpOpen, setIsShortcutsHelpOpen: uiModalsStore.setIsShortcutsHelpOpen,
+        showGamepadDebug: state.showGamepadDebug, setShowGamepadDebug: uiModalsStore.setShowGamepadDebug,
+        isGenerating: state.isGenerating, setIsGenerating: uiModalsStore.setIsGenerating,
+        hasStarted: state.hasStarted, setHasStarted: uiModalsStore.setHasStarted,
+        forceScriptProcessorFallback: state.forceScriptProcessorFallback, setForceScriptProcessorFallback: uiModalsStore.setForceScriptProcessorFallback,
+        is3DMode: state.is3DMode, setIs3DMode: uiModalsStore.setIs3DMode,
+        toast: state.toast, setToast: uiModalsStore.setToast,
         showToast,
     }
 }
