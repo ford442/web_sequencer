@@ -41,6 +41,7 @@ import { useMidi } from './useMidi'
 import { useTransportSyncStore } from '../stores/transportSyncStore'
 import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
+import { useProjectAutosave } from './useProjectAutosave'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { loadingProgressStore } from '../stores/loadingProgressStore'
@@ -604,6 +605,11 @@ export function useAppState() {
         trakEventsRef,
     });
 
+    const { pendingRestore, restoreProject, dismissRestore, projectStoreBackend } = useProjectAutosave({
+        getSongData,
+        isInitialized,
+    });
+
     const { synthAChild, synthBChild, bass2Child, samplerChild } = useHardwarePanels({
         synthA, synthB, bass2, sampler,
         updateSynthA, updateSynthB, updateBass2, updateSampler,
@@ -651,6 +657,7 @@ export function useAppState() {
         undoRedo,
         currentStepRef,
         isInitialized, setIsInitialized,
+        pendingRestore, restoreProject, dismissRestore, projectStoreBackend,
         isPlaying, setIsPlaying,
         isRecording, setIsRecording,
         isAutomationRecording, setIsAutomationRecording,
