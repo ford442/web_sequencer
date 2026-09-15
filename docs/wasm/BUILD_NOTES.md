@@ -10,6 +10,7 @@ modules under `assembly/`.
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
 - [Export surface + export map](#export-surface)
+- [Worklet import table](#worklet-import-table)
 - [AssemblyScript browser matrix](#assemblyscript-browser-matrix)
 - [Standalone JC-303 memory budget](#standalone-jc-303-memory-budget)
 - [Pyodide + the CSP boot path](#pyodide-csp)
@@ -416,6 +417,37 @@ the debug profile.
 
 `highfid303_*` is kept but marked optional: the shipped realtime path does not call
 it (`OfflineHighFid303Engine.ts` and the WGSL shader mirror it in TS/GPU instead).
+
+---
+
+<a id="worklet-import-table"></a>
+## Worklet import table
+
+AudioWorklets cannot load `hyphon_native.js` (the Emscripten glue), so
+`src/audio-worklets/hyphonNativeImports.ts` builds the WASM import object.
+
+**The table is derived from the compiled module**, not from a hand-maintained
+allowlist. `buildHyphonWasmImports()` walks `WebAssembly.Module.imports()`,
+keeps the explicit implementations (`emscripten_resize_heap`, `invoke_*`,
+`__cxa_throw`, `emscripten_date_now`, `_emscripten_get_now_is_monotonic`, the
+a–z / A–Z minified aliases, …) and installs a typed no-op stub (`() => 0`) for
+every remaining `kind: 'function'` import, `console.warn`-ing once per new
+symbol. Instantiation cannot fail because Emscripten grew the import section;
+at worst the new symbol is inert and the log names it.
+
+Adding an Emscripten `env` symbol therefore **does not require a source edit**.
+Put a real implementation in `createEmscriptenEnv()` only when the symbol must
+do something (time, heap growth, exceptions).
+
+Guards:
+
+- `src/__tests__/hyphonNativeImports.test.ts` synthesises a tiny module that
+  imports an unknown `env` symbol and asserts instantiation + one warning
+  (runs in the no-WASM `test:unit` tier).
+- The same file instantiates the real `public/hyphon_native.wasm` when present.
+  `HYPHON_REQUIRE_NATIVE=1` (set by the integration job and
+  `vitest.setup.integration.ts`) fails if that artifact is missing, so the
+  handshake cannot silently no-op in CI.
 
 ---
 

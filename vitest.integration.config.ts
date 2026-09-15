@@ -11,7 +11,7 @@ export default mergeConfig(
       environment: 'happy-dom',
       setupFiles: ['./vitest.setup.integration.ts'],
       globals: true,
-      include: [...INTEGRATION_TEST_GLOBS],
+      include: [...INTEGRATION_TEST_GLOBS, 'src/__tests__/hyphonNativeImports.test.ts'],
       exclude: vitestCommonExclude,
       pool: 'forks',
       testTimeout: 180_000,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -7,7 +7,6 @@ import {
   hasProphecyApi,
   hasDrumkitApi,
   createEmscriptenEnv,
-  createWASIImports,
   buildHyphonWasmImports,
   HYPHON_NATIVE_ST_MIN_MEMORY_PAGES,
   open303ExportMapInsufficient,
@@ -84,10 +83,11 @@ describe('hasDrumkitApi', () => {
  * same module as the Open303/JC303/Prophecy DSP wrappers, so the binary imports
  * symbols that only `main()` needs. The main thread gets those free from the
  * Emscripten glue (`hyphon_native.js`); the AudioWorklets cannot use the glue and
- * hand-roll their import object here. Any import the wrapper misses makes
- * `WebAssembly.instantiate()` throw with "function import requires a callable",
- * which degrades every 303 voice to FallbackBassSynth — audible, so the app
- * *looks* fine while the native engine is silently gone.
+ * derive the import object from `WebAssembly.Module.imports()` instead. Any
+ * import that used to be missing made `WebAssembly.instantiate()` throw with
+ * "function import requires a callable", which degrades every 303 voice to
+ * FallbackBassSynth — audible, so the app *looks* fine while the native engine
+ * is silently gone.
  */
 const stubImportContext = () => ({
   getWasmInstance: () => null,
@@ -95,6 +95,60 @@ const stubImportContext = () => ({
   setImportedMemory: () => {},
   onHeapUpdate: () => {},
 });
+
+const HYPHON_NATIVE_WASM = resolve(__dirname, '../../public/hyphon_native.wasm');
+const HYPHON_NATIVE_ST_WASM = resolve(__dirname, '../../public/hyphon_native.st.wasm');
+
+function nativeRequired(): boolean {
+  return process.env.HYPHON_REQUIRE_NATIVE === '1';
+}
+
+/** Skip binary-dependent tests in the unit tier; fail loud when the integration flag is set. */
+function skipIfNativeArtifactMissing(path: string): boolean {
+  if (nativeRequired()) return false;
+  return !existsSync(path);
+}
+
+function leb128(n: number): number[] {
+  const out: number[] = [];
+  do {
+    let byte = n & 0x7f;
+    n >>>= 7;
+    if (n !== 0) byte |= 0x80;
+    out.push(byte);
+  } while (n !== 0);
+  return out;
+}
+
+function wasmName(s: string): number[] {
+  const bytes = Array.from(new TextEncoder().encode(s));
+  return [...leb128(bytes.length), ...bytes];
+}
+
+function wasmSection(id: number, body: number[]): number[] {
+  return [id, ...leb128(body.length), ...body];
+}
+
+/**
+ * Tiny module: imports `env.<symbol>` as `() -> i32` and exports `run` that calls it.
+ * Used to guard derivation without `public/hyphon_native.wasm`.
+ */
+function compileModuleImportingEnvFunction(symbol: string): WebAssembly.Module {
+  const typeSection = wasmSection(1, [1, 0x60, 0x00, 0x01, 0x7f]);
+  const importSection = wasmSection(2, [1, ...wasmName('env'), ...wasmName(symbol), 0x00, 0x00]);
+  const funcSection = wasmSection(3, [1, 0x00]);
+  const exportSection = wasmSection(7, [1, ...wasmName('run'), 0x00, 0x01]);
+  const codeSection = wasmSection(10, [1, 0x04, 0x00, 0x10, 0x00, 0x0b]);
+  const bytes = new Uint8Array([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ...typeSection,
+    ...importSection,
+    ...funcSection,
+    ...exportSection,
+    ...codeSection,
+  ]);
+  return new WebAssembly.Module(bytes);
+}
 
 /** Function imports `main.cpp` + the C++ runtime pull into hyphon_native.wasm. */
 const MAIN_CPP_RUNTIME_IMPORTS = [
@@ -114,26 +168,66 @@ describe('createEmscriptenEnv (worklet import table)', () => {
     expect(missing).toEqual([]);
   });
 
-  it('leaves no function import of the real binary unsatisfied', async () => {
-    const wasmPath = resolve(__dirname, '../../public/hyphon_native.wasm');
-    if (!existsSync(wasmPath)) {
-      // Generated artifact (gitignored). The hermetic case above still guards
-      // the regression; this one adds artifact-truth wherever it is built.
-      return;
-    }
-    const module = await WebAssembly.compile(readFileSync(wasmPath));
+  it('implements emscripten_date_now as Date.now and monotonic as 1', () => {
     const env = createEmscriptenEnv(stubImportContext()) as Record<string, unknown>;
-    const wasi = createWASIImports() as Record<string, unknown>;
+    const before = Date.now();
+    expect((env.emscripten_date_now as () => number)()).toBeGreaterThanOrEqual(before);
+    expect((env._emscripten_get_now_is_monotonic as () => number)()).toBe(1);
+  });
 
-    const missing = WebAssembly.Module.imports(module)
-      .filter((i) => i.kind === 'function')
-      .filter((i) => {
-        const bag = i.module.startsWith('wasi_') ? wasi : env;
-        return typeof bag[i.name] !== 'function';
-      })
-      .map((i) => `${i.module}.${i.name}`);
+  it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_WASM))(
+    'leaves no function import of the real binary unsatisfied after derivation',
+    async () => {
+      expect(
+        existsSync(HYPHON_NATIVE_WASM),
+        'public/hyphon_native.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+      ).toBe(true);
+      const module = await WebAssembly.compile(readFileSync(HYPHON_NATIVE_WASM));
+      const { imports } = buildHyphonWasmImports(module, stubImportContext(), { isThreaded: true });
 
-    expect(missing).toEqual([]);
+      const missing = WebAssembly.Module.imports(module)
+        .filter((i) => i.kind === 'function')
+        .filter((i) => {
+          const bag = imports[i.module] as Record<string, unknown> | undefined;
+          return typeof bag?.[i.name] !== 'function';
+        })
+        .map((i) => `${i.module}.${i.name}`);
+
+      expect(missing).toEqual([]);
+    },
+  );
+});
+
+describe('buildHyphonWasmImports (derived import table)', () => {
+  it('instantiates a module that imports an unknown env function and warns once', async () => {
+    const symbol = 'totally_unknown_env_symbol';
+    const explicit = createEmscriptenEnv(stubImportContext()) as Record<string, unknown>;
+    expect(typeof explicit[symbol]).not.toBe('function');
+
+    const module = compileModuleImportingEnvFunction(symbol);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { imports } = buildHyphonWasmImports(module, stubImportContext(), { isThreaded: false });
+      const instance = await WebAssembly.instantiate(module, imports);
+      const run = instance.exports.run as () => number;
+      expect(run()).toBe(0);
+
+      const named = warn.mock.calls.filter((args) =>
+        args.some((arg) => String(arg).includes(symbol)),
+      );
+      expect(named).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('hyphon_native.wasm artifact', () => {
+  it.skipIf(!nativeRequired())('exists when HYPHON_REQUIRE_NATIVE=1', () => {
+    expect(
+      existsSync(HYPHON_NATIVE_WASM),
+      'public/hyphon_native.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+    ).toBe(true);
   });
 });
 
@@ -144,10 +238,14 @@ describe('export-map sufficiency predicates', () => {
    * "export map did not resolve" against a perfectly good binary and send
    * debugging at the artifact instead of the import table.
    */
-  it('accepts a name-only snapshot that does contain the required exports', async () => {
-    const wasmPath = resolve(__dirname, '../../public/hyphon_native.wasm');
-    if (!existsSync(wasmPath)) return;
-    const module = await WebAssembly.compile(readFileSync(wasmPath));
+  it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_WASM))(
+    'accepts a name-only snapshot that does contain the required exports',
+    async () => {
+    expect(
+      existsSync(HYPHON_NATIVE_WASM),
+      'public/hyphon_native.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+    ).toBe(true);
+    const module = await WebAssembly.compile(readFileSync(HYPHON_NATIVE_WASM));
     const identity = (names: readonly string[]) =>
       Object.fromEntries(names.map((n) => [n, n]));
 
@@ -161,18 +259,24 @@ describe('export-map sufficiency predicates', () => {
     if (DRUMKIT_REQUIRED_WASM_EXPORTS.every((n) => exported.has(n))) {
       expect(drumkitExportMapInsufficient(module, identity(DRUMKIT_REQUIRED_WASM_EXPORTS))).toBe(false);
     }
-  });
+  },
+  );
 });
 
 describe('OPEN303_REQUIRED_WASM_EXPORTS', () => {
-  it('names exports the binary actually has (jc303 uses the *_handle ABI)', async () => {
-    const wasmPath = resolve(__dirname, '../../public/hyphon_native.wasm');
-    if (!existsSync(wasmPath)) return;
-    const module = await WebAssembly.compile(readFileSync(wasmPath));
+  it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_WASM))(
+    'names exports the binary actually has (jc303 uses the *_handle ABI)',
+    async () => {
+    expect(
+      existsSync(HYPHON_NATIVE_WASM),
+      'public/hyphon_native.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+    ).toBe(true);
+    const module = await WebAssembly.compile(readFileSync(HYPHON_NATIVE_WASM));
     const exported = new Set(WebAssembly.Module.exports(module).map((e) => e.name));
     const bogus = OPEN303_REQUIRED_WASM_EXPORTS.filter((n) => !exported.has(n));
     expect(bogus).toEqual([]);
-  });
+  },
+  );
 });
 
 /**
@@ -185,11 +289,15 @@ describe('OPEN303_REQUIRED_WASM_EXPORTS', () => {
  * made sound, so nothing downstream noticed.
  */
 describe('hyphon_native.wasm worklet handshake', () => {
-  it('instantiates, runs ctors, and creates + initialises a native 303 voice', async () => {
-    const wasmPath = resolve(__dirname, '../../public/hyphon_native.wasm');
-    if (!existsSync(wasmPath)) return;
+  it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_WASM))(
+    'instantiates, runs ctors, and creates + initialises a native 303 voice',
+    async () => {
+    expect(
+      existsSync(HYPHON_NATIVE_WASM),
+      'public/hyphon_native.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+    ).toBe(true);
 
-    const module = await WebAssembly.compile(readFileSync(wasmPath));
+    const module = await WebAssembly.compile(readFileSync(HYPHON_NATIVE_WASM));
 
     let instance: WebAssembly.Instance | null = null;
     let importedMemory: WebAssembly.Memory | null = null;
@@ -227,20 +335,26 @@ describe('hyphon_native.wasm worklet handshake', () => {
       const drumInit = exports.drumkit_init as (h: number | bigint, sr: number, n: number) => number;
       expect(drumInit(drumHandle, 48000, 128)).toBe(1);
     }
-  });
+  },
+  );
 });
 
 /**
  * The single-threaded profile must work through the exact same worklet import
  * wiring: plain (non-shared) imported memory sized from the ST budget, ctors,
- * and a voice that actually renders. Skips when artifacts are not built.
+ * and a voice that actually renders. Explicit skip in the unit tier; the
+ * integration flag `HYPHON_REQUIRE_NATIVE=1` fails if the artifact is missing.
  */
 describe('hyphon_native.st.wasm worklet handshake', () => {
-  it('instantiates with a non-shared memory and renders a native 303 voice', async () => {
-    const wasmPath = resolve(__dirname, '../../public/hyphon_native.st.wasm');
-    if (!existsSync(wasmPath)) return;
+  it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_ST_WASM))(
+    'instantiates with a non-shared memory and renders a native 303 voice',
+    async () => {
+    expect(
+      existsSync(HYPHON_NATIVE_ST_WASM),
+      'public/hyphon_native.st.wasm missing (HYPHON_REQUIRE_NATIVE=1; build native for the integration tier)',
+    ).toBe(true);
 
-    const bytes = readFileSync(wasmPath);
+    const bytes = readFileSync(HYPHON_NATIVE_ST_WASM);
     const { checkSingleThreadedModule } = await import('../../tools/check_hyphon_st_module.mjs');
     expect(checkSingleThreadedModule(bytes)).toEqual([]);
 
@@ -277,5 +391,6 @@ describe('hyphon_native.st.wasm worklet handshake', () => {
       for (const sample of new Float32Array(memory!.buffer, out, 256)) peak = Math.max(peak, Math.abs(sample));
     }
     expect(peak).toBeGreaterThan(0.01);
-  });
+  },
+  );
 });
