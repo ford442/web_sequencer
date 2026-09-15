@@ -116,12 +116,9 @@ export class Open303Manager {
             this.bass1 = new Open303Oscillator();
             this.bass2 = new Open303Oscillator();
             this.lead303 = new Open303Oscillator();
-            const initConfig = {
-                ...config,
-                preferWorklet: true,
-                preferThreaded: false,
-                forceSingleThreaded: true
-            };
+            // Pass the caller's config through untouched: the three voices share one
+            // hyphon_native instance, and the profile it loads is decided from this.
+            const initConfig = config;
             const results = await Promise.allSettled([
                 this.bass1.init(audioContext, workletUrl, initConfig),
                 this.bass2.init(audioContext, workletUrl, initConfig),

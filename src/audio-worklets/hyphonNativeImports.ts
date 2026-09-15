@@ -25,6 +25,55 @@ export const HYPHON_NATIVE_MIN_MEMORY_PAGES = (128 * 1024 * 1024) / WASM_PAGE_BY
 /** Growth ceiling, matching -s MAXIMUM_MEMORY in emscripten/build.sh (1 GB). */
 export const HYPHON_NATIVE_MAX_MEMORY_PAGES = (1024 * 1024 * 1024) / WASM_PAGE_BYTES; // 16384
 
+/**
+ * Initial memory of the single-threaded hyphon_native.st.wasm build, in pages.
+ * MUST equal `hyphonNativeSt.initialMemoryMb` (src/__tests__/wasmMemoryBudget.test.ts).
+ * Non-shared, so this is an ordinary ArrayBuffer and growth is cheap.
+ */
+export const HYPHON_NATIVE_ST_MIN_MEMORY_PAGES = (16 * 1024 * 1024) / WASM_PAGE_BYTES; // 256
+
+/** Growth ceiling of the ST build, matching `hyphonNativeSt.maximumMemoryMb` (512 MB). */
+export const HYPHON_NATIVE_ST_MAX_MEMORY_PAGES = (512 * 1024 * 1024) / WASM_PAGE_BYTES; // 8192
+
+/**
+ * The two hyphon_native link profiles emitted by emscripten/build.sh.
+ * See docs/wasm/BUILD_NOTES.md#threading-profiles.
+ */
+export type HyphonNativeThreading = 'pthread' | 'st';
+
+export interface HyphonNativeArtifact {
+  threading: HyphonNativeThreading;
+  /** File names under public/. */
+  wasm: string;
+  glue: string;
+  exportMap: string;
+  /** Imported memory is `shared: true` (pthread) or a plain ArrayBuffer (st). */
+  sharedMemory: boolean;
+  minMemoryPages: number;
+  maxMemoryPages: number;
+}
+
+export const HYPHON_NATIVE_ARTIFACTS: Readonly<Record<HyphonNativeThreading, HyphonNativeArtifact>> = {
+  pthread: {
+    threading: 'pthread',
+    wasm: 'hyphon_native.wasm',
+    glue: 'hyphon_native.js',
+    exportMap: 'hyphon_wasm_export_map.json',
+    sharedMemory: true,
+    minMemoryPages: HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    maxMemoryPages: HYPHON_NATIVE_MAX_MEMORY_PAGES,
+  },
+  st: {
+    threading: 'st',
+    wasm: 'hyphon_native.st.wasm',
+    glue: 'hyphon_native.st.js',
+    exportMap: 'hyphon_wasm_export_map.st.json',
+    sharedMemory: false,
+    minMemoryPages: HYPHON_NATIVE_ST_MIN_MEMORY_PAGES,
+    maxMemoryPages: HYPHON_NATIVE_ST_MAX_MEMORY_PAGES,
+  },
+};
+
 export type WasmExportMap = Record<string, string>;
 
 /**
@@ -195,8 +244,9 @@ export function createHyphonMemory(
   shared: boolean,
   logPrefix = '[HyphonNative]',
 ): WebAssembly.Memory {
-  const memoryImportPages = Math.max(pages ?? 0, HYPHON_NATIVE_MIN_MEMORY_PAGES);
-  const maxMemoryPages = HYPHON_NATIVE_MAX_MEMORY_PAGES;
+  const artifact = HYPHON_NATIVE_ARTIFACTS[shared ? 'pthread' : 'st'];
+  const memoryImportPages = Math.max(pages ?? 0, artifact.minMemoryPages);
+  const maxMemoryPages = artifact.maxMemoryPages;
 
   if (shared) {
     try {

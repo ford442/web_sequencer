@@ -153,19 +153,33 @@ export function useLyricHandlers(deps: {
                 const stepTime = 60 / tempoRef.current / 4;
                 const newSteps = new Array<Note | null>(32).fill(null);
 
+                let currentPitchIdx = 0;
+                let lastPhonemeEnd = 0;
+
                 for (let i = 0; i < alignment.phonemes.length; i++) {
                     const p: PhonemeSegment = alignment.phonemes[i];
                     const startStep = Math.round(p.start / stepTime);
+
+                    // Treat as new syllable if there's a gap or it's the first phoneme
+                    if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
+                        if (i > 0) {
+                             currentPitchIdx++;
+                        }
+                    }
+
                     if (startStep >= 0 && startStep < 32) {
                         const durationSteps = Math.max(1, Math.round((p.end - p.start) / stepTime));
                         newSteps[startStep] = {
-                            note: 'C4',
+                            note: pitches[currentPitchIdx] || 'C4',
                             velocity: 1,
                             length: durationSteps,
-                            sliceIndex: i
+                            sliceIndex: i,
+                            ...(reverses[currentPitchIdx] ? { reverse: true } : {})
                         };
                         noteIndex++;
                     }
+
+                    lastPhonemeEnd = p.end;
                 }
 
                 const newSampler = [...prev.sampler];

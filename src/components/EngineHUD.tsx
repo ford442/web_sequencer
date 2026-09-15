@@ -222,6 +222,16 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>
       ${liveHfReason ? `<div class="row" title="${liveHfReason}"><div style="flex:1">Fallback</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liveHfReason}</div></div>` : ''}`;
 
+    // One shared hyphon_native heap for 303 + Prophecy + live high-fid.
+    const heap = runtime.hyphonNativeHeap;
+    const heapMb = (pages: number) => `${Math.round((pages * 65536) / 1048576)} MB`;
+    const heapSection = heap == null ? '' : `<div class="subheader">Voice WASM heap</div>
+      <div class="row" title="hyphon_native link profile: pthread (shared memory, crossOriginIsolated) or single-threaded (WebKit / no COOP+COEP / forceSingleThreaded)"><div style="flex:1">Build</div><div style="min-width:72px;text-align:right">${heap.threading === 'st' ? 'single-threaded' : heap.threading}</div></div>
+      <div class="row" title="hyphon_native memories in this audio session (expected 1)"><div style="flex:1">Heaps</div><div class="${heap.heapCount === 1 ? 'cpu-ok' : 'cpu-hot'}" style="min-width:72px;text-align:right">${heap.heapCount}</div></div>
+      <div class="row"><div style="flex:1">Initial</div><div style="min-width:72px;text-align:right">${heap.initialPages} pg (${heapMb(heap.initialPages)})</div></div>
+      <div class="row"><div style="flex:1">Current</div><div style="min-width:72px;text-align:right">${heapMb(heap.currentPages)} · ${heap.growEvents} grow</div></div>
+      <div class="row"><div style="flex:1">Voices</div><div style="min-width:72px;text-align:right">${heap.voices}</div></div>`;
+
     const offlineSection = `<div class="subheader">Offline 303</div>
       <div class="row"><div style="flex:1">Oversample</div><div style="min-width:72px;text-align:right">${offlineOs}</div></div>
       <div class="row"><div style="flex:1">Threads</div><div style="min-width:72px;text-align:right">${offlineThreads}</div></div>
@@ -296,7 +306,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${heapSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render

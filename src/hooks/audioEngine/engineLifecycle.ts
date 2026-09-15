@@ -186,11 +186,10 @@ export async function initializeAudioContextAndEngines(
     let open303Ready = false;
 
     try {
-        open303Ready = await open303Manager.init(context, urls.open303ProcessorUrl, {
-            preferWorklet: true,
-            preferThreaded: false,
-            forceSingleThreaded: true
-        });
+        // No config: the hyphon_native build is picked from the environment
+        // (pthread when crossOriginIsolated, single-threaded on WebKit / without
+        // COOP+COEP). Prophecy below joins whichever build this binds.
+        open303Ready = await open303Manager.init(context, urls.open303ProcessorUrl);
 
         if (open303Ready) {
             open303Manager.connect(masterBusInput);

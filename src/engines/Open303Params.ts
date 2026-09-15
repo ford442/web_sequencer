@@ -19,40 +19,23 @@ export interface Open303Params {
 }
 
 /**
- * Configuration options for Open303 engine initialization
+ * Configuration options for Open303 engine initialization.
+ *
+ * Without options the build is chosen automatically per audio context
+ * (src/engines/hyphonNativeVariant.ts): the pthread hyphon_native.wasm when the
+ * page is crossOriginIsolated and not WebKit, otherwise the single-threaded
+ * hyphon_native.st.wasm. The JS FallbackBassSynth is only used when the chosen
+ * module fails to load. See docs/wasm/BUILD_NOTES.md#threading-profiles.
  */
 export interface Open303Config {
     /**
-     * Prefer AudioWorklet over legacy ScriptProcessorNode
-     * @deprecated AudioWorklet is now the only supported path
-     * @default true
-     */
-    preferWorklet?: boolean;
-    
-    /**
-     * Prefer threaded WASM variant (requires COOP/COEP headers)
-     * Falls back to single-threaded if unavailable
-     * @default false (uses single-threaded for broader compatibility)
-     */
-    preferThreaded?: boolean;
-    
-    /**
-     * Force single-threaded WASM (disable threaded variant)
-     * Useful when COOP/COEP headers are not available
+     * Load the single-threaded hyphon_native.st.wasm even when the pthread build
+     * could run. The first voice on an AudioContext binds the choice for every
+     * voice (303 and Prophecy) on it, because they share one instance.
      * @default false
      */
     forceSingleThreaded?: boolean;
 }
-
-/**
- * Default configuration for Open303 engine
- * Prefers broad compatibility over performance
- */
-export const DEFAULT_303_CONFIG: Open303Config = {
-    preferWorklet: true,
-    preferThreaded: false,
-    forceSingleThreaded: false,
-};
 
 
 export const DEFAULT_303_PARAMS: Open303Params = {
