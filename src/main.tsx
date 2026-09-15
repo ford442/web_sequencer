@@ -11,6 +11,7 @@ import { e2eTransportSnapshot } from './e2e/probe'
 // Direct module import, not the './audio/wam' barrel: the barrel re-exports the
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
+import { swUpdateStore } from './stores/swUpdateStore'
 
 /**
  * Load public/hyphon_native.js without blocking first paint.
@@ -53,6 +54,59 @@ function loadHyphonNative(): void {
 }
 
 loadHyphonNative()
+
+/**
+ * Registers public/sw.js in production builds only. Skipped under Playwright
+ * `?e2e=1` unless `?pwa=1` is also present — the existing E2E matrix (audio
+ * engine boot, worklet, automation specs) never needs a service worker in
+ * the loop, and this keeps it byte-for-byte unaffected; the offline /
+ * crossOriginIsolated specs added for this feature pass `?pwa=1` to opt in.
+ *
+ * updateViaCache: 'none' makes the browser always re-fetch sw.js itself
+ * (bypassing HTTP cache) so its build-id stamp — and therefore the standard
+ * install/waiting/activate update lifecycle — is detected promptly. See
+ * docs/deployment/ADR_PWA_SERVICE_WORKER_COEP.md.
+ */
+function registerServiceWorker(): void {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return
+  const params = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null
+  if (params?.has('e2e') && !params.has('pwa')) return
+
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
+      .then((registration) => {
+        const offerReload = (worker: ServiceWorker | null) => {
+          if (!worker) return
+          swUpdateStore.notifyUpdateAvailable(() => worker.postMessage('SKIP_WAITING'))
+        }
+        // An update already sat in `waiting` before this page even registered
+        // (installed by another tab).
+        offerReload(registration.waiting)
+
+        registration.addEventListener('updatefound', () => {
+          const installing = registration.installing
+          installing?.addEventListener('statechange', () => {
+            if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+              offerReload(registration.waiting)
+            }
+          })
+        })
+      })
+      .catch((err: unknown) => {
+        console.warn('[sw] registration failed', err)
+      })
+
+    let reloaded = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return
+      reloaded = true
+      window.location.reload()
+    })
+  })
+}
+
+registerServiceWorker()
 
 // Register the engine-report export hook at app bootstrap (NOT on HUD/component
 // mount) so it is available regardless of view state — a user hitting an audio

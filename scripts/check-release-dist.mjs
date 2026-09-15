@@ -53,6 +53,56 @@ if (!fs.existsSync(path.join(distDir, 'native-artifacts.json'))) {
   process.exit(1);
 }
 
+// PWA shell: public/sw.js and public/manifest.webmanifest must ship, and the
+// build-time `hyphon-precache-manifest` Vite plugin (vite.config.ts) must
+// have emitted precache-manifest.json listing files that actually exist —
+// this is the gate that would have caught #1176/#1177-style dead artifacts
+// (a service worker whose own precache shell 404s) before release.
+{
+  const swPath = path.join(distDir, 'sw.js');
+  const manifestWebPath = path.join(distDir, 'manifest.webmanifest');
+  const precacheManifestPath = path.join(distDir, 'precache-manifest.json');
+
+  if (!fs.existsSync(swPath)) {
+    console.error('[check-release-dist] dist/sw.js is missing.');
+    process.exit(1);
+  }
+  if (/__HYPHON_BUILD_ID__/.test(fs.readFileSync(swPath, 'utf8'))) {
+    console.error(
+      '[check-release-dist] dist/sw.js still contains the __HYPHON_BUILD_ID__ placeholder — ' +
+      'the hyphon-precache-manifest Vite plugin did not stamp it, so the browser will never ' +
+      'detect a new release.',
+    );
+    process.exit(1);
+  }
+  if (!fs.existsSync(manifestWebPath)) {
+    console.error('[check-release-dist] dist/manifest.webmanifest is missing.');
+    process.exit(1);
+  }
+  if (!fs.existsSync(precacheManifestPath)) {
+    console.error('[check-release-dist] dist/precache-manifest.json is missing.');
+    process.exit(1);
+  }
+
+  const precacheManifest = JSON.parse(fs.readFileSync(precacheManifestPath, 'utf8'));
+  const shell = precacheManifest.shell;
+  if (!Array.isArray(shell) || shell.length === 0) {
+    console.error('[check-release-dist] dist/precache-manifest.json has an empty or missing `shell` array.');
+    process.exit(1);
+  }
+
+  const missingShellEntries = shell.filter((url) => {
+    if (url === './') return false; // resolves to index.html, checked separately
+    const rel = url.replace(/^\.\//, '');
+    return !fs.existsSync(path.join(distDir, rel));
+  });
+  if (missingShellEntries.length) {
+    console.error('[check-release-dist] precache-manifest.json lists shell file(s) missing from dist/:');
+    for (const url of missingShellEntries) console.error(`  ${url}`);
+    process.exit(1);
+  }
+}
+
 // The WAM2 Phase B CSP (docs/adr/0001-wam2-host.md) is same-origin scripts only
 // and no `unsafe-eval`. Both used to be violated from index.html — a jsDelivr
 // Pyodide <script> and a `new Function` importer. Catch a regression in the built

@@ -1,0 +1,19 @@
+{
+  "name": "Hyphon",
+  "short_name": "Hyphon",
+  "description": "Sequencer-driven Web Audio workstation inspired by the Korg Electribe EA-1 / ER-1.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

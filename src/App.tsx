@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 
@@ -22,6 +22,8 @@ import { MidiMapPanel } from './components/MidiMapPanel'
 import { GamepadDebugger } from './components/GamepadDebugger'
 import { LyricTrack } from './components/LyricTrack'
 import { Toast } from './components/Toast'
+import { CrashRecoveryPrompt } from './components/CrashRecoveryPrompt'
+import { UpdateAvailableToast } from './components/UpdateAvailableToast'
 import { StartOverlay } from './components/StartOverlay'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
@@ -91,6 +93,7 @@ export const App: React.FC = () => {
         isAutomationRecording, setIsAutomationRecording,
         setIsRecording, setIsSongModeOpen,
         songStorage, activeSongSlot, loadSong, handleSaveSong,
+        pendingRestore, restoreProject, dismissRestore,
         handleClearPattern, handleTempoHoldStart, handleTempoHoldEnd,
         handleTempoKeyDown, handlePanic, handlePlayToggle,
         setCurrentScale,
@@ -137,6 +140,14 @@ export const App: React.FC = () => {
 
     useSurfaceTexture();
 
+    const handleRestoreProject = useCallback(async () => {
+        const data = await restoreProject();
+        if (data) {
+            await loadCloudData(data, 'song');
+            showToast('Restored previous session', 'success');
+        }
+    }, [restoreProject, loadCloudData, showToast]);
+
     const showVisualReview = typeof location !== 'undefined'
         && new URLSearchParams(location.search).has('visual-review');
 
@@ -164,6 +175,13 @@ export const App: React.FC = () => {
             <A11yAnnouncer />
             <style>{SEQUENCER_STYLES}</style>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <UpdateAvailableToast />
+            {isInitialized && pendingRestore && (
+                <CrashRecoveryPrompt
+                    onRestore={() => { void handleRestoreProject(); }}
+                    onDiscard={dismissRestore}
+                />
+            )}
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             {!hasStarted && (
                 <StartOverlay

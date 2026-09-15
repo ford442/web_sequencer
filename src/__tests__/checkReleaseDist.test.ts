@@ -110,6 +110,14 @@ function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = 
         join(dir, 'assets', 'index.js'),
         WORKLETS.map((name) => `registerProcessor(${JSON.stringify(name)});`).join('\n'),
     );
+    // Minimal PWA shell fixture — unrelated to the WASM export gate this file
+    // tests, but check-release-dist.mjs now requires it unconditionally.
+    writeFileSync(join(dir, 'manifest.webmanifest'), JSON.stringify({ name: 'Hyphon', start_url: './' }));
+    writeFileSync(
+        join(dir, 'precache-manifest.json'),
+        JSON.stringify({ version: 'test', generatedAt: Date.now(), shell: ['./', './manifest.webmanifest', './assets/index.js'] }),
+    );
+    writeFileSync(join(dir, 'sw.js'), "const BUILD_ID = 'test-build-id';\n");
     // Glue that declares the same names the map does, so only the binary differs.
     // The single-threaded glue quotes with `'`, as Emscripten emits it.
     const glue = (q: string) =>

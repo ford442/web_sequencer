@@ -51,6 +51,8 @@ gpt_mini_work/contabo_storage_manager/
 public/*.js
 public/*.wasm
 public/*.mjs
+# sw.js is hand-authored source (public/sw.js), not a generated build artifact.
+!public/sw.js
 src/wasm/*.js
 src/wasm/*.wasm
 src/wasm/*.d.ts
