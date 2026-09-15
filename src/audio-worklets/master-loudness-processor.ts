@@ -71,6 +71,12 @@ class MasterLoudnessProcessor extends AudioWorkletProcessor {
         clipped: false,
     };
 
+    private readonly statsMessage = {
+        type: 'loudness-stats' as const,
+        data: this.statsResult,
+        latencySeconds: 0,
+    };
+
     constructor(options?: unknown) {
         super();
         const processorOptions = (options as MasterLoudnessOptions | undefined)?.processorOptions ?? {};
@@ -160,11 +166,9 @@ class MasterLoudnessProcessor extends AudioWorkletProcessor {
         this.framesSinceReport += frames;
         if (this.framesSinceReport >= this.reportInterval) {
             this.framesSinceReport = 0;
-            this.port.postMessage({
-                type: 'loudness-stats',
-                data: this.buildStats(),
-                latencySeconds: this.limiter.latencySeconds,
-            });
+            this.buildStats();
+            this.statsMessage.latencySeconds = this.limiter.latencySeconds;
+            this.port.postMessage(this.statsMessage);
         }
     }
 }

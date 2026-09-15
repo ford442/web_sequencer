@@ -52,7 +52,7 @@ export class RingBuffer {
     }
 
     // Consumer side (AudioWorklet)
-    pull(data: Float32Array): number {
+    pull(data: Float32Array, dataOffset = 0): number {
         const head = Atomics.load(this.atomicIndices, HEAD_INDEX);
         const tail = Atomics.load(this.atomicIndices, TAIL_INDEX);
 
@@ -65,8 +65,8 @@ export class RingBuffer {
         const tailIndex = tail & (this.bufferSize - 1);
         const fromRead = Math.min(toRead, this.bufferSize - tailIndex);
 
-        data.set(this.buffer.subarray(tailIndex, tailIndex + fromRead));
-        data.set(this.buffer.subarray(0, toRead - fromRead), fromRead);
+        data.set(this.buffer.subarray(tailIndex, tailIndex + fromRead), dataOffset);
+        data.set(this.buffer.subarray(0, toRead - fromRead), dataOffset + fromRead);
 
         Atomics.store(this.atomicIndices, TAIL_INDEX, tail + toRead);
         return toRead;

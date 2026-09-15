@@ -47,6 +47,8 @@ class ClockProcessor extends AudioWorkletProcessor {
     // The step that will fire next (0-indexed)
     private nextStep = 0;
 
+    private readonly stepMessage: { type: 'step'; step: number; audioTime: number } = { type: 'step', step: 0, audioTime: 0 };
+
     constructor() {
         super();
         this.port.onmessage = (e: MessageEvent<ClockMessage>) => {
@@ -109,11 +111,9 @@ class ClockProcessor extends AudioWorkletProcessor {
                     // the first sample in the current block).
                     const audioTime = currentTime + i / sampleRate;
 
-                    this.port.postMessage({
-                        type: 'step',
-                        step: this.nextStep,
-                        audioTime,
-                    });
+                    this.stepMessage.step = this.nextStep;
+                    this.stepMessage.audioTime = audioTime;
+                    this.port.postMessage(this.stepMessage);
 
                     // Advance to the next step.
                     const parity = (this.nextStep % 2) as 0 | 1;

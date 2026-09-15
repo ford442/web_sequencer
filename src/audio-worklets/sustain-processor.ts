@@ -153,8 +153,11 @@ class SustainProcessor extends AudioWorkletProcessor {
                             const sliceLength = endSample - startSample;
                             this.ensureHeapSize(sliceLength);
 
-                            const slice = this.buffer.subarray(startSample, endSample);
-                            this.rubberBand.module.HEAPF32.set(slice, this.inputHeapPtr >> 2);
+                            const heap = this.rubberBand.module.HEAPF32;
+                            const ptr = this.inputHeapPtr >> 2;
+                            for (let i = 0; i < sliceLength; i++) {
+                                heap[ptr + i] = this.buffer[startSample + i];
+                            }
                             this.rubberBand.process(this.inputHeapPtr, sliceLength, false);
                         }
                     }
@@ -322,14 +325,7 @@ class SustainProcessor extends AudioWorkletProcessor {
 
                 if (available >= required && required > 0) {
                     this.ensureHeapSize(required);
-
-                    // Zero-copy optimization: create view directly into WASM heap
-                    const inputView = this.rubberBand.module.HEAPF32.subarray(
-                        this.inputHeapPtr >> 2,
-                        (this.inputHeapPtr >> 2) + required
-                    );
-
-                    this.inputRingBuffer.pull(inputView);
+                    this.inputRingBuffer.pull(this.rubberBand.module.HEAPF32, this.inputHeapPtr >> 2);
                     this.rubberBand.process(this.inputHeapPtr, required, false);
                 }
 
@@ -340,12 +336,12 @@ class SustainProcessor extends AudioWorkletProcessor {
                     
                     const retrieved = this.rubberBand.retrieve(this.outputHeapPtr, framesToRead);
 
-                    const outputView = this.rubberBand.module.HEAPF32.subarray(
-                        this.outputHeapPtr >> 2,
-                        (this.outputHeapPtr >> 2) + retrieved
-                    );
-
-                    outputChannel.set(outputView.subarray(0, Math.min(retrieved, blockSize)));
+                    const heap = this.rubberBand.module.HEAPF32;
+                    const ptr = this.outputHeapPtr >> 2;
+                    const limit = Math.min(retrieved, blockSize);
+                    for(let i=0; i<limit; i++) {
+                        outputChannel[i] = heap[ptr + i];
+                    }
                     
                     // Copy to all channels
                     for (let channel = 1; channel < output.length; channel++) {
