@@ -164,13 +164,17 @@ export class DrumKitEngine {
 
       const initSuccess = await new Promise<boolean>((resolve) => {
         let readyReceived = false;
-        this.workletNode!.port.onmessage = (e) => {
+        this.workletNode!.port.onmessage = (e: MessageEvent<{ type?: string; error?: unknown }>) => {
           if (e.data.type === 'ready') {
             readyReceived = true;
             resolve(true);
           } else if (e.data.type === 'error') {
             const errDetail =
-              typeof e.data.error === 'string' ? e.data.error : String(e.data.error ?? 'unknown worklet error');
+              typeof e.data.error === 'string'
+                ? e.data.error
+                : e.data.error != null
+                  ? String(e.data.error)
+                  : 'unknown worklet error';
             this.useFallback(`worklet init-wasm error: ${errDetail}`);
             resolve(false);
           }

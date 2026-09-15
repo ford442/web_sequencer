@@ -100,6 +100,10 @@ const MAIN_CPP_RUNTIME_IMPORTS = [
   'emscripten_run_script', // emscripten_run_script("...initPyodideSystem()...")
   '__cxa_throw',           // C++ exception ABI
   'exit',                  // main() returning
+  'emscripten_date_now',
+  '_emscripten_get_now_is_monotonic',
+  '__emscripten_init_main_thread_js',
+  '__emscripten_thread_cleanup',
 ] as const;
 
 describe('createEmscriptenEnv (worklet import table)', () => {
