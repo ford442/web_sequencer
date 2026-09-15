@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
 
 /**
@@ -86,8 +86,11 @@ function makeFakeExports(memory: WebAssembly.Memory) {
 
 describe('hyphon_native shared heap (one per audio session)', () => {
   let memoryCtor: ReturnType<typeof vi.fn>;
-  let compileSpy: ReturnType<typeof vi.spyOn>;
-  let instantiateSpy: ReturnType<typeof vi.spyOn>;
+  // Default MockInstance uses `(...args: any[]) => any`. Bare
+  // `ReturnType<typeof vi.spyOn>` infers `unknown[]` args, which is not
+  // assignable from WebAssembly.compile / instantiate (BufferSource params).
+  let compileSpy: MockInstance;
+  let instantiateSpy: MockInstance;
   let fake: ReturnType<typeof makeFakeExports>;
   const RealMemory = WebAssembly.Memory;
 
