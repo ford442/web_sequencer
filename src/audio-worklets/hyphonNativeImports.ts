@@ -377,6 +377,9 @@ export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<stri
     _emscripten_runtime_keepalive_clear: () => {},
     clock_time_get: () => Date.now() * 1_000_000,
     emscripten_get_now: () => getTime(),
+    // Wall clock vs monotonic: Emscripten's glue maps these exactly this way.
+    // Unknown env symbols are derived in buildHyphonWasmImports(); these two
+    // stay explicit so the worklets do not run on a silent no-op stub.
     emscripten_date_now: () => Date.now(),
     _emscripten_get_now_is_monotonic: () => 1,
     __emscripten_init_main_thread_js: () => {},
@@ -393,11 +396,10 @@ export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<stri
     _embind_register_memory_view: () => {},
 
     // hyphon_native.wasm links emscripten/main.cpp (the Pyodide bootstrap
-    // orchestrator) alongside the DSP wrappers, so these three come along even
-    // though no worklet code path calls them. Omitting any one of them makes
-    // WebAssembly.instantiate() fail outright with "function import requires a
-    // callable", and every 303/Prophecy voice degrades to a JS fallback that
-    // still makes sound — so the app looks fine while the native engine is gone.
+    // orchestrator) alongside the DSP wrappers, so these come along even
+    // though no worklet code path calls them. Explicit implementations here
+    // are overrides on top of the derived import table; a *new* Emscripten
+    // symbol no longer requires a source edit (see installDerivedFunctionStubs).
     //
     // main() runs on the main thread through the Emscripten glue; in a worklet
     // it must not run at all, hence the inert implementations.
@@ -441,6 +443,37 @@ export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<stri
   }
 
   return env;
+}
+
+/**
+ * Walk the compiled module's import section and install a typed no-op stub
+ * (`() => 0`) for every `kind: 'function'` import that is not already a
+ * callable. Explicit `createEmscriptenEnv` / `createWASIImports` entries win.
+ *
+ * This is the safety net for the #1176/#1177 class: an incomplete allowlist
+ * used to make `WebAssembly.instantiate()` throw `function import requires a
+ * callable`, after which every 303/Prophecy voice degraded to a JS fallback
+ * that still made sound. A stub cannot fail instantiation; it warns once so
+ * the missing symbol is visible in the worklet log.
+ */
+function installDerivedFunctionStubs(
+  module: WebAssembly.Module,
+  importsObject: Record<string, Record<string, unknown>>,
+  logPrefix: string,
+): void {
+  for (const imp of WebAssembly.Module.imports(module)) {
+    if (imp.kind !== 'function') continue;
+    let bag = importsObject[imp.module];
+    if (!bag) {
+      bag = {};
+      importsObject[imp.module] = bag;
+    }
+    if (typeof bag[imp.name] === 'function') continue;
+    console.warn(
+      `${logPrefix} unsatisfied WASM import ${imp.module}.${imp.name}; installing no-op stub (returns 0)`,
+    );
+    bag[imp.name] = (..._args: number[]): number => 0;
+  }
 }
 
 export function createWASIImports(): Record<string, unknown> {
@@ -508,6 +541,8 @@ export function buildHyphonWasmImports(
     }
     importsObject[memoryImport.module][memoryImport.name] = memory;
   }
+
+  installDerivedFunctionStubs(module, importsObject, ctx.logPrefix ?? '[HyphonNative]');
 
   return { imports: importsObject as WebAssembly.Imports, memory };
 }

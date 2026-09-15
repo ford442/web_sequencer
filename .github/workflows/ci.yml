@@ -188,6 +188,7 @@ jobs:
         run: pnpm run test:integration
         env:
           CI: true
+          HYPHON_REQUIRE_NATIVE: '1'
 
       - name: Test (offline 303 engines, host g++)
         run: pnpm run test:native
