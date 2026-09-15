@@ -1,71 +1,39 @@
 /**
  * Drum Kit Engine
  *
- * Provides kit-aware drum synthesis that shapes the sound character
- * based on 808 vs 909 selection. The engine applies kit-specific
- * oscillator waveforms, pitch envelopes, and noise characteristics
- * to produce authentic ReBirth-style drum sounds.
- *
- * Usage:
- * ```typescript
- * const engine = new DrumKitEngine('808');
- * engine.playKick(context, masterGain, params, time);
- * engine.setKit('909'); // switch kits
- * ```
+ * Message façade for analog 808/909 drums. Live hits go to `drumkit-processor`
+ * (hyphon_native `drumkit_*` handles). If the worklet/WASM path fails, the
+ * existing Web Audio oscillator kit remains the fallback (HUD reason, non-silent).
  */
 
 import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '../types';
+import { KIT_CHARACTER, kitToNativeId, DRUMKIT_VOICE, type KitSynthCharacter } from './DrumKitCharacter';
+import {
+    engineTelemetry,
+    isAppleWebKit,
+    loadHyphonWasmExportMap,
+    logEngineFallback,
+    resolvePublicAsset,
+} from '../utils/engineTelemetry';
+import {
+    DRUMKIT_REQUIRED_WASM_EXPORTS,
+    drumkitExportMapInsufficient,
+    formatMissingWasmExports,
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    wasmExportNameSnapshot,
+} from '../audio-worklets/hyphonNativeImports';
 
-/** Kit-specific synthesis parameters applied on top of user params */
-interface KitSynthCharacter {
-  /** Kick: starting frequency multiplier */
-  kickFreqStart: number;
-  /** Kick: ending frequency multiplier */
-  kickFreqEnd: number;
-  /** Kick: oscillator waveform */
-  kickWaveform: OscillatorType;
-  /** Kick: pitch envelope curve (higher = faster sweep) */
-  kickPitchCurve: number;
-  /** Snare: body oscillator type */
-  snareWaveform: OscillatorType;
-  /** Snare: noise filter frequency */
-  snareNoiseFreq: number;
-  /** Snare: noise filter Q */
-  snareNoiseQ: number;
-  /** Hat: filter resonance */
-  hatResonance: number;
-  /** Hat: number of metallic square oscillators */
-  hatOscCount: number;
-}
-
-const KIT_CHARACTER: Record<DrumKitType, KitSynthCharacter> = {
-  '808': {
-    kickFreqStart: 1.0,        // Lower start pitch
-    kickFreqEnd: 0.08,         // Deeper sub sweep
-    kickWaveform: 'sine',      // Pure sine for deep 808 boom
-    kickPitchCurve: 0.6,       // Slower pitch sweep = more boom
-    snareWaveform: 'triangle', // Softer body
-    snareNoiseFreq: 1500,      // Lower noise = warmer snap
-    snareNoiseQ: 1.0,          // Less resonant
-    hatResonance: 2.0,         // Moderate ring
-    hatOscCount: 4,            // Fewer harmonics = more analog
-  },
-  '909': {
-    kickFreqStart: 1.2,        // Higher attack pitch
-    kickFreqEnd: 0.01,         // Tighter decay
-    kickWaveform: 'sine',      // Still sine but with different envelope
-    kickPitchCurve: 0.3,       // Faster sweep = punchier
-    snareWaveform: 'triangle', // Brighter body
-    snareNoiseFreq: 3000,      // Higher noise band = crispier
-    snareNoiseQ: 2.0,          // More resonant snap
-    hatResonance: 4.0,         // More metallic ring
-    hatOscCount: 6,            // More harmonics = digital shimmer
-  },
-};
+const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
+const DRUMKIT_INIT_TIMEOUT_MS = 8000;
 
 export class DrumKitEngine {
   private _kitType: DrumKitType;
   private _character: KitSynthCharacter;
+  private workletNode: AudioWorkletNode | null = null;
+  private audioContext: AudioContext | null = null;
+  private wasmReady = false;
+  private workletNodesCreated = 0;
+  fallbackReason: string | null = null;
 
   constructor(kitType: DrumKitType = '808') {
     this._kitType = kitType;
@@ -76,13 +44,172 @@ export class DrumKitEngine {
     return this._kitType;
   }
 
+  /** True when hits are rendered inside the AudioWorklet (no per-hit OscillatorNode). */
+  get isWorkletReady(): boolean {
+    return this.wasmReady;
+  }
+
   setKit(kitType: DrumKitType): void {
     this._kitType = kitType;
     this._character = KIT_CHARACTER[kitType];
+    if (this.wasmReady && this.workletNode) {
+      this.workletNode.port.postMessage({
+        type: 'set-kit',
+        data: { kit: kitToNativeId(kitType) },
+      });
+    }
   }
 
   /**
-   * Play a drum sound with kit-specific character
+   * Load drumkit-processor and instantiate hyphon_native once for the whole kit.
+   * Returns false when the Web Audio fallback should handle hits.
+   */
+  async init(
+    audioContext: AudioContext,
+    workletUrl: string,
+    destination: AudioNode,
+  ): Promise<boolean> {
+    this.audioContext = audioContext;
+
+    if (isAppleWebKit()) {
+      this.useFallback('threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet');
+      return false;
+    }
+
+    if (!audioContext.audioWorklet || !workletUrl) {
+      this.useFallback(
+        !audioContext.audioWorklet ? 'AudioWorklet unavailable' : 'worklet URL missing',
+      );
+      return false;
+    }
+
+    try {
+      const response = await fetch(HYPHON_NATIVE_WASM_URL);
+      if (!response.ok) {
+        this.useFallback(`hyphon_native.wasm fetch HTTP ${response.status} (${HYPHON_NATIVE_WASM_URL})`);
+        return false;
+      }
+      const wasmBytes = await response.arrayBuffer();
+      const exportMap = await this.fetchExportMap(wasmBytes);
+      return this.initWithWasmBytes(audioContext, workletUrl, destination, wasmBytes, exportMap);
+    } catch (e) {
+      this.useFallback('init exception before worklet load', e);
+      return false;
+    }
+  }
+
+  private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
+    const map = await loadHyphonWasmExportMap();
+    const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
+    const glueUrl = resolvePublicAsset('hyphon_native.js');
+    const wasmModule = await WebAssembly.compile(wasmBytes);
+    const rawExports = wasmExportNameSnapshot(wasmModule);
+
+    if (Object.keys(map).length === 0) {
+      logEngineFallback(
+        'drumkit',
+        'wasm-worklet',
+        `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+        `(tried ${mapUrl} and ${glueUrl}). ` +
+        formatMissingWasmExports(rawExports, [...DRUMKIT_REQUIRED_WASM_EXPORTS]),
+      );
+      return map;
+    }
+
+    if (drumkitExportMapInsufficient(wasmModule, map)) {
+      logEngineFallback(
+        'drumkit',
+        'wasm-worklet',
+        `export map did not resolve drumkit_* against WASM. ` +
+        formatMissingWasmExports(rawExports, [...DRUMKIT_REQUIRED_WASM_EXPORTS]),
+      );
+    }
+
+    return map;
+  }
+
+  async initWithWasmBytes(
+    audioContext: AudioContext,
+    workletUrl: string,
+    destination: AudioNode,
+    wasmBytes: ArrayBuffer,
+    exportMap: Record<string, string> = {},
+  ): Promise<boolean> {
+    try {
+      await audioContext.audioWorklet.addModule(workletUrl);
+
+      this.workletNode = new AudioWorkletNode(audioContext, 'drumkit-processor', {
+        outputChannelCount: [2],
+      });
+      this.workletNodesCreated += 1;
+
+      const module = await WebAssembly.compile(wasmBytes);
+      const imports = WebAssembly.Module.imports(module);
+      const isThreaded = imports.some((i) => i.kind === 'memory');
+      const memoryPages = isThreaded ? HYPHON_NATIVE_MIN_MEMORY_PAGES : undefined;
+
+      this.workletNode.port.postMessage({
+        type: 'init-wasm',
+        data: {
+          wasmBytes,
+          sampleRate: audioContext.sampleRate,
+          isThreaded,
+          variant: isThreaded ? 'threaded' : 'single',
+          memoryPages,
+          exportMap,
+        },
+      });
+
+      this.workletNode.connect(destination);
+
+      const initSuccess = await new Promise<boolean>((resolve) => {
+        let readyReceived = false;
+        this.workletNode!.port.onmessage = (e) => {
+          if (e.data.type === 'ready') {
+            readyReceived = true;
+            resolve(true);
+          } else if (e.data.type === 'error') {
+            const errDetail =
+              typeof e.data.error === 'string' ? e.data.error : String(e.data.error ?? 'unknown worklet error');
+            this.useFallback(`worklet init-wasm error: ${errDetail}`);
+            resolve(false);
+          }
+        };
+        setTimeout(() => {
+          if (!readyReceived) {
+            this.useFallback(`worklet ready timeout (${DRUMKIT_INIT_TIMEOUT_MS}ms)`);
+            resolve(false);
+          }
+        }, DRUMKIT_INIT_TIMEOUT_MS);
+      });
+
+      if (!initSuccess) {
+        this.cleanupWorklet();
+        return false;
+      }
+
+      this.wasmReady = true;
+      this.fallbackReason = null;
+      this.workletNode.port.postMessage({
+        type: 'set-kit',
+        data: { kit: kitToNativeId(this._kitType) },
+      });
+      try {
+        engineTelemetry.registerResolution('drumkit', 'wasm-worklet', 'worklet-ready heapCount=1');
+      } catch {
+        /* telemetry must never break audio */
+      }
+      return true;
+    } catch (e) {
+      this.useFallback('AudioWorklet.addModule or node creation failed', e);
+      this.cleanupWorklet();
+      return false;
+    }
+  }
+
+  /**
+   * Play a drum sound. Worklet path posts a trigger at `audioTime`; fallback
+   * allocates Web Audio oscillators (legacy kit).
    */
   play(
     context: AudioContext,
@@ -90,7 +217,76 @@ export class DrumKitEngine {
     noiseBuffer: AudioBuffer | null,
     sound: DrumSound,
     params: KickParams | SnareParams | HatParams,
-    time: number
+    time: number,
+  ): void {
+    if (this.wasmReady && this.workletNode) {
+      this.triggerWorklet(sound, params, time);
+      return;
+    }
+    this.playFallback(context, masterGain, noiseBuffer, sound, params, time);
+  }
+
+  /** Tests: how many AudioWorkletNodes this engine constructed. */
+  get workletInstanceCount(): number {
+    return this.workletNodesCreated;
+  }
+
+  private triggerWorklet(
+    sound: DrumSound,
+    params: KickParams | SnareParams | HatParams,
+    audioTime: number,
+  ): void {
+    const voice = DRUMKIT_VOICE[sound];
+    let a = 0;
+    let b = 0;
+    let c = 0;
+    let d = 0;
+    if (sound === 'kick') {
+      const p = params as KickParams;
+      a = p.pitch;
+      b = p.decay;
+      c = p.tone;
+      d = p.volume;
+    } else if (sound === 'snare') {
+      const p = params as SnareParams;
+      a = p.tone;
+      b = p.decay;
+      c = p.noise;
+      d = p.volume;
+    } else {
+      const p = params as HatParams;
+      a = p.pitch;
+      b = p.decay;
+      c = p.volume;
+      d = 0;
+    }
+    this.workletNode!.port.postMessage({
+      type: 'trigger',
+      data: { voice, velocity: 1, a, b, c, d, audioTime },
+    });
+  }
+
+  private useFallback(reason: string, err?: unknown): void {
+    this.wasmReady = false;
+    this.fallbackReason = reason;
+    logEngineFallback('drumkit', 'wasm-worklet', reason, err);
+  }
+
+  private cleanupWorklet(): void {
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode.port.close();
+      this.workletNode = null;
+    }
+  }
+
+  private playFallback(
+    context: AudioContext,
+    masterGain: GainNode,
+    noiseBuffer: AudioBuffer | null,
+    sound: DrumSound,
+    params: KickParams | SnareParams | HatParams,
+    time: number,
   ): void {
     switch (sound) {
       case 'kick':
@@ -106,9 +302,6 @@ export class DrumKitEngine {
     }
   }
 
-  /**
-   * 808/909-style kick synthesis with pitch envelope
-   */
   private playKick(context: AudioContext, masterGain: GainNode, params: KickParams, time: number): void {
     const c = this._character;
     const osc = context.createOscillator();
@@ -116,7 +309,6 @@ export class DrumKitEngine {
 
     osc.type = c.kickWaveform;
 
-    // Pitch envelope: start high, sweep down (808 sweeps slower, 909 punchier)
     const startFreq = params.pitch * c.kickFreqStart * 3;
     const endFreq = Math.max(0.01, params.pitch * c.kickFreqEnd);
     const sweepTime = params.decay * c.kickPitchCurve;
@@ -124,7 +316,6 @@ export class DrumKitEngine {
     osc.frequency.setValueAtTime(startFreq, time);
     osc.frequency.exponentialRampToValueAtTime(endFreq, time + sweepTime);
 
-    // Amplitude envelope with tone-controlled click
     const clickLevel = params.tone * 0.3;
     gain.gain.setValueAtTime(params.volume + clickLevel, time);
     gain.gain.setValueAtTime(params.volume, time + 0.005);
@@ -137,26 +328,21 @@ export class DrumKitEngine {
     osc.stop(time + params.decay + 0.01);
   }
 
-  /**
-   * 808/909-style snare: body oscillator + shaped noise
-   */
   private playSnare(
     context: AudioContext,
     masterGain: GainNode,
     noiseBuffer: AudioBuffer | null,
     params: SnareParams,
-    time: number
+    time: number,
   ): void {
     const c = this._character;
 
-    // Body tone oscillator
     const osc = context.createOscillator();
     const oscGain = context.createGain();
     osc.type = c.snareWaveform;
     osc.frequency.setValueAtTime(params.tone, time);
     osc.frequency.exponentialRampToValueAtTime(params.tone * 0.5, time + params.decay * 0.3);
 
-    // Tone volume scaled by kit character
     const toneLevel = params.volume * 0.6;
     oscGain.gain.setValueAtTime(toneLevel, time);
     oscGain.gain.exponentialRampToValueAtTime(0.001, time + params.decay * 0.5);
@@ -166,7 +352,6 @@ export class DrumKitEngine {
     osc.start(time);
     osc.stop(time + params.decay + 0.01);
 
-    // Noise component
     if (noiseBuffer) {
       const noise = context.createBufferSource();
       noise.buffer = noiseBuffer;
@@ -177,7 +362,6 @@ export class DrumKitEngine {
       noiseFilter.Q.value = c.snareNoiseQ;
 
       const noiseGain = context.createGain();
-      // params.noise ranges ~2000-4000 (Hz-like value); normalize to 0-1 amplitude
       const noiseLevel = Math.min(1.0, params.noise / 5000) * params.volume;
       noiseGain.gain.setValueAtTime(noiseLevel, time);
       noiseGain.gain.exponentialRampToValueAtTime(0.001, time + params.decay);
@@ -190,15 +374,12 @@ export class DrumKitEngine {
     }
   }
 
-  /**
-   * 808/909-style hi-hat: metallic noise with bandpass shaping
-   */
   private playHat(
     context: AudioContext,
     masterGain: GainNode,
     noiseBuffer: AudioBuffer | null,
     params: HatParams,
-    time: number
+    time: number,
   ): void {
     const c = this._character;
 
@@ -206,13 +387,11 @@ export class DrumKitEngine {
       const src = context.createBufferSource();
       src.buffer = noiseBuffer;
 
-      // High-pass for metallic character
       const hpFilter = context.createBiquadFilter();
       hpFilter.type = 'highpass';
       hpFilter.frequency.value = params.pitch;
       hpFilter.Q.value = c.hatResonance;
 
-      // Bandpass for tonal shaping
       const bpFilter = context.createBiquadFilter();
       bpFilter.type = 'bandpass';
       bpFilter.frequency.value = params.pitch * 1.5;

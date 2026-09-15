@@ -1,6 +1,6 @@
 // Shared Emscripten import wiring for hyphon_native.wasm inside AudioWorklets.
-// Open303 and Prophecy both instantiate the same threaded WASM module; memory
-// imports use the minified namespace "a" / name "a", not env.memory.
+// Open303, Prophecy, and the analog drumkit instantiate the same threaded WASM
+// module; memory imports use the minified namespace "a" / name "a", not env.memory.
 
 /** WebAssembly page size (64 KiB). */
 const WASM_PAGE_BYTES = 65536;
@@ -97,6 +97,14 @@ export const PROPHECY_REQUIRED_WASM_EXPORTS = [
   'prophecy_process',
 ] as const;
 
+/** Bare export names the drumkit worklet must resolve via the export map. */
+export const DRUMKIT_REQUIRED_WASM_EXPORTS = [
+  'drumkit_create',
+  'drumkit_init',
+  'drumkit_trigger',
+  'drumkit_process',
+] as const;
+
 /**
  * Name-only snapshot of a compiled module's exports (for main-thread diagnostics).
  *
@@ -147,6 +155,23 @@ export function hasProphecyApi(exports: Record<string, unknown>): boolean {
   return (
     typeof exports.prophecy_create === 'function' &&
     typeof exports.prophecy_init === 'function'
+  );
+}
+
+/** True when drumkit_create/init/process cannot be resolved from the export map. */
+export function drumkitExportMapInsufficient(
+  module: WebAssembly.Module,
+  exportMap: WasmExportMap,
+): boolean {
+  const normalized = normalizeWasmExports(wasmExportNameSnapshot(module), exportMap);
+  return !hasDrumkitApi(normalized);
+}
+
+export function hasDrumkitApi(exports: Record<string, unknown>): boolean {
+  return (
+    typeof exports.drumkit_create === 'function' &&
+    typeof exports.drumkit_init === 'function' &&
+    typeof exports.drumkit_process === 'function'
   );
 }
 

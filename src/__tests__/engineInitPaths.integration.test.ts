@@ -25,6 +25,8 @@ describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
   it('release build exposes multi-instance JC303 handle API', () => {
     expect(map.open303_create).toBeTruthy();
     expect(map.prophecy_process).toBeTruthy();
+    expect(map.drumkit_create).toBeTruthy();
+    expect(map.drumkit_process).toBeTruthy();
     expect(map.jc303_create).toBeTruthy();
     expect(map.jc303_init_handle).toBeTruthy();
     expect(map.jc303_process_handle).toBeTruthy();
@@ -32,6 +34,8 @@ describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
     const fakeExports = {
       [map.open303_create!]: () => 1,
       [map.prophecy_process!]: () => 2,
+      [map.drumkit_create!]: () => 5,
+      [map.drumkit_process!]: () => 6,
       [map.jc303_create!]: () => 3,
       [map.jc303_init_handle!]: () => 1,
       [map.jc303_process_handle!]: () => 4,
@@ -40,6 +44,8 @@ describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
     const normalized = normalizeWasmExports(fakeExports, map);
     expect(typeof normalized.open303_create).toBe('function');
     expect(typeof normalized.prophecy_process).toBe('function');
+    expect(typeof normalized.drumkit_create).toBe('function');
+    expect(typeof normalized.drumkit_process).toBe('function');
     expect(typeof normalized.jc303_create).toBe('function');
     expect(typeof normalized.jc303_init_handle).toBe('function');
     expect(typeof normalized.jc303_process_handle).toBe('function');

@@ -142,6 +142,16 @@ describe('standalone JC-303 memory budget', () => {
     });
 });
 
+describe('hyphon_native drumkit compilation', () => {
+    it('compiles analog drums into hyphon_native (same module, new handles)', () => {
+        expect(buildSh).toContain('drumkit_wrapper.cpp');
+        expect(buildSh).toContain('_drumkit_create');
+        expect(buildSh).toContain('_drumkit_trigger');
+        expect(buildSh).toContain('_drumkit_process');
+        expect(buildSh).toContain('prophecy_wrapper.cpp');
+    });
+});
+
 describe('Rubber Band module split', () => {
     // Rubber Band's finer-engine stereo stretch was the dominant transient in the
     // hyphon_native budget (~40 MB of a ~114 MB peak) while sharing a heap with the

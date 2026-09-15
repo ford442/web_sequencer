@@ -60,6 +60,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [303-baseline/](docs/audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
 | [303-baseline-spectra/](docs/audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |
 | [jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) | Open303/JC303 switching and Prophecy routing |
+| [drumkit.md](docs/audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, Web Audio fallback |
 | [master-loudness.md](docs/audio-engine/master-loudness.md) | Master true-peak limiter + BS.1770 LUFS metering (graph placement, accuracy, export) |
 | [patch-bay.md](docs/audio-engine/patch-bay.md) | User-editable audio routing: patch model, live editing, persistence, safety |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |

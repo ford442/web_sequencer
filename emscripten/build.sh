@@ -169,7 +169,14 @@ EXPORTS="[ \
     '_prophecy_note_off', \
     '_prophecy_all_notes_off', \
     '_prophecy_set_param', \
-    '_prophecy_process' \
+    '_prophecy_process', \
+    '_drumkit_create', \
+    '_drumkit_destroy', \
+    '_drumkit_init', \
+    '_drumkit_set_kit', \
+    '_drumkit_trigger', \
+    '_drumkit_choke_open_hat', \
+    '_drumkit_process' \
 ]"
 
 # Legacy single-instance jc303_* surface, appended only when compiled in.
@@ -241,7 +248,10 @@ compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
 # 5. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
 compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
 
-# 6. Compile Main
+# 6. Compile analog 808/909 drum kit (same module, new handles — one kit instance)
+compile_cpp "$SCRIPT_DIR/drumkit_wrapper.cpp"
+
+# 7. Compile Main
 compile_cpp "$SCRIPT_DIR/main.cpp"
 
 echo "Linking..."

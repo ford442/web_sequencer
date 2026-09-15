@@ -89,6 +89,7 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'clock-processor',
   'open303-processor',
   'prophecy-processor',
+  'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',
   'master-loudness-processor',

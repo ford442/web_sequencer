@@ -5,13 +5,16 @@ import {
   normalizeWasmExports,
   formatMissingWasmExports,
   hasProphecyApi,
+  hasDrumkitApi,
   createEmscriptenEnv,
   createWASIImports,
   buildHyphonWasmImports,
   open303ExportMapInsufficient,
   prophecyExportMapInsufficient,
+  drumkitExportMapInsufficient,
   OPEN303_REQUIRED_WASM_EXPORTS,
   PROPHECY_REQUIRED_WASM_EXPORTS,
+  DRUMKIT_REQUIRED_WASM_EXPORTS,
 } from '../audio-worklets/hyphonNativeImports';
 
 describe('normalizeWasmExports', () => {
@@ -54,6 +57,22 @@ describe('hasProphecyApi', () => {
       prophecy_init: 'X',
     });
     expect(hasProphecyApi(normalized)).toBe(true);
+  });
+});
+
+describe('hasDrumkitApi', () => {
+  it('accepts normalized exports, not raw minified names', () => {
+    const create = () => 1;
+    const init = () => 1;
+    const process = () => 1;
+    const raw = { V: create, X: init, Y: process } as unknown as WebAssembly.Exports;
+    expect(hasDrumkitApi(raw as Record<string, unknown>)).toBe(false);
+    const normalized = normalizeWasmExports(raw, {
+      drumkit_create: 'V',
+      drumkit_init: 'X',
+      drumkit_process: 'Y',
+    });
+    expect(hasDrumkitApi(normalized)).toBe(true);
   });
 });
 
@@ -133,6 +152,10 @@ describe('export-map sufficiency predicates', () => {
     expect(
       open303ExportMapInsufficient(module, identity(['open303_create', 'open303_init'])),
     ).toBe(false);
+    const exported = new Set(WebAssembly.Module.exports(module).map((e) => e.name));
+    if (DRUMKIT_REQUIRED_WASM_EXPORTS.every((n) => exported.has(n))) {
+      expect(drumkitExportMapInsufficient(module, identity(DRUMKIT_REQUIRED_WASM_EXPORTS))).toBe(false);
+    }
   });
 });
 
@@ -191,5 +214,13 @@ describe('hyphon_native.wasm worklet handshake', () => {
     // "Cannot convert a BigInt value to a number" at the boundary.
     const init = exports.open303_init as (h: number | bigint, sr: number, n: number) => number;
     expect(init(handle, 48000, 128)).toBe(1);
+
+    const drumCreate = exports.drumkit_create as (() => number | bigint) | undefined;
+    if (typeof drumCreate === 'function') {
+      const drumHandle = drumCreate();
+      expect(drumHandle).toBeTruthy();
+      const drumInit = exports.drumkit_init as (h: number | bigint, sr: number, n: number) => number;
+      expect(drumInit(drumHandle, 48000, 128)).toBe(1);
+    }
   });
 });

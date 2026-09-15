@@ -31,6 +31,7 @@ build_and_run() {
 build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
 build_and_run tb303_highfid_offline_test
+build_and_run drumkit_offline_test
 
 # Output-level alignment across the realtime 303 voices. Needs the rosic sources
 # from the jc303_wasm submodule, so it is skipped when that is not checked out.
