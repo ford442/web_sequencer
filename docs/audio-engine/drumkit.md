@@ -43,4 +43,4 @@ deploy bases and `scripts/check-release-dist.mjs` stay valid.
 ## Tests
 
 - Host: `emscripten/tests/drumkit_offline_test.cpp` (`pnpm run test:native`)
-- Unit: `src/__tests__/DrumKitEngine.test.ts`, `src/audio-worklets/__tests__/drumkitTriggerQueue.test.ts`
+- Unit: `src/__tests__/DrumKitEngine.test.ts`, `src/__tests__/drumkitTriggerQueue.test.ts`

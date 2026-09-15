@@ -63,17 +63,31 @@ describe('hasProphecyApi', () => {
 
 describe('hasDrumkitApi', () => {
   it('accepts normalized exports, not raw minified names', () => {
-    const create = () => 1;
-    const init = () => 1;
-    const process = () => 1;
-    const raw = { V: create, X: init, Y: process } as unknown as WebAssembly.Exports;
+    const fn = () => 1;
+    const raw = { V: fn, X: fn, Y: fn, S: fn, T: fn, C: fn } as unknown as WebAssembly.Exports;
     expect(hasDrumkitApi(raw as Record<string, unknown>)).toBe(false);
     const normalized = normalizeWasmExports(raw, {
       drumkit_create: 'V',
       drumkit_init: 'X',
+      drumkit_set_kit: 'S',
+      drumkit_trigger: 'T',
+      drumkit_choke_open_hat: 'C',
       drumkit_process: 'Y',
     });
     expect(hasDrumkitApi(normalized)).toBe(true);
+  });
+
+  it('rejects a module missing trigger or choke', () => {
+    const fn = () => 1;
+    const normalized = normalizeWasmExports(
+      { V: fn, X: fn, Y: fn } as unknown as WebAssembly.Exports,
+      {
+        drumkit_create: 'V',
+        drumkit_init: 'X',
+        drumkit_process: 'Y',
+      },
+    );
+    expect(hasDrumkitApi(normalized)).toBe(false);
   });
 });
 

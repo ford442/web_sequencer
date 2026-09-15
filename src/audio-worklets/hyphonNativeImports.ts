@@ -150,7 +150,9 @@ export const PROPHECY_REQUIRED_WASM_EXPORTS = [
 export const DRUMKIT_REQUIRED_WASM_EXPORTS = [
   'drumkit_create',
   'drumkit_init',
+  'drumkit_set_kit',
   'drumkit_trigger',
+  'drumkit_choke_open_hat',
   'drumkit_process',
 ] as const;
 
@@ -217,10 +219,8 @@ export function drumkitExportMapInsufficient(
 }
 
 export function hasDrumkitApi(exports: Record<string, unknown>): boolean {
-  return (
-    typeof exports.drumkit_create === 'function' &&
-    typeof exports.drumkit_init === 'function' &&
-    typeof exports.drumkit_process === 'function'
+  return DRUMKIT_REQUIRED_WASM_EXPORTS.every(
+    (name) => typeof exports[name] === 'function',
   );
 }
 

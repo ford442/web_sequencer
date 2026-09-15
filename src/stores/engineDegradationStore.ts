@@ -140,7 +140,7 @@ class EngineDegradationStore {
             status: 'active',
             activeBackend: 'js-fallback',
             requestedBackend,
-            retryable: category !== 'audio',
+            retryable: category !== 'audio' && subsystem !== 'drumkit',
         });
     }
 

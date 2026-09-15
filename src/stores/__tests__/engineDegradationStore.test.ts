@@ -73,6 +73,14 @@ describe('engineDegradationStore', () => {
         expect(issue?.requestedBackend).toBe('wasm');
     });
 
+    it('marks drumkit fallback as worklet but not retryable', () => {
+        engineDegradationStore.clear('drumkit');
+        engineDegradationStore.reportEngineFallback('drumkit', 'wasm-worklet', 'worklet URL missing');
+        const issue = engineDegradationStore.getIssue('drumkit');
+        expect(issue?.category).toBe('worklet');
+        expect(issue?.retryable).toBe(false);
+    });
+
     it('reports high-fid selection fallback (Phase-4)', () => {
         engineDegradationStore.clear('gpu-highfid-selection');
         engineDegradationStore.reportHighFidFallback({
