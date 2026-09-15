@@ -59,6 +59,9 @@ class Open303Processor extends AudioWorkletProcessor {
     private processErrorCount = 0;
     private allocationErrorCount = 0;
 
+    /** Set by 'dispose': handles are gone, process() lets the node be collected. */
+    private disposed = false;
+
     /** Params/engine messages received before the worklet reaches READY. */
     private pendingMessages: Array<{ type: string; data: any }> = [];
 
@@ -72,6 +75,17 @@ class Open303Processor extends AudioWorkletProcessor {
 
         if (type === 'init-wasm') {
             await this.session.initialize(data, () => this.flushPendingMessages());
+            return;
+        }
+
+        if (type === 'dispose') {
+            // The hyphon_native instance is shared by every voice in this audio
+            // session, so a dead node must hand its handles back explicitly —
+            // they are no longer freed with a per-processor heap.
+            this.disposed = true;
+            this.pendingMessages = [];
+            this.engineSelection.dispose();
+            this.session.dispose();
             return;
         }
 
@@ -259,6 +273,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
+        if (this.disposed) return false;
         const output = outputs[0];
         if (!output) return true;
 

@@ -22,15 +22,16 @@ export function parseExportMap(js) {
   //   _open303_destroy=Module["_open303_destroy"]=wasmExports["ea"];
   // Sometimes Emscripten output has spaces around the '=' operator:
   //   _open303_create = Module["_open303_create"] = wasmExports["open303_create"];
+  // The single-threaded glue (hyphon_native.st.js) emits single quotes instead:
+  //   _open303_create = Module['_open303_create'] = wasmExports['open303_create'];
   const patterns = [
-    /Module\["(_[^"]+)"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
-    /(_[a-zA-Z0-9_]+)\s*=\s*Module\["\1"\]\s*=\s*wasmExports\["([^"]+)"\]/g,
+    /Module\[(["'])(_[^"']+)\1\]\s*=\s*wasmExports\[(["'])([^"']+)\3\]/g,
   ];
 
   for (const re of patterns) {
     let match;
     while ((match = re.exec(js)) !== null) {
-      map[match[1].slice(1)] = match[2];
+      map[match[2].slice(1)] = match[4];
     }
   }
 

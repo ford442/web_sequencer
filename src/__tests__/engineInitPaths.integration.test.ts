@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseHyphonGlueExportMap } from '../utils/engineTelemetry';
+import { parseHyphonGlueExportMap, resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
 import { normalizeWasmExports } from '../audio-worklets/hyphonNativeImports';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
@@ -128,11 +128,20 @@ describe('Open303Oscillator.init export map wiring', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it('includes non-empty exportMap in init-wasm message', async () => {
-    const glue = readFileSync(join(repoRootPath, 'public/hyphon_native.js'), 'utf8');
+  // Both link profiles: the pthread build (crossOriginIsolated page) and the
+  // single-threaded one (forceSingleThreaded), each against its own real glue.
+  it.each([
+    { threading: 'pthread', glueFile: 'public/hyphon_native.js', config: undefined },
+    { threading: 'st', glueFile: 'public/hyphon_native.st.js', config: { forceSingleThreaded: true } },
+  ] as const)('includes non-empty exportMap in init-wasm message ($threading)', async ({ threading, glueFile, config }) => {
+    resetHyphonWasmExportMapCache();
+    vi.stubGlobal('crossOriginIsolated', true);
+    const glue = readFileSync(join(repoRootPath, glueFile), 'utf8');
     const exportMap = parseHyphonGlueExportMap(glue);
+    expect(Object.keys(exportMap).length).toBeGreaterThan(0);
 
     const mockWorkletNode = {
       port: {
@@ -154,23 +163,20 @@ describe('Open303Oscillator.init export map wiring', () => {
       configurable: true,
     });
 
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.includes('hyphon_native.wasm')) {
+    const suffix = threading === 'st' ? '.st' : '';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith(`hyphon_native${suffix}.wasm`)) {
         return { ok: true, arrayBuffer: async () => new ArrayBuffer(64) };
       }
-      if (url.includes('hyphon_wasm_export_map.json')) {
+      if (url.endsWith(`hyphon_wasm_export_map${suffix}.json`)) {
         return { ok: true, json: async () => exportMap };
       }
-      if (url.includes('hyphon_native.js')) {
+      if (url.endsWith(`hyphon_native${suffix}.js`)) {
         return { ok: true, text: async () => glue };
       }
-      if (url.includes('hyphon_wasm_export_map.json')) {
-        return { ok: true, json: async () => ({
-            "open303_create": "open303_create_mangled"
-        }) };
-      }
       return { ok: false, status: 404 };
-    }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     const mockModule = {} as WebAssembly.Module;
     vi.stubGlobal('WebAssembly', {
@@ -194,7 +200,9 @@ describe('Open303Oscillator.init export map wiring', () => {
     global.AudioWorkletNode = vi.fn(() => mockWorkletNode) as unknown as typeof AudioWorkletNode;
 
     const osc = new Open303Oscillator();
-    const ok = await osc.init(mockAudioContext, '/open303-processor.js');
+    await osc.init(mockAudioContext, '/open303-processor.js', config);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`hyphon_native${suffix.replace('.', '\\.')}\\.wasm$`)));
 
     // The promise might not resolve true if it's already initialized or if there was a problem.
     // Just assert that we called the port message as expected
@@ -202,6 +210,7 @@ describe('Open303Oscillator.init export map wiring', () => {
       expect.objectContaining({
         type: 'init-wasm',
         data: expect.objectContaining({
+          variant: threading,
           exportMap: expect.objectContaining({ open303_create: expect.any(String) }),
         }),
       }),

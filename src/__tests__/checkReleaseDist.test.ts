@@ -53,10 +53,22 @@ function section(id: number, payload: number[]): number[] {
     return [id, ...uleb(payload.length), ...payload];
 }
 
-/** A minimal valid module exporting `names` as no-op `() -> ()` functions. */
-function wasmExporting(names: readonly string[]): Buffer {
+function name(text: string): number[] {
+    const bytes = [...Buffer.from(text, 'utf8')];
+    return [...uleb(bytes.length), ...bytes];
+}
+
+/**
+ * A minimal valid module exporting `names` as no-op `() -> ()` functions,
+ * optionally importing `env.memory` (plain, or shared like a pthread build).
+ */
+function wasmExporting(names: readonly string[], memory: 'none' | 'plain' | 'shared' = 'none'): Buffer {
     const n = names.length;
     const types = section(1, [...uleb(1), 0x60, ...uleb(0), ...uleb(0)]);
+    const limits = memory === 'shared' ? [0x03, ...uleb(1), ...uleb(2)] : [0x00, ...uleb(1)];
+    const imports = memory === 'none'
+        ? []
+        : section(2, [...uleb(1), ...name('env'), ...name('memory'), 0x02, ...limits]);
     const funcs = section(3, [...uleb(n), ...names.map(() => 0)]);
     const exports = section(7, [
         ...uleb(n),
@@ -69,7 +81,7 @@ function wasmExporting(names: readonly string[]): Buffer {
     const code = section(10, [...uleb(n), ...names.flatMap(() => [...uleb(body.length), ...body])]);
     return Buffer.from([
         0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-        ...types, ...funcs, ...exports, ...code,
+        ...types, ...imports, ...funcs, ...exports, ...code,
     ]);
 }
 
@@ -80,15 +92,16 @@ interface DistOptions {
     wasmExports?: readonly string[];
     /** Export map written to the bundle. Defaults to an identity map. */
     exportMap?: Record<string, string>;
+    /** Memory import of hyphon_native.st.wasm. A pthread-style shared one must fail. */
+    stMemory?: 'plain' | 'shared';
 }
 
-function makeDist({ wasmExports, exportMap }: DistOptions = {}): string {
+function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
 
-    const required = MANIFEST.required;
-    const map = exportMap ?? Object.fromEntries(required.map((name) => [name, name]));
-    const binaryExports = wasmExports ?? required;
+    const map = exportMap ?? Object.fromEntries(MANIFEST.required.map((n) => [n, n]));
+    const binaryExports = wasmExports ?? MANIFEST.required;
 
     mkdirSync(join(dir, 'assets'), { recursive: true });
     writeFileSync(join(dir, 'native-artifacts.json'), '{}\n');
@@ -96,15 +109,24 @@ function makeDist({ wasmExports, exportMap }: DistOptions = {}): string {
         join(dir, 'assets', 'index.js'),
         WORKLETS.map((name) => `registerProcessor(${JSON.stringify(name)});`).join('\n'),
     );
-    writeFileSync(join(dir, 'hyphon_wasm_export_map.json'), JSON.stringify(map, null, 2));
     // Glue that declares the same names the map does, so only the binary differs.
-    writeFileSync(
-        join(dir, 'hyphon_native.js'),
+    // The single-threaded glue quotes with `'`, as Emscripten emits it.
+    const glue = (q: string) =>
         Object.entries(map)
-            .map(([bare, minified]) => `Module["_${bare}"]=wasmExports["${minified}"];`)
-            .join('\n'),
+            .map(([bare, minified]) => `Module[${q}_${bare}${q}] = wasmExports[${q}${minified}${q}];`)
+            .join('\n');
+    writeFileSync(join(dir, 'hyphon_wasm_export_map.json'), JSON.stringify(map, null, 2));
+    writeFileSync(join(dir, 'hyphon_native.js'), glue('"'));
+    writeFileSync(join(dir, 'hyphon_native.wasm'), wasmExporting(binaryExports, 'shared'));
+    // The single-threaded profile carries the full contract, the same map, plain memory.
+    const required = MANIFEST.required;
+    const stMap = Object.fromEntries(required.map((n) => [n, n]));
+    writeFileSync(join(dir, 'hyphon_wasm_export_map.st.json'), JSON.stringify(stMap, null, 2));
+    writeFileSync(
+        join(dir, 'hyphon_native.st.js'),
+        required.map((n) => `Module['_${n}'] = wasmExports['${n}'];`).join('\n'),
     );
-    writeFileSync(join(dir, 'hyphon_native.wasm'), wasmExporting(binaryExports));
+    writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
     return dir;
 }
 
@@ -183,5 +205,18 @@ describe('check-release-dist WASM export gate', () => {
 
         expect(result.status).toBe(1);
         expect(result.output).toContain('absent from dist/hyphon_native.wasm');
+    });
+
+    it('checks the single-threaded profile too', () => {
+        const result = runCheck(makeDist());
+        expect(result.output).toContain('hyphon_native.st.wasm: ');
+        expect(result.status).toBe(0);
+    });
+
+    it('rejects a single-threaded binary that imports shared memory', () => {
+        const result = runCheck(makeDist({ stMemory: 'shared' }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('hyphon_native.st.wasm is not a single-threaded build');
     });
 });

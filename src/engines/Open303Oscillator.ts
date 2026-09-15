@@ -16,7 +16,6 @@ import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
     engineTelemetry,
-    isAppleWebKit,
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
@@ -24,19 +23,15 @@ import {
 import { attachWorkletPerf } from '../utils/workletPerfBridge';
 import {
     formatMissingWasmExports,
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
     OPEN303_REQUIRED_WASM_EXPORTS,
     open303ExportMapInsufficient,
     wasmExportNameSnapshot,
+    type HyphonNativeArtifact,
 } from '../audio-worklets/hyphonNativeImports';
-// Open303 DSP lives inside hyphon_native.wasm (see emscripten/open303_wrapper.cpp,
-// integrated in commit aa4fc93). The standalone jc303-single.wasm artifact is gone.
-const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
-
-/** Minimum WebAssembly memory pages required by the threaded hyphon_native.wasm build.
- *  Derived from emscripten/wasm_memory_budget.json via hyphonNativeImports so the
- *  worklet, the engine and the emcc link flags cannot drift apart. */
-const OPEN303_MIN_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
+import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
+// Open303 DSP lives inside hyphon_native (see emscripten/open303_wrapper.cpp,
+// integrated in commit aa4fc93), built as a pthread and a single-threaded module;
+// resolveHyphonNativeArtifact picks one per audio context.
 
 /** Maximum milliseconds to wait for the Open303 worklet to signal readiness. */
 const OPEN303_INIT_TIMEOUT_MS = 8000;
@@ -83,9 +78,13 @@ export class Open303Oscillator {
     /** One refusal per overflow episode — the audio thread must not spam the log. */
     private pendingOverflowReported = false;
 
+    /**
+     * @param config `forceSingleThreaded` loads hyphon_native.st.wasm. Without it the
+     *   single-threaded build is still chosen on WebKit and on pages that are not
+     *   crossOriginIsolated; see resolveHyphonNativeArtifact.
+     */
     async init(audioContext: AudioContext, workletUrl?: string, config?: Open303Config): Promise<boolean> {
         this.audioContext = audioContext;
-        void config;
 
         // Create nodes
         this.outputNode = audioContext.createGain();
@@ -93,26 +92,16 @@ export class Open303Oscillator {
         this.gainNode.gain.value = 1.0;
         this.gainNode.connect(this.outputNode);
 
-        // Threaded hyphon_native.wasm aborts Playwright WebKit / Safari AudioWorklet
-        // (`emscripten_run_script` import + pthread). JS fallback keeps the rack up.
-        if (isAppleWebKit()) {
-            logEngineFallback(
-                'open303',
-                'wasm-worklet',
-                'threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet',
-            );
-            this.activateFallback();
-            return true;
-        }
-
         // Ensure AudioWorklet is supported and URL is provided
         if (audioContext.audioWorklet && workletUrl) {
             try {
-                console.log(`[Open303Oscillator] Fetching WASM: ${HYPHON_NATIVE_WASM_URL}`);
-                const wasmResponse = await fetch(HYPHON_NATIVE_WASM_URL);
+                const { artifact, reason } = resolveHyphonNativeArtifact(audioContext, config);
+                const wasmUrl = resolvePublicAsset(artifact.wasm);
+                console.log(`[Open303Oscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
+                const wasmResponse = await fetch(wasmUrl);
 
                 if (!wasmResponse.ok) {
-                    logEngineFallback('open303', 'wasm-worklet', `hyphon_native.wasm fetch HTTP ${wasmResponse.status} (${HYPHON_NATIVE_WASM_URL})`);
+                    logEngineFallback('open303', 'wasm-worklet', `${artifact.wasm} fetch HTTP ${wasmResponse.status} (${wasmUrl})`);
                     this.activateFallback();
                     return true;
                 }
@@ -120,8 +109,8 @@ export class Open303Oscillator {
                 const wasmBytes = await wasmResponse.arrayBuffer();
                 console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
-                const exportMap = await this.fetchExportMap(wasmBytes);
-                return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, true, exportMap);
+                const exportMap = await this.fetchExportMap(wasmBytes, artifact);
+                return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, artifact, exportMap);
 
             } catch (e) {
                 logEngineFallback('open303', 'wasm-worklet', 'init exception before worklet load', e);
@@ -143,10 +132,13 @@ export class Open303Oscillator {
      * Complete the worklet init given pre-fetched WASM bytes.
      * Extracted so that the native/legacy retry path can reuse it.
      */
-    private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
-        const map = await loadHyphonWasmExportMap();
-        const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
-        const glueUrl = resolvePublicAsset('hyphon_native.js');
+    private async fetchExportMap(
+        wasmBytes: ArrayBuffer,
+        artifact: HyphonNativeArtifact,
+    ): Promise<Record<string, string>> {
+        const map = await loadHyphonWasmExportMap(artifact.threading);
+        const mapUrl = resolvePublicAsset(artifact.exportMap);
+        const glueUrl = resolvePublicAsset(artifact.glue);
         const wasmModule = await WebAssembly.compile(wasmBytes);
         const rawExports = wasmExportNameSnapshot(wasmModule);
 
@@ -154,7 +146,7 @@ export class Open303Oscillator {
             logEngineFallback(
                 'open303',
                 'wasm-worklet',
-                `hyphon_wasm_export_map.json empty and glue parse found no exports ` +
+                `${artifact.exportMap} empty and glue parse found no exports ` +
                 `(tried ${mapUrl} and ${glueUrl}). ` +
                 formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
             );
@@ -177,7 +169,7 @@ export class Open303Oscillator {
         audioContext: AudioContext,
         workletUrl: string,
         wasmBytes: ArrayBuffer,
-        isNative: boolean,
+        artifact: HyphonNativeArtifact,
         exportMap: Record<string, string> = {}
     ): Promise<boolean> {
         try {
@@ -188,18 +180,13 @@ export class Open303Oscillator {
                 outputChannelCount: [2] // Request Stereo
             });
 
-            // Compile + introspect to detect threading before sending to worklet
-            const module = await WebAssembly.compile(wasmBytes);
-            const imports = WebAssembly.Module.imports(module);
-            const memoryImport = imports.find(i => i.kind === 'memory');
-            const isThreaded = memoryImport !== undefined;
-            const variant = isThreaded ? 'threaded' : 'single';
-
-            console.log(`[Open303Oscillator] WASM variant: ${variant}, native=${isNative}`);
-
-            // hyphon_native.wasm requires at least OPEN303_MIN_MEMORY_PAGES.
-            // Pass this as the floor so the worklet's createMemory() allocates enough.
-            const memoryPages = isThreaded ? OPEN303_MIN_MEMORY_PAGES : undefined;
+            // Both profiles import their memory, so the import table cannot tell them
+            // apart (WebAssembly.Module.imports() does not report `shared`). The
+            // selection is authoritative: it decides shared vs plain memory and the
+            // page floor from emscripten/wasm_memory_budget.json.
+            const isThreaded = artifact.sharedMemory;
+            const variant = artifact.threading;
+            console.log(`[Open303Oscillator] WASM variant: ${variant}`);
 
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
@@ -208,7 +195,7 @@ export class Open303Oscillator {
                     sampleRate: audioContext.sampleRate,
                     isThreaded,
                     variant,
-                    memoryPages,
+                    memoryPages: artifact.minMemoryPages,
                     exportMap,
                 }
             });
@@ -226,7 +213,8 @@ export class Open303Oscillator {
                 this.workletNode!.port.onmessage = (e) => {
                     if (e.data.type === 'ready') {
                         readyReceived = true;
-                        const backend = isNative ? 'wasm-native' : 'wasm';
+                        try { engineTelemetry.recordHyphonNativeHeap(e.data.heap); } catch (_) {}
+                        const backend = hyphonNativeBackendName(artifact.threading);
                         console.log(`[Open303] Engine Fully Operational (${backend})`);
                         try { engineTelemetry.registerResolution('jc303', backend, 'worklet-ready'); } catch (_) {}
                         resolve(true);
@@ -270,7 +258,7 @@ export class Open303Oscillator {
             this.applyModel303();
             this.applyAllParameters();
             this.flushPendingTriggers();
-            try { engineTelemetry.registerResolution('open303', isNative ? 'wasm-native' : 'wasm', 'worklet-ready'); } catch (_) {}
+            try { engineTelemetry.registerResolution('open303', hyphonNativeBackendName(artifact.threading), `worklet-ready (${artifact.wasm})`); } catch (_) {}
             return true;
 
         } catch (e) {
@@ -541,7 +529,9 @@ export class Open303Oscillator {
         const onMessage = (event: MessageEvent) => {
             const payload = event.data as { type?: string; data?: Record<string, unknown> } | null;
             if (!payload || typeof payload !== 'object') return;
-            if (payload.type === 'live-highfid-degraded') {
+            if (payload.type === 'hyphon-heap') {
+                try { engineTelemetry.recordHyphonNativeHeap(payload.data); } catch { /* telemetry optional */ }
+            } else if (payload.type === 'live-highfid-degraded') {
                 this.handleLiveHighFidFallback(
                     String(payload.data?.reason ?? 'CPU budget exceeded'),
                     typeof payload.data?.cpuPercent === 'number' ? payload.data.cpuPercent : null,
@@ -586,6 +576,9 @@ export class Open303Oscillator {
         this.detachStatusListener?.();
         this.detachStatusListener = null;
         if (this.workletNode) {
+            // hyphon_native is shared by every voice in the audio session: ask the
+            // processor to destroy its handles before the port goes away.
+            this.workletNode.port.postMessage({ type: 'dispose' });
             this.workletNode.disconnect();
             this.workletNode.port.close();
             this.workletNode = null;

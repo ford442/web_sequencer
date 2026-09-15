@@ -210,13 +210,20 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...open303Dsp.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
         fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
+        fileInput('tools/extract_wasm_export_map.mjs'),
+        fileInput('tools/check_hyphon_st_module.mjs'),
         fileInput(budgetRel),
       ],
+      // Two link profiles from one build (BUILD_NOTES#threading-profiles):
+      // pthread (shared memory) and single-threaded (.st, plain memory).
       outputs: [
         'public/hyphon_native.js',
         'public/hyphon_native.wasm',
         'public/hyphon_native.worker.js',
         'public/hyphon_wasm_export_map.json',
+        'public/hyphon_native.st.js',
+        'public/hyphon_native.st.wasm',
+        'public/hyphon_wasm_export_map.st.json',
       ],
       toolchain: 'emcc',
     },

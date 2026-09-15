@@ -250,3 +250,20 @@ describe('logEngineFallback', () => {
     expect(engineDegradationStore.getIssue('webgpu-test')?.activeBackend).toBe('js-fallback');
   });
 });
+
+describe('recordHyphonNativeHeap threading', () => {
+  it('names the hyphon_native build the audio session loaded', () => {
+    const t = new EngineTelemetry();
+    t.recordHyphonNativeHeap({ heapCount: 1, initialPages: 256, currentPages: 256, growEvents: 0, voices: 5, threading: 'st' });
+    expect(t.getRuntimeSnapshot().hyphonNativeHeap?.threading).toBe('st');
+    t.recordHyphonNativeHeap({ heapCount: 1, initialPages: 2048, currentPages: 2048, growEvents: 0, voices: 5, threading: 'bogus' });
+    expect(t.getRuntimeSnapshot().hyphonNativeHeap?.threading).toBe('unknown');
+  });
+
+  it('parses the single-quoted export assignments of the ST glue', () => {
+    const glue = "_open303_create = Module['_open303_create'] = wasmExports['open303_create'];\n" +
+      '_prophecy_init = Module["_prophecy_init"] = wasmExports["Fa"];';
+    expect(parseHyphonGlueExportMap(glue)).toEqual({ open303_create: 'open303_create', prophecy_init: 'Fa' });
+  });
+});
+
