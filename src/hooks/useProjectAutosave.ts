@@ -126,21 +126,26 @@ export function useProjectAutosave(deps: UseProjectAutosaveDeps): UseProjectAuto
 
     // Mark the session dirty once autosaving actually starts (there's
     // nothing to lose in a crash before that), clean again only when the
-    // page unloads gracefully. The sync flag is the authoritative signal
-    // (see its comment above); the async ProjectStore marker rides along
-    // best-effort.
+    // page actually unloads. The sync flag is the authoritative signal (see
+    // its comment above); the async ProjectStore marker rides along
+    // best-effort. pagehide also fires when the page enters the
+    // back-forward cache (event.persisted === true) — that's a suspend, not
+    // a teardown, and the same JS heap resumes on restore without this
+    // effect re-running, so marking clean there would hide a real crash
+    // that happens later while still bfcached. beforeunload is dropped
+    // entirely: it's redundant with pagehide and, unlike pagehide, disqualifies
+    // the page from bfcache eligibility in some browsers.
     useEffect(() => {
         if (!enabled || !isInitialized) return;
         writeCleanFlagSync(false);
-        const markClean = () => {
+        const handlePageHide = (event: PageTransitionEvent) => {
+            if (event.persisted) return;
             writeCleanFlagSync(true);
             void projectStore.markCleanShutdown(AUTOSAVE_PROJECT_ID);
         };
-        window.addEventListener('pagehide', markClean);
-        window.addEventListener('beforeunload', markClean);
+        window.addEventListener('pagehide', handlePageHide);
         return () => {
-            window.removeEventListener('pagehide', markClean);
-            window.removeEventListener('beforeunload', markClean);
+            window.removeEventListener('pagehide', handlePageHide);
         };
     }, [enabled, isInitialized]);
 
