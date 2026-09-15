@@ -182,7 +182,14 @@ VOICE_EXPORTS="[ \
     '_prophecy_note_off', \
     '_prophecy_all_notes_off', \
     '_prophecy_set_param', \
-    '_prophecy_process' \
+    '_prophecy_process', \
+    '_drumkit_create', \
+    '_drumkit_destroy', \
+    '_drumkit_init', \
+    '_drumkit_set_kit', \
+    '_drumkit_trigger', \
+    '_drumkit_choke_open_hat', \
+    '_drumkit_process' \
 ]"
 
 # Legacy single-instance jc303_* surface, appended only when compiled in.
@@ -324,6 +331,48 @@ build_profile st "$OUTPUT_ST_JS" "$ST_THREAD_FLAGS" "$ST_LINK_FLAGS" \
 # A single-threaded module must not import shared memory or spawn workers.
 node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"
 
-echo "Build successful! (profile=$BUILD_PROFILE, legacy_jc303=$HYPHON_LEGACY_JC303)"
-echo "Generated: public/hyphon_native.{js,wasm,worker.js} and public/hyphon_native.st.{js,wasm}"
-rm -rf "$TEMP_ROOT"
+# 4. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
+for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
+    compile_cpp "$f"
+done
+compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
+
+# 5. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
+compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
+
+# 6. Compile analog 808/909 drum kit (same module, new handles — one kit instance)
+compile_cpp "$SCRIPT_DIR/drumkit_wrapper.cpp"
+
+# 7. Compile Main
+compile_cpp "$SCRIPT_DIR/main.cpp"
+
+echo "Linking..."
+
+# Collect all object files
+OBJECTS=$(find "$TEMP_DIR" -name "*.o")
+
+em++ $OBJECTS "$SCRIPT_DIR/libomp.a" -o "$OUTPUT_JS" \
+  $LINK_FLAGS \
+  -s EXPORTED_FUNCTIONS="$EXPORTS"
+
+if [ $? -eq 0 ]; then
+    echo "Extracting WASM export name map for AudioWorklets..."
+    node "$REPO_ROOT/tools/extract_wasm_export_map.mjs" \
+        "$OUTPUT_JS" \
+        "$REPO_ROOT/public/hyphon_wasm_export_map.json"
+    echo "Validating export map against emscripten/wasm_export_manifest.json and the linked wasm..."
+    node "$REPO_ROOT/tools/check_wasm_export_map.mjs" \
+        --glue "$OUTPUT_JS" \
+        --wasm "${OUTPUT_JS%.js}.wasm"
+    # Emscripten 3.1.51 emits hyphon_native.worker.js; 6.x inlines pthread workers.
+    node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
+        --src-dir "$REPO_ROOT/public" \
+        --stem hyphon_native \
+        --dest "$REPO_ROOT/public/hyphon_native.worker.js"
+    echo "Build successful! (profile=$BUILD_PROFILE, legacy_jc303=$HYPHON_LEGACY_JC303)"
+    echo "Generated: public/hyphon_native.js (and .wasm/.worker.js)"
+    rm -rf "$TEMP_DIR"
+else
+    echo "Build failed."
+    exit 1
+fi

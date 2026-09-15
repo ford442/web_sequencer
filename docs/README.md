@@ -36,6 +36,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [GPU_HIGHFID_303.md](audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
 | [webgpu-session.md](audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred |
 | [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
+| [drumkit.md](audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, and Web Audio fallback |
 | [PLAYBACK_STABILITY.md](audio-engine/PLAYBACK_STABILITY.md) | Jitter thresholds, scheduler guards, and stress-test guidance for song-mode playback |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Design notes for the multisample generator |
 | [MULTISAMPLE_IMPLEMENTATION_SUMMARY.md](audio-engine/MULTISAMPLE_IMPLEMENTATION_SUMMARY.md) | Implementation summary for multisample generation |

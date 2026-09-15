@@ -123,7 +123,7 @@ class EngineDegradationStore {
     /** Bridge from logEngineFallback — maps subsystem strings to store entries. */
     reportEngineFallback(subsystem: string, requestedBackend: string, reason: string): void {
         const category: DegradationCategory =
-            subsystem.includes('worklet') || subsystem === 'open303' || subsystem === 'prophecy' || subsystem === 'singingVoice'
+            subsystem.includes('worklet') || subsystem === 'open303' || subsystem === 'prophecy' || subsystem === 'drumkit' || subsystem === 'singingVoice'
                 ? 'worklet'
                 : subsystem.includes('gpu') || subsystem === 'webgpu' || subsystem === 'gpu-knobs'
                   ? 'gpu'

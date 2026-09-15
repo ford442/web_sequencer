@@ -93,6 +93,7 @@ export interface EngineLifecycleUrls {
     sustainProcessorUrl: string;
     open303ProcessorUrl: string;
     prophecyProcessorUrl: string;
+    drumkitProcessorUrl: string;
 }
 
 export interface EngineLifecycleResult {
@@ -347,6 +348,19 @@ export async function initializeAudioContextAndEngines(
     refs.noiseBufferRef.current = createNoiseBuffer(context);
     refs.multisampleGeneratorRef.current = new MultisampleGenerator(context);
     refs.drumKitEngineRef.current = new DrumKitEngine(DEFAULT_DRUM_KIT);
+    const drumDest = refs.masterGainRef.current;
+    if (drumDest && urls.drumkitProcessorUrl) {
+        const drumReady = await refs.drumKitEngineRef.current.init(
+            context,
+            urls.drumkitProcessorUrl,
+            drumDest,
+        );
+        if (drumReady) {
+            try { engineTelemetry.registerResolution('drumkit', 'wasm-worklet', 'ready'); } catch { /* noop */ }
+        } else {
+            try { engineTelemetry.registerResolution('drumkit', 'webaudio', refs.drumKitEngineRef.current.fallbackReason ?? 'notReady'); } catch { /* noop */ }
+        }
+    }
 
     return { context, masterBusInput };
 }

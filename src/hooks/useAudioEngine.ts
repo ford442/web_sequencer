@@ -46,6 +46,7 @@ export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
+import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&url';
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
@@ -206,6 +207,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 sustainProcessorUrl,
                 open303ProcessorUrl,
                 prophecyProcessorUrl,
+                drumkitProcessorUrl,
             });
 
             liveContextRef.current = context;

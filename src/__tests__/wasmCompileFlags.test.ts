@@ -50,6 +50,7 @@ describe('-ffast-math audit', () => {
         'jc303_wrapper.cpp',
         'highfid303_wrapper.cpp',
         'prophecy_wrapper.cpp',
+        'drumkit_wrapper.cpp',
     ];
 
     it('is not a global compile flag', () => {

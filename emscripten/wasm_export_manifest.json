@@ -44,7 +44,14 @@
     "prophecy_note_off",
     "prophecy_all_notes_off",
     "prophecy_set_param",
-    "prophecy_process"
+    "prophecy_process",
+    "drumkit_create",
+    "drumkit_destroy",
+    "drumkit_init",
+    "drumkit_set_kit",
+    "drumkit_trigger",
+    "drumkit_choke_open_hat",
+    "drumkit_process"
   ],
   "optional": [
     "pthread_self",

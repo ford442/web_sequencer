@@ -1,7 +1,7 @@
 # WASM Build Notes
 
 Covers `public/hyphon_native.wasm` (Emscripten: Open303 / JC303 / Prophecy /
-HighFid303 / `audio_dsp`), `public/rubberband.wasm`, and the AssemblyScript
+HighFid303 / analog drumkit / `audio_dsp`), `public/rubberband.wasm`, and the AssemblyScript
 modules under `assembly/`.
 
 - [Build profiles](#build-profiles)
@@ -147,8 +147,7 @@ issue, not done here).
 ## Module split
 
 `hyphon_native.wasm` is the **voice** module: Open303, JC303, Prophecy,
-HighFid303 and `audio_dsp`. `hyphon_native.st.wasm` carries the same voices,
-without `audio_dsp` and `main()`. Rubber Band is in neither.
+HighFid303, analog drumkit, and `audio_dsp`. Rubber Band is **not** in it.
 
 ### Why Rubber Band moved out
 
@@ -219,6 +218,7 @@ in `createHyphonMemory()`, which now distinguishes "no SharedArrayBuffer" from
 | Stack (`STACK_SIZE`) | 8 MB | 8 MB | reserved; the 64 KB default is what the `__handle_stack_overflow` workaround in `open303-processor.ts` was fighting |
 | 3 × Open303 / JC303 voices | ~2 MB | ~4 MB | per-instance state + oversampled scratch |
 | Prophecy voice | ~1 MB | ~2 MB | |
+| Analog drumkit (one handle) | ~0.5 MB | ~1 MB | kick/snare/hats share the voice module |
 | ~~Rubber Band stretch (finer, stereo)~~ | — | — | **moved to its own module** — see [Module split](#module-split). It was ~12 MB steady / ~40 MB peak here, and the reason a stretch could grow the voice heap mid-playback. |
 | Offline/export scratch buffers | 0 | ~24 MB | `malloc`'d per render, freed after |
 | Headroom / allocator fragmentation | — | ~30 MB | |

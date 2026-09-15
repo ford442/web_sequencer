@@ -53,7 +53,7 @@
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
-- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp` (see `emscripten/build.sh`)
+- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp` (see `emscripten/build.sh`)
 - **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
 - **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
 - **Current routing**:
@@ -708,6 +708,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 - **High-fid 303 path**: [docs/audio-engine/303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) — offline CPU/GPU authenticity tier, fallback, FAQ (epic #972)
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
-- **JC-303 / Open303 / Prophecy wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`
+- **JC-303 / Open303 / Prophecy / drumkit wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`
+- **Analog drum kit**: [docs/audio-engine/drumkit.md](docs/audio-engine/drumkit.md)
 - **Emscripten**: https://emscripten.org/
 - **AssemblyScript**: https://www.assemblyscript.org/

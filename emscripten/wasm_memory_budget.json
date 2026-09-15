@@ -14,7 +14,7 @@
   "hyphonNative": {
     "$comment": [
       "Voices only, as of the Rubber Band split: Open303 / JC303 / Prophecy /",
-      "HighFid303 / audio_dsp. Rubber Band moved to its own module (see `rubberband`",
+      "HighFid303 / analog drumkit / audio_dsp. Rubber Band moved to its own module (see `rubberband`",
       "below), which removed the ~40 MB stretch transient from this heap. 128 MB is",
       "kept rather than tightened because the previous figure was an analytic budget,",
       "not a device capture — lower it only with a measurement."
