@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { swUpdateStore } from '../stores/swUpdateStore';
+import { swUpdateStore } from '@/stores/swUpdateStore';
 
 /**
  * Shown when the service worker registered in main.tsx finds a new release
@@ -11,7 +11,14 @@ import { swUpdateStore } from '../stores/swUpdateStore';
 export const UpdateAvailableToast: React.FC = React.memo(() => {
     const [applyUpdate, setApplyUpdate] = useState<(() => void) | null>(null);
 
-    useEffect(() => swUpdateStore.subscribe(setApplyUpdate), []);
+    useEffect(
+        // setState treats a bare function argument as an updater callback
+        // (prevState) => nextState, not "set the state to this function" —
+        // swUpdateStore publishes a function, so it must be wrapped or React
+        // invokes it immediately and stores its (undefined) return value.
+        () => swUpdateStore.subscribe((callback) => setApplyUpdate(() => callback)),
+        [],
+    );
 
     if (!applyUpdate) return null;
 

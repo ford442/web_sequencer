@@ -17,13 +17,13 @@
 // `requestPersistence()` asks the browser not to evict the origin under
 // storage pressure.
 
-import type { SavedSongData } from '../types';
+import type { SavedSongData } from '@/types';
 import {
     AUTOSAVE_KEY,
     loadSessionFromLocalStorage,
     clearSessionFromLocalStorage,
     type StorageBackend,
-} from '../utils/projectPersistence';
+} from '@/utils/projectPersistence';
 
 export const PROJECT_STORE_VERSION = 1;
 export const AUTOSAVE_PROJECT_ID = 'autosave';
@@ -161,11 +161,9 @@ class MemoryBackend implements ProjectFileBackend {
 const IDB_NAME = 'hyphon-project-store';
 const IDB_STORE = 'files';
 
-function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
+interface StoredRecord {
+    path: string;
+    bytes: Uint8Array;
 }
 
 class IdbBackend implements ProjectFileBackend {
@@ -189,41 +187,60 @@ class IdbBackend implements ProjectFileBackend {
         return this.dbPromise;
     }
 
-    private async store(mode: IDBTransactionMode): Promise<IDBObjectStore> {
+    /**
+     * Issues a single request against a fresh transaction's object store and
+     * resolves with its `.result` once the transaction actually commits
+     * (`oncomplete`), not merely once the request itself reports success. A
+     * request can succeed and then have its transaction abort (a quota
+     * error, another request in the same transaction failing); waiting for
+     * `oncomplete` is the only way to know the write is durable.
+     */
+    private async runRequest<T>(
+        mode: IDBTransactionMode,
+        fn: (store: IDBObjectStore) => IDBRequest<T>,
+    ): Promise<T> {
         const db = await this.db();
-        return db.transaction(IDB_STORE, mode).objectStore(IDB_STORE);
+        return new Promise<T>((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, mode);
+            let request: IDBRequest<T>;
+            try {
+                request = fn(tx.objectStore(IDB_STORE));
+            } catch (err) {
+                reject(err as Error);
+                return;
+            }
+            tx.oncomplete = () => resolve(request.result);
+            tx.onerror = () => reject(tx.error ?? request.error ?? new Error('IndexedDB transaction failed'));
+            tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+        });
     }
 
     async writeFile(path: string, data: Uint8Array | string): Promise<void> {
         const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-        const store = await this.store('readwrite');
-        await reqToPromise(store.put({ path, bytes }));
+        await this.runRequest('readwrite', (store) => store.put({ path, bytes } satisfies StoredRecord));
     }
     async readFile(path: string): Promise<Uint8Array | null> {
-        const store = await this.store('readonly');
-        const rec = await reqToPromise(
-            store.get(path) as IDBRequest<{ path: string; bytes: Uint8Array } | undefined>,
+        const rec = await this.runRequest(
+            'readonly',
+            (store) => store.get(path) as IDBRequest<StoredRecord | undefined>,
         );
-        return rec ? rec.bytes : null;
+        return rec?.bytes ?? null;
     }
     async readText(path: string): Promise<string | null> {
         const bytes = await this.readFile(path);
         return bytes ? new TextDecoder().decode(bytes) : null;
     }
     async exists(path: string): Promise<boolean> {
-        const store = await this.store('readonly');
-        const key = await reqToPromise(store.getKey(path));
+        const key = await this.runRequest('readonly', (store) => store.getKey(path));
         return key !== undefined;
     }
     async deleteFile(path: string): Promise<void> {
-        const store = await this.store('readwrite');
-        await reqToPromise(store.delete(path));
+        await this.runRequest('readwrite', (store) => store.delete(path));
     }
     async listDirs(dirPath: string): Promise<string[]> {
         const prefix = `${dirPath}/`;
-        const store = await this.store('readonly');
         const range = IDBKeyRange.bound(prefix, `${prefix}￿`);
-        const keys = await reqToPromise<IDBValidKey[]>(store.getAllKeys(range));
+        const keys = await this.runRequest('readonly', (store) => store.getAllKeys(range));
         const names = new Set<string>();
         for (const key of keys) {
             const seg = String(key).slice(prefix.length).split('/')[0];
@@ -233,10 +250,24 @@ class IdbBackend implements ProjectFileBackend {
     }
     async deleteDir(dirPath: string): Promise<void> {
         const prefix = `${dirPath}/`;
-        const store = await this.store('readwrite');
         const range = IDBKeyRange.bound(prefix, `${prefix}￿`);
-        const keys = await reqToPromise<IDBValidKey[]>(store.getAllKeys(range));
-        await Promise.all(keys.map((key) => reqToPromise(store.delete(key))));
+        const db = await this.db();
+        // getAllKeys() and every delete() it triggers are issued within one
+        // readwrite transaction, all synchronously inside getAllKeys'
+        // onsuccess handler — no `await` between them, so the transaction
+        // cannot go inactive mid-sequence (the classic IDB async/await
+        // pitfall this backend otherwise avoids by resolving on oncomplete).
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            const store = tx.objectStore(IDB_STORE);
+            const getKeysReq = store.getAllKeys(range);
+            getKeysReq.onsuccess = () => {
+                for (const key of getKeysReq.result) store.delete(key);
+            };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error ?? getKeysReq.error ?? new Error('deleteDir transaction failed'));
+            tx.onabort = () => reject(tx.error ?? new Error('deleteDir transaction aborted'));
+        });
     }
 }
 
@@ -464,11 +495,14 @@ export class ProjectStore {
                 backgroundImageMime,
                 backgroundImageUrl,
             };
-            await backend.writeFile(this.path(id, 'project.json'), JSON.stringify(stored));
-            // A save implies the session is mid-edit; only an explicit
-            // markCleanShutdown() flips this back to a clean state.
+            // Written *before* project.json: a save implies the session is
+            // mid-edit, and if the app dies between these two writes, the
+            // next boot should still see "dirty" rather than a stale "clean"
+            // from a previous, no-longer-accurate save. Only an explicit
+            // markCleanShutdown() flips this back.
             const dirtyMeta: ShutdownMeta = { clean: false, at: Date.now() };
             await backend.writeFile(this.path(id, 'shutdown.json'), JSON.stringify(dirtyMeta));
+            await backend.writeFile(this.path(id, 'project.json'), JSON.stringify(stored));
             return { ok: true };
         } catch (err) {
             return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -598,6 +632,9 @@ export class ProjectStore {
      * then clear the old key. No-op (but still clears the key) when a newer
      * OPFS/IndexedDB autosave already exists, so a stale localStorage blob
      * never clobbers fresher data. Returns true when a legacy payload was found.
+     * The localStorage key is cleared only once the data is durably migrated
+     * (or was already superseded) — never on a failed save, which would
+     * otherwise delete the only copy.
      */
     async migrateLegacyAutosave(storage?: StorageBackend): Promise<boolean> {
         const legacy = loadSessionFromLocalStorage(storage);
@@ -607,7 +644,10 @@ export class ProjectStore {
             void _av;
             void _sa;
             void _ss;
-            await this.saveProject(AUTOSAVE_PROJECT_ID, rest as SavedSongData);
+            const result = await this.saveProject(AUTOSAVE_PROJECT_ID, rest as SavedSongData);
+            if (!result.ok) {
+                throw new Error(result.error ?? 'Legacy autosave migration failed');
+            }
         }
         clearSessionFromLocalStorage(storage);
         return true;
