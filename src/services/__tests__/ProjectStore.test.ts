@@ -14,23 +14,25 @@ function makeMemoryBackend(): ProjectFileBackend {
     const files = new Map<string, Uint8Array>();
     return {
         kind: 'memory',
-        async writeFile(path, data) {
+        writeFile(path, data) {
             files.set(path, typeof data === 'string' ? new TextEncoder().encode(data) : data);
+            return Promise.resolve();
         },
-        async readFile(path) {
-            return files.get(path) ?? null;
+        readFile(path) {
+            return Promise.resolve(files.get(path) ?? null);
         },
-        async readText(path) {
+        readText(path) {
             const bytes = files.get(path);
-            return bytes ? new TextDecoder().decode(bytes) : null;
+            return Promise.resolve(bytes ? new TextDecoder().decode(bytes) : null);
         },
-        async exists(path) {
-            return files.has(path);
+        exists(path) {
+            return Promise.resolve(files.has(path));
         },
-        async deleteFile(path) {
+        deleteFile(path) {
             files.delete(path);
+            return Promise.resolve();
         },
-        async listDirs(dirPath) {
+        listDirs(dirPath) {
             const prefix = `${dirPath}/`;
             const names = new Set<string>();
             for (const key of files.keys()) {
@@ -38,13 +40,14 @@ function makeMemoryBackend(): ProjectFileBackend {
                 const seg = key.slice(prefix.length).split('/')[0];
                 if (seg) names.add(seg);
             }
-            return [...names];
+            return Promise.resolve([...names]);
         },
-        async deleteDir(dirPath) {
+        deleteDir(dirPath) {
             const prefix = `${dirPath}/`;
             for (const key of [...files.keys()]) {
                 if (key === dirPath || key.startsWith(prefix)) files.delete(key);
             }
+            return Promise.resolve();
         },
     };
 }

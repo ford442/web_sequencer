@@ -119,23 +119,25 @@ class MemoryBackend implements ProjectFileBackend {
     readonly kind = 'memory' as const;
     private files = new Map<string, Uint8Array>();
 
-    async writeFile(path: string, data: Uint8Array | string): Promise<void> {
+    writeFile(path: string, data: Uint8Array | string): Promise<void> {
         this.files.set(path, typeof data === 'string' ? new TextEncoder().encode(data) : data);
+        return Promise.resolve();
     }
-    async readFile(path: string): Promise<Uint8Array | null> {
-        return this.files.get(path) ?? null;
+    readFile(path: string): Promise<Uint8Array | null> {
+        return Promise.resolve(this.files.get(path) ?? null);
     }
-    async readText(path: string): Promise<string | null> {
+    readText(path: string): Promise<string | null> {
         const bytes = this.files.get(path);
-        return bytes ? new TextDecoder().decode(bytes) : null;
+        return Promise.resolve(bytes ? new TextDecoder().decode(bytes) : null);
     }
-    async exists(path: string): Promise<boolean> {
-        return this.files.has(path);
+    exists(path: string): Promise<boolean> {
+        return Promise.resolve(this.files.has(path));
     }
-    async deleteFile(path: string): Promise<void> {
+    deleteFile(path: string): Promise<void> {
         this.files.delete(path);
+        return Promise.resolve();
     }
-    async listDirs(dirPath: string): Promise<string[]> {
+    listDirs(dirPath: string): Promise<string[]> {
         const prefix = `${dirPath}/`;
         const names = new Set<string>();
         for (const key of this.files.keys()) {
@@ -143,13 +145,14 @@ class MemoryBackend implements ProjectFileBackend {
             const seg = key.slice(prefix.length).split('/')[0];
             if (seg) names.add(seg);
         }
-        return [...names];
+        return Promise.resolve([...names]);
     }
-    async deleteDir(dirPath: string): Promise<void> {
+    deleteDir(dirPath: string): Promise<void> {
         const prefix = `${dirPath}/`;
         for (const key of [...this.files.keys()]) {
             if (key === dirPath || key.startsWith(prefix)) this.files.delete(key);
         }
+        return Promise.resolve();
     }
 }
 
@@ -198,7 +201,9 @@ class IdbBackend implements ProjectFileBackend {
     }
     async readFile(path: string): Promise<Uint8Array | null> {
         const store = await this.store('readonly');
-        const rec = await reqToPromise<{ path: string; bytes: Uint8Array } | undefined>(store.get(path));
+        const rec = await reqToPromise(
+            store.get(path) as IDBRequest<{ path: string; bytes: Uint8Array } | undefined>,
+        );
         return rec ? rec.bytes : null;
     }
     async readText(path: string): Promise<string | null> {
