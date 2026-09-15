@@ -8,7 +8,13 @@ import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const outPath = process.argv[2] ?? 'perf-summary.json';
-const handoff = process.env.VITEST_PERF_SUMMARY;
+// `vitest.setup.perf.ts`'s afterAll hook writes real samples straight to this
+// same path (it also sets process.env.VITEST_PERF_SUMMARY, but that only
+// affects the vitest worker process, never this separate `node` invocation —
+// whether run as the second half of `test:perf` or as its own CI step). Default
+// the handoff to outPath so this script picks up what vitest already wrote
+// instead of clobbering it with an empty stub.
+const handoff = process.env.VITEST_PERF_SUMMARY ?? outPath;
 
 let summary = {
   collectedAt: new Date().toISOString(),
