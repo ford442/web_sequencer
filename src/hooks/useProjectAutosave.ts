@@ -6,13 +6,41 @@
 //     engine is initialized (sample decoding on restore needs it)
 //   - reports storage failures via engineDegradationStore, the pattern this
 //     repo already uses for degraded GPU/WASM/worklet subsystems
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SavedSongData } from '../types';
-import { projectStore, AUTOSAVE_PROJECT_ID, type ProjectFileBackend } from '../services/ProjectStore';
-import { engineDegradationStore } from '../stores/engineDegradationStore';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { SavedSongData } from '@/types';
+import { projectStore, AUTOSAVE_PROJECT_ID, type ProjectFileBackend } from '@/services/ProjectStore';
+import { engineDegradationStore } from '@/stores/engineDegradationStore';
 
 const AUTOSAVE_INTERVAL_MS = 8_000;
 const DEGRADATION_ID = 'project-store';
+
+// The durable OPFS/IndexedDB shutdown.json marker (ProjectStore.markCleanShutdown)
+// is written asynchronously, and browsers do not guarantee an async write
+// starts, let alone finishes, before a `pagehide`/`beforeunload` handler
+// returns — especially on mobile, where the page can be killed outright. A
+// crash marker that might not have landed isn't a crash marker. localStorage
+// writes are synchronous and reliably complete before unload, so it — not
+// the OPFS marker — decides `pendingRestore`; the OPFS marker is still kept
+// best-effort for cross-context consistency (ProjectStore.wasCleanShutdown
+// is also usable standalone, without this hook).
+const CLEAN_SHUTDOWN_FLAG_KEY = 'hyphon:autosave-clean-shutdown:v1';
+
+function readCleanFlagSync(): boolean | null {
+    try {
+        const raw = localStorage.getItem(CLEAN_SHUTDOWN_FLAG_KEY);
+        return raw === null ? null : raw === 'true';
+    } catch {
+        return null;
+    }
+}
+
+function writeCleanFlagSync(clean: boolean): void {
+    try {
+        localStorage.setItem(CLEAN_SHUTDOWN_FLAG_KEY, clean ? 'true' : 'false');
+    } catch {
+        /* best-effort — falls back to the async ProjectStore marker */
+    }
+}
 
 export interface UseProjectAutosaveDeps {
     getSongData: () => Promise<SavedSongData>;
@@ -48,7 +76,13 @@ function reportFailure(message: string, err: unknown): void {
 export function useProjectAutosave(deps: UseProjectAutosaveDeps): UseProjectAutosaveReturn {
     const { getSongData, isInitialized, enabled = true } = deps;
     const getSongDataRef = useRef(getSongData);
-    getSongDataRef.current = getSongData;
+    // Not a plain render-time assignment: React may discard or replay a
+    // render (StrictMode, concurrent features), and the interval/retry
+    // handler below must only ever see a getSongData from a render that
+    // actually committed.
+    useLayoutEffect(() => {
+        getSongDataRef.current = getSongData;
+    }, [getSongData]);
 
     const [pendingRestore, setPendingRestore] = useState(false);
     const [backend, setBackend] = useState<ProjectFileBackend['kind'] | null>(null);
@@ -64,7 +98,8 @@ export function useProjectAutosave(deps: UseProjectAutosaveDeps): UseProjectAuto
         void (async () => {
             try {
                 await projectStore.migrateLegacyAutosave();
-                const clean = await projectStore.wasCleanShutdown(AUTOSAVE_PROJECT_ID);
+                const syncFlag = readCleanFlagSync();
+                const clean = syncFlag !== null ? syncFlag : await projectStore.wasCleanShutdown(AUTOSAVE_PROJECT_ID);
                 if (!cancelled && clean === false) setPendingRestore(true);
                 void projectStore.requestPersistence();
                 const kind = await projectStore.backendKind();
@@ -89,11 +124,16 @@ export function useProjectAutosave(deps: UseProjectAutosaveDeps): UseProjectAuto
         });
     }, [enabled]);
 
-    // Mark the session dirty at boot (implicit: every saveProject() call also
-    // marks dirty) and clean again only when the page unloads gracefully.
+    // Mark the session dirty once autosaving actually starts (there's
+    // nothing to lose in a crash before that), clean again only when the
+    // page unloads gracefully. The sync flag is the authoritative signal
+    // (see its comment above); the async ProjectStore marker rides along
+    // best-effort.
     useEffect(() => {
-        if (!enabled) return;
+        if (!enabled || !isInitialized) return;
+        writeCleanFlagSync(false);
         const markClean = () => {
+            writeCleanFlagSync(true);
             void projectStore.markCleanShutdown(AUTOSAVE_PROJECT_ID);
         };
         window.addEventListener('pagehide', markClean);
@@ -102,7 +142,7 @@ export function useProjectAutosave(deps: UseProjectAutosaveDeps): UseProjectAuto
             window.removeEventListener('pagehide', markClean);
             window.removeEventListener('beforeunload', markClean);
         };
-    }, [enabled]);
+    }, [enabled, isInitialized]);
 
     // Periodic debounced save — includes embedded samples and background
     // image (content-addressed, deduplicated by ProjectStore), unlike the
