@@ -3,6 +3,7 @@
 // kit (kick/snare/CH/OH share C handles on that instance).
 
 import {
+    DRUMKIT_REQUIRED_WASM_EXPORTS,
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     buildHyphonWasmImports,
     formatMissingWasmExports,
@@ -161,11 +162,7 @@ class DrumkitProcessor extends AudioWorkletProcessor {
             if (!hasDrumkitApi(exp)) {
                 throw new Error(
                     '[Drumkit] drumkit_* API not found in WASM exports. ' +
-                    formatMissingWasmExports(instance.exports, [
-                        'drumkit_create',
-                        'drumkit_init',
-                        'drumkit_process',
-                    ]),
+                    formatMissingWasmExports(instance.exports, [...DRUMKIT_REQUIRED_WASM_EXPORTS]),
                 );
             }
 

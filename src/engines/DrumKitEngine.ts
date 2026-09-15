@@ -6,7 +6,7 @@
  * existing Web Audio oscillator kit remains the fallback (HUD reason, non-silent).
  */
 
-import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '../types';
+import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '@/types';
 import { KIT_CHARACTER, kitToNativeId, DRUMKIT_VOICE, type KitSynthCharacter } from './DrumKitCharacter';
 import {
     engineTelemetry,
@@ -14,14 +14,14 @@ import {
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
-} from '../utils/engineTelemetry';
+} from '@/utils/engineTelemetry';
 import {
     DRUMKIT_REQUIRED_WASM_EXPORTS,
     drumkitExportMapInsufficient,
     formatMissingWasmExports,
     HYPHON_NATIVE_MIN_MEMORY_PAGES,
     wasmExportNameSnapshot,
-} from '../audio-worklets/hyphonNativeImports';
+} from '@/audio-worklets/hyphonNativeImports';
 
 const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
@@ -84,7 +84,14 @@ export class DrumKitEngine {
     }
 
     try {
-      const response = await fetch(HYPHON_NATIVE_WASM_URL);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), DRUMKIT_INIT_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetch(HYPHON_NATIVE_WASM_URL, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (!response.ok) {
         this.useFallback(`hyphon_native.wasm fetch HTTP ${response.status} (${HYPHON_NATIVE_WASM_URL})`);
         return false;
@@ -93,7 +100,15 @@ export class DrumKitEngine {
       const exportMap = await this.fetchExportMap(wasmBytes);
       return this.initWithWasmBytes(audioContext, workletUrl, destination, wasmBytes, exportMap);
     } catch (e) {
-      this.useFallback('init exception before worklet load', e);
+      const aborted =
+        (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError') ||
+        (e instanceof Error && e.name === 'AbortError');
+      this.useFallback(
+        aborted
+          ? `hyphon_native.wasm fetch timeout (${DRUMKIT_INIT_TIMEOUT_MS}ms)`
+          : 'init exception before worklet load',
+        aborted ? undefined : e,
+      );
       return false;
     }
   }

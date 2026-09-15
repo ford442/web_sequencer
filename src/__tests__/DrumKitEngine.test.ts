@@ -5,13 +5,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { logEngineFallback } = vi.hoisted(() => ({ logEngineFallback: vi.fn() }));
 
-vi.mock('../utils/engineTelemetry', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../utils/engineTelemetry')>();
+vi.mock('@/utils/engineTelemetry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/engineTelemetry')>();
   return { ...actual, logEngineFallback };
 });
 
-import { DrumKitEngine } from '../engines/DrumKitEngine';
-import { DRUM_KIT_PRESETS, getDrumKitDefaults, PRESET_808, PRESET_909 } from '../engines/DrumKitPresets';
+import { DrumKitEngine } from '@/engines/DrumKitEngine';
+import { DRUM_KIT_PRESETS, getDrumKitDefaults, PRESET_808, PRESET_909 } from '@/engines/DrumKitPresets';
 
 function mockAudioGraph() {
   const gain = {

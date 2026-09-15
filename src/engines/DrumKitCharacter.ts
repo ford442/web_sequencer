@@ -3,7 +3,7 @@
  * Web Audio fallback. Keep in sync with emscripten/drumkit_wrapper.cpp.
  */
 
-import type { DrumKitType } from '../types';
+import type { DrumKitType } from '@/types';
 
 export const DRUMKIT_VOICE = {
   kick: 0,
