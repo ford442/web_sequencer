@@ -2,10 +2,12 @@
 
 ## Active Backlog
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
-- [ ] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
+- [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
 
 ## Innovation Lab
+- Implement phrase-based pitch transposition in Lyric Track.
+- Explore randomizing granular jitter based on note velocity.
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
