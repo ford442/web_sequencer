@@ -130,6 +130,31 @@ self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
+// Network conditions that never actually reject `fetch()` — a captive
+// portal, a silently dropped connection, or (observed in CI) Playwright's
+// CDP offline emulation not always propagating to a fetch() issued from the
+// worker's own thread — leave `fetch()` pending forever instead of
+// rejecting. Every network attempt below is bounded so a "fetch never
+// settles" condition still falls back to cache within a few seconds rather
+// than hanging the page (worst case: a permanently blank screen offline).
+const NETWORK_TIMEOUT_MS = 4000;
+
+function fetchWithTimeout(request, ms = NETWORK_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('sw: network timed out')), ms);
+    fetch(request).then(
+      (res) => {
+        clearTimeout(timer);
+        resolve(res);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 function isRuntimeCacheable(pathname) {
   if (RUNTIME_CACHE_PATTERNS.some((re) => re.test(pathname))) return true;
   return RUNTIME_CACHE_DIR_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -144,7 +169,7 @@ async function cacheFirst(event, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
-  const response = await fetch(request);
+  const response = await fetchWithTimeout(request);
   if (response && response.ok) {
     event.waitUntil(cache.put(request, withCorp(response.clone())));
   }
@@ -162,7 +187,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(request);
+          return await fetchWithTimeout(request);
         } catch {
           const cache = await caches.open(PRECACHE_NAME);
           return (await cache.match('./index.html')) ?? Response.error();
@@ -182,7 +207,7 @@ self.addEventListener('fetch', (event) => {
       }
 
       try {
-        return await fetch(request);
+        return await fetchWithTimeout(request);
       } catch (err) {
         const runtimeCached = await (await caches.open(RUNTIME_CACHE_NAME)).match(request);
         if (runtimeCached) return runtimeCached;
