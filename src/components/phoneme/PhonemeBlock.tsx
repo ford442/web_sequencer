@@ -129,7 +129,7 @@ export const PhonemeBlock = memo(({
             aria-label="Delete phoneme"
             tabIndex={tabIndex}
           >
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         )}
       </div>

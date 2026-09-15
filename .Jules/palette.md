@@ -76,3 +76,6 @@
 ## 2026-09-14 - Trap focus in LoadingOverlay
 **Learning:** The `LoadingOverlay` is a critical full-screen modal during initial load, but it lacked focus trapping, allowing keyboard navigation to access elements underneath it. Applying `useFocusTrap` to untrapped dialogs like `LoadingOverlay` is crucial for maintaining an accessible and expected modal experience.
 **Action:** Always ensure full-screen overlays with `role="dialog"` and `aria-modal="true"` implement `useFocusTrap` to prevent keyboard users from tabbing outside the modal content.
+## YYYY-MM-DD - Accessible Decorative Icons in Buttons
+**Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
+**Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
