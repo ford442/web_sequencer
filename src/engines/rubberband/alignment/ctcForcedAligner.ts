@@ -1,7 +1,11 @@
-import * as ort from 'onnxruntime-web';
+// `onnxruntime-web` is dynamically imported in ensureLoaded() so it never
+// lands in the entry chunk — only actually loading the wav2vec2 model pulls it in.
+import type * as ort from 'onnxruntime-web';
 import { g2pText, defaultPhonemeDurationWeights, isArpabetVowel, categorizePhoneme } from './g2p';
 import { forcedAlignCtc, resampleLinear } from './ctcViterbi';
 import type { AlignmentResult, PhonemeSegment, AlignPassOptions } from './types';
+
+type Ort = typeof ort;
 
 /** wav2vec2-base-960h character CTC labels (blank = `<pad>`). */
 export const WAV2VEC2_CTC_VOCAB = [
@@ -122,6 +126,7 @@ function splitTimeByWeights(
  */
 export class CtcForcedAligner {
   private session: ort.InferenceSession | null = null;
+  private ortMod: Ort | null = null;
   private loadAttempted = false;
   private loaded = false;
   private readonly modelUrl: string;
@@ -153,6 +158,8 @@ export class CtcForcedAligner {
     if (this.loadAttempted) return false;
     this.loadAttempted = true;
     try {
+      const ort = await import('onnxruntime-web');
+      this.ortMod = ort;
       const url = getAssetUrl(this.modelUrl);
       this.session = await ort.InferenceSession.create(url, {
         executionProviders: ['wasm'],
@@ -264,11 +271,11 @@ export class CtcForcedAligner {
 
   private async runOnnx(audio16k: Float32Array): Promise<CtcInferResult | null> {
     const session = this.session;
-    if (!session) return null;
+    if (!session || !this.ortMod) return null;
     const inputName = session.inputNames?.[0];
     const outputName = session.outputNames?.[0];
     if (!inputName || !outputName) return null;
-    const tensor = new ort.Tensor('float32', audio16k, [1, audio16k.length]);
+    const tensor = new this.ortMod.Tensor('float32', audio16k, [1, audio16k.length]);
     const out = await session.run({ [inputName]: tensor });
     const first = out[outputName];
     if (!first) return null;

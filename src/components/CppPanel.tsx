@@ -62,6 +62,8 @@ export const CppPanel: React.FC<CppPanelProps> = memo(({
           alt="CPP oscillator panel"
           className="block w-full h-auto select-none pointer-events-none"
           draggable={false}
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Live function readout */}

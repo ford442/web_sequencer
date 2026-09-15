@@ -18,7 +18,6 @@ import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 import { midiMapStore } from '../stores/midiMapStore';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
-import { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } from '../importers/rbs';
 import { applyPcfFilterToEffect, convert303Waveform } from '../importers/rbs/applyImportedEngineState';
 import type { RbsArrangementExtras } from './appState/useSongModeState';
 import { migrateSavedSongSession } from '../session/migrate';
@@ -431,6 +430,9 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
     const exportRbsToFile = useCallback(async () => {
         try {
+            // Dynamically imported so the ~9K-line RBS import/export surface
+            // never lands in the entry chunk — only an actual "Export RBS" click does.
+            const { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } = await import('../importers/rbs');
             const songData = await getSongData();
             const exporter = new RbsExporter();
             const song = hyphonSongFromSavedData(songData, {

@@ -26,6 +26,21 @@ export default mergeConfig(
     build: {
       rollupOptions: {
         external: ['loader.mjs'],
+        output: {
+          // react/react-dom change far less often than app code, so pin them to
+          // their own chunk for long-term browser caching across deploys.
+          // Everything else (three.js, onnxruntime-web, the RBS importer/exporter,
+          // XM export) is already reachable only via dynamic import() — Studio3D,
+          // the TTS/alignment services, and the route-split modals in App.tsx —
+          // so Rollup's default code-splitting already isolates them without
+          // help here; naming them explicitly would risk merging an async-only
+          // dep back into the eager graph.
+          manualChunks(id) {
+            if (/[/\\]node_modules[/\\](react|react-dom|scheduler)[/\\]/.test(id)) {
+              return 'vendor-react';
+            }
+          },
+        },
       },
       sourcemap:
         process.env.HYPHON_SOURCEMAP === 'hidden'

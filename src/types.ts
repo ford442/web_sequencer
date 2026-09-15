@@ -333,18 +333,18 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
   },
 };
 
-/** Hardware panel artwork in public/osc/ — one JPG per oscillator family. */
+/** Hardware panel artwork in public/osc/ — one WebP per oscillator family. */
 export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
-  javascript: '/osc/js.jpg',
-  pcm: '/osc/pcm.jpg',
-  open303: '/osc/open303.jpg',
-  jc303: '/osc/jc303.jpg',
-  prophecy: '/osc/prophecy.jpg',
-  pyodide: '/osc/pyodide.jpg',
-  rust: '/osc/rust.jpg',
-  webgpu: '/osc/webgpu.jpg',
-  wam: '/osc/wam.jpg',
-  cpp: '/osc/cpp.jpg',
+  javascript: '/osc/js.webp',
+  pcm: '/osc/pcm.webp',
+  open303: '/osc/open303.webp',
+  jc303: '/osc/jc303.webp',
+  prophecy: '/osc/prophecy.webp',
+  pyodide: '/osc/pyodide.webp',
+  rust: '/osc/rust.webp',
+  webgpu: '/osc/webgpu.webp',
+  wam: '/osc/wam.webp',
+  cpp: '/osc/cpp.webp',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */

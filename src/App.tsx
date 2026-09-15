@@ -10,16 +10,8 @@ import KeyboardNode from './components/appParts/KeyboardNode'
 
 import { BottomBar } from './components/BottomBar'
 import { AISongImportOverlay } from './components/AISongImportOverlay'
-import { CloudLibrary } from './components/CloudLibrary'
-import { AISongModal } from './components/AISongModal'
-import { RbsImportModal } from './components/RbsImportModal'
-import { ExportModal } from './components/ExportModal'
-import { VoiceEditor } from './components/VoiceEditor'
-import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { helpDiscoveryStore, useHelpDiscoveryStore } from './stores/helpDiscoveryStore'
 import { WhatsNewBanner } from './components/help/WhatsNewBanner'
-import { MidiMapPanel } from './components/MidiMapPanel'
-import { GamepadDebugger } from './components/GamepadDebugger'
 import { LyricTrack } from './components/LyricTrack'
 import { Toast } from './components/Toast'
 import { StartOverlay } from './components/StartOverlay'
@@ -37,9 +29,29 @@ import { engineDegradationStore } from './stores/engineDegradationStore'
 import { midiMapStore, useMidiMapStore } from './stores/midiMapStore'
 import { useA11yPlaybackAnnouncements } from './hooks/useA11yPlaybackAnnouncements'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
-import { VisualStyleShowcase } from './components/ui/VisualStyleShowcase'
 
+// Route-split: none of these render on first paint — each is behind a modal
+// toggle, a query-param dev view, or a 3D-mode switch — so keep them out of
+// the entry chunk and fetch on demand, same as Studio3D below.
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
+const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
+const CloudLibrary = lazy(() => import('./components/CloudLibrary').then(module => ({ default: module.CloudLibrary })));
+const AISongModal = lazy(() => import('./components/AISongModal').then(module => ({ default: module.AISongModal })));
+const RbsImportModal = lazy(() => import('./components/RbsImportModal').then(module => ({ default: module.RbsImportModal })));
+const ExportModal = lazy(() => import('./components/ExportModal').then(module => ({ default: module.ExportModal })));
+const VoiceEditor = lazy(() => import('./components/VoiceEditor').then(module => ({ default: module.VoiceEditor })));
+const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then(module => ({ default: module.ShortcutsHelp })));
+const MidiMapPanel = lazy(() => import('./components/MidiMapPanel').then(module => ({ default: module.MidiMapPanel })));
+const GamepadDebugger = lazy(() => import('./components/GamepadDebugger').then(module => ({ default: module.GamepadDebugger })));
+
+/** Shared fallback for the small modal/panel Suspense boundaries below — the
+ * dynamic import is typically already warm from a hover/click, so this is
+ * rarely visible for more than a frame. */
+const ModalLoadingFallback = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="font-mono text-xs uppercase tracking-widest text-cyan-400 animate-pulse">Loading…</div>
+    </div>
+);
 
 export const App: React.FC = () => {
     const state = useAppStateContext();
@@ -141,7 +153,11 @@ export const App: React.FC = () => {
         && new URLSearchParams(location.search).has('visual-review');
 
     if (showVisualReview) {
-        return <VisualStyleShowcase />;
+        return (
+            <Suspense fallback={null}>
+                <VisualStyleShowcase />
+            </Suspense>
+        );
     }
 
     if (is3DMode) {
@@ -192,30 +208,62 @@ export const App: React.FC = () => {
                 showToast={showToast}
             />
 
-            <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={(...args) => void loadCloudData(...args)} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
-            <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} />
-            <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
-            <ExportModal
-                isOpen={isExportModalOpen}
-                onClose={() => setIsExportModalOpen(false)}
-                onShowToast={showToast}
-                songStructure={songStructure}
-                trackStorage={trackStorage}
-                currentPattern={pattern}
-                tempo={tempo}
-                params={{ synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler }}
-                engines={{
-                    webGpuEngine: audioEngine?.webGpuEngine,
-                    wasmEngine: audioEngine?.wasmEngine,
-                    pyodide,
-                }}
-                sampleBuffers={sampleBuffers}
-                preferredSampleRate={audioEngine?.context?.sampleRate}
-            />
-            {isVoiceEditorOpen && (<VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />)}
-            {showHelpModal && (<ShortcutsHelp onClose={closeHelpModal} />)}
-            {showGamepadDebug && (<GamepadDebugger onClose={() => setShowGamepadDebug(false)} />)}
-            {isMidiMapPanelOpen && (<MidiMapPanel onClose={() => midiMapStore.setPanelOpen(false)} />)}
+            {isCloudLibraryOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={(...args) => void loadCloudData(...args)} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
+                </Suspense>
+            )}
+            {isAISongModalOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} />
+                </Suspense>
+            )}
+            {isRbsImportModalOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
+                </Suspense>
+            )}
+            {isExportModalOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <ExportModal
+                        isOpen={isExportModalOpen}
+                        onClose={() => setIsExportModalOpen(false)}
+                        onShowToast={showToast}
+                        songStructure={songStructure}
+                        trackStorage={trackStorage}
+                        currentPattern={pattern}
+                        tempo={tempo}
+                        params={{ synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler }}
+                        engines={{
+                            webGpuEngine: audioEngine?.webGpuEngine,
+                            wasmEngine: audioEngine?.wasmEngine,
+                            pyodide,
+                        }}
+                        sampleBuffers={sampleBuffers}
+                        preferredSampleRate={audioEngine?.context?.sampleRate}
+                    />
+                </Suspense>
+            )}
+            {isVoiceEditorOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />
+                </Suspense>
+            )}
+            {showHelpModal && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <ShortcutsHelp onClose={closeHelpModal} />
+                </Suspense>
+            )}
+            {showGamepadDebug && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <GamepadDebugger onClose={() => setShowGamepadDebug(false)} />
+                </Suspense>
+            )}
+            {isMidiMapPanelOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <MidiMapPanel onClose={() => midiMapStore.setPanelOpen(false)} />
+                </Suspense>
+            )}
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 

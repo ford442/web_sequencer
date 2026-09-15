@@ -1,5 +1,81 @@
 # Performance Budget & Auto-Degrade Order
 
+## Bundle-size budget
+
+Enforced by `scripts/check-release-dist.mjs` (part of `build:release`) against
+`dist-budget.json`. Scoped to **`dist/assets/`** — the directory Vite's bundler
+actually controls — not all of `dist/`:
+
+| What's excluded | Why |
+|---|---|
+| `hyphon_native*`, `jc303*`, `rubberband.wasm`, `*.wav` (dist root) | Vendored native-build/audio artifacts copied from `public/`, outside Vite's bundling |
+| `dist/pyodide/` (~75 MB) | Vendored CPython/WASM runtime for the Pyodide oscillator engine; a fixed cost unrelated to app code splitting |
+| any `*.wasm` inside `dist/assets/` (incl. `ort-wasm-simd-threaded.jsep-*.wasm`, ~24 MB) | Runtime-fetched by `onnxruntime-web` on first TTS use, or by the AssemblyScript oscillators — not part of what every visitor downloads on load |
+
+| Budget | Value | Measured (2026-09-15) |
+|---|---|---|
+| Entry chunk (`dist/index.html`'s `<script type="module">`) | < 1.65 MB raw | ~1.50 MB |
+| Any single image asset (png/jpg/gif/webp/avif, anywhere in `dist/`) | < 512 KB | 31.7 KB (`knob-bezel.webp`) |
+| `dist/assets/` total, excluding `.wasm` | < 4.4 MB | ~4.06 MB |
+
+`build:release` fails with the offending asset(s) and sizes when a budget is
+exceeded, plus the ten largest `dist/assets/` files for context.
+
+### How the entry chunk got from 2.75 MB to ~1.5 MB
+
+- `vite.config.ts` pins `react`/`react-dom`/`scheduler` to their own
+  `vendor-react` chunk (long-term cache stability across deploys).
+- `three`/`@react-three/*` were already isolated automatically — nothing
+  outside `Studio3D.tsx` imports `three`, and `Studio3D` is the app's one
+  `React.lazy()` split point.
+- `onnxruntime-web` (`src/services/Supertonic.ts`,
+  `src/engines/rubberband/alignment/ctcForcedAligner.ts`) now loads via a
+  dynamic `import()` on first actual use instead of a static top-level
+  import, so Rollup gives it its own async chunk (`ort.bundle.min-*.js`,
+  ~575 KB) instead of folding it into the entry.
+- The RBS import/export surface (`src/importers/rbs/**`, ~9K lines) is no
+  longer statically imported from `useSongStorage.ts`; `exportRbsToFile()`
+  dynamically imports it, and `RbsImportModal` (which does its own static
+  import of the parser) is now behind `React.lazy()`.
+- The AI-song importer is reachable only from `useAISongModal.ts`, so making
+  `AISongModal` lazy already isolated it — no source change needed there.
+- `xmExport.ts`/`xm_save_lib/**` (XM export) is now dynamically imported
+  inside `handleExportXM()` instead of statically imported by
+  `useSongHandlers.ts`.
+- `CloudLibrary`, `AISongModal`, `RbsImportModal`, `ExportModal`,
+  `VoiceEditor`, `ShortcutsHelp`, `MidiMapPanel`, `GamepadDebugger`, and the
+  `?visual-review` dev view are all `React.lazy()` + `Suspense` in
+  `src/App.tsx`, mounted only while their `isOpen`/toggle condition is true
+  (matching the unmount-on-close pattern those components already used) so
+  the dynamic `import()` fires on first open, not on app boot.
+
+**Gap to the aspirational 900 KB entry target:** not closed. The remaining
+~1.5 MB is core, always-visible sequencer/synth-panel UI and engine code
+(`PhonemePainter`, `SamplerVoicePanel`, the `note-selector/Synth*Effects`
+panels, `HardwareKnob`/`KnobGPUContext`, `Open303Manager`, etc.) — a long
+tail of legitimately-core modules, not one droppable outlier. Closing the
+rest of the gap needs component-level work (e.g. lazy-loading inactive
+`note-selector` effect tabs), not another import-graph fix, and was left for
+a follow-up.
+
+### Image assets
+
+`src/components/assets/knob-bezel.png` (860 KB) and `public/osc/*.jpg`
+(~2.6 MB total) were converted to WebP (`knob-bezel.webp` 31.7 KB;
+`public/osc/*.webp` ~530 KB total) — visually lossless at their display
+size. `CppPanel.tsx`'s `<img>` also got `loading="lazy" decoding="async"`.
+Note: only `OSCILLATOR_PANEL_IMAGES.cpp` is actually referenced from code —
+the other eight `public/osc/*.webp` entries (plus the unreferenced
+`dwgs.webp`) are dead weight shipped either way; left in place since
+deleting unreferenced assets was out of scope here.
+
+### Source maps
+
+`vite.config.ts`'s `build.sourcemap` already defaults to `false` (opt in via
+`HYPHON_SOURCEMAP=1`/`'hidden'`) — no change needed for this pass.
+
+---
+
 Hyphon monitors per-worklet `process()` wall time on the audio rendering thread and
 aggregates a **master budget** (% of each 128-sample quantum consumed across all
 instrumented worklets). When the budget exceeds **80%**, features are disabled in a

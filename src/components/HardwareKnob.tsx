@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
-import bezelImg from './assets/knob-bezel.png';
+import bezelImg from './assets/knob-bezel.webp';
 import { KnobGPUContext } from './KnobGPUContext';
 import type { KnobMaterial } from './knobMaterial';
 import {

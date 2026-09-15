@@ -1,13 +1,27 @@
-import * as ort from 'onnxruntime-web';
+// `onnxruntime-web` is dynamically imported on first use (see loadOrt()) so it
+// never lands in the entry chunk — only Supertonic.init() (post user-gesture
+// "start" click, see useAppState.handleStart) pulls it in.
+import type * as ort from 'onnxruntime-web';
 
-// OPTIMIZATION 1: WASM Configuration (Fallback)
-// If WebGPU fails, we want WASM to use more threads, not just 1.
-// We set it to roughly half the logical cores to prevent UI freezing.
-const numThreads = typeof navigator !== 'undefined' ? Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)) : 1;
+type Ort = typeof ort;
+let ortPromise: Promise<Ort> | null = null;
 
-ort.env.wasm.numThreads = numThreads;
-ort.env.wasm.simd = true; // Ensure SIMD is enabled
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
+function loadOrt(): Promise<Ort> {
+    if (!ortPromise) {
+        ortPromise = import('onnxruntime-web').then((mod) => {
+            // OPTIMIZATION 1: WASM Configuration (Fallback)
+            // If WebGPU fails, we want WASM to use more threads, not just 1.
+            // We set it to roughly half the logical cores to prevent UI freezing.
+            const numThreads = typeof navigator !== 'undefined' ? Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)) : 1;
+
+            mod.env.wasm.numThreads = numThreads;
+            mod.env.wasm.simd = true; // Ensure SIMD is enabled
+            mod.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
+            return mod;
+        });
+    }
+    return ortPromise;
+}
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
@@ -86,6 +100,7 @@ interface TTSConfig {
 export class SupertonicService {
     private static instance: SupertonicService;
     private isReady = false;
+    private ortMod: Ort | null = null;
     private models: Models = {};
     private textProcessor: UnicodeProcessor | null = null;
     private cfgs: TTSConfig | null = null;
@@ -106,6 +121,9 @@ export class SupertonicService {
     async init() {
         if (this.isReady) return;
         try {
+            const ort = await loadOrt();
+            this.ortMod = ort;
+
             console.log("Supertonic: Loading Config...");
 
             // Helper to handle relative paths correctly in deployment
@@ -173,6 +191,9 @@ export class SupertonicService {
     }
 
     async loadStyle(url: string) {
+        const ort = this.ortMod ?? await loadOrt();
+        this.ortMod = ort;
+
         const res = await fetch(url);
         const json: StyleData = await res.json();
 
@@ -246,6 +267,11 @@ export class SupertonicService {
 
         if (!this.models.dp || !this.models.textEnc || !this.models.vecEst || !this.models.vocoder) {
             throw new Error("Models not loaded");
+        }
+
+        const ort = this.ortMod;
+        if (!ort) {
+            throw new Error("Supertonic service not ready.");
         }
 
         // 1. Process Text
@@ -337,7 +363,8 @@ export class SupertonicService {
     }
 
     updateStyleFromRaw(ttlData: Float32Array, dpData: Float32Array, ttlDims: number[], dpDims: number[]) {
-        if (!this.isReady) return;
+        if (!this.isReady || !this.ortMod) return;
+        const ort = this.ortMod;
 
         const ttlTensor = new ort.Tensor('float32', ttlData, ttlDims);
         const dpTensor = new ort.Tensor('float32', dpData, dpDims);

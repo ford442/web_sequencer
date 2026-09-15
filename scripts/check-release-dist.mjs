@@ -272,6 +272,72 @@ if (rawTsInDist.length) {
   process.exit(1);
 }
 
+// Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
+// dist/assets/ — the directory Vite's bundler actually controls. Vendored
+// native binaries (hyphon_native*, jc303*, rubberband.wasm) and the vendored
+// Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
+// here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
+// .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by
+// onnxruntime-web on first TTS use, not part of what ships to every visitor.
+const budgetPath = path.join(repoRoot, 'dist-budget.json');
+if (fs.existsSync(budgetPath)) {
+  const budget = JSON.parse(fs.readFileSync(budgetPath, 'utf8'));
+  const budgetFailures = [];
+
+  const indexHtml = fs.existsSync(indexHtmlPath) ? fs.readFileSync(indexHtmlPath, 'utf8') : '';
+  const entrySrc = indexHtml.match(/<script[^>]*\stype=["']module["'][^>]*\ssrc=["']([^"']+)["']/i)?.[1];
+  if (entrySrc) {
+    const entryPath = path.join(distDir, entrySrc.replace(/^\.\//, ''));
+    if (fs.existsSync(entryPath)) {
+      const entrySize = fs.statSync(entryPath).size;
+      if (entrySize > budget.entryChunkMaxBytes) {
+        budgetFailures.push(
+          `entry chunk ${path.relative(distDir, entryPath)} is ${entrySize.toLocaleString()} B, ` +
+          `over budget of ${budget.entryChunkMaxBytes.toLocaleString()} B`,
+        );
+      }
+    }
+  }
+
+  const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif']);
+  const allDistFiles = walk(distDir);
+  for (const p of allDistFiles) {
+    if (IMAGE_EXTENSIONS.has(path.extname(p).toLowerCase())) {
+      const size = fs.statSync(p).size;
+      if (size > budget.imageAssetMaxBytes) {
+        budgetFailures.push(
+          `image asset ${path.relative(distDir, p)} is ${size.toLocaleString()} B, ` +
+          `over budget of ${budget.imageAssetMaxBytes.toLocaleString()} B`,
+        );
+      }
+    }
+  }
+
+  const assetsDir = path.join(distDir, 'assets');
+  if (fs.existsSync(assetsDir)) {
+    const excludeExts = new Set(budget.assetsDirExcludeExtensions ?? []);
+    const assetFiles = walk(assetsDir).filter((p) => !excludeExts.has(path.extname(p).toLowerCase()));
+    const assetSizes = assetFiles.map((p) => ({ path: p, size: fs.statSync(p).size }));
+    const assetsTotal = assetSizes.reduce((sum, f) => sum + f.size, 0);
+    if (assetsTotal > budget.assetsDirMaxBytes) {
+      budgetFailures.push(
+        `dist/assets total (excluding ${[...excludeExts].join(', ') || 'nothing'}) is ` +
+        `${assetsTotal.toLocaleString()} B, over budget of ${budget.assetsDirMaxBytes.toLocaleString()} B`,
+      );
+      console.error('[check-release-dist] largest dist/assets files:');
+      for (const f of assetSizes.sort((a, b) => b.size - a.size).slice(0, 10)) {
+        console.error(`  ${f.size.toLocaleString()} B  ${path.relative(distDir, f.path)}`);
+      }
+    }
+  }
+
+  if (budgetFailures.length) {
+    console.error('[check-release-dist] bundle-size budget exceeded (dist-budget.json):');
+    for (const msg of budgetFailures) console.error(`  ${msg}`);
+    process.exit(1);
+  }
+}
+
 const wasmSummary = profileResults
   .map((r, i) => `${HYPHON_PROFILES[i].wasm}: ${r.mapKeys} WASM export(s), ${r.required} resolved in the binary`)
   .join('; ');

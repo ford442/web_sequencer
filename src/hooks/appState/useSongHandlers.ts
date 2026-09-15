@@ -1,5 +1,4 @@
 import { useCallback } from 'react'
-import { exportSongToXM } from '../../utils/xmExport'
 import type { AudioEngine, Pattern, PartSequence, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
 import type { TrackKey, SongSnapshot } from '../../constants/appDefaults'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
@@ -62,7 +61,9 @@ export function useSongHandlers(deps: {
     }, [songStructure, setSongStructure]);
 
     const handleExportXM = useCallback(() => {
-        void exportSongToXM(
+        // Dynamically imported so the XM writer (xm_save_lib) never lands in the
+        // entry chunk — only an actual "Export XM" click does.
+        void import('../../utils/xmExport').then(({ exportSongToXM }) => exportSongToXM(
             songStructureRef.current,
             trackStorageRef.current,
             {
@@ -79,7 +80,7 @@ export function useSongHandlers(deps: {
             patternRef.current,
             { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide },
             sampleBuffers,
-        ).then(result => {
+        )).then(result => {
             // The .xm still downloaded; surface anything the format could not hold.
             if (result.truncationMessage) showToast(result.truncationMessage, 'error');
         }).catch((e: unknown) => {

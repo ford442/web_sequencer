@@ -1,0 +1,7 @@
+{
+  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Scoped to dist/assets/ (the Vite-built JS/CSS/image graph) — vendored native binaries (hyphon_native*, jc303*, rubberband.wasm), sample .wav files, and the vendored Pyodide runtime (dist/pyodide/) live outside Vite's bundler and are not part of this budget. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
+  "entryChunkMaxBytes": 1650000,
+  "imageAssetMaxBytes": 524288,
+  "assetsDirMaxBytes": 4400000,
+  "assetsDirExcludeExtensions": [".wasm"]
+}
