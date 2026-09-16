@@ -6,23 +6,25 @@ import type { TrackKey } from '../../constants/appDefaults'
 import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/PhonemeAligner'
 import { updateSamplerRange } from './patternUpdates'
 
+const NOTE_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_TO_SHARP: Record<string, string> = {
+    'DB': 'C#', 'EB': 'D#', 'GB': 'F#', 'AB': 'G#', 'BB': 'A#'
+};
+const NOTE_REGEX = /^([A-G][#b]?)([0-9])$/i;
+
 const transposeNote = (note: string, semitones: number): string => {
     if (semitones === 0) return note;
-    const noteMap = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const regex = /^([A-G][#b]?)([0-9])$/i;
-    const match = note.match(regex);
+
+    const match = note.match(NOTE_REGEX);
     if (!match) return note;
 
-    let [_, noteName, octaveStr] = match;
-    noteName = noteName.toUpperCase();
+    const [, noteNameMatch, octaveStr] = match;
+    let noteName = noteNameMatch.toUpperCase();
     let octave = parseInt(octaveStr, 10);
 
-    const flatToSharp: Record<string, string> = {
-        'DB': 'C#', 'EB': 'D#', 'GB': 'F#', 'AB': 'G#', 'BB': 'A#'
-    };
-    if (flatToSharp[noteName]) noteName = flatToSharp[noteName];
+    if (FLAT_TO_SHARP[noteName]) noteName = FLAT_TO_SHARP[noteName];
 
-    let index = noteMap.indexOf(noteName);
+    let index = NOTE_MAP.indexOf(noteName);
     if (index === -1) return note;
 
     index += semitones;
@@ -36,7 +38,7 @@ const transposeNote = (note: string, semitones: number): string => {
         octave--;
     }
 
-    return `${noteMap[index]}${octave}`;
+    return `${NOTE_MAP[index]}${octave}`;
 };
 
 export function useLyricHandlers(deps: {
