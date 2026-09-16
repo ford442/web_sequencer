@@ -41,16 +41,20 @@ const RUNTIME_CACHE_NAME = `hyphon-runtime-${BUILD_ID}`;
 const MANIFEST_URL = './precache-manifest.json';
 const SHELL_URLS = ['./', './index.html', './manifest.webmanifest', './precache-manifest.json'];
 
+// Resolve a public/-relative path against this worker's own scope, not the
+// origin root — a deployment under a subdirectory (docs/deployment/
+// DEPLOYMENT_CONFIG.md's `/hyphon/`) registers this worker with a scope of
+// `/hyphon/`, so a root-relative pattern like `^/pyodide/` would never match
+// the real request path `/hyphon/pyodide/...`.
+function scopedPath(path) {
+  return new URL(path, self.registration.scope).pathname;
+}
+
+const RUNTIME_CACHE_DIR_PREFIXES = ['pyodide/', 'wam/', 'osc/'].map(scopedPath);
+
 // Same-origin paths cached opportunistically (first fetch wins), never
 // eagerly precached — matched against the request URL's pathname.
-const RUNTIME_CACHE_PATTERNS = [
-  /hyphon_native.*\.(wasm|js)$/,
-  /\.wasm$/,
-  /^\/pyodide\//,
-  /^\/wam\//,
-  /^\/osc\//,
-  /\.(wav|mp3)$/,
-];
+const RUNTIME_CACHE_PATTERNS = [/hyphon_native.*\.(wasm|js)$/, /\.wasm$/, /\.(wav|mp3)$/];
 
 function withCorp(response) {
   if (!response || !response.ok) return response;
@@ -81,16 +85,27 @@ async function precacheShell() {
     console.warn('[sw] could not fetch precache-manifest.json, using static shell list', err);
   }
 
+  // A partial shell would leave the worker serving a page that 404s some of
+  // its own JS/CSS offline, so a failure on any required entry fails the
+  // whole install — the browser then keeps the previous worker (or none) in
+  // control and retries this install on the next registration/update check,
+  // rather than activating with holes in the shell.
+  const failed = [];
   await Promise.all(
     shell.map(async (url) => {
       try {
         const res = await fetch(url, { cache: 'no-store' });
-        if (res && res.ok) await cache.put(url, withCorp(res.clone()));
+        if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'network error'}`);
+        await cache.put(url, withCorp(res.clone()));
       } catch (err) {
-        console.warn(`[sw] failed to precache ${url}`, err);
+        console.error(`[sw] failed to precache required shell entry ${url}`, err);
+        failed.push(url);
       }
     }),
   );
+  if (failed.length > 0) {
+    throw new Error(`[sw] install aborted — could not precache: ${failed.join(', ')}`);
+  }
 }
 
 self.addEventListener('install', (event) => {
@@ -115,17 +130,48 @@ self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
-function isRuntimeCacheable(pathname) {
-  return RUNTIME_CACHE_PATTERNS.some((re) => re.test(pathname));
+// Network conditions that never actually reject `fetch()` — a captive
+// portal, a silently dropped connection, or (observed in CI) Playwright's
+// CDP offline emulation not always propagating to a fetch() issued from the
+// worker's own thread — leave `fetch()` pending forever instead of
+// rejecting. Every network attempt below is bounded so a "fetch never
+// settles" condition still falls back to cache within a few seconds rather
+// than hanging the page (worst case: a permanently blank screen offline).
+const NETWORK_TIMEOUT_MS = 4000;
+
+function fetchWithTimeout(request, ms = NETWORK_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('sw: network timed out')), ms);
+    fetch(request).then(
+      (res) => {
+        clearTimeout(timer);
+        resolve(res);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
-async function cacheFirst(request, cacheName) {
+function isRuntimeCacheable(pathname) {
+  if (RUNTIME_CACHE_PATTERNS.some((re) => re.test(pathname))) return true;
+  return RUNTIME_CACHE_DIR_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+// Takes the FetchEvent (not just the request) so the write can be attached
+// via event.waitUntil() — without it, the browser is free to kill this
+// worker right after respondWith()'s promise resolves, before a large
+// hyphon_native.wasm or Pyodide asset finishes writing to Cache Storage.
+async function cacheFirst(event, cacheName) {
+  const { request } = event;
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
-  const response = await fetch(request);
+  const response = await fetchWithTimeout(request);
   if (response && response.ok) {
-    void cache.put(request, withCorp(response.clone()));
+    event.waitUntil(cache.put(request, withCorp(response.clone())));
   }
   return response;
 }
@@ -141,7 +187,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(request);
+          return await fetchWithTimeout(request);
         } catch {
           const cache = await caches.open(PRECACHE_NAME);
           return (await cache.match('./index.html')) ?? Response.error();
@@ -157,11 +203,11 @@ self.addEventListener('fetch', (event) => {
       if (precached) return precached;
 
       if (isRuntimeCacheable(url.pathname)) {
-        return cacheFirst(request, RUNTIME_CACHE_NAME);
+        return cacheFirst(event, RUNTIME_CACHE_NAME);
       }
 
       try {
-        return await fetch(request);
+        return await fetchWithTimeout(request);
       } catch (err) {
         const runtimeCached = await (await caches.open(RUNTIME_CACHE_NAME)).match(request);
         if (runtimeCached) return runtimeCached;

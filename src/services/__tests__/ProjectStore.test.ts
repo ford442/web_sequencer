@@ -4,9 +4,9 @@ import {
     contentHash,
     AUTOSAVE_PROJECT_ID,
     type ProjectFileBackend,
-} from '../ProjectStore';
-import { AUTOSAVE_KEY } from '../../utils/projectPersistence';
-import type { SavedSongData } from '../../types';
+} from '@/services/ProjectStore';
+import { AUTOSAVE_KEY } from '@/utils/projectPersistence';
+import type { SavedSongData } from '@/types';
 
 // ── in-memory backend, mirrors ProjectStore's own MemoryBackend fallback ──────
 
