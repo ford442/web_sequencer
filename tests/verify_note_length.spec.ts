@@ -24,7 +24,7 @@ test('verify note length controls and auto-delete', async ({ page }) => {
     for (const step of [step0, step2]) {
         await step.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
         if ((await step.getAttribute('aria-pressed')) !== 'true') {
-            await step.click({ force: true });
+            await clickControl(step);
         }
         await expect(step).toHaveAttribute('aria-pressed', 'true');
     }
