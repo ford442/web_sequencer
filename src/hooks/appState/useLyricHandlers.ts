@@ -6,6 +6,39 @@ import type { TrackKey } from '../../constants/appDefaults'
 import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/PhonemeAligner'
 import { updateSamplerRange } from './patternUpdates'
 
+const transposeNote = (note: string, semitones: number): string => {
+    if (semitones === 0) return note;
+    const noteMap = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const regex = /^([A-G][#b]?)([0-9])$/i;
+    const match = note.match(regex);
+    if (!match) return note;
+
+    let [_, noteName, octaveStr] = match;
+    noteName = noteName.toUpperCase();
+    let octave = parseInt(octaveStr, 10);
+
+    const flatToSharp: Record<string, string> = {
+        'DB': 'C#', 'EB': 'D#', 'GB': 'F#', 'AB': 'G#', 'BB': 'A#'
+    };
+    if (flatToSharp[noteName]) noteName = flatToSharp[noteName];
+
+    let index = noteMap.indexOf(noteName);
+    if (index === -1) return note;
+
+    index += semitones;
+
+    while (index >= 12) {
+        index -= 12;
+        octave++;
+    }
+    while (index < 0) {
+        index += 12;
+        octave--;
+    }
+
+    return `${noteMap[index]}${octave}`;
+};
+
 export function useLyricHandlers(deps: {
     audioEngine: AudioEngine | null;
     patternRef: React.MutableRefObject<Pattern>;
@@ -123,14 +156,36 @@ export function useLyricHandlers(deps: {
 
     const handleLyricApply = useCallback(async (text: string) => {
         try {
-            // Parse pitch tags like (C4) or (C#4), and optional reverse tag like (C4, rev) or (rev)
-            const pitchRegex = /\(([A-G][#b]?[0-9])?(?:,?\s*(rev|reverse))?\)/gi;
-            const pitches: (string | undefined)[] = [];
+            const pitchRegex = /\(([^)]+)\)/gi;
+            const pitches: string[] = [];
             const reverses: boolean[] = [];
             let match;
+            let lastNote = 'C4';
+
             while ((match = pitchRegex.exec(text)) !== null) {
-                pitches.push(match[1]);
-                reverses.push(!!match[2]);
+                const parts = match[1].split(',').map(s => s.trim().toLowerCase());
+                let note = undefined;
+                let transpose = 0;
+                let reverse = false;
+
+                for (const part of parts) {
+                    if (part === 'rev' || part === 'reverse') {
+                        reverse = true;
+                    } else if (/^[+-]\d+$/.test(part)) {
+                        transpose = parseInt(part, 10);
+                    } else if (/^[a-g][#b]?\d$/.test(part)) {
+                        note = part.toUpperCase();
+                    }
+                }
+
+                if (note) {
+                    lastNote = note;
+                }
+                const finalNote = transposeNote(lastNote, transpose);
+                lastNote = finalNote;
+
+                pitches.push(finalNote);
+                reverses.push(reverse);
             }
 
             // Clean text for TTS generation
