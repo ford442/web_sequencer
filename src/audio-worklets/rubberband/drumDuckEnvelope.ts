@@ -6,6 +6,8 @@ export class DrumDuckEnvelope {
   private env = 0.0;
   private lastTrigger = 0.0;
   private readonly processResult = { duckingScalar: 0.0, isSnare: 0.0 };
+  private eqState = { lp: [0,0], bp: [0,0] };
+  private eqState = { lp: [0,0], bp: [0,0] };
 
   process(
     sidechain: Float32Array | null,
@@ -47,19 +49,45 @@ export class DrumDuckEnvelope {
     return this.processResult;
   }
 
-  /** Master-bus gain reduction applied post-retrieve, weighted toward vowels. */
-  applyMasterDuck(outputs: Float32Array[][], duckingScalar: number, isVowel: number): void {
+  /** Master-bus gain reduction and dynamic EQ ducking applied post-retrieve, weighted toward vowels. */
+  applyMasterDuck(outputs: Float32Array[][], duckingScalar: number, isVowel: number, sampleRate: number): void {
     if (duckingScalar <= 0) return;
 
     // consonants already sit out of the way; vowels take the duck
     const vowelWeight = 0.25 + 0.75 * isVowel;
     const masterDuck = 1.0 - duckingScalar * vowelWeight;
 
+
+    const maxEqReduction = 1.0;
+    const eqAmount = duckingScalar * maxEqReduction;
+    const q = 0.5; // low q for wide cut
+    const centerFreq = 350.0; // standard kick drum fundamental & knock
+    const w = 2.0 * Math.sin(Math.PI * centerFreq / sampleRate);
+
+
+    const maxEqReduction = 1.0;
+    const eqAmount = duckingScalar * maxEqReduction;
+    const q = 0.5; // low q for wide cut
+    const centerFreq = 350.0; // standard kick drum fundamental & knock
+    const w = 2.0 * Math.sin(Math.PI * centerFreq / sampleRate);
+
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];
       if (!outCh) continue;
       for (let i = 0; i < outCh.length; i++) {
-        outCh[i] *= masterDuck;
+        const x = outCh[i];
+
+        // SVF Bandpass for Dynamic EQ Cut
+        this.eqState.lp[channel] += w * this.eqState.bp[channel];
+        const hp = x - this.eqState.lp[channel] - q * this.eqState.bp[channel];
+        this.eqState.bp[channel] += w * hp;
+
+        // The bandpass output is q * bp. We invert it and mix it based on eqAmount
+        const bandpass = this.eqState.bp[channel] * q;
+        const eqMasked = x - bandpass * eqAmount;
+
+        // Apply global gain ducking on top
+        outCh[i] = eqMasked * masterDuck;
       }
     }
   }

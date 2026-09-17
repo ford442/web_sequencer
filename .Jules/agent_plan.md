@@ -131,4 +131,6 @@
   - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
   - Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
 - [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
-- [ ] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
+- [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
+  - Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
+  - This clears out the vocal fundamental dynamically specifically when the kick hits, reducing mud without fully gating the higher vocal harmonics.
