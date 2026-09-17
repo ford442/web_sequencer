@@ -1,13 +1,14 @@
 # Web Sequencer Active Backlog & Innovation Lab
 
 ## Active Backlog
+- [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
 
 ## Innovation Lab
-- Implement phrase-based pitch transposition in Lyric Track.
 - Explore randomizing granular jitter based on note velocity.
+- Explore assigning microtonal pitch variations per phoneme step.
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
@@ -94,6 +95,7 @@
 - Velocity Check: Passing `isVowel` through the worklet's getter function avoided any new allocations or buffer expansions. Adding the 8th tuple item was clean and the performance impact is zero since it's only evaluated once per grain wrap.
 
 
+- Completed 'Implement phrase-based pitch transposition in Lyric Track.' by updating the Lyric Track parser to support comma-separated tags `(note, transpose, reverse)` and implementing a `transposeNote` utility function. This allows syntax like `(C4, +2, rev)` to smoothly adjust melodies over TTS alignments.
 - Completed the task: "What if we could apply an LFO to the TTS formant shift directly from the step sequencer?"
   - Built a robust FormantModulator topology directly inside `FormantShifter.ts`.
   - Refactored `FormantShifter.ts` to lazily construct the Biquad filter chain and LFO nodes using `ensureFilterChain()`.
