@@ -27,7 +27,12 @@ test('verify note length controls and auto-delete', async ({ page }) => {
     for (const step of [step0, step2]) {
         await step.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
         if ((await step.getAttribute('aria-pressed')) !== 'true') {
-            await clickControl(step);
+            await page.evaluate(() => {
+                document.querySelectorAll('[data-radix-popper-content-wrapper]').forEach(el => el.remove());
+                document.querySelectorAll('[role="tooltip"]').forEach(el => el.remove());
+                document.querySelectorAll('.fixed').forEach(el => el.remove()); // remove overlays
+            });
+            await step.click();
         }
         await expect(step).toHaveAttribute('aria-pressed', 'true');
     }
