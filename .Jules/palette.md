@@ -79,3 +79,6 @@
 ## YYYY-MM-DD - Accessible Decorative Icons in Buttons
 **Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
 **Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
+## 2026-09-17 - Remove redundant aria-live from static empty states
+**Learning:** Found several statically rendered empty states throughout the application using `border-dashed` that correctly utilized `role="status"` but unnecessarily appended `aria-live="polite"`. According to W3C specifications, `role="status"` implicitly provides `aria-live="polite"`. Including both can cause some screen readers to double-announce the state on mount.
+**Action:** When implementing static empty states, specify `role="status"` but omit `aria-live="polite"`. Reserve the explicit `aria-live` attribute solely for regions that dynamically inject text during interaction, or use the `A11yAnnouncer` for those dynamic cases.
