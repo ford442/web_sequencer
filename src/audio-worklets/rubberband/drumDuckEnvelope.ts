@@ -7,7 +7,6 @@ export class DrumDuckEnvelope {
   private lastTrigger = 0.0;
   private readonly processResult = { duckingScalar: 0.0, isSnare: 0.0 };
   private eqState = { lp: [0,0], bp: [0,0] };
-  private eqState = { lp: [0,0], bp: [0,0] };
 
   process(
     sidechain: Float32Array | null,
@@ -56,13 +55,6 @@ export class DrumDuckEnvelope {
     // consonants already sit out of the way; vowels take the duck
     const vowelWeight = 0.25 + 0.75 * isVowel;
     const masterDuck = 1.0 - duckingScalar * vowelWeight;
-
-
-    const maxEqReduction = 1.0;
-    const eqAmount = duckingScalar * maxEqReduction;
-    const q = 0.5; // low q for wide cut
-    const centerFreq = 350.0; // standard kick drum fundamental & knock
-    const w = 2.0 * Math.sin(Math.PI * centerFreq / sampleRate);
 
 
     const maxEqReduction = 1.0;
