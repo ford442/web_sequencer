@@ -14,6 +14,9 @@ test('verify note length controls and auto-delete', async ({ page }) => {
     await page.evaluate(() => {
         document.querySelector('[data-testid="start-overlay"]')?.remove();
         document.querySelector('vite-error-overlay')?.remove();
+        // Also remove any tooltips or popovers that might be blocking the sequencer
+        document.querySelectorAll('[data-radix-popper-content-wrapper]').forEach(el => el.remove());
+        document.querySelectorAll('[role="tooltip"]').forEach(el => el.remove());
     });
 
     const step0 = page.getByTestId('step-partA-0');
