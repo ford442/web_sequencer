@@ -79,3 +79,7 @@
 ## YYYY-MM-DD - Accessible Decorative Icons in Buttons
 **Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
 **Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
+
+## 2026-09-17 - Accessible Decorative Emojis
+**Learning:** Decorative emojis (like ⚠️, ⏳, 🎮, 🎵, etc.) that are used alongside text labels will be read aloud by screen readers, leading to confusing double-announcements or unexpected symbols being vocalized (e.g., "hourglass with flowing sand Validating..."). This issue is not limited to buttons but applies to any text container where emojis are used purely for visual enhancement.
+**Action:** Always wrap purely decorative emojis in a `<span aria-hidden="true">` element to ensure screen readers skip them and only announce the intended text.

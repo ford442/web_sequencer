@@ -492,7 +492,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
             <div aria-live="polite" className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-amber-400">
-                  <span className="animate-spin">⏳</span>
+                  <span className="animate-spin" aria-hidden="true">⏳</span>
                   <span className="text-sm font-medium">{parseState.stageLabel}</span>
                 </div>
                 <button type="button"
@@ -520,7 +520,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
             <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-red-400">
-                  <span>⚠️</span>
+                  <span aria-hidden="true">⚠️</span>
                   <span className="text-sm font-medium">
                     {parseState.category === 'INVALID_FORMAT' && 'Invalid Format'}
                     {parseState.category === 'CORRUPTED_DATA' && 'Corrupted File'}
@@ -647,12 +647,12 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
                 >
                   {isImporting ? (
                     <>
-                      <span className="animate-spin">⏳</span>
+                      <span className="animate-spin" aria-hidden="true">⏳</span>
                       Importing...
                     </>
                   ) : (
                     <>
-                      <span>🎵</span>
+                      <span aria-hidden="true">🎵</span>
                       Import Song
                     </>
                   )}
