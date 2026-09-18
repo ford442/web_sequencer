@@ -26,6 +26,7 @@ export interface FrozenGrainParams {
   grainLfoDepth: number;
   grainPosLfoDepth: number;
   samplesRequired: number;
+  velocity: number;
 }
 
 /**
@@ -147,7 +148,13 @@ export class GranularEngine {
 
     // Define grain size: ~100ms
     let baseGrainSize = Math.floor(sRate * 0.1);
-    let grainJitter = p.grainJitterParam;
+
+    // Scale grain jitter based on note velocity:
+    // Lower velocity = more jitter, higher velocity = less jitter.
+    // Velocity of 1.0 = normal jitter. Velocity < 1.0 increases it.
+    const velocityJitterScale = Math.max(1.0, 1.5 - p.velocity * 0.5);
+
+    let grainJitter = Math.min(1.0, p.grainJitterParam * velocityJitterScale);
 
     // Check for per-phoneme overrides
     if (p.phonemeData && p.phonemeRatios) {
@@ -155,7 +162,7 @@ export class GranularEngine {
       const pGrainJitter = pData[5];
       const pGrainSize = pData[6];
       if (pGrainJitter !== -1.0) {
-        grainJitter = pGrainJitter;
+        grainJitter = Math.min(1.0, pGrainJitter * velocityJitterScale);
       }
       if (pGrainSize !== -1.0) {
         baseGrainSize = Math.floor(sRate * (pGrainSize / 1000));
