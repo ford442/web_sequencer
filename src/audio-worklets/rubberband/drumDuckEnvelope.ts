@@ -56,6 +56,7 @@ export class DrumDuckEnvelope {
     const vowelWeight = 0.25 + 0.75 * isVowel;
     const masterDuck = 1.0 - duckingScalar * vowelWeight;
 
+
     const maxEqReduction = 1.0;
     const eqAmount = duckingScalar * maxEqReduction;
     const q = 0.5; // low q for wide cut
