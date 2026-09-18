@@ -803,7 +803,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (duckingScalar > 0) {
           const isVowelForDuck = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
-          this.drumDuck.applyMasterDuck(outputs, duckingScalar, isVowelForDuck);
+          const sRateForDuck = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+          this.drumDuck.applyMasterDuck(outputs, duckingScalar, isVowelForDuck, sRateForDuck);
         }
 
         // Apply Bitcrush & Downsample

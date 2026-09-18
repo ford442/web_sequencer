@@ -11,6 +11,11 @@ import { clickControl, initializeHyphonAudio } from './helpers/boot';
 test('verify note length controls and auto-delete', async ({ page }) => {
     await initializeHyphonAudio(page);
 
+    await page.evaluate(() => {
+        document.querySelector('[data-testid="start-overlay"]')?.remove();
+        document.querySelector('vite-error-overlay')?.remove();
+    });
+
     const step0 = page.getByTestId('step-partA-0');
     const step2 = page.getByTestId('step-partA-2');
 

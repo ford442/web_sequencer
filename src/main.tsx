@@ -11,7 +11,7 @@ import { e2eTransportSnapshot } from './e2e/probe'
 // Direct module import, not the './audio/wam' barrel: the barrel re-exports the
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
-import { swUpdateStore } from './stores/swUpdateStore'
+import { swUpdateStore } from '@/stores/swUpdateStore'
 
 /**
  * Load public/hyphon_native.js without blocking first paint.
@@ -73,12 +73,23 @@ function registerServiceWorker(): void {
   if (params?.has('e2e') && !params.has('pwa')) return
 
   window.addEventListener('load', () => {
+    // clients.claim() in sw.js's activate handler fires `controllerchange`
+    // the very first time a page becomes controlled too — including on a
+    // brand-new visitor's first-ever load, not just on a later update. Only
+    // reload when *this* page actually requested the switch (clicked
+    // "Reload" on the update toast), never on that first-install claim.
+    let applyUpdateRequested = false
+    let reloaded = false
+
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
       .then((registration) => {
         const offerReload = (worker: ServiceWorker | null) => {
           if (!worker) return
-          swUpdateStore.notifyUpdateAvailable(() => worker.postMessage('SKIP_WAITING'))
+          swUpdateStore.notifyUpdateAvailable(() => {
+            applyUpdateRequested = true
+            worker.postMessage('SKIP_WAITING')
+          })
         }
         // An update already sat in `waiting` before this page even registered
         // (installed by another tab).
@@ -97,9 +108,8 @@ function registerServiceWorker(): void {
         console.warn('[sw] registration failed', err)
       })
 
-    let reloaded = false
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloaded) return
+      if (reloaded || !applyUpdateRequested) return
       reloaded = true
       window.location.reload()
     })

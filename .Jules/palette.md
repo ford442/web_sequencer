@@ -83,3 +83,6 @@
 ## 2026-09-17 - Accessible Decorative Emojis
 **Learning:** Decorative emojis (like ⚠️, ⏳, 🎮, 🎵, etc.) that are used alongside text labels will be read aloud by screen readers, leading to confusing double-announcements or unexpected symbols being vocalized (e.g., "hourglass with flowing sand Validating..."). This issue is not limited to buttons but applies to any text container where emojis are used purely for visual enhancement.
 **Action:** Always wrap purely decorative emojis in a `<span aria-hidden="true">` element to ensure screen readers skip them and only announce the intended text.
+## 2026-09-17 - Remove redundant aria-live from static empty states
+**Learning:** Found several statically rendered empty states throughout the application using `border-dashed` that correctly utilized `role="status"` but unnecessarily appended `aria-live="polite"`. According to W3C specifications, `role="status"` implicitly provides `aria-live="polite"`. Including both can cause some screen readers to double-announce the state on mount.
+**Action:** When implementing static empty states, specify `role="status"` but omit `aria-live="polite"`. Reserve the explicit `aria-live` attribute solely for regions that dynamically inject text during interaction, or use the `A11yAnnouncer` for those dynamic cases.
