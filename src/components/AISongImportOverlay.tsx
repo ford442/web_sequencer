@@ -1,4 +1,5 @@
 import React, { memo } from 'react'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import type { AiImportStage } from '../hooks/useSongStorage'
 
 interface AISongImportOverlayProps {
@@ -26,9 +27,10 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
 
     const stageOrder = ['parsing', 'validating', 'converting', 'uploading', 'loading'];
     const currentIdx = aiImportStage ? stageOrder.indexOf(aiImportStage) : -1;
+    const modalRef = useFocusTrap<HTMLDivElement>(isImportingAISong);
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress" tabIndex={-1}>
+        <div ref={modalRef} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress" tabIndex={-1}>
             <div className="bg-[#0f1115] border border-emerald-500/30 rounded-xl shadow-[0_0_60px_rgba(16,185,129,0.3)] p-8 max-w-md w-full mx-4">
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center" aria-hidden="true">

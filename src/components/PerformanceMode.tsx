@@ -15,6 +15,7 @@ import React, {
     memo, forwardRef, useImperativeHandle,
     useRef, useEffect, useCallback,
 } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { LevelMeter } from './LevelMeter';
 
 // ── Track definitions ─────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ export const PerformanceMode = memo(forwardRef<PerformanceModeHandle, Performanc
     );
     const beatBarRef = useRef<HTMLDivElement | null>(null);
     const lastStepRef = useRef(-1);
+    const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
     useImperativeHandle(ref, () => ({
         setStep(step: number) {
@@ -121,6 +123,7 @@ export const PerformanceMode = memo(forwardRef<PerformanceModeHandle, Performanc
 
     return (
         <div
+            ref={modalRef}
             className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-6 select-none"
             role="dialog"
             aria-modal="true"

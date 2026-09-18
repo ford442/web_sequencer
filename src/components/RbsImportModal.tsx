@@ -18,6 +18,7 @@ import { SongMetadataPanel } from './rbs-import-modal/SongMetadataPanel';
 import { PatternVisualization } from './rbs-import-modal/PatternVisualization';
 import { ParameterSummaryPanel } from './rbs-import-modal/ParameterSummaryPanel';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import {
   RbsParser,
   RbsImporter,
@@ -88,6 +89,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -411,7 +413,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
         onClick={onClose}
         aria-hidden="true"
       />
-      <div role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" tabIndex={-1} className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="rbs-import-title" aria-describedby="rbs-import-desc" tabIndex={-1} className="relative z-10 bg-[#0f1115] border border-amber-500/30 rounded-xl shadow-[0_0_60px_rgba(245,158,11,0.2)] w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">

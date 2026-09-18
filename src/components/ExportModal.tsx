@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, Bass2Params } from '../types';
 import type { TrackKey } from '../constants/appDefaults';
 import {
@@ -57,6 +58,7 @@ export const ExportModal = React.memo(function ExportModal({
     );
     const [bitDepth, setBitDepth] = useState<WavBitDepth>(16);
     const abortRef = useRef<AbortController | null>(null);
+    const modalRef = useFocusTrap(isOpen, onClose);
 
     useEffect(() => {
         if (!isOpen) {
@@ -161,8 +163,10 @@ export const ExportModal = React.memo(function ExportModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="export-modal-title"
+            ref={modalRef}
         >
-            <div className="w-full max-w-md mx-4 bg-[#0f1218] border border-cyan-800/40 rounded-xl shadow-2xl overflow-hidden">
+            <div className="absolute inset-0 z-0" onClick={onClose} aria-hidden="true" />
+            <div className="w-full max-w-md mx-4 bg-[#0f1218] border border-cyan-800/40 rounded-xl shadow-2xl overflow-hidden relative z-10">
                 <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
                     <h2 id="export-modal-title" className="text-sm font-bold text-cyan-300 tracking-wider">
                         EXPORT STEMS

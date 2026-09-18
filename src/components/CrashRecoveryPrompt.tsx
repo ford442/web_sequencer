@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface CrashRecoveryPromptProps {
   onRestore: () => void;
@@ -13,8 +14,11 @@ interface CrashRecoveryPromptProps {
  */
 export const CrashRecoveryPrompt: React.FC<CrashRecoveryPromptProps> = React.memo(
   ({ onRestore, onDiscard }) => {
+    const modalRef = useFocusTrap<HTMLDivElement>(true);
+
     return (
       <div
+        ref={modalRef}
         className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-[92vw] w-[420px] px-4 py-3 rounded-lg shadow-lg border border-amber-500 bg-amber-950/95 text-amber-100 flex flex-col gap-2"
         role="alertdialog"
         aria-labelledby="crash-recovery-title"

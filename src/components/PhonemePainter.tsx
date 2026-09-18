@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { PhonemeData, Note } from '../types';
 import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { PHONEME_NAMES, COMMON_PHONEMES, getPhonemeColor, generateId } from '../constants/phonemes';
@@ -52,9 +53,9 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
   const [isAutoAligning, setIsAutoAligning] = useState(false);
 
   const timelineRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const phonemeButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+    const phonemeButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const containerRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
   const resizeState = useRef<{ id: string; side: 'left' | 'right'; startX: number; startValue: number } | null>(null);
 
   const TIMELINE_WIDTH = 600;
