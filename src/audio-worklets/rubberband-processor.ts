@@ -113,7 +113,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     windowShape: 0,
     grainLfoDepth: 0,
     grainPosLfoDepth: 0,
-    samplesRequired: 0
+    samplesRequired: 0,
+    velocity: 1.0
   };
 
   private currentSamplePtr = 0;
@@ -121,6 +122,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private endSamplePtr = 0;
   private basePitch = 1.0;
   private targetHz: number = 0;
+  private currentSampleVelocity = 1.0;
   static get parameterDescriptors() {
     return RUBBERBAND_PARAMETER_DESCRIPTORS;
   }
@@ -234,6 +236,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (data.targetHz) {
            this.targetHz = data.targetHz;
         }
+        this.currentSampleVelocity = data.velocity ?? 1.0;
         this.rubberBand.setPitchScale(this.basePitch);
         this.rubberBand.setTimeRatio(1.0);
         this.expressiveProcessor.reset();
@@ -639,6 +642,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.grainLfoDepth = grainLfoDepth;
           this.frozenGrainParams.grainPosLfoDepth = grainPosLfoDepth;
           this.frozenGrainParams.samplesRequired = samplesRequired;
+          this.frozenGrainParams.velocity = this.currentSampleVelocity;
 
           this.granular.renderFrozenBlock(this.frozenGrainParams);
         } else {

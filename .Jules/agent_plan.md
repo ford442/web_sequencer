@@ -7,7 +7,7 @@
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
 
 ## Innovation Lab
-- Explore randomizing granular jitter based on note velocity.
+- [x] Explore randomizing granular jitter based on note velocity.
 - Explore assigning microtonal pitch variations per phoneme step.
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - Implement dynamic vocal chops by using the slice index and varying direction over time.
