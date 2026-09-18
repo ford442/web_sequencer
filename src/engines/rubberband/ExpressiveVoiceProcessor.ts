@@ -193,6 +193,9 @@ export class ExpressiveVoiceProcessor {
     private sampleIndex: number = 0;
     private currentTime: number = 0;
     
+    // Breath gating state
+    private breathVoicing: number = 1.0;
+
 
     // Pitch Envelope states
     private pitchEnvelopePhase: 'idle' | 'attack' | 'decay' = 'idle';
@@ -233,8 +236,9 @@ export class ExpressiveVoiceProcessor {
      * 
      * @param input Input buffer
      * @param output Output buffer (can be same as input)
+     * @param isVowel Whether the current phoneme is a vowel (0-1.0)
      */
-    process(input: Float32Array, output: Float32Array): void {
+    process(input: Float32Array, output: Float32Array, isVowel: number = 1.0): void {
         const len = input.length;
         const sampleRate = this.config.sampleRate;
         
@@ -338,8 +342,12 @@ export class ExpressiveVoiceProcessor {
                 const noiseSample = this.noiseBuffer[this.noiseIndex];
                 this.noiseIndex = (this.noiseIndex + 1) % this.noiseBuffer.length;
 
+                // vowels: 1.0, consonants/gaps: 0.3
+                const target = 0.3 + 0.7 * isVowel;
+                this.breathVoicing += 0.02 * (target - this.breathVoicing); // ~1-pole, block or sample
+
                 // Simple mixing
-                sample += noiseSample * breath.amount * 0.1; // Scale down noise significantly
+                sample += noiseSample * breath.amount * 0.1 * this.breathVoicing; // Scale down noise significantly
             }
 
             // 4. Amplitude Envelope

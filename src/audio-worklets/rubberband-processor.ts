@@ -717,7 +717,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         for (let i = 0; i < retrieved; i++) {
           outputChannel[i] = heap[ptr + i];
         }
-        this.expressiveProcessor.process(outputChannel, outputChannel);
+
+        const isVowelForExpressive = this.phonemeData && this.phonemeRatios
+            ? this.getPhonemeDataAtSample(this.currentSamplePtr)[7]
+            : 1.0;
+        this.expressiveProcessor.process(outputChannel, outputChannel, isVowelForExpressive);
 
         // Zero-Crossing Pitch Detection for Auto-Tune
         if (autoTune > 0.0 && outputChannel.length > 0) {
