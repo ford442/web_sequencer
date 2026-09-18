@@ -57,7 +57,7 @@ export const GamepadDebugger: React.FC<{ onClose: () => void }> = React.memo(({ 
         </button>
 
         <h2 id="gamepad-debugger-title" className="text-2xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
-          <span>🎮</span> Gamepad Debugger
+          <span aria-hidden="true">🎮</span> Gamepad Debugger
         </h2>
 
         {gamepads.length === 0 ? (

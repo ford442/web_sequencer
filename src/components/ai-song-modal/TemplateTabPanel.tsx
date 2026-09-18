@@ -22,7 +22,7 @@ export const TemplateTabPanel = React.memo(function TemplateTabPanel({
             className="mb-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-all flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
             aria-label="Copy AI Prompt Template"
           >
-            <span>📋</span> Copy Template
+            <span aria-hidden="true">📋</span> Copy Template
           </button>
         </Tooltip>
         <pre className="bg-[#0a0c10] border border-gray-800 rounded-lg p-4 text-xs text-gray-400 overflow-x-auto whitespace-pre-wrap font-mono">
