@@ -35,11 +35,11 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center" aria-hidden="true">
                         {aiImportStage === 'error' ? (
-                            <span className="text-2xl text-red-400">⚠️</span>
+                            <span className="text-2xl text-red-400" aria-hidden="true">⚠️</span>
                         ) : aiImportStage === 'complete' ? (
-                            <span className="text-2xl text-emerald-400">✓</span>
+                            <span className="text-2xl text-emerald-400" aria-hidden="true">✓</span>
                         ) : (
-                            <span className="text-2xl animate-pulse">🤖</span>
+                            <span className="text-2xl animate-pulse" aria-hidden="true">🤖</span>
                         )}
                     </div>
                     <div>

@@ -209,14 +209,17 @@ export async function clickControl(target: Locator): Promise<void> {
         const hit = document.elementFromPoint(b.x + b.width * f, b.y + b.height / 2);
         if (hit && (hit === el || el.contains(hit))) return f;
       }
-      return null;
+
+      const blockers = fracs.map(f => document.elementFromPoint(b.x + b.width * f, b.y + b.height / 2));
+      return { nullBlock: true, blockers: blockers.map(el => el ? el.tagName + '#' + el.id + '.' + el.className : 'null') };
+
     },
     { b: box, fracs: [0.5, 0.2, 0.8, 0.1, 0.9] },
   );
 
-  if (clearFraction === null) {
+  if (clearFraction && (clearFraction as any).nullBlock) {
     throw new Error(
-      'clickControl: no unobstructed point on target — an overlay covers it entirely',
+      'clickControl: no unobstructed point on target — an overlay covers it entirely: ' + JSON.stringify((clearFraction as any).blockers),
     );
   }
   await target.click({ position: { x: box.width * clearFraction, y: box.height / 2 } });

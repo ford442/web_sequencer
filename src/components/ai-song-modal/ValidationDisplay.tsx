@@ -26,7 +26,7 @@ export const ValidationProgress = React.memo(function ValidationProgress({
 
   return (
     <div className="flex items-center gap-2 text-xs text-yellow-400">
-      <span className="animate-spin">⏳</span>
+      <span className="animate-spin" aria-hidden="true">⏳</span>
       <span>
         {validationState.stage === 'parsing' && 'Checking JSON syntax...'}
         {validationState.stage === 'validating' && 'Validating schema...'}

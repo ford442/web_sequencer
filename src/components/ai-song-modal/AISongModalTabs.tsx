@@ -26,7 +26,7 @@ export const AISongModalTabs = React.memo(function AISongModalTabs({
             : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
         }`}
       >
-        <span className="hidden sm:inline">📋 </span>Paste JSON
+        <span className="hidden sm:inline" aria-hidden="true">📋 </span>Paste JSON
       </button>
       <button type="button"
         id="ai-modal-tab-template"

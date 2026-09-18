@@ -44,8 +44,14 @@ export class RingBuffer {
         const headIndex = head & (this.bufferSize - 1);
         const toWrite = Math.min(data.length, this.bufferSize - headIndex);
 
-        this.buffer.set(data.subarray(0, toWrite), headIndex);
-        this.buffer.set(data.subarray(toWrite), 0);
+        // ⚡ Bolt: Using explicit for-loops instead of .subarray() + .set() to prevent
+        // per-block TypedArray view allocations, reducing garbage collection pressure on the audio thread.
+        for (let i = 0; i < toWrite; i++) {
+            this.buffer[headIndex + i] = data[i];
+        }
+        for (let i = toWrite; i < data.length; i++) {
+            this.buffer[i - toWrite] = data[i];
+        }
 
         Atomics.store(this.atomicIndices, HEAD_INDEX, head + data.length);
         return data.length;
@@ -65,8 +71,14 @@ export class RingBuffer {
         const tailIndex = tail & (this.bufferSize - 1);
         const fromRead = Math.min(toRead, this.bufferSize - tailIndex);
 
-        data.set(this.buffer.subarray(tailIndex, tailIndex + fromRead), dataOffset);
-        data.set(this.buffer.subarray(0, toRead - fromRead), dataOffset + fromRead);
+        // ⚡ Bolt: Using explicit for-loops instead of .subarray() + .set() to prevent
+        // per-block TypedArray view allocations, reducing garbage collection pressure on the audio thread.
+        for (let i = 0; i < fromRead; i++) {
+            data[dataOffset + i] = this.buffer[tailIndex + i];
+        }
+        for (let i = 0; i < toRead - fromRead; i++) {
+            data[dataOffset + fromRead + i] = this.buffer[i];
+        }
 
         Atomics.store(this.atomicIndices, TAIL_INDEX, tail + toRead);
         return toRead;
