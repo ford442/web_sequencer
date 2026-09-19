@@ -74,6 +74,15 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private qualitySum: number = 0;
     private qualityCount: number = 0;
 
+    // Pre-allocated message for periodic reporting to avoid GC
+    private readonly reportMessage = {
+        type: 'quality-update' as const,
+        quality: 1.0,
+        artifactRate: 0,
+        averageSeverity: 0,
+        pendingArtifacts: this.pendingArtifacts
+    };
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -305,13 +314,15 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
-        this.port.postMessage({
-            type: 'quality-update',
-            quality: avgQuality,
-            artifactRate: stats.artifactRate,
-            averageSeverity: stats.averageSeverity,
-            pendingArtifacts: this.pendingArtifacts
-        });
+        // Update pre-allocated message
+        this.reportMessage.quality = avgQuality;
+        this.reportMessage.artifactRate = stats.artifactRate;
+        this.reportMessage.averageSeverity = stats.averageSeverity;
+        // The reference to pendingArtifacts remains the same, but we must
+        // ensure we send the current values. Since postMessage serializes the array,
+        // it captures the state correctly before we clear the array.
+
+        this.port.postMessage(this.reportMessage);
 
         // Reset accumulators
         this.pendingArtifacts.length = 0;

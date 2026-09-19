@@ -135,7 +135,10 @@ export class ArtifactDetector {
     private hannWindow: Float32Array;
     
     // State for spectral analysis
-    private prevMagnitude: Float32Array | null = null;
+    private prevMagnitude: Float32Array;
+    private hasPrevMagnitude: boolean = false;
+    private paddedAudio: Float32Array;
+    private windowedAudio: Float32Array;
     private frequencyBins: Float32Array;
     private minBinIndex: number;
     private maxBinIndex: number;
@@ -193,6 +196,12 @@ export class ArtifactDetector {
         
         // Initialize analysis buffer
         this.analysisBuffer = new Float32Array(this.config.fftSize);
+
+        // Pre-allocate buffers to prevent GC
+        const halfSize = Math.floor(this.config.fftSize / 2) + 1;
+        this.prevMagnitude = new Float32Array(halfSize);
+        this.paddedAudio = new Float32Array(this.config.fftSize);
+        this.windowedAudio = new Float32Array(this.config.fftSize);
     }
 
     /**
@@ -310,27 +319,27 @@ export class ArtifactDetector {
     private calculateMetricsWithFFT(audio: Float32Array): QualityMetrics {
         // Ensure audio is correct length
         if (audio.length !== this.config.fftSize) {
-            const padded = new Float32Array(this.config.fftSize);
-            padded.set(audio.subarray(0, Math.min(audio.length, this.config.fftSize)));
-            audio = padded;
+            this.paddedAudio.fill(0);
+            this.paddedAudio.set(audio.subarray(0, Math.min(audio.length, this.config.fftSize)));
+            audio = this.paddedAudio;
         }
 
         // Apply Hann window
-        const windowed = new Float32Array(this.config.fftSize);
         for (let i = 0; i < this.config.fftSize; i++) {
-            windowed[i] = audio[i] * this.hannWindow[i];
+            this.windowedAudio[i] = audio[i] * this.hannWindow[i];
         }
 
         // Compute FFT
-        const fftResult = this.fft.forward(windowed);
+        const fftResult = this.fft.forward(this.windowedAudio);
         const magnitude = fftResult.magnitude;
 
         // Calculate spectral flux
         let spectralFlux = 0;
-        if (this.prevMagnitude) {
+        if (this.hasPrevMagnitude) {
             spectralFlux = calculateSpectralFlux(this.prevMagnitude, magnitude);
         }
-        this.prevMagnitude = new Float32Array(magnitude);
+        this.prevMagnitude.set(magnitude);
+        this.hasPrevMagnitude = true;
 
         // Calculate spectral centroid
         const spectralCentroid = calculateSpectralCentroid(magnitude, this.frequencyBins);
@@ -536,7 +545,7 @@ export class ArtifactDetector {
         this.fluxHistory = [];
         this.qualityHistory = [];
         this.currentBlend = 0;
-        this.prevMagnitude = null;
+        this.hasPrevMagnitude = false;
         this.bufferIndex = 0;
     }
 
