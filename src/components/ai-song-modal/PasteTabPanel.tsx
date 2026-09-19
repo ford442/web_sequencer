@@ -95,7 +95,7 @@ export const PasteTabPanel = React.memo(function PasteTabPanel({
               }`}>
                 {validationState.stage === 'complete' && '✓ Valid JSON'}
                 {validationState.stage === 'error' && `✗ ${validationState.fieldErrors.length} error(s)`}
-                {(validationState.stage === 'parsing' || validationState.stage === 'validating') && '⏳ Validating...'}
+                {(validationState.stage === 'parsing' || validationState.stage === 'validating') && <><span aria-hidden="true">⏳</span> Validating...</>}
               </span>
             )}
             <span className="text-xs text-gray-600">Ctrl+V to paste</span>
