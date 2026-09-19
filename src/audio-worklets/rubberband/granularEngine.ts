@@ -103,9 +103,25 @@ export class GranularEngine {
       this.grainWrapPending = false;
       const finalPanSpread = isVowel > 0 ? grainPanSpread : grainPanSpread * 0.3;
 
+      // Pseudo-spiral LFO path mixed with random jitter for spectral bands
+      const lfoPhase = this.grainLfoPhase;
+      const phases = [
+        lfoPhase,             // Band 0 follows cos(phase)
+        lfoPhase - Math.PI / 2, // Band 1 follows sin(phase) (which is cos(phase - pi/2))
+        lfoPhase + Math.PI / 4  // Band 2 offset
+      ];
+
       for (let b = 0; b < 3; b++) {
         const spreadMod = b === 0 ? 0.4 : b === 1 ? 0.8 : 1.2;
-        const pan = (Math.random() * 2 - 1) * Math.min(1.0, finalPanSpread * spreadMod);
+        // Base LFO position between -1 and 1
+        const lfoPos = Math.cos(phases[b]);
+
+        // Add random jitter based on spread
+        const jitter = (Math.random() * 2 - 1) * 0.2;
+
+        // Combine LFO and jitter, clamped between -1 and 1, scaled by finalPanSpread
+        const pan = Math.max(-1.0, Math.min(1.0, lfoPos + jitter)) * Math.min(1.0, finalPanSpread * spreadMod);
+
         const angle = ((pan + 1.0) * 0.5) * Math.PI / 2;
         this.grainPanL[b] = Math.cos(angle);
         this.grainPanR[b] = Math.sin(angle);
