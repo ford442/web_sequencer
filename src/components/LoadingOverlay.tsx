@@ -118,7 +118,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = React.memo(({ isVis
           {/* Current step indicator */}
           {currentStepInfo && (
             <div className="mt-2 flex items-center gap-2 font-mono text-xs text-gray-500">
-              <span>{STEP_ICONS[currentStepInfo.id]}</span>
+              <span aria-hidden="true">{STEP_ICONS[currentStepInfo.id]}</span>
               <span>{currentStepInfo.status === 'active' ? 'Working...' : 'Queued'}</span>
               {currentStepInfo.status === 'error' && (
                 <span className="text-yellow-500">(Using fallback)</span>
