@@ -158,7 +158,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 }
                 this.dryBuffer = null;
                 this.dryBufferIndex = 0;
-                this.pendingArtifacts = [];
+                this.pendingArtifacts.length = 0;
                 this.port.postMessage({ type: 'historyCleared' });
                 break;
 
