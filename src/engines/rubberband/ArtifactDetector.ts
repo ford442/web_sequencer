@@ -336,7 +336,7 @@ export class ArtifactDetector {
         // Calculate spectral flux
         let spectralFlux = 0;
         if (this.hasPrevMagnitude) {
-            spectralFlux = calculateSpectralFlux(this.prevMagnitude, magnitude);
+            spectralFlux = calculateSpectralFlux(this.prevMagnitude.subarray(0, magnitude.length), magnitude);
         }
         this.prevMagnitude.set(magnitude);
         this.hasPrevMagnitude = true;
@@ -546,6 +546,7 @@ export class ArtifactDetector {
         this.qualityHistory = [];
         this.currentBlend = 0;
         this.hasPrevMagnitude = false;
+        this.prevMagnitude.fill(0);
         this.bufferIndex = 0;
     }
 
