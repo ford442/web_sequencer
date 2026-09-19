@@ -51,7 +51,7 @@
 - [x] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
 
 ## Innovation Lab
-- [ ] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
+- [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
@@ -61,12 +61,13 @@
 
 - [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
 - [x] Explore a 'breathing' noise gate for TTS that slightly increases noise floor gain during vowels and cuts it during silence for a vintage sampler feel.
-- [ ] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
+- [x] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
 - [x] Investigate envelope follower ducking in the granular engine for sidechain effects based on percussive hits.
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
-- [ ] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
+- [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
+- [ ] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -137,3 +138,7 @@
 - [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
   - Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
   - This clears out the vocal fundamental dynamically specifically when the kick hits, reducing mud without fully gating the higher vocal harmonics.
+- Completed "Experiment with non-linear grain panning".
+  - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
+  - Reduced redundant math by reusing `this.grainLfoPhase`.
+  - Velocity Check: This architectural path was highly efficient because the `grainLfoPhase` state was already tracking per-block.
