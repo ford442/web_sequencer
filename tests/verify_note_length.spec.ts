@@ -31,6 +31,8 @@ test('verify note length controls and auto-delete', async ({ page }) => {
                 document.querySelectorAll('[data-radix-popper-content-wrapper]').forEach(el => el.remove());
                 document.querySelectorAll('[role="tooltip"]').forEach(el => el.remove());
                 document.querySelectorAll('.fixed').forEach(el => el.remove()); // remove overlays
+                document.querySelectorAll('button[aria-label*="pyodide degraded"]').forEach(el => el.remove());
+                document.querySelectorAll('button[aria-label*="pyodide degraded"]').forEach(el => el.remove());
             });
             await step.click();
         }
@@ -38,6 +40,7 @@ test('verify note length controls and auto-delete', async ({ page }) => {
     }
 
     await step0.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    await page.evaluate(() => { document.querySelectorAll('button[aria-label*="pyodide degraded"]').forEach(el => el.remove()); });
     await step0.click({ button: 'right' });
 
     const dialog = page.getByRole('dialog').filter({ hasText: 'NOTE PROPERTIES' });
