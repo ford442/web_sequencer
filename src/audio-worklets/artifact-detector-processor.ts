@@ -74,6 +74,26 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private qualitySum: number = 0;
     private qualityCount: number = 0;
 
+    // Pre-allocated postMessage objects to avoid per-block / per-interval GC
+    private readonly artifactDetectedMessage = {
+        type: 'artifact-detected' as const,
+        detection: {
+            detected: false,
+            severity: 0,
+            type: 'none' as ArtifactDetection['type'],
+            timestamp: 0,
+            frequencyRegion: undefined as number | undefined,
+            metadata: undefined as any
+        }
+    };
+    private readonly qualityUpdateMessage = {
+        type: 'quality-update' as const,
+        quality: 1.0,
+        artifactRate: 0,
+        averageSeverity: 0,
+        pendingArtifacts: [] as ArtifactDetection[]
+    };
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -233,17 +253,14 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             
             // Report artifact immediately if severe
             if (detection.severity > 0.7) {
-                this.port.postMessage({
-                    type: 'artifact-detected',
-                    detection: {
-                        detected: detection.detected,
-                        severity: detection.severity,
-                        type: detection.type,
-                        timestamp: detection.timestamp,
-                        frequencyRegion: detection.frequencyRegion,
-                        metadata: detection.metadata
-                    }
-                });
+                this.artifactDetectedMessage.detection.detected = detection.detected;
+                this.artifactDetectedMessage.detection.severity = detection.severity;
+                this.artifactDetectedMessage.detection.type = detection.type;
+                this.artifactDetectedMessage.detection.timestamp = detection.timestamp;
+                this.artifactDetectedMessage.detection.frequencyRegion = detection.frequencyRegion;
+                this.artifactDetectedMessage.detection.metadata = detection.metadata;
+
+                this.port.postMessage(this.artifactDetectedMessage);
             } else {
                 // Queue for batch reporting
                 this.pendingArtifacts.push(detection);
@@ -305,13 +322,12 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
-        this.port.postMessage({
-            type: 'quality-update',
-            quality: avgQuality,
-            artifactRate: stats.artifactRate,
-            averageSeverity: stats.averageSeverity,
-            pendingArtifacts: this.pendingArtifacts
-        });
+        this.qualityUpdateMessage.quality = avgQuality;
+        this.qualityUpdateMessage.artifactRate = stats.artifactRate;
+        this.qualityUpdateMessage.averageSeverity = stats.averageSeverity;
+        this.qualityUpdateMessage.pendingArtifacts = this.pendingArtifacts;
+
+        this.port.postMessage(this.qualityUpdateMessage);
 
         // Reset accumulators
         this.pendingArtifacts.length = 0;
