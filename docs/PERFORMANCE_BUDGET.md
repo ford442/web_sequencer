@@ -265,15 +265,18 @@ target**: the budget exists so a future change can't make fan-out *worse*
 without failing CI, while each migration phase below should drive the
 measured number down toward `KeyboardNode`'s 0.
 
-`src/stores/uiModalsStore.ts` is the first slice moved off the mega-context (the
-`is3DMode` flag `TransportHeader`, `RackNode` and `App` now read directly via
-`useUIModalsStore(selector)` instead of `useAppStateContext()`).
-`src/__tests__/uiModalsStore.renderIsolation.test.tsx` locks in that this slice
-is fully isolated: a component subscribed only to the store does not re-render
-on a pattern edit. `TransportHeader`/`BottomBar`/`RackNode` don't reach 0 in the
-32-step budget yet because they still read most of their other fields off the
-shared context — that requires the remaining migration phases (transport/mix,
-sampler banks, pattern edit, instrument state, session/song) described in
+`src/stores/uiModalsStore.ts` and `src/stores/transportMixStore.ts` are the
+first slices moved off the mega-context (the `is3DMode` flag, and transport/mix
+state like `tempo` and `masterVolume`, which components can read directly via
+their respective stores instead of `useAppStateContext()`).
+`src/__tests__/uiModalsStore.renderIsolation.test.tsx` and
+`src/__tests__/transportMixStore.renderIsolation.test.tsx` lock in that these
+slices are fully isolated: a component subscribed only to the store does not
+re-render on a pattern edit. `TransportHeader`/`BottomBar`/`RackNode` don't
+reach 0 in the 32-step budget yet because they still read most of their other
+fields off the shared context — that requires the regions themselves to be
+migrated off the mega-context one by one, along with the remaining phase stores
+(sampler banks, pattern edit, instrument state, session/song) described in
 `useAppState.tsx`'s module doc, each landing as its own PR.
 
 ### Test tier note
