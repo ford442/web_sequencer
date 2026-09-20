@@ -250,12 +250,19 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                         type: detection.type,
                         timestamp: detection.timestamp,
                         frequencyRegion: detection.frequencyRegion,
-                        metadata: detection.metadata
+                        metadata: detection.metadata ? { ...detection.metadata } : undefined
                     }
                 });
             } else {
-                // Queue for batch reporting
-                this.pendingArtifacts.push(detection);
+                // Queue for batch reporting (clone to avoid reference issues)
+                this.pendingArtifacts.push({
+                    detected: detection.detected,
+                    severity: detection.severity,
+                    type: detection.type,
+                    timestamp: detection.timestamp,
+                    frequencyRegion: detection.frequencyRegion,
+                    metadata: detection.metadata ? { ...detection.metadata } : undefined
+                });
             }
         }
 

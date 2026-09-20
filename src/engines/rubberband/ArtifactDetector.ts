@@ -161,6 +161,32 @@ export class ArtifactDetector {
     private analysisBuffer: Float32Array;
     private bufferIndex: number = 0;
 
+    // Pre-allocated objects to prevent GC in audio thread
+    private readonly scratchMetrics: QualityMetrics = {
+        spectralFlux: 0,
+        zeroCrossingRate: 0,
+        rmsLevel: 0,
+        peakLevel: 0,
+        spectralCentroid: 0,
+        spectralFlatness: 0,
+        crestFactor: 0,
+        quality: 0
+    };
+
+    private readonly scratchDetection: ArtifactDetection = {
+        detected: false,
+        severity: 0,
+        type: 'none',
+        timestamp: 0,
+        frequencyRegion: 0,
+        metadata: {
+            threshold: 0,
+            flux: 0,
+            flatness: 0,
+            crestFactor: 0
+        }
+    };
+
     /**
      * Create a new ArtifactDetector
      * @param config Partial configuration (defaults applied for missing values)
@@ -248,31 +274,30 @@ export class ArtifactDetector {
             }
         }
 
-        // Create detection result
-        const result: ArtifactDetection = {
-            detected,
-            severity,
-            type,
-            timestamp: performance.now(),
-            frequencyRegion: detected ? metrics.spectralCentroid : undefined,
-            metadata: {
-                threshold,
-                flux: metrics.spectralFlux,
-                flatness: metrics.spectralFlatness,
-                crestFactor: metrics.crestFactor
-            }
-        };
+        // Update pre-allocated detection result
+        this.scratchDetection.detected = detected;
+        this.scratchDetection.severity = severity;
+        this.scratchDetection.type = type;
+        this.scratchDetection.timestamp = performance.now();
+        this.scratchDetection.frequencyRegion = detected ? metrics.spectralCentroid : undefined;
 
-        // Update history
-        this.updateHistory(result, metrics);
+        if (this.scratchDetection.metadata) {
+            this.scratchDetection.metadata.threshold = threshold;
+            this.scratchDetection.metadata.flux = metrics.spectralFlux;
+            this.scratchDetection.metadata.flatness = metrics.spectralFlatness;
+            this.scratchDetection.metadata.crestFactor = metrics.crestFactor;
+        }
+
+        // Update history (will clone internally if needed)
+        this.updateHistory(this.scratchDetection, metrics);
         
         // Trigger callbacks if artifact detected
         if (detected) {
-            this.notifyArtifactCallbacks(result);
+            this.notifyArtifactCallbacks(this.scratchDetection);
         }
         this.notifyQualityCallbacks(metrics);
 
-        return result;
+        return this.scratchDetection;
     }
 
     /**
@@ -305,12 +330,12 @@ export class ArtifactDetector {
         }
         
         // Return non-detection if buffer not full yet
-        return {
-            detected: false,
-            severity: 0,
-            type: 'none',
-            timestamp: performance.now()
-        };
+        this.scratchDetection.detected = false;
+        this.scratchDetection.severity = 0;
+        this.scratchDetection.type = 'none';
+        this.scratchDetection.timestamp = performance.now();
+        this.scratchDetection.frequencyRegion = undefined;
+        return this.scratchDetection;
     }
 
     /**
@@ -372,16 +397,16 @@ export class ArtifactDetector {
         // Quality estimate based on multiple factors
         const quality = Math.max(0, 1 - spectralFlux * 2 - spectralFlatness * 0.5);
 
-        return {
-            spectralFlux,
-            zeroCrossingRate,
-            rmsLevel,
-            peakLevel: peak,
-            spectralCentroid,
-            spectralFlatness,
-            crestFactor,
-            quality
-        };
+        this.scratchMetrics.spectralFlux = spectralFlux;
+        this.scratchMetrics.zeroCrossingRate = zeroCrossingRate;
+        this.scratchMetrics.rmsLevel = rmsLevel;
+        this.scratchMetrics.peakLevel = peak;
+        this.scratchMetrics.spectralCentroid = spectralCentroid;
+        this.scratchMetrics.spectralFlatness = spectralFlatness;
+        this.scratchMetrics.crestFactor = crestFactor;
+        this.scratchMetrics.quality = quality;
+
+        return this.scratchMetrics;
     }
 
     /**
@@ -429,7 +454,16 @@ export class ArtifactDetector {
 
         // Update artifact history
         if (detection.detected) {
-            this.artifactHistory.push(detection);
+            // Must clone the object before pushing to history since detection is mutated
+            const clonedDetection: ArtifactDetection = {
+                detected: detection.detected,
+                severity: detection.severity,
+                type: detection.type,
+                timestamp: detection.timestamp,
+                frequencyRegion: detection.frequencyRegion,
+                metadata: detection.metadata ? { ...detection.metadata } : undefined
+            };
+            this.artifactHistory.push(clonedDetection);
             if (this.artifactHistory.length > this.config.historySize) {
                 this.artifactHistory.shift();
             }
