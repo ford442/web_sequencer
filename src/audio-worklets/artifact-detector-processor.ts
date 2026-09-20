@@ -74,7 +74,19 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private qualitySum: number = 0;
     private qualityCount: number = 0;
 
-    // Pre-allocated message for periodic reporting to avoid GC
+    // Pre-allocated postMessage objects to avoid per-block / per-interval GC.
+    // postMessage structured-clones synchronously, so mutating these after send is safe.
+    private readonly artifactDetectedMessage = {
+        type: 'artifact-detected' as const,
+        detection: {
+            detected: false,
+            severity: 0,
+            type: 'none' as ArtifactDetection['type'],
+            timestamp: 0,
+            frequencyRegion: undefined as number | undefined,
+            metadata: undefined as ArtifactDetection['metadata']
+        }
+    };
     private readonly reportMessage = {
         type: 'quality-update' as const,
         quality: 1.0,
@@ -242,17 +254,13 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             
             // Report artifact immediately if severe
             if (detection.severity > 0.7) {
-                this.port.postMessage({
-                    type: 'artifact-detected',
-                    detection: {
-                        detected: detection.detected,
-                        severity: detection.severity,
-                        type: detection.type,
-                        timestamp: detection.timestamp,
-                        frequencyRegion: detection.frequencyRegion,
-                        metadata: detection.metadata
-                    }
-                });
+                this.artifactDetectedMessage.detection.detected = detection.detected;
+                this.artifactDetectedMessage.detection.severity = detection.severity;
+                this.artifactDetectedMessage.detection.type = detection.type;
+                this.artifactDetectedMessage.detection.timestamp = detection.timestamp;
+                this.artifactDetectedMessage.detection.frequencyRegion = detection.frequencyRegion;
+                this.artifactDetectedMessage.detection.metadata = detection.metadata;
+                this.port.postMessage(this.artifactDetectedMessage);
             } else {
                 // Queue for batch reporting
                 this.pendingArtifacts.push(detection);
@@ -314,14 +322,11 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
-        // Update pre-allocated message
+        // Update pre-allocated message. pendingArtifacts stays the same array
+        // reference; structured clone captures current contents before we clear.
         this.reportMessage.quality = avgQuality;
         this.reportMessage.artifactRate = stats.artifactRate;
         this.reportMessage.averageSeverity = stats.averageSeverity;
-        // The reference to pendingArtifacts remains the same, but we must
-        // ensure we send the current values. Since postMessage serializes the array,
-        // it captures the state correctly before we clear the array.
-
         this.port.postMessage(this.reportMessage);
 
         // Reset accumulators
