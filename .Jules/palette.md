@@ -15,3 +15,6 @@
 ## 2026-09-17 - Remove redundant aria-live from static empty states
 **Learning:** Found several statically rendered empty states throughout the application using `border-dashed` that correctly utilized `role="status"` but unnecessarily appended `aria-live="polite"`. According to W3C specifications, `role="status"` implicitly provides `aria-live="polite"`. Including both can cause some screen readers to double-announce the state on mount.
 **Action:** When implementing static empty states, specify `role="status"` but omit `aria-live="polite"`. Reserve the explicit `aria-live` attribute solely for regions that dynamically inject text during interaction, or use the `A11yAnnouncer` for those dynamic cases.
+## 2026-09-20 - LoadingOverlay Emoji Icons
+**Learning:** Step icons in the `LoadingOverlay` mapped via `STEP_ICONS` were being read literally by screen readers (e.g. 'Speaker with three sound waves Loading...'), causing auditory clutter.
+**Action:** Applied `aria-hidden="true"` to the `<span>` wrapping the step icons in the `LoadingOverlay` to suppress these decorative elements for screen readers.

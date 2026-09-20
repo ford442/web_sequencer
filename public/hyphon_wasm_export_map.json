@@ -46,5 +46,12 @@
   "prophecy_all_notes_off": "prophecy_all_notes_off",
   "prophecy_set_param": "prophecy_set_param",
   "prophecy_process": "prophecy_process",
-  "main": "main"
+  "main": "main",
+  "drumkit_create": "drumkit_create",
+  "drumkit_destroy": "drumkit_destroy",
+  "drumkit_init": "drumkit_init",
+  "drumkit_set_kit": "drumkit_set_kit",
+  "drumkit_trigger": "drumkit_trigger",
+  "drumkit_choke_open_hat": "drumkit_choke_open_hat",
+  "drumkit_process": "drumkit_process"
 }
