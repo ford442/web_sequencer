@@ -3,14 +3,14 @@
  * [stretchRatio, volume, pitchBendCents, vibratoDepth, vibratoRate, grainJitter, grainSizeMs, isVowel]
  * A value of -1.0 in the modulation slots (index 3-6) means "no per-phoneme override".
  */
-export type PhonemeSample = Float32Array;
+export type PhonemeSample = Float32Array; // Size 9
 
 /**
  * Determine the phoneme parameters for the current sample position.
  * phonemeData stride is 10 floats: start, end, isVowel, stretch(unused), volume,
  * pitchBend, vibDepth, vibRate, grainJitter, grainSize.
  */
-const DEFAULT_PHONEME_TUPLE = new Float32Array([1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0]);
+const DEFAULT_PHONEME_TUPLE = new Float32Array([1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0, -1.0]);
 
 export function getPhonemeDataAtSample(
   phonemeData: Float32Array | null,
@@ -46,6 +46,7 @@ export function getPhonemeDataAtSample(
       out[5] = grainJitter;
       out[6] = grainSize;
       out[7] = isVowel;
+      out[8] = i; // Phoneme index
       return out;
     }
   }

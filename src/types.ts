@@ -160,6 +160,7 @@ export interface SamplerBankParams {
   subHarmonics?: number;
   vocalChorus?: number;
   autoTune?: number;
+  microtonalVariance?: number;
   drumDuckDepth?: number;
   downsample?: number;
   spectralCompression?: number;
@@ -523,6 +524,7 @@ export interface Note {
   subHarmonics?: number;
   vocalChorus?: number;
   autoTune?: number;
+  microtonalVariance?: number;
   drumDuckDepth?: number;
   formantEnvSync?: boolean;
   formantEnvAttack?: number;
