@@ -13,8 +13,8 @@
  * transportSyncStore.ts — each lets a component subscribe to exactly the
  * slice it needs via `useXStore(selector)`, independent of everything else):
  *
- *   1. UI modals      → src/stores/uiModalsStore.ts (done — see below)
- *   2. Transport/mix   → tempo, swing, master volume/saturation, pan, reverb
+ *   1. UI modals       → src/stores/uiModalsStore.ts (done)
+ *   2. Transport/mix   → src/stores/transportMixStore.ts (done)
  *   3. Sampler banks   → active bank, track storage, TTS phrases
  *   4. Pattern edit    → selection, clipboard, scale, zoom
  *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params
