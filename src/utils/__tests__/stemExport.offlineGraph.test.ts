@@ -14,13 +14,15 @@ const renderSamplerBankPattern = vi.fn();
 
 vi.mock('../patternRenderer', () => ({
     bass2ToSynthParams: (b: unknown) => b,
-    renderSynthPattern: (...args: unknown[]) => renderSynthPattern(...args),
-    renderDrumPattern: (...args: unknown[]) => renderDrumPattern(...args),
-    renderSamplerBankPattern: (...args: unknown[]) => renderSamplerBankPattern(...args),
+    renderSynthPattern: (...args: unknown[]): unknown => renderSynthPattern(...args),
+    renderDrumPattern: (...args: unknown[]): unknown => renderDrumPattern(...args),
+    renderSamplerBankPattern: (...args: unknown[]): unknown => renderSamplerBankPattern(...args),
 }));
 
 vi.mock('../audioExport', () => ({
-    audioBufferToWav: vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(0) })),
+    audioBufferToWav: vi.fn(() =>
+        Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) }),
+    ),
 }));
 
 const zipEntries = vi.fn();
@@ -39,7 +41,7 @@ vi.mock('../../audio/loudness', () => ({
 
 const bounceBuffersThroughOfflineGraph = vi.fn();
 vi.mock('../../audio/offline/compileOfflineGraph', () => ({
-    bounceBuffersThroughOfflineGraph: (...args: unknown[]) =>
+    bounceBuffersThroughOfflineGraph: (...args: unknown[]): unknown =>
         bounceBuffersThroughOfflineGraph(...args),
 }));
 
@@ -106,7 +108,7 @@ function makeInput(): StemExportInput {
 function writtenMetadata(): Record<string, unknown> {
     const entries = zipEntries.mock.calls.at(-1)?.[0] as { path: string; data: Uint8Array }[];
     const meta = entries.find((entry) => entry.path === 'metadata.json');
-    return JSON.parse(new TextDecoder().decode(meta!.data));
+    return JSON.parse(new TextDecoder().decode(meta!.data)) as Record<string, unknown>;
 }
 
 describe('exportStemsToZip sample rate + master routing', () => {
@@ -115,38 +117,39 @@ describe('exportStemsToZip sample rate + master routing', () => {
         stubOfflineAudioContext();
         zipEntries.mockClear();
         renderSynthPattern.mockReset().mockImplementation(
-            async (_params: unknown, options: { sampleRate: number }) =>
-                fakeBuffer(options.sampleRate, options.sampleRate),
+            (_params: unknown, options: { sampleRate: number }) =>
+                Promise.resolve(fakeBuffer(options.sampleRate, options.sampleRate)),
         );
         renderDrumPattern.mockReset().mockImplementation(
-            async (_type: unknown, _params: unknown, options: { sampleRate: number }) =>
-                fakeBuffer(options.sampleRate, options.sampleRate),
+            (_type: unknown, _params: unknown, options: { sampleRate: number }) =>
+                Promise.resolve(fakeBuffer(options.sampleRate, options.sampleRate)),
         );
         renderSamplerBankPattern.mockReset().mockImplementation(
-            async (
+            (
                 _seq: unknown,
                 _buf: unknown,
                 _params: unknown,
                 _tempo: number,
                 sampleRate: number,
-            ) => fakeBuffer(sampleRate, sampleRate),
+            ) => Promise.resolve(fakeBuffer(sampleRate, sampleRate)),
         );
         bounceBuffersThroughOfflineGraph.mockReset().mockImplementation(
-            async (options: { durationSeconds: number; sampleRate: number }) => ({
-                buffer: fakeBuffer(
-                    Math.ceil(options.durationSeconds * options.sampleRate),
-                    options.sampleRate,
-                ),
-                report: {
-                    sampleRate: options.sampleRate,
-                    sampleRatePref: 'native',
-                    liveSampleRate: options.sampleRate,
-                    patchId: 'classic-electribe',
-                    patchName: 'Classic Electribe',
-                    slots: [],
-                    loudness: null,
-                },
-            }),
+            (options: { durationSeconds: number; sampleRate: number }) =>
+                Promise.resolve({
+                    buffer: fakeBuffer(
+                        Math.ceil(options.durationSeconds * options.sampleRate),
+                        options.sampleRate,
+                    ),
+                    report: {
+                        sampleRate: options.sampleRate,
+                        sampleRatePref: 'native',
+                        liveSampleRate: options.sampleRate,
+                        patchId: 'classic-electribe',
+                        patchName: 'Classic Electribe',
+                        slots: [],
+                        loudness: null,
+                    },
+                }),
         );
     });
 

@@ -83,13 +83,15 @@ function createOfflineContextMock(channels: number, length: number, sampleRate: 
             duration: len / rate,
             getChannelData: () => new Float32Array(len),
         }),
-        startRendering: vi.fn(async () => ({
-            numberOfChannels: channels,
-            length,
-            sampleRate,
-            duration: length / sampleRate,
-            getChannelData: () => new Float32Array(length),
-        })),
+        startRendering: vi.fn(() =>
+            Promise.resolve({
+                numberOfChannels: channels,
+                length,
+                sampleRate,
+                duration: length / sampleRate,
+                getChannelData: () => new Float32Array(length),
+            }),
+        ),
     };
 
     return { context: context as unknown as OfflineAudioContext, connections, raw: context };
@@ -240,8 +242,14 @@ describe('compileOfflineGraph', () => {
                 wam2: slotPayload(),
                 sampleRatePref: 44100,
                 contextFactory: factory,
-                resolveDescriptor: async () =>
-                    descriptor({ id: 'community.reverb', origin: 'community', offline: 'unsupported' }),
+                resolveDescriptor: () =>
+                    Promise.resolve(
+                        descriptor({
+                            id: 'community.reverb',
+                            origin: 'community',
+                            offline: 'unsupported',
+                        }),
+                    ),
             });
 
             expect(compiled.report.slots).toEqual([
@@ -267,8 +275,14 @@ describe('compileOfflineGraph', () => {
                 wam2: slotPayload(),
                 sampleRatePref: 44100,
                 contextFactory: factory,
-                resolveDescriptor: async () =>
-                    descriptor({ id: 'community.reverb', origin: 'community', offline: 'native' }),
+                resolveDescriptor: () =>
+                    Promise.resolve(
+                        descriptor({
+                            id: 'community.reverb',
+                            origin: 'community',
+                            offline: 'native',
+                        }),
+                    ),
             });
 
             expect(compiled.report.slots[0].status).toBe('bypassed');
@@ -283,7 +297,7 @@ describe('compileOfflineGraph', () => {
                 wam2: slotPayload(),
                 sampleRatePref: 44100,
                 contextFactory: factory,
-                resolveDescriptor: async () => null,
+                resolveDescriptor: () => Promise.resolve(null),
             });
 
             expect(compiled.report.slots[0]).toMatchObject({
@@ -300,7 +314,7 @@ describe('compileOfflineGraph', () => {
                 wam2: slotPayload({ packageId: 'hyphon.gain' }),
                 sampleRatePref: 44100,
                 contextFactory: factory,
-                resolveDescriptor: async () => descriptor({ id: 'hyphon.gain' }),
+                resolveDescriptor: () => Promise.resolve(descriptor({ id: 'hyphon.gain' })),
             });
 
             expect(compiled.report.slots[0]).toMatchObject({

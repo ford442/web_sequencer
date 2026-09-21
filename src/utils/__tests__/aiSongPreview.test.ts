@@ -14,14 +14,14 @@ const renderDrumPattern = vi.fn();
 
 vi.mock('../patternRenderer', () => ({
     bass2ToSynthParams: (b: unknown) => b,
-    renderSynthPattern: (...args: unknown[]) => renderSynthPattern(...args),
-    renderDrumPattern: (...args: unknown[]) => renderDrumPattern(...args),
+    renderSynthPattern: (...args: unknown[]): unknown => renderSynthPattern(...args),
+    renderDrumPattern: (...args: unknown[]): unknown => renderDrumPattern(...args),
 }));
 
 const bounceBuffersThroughOfflineGraph = vi.fn();
 
 vi.mock('../../audio/offline/compileOfflineGraph', () => ({
-    bounceBuffersThroughOfflineGraph: (...args: unknown[]) =>
+    bounceBuffersThroughOfflineGraph: (...args: unknown[]): unknown =>
         bounceBuffersThroughOfflineGraph(...args),
 }));
 
@@ -61,18 +61,20 @@ describe('renderAISongPreview', () => {
         localStorage.clear();
         renderSynthPattern.mockReset().mockResolvedValue(fakeBuffer());
         renderDrumPattern.mockReset().mockResolvedValue(fakeBuffer());
-        bounceBuffersThroughOfflineGraph.mockReset().mockImplementation(async () => ({
-            buffer: fakeBuffer(),
-            report: {
-                sampleRate: 48000,
-                sampleRatePref: 'native',
-                liveSampleRate: 48000,
-                patchId: 'classic-electribe',
-                patchName: 'Classic Electribe',
-                slots: [],
-                loudness: null,
-            },
-        }));
+        bounceBuffersThroughOfflineGraph.mockReset().mockImplementation(() =>
+            Promise.resolve({
+                buffer: fakeBuffer(),
+                report: {
+                    sampleRate: 48000,
+                    sampleRatePref: 'native',
+                    liveSampleRate: 48000,
+                    patchId: 'classic-electribe',
+                    patchName: 'Classic Electribe',
+                    slots: [],
+                    loudness: null,
+                },
+            }),
+        );
     });
 
     it('renders the requested bars through the shared offline graph exactly once', async () => {
@@ -157,27 +159,29 @@ describe('renderAISongPreview', () => {
     });
 
     it('surfaces unsupported WAM2 inserts from the graph report', async () => {
-        bounceBuffersThroughOfflineGraph.mockImplementationOnce(async () => ({
-            buffer: fakeBuffer(),
-            report: {
-                sampleRate: 44100,
-                sampleRatePref: 44100,
-                liveSampleRate: null,
-                patchId: 'classic-electribe',
-                patchName: 'Classic Electribe',
-                slots: [
-                    {
-                        nodeId: 'wam2-slot-1',
-                        packageId: 'community.reverb',
-                        placement: 'masterInsert',
-                        offline: 'unsupported',
-                        status: 'bypassed',
-                        reason: 'offline-unsupported',
-                    },
-                ],
-                loudness: null,
-            },
-        }));
+        bounceBuffersThroughOfflineGraph.mockImplementationOnce(() =>
+            Promise.resolve({
+                buffer: fakeBuffer(),
+                report: {
+                    sampleRate: 44100,
+                    sampleRatePref: 44100,
+                    liveSampleRate: null,
+                    patchId: 'classic-electribe',
+                    patchName: 'Classic Electribe',
+                    slots: [
+                        {
+                            nodeId: 'wam2-slot-1',
+                            packageId: 'community.reverb',
+                            placement: 'masterInsert',
+                            offline: 'unsupported',
+                            status: 'bypassed',
+                            reason: 'offline-unsupported',
+                        },
+                    ],
+                    loudness: null,
+                },
+            }),
+        );
 
         const result = await renderAISongPreview(song());
         expect(summarizePreviewSkips(result)).toContain('1 WAM2 insert unsupported offline');
