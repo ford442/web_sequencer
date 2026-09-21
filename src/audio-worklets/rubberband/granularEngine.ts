@@ -36,7 +36,7 @@ export interface FrozenGrainParams {
  * pan spread applied post-retrieve.
  */
 export class GranularEngine {
-  private readonly phonemeTuple = new Float32Array(8);
+  private readonly phonemeTuple = new Float32Array(9);
   private grains: [Grain, Grain] = [
     { phase: 0, start: 0, size: 0, active: false },
     { phase: 0, start: 0, size: 0, active: false }

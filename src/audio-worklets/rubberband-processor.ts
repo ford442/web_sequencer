@@ -84,7 +84,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   // Phoneme Data
   private phonemeData: Float32Array | null = null;
   private phonemeRatios: number[] | null = null;
-  private readonly phonemeTuple = new Float32Array(8);
+  private readonly phonemeTuple = new Float32Array(9);
 
   // Drum Envelope Sidechain
   private drumSidechainSAB: Float32Array | null = null;
@@ -472,6 +472,20 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (pBend !== 0.0) {
             const pitchBendRatio = Math.pow(2.0, pBend / 1200.0);
             finalPitch *= pitchBendRatio;
+        }
+
+        const microtonalVariance = parameters.microtonalVariance ? parameters.microtonalVariance[0] : 0.0;
+        if (microtonalVariance > 0.0) {
+            const phonemeIndex = pData[8];
+            if (phonemeIndex !== -1.0) {
+                // Generate a stable pseudo-random value between -1.0 and 1.0 based on phoneme index
+                let variation = Math.sin(phonemeIndex * 12.9898 + 78.233) * 43758.5453;
+                variation = variation - Math.floor(variation); // 0.0 to 1.0
+                variation = (variation * 2.0) - 1.0; // -1.0 to 1.0
+
+                const microtonalRatio = Math.pow(2.0, (variation * microtonalVariance) / 1200.0);
+                finalPitch *= microtonalRatio;
+            }
         }
     }
 
