@@ -261,7 +261,6 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             
             // Report artifact immediately if severe
             if (detection.severity > 0.7) {
-<<<<<<< HEAD
                 this.detectionMessage.detection.detected = detection.detected;
                 this.detectionMessage.detection.severity = detection.severity;
                 this.detectionMessage.detection.type = detection.type;
@@ -269,19 +268,6 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 this.detectionMessage.detection.frequencyRegion = detection.frequencyRegion ?? 0;
                 this.detectionMessage.detection.metadata = detection.metadata;
                 this.port.postMessage(this.detectionMessage);
-=======
-                this.port.postMessage({
-                    type: 'artifact-detected',
-                    detection: {
-                        detected: detection.detected,
-                        severity: detection.severity,
-                        type: detection.type,
-                        timestamp: detection.timestamp,
-                        frequencyRegion: detection.frequencyRegion,
-                        metadata: detection.metadata ? { ...detection.metadata } : undefined
-                    }
-                });
->>>>>>> origin/main
             } else {
                 // Queue for batch reporting (clone to avoid reference issues)
                 this.pendingArtifacts.push({
