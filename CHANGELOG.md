@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Offline graph — what you hear is what you bounce (#1233)
+- **One compiler**: `compileOfflineGraph` builds the `OfflineAudioContext` for track freeze, the stem-ZIP master and the AI song preview from the **live patch bay** config, through the same `compileAudioGraph` the running engine uses ([offline-graph.md](docs/audio-engine/offline-graph.md)).
+- **Export sample rate follows the user policy** (the export half of #1136): `44100` / `48000` verbatim, `native` resolved from the live `AudioContext.sampleRate`. Stem export no longer hardcodes 44.1 kHz, and the export dialog offers "Match live".
+- **Master loudness offline** (#1095): the persisted limiter settings run over the rendered mix at the same point in the chain as the live worklet, so the file matches the meters.
+- **WAM2 freeze contract** (ADR 0001): bundled fixtures render offline; community / SDK packages are bypassed with a stated reason and a badge — never substituted by a first-party engine.
+- **AI song preview plays audio**: the modal renders the first bars through the same graph and lists what it could not play (TTS banks, samples that load on import, unsupported inserts) instead of a "coming soon" toast.
+- Stem `metadata.json` now carries `routing`, `sampleRatePref`, `liveSampleRate` and the full offline-graph report.
+
 ### WAM2 host compatibility spike (Phase A)
 - Local-first Web Audio Modules 2.0 host on the existing declarative graph (`wam2` ids — distinct from AssemblyScript `wam-*` oscillators).
 - Bundled MIT fixtures: `hyphon.tone` (instrument) and `hyphon.gain` (track/master insert).

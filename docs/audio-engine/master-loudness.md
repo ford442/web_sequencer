@@ -74,6 +74,12 @@ and writes the report into `metadata.json`. Passing `options.loudness.normalizeT
 and re-limits it; the result reports what was *actually* achieved, which can fall
 short of an aggressive target once the ceiling binds.
 
+An offline *bounce* through the live patch (`compileOfflineGraph`, #1233) also runs
+the limiter itself, not only the meter: `applyMasterLoudnessOffline` feeds the
+rendered mix through the same `TruePeakLimiter` with the persisted settings, at the
+same point in the chain the worklet occupies live. See
+[offline-graph.md](offline-graph.md).
+
 ## UI and persistence
 
 The worklet posts scalar stats only (never audio buffers) at ≤ 30 Hz. State flows one

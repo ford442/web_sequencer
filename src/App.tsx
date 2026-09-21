@@ -233,7 +233,7 @@ export const App: React.FC = () => {
             )}
             {isAISongModalOpen && (
                 <Suspense fallback={<ModalLoadingFallback />}>
-                    <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} />
+                    <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} audioEngine={audioEngine} />
                 </Suspense>
             )}
             {isRbsImportModalOpen && (

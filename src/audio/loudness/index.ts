@@ -26,10 +26,15 @@ export { TruePeakLimiter, MAX_LOOKAHEAD_MS } from './limiter';
 export {
     analyzeLoudness,
     analyzeAudioBufferLoudness,
+    applyMasterLoudnessOffline,
     normalizeToTarget,
     formatLufs,
 } from './offline';
-export type { LoudnessReport, NormalizeResult } from './offline';
+export type {
+    LoudnessReport,
+    MasterLoudnessRenderResult,
+    NormalizeResult,
+} from './offline';
 
 export {
     loadLimiterSettings,

@@ -27,7 +27,7 @@ import type {
 export interface CompileGraphOptions {
     /** When false, skip masterPanner and connect masterGain → destination directly. */
     useStereoPanner?: boolean;
-    createReverbImpulse?: (context: AudioContext, preset: 'room' | 'plate' | 'hall') => AudioBuffer;
+    createReverbImpulse?: (context: BaseAudioContext, preset: 'room' | 'plate' | 'hall') => AudioBuffer;
     /**
      * Supplies the master true-peak limiter / loudness-meter node.
      *
@@ -36,7 +36,7 @@ export interface CompileGraphOptions {
      * (the default) omits the node and bridges the chain straight to the
      * destination, so a browser that cannot register the worklet still plays.
      */
-    createMasterLimiterNode?: (context: AudioContext) => AudioNode | null;
+    createMasterLimiterNode?: (context: BaseAudioContext) => AudioNode | null;
     /**
      * Reject configs that fail `validateGraph` (cycles, dangling edges,
      * duplicate ids) instead of compiling them. On by default: a user-authored
@@ -67,7 +67,7 @@ function asConfig<T>(config: GraphNodeSpec['config']): T {
 }
 
 function createNode(
-    context: AudioContext,
+    context: BaseAudioContext,
     spec: GraphNodeSpec,
     options: Required<CompileGraphOptions>,
     analysers: Map<GraphNodeId, AnalyserNode>,
@@ -222,11 +222,16 @@ function registerRole(
 }
 
 /**
- * Compile a declarative AudioGraphConfig into live Web Audio nodes and connections.
+ * Compile a declarative AudioGraphConfig into Web Audio nodes and connections.
  * Connection order follows the edges array — deterministic for testing.
+ *
+ * The context is a `BaseAudioContext`, not an `AudioContext`: the offline
+ * render path (`compileOfflineGraph`) compiles the *same* patch into an
+ * `OfflineAudioContext`, which is what keeps freeze / stems / preview on one
+ * compiler instead of a second, quietly diverging one.
  */
 export function compileAudioGraph(
-    context: AudioContext,
+    context: BaseAudioContext,
     config: AudioGraphConfig,
     options: CompileGraphOptions = {},
 ): CompiledAudioGraph {

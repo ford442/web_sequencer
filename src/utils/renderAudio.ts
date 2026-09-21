@@ -7,6 +7,7 @@
 import type { SynthParams, KickParams, SnareParams, HatParams } from '@/types';
 import { getTunedFrequency, type ScaleDefinition } from '@/utils/musicTheory';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
+import { resolveExportSampleRate } from '@/utils/audioContextPolicy';
 
 type PyodideResultProxy = {
     toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
@@ -46,14 +47,18 @@ export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
 /**
  * Renders a synth sound to an AudioBuffer.
  * Useful for exporting to XM samples.
+ *
+ * `sampleRate` defaults to whatever the user sample-rate policy resolves to
+ * (#1233) rather than a hardcoded 44.1 kHz — a one-shot baked for XM should be
+ * recorded at the rate the voice is auditioned at.
  */
 export async function renderSynthToBuffer(
     params: SynthParams,
     note: string = 'C4',
     duration: number = 2.0,
-    engines?: RenderSynthEngines
+    engines?: RenderSynthEngines,
+    sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> {
-    const sampleRate = 44100;
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
 
     const time = 0;
@@ -217,9 +222,9 @@ export async function renderSynthToBuffer(
 export async function renderDrumToBuffer(
     sound: 'kick' | 'snare' | 'closedHat' | 'openHat',
     params: KickParams | SnareParams | HatParams,
-    pyodide?: PyodideLike | null
+    pyodide?: PyodideLike | null,
+    sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> {
-    const sampleRate = 44100;
     // Estimate duration based on params or defaults
     let duration = sound === 'snare' ? 0.5 : (sound === 'kick' ? 0.5 : 0.3);
 
