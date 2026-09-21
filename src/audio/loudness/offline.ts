@@ -160,6 +160,68 @@ export function normalizeToTarget(
     };
 }
 
+export interface MasterLoudnessRenderResult {
+    /** Reading of the mix as it arrived from the render. */
+    before: LoudnessReport;
+    /** Reading after the limiter ran (identical to `before` when it did not). */
+    after: LoudnessReport;
+    /** False when the settings say metering only — the samples are untouched. */
+    limited: boolean;
+    /** Settings the offline stage actually ran with. */
+    settings: LimiterSettings;
+}
+
+/**
+ * Run the master limiter over a rendered mix exactly where the live graph runs
+ * it — last node before the destination (#1095).
+ *
+ * The live stage is an AudioWorklet; offline it is the same `TruePeakLimiter`
+ * fed the same persisted `LimiterSettings`, so a bounce carries the ceiling the
+ * user was monitoring with. `enabled: false` or `monitorOnly: true` measure
+ * without touching a sample, which is what those modes mean live too.
+ */
+export function applyMasterLoudnessOffline(
+    channels: Float32Array[],
+    sampleRate: number,
+    limiterSettings: Partial<LimiterSettings> = {},
+): MasterLoudnessRenderResult {
+    const settings: LimiterSettings = {
+        ...DEFAULT_LIMITER_SETTINGS,
+        ...limiterSettings,
+        // Offline has no real-time budget to protect, so the detector runs at
+        // the stricter factor. It can only make the reported dBTP more accurate.
+        detectOversample: limiterSettings.detectOversample ?? 8,
+    };
+    const before = analyzeLoudness(channels, sampleRate, settings.detectOversample);
+
+    if (!settings.enabled || settings.monitorOnly) {
+        return { before, after: before, limited: false, settings };
+    }
+
+    const limiter = new TruePeakLimiter(sampleRate, Math.max(1, channels.length), settings);
+    const frames = channels[0]?.length ?? 0;
+    const scratch: Float32Array[] = channels.map(() => new Float32Array(ANALYSIS_BLOCK));
+    const outViews: Float32Array[] = new Array(channels.length);
+
+    for (let offset = 0; offset < frames; offset += ANALYSIS_BLOCK) {
+        const size = Math.min(ANALYSIS_BLOCK, frames - offset);
+        for (let ch = 0; ch < channels.length; ch += 1) {
+            const source = channels[ch];
+            const block = scratch[ch];
+            for (let i = 0; i < size; i += 1) block[i] = source[offset + i];
+            outViews[ch] = source.subarray(offset, offset + size);
+        }
+        limiter.process(scratch, outViews, size);
+    }
+
+    return {
+        before,
+        after: analyzeLoudness(channels, sampleRate, settings.detectOversample),
+        limited: true,
+        settings,
+    };
+}
+
 /** Format a loudness value for UI/report text (`-inf` for silence). */
 export function formatLufs(value: number, digits = 1): string {
     return Number.isFinite(value) ? value.toFixed(digits) : '-inf';

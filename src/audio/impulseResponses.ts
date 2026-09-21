@@ -1,5 +1,5 @@
 export function createReverbImpulseResponse(
-    context: AudioContext,
+    context: BaseAudioContext,
     duration: number = 2.0,
     decay: number = 2.0,
 ): AudioBuffer {

@@ -15,6 +15,12 @@ const initTrackFreezer = async () => {
 };
 import { engineTelemetry } from '@/utils/engineTelemetry';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
+import { resolveExportSampleRate, type SampleRatePref } from '@/utils/audioContextPolicy';
+import {
+    renderThroughOfflineGraph,
+    type CompiledOfflineGraph,
+    type OfflineGraphRenderResult,
+} from '@/audio/offline/compileOfflineGraph';
 
 // WASM Module Loader
 interface WasmExports {
@@ -58,7 +64,17 @@ if (typeof window !== 'undefined') {
 
 export interface FreezeOptions {
     bpm: number;
+    /** Defaults to the user sample-rate policy (#1136 / #1233). */
     sampleRate?: number;
+    /** Policy to resolve when `sampleRate` is omitted. */
+    sampleRatePref?: SampleRatePref;
+    /** `AudioContext.sampleRate` of the running engine, for the `native` pref. */
+    liveSampleRate?: number | null;
+}
+
+/** Rate a freeze renders at: explicit, else the live policy. */
+function freezeSampleRate(options: FreezeOptions): number {
+    return options.sampleRate ?? resolveExportSampleRate(options.sampleRatePref, options.liveSampleRate);
 }
 
 type PyodideResultProxy = {
@@ -89,7 +105,7 @@ export const freezeSynthTrack = async (
 ): Promise<AudioBuffer> => {
     if (!pyodide) throw new Error('Pyodide not initialized');
 
-    const sampleRate = options.sampleRate || 44100;
+    const sampleRate = freezeSampleRate(options);
 
     // Prepare params for Python
     const pythonParams = {
@@ -132,7 +148,7 @@ export const freezeDrumTrack = async (
 ): Promise<AudioBuffer> => {
     if (!pyodide) throw new Error('Pyodide not initialized');
 
-    const sampleRate = options.sampleRate || 44100;
+    const sampleRate = freezeSampleRate(options);
 
     // Map drum type to simpler Python type
     const pyDrumType = drumType === 'kick' ? 'kick' :
@@ -162,13 +178,16 @@ export const freezeDrumTrack = async (
 };
 
 /**
- * Freezes a track using Web Audio's OfflineAudioContext
- * This is faster than Python for simple cases and works for live audio chains
+ * Freezes a track using Web Audio's OfflineAudioContext.
+ *
+ * Bare context: the caller owns the whole graph, so nothing of the live patch
+ * is applied. Use {@link freezeThroughPatch} when the freeze has to sound like
+ * what the user is monitoring.
  */
 export const freezeWithOfflineContext = async (
     setupCallback: (ctx: OfflineAudioContext) => void,
     durationSeconds: number,
-    sampleRate: number = 44100
+    sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> => {
     const lengthSamples = Math.ceil(durationSeconds * sampleRate);
     const offlineCtx = new OfflineAudioContext(2, lengthSamples, sampleRate);
@@ -182,6 +201,34 @@ export const freezeWithOfflineContext = async (
     console.log('Render complete:', renderedBuffer.duration, 'seconds');
 
     return renderedBuffer;
+};
+
+export interface FreezeThroughPatchOptions extends Omit<FreezeOptions, 'bpm'> {
+    durationSeconds: number;
+    /** Schedule the sources; `input` is the live patch's master FX entry. */
+    schedule: (compiled: CompiledOfflineGraph) => void | Promise<void>;
+}
+
+/**
+ * Freeze a track through the live patch bay (#1233).
+ *
+ * This is the freeze consumer of `compileOfflineGraph`: the same compiler,
+ * patch, sample-rate policy and master loudness stage the stem export and the
+ * AI preview use, so a frozen track and a bounced stem cannot drift apart. The
+ * returned report says which WAM2 inserts were rendered and which were bypassed
+ * as offline-unsupported.
+ */
+export const freezeThroughPatch = async (
+    options: FreezeThroughPatchOptions,
+): Promise<OfflineGraphRenderResult> => {
+    const { durationSeconds, schedule, ...freezeOptions } = options;
+    return renderThroughOfflineGraph({
+        durationSeconds,
+        schedule,
+        sampleRate: freezeOptions.sampleRate,
+        sampleRatePref: freezeOptions.sampleRatePref,
+        liveSampleRate: freezeOptions.liveSampleRate ?? null,
+    });
 };
 
 /**

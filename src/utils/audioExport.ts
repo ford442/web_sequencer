@@ -60,8 +60,12 @@ const IS_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 export type WavBitDepth = 16 | 24;
 
 export interface WavEncodeOptions {
-    /** Target sample rate. Resamples when different from the buffer rate. */
-    sampleRate?: 44100 | 48000;
+    /**
+     * Target sample rate. Resamples when different from the buffer rate.
+     * Any positive rate is accepted: with the `native` sample-rate policy an
+     * export runs at whatever the live device gave us, not just 44.1/48 kHz.
+     */
+    sampleRate?: number;
     /** PCM bit depth. Defaults to 16. */
     bitDepth?: WavBitDepth;
 }

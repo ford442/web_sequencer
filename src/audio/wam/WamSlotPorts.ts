@@ -13,7 +13,7 @@ export class WamSlotPorts {
   readonly wet: GainNode;
   private plugin: AudioNode | null = null;
 
-  constructor(context: AudioContext) {
+  constructor(context: BaseAudioContext) {
     this.input = context.createGain();
     this.output = context.createGain();
     this.bypass = context.createGain();

@@ -6,7 +6,7 @@ import { SongInfoPanel } from './SongInfoPanel';
 import { PatternGridPanel } from './PatternGridPanel';
 import { TrackStatisticsPanel } from './TrackStatisticsPanel';
 import { AutomationVisualizationPanel } from './AutomationVisualizationPanel';
-import { Tooltip } from './Tooltip';
+import { AudioPreviewPanel } from './AudioPreviewPanel';
 
 interface PreviewTabPanelProps {
   isPreviewLoading: boolean;
@@ -18,6 +18,18 @@ interface PreviewTabPanelProps {
   audioEngine?: unknown;
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   onSwitchToPaste?: () => void;
+}
+
+/**
+ * Sample rate of the running engine, when the modal was given one.
+ *
+ * The preview must render at the rate the user is monitoring at; without a live
+ * engine the sample-rate policy falls back on its own, so `null` is a valid
+ * answer rather than a guess.
+ */
+function liveSampleRateOf(audioEngine: unknown): number | null {
+  const context = (audioEngine as { context?: { sampleRate?: number } } | null | undefined)?.context;
+  return typeof context?.sampleRate === 'number' ? context.sampleRate : null;
 }
 
 export const PreviewTabPanel = React.memo(function PreviewTabPanel({
@@ -46,26 +58,11 @@ export const PreviewTabPanel = React.memo(function PreviewTabPanel({
             parsedAutomationRows={parsedAutomationRows}
           />
 
-          {audioEngine != null && (
-            <div className="p-4 bg-gray-900/50 rounded-lg">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-300">Audio Preview</h3>
-                  <p className="text-xs text-gray-500">Listen to the pattern before importing</p>
-                </div>
-                <Tooltip text="Coming soon!" position="left">
-                  <button type="button"
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115]"
-                    onClick={() => onShowToast('Audio preview coming soon!', 'info')}
-                    disabled
-                    aria-label="Play Preview (Coming Soon)"
-                  >
-                    <span>▶</span> Play Preview
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-          )}
+          <AudioPreviewPanel
+            parsedData={parsedData}
+            liveSampleRate={liveSampleRateOf(audioEngine)}
+            onShowToast={onShowToast}
+          />
         </div>
       ) : (
         <div role="status" className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">

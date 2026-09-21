@@ -27,6 +27,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   // A11y: This is a developer-only diagnostic overlay (Ctrl+Shift+E to toggle).
   // Never announced to screen readers; not part of primary content.
   container.setAttribute('aria-hidden', 'true');
+  container.setAttribute('role', 'region');
+  container.setAttribute('aria-label', 'Engine diagnostics');
   container.setAttribute('data-nosnippet', 'true');
   // Inert is progressive enhancement (hides from a11y tree + input in supporting browsers)
   if ('inert' in container) {
@@ -55,7 +57,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .hud-actions { display:flex; gap:8px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; }
   #${CONTAINER_ID} button { background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; }
   #${CONTAINER_ID} button:hover { background: rgba(255,255,255,0.2); }
-  #${CONTAINER_ID} button:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }
+  #${CONTAINER_ID} button:focus-visible, #${CONTAINER_ID} select:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }
   #${CONTAINER_ID} button[disabled] { opacity:0.4; cursor:default; }
   #${CONTAINER_ID} .hud-wam-actions { display:flex; gap:4px; margin-left:8px; }
   #${CONTAINER_ID} .hud-wam-actions button { padding:2px 6px; font-size:10px; }
@@ -77,11 +79,13 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       container.style.display = 'none';
       // Keep it inert while hidden so it stays out of the a11y tree / input.
       if ('inert' in container) { (container as HTMLElement & { inert: boolean }).inert = true; }
+      container.setAttribute('aria-hidden', 'true');
       return;
     }
     container.style.display = 'block';
     // Clear inert while shown so the action buttons are operable (inert blocks clicks).
     if ('inert' in container) { (container as HTMLElement & { inert: boolean }).inert = false; }
+    container.removeAttribute('aria-hidden');
 
     const data = engineTelemetry.snapshot();
     const runtime = engineTelemetry.getRuntimeSnapshot();
@@ -106,14 +110,14 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       const style = active
         ? 'background:#0ea5e9;border-color:#0ea5e9;'
         : '';
-      return `<button type="button" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}</button>`;
+      return `<button type="button" aria-label="${mode} latency mode" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}</button>`;
     }).join('');
     const storedRate = getStoredSampleRatePref();
     const rateButtons = SAMPLE_RATE_PREFS.map((pref) => {
       const active = pref === storedRate;
       const style = active ? 'background:#0ea5e9;border-color:#0ea5e9;' : '';
       const label = pref === 'native' ? 'native' : pref === 44100 ? '44.1 kHz' : '48 kHz';
-      return `<button type="button" class="hud-rate-btn" data-rate="${pref}" style="${style}">${label}</button>`;
+      return `<button type="button" aria-label="${label} sample rate" class="hud-rate-btn" data-rate="${pref}" style="${style}">${label}</button>`;
     }).join('');
     const requestedMatchesStored = storedRate === 'native'
       ? runtime.requestedSampleRate == null
@@ -122,7 +126,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       (runtime.latencyHint != null && storedMode !== runtime.latencyHint)
       || (runtime.sampleRate != null && !requestedMatchesStored);
     const restartNote = needsRestart
-      ? '<button type="button" id="hud-apply-restart" style="margin-top:4px">Apply &amp; restart audio</button>'
+      ? '<button type="button" id="hud-apply-restart" aria-label="Apply and restart audio context" style="margin-top:4px">Apply &amp; restart audio</button>'
       : '';
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>
@@ -132,8 +136,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const sinkSection = supportsSetSinkId()
       ? `<div class="subheader">Audio output</div>
       <div class="row" style="gap:4px;flex-wrap:wrap">
-        <button type="button" id="hud-sink-grant">List outputs</button>
-        <select id="hud-sink-select" style="flex:1;min-width:140px;background:#111;color:#fff;border:1px solid rgba(255,255,255,0.2);font-size:11px">
+        <button type="button" id="hud-sink-grant" aria-label="List audio output devices">List outputs</button>
+        <select id="hud-sink-select" aria-label="Audio output device" style="flex:1;min-width:140px;background:#111;color:#fff;border:1px solid rgba(255,255,255,0.2);font-size:11px">
           <option value="">Default device</option>
           ${audioOutputDevices.map((d) => `<option value="${d.deviceId.replace(/"/g, '&quot;')}">${(d.label || d.deviceId).replace(/</g, '&lt;')}</option>`).join('')}
         </select>
@@ -181,7 +185,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">Phase err</div><div style="min-width:72px;text-align:right">${ts.phaseErrorMs.toFixed(1)} ms</div></div>
       <div class="row"><div style="flex:1">Jitter p95</div><div style="min-width:72px;text-align:right">${ts.jitterMs.toFixed(1)} ms</div></div>
       <div class="row"><div style="flex:1">Dropouts</div><div style="min-width:72px;text-align:right">${ts.droppedClocks}</div></div>
-      <div class="hud-actions" style="margin-top:4px;border-top:none;padding-top:0"><button type="button" id="hud-resync-btn">Resync</button></div>` : '';
+      <div class="hud-actions" style="margin-top:4px;border-top:none;padding-top:0"><button type="button" id="hud-resync-btn" aria-label="Resync transport clock">Resync</button></div>` : '';
 
     const offlineOs = runtime.offlineRenderOversample != null ? `${runtime.offlineRenderOversample}×` : '—';
     const offlineThreads = runtime.offlineRenderThreadCount != null ? String(runtime.offlineRenderThreadCount) : '—';
@@ -306,7 +310,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${heapSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn">Download Report</button><button type="button" id="hud-copy-btn">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${heapSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn" aria-label="Download engine telemetry report">Download Report</button><button type="button" id="hud-copy-btn" aria-label="Copy engine telemetry to clipboard">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render

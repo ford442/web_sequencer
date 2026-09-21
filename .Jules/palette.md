@@ -5,7 +5,7 @@
 ## 2026-09-17 - Add useFocusTrap to untrapped dialogs
 **Learning:** Several modal dialogs in the application (`ExportModal`, `RbsImportModal`, `PhonemePainter`, `AISongImportOverlay`, `CrashRecoveryPrompt`, and `PerformanceMode`) were missing the `useFocusTrap` hook. This allowed keyboard users to accidentally tab out of the dialog and interact with the background application, which violates accessibility guidelines for modal windows.
 **Action:** Implemented `useFocusTrap` on all identified dialogs that were missing it. It is essential to ensure that any component that acts as a modal overlay (e.g., using `role="dialog"` or `role="alertdialog"`) correctly traps focus so that keyboard navigation remains within the modal until it is closed.
-## YYYY-MM-DD - Accessible Decorative Icons in Buttons
+## 2026-09-21 - Accessible Decorative Icons in Buttons
 **Learning:** When using decorative text characters (like `✕` for close buttons) instead of SVGs inside a `<button>`, screen readers will read the character's literal name (e.g., "multiplication x") alongside the button's `aria-label`, creating confusing double-announcements.
 **Action:** Always wrap decorative text characters in a `<span aria-hidden="true">` element inside buttons to ensure screen readers only announce the intended `aria-label`. Additionally, always pair `aria-label` with `title` to provide a visual tooltip for sighted users.
 
@@ -18,3 +18,7 @@
 ## 2026-09-20 - LoadingOverlay Emoji Icons
 **Learning:** Step icons in the `LoadingOverlay` mapped via `STEP_ICONS` were being read literally by screen readers (e.g. 'Speaker with three sound waves Loading...'), causing auditory clutter.
 **Action:** Applied `aria-hidden="true"` to the `<span>` wrapping the step icons in the `LoadingOverlay` to suppress these decorative elements for screen readers.
+
+## 2026-09-21 - Accessible Toggle Overlay Visibility
+**Learning:** When an overlay uses `inert` and `aria-hidden` to stay out of the accessibility tree, both attributes must be toggled together when the visibility changes. Leaving `aria-hidden="true"` while making elements focusable causes axe violations and ignores `aria-label`s.
+**Action:** Always ensure that when an overlay's `inert` property is removed to allow interaction, its `aria-hidden` attribute is also removed or set to `false`. They must stay synchronized to maintain correct screen reader behavior.

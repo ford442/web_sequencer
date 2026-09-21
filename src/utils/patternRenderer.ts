@@ -129,7 +129,15 @@ export async function renderSynthPattern(
         async (_step, _time) => {
             const note = sequence.steps[_step];
             if (!note) return null;
-            const hit = await renderSynthToBuffer(params, note.note, stepDurationSeconds(tempo) * (note.length ?? 1), engines);
+            // Render the hit at the target rate: a buffer recorded at another
+            // rate would be resampled on playback into the offline context.
+            const hit = await renderSynthToBuffer(
+                params,
+                note.note,
+                stepDurationSeconds(tempo) * (note.length ?? 1),
+                engines,
+                sampleRate,
+            );
             return hit;
         },
         signal,
@@ -159,7 +167,7 @@ export async function renderDrumPattern(
         sampleRate,
         async (step) => {
             if (!sequence.steps[step]) return null;
-            return renderDrumToBuffer(drumType, params, engines?.pyodide);
+            return renderDrumToBuffer(drumType, params, engines?.pyodide, sampleRate);
         },
         signal,
     );

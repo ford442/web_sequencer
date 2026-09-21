@@ -28,6 +28,7 @@ export type PropertyChangeKey =
   | "subHarmonics"
   | "vocalChorus"
   | "autoTune"
+  | "microtonalVariance"
   | "drumDuckDepth"
   | "downsample"
   | "spectralCompression"

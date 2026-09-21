@@ -161,6 +161,7 @@ export class ArtifactDetector {
     private analysisBuffer: Float32Array;
     private bufferIndex: number = 0;
 
+<<<<<<< HEAD
     // Pre-allocated return objects to prevent GC pressure
     private readonly noDetection: ArtifactDetection = {
         detected: false,
@@ -170,6 +171,10 @@ export class ArtifactDetector {
     };
 
     private readonly metricsResult: QualityMetrics = {
+=======
+    // Pre-allocated objects to prevent GC in audio thread
+    private readonly scratchMetrics: QualityMetrics = {
+>>>>>>> origin/main
         spectralFlux: 0,
         zeroCrossingRate: 0,
         rmsLevel: 0,
@@ -177,6 +182,7 @@ export class ArtifactDetector {
         spectralCentroid: 0,
         spectralFlatness: 0,
         crestFactor: 0,
+<<<<<<< HEAD
         quality: 1.0
     };
 
@@ -189,6 +195,25 @@ export class ArtifactDetector {
     };
 
 
+=======
+        quality: 0
+    };
+
+    private readonly scratchDetection: ArtifactDetection = {
+        detected: false,
+        severity: 0,
+        type: 'none',
+        timestamp: 0,
+        frequencyRegion: 0,
+        metadata: {
+            threshold: 0,
+            flux: 0,
+            flatness: 0,
+            crestFactor: 0
+        }
+    };
+
+>>>>>>> origin/main
     /**
      * Create a new ArtifactDetector
      * @param config Partial configuration (defaults applied for missing values)
@@ -276,6 +301,7 @@ export class ArtifactDetector {
             }
         }
 
+<<<<<<< HEAD
         if (!detected) {
             this.noDetection.timestamp = performance.now();
             this.updateHistory(this.noDetection, metrics);
@@ -297,15 +323,36 @@ export class ArtifactDetector {
                 crestFactor: metrics.crestFactor
             }
         };
+=======
+        // Update pre-allocated detection result
+        this.scratchDetection.detected = detected;
+        this.scratchDetection.severity = severity;
+        this.scratchDetection.type = type;
+        this.scratchDetection.timestamp = performance.now();
+        this.scratchDetection.frequencyRegion = detected ? metrics.spectralCentroid : undefined;
+>>>>>>> origin/main
 
-        // Update history
-        this.updateHistory(result, metrics);
+        if (this.scratchDetection.metadata) {
+            this.scratchDetection.metadata.threshold = threshold;
+            this.scratchDetection.metadata.flux = metrics.spectralFlux;
+            this.scratchDetection.metadata.flatness = metrics.spectralFlatness;
+            this.scratchDetection.metadata.crestFactor = metrics.crestFactor;
+        }
+
+        // Update history (will clone internally if needed)
+        this.updateHistory(this.scratchDetection, metrics);
         
         // Trigger callbacks if artifact detected
+<<<<<<< HEAD
         this.notifyArtifactCallbacks(result);
+=======
+        if (detected) {
+            this.notifyArtifactCallbacks(this.scratchDetection);
+        }
+>>>>>>> origin/main
         this.notifyQualityCallbacks(metrics);
 
-        return result;
+        return this.scratchDetection;
     }
 
     /**
@@ -338,8 +385,17 @@ export class ArtifactDetector {
         }
         
         // Return non-detection if buffer not full yet
+<<<<<<< HEAD
         this.noDetection.timestamp = performance.now();
         return this.noDetection;
+=======
+        this.scratchDetection.detected = false;
+        this.scratchDetection.severity = 0;
+        this.scratchDetection.type = 'none';
+        this.scratchDetection.timestamp = performance.now();
+        this.scratchDetection.frequencyRegion = undefined;
+        return this.scratchDetection;
+>>>>>>> origin/main
     }
 
     /**
@@ -401,6 +457,7 @@ export class ArtifactDetector {
         // Quality estimate based on multiple factors
         const quality = Math.max(0, 1 - spectralFlux * 2 - spectralFlatness * 0.5);
 
+<<<<<<< HEAD
         this.metricsResult.spectralFlux = spectralFlux;
         this.metricsResult.zeroCrossingRate = zeroCrossingRate;
         this.metricsResult.rmsLevel = rmsLevel;
@@ -411,6 +468,18 @@ export class ArtifactDetector {
         this.metricsResult.quality = quality;
 
         return this.metricsResult;
+=======
+        this.scratchMetrics.spectralFlux = spectralFlux;
+        this.scratchMetrics.zeroCrossingRate = zeroCrossingRate;
+        this.scratchMetrics.rmsLevel = rmsLevel;
+        this.scratchMetrics.peakLevel = peak;
+        this.scratchMetrics.spectralCentroid = spectralCentroid;
+        this.scratchMetrics.spectralFlatness = spectralFlatness;
+        this.scratchMetrics.crestFactor = crestFactor;
+        this.scratchMetrics.quality = quality;
+
+        return this.scratchMetrics;
+>>>>>>> origin/main
     }
 
     /**
@@ -458,7 +527,16 @@ export class ArtifactDetector {
 
         // Update artifact history
         if (detection.detected) {
-            this.artifactHistory.push(detection);
+            // Must clone the object before pushing to history since detection is mutated
+            const clonedDetection: ArtifactDetection = {
+                detected: detection.detected,
+                severity: detection.severity,
+                type: detection.type,
+                timestamp: detection.timestamp,
+                frequencyRegion: detection.frequencyRegion,
+                metadata: detection.metadata ? { ...detection.metadata } : undefined
+            };
+            this.artifactHistory.push(clonedDetection);
             if (this.artifactHistory.length > this.config.historySize) {
                 this.artifactHistory.shift();
             }

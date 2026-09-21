@@ -18,6 +18,15 @@ import {
     type PatternRenderEngines,
 } from './patternRenderer';
 import { createZipBlob } from './zipStore';
+import {
+    bounceBuffersThroughOfflineGraph,
+    type OfflineGraphReport,
+} from '../audio/offline/compileOfflineGraph';
+import {
+    getStoredSampleRatePref,
+    resolveExportSampleRate,
+    type SampleRatePref,
+} from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
 import {
     analyzeLoudness,
@@ -28,10 +37,39 @@ import {
     type NormalizeResult,
 } from '../audio/loudness';
 
+/** Rates the export dialog offers explicitly; `native` goes through the pref. */
 export type StemExportSampleRate = 44100 | 48000;
 
+/**
+ * How the master stem is built.
+ *
+ * - `dry-exclusive` — the historical sample-sum of the dry stems: no master FX,
+ *   no limiter. Still what a stem pack for another DAW wants.
+ * - `live-patch` — the dry sum bounced through the user's live patch bay via
+ *   `compileOfflineGraph`, master FX and loudness stage included. This is the
+ *   "what you hear is what you bounce" master (#1233).
+ */
+export type StemMasterChain = 'dry-exclusive' | 'live-patch';
+
 export interface StemExportOptions {
-    sampleRate?: StemExportSampleRate;
+    /** Explicit rate. When omitted, `sampleRatePref` + `liveSampleRate` decide. */
+    sampleRate?: StemExportSampleRate | number;
+    /**
+     * User sample-rate policy (#1136). `native` resolves to `liveSampleRate`,
+     * so an export matches the context the user is monitoring through.
+     */
+    sampleRatePref?: SampleRatePref;
+    /** `AudioContext.sampleRate` of the running engine, recorded by the caller. */
+    liveSampleRate?: number | null;
+    /** Master stem routing. Defaults to `dry-exclusive`. */
+    masterChain?: StemMasterChain;
+    /**
+     * Called once with what the export actually did — the rate it ran at, the
+     * master routing it ended up using, and the offline-graph report (including
+     * WAM2 inserts that could not be rendered). The UI surfaces this instead of
+     * leaving a degraded bounce to be discovered inside the ZIP.
+     */
+    onReport?: (report: StemExportReport) => void;
     bitDepth?: WavBitDepth;
     /** When true, uses song arrangement; otherwise exports the current pattern once. */
     useSongMode?: boolean;
@@ -50,6 +88,17 @@ export interface StemExportOptions {
         /** Oversampling for the offline true-peak measurement. Default 8×. */
         truePeakFactor?: number;
     };
+}
+
+export interface StemExportReport {
+    sampleRate: number;
+    sampleRatePref: SampleRatePref;
+    bitDepth: WavBitDepth;
+    /** `dry-exclusive`, `live-patch`, or `dry-exclusive-fallback`. */
+    routing: string;
+    routingNote: string;
+    /** Null unless the master went through the offline patch-bay graph. */
+    offlineGraph: OfflineGraphReport | null;
 }
 
 /** Channel data of an AudioBuffer, mutable in place. */
@@ -191,19 +240,29 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 /**
  * Renders dry per-track stems and returns a ZIP blob with aligned WAV files.
- * Master stem is the sample-aligned sum of all dry stems (exclusive routing — no master FX).
+ *
+ * Per-track stems are always dry. The master stem is the sample-aligned sum of
+ * them, either exclusively (`masterChain: 'dry-exclusive'`) or bounced through
+ * the live patch bay's master chain (`'live-patch'`, #1233). Everything renders
+ * at the rate the sample-rate policy resolves to.
  */
 export async function exportStemsToZip(
     input: StemExportInput,
     options: StemExportOptions = {},
 ): Promise<Blob> {
     const {
-        sampleRate = 44100,
         bitDepth = 16,
         useSongMode = true,
+        masterChain = 'dry-exclusive',
         signal,
         onProgress,
     } = options;
+
+    // #1233: the render rate is the user's live policy, not a hardcoded 44.1k.
+    // An explicit `sampleRate` (the export dialog's own choice) still wins.
+    const sampleRatePref = options.sampleRatePref ?? getStoredSampleRatePref();
+    const sampleRate =
+        options.sampleRate ?? resolveExportSampleRate(sampleRatePref, options.liveSampleRate);
 
     const timeline = resolveSongTimeline(
         input.songStructure,
@@ -321,6 +380,44 @@ export async function exportStemsToZip(
 
     throwIfAborted(signal);
 
+    // The master stem is the only stem that is allowed to be wet: bounce the dry
+    // sum through the live patch bay so master FX and the loudness stage are the
+    // ones the user was monitoring with. Falling back is never silent — the
+    // routing field in metadata.json says which path produced the file.
+    let routing: string = 'dry-exclusive';
+    let routingNote =
+        'Master stem is the sample-sum of all dry stems without master reverb, saturation, or pan.';
+    let offlineGraph: OfflineGraphReport | null = null;
+
+    if (masterChain === 'live-patch') {
+        onProgress?.(0.9, 'Bouncing master through the live patch…');
+        const drySum = stems.get('master');
+        try {
+            if (!drySum) throw new Error('no master stem to bounce');
+            const bounced = await bounceBuffersThroughOfflineGraph({
+                buffers: [drySum],
+                durationSeconds: targetLength / sampleRate,
+                sampleRate,
+                sampleRatePref,
+                liveSampleRate: options.liveSampleRate ?? null,
+            });
+            stems.set('master', alignBufferLength(bounced.buffer, targetLength, sampleRate));
+            offlineGraph = bounced.report;
+            routing = 'live-patch';
+            routingNote =
+                'Master stem rendered through the live patch bay (master FX chain + loudness stage); '
+                + 'the per-track stems stay dry.';
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            routing = 'dry-exclusive-fallback';
+            routingNote =
+                'Live-patch master bounce failed, so the master stem is the dry sum: '
+                + (error instanceof Error ? error.message : String(error));
+        }
+    }
+
+    throwIfAborted(signal);
+
     // Measure (and optionally normalise) the master stem with the same DSP the
     // real-time master bus runs, so the exported file and the live meters agree.
     const masterStem = stems.get('master');
@@ -354,10 +451,16 @@ export async function exportStemsToZip(
         measureCount: timeline.measureCount,
         totalSteps: timeline.totalSteps,
         sampleRate,
+        sampleRatePref,
+        liveSampleRate: options.liveSampleRate ?? null,
         bitDepth,
-        routing: 'dry-exclusive',
-        routingNote:
-            'Master stem is the sample-sum of all dry stems without master reverb, saturation, or pan.',
+        routing,
+        routingNote,
+        /**
+         * Patch, rate and per-slot WAM2 offline support of the master bounce.
+         * Null for a dry-exclusive export, which never builds an offline graph.
+         */
+        offlineGraph,
         stems: Array.from(stems.keys()),
         silencedTracks: (
             ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
@@ -367,6 +470,15 @@ export async function exportStemsToZip(
     zipEntries.push({
         path: 'metadata.json',
         data: new TextEncoder().encode(JSON.stringify(metadata, null, 2)),
+    });
+
+    options.onReport?.({
+        sampleRate,
+        sampleRatePref,
+        bitDepth,
+        routing,
+        routingNote,
+        offlineGraph,
     });
 
     throwIfAborted(signal);

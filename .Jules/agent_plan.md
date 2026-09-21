@@ -8,7 +8,8 @@
 
 ## Innovation Lab
 - [x] Explore randomizing granular jitter based on note velocity.
-- Explore assigning microtonal pitch variations per phoneme step.
+- [x] Explore assigning microtonal pitch variations per phoneme step.
+- Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
@@ -130,6 +131,9 @@
 - Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount.
 - Completed "What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?" by adding `grainPosLfoDepth` parameter. This introduces a position oscillation by calculating a bipolar `posMod` applied to the `grainCenterActive` during the freeze stream (`initGrain`).
 - Velocity Check: Utilizing the existing `grainLfoPhase` avoids creating new block-rate oscillators and keeps the plumbing clean. Modifying the grain center rather than drifting the RubberBand `timeRatio` prevents latency hunting and preserves audio fidelity. I added new ideas to the Innovation Lab.
+
+- Completed "Explore assigning microtonal pitch variations per phoneme step." by extending the `PhonemeSample` tuple size to 9 to include the phoneme index, and implementing a deterministic pseudo-random offset inside the worklet based on this index scaled by a new `microtonalVariance` parameter.
+- Velocity Check: Extending the SAB tuple read allows per-phoneme modulations without any main-thread sequencing overhead. The pseudo-random math (`fract(sin(x)*43758.5453)`) ensures perfectly stable and repeatable pitch offsets that don't drift, maintaining a consistent "character" variation.
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
   - Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
   - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
