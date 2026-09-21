@@ -14,6 +14,7 @@ import {
 } from './xm_save_lib/index';
 import type { PartSequence, Pattern, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, TrackKey } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
+import { resolveExportSampleRate, type SampleRatePref } from './audioContextPolicy';
 import {
     XM_PATTERN_ROWS, XM_CHANNEL_COUNT, XM_TRACK_MAP, XM_SAMPLER_BANK_COUNT,
     createTruncationReport, fillPatternFromSequence, formatTruncationMessage,
@@ -475,6 +476,14 @@ const calculateXMPitchParams = (sampleRate: number) => {
     };
 };
 
+/** Optional knobs for an XM export; everything here has a policy default. */
+export interface XmExportOptions {
+    /** User sample-rate policy (#1136); `native` uses `liveSampleRate`. */
+    sampleRatePref?: SampleRatePref;
+    /** `AudioContext.sampleRate` of the running engine, when there is one. */
+    liveSampleRate?: number | null;
+}
+
 /** Outcome of an XM export. The file is always written; `truncationMessage` is
  *  non-null only when the module could not hold everything the song contained. */
 export interface XmExportResult {
@@ -521,9 +530,16 @@ export const exportSongToXM = async (
     tempo: number,
     currentPattern?: Pattern,
     engines?: RenderSynthEngines,
-    sampleBuffers?: (AudioBuffer | null)[]
+    sampleBuffers?: (AudioBuffer | null)[],
+    options: XmExportOptions = {},
 ): Promise<XmExportResult> => {
     console.log("Starting XM Export with engines:", engines);
+
+    // One rate for every instrument in the module, resolved from the user
+    // sample-rate policy (#1233). XM stores pitch as relative-note/fine-tune
+    // derived from the rendered buffer, so any rate round-trips correctly — but
+    // the instruments have to agree with each other and with what was heard.
+    const sampleRate = resolveExportSampleRate(options.sampleRatePref, options.liveSampleRate);
 
     // Initialize WASM module for export
     await initXmExportWasm();
@@ -539,7 +555,7 @@ export const exportSongToXM = async (
     // 2. Render and Add Instruments
     // Synth A
     const synthADuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthA.attack + params.synthA.decay) * SYNTH_RENDER_AD_MULTIPLIER);
-    const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines);
+    const bufA = await renderSynthToBuffer(params.synthA, 'C4', synthADuration, engines, sampleRate);
     const rawDataA = bufA.getChannelData(0);
 
     const peakA = getPeak(rawDataA);
@@ -564,7 +580,7 @@ export const exportSongToXM = async (
 
     // Synth B
     const synthBDuration = Math.max(SYNTH_RENDER_BASE_DURATION, (params.synthB.attack + params.synthB.decay) * SYNTH_RENDER_AD_MULTIPLIER);
-    const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines);
+    const bufB = await renderSynthToBuffer(params.synthB, 'C4', synthBDuration, engines, sampleRate);
     const rawDataB = bufB.getChannelData(0);
 
     const peakB = getPeak(rawDataB);
@@ -588,7 +604,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instB);
 
     // Kick
-    const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide);
+    const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide, sampleRate);
     const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
     const dataKick = normalizeAndConvertTo16Bit(bufKick.getChannelData(0));
     
@@ -604,7 +620,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instKick);
 
     // Snare
-    const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide);
+    const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide, sampleRate);
     const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
     const dataSnare = normalizeAndConvertTo16Bit(bufSnare.getChannelData(0));
 
@@ -620,7 +636,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instSnare);
 
     // CH
-    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide);
+    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide, sampleRate);
     const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
     const dataCH = normalizeAndConvertTo16Bit(bufCH.getChannelData(0));
 
@@ -636,7 +652,7 @@ export const exportSongToXM = async (
     mod.instruments.push(instCH);
 
     // OH
-    const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide);
+    const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide, sampleRate);
     const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
     const dataOH = normalizeAndConvertTo16Bit(bufOH.getChannelData(0));
 
@@ -689,7 +705,7 @@ export const exportSongToXM = async (
     // loop points are searched for.
     const bass2Synth = bass2ToSynthParams(params.bass2);
     const bass2Duration = Math.max(SYNTH_RENDER_BASE_DURATION, (bass2Synth.attack + bass2Synth.decay) * SYNTH_RENDER_AD_MULTIPLIER);
-    const bufBass2 = await renderSynthToBuffer(bass2Synth, 'C4', bass2Duration, engines);
+    const bufBass2 = await renderSynthToBuffer(bass2Synth, 'C4', bass2Duration, engines, sampleRate);
     const rawDataBass2 = bufBass2.getChannelData(0);
     const dataBass2 = normalizeAndConvertTo16Bit(rawDataBass2, -1);
     const pitchBass2 = calculateXMPitchParams(bufBass2.sampleRate);

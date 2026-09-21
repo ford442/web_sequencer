@@ -63,6 +63,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [drumkit.md](docs/audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, Web Audio fallback |
 | [master-loudness.md](docs/audio-engine/master-loudness.md) | Master true-peak limiter + BS.1770 LUFS metering (graph placement, accuracy, export) |
 | [patch-bay.md](docs/audio-engine/patch-bay.md) | User-editable audio routing: patch model, live editing, persistence, safety |
+| [offline-graph.md](docs/audio-engine/offline-graph.md) | Offline render of the live patch: freeze / stems / AI preview, export sample rate, WAM2 freeze contract |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
 | [PLAYBACK_STABILITY.md](docs/audio-engine/PLAYBACK_STABILITY.md) | Song-mode playback jitter thresholds and stress tests |

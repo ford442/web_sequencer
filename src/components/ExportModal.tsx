@@ -4,9 +4,16 @@ import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerP
 import type { TrackKey } from '../constants/appDefaults';
 import {
     exportStemsDownload,
-    type StemExportSampleRate,
     type StemExportOptions,
+    type StemExportReport,
+    type StemMasterChain,
 } from '../utils/stemExport';
+import {
+    getStoredSampleRatePref,
+    resolveExportSampleRate,
+    SAMPLE_RATE_PREFS,
+    type SampleRatePref,
+} from '../utils/audioContextPolicy';
 import type { WavBitDepth } from '../utils/audioExport';
 import type { RenderSynthEngines } from '../utils/renderAudio';
 
@@ -36,6 +43,25 @@ export interface ExportModalProps {
 
 type ExportPhase = 'idle' | 'exporting' | 'done' | 'cancelled' | 'error';
 
+/** Success toast: what the ZIP actually contains. */
+function describeExport(report: StemExportReport | null): string {
+    if (!report) return 'Stem ZIP downloaded';
+    const master = report.routing === 'live-patch' ? 'live-patch master' : 'dry master';
+    return `Stem ZIP downloaded · ${report.sampleRate} Hz · ${master}`;
+}
+
+/** Follow-up toast for anything the bounce could not honour. */
+function describeExportWarning(report: StemExportReport | null): string | null {
+    if (!report) return null;
+    if (report.routing === 'dry-exclusive-fallback') return report.routingNote;
+
+    const bypassed = report.offlineGraph?.slots.filter((slot) => slot.status === 'bypassed') ?? [];
+    if (bypassed.length === 0) return null;
+    const names = bypassed.map((slot) => slot.packageId ?? slot.nodeId).join(', ');
+    return `${bypassed.length} WAM2 insert${bypassed.length === 1 ? '' : 's'} cannot render offline and `
+        + `${bypassed.length === 1 ? 'was' : 'were'} bypassed in the master bounce: ${names}`;
+}
+
 export const ExportModal = React.memo(function ExportModal({
     isOpen,
     onClose,
@@ -53,10 +79,15 @@ export const ExportModal = React.memo(function ExportModal({
     const [progress, setProgress] = useState(0);
     const [statusLabel, setStatusLabel] = useState('');
     const [useSongMode, setUseSongMode] = useState(true);
-    const [sampleRate, setSampleRate] = useState<StemExportSampleRate>(
-        preferredSampleRate === 48000 ? 48000 : 44100,
+    // The export follows the same sample-rate policy the live context does
+    // (#1136 / #1233): `native` means "whatever the running engine came up
+    // with", not a second, silently different rate.
+    const [sampleRatePref, setSampleRatePref] = useState<SampleRatePref>(() =>
+        getStoredSampleRatePref(),
     );
     const [bitDepth, setBitDepth] = useState<WavBitDepth>(16);
+    const [masterChain, setMasterChain] = useState<StemMasterChain>('live-patch');
+    const sampleRate = resolveExportSampleRate(sampleRatePref, preferredSampleRate);
     const abortRef = useRef<AbortController | null>(null);
     const modalRef = useFocusTrap(isOpen, onClose);
 
@@ -69,12 +100,6 @@ export const ExportModal = React.memo(function ExportModal({
             setStatusLabel('');
         }
     }, [isOpen]);
-
-    useEffect(() => {
-        if (preferredSampleRate === 48000 || preferredSampleRate === 44100) {
-            setSampleRate(preferredSampleRate);
-        }
-    }, [preferredSampleRate]);
 
     const handleCancel = useCallback(() => {
         abortRef.current?.abort();
@@ -92,10 +117,17 @@ export const ExportModal = React.memo(function ExportModal({
         setProgress(0);
         setStatusLabel('Starting export…');
 
+        let report: StemExportReport | null = null;
+
         const options: StemExportOptions = {
-            sampleRate,
+            onReport: (value) => {
+                report = value;
+            },
+            sampleRatePref,
+            liveSampleRate: preferredSampleRate ?? null,
             bitDepth,
             useSongMode,
+            masterChain,
             signal: controller.signal,
             onProgress: (pct, label) => {
                 setProgress(pct);
@@ -122,7 +154,12 @@ export const ExportModal = React.memo(function ExportModal({
             setPhase('done');
             setProgress(1);
             setStatusLabel('Export complete');
-            onShowToast('Stem ZIP downloaded', 'success');
+            onShowToast(describeExport(report), 'success');
+
+            // A bounce that had to drop an insert, or fall back to the dry sum,
+            // says so rather than leaving it to be noticed inside the ZIP.
+            const warning = describeExportWarning(report);
+            if (warning) onShowToast(warning, 'info');
             onClose();
         } catch (err) {
             if (controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
@@ -139,7 +176,9 @@ export const ExportModal = React.memo(function ExportModal({
         }
     }, [
         phase,
-        sampleRate,
+        sampleRatePref,
+        preferredSampleRate,
+        masterChain,
         bitDepth,
         useSongMode,
         songStructure,
@@ -186,7 +225,9 @@ export const ExportModal = React.memo(function ExportModal({
                 <div className="px-5 py-4 space-y-4">
                     <p className="text-xs text-gray-400">
                         Dry per-track WAVs (partA, partB, bass2, drums, 8 sampler banks, master) packaged as a ZIP.
-                        Master is the sum of dry stems without master FX.
+                        {masterChain === 'live-patch'
+                            ? ' Master is the dry sum bounced through the live patch bay (master FX + loudness stage).'
+                            : ' Master is the sum of dry stems without master FX.'}
                     </p>
 
                     <label className="flex items-center gap-2 text-xs text-gray-300">
@@ -204,13 +245,26 @@ export const ExportModal = React.memo(function ExportModal({
                         <label className="text-xs text-gray-400">
                             Sample rate
                             <select
-                                value={sampleRate}
-                                onChange={(e) => setSampleRate(Number(e.target.value) as StemExportSampleRate)}
+                                value={String(sampleRatePref)}
+                                onChange={(e) =>
+                                    setSampleRatePref(
+                                        e.target.value === 'native'
+                                            ? 'native'
+                                            : (Number(e.target.value) as SampleRatePref),
+                                    )
+                                }
                                 disabled={isExporting}
                                 className="mt-1 w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-gray-200 text-xs"
                             >
-                                <option value={44100}>44.1 kHz</option>
-                                <option value={48000}>48 kHz</option>
+                                {SAMPLE_RATE_PREFS.map((pref) => (
+                                    <option key={String(pref)} value={String(pref)}>
+                                        {pref === 'native'
+                                            ? `Match live (${sampleRate} Hz)`
+                                            : pref === 44100
+                                              ? '44.1 kHz'
+                                              : '48 kHz'}
+                                    </option>
+                                ))}
                             </select>
                         </label>
                         <label className="text-xs text-gray-400">
@@ -227,9 +281,23 @@ export const ExportModal = React.memo(function ExportModal({
                         </label>
                     </div>
 
+                    <label className="flex items-center gap-2 text-xs text-gray-300">
+                        <input
+                            type="checkbox"
+                            checked={masterChain === 'live-patch'}
+                            onChange={(e) =>
+                                setMasterChain(e.target.checked ? 'live-patch' : 'dry-exclusive')
+                            }
+                            disabled={isExporting}
+                            className="accent-cyan-500"
+                        />
+                        Bounce master through the live patch (what you hear)
+                    </label>
+
                     {preferredSampleRate && preferredSampleRate !== sampleRate && (
                         <p className="text-[10px] text-amber-400/90">
-                            Live AudioContext is {preferredSampleRate} Hz — choose matching rate to avoid resampling.
+                            Live AudioContext is {preferredSampleRate} Hz — exporting at {sampleRate} Hz
+                            resamples. Pick “Match live” to bounce at the monitored rate.
                         </p>
                     )}
 

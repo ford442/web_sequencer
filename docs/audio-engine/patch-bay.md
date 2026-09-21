@@ -80,6 +80,13 @@ never open the patch bay stay small (a stock entry is under 120 bytes, asserted
 by a test). An unknown `schemaVersion` degrades to the preset rather than
 attempting a guess at migration.
 
+## Offline
+
+The same config compiles into an `OfflineAudioContext` for freeze, stem export
+and the AI song preview — see [offline-graph.md](offline-graph.md). There is no
+second compiler: `compileAudioGraph` takes a `BaseAudioContext`, and the offline
+path passes the live patch straight through it.
+
 ## Not in this phase
 
 - **Phase C — engine ports.** Open303, Prophecy, sustain/rubberband and the
