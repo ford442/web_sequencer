@@ -1,0 +1,3 @@
+sed -i 's/<select id="hud-sink-select"/<select id="hud-sink-select" aria-label="Audio output device"/' src/components/EngineHUD.tsx
+sed -i 's/#${CONTAINER_ID} button:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }/#${CONTAINER_ID} button:focus-visible, #${CONTAINER_ID} select:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 2px; }/' src/components/EngineHUD.tsx
+sed -i 's/<button type="button" id="hud-sink-grant">List outputs<\/button>/<button type="button" id="hud-sink-grant" aria-label="List audio output devices">List outputs<\/button>/' src/components/EngineHUD.tsx
