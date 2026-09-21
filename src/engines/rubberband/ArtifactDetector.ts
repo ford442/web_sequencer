@@ -161,6 +161,34 @@ export class ArtifactDetector {
     private analysisBuffer: Float32Array;
     private bufferIndex: number = 0;
 
+    // Pre-allocated return objects to prevent GC pressure
+    private readonly noDetection: ArtifactDetection = {
+        detected: false,
+        severity: 0,
+        type: 'none',
+        timestamp: 0
+    };
+
+    private readonly metricsResult: QualityMetrics = {
+        spectralFlux: 0,
+        zeroCrossingRate: 0,
+        rmsLevel: 0,
+        peakLevel: 0,
+        spectralCentroid: 0,
+        spectralFlatness: 0,
+        crestFactor: 0,
+        quality: 1.0
+    };
+
+    private readonly statsResult: ArtifactStatistics = {
+        totalAnalyzed: 0,
+        artifactRate: 0,
+        averageSeverity: 0,
+        recentArtifacts: [],
+        qualityTrend: []
+    };
+
+
     /**
      * Create a new ArtifactDetector
      * @param config Partial configuration (defaults applied for missing values)
@@ -248,13 +276,20 @@ export class ArtifactDetector {
             }
         }
 
+        if (!detected) {
+            this.noDetection.timestamp = performance.now();
+            this.updateHistory(this.noDetection, metrics);
+            this.notifyQualityCallbacks(metrics);
+            return this.noDetection;
+        }
+
         // Create detection result
         const result: ArtifactDetection = {
             detected,
             severity,
             type,
             timestamp: performance.now(),
-            frequencyRegion: detected ? metrics.spectralCentroid : undefined,
+            frequencyRegion: metrics.spectralCentroid,
             metadata: {
                 threshold,
                 flux: metrics.spectralFlux,
@@ -267,9 +302,7 @@ export class ArtifactDetector {
         this.updateHistory(result, metrics);
         
         // Trigger callbacks if artifact detected
-        if (detected) {
-            this.notifyArtifactCallbacks(result);
-        }
+        this.notifyArtifactCallbacks(result);
         this.notifyQualityCallbacks(metrics);
 
         return result;
@@ -305,12 +338,8 @@ export class ArtifactDetector {
         }
         
         // Return non-detection if buffer not full yet
-        return {
-            detected: false,
-            severity: 0,
-            type: 'none',
-            timestamp: performance.now()
-        };
+        this.noDetection.timestamp = performance.now();
+        return this.noDetection;
     }
 
     /**
@@ -372,16 +401,16 @@ export class ArtifactDetector {
         // Quality estimate based on multiple factors
         const quality = Math.max(0, 1 - spectralFlux * 2 - spectralFlatness * 0.5);
 
-        return {
-            spectralFlux,
-            zeroCrossingRate,
-            rmsLevel,
-            peakLevel: peak,
-            spectralCentroid,
-            spectralFlatness,
-            crestFactor,
-            quality
-        };
+        this.metricsResult.spectralFlux = spectralFlux;
+        this.metricsResult.zeroCrossingRate = zeroCrossingRate;
+        this.metricsResult.rmsLevel = rmsLevel;
+        this.metricsResult.peakLevel = peak;
+        this.metricsResult.spectralCentroid = spectralCentroid;
+        this.metricsResult.spectralFlatness = spectralFlatness;
+        this.metricsResult.crestFactor = crestFactor;
+        this.metricsResult.quality = quality;
+
+        return this.metricsResult;
     }
 
     /**
@@ -526,15 +555,23 @@ export class ArtifactDetector {
             severitySum += this.artifactHistory[i].severity;
         }
         
-        return {
-            totalAnalyzed: detectedCount,
-            artifactRate: detectedCount > 0 ? 1 : 0, // In original logic this denominator was totalHistory which is now equivalent
-            averageSeverity: detectedCount > 0
-                ? severitySum / detectedCount
-                : 0,
-            recentArtifacts: [...this.artifactHistory.slice(-10)],
-            qualityTrend: [...this.qualityHistory]
-        };
+        this.statsResult.totalAnalyzed = detectedCount;
+        this.statsResult.artifactRate = detectedCount > 0 ? 1 : 0;
+        this.statsResult.averageSeverity = detectedCount > 0 ? severitySum / detectedCount : 0;
+
+        const recentCount = Math.min(10, this.artifactHistory.length);
+        this.statsResult.recentArtifacts.length = recentCount;
+        const startIdx = this.artifactHistory.length - recentCount;
+        for (let i = 0; i < recentCount; i++) {
+            this.statsResult.recentArtifacts[i] = this.artifactHistory[startIdx + i];
+        }
+
+        this.statsResult.qualityTrend.length = this.qualityHistory.length;
+        for (let i = 0; i < this.qualityHistory.length; i++) {
+            this.statsResult.qualityTrend[i] = this.qualityHistory[i];
+        }
+
+        return this.statsResult;
     }
 
     /**

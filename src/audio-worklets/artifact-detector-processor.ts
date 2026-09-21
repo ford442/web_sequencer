@@ -75,6 +75,25 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private qualityCount: number = 0;
 
     // Pre-allocated message for periodic reporting to avoid GC
+
+    // Pre-allocated object for artifact detections
+    private readonly detectionMessage = {
+        type: 'artifact-detected' as const,
+        detection: {
+            detected: false,
+            severity: 0,
+            type: 'none' as any,
+            timestamp: 0,
+            frequencyRegion: 0,
+            metadata: {
+                threshold: 0,
+                flux: 0,
+                flatness: 0,
+                crestFactor: 0
+            } as Record<string, number> | undefined
+        }
+    };
+
     private readonly reportMessage = {
         type: 'quality-update' as const,
         quality: 1.0,
@@ -242,17 +261,13 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             
             // Report artifact immediately if severe
             if (detection.severity > 0.7) {
-                this.port.postMessage({
-                    type: 'artifact-detected',
-                    detection: {
-                        detected: detection.detected,
-                        severity: detection.severity,
-                        type: detection.type,
-                        timestamp: detection.timestamp,
-                        frequencyRegion: detection.frequencyRegion,
-                        metadata: detection.metadata
-                    }
-                });
+                this.detectionMessage.detection.detected = detection.detected;
+                this.detectionMessage.detection.severity = detection.severity;
+                this.detectionMessage.detection.type = detection.type;
+                this.detectionMessage.detection.timestamp = detection.timestamp;
+                this.detectionMessage.detection.frequencyRegion = detection.frequencyRegion ?? 0;
+                this.detectionMessage.detection.metadata = detection.metadata;
+                this.port.postMessage(this.detectionMessage);
             } else {
                 // Queue for batch reporting
                 this.pendingArtifacts.push(detection);
