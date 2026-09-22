@@ -21,6 +21,48 @@ actually controls — not all of `dist/`:
 `build:release` fails with the offending asset(s) and sizes when a budget is
 exceeded, plus the ten largest `dist/assets/` files for context.
 
+### Compressed (wire-cost) budgets
+
+Raw bytes are what a device must parse; **compressed bytes are what it
+downloads**, and a bundle change that moves one without the other is not the
+win it looks like. These rows gate on **brotli** and live under
+`compressed` in `dist-budget.json`. They are per-chunk on purpose: once React
+and ONNX Runtime are out of the entry, the next regression is not "the bundle
+grew" but "the `vendor-onnx` chunk quietly became 4 MB", which a directory
+total would absorb.
+
+| Row | Budget | Measured (2026-09-22) |
+|---|---|---|
+| Entry chunk | < 262 KB br | 242.3 KB |
+| `vendor-react` chunk | < 61 KB br | 56.7 KB |
+| `vendor-onnx` chunk | < 108 KB br | 100.0 KB |
+| Largest worklet chunk | < 31 KB br | 28.5 KB (`rubberband-processor`) |
+| `dist/assets/` total, excluding `.wasm` | < 876 KB br | 811.1 KB |
+
+Two structural gates ride alongside the sizes and have no number to tune:
+
+- **`vendor-onnx` must not be reachable from the entry chunk by static
+  import.** A single `import * as ort` anywhere undoes the deferral without
+  changing any chunk's size, so size alone cannot catch it.
+- **Every worklet chunk must be self-contained** — no runtime `import`/
+  `export`. A worklet global scope has no module loader, so a split worklet
+  throws at `addModule()` time in production only; dev serves the graph
+  unbundled and never fails.
+
+### Raising a budget
+
+Budgets are version-controlled so that relaxing one is a reviewed diff rather
+than a silent edit inside a script:
+
+1. Change the value in `dist-budget.json` **in its own commit**.
+2. State in the commit message what grew and why the growth is justified.
+3. Never raise a row to make an unrelated PR go green — if a change needs more
+   bytes, that is the change's cost and belongs in its own review.
+
+Values are set just above the measurement that introduced them, so the rows
+**ratchet**: bank a real improvement by lowering the number rather than
+leaving the slack behind.
+
 ### How the entry chunk got from 2.75 MB to ~1.5 MB
 
 - `vite.config.ts` pins `react`/`react-dom`/`scheduler` to their own
@@ -57,6 +99,52 @@ tail of legitimately-core modules, not one droppable outlier. Closing the
 rest of the gap needs component-level work (e.g. lazy-loading inactive
 `note-selector` effect tabs), not another import-graph fix, and was left for
 a follow-up.
+
+### ONNX Runtime loading
+
+ONNX Runtime Web backs TTS, the neural vocoder and CTC forced alignment. Three
+properties are enforced rather than assumed:
+
+**It is never in the eager graph.** Every consumer reaches it through the
+dynamic `import()` in `src/services/ortRuntime.ts`, so a visitor who never uses
+TTS never downloads it. `check-release-dist.mjs` walks the static-import graph
+from the entry chunk and fails if `vendor-onnx` appears in it.
+
+**`ort.env` has exactly one writer.** `ort.env` is a process-wide singleton.
+Supertonic, `HybridNeuralPipeline` and `CtcForcedAligner` each used to write it
+from their own init path, so whichever initialised first silently decided
+`wasmPaths` and `numThreads` for all three. `configureOrt()` in `ortRuntime.ts`
+is now the only assignment in the tree, it is idempotent, and
+`src/services/__tests__/ortRuntime.test.ts` guards both the runtime behaviour
+and the source-level rule.
+
+**The wasm binary is self-hosted, by not configuring it.** `wasmPaths` used to
+point at jsDelivr, pinned to a hardcoded `1.23.2` while `package.json` declared
+`^1.23.2` — a patch bump would have served newer JS against older binaries with
+no error anywhere. The fix was not to repoint it but to **stop assigning it**:
+Vite already emits ORT's binary as a build asset and rewrites the runtime's own
+reference to it (`new URL("ort-wasm-simd-threaded.jsep-<hash>.wasm",
+import.meta.url)` in the emitted chunk). That default beats anything we could
+assign — it is self-hosted, content-hashed, resolves against the chunk's own URL
+so it is correct under a subdirectory deploy, and comes from the same resolved
+package as the JS that loads it, which makes version drift structurally
+impossible. Assigning `wasmPaths` overrides all of it with an unhashed,
+hand-built URL.
+
+`check-release-dist.mjs` asserts the referenced binary was emitted and that no
+CDN URL survives into the bundle.
+
+> Which artifact ships is decided by the bundled ORT entry, not by us: the
+> default entry resolves only the JSEP build (`ort-wasm-simd-threaded.jsep.wasm`,
+> ~24 MB), which backs the WebGPU execution provider Supertonic asks for first
+> and falls back to wasm. Only SIMD+threaded artifacts exist after ORT 1.19 —
+> `ort-wasm.wasm` and `ort-wasm-simd.wasm` were dropped upstream.
+
+> **Threads need cross-origin isolation.** `ortNumThreads()` returns 1 when
+> `crossOriginIsolated` is false, because asking for more does not fail loudly —
+> ORT just degrades to single-threaded. COOP/COEP are set for the Vite dev and
+> preview servers in `vite.config.ts`; a production static host must send them
+> too, or both ORT threading and `hyphon_native.wasm`'s pthreads are lost.
 
 ### Image assets
 

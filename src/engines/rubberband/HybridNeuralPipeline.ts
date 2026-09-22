@@ -17,7 +17,11 @@
  * @see RUBBERBAND_ENHANCEMENT_PLAN.md Section 6
  */
 
-import * as ort from 'onnxruntime-web';
+// ONNX Runtime is loaded through the shared `ortRuntime` helper, which owns the
+// dynamic import (so ORT never lands in the entry chunk) and is the single
+// writer of `ort.env` — see src/services/ortRuntime.ts.
+import type * as ort from 'onnxruntime-web';
+import { loadOrt, type Ort } from '@/services/ortRuntime';
 
 /** Mel-spectrogram configuration */
 export interface MelConfig {
@@ -67,7 +71,15 @@ export interface HybridPipelineConfig {
     useGpu?: boolean;
     /** Execution provider preference order */
     executionProviders?: string[];
-    /** ONNX Runtime Web WASM path */
+    /**
+     * @deprecated Ignored. `ort.env.wasm.wasmPaths` is a process-wide singleton,
+     * and this field used to overwrite it from whichever pipeline initialised
+     * last — silently changing the wasm URL for every other ORT consumer.
+     * Nothing assigns `wasmPaths` now: Vite emits ORT's binary as a
+     * content-hashed build asset and rewrites the runtime's own reference to it,
+     * which is already self-hosted and deploy-base correct. See
+     * src/services/ortRuntime.ts.
+     */
     wasmPath?: string;
     /** Maximum concurrent inference sessions */
     maxSessions?: number;
@@ -143,6 +155,8 @@ export class HybridNeuralPipeline {
     private isInitialized = false;
     private isMelGeneratorInitialized = false;
     private vocoderSessions: VocoderSession[] = [];
+    /** ONNX Runtime module, resolved by init() via the shared loader. */
+    private ortMod: Ort | null = null;
     private fftLookup: Map<number, { real: Float32Array; imag: Float32Array }> = new Map();
     private melFilterbank: Float32Array | null = null;
     private state: PipelineState = {
@@ -192,9 +206,9 @@ export class HybridNeuralPipeline {
         if (this.isInitialized) return;
 
         try {
-            // Configure ONNX Runtime
-            ort.env.wasm.wasmPaths = this.config.wasmPath;
-            ort.env.wasm.numThreads = navigator.hardwareConcurrency > 4 ? 4 : 2;
+            // Load ONNX Runtime. `loadOrt()` configures `ort.env` on the first
+            // call process-wide; this pipeline deliberately does not write it.
+            this.ortMod = await loadOrt();
 
             // Pre-compute mel filterbank
             this.melFilterbank = this.computeMelFilterbank();
@@ -226,6 +240,7 @@ export class HybridNeuralPipeline {
      * Initialize vocoder inference session pool
      */
     private async initializeVocoderSessions(): Promise<void> {
+        const ortMod = this.ortMod ?? (this.ortMod = await loadOrt());
         const sessionOptions: any = {
             executionProviders: this.getExecutionProviders(),
             graphOptimizationLevel: 'all',
@@ -237,7 +252,7 @@ export class HybridNeuralPipeline {
         for (let i = 0; i < this.config.maxSessions; i++) {
             try {
                 // @ts-ignore - signature mismatch in current type defs
-                const session = await ort.InferenceSession.create(
+                const session = await ortMod.InferenceSession.create(
                     this.config.vocoderModelUrl,
                     sessionOptions
                 );
@@ -688,6 +703,7 @@ export class HybridNeuralPipeline {
      * @returns Synthesized audio
      */
     async melToAudio(mel: MelSpectrogram): Promise<Float32Array> {
+        const ortMod = this.ortMod ?? (this.ortMod = await loadOrt());
         const startTime = performance.now();
         this.callbacks.onVocoderStart?.();
 
@@ -710,7 +726,7 @@ export class HybridNeuralPipeline {
                 }
             }
 
-            const inputTensor = new ort.Tensor('float32', inputData, [batchSize, mel.nMels, mel.nFrames]);
+            const inputTensor = new ortMod.Tensor('float32', inputData, [batchSize, mel.nMels, mel.nFrames]);
 
             // Run inference
             const feeds: Record<string, ort.Tensor> = {};

@@ -1,6 +1,8 @@
-// `onnxruntime-web` is dynamically imported in ensureLoaded() so it never
-// lands in the entry chunk — only actually loading the wav2vec2 model pulls it in.
+// ONNX Runtime is loaded through the shared `ortRuntime` helper, which owns the
+// dynamic import (so ORT never lands in the entry chunk) and is the single
+// writer of `ort.env` — see src/services/ortRuntime.ts.
 import type * as ort from 'onnxruntime-web';
+import { loadOrt } from '@/services/ortRuntime';
 import { g2pText, defaultPhonemeDurationWeights, isArpabetVowel, categorizePhoneme } from './g2p';
 import { forcedAlignCtc, resampleLinear } from './ctcViterbi';
 import type { AlignmentResult, PhonemeSegment, AlignPassOptions } from './types';
@@ -158,7 +160,7 @@ export class CtcForcedAligner {
     if (this.loadAttempted) return false;
     this.loadAttempted = true;
     try {
-      const ort = await import('onnxruntime-web');
+      const ort = await loadOrt();
       this.ortMod = ort;
       const url = getAssetUrl(this.modelUrl);
       this.session = await ort.InferenceSession.create(url, {
