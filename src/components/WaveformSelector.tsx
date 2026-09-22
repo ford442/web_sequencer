@@ -1,5 +1,5 @@
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { Waveform } from '../types';
 
@@ -145,11 +145,9 @@ export const WaveformSelector: React.FC<WaveformSelectorProps> = React.memo(({ s
   };
 
   // Compute popup position from trigger rect when opened
-  useEffect(() => {
-    if (!isExpanded) {
-      setPopupPos(null);
-      return;
-    }
+  // Layout effect so the position is measured before paint (stale pos is never shown on reopen).
+  useLayoutEffect(() => {
+    if (!isExpanded) return;
     const updatePos = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (rect) {

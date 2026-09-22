@@ -224,7 +224,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 presetId: DEFAULT_PRESET_ID,
             },
         } as SavedSongData;
-    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
+    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases, activeTrackSlotsRef, bass2Ref, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, patternRef, samplerRef, sessionDocumentRef, snareRef, songStructureRef, synthARef, synthBRef, tempoRef, trackStorageRef]);
 
     const getBankData = useCallback(() => {
         return { type: 'bank', trackStorage };
@@ -355,7 +355,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 showToast("Pattern loaded!", "success");
             }
         }
-    }, [audioEngine, sampleBuffers, showToast]);
+    }, [audioEngine, showToast, bass2Ref, clearSongUndo, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, samplerRef, setActiveTrackSlots, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampleBuffers, setSampler, setSessionDocument, setSnare, setSongStructure, setSynthA, setSynthB, setTempo, setTrackStorage, setTtsPhrases, snareRef, synthARef, synthBRef]);
 
     const handleSaveSong = useCallback(async (slot: number) => {
         const encodedSamples: { [k: number]: string } = {};
@@ -384,7 +384,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         };
         setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; });
         setActiveSongSlot(slot);
-    }, [sampleBuffers, pattern, tempo, ambianceUrl, backgroundImage]);
+    }, [sampleBuffers, pattern, tempo, ambianceUrl, backgroundImage, bass2Ref, closedHatRef, kickRef, openHatRef, samplerRef, setActiveSongSlot, setSongStorage, snareRef, synthARef, synthBRef]);
 
     const loadSong = useCallback((slot: number) => {
         const snapshot = songStorage[slot];
@@ -410,7 +410,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         closedHatRef.current = snapshot.params.closedHat;
         openHatRef.current = snapshot.params.openHat;
         samplerRef.current = snapshot.params.sampler;
-    }, [songStorage]);
+    }, [songStorage, bass2Ref, closedHatRef, kickRef, openHatRef, samplerRef, setActiveSongSlot, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampler, setSnare, setSynthA, setSynthB, setTempo, snareRef, synthARef, synthBRef]);
 
     // ---- File I/O ----
 
@@ -472,7 +472,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             console.error('RBS export failed:', err);
             showToast('Failed to export .rbs file', 'error');
         }
-    }, [getSongData, showToast]);
+    }, [getSongData, showToast, deps.isSongModeActive, deps.trakEventsRef]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -591,7 +591,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Re-throw so modal can handle retry if needed
             throw error;
         }
-    }, [loadCloudData, showToast]);
+    }, [loadCloudData, showToast, setIsAISongModalOpen]);
 
     // ---- RBS Import ----
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
@@ -745,7 +745,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         applyPcfFilterToEffect(song.pcfFilter, audioEngine?.pcfEffect ?? null);
 
         // Keep the import modal open so ImportReportPanel stays visible until the user clicks Done.
-    }, [loadCloudData, audioEngine, deps]);
+    }, [loadCloudData, audioEngine, deps, bass2Ref, setBass2]);
 
     return {
         getSongData,

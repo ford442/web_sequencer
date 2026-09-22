@@ -1,57 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import type { KnobConfig } from '../components/HardwareModule';
+
+function sameKnobConfig(a: KnobConfig, b: KnobConfig): boolean {
+    return a.id === b.id &&
+        a.value === b.value &&
+        a.x === b.x &&
+        a.y === b.y &&
+        a.size === b.size &&
+        a.label === b.label &&
+        a.isRecording === b.isRecording &&
+        a.valueDisplay === b.valueDisplay;
+}
 
 export function useStableKnobConfig<T>(
     generator: (params: T) => KnobConfig[],
     params: T
 ): KnobConfig[] {
     const [stableConfigs, setStableConfigs] = useState<KnobConfig[]>(() => generator(params));
-    const prevRef = useRef(stableConfigs);
 
-    // Keep ref in sync with the latest stable state without causing effect loops
-    useEffect(() => {
-        prevRef.current = stableConfigs;
+    // Reuse unchanged config objects so memoised knobs skip re-rendering.
+    // Adjusting our own state during render (rather than in an effect) commits
+    // the merged result immediately instead of cascading an extra render.
+    const newConfigs = useMemo(() => generator(params), [generator, params]);
+    const merged = newConfigs.map((cfg, i) => {
+        const old = stableConfigs[i];
+        return old && sameKnobConfig(old, cfg) ? old : cfg;
     });
+    const hasChanged =
+        merged.length !== stableConfigs.length || merged.some((cfg, i) => cfg !== stableConfigs[i]);
 
-    // Compare and update state in an effect to avoid render-phase setState
-    useEffect(() => {
-        const newConfigs = generator(params);
-        const prev = prevRef.current;
-
-        if (!prev || newConfigs.length !== prev.length) {
-            setStableConfigs(newConfigs);
-            return;
-        }
-
-        const mergedConfigs = newConfigs.map((newCfg, i) => {
-            const oldCfg = prev[i];
-
-            if (oldCfg &&
-                oldCfg.id === newCfg.id &&
-                oldCfg.value === newCfg.value &&
-                oldCfg.x === newCfg.x &&
-                oldCfg.y === newCfg.y &&
-                oldCfg.size === newCfg.size &&
-                oldCfg.label === newCfg.label &&
-                oldCfg.isRecording === newCfg.isRecording &&
-                oldCfg.valueDisplay === newCfg.valueDisplay) {
-                return oldCfg;
-            }
-            return newCfg;
-        });
-
-        let hasChanged = false;
-        for (let i = 0; i < mergedConfigs.length; i++) {
-            if (mergedConfigs[i] !== prev[i]) {
-                hasChanged = true;
-                break;
-            }
-        }
-
-        if (hasChanged) {
-            setStableConfigs(mergedConfigs);
-        }
-    }, [params, generator]);
-
+    if (hasChanged) {
+        setStableConfigs(merged);
+        return merged;
+    }
     return stableConfigs;
 }

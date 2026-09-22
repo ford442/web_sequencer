@@ -433,7 +433,7 @@ export function useAppState() {
             automationStore.clearLiveValues();
             automationSchedulerRef.current?.cancelAll();
         }
-    }, [schedPlaying]);
+    }, [schedPlaying, songMeasureRef, setCurrentSongMeasure, isFirstStepRef, session.sessionEngineRef]);
 
     const {
         adjustTempo,

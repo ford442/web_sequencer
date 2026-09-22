@@ -38,16 +38,17 @@ const deferredTypeCheckedRules = {
 };
 
 const legacyRelaxedRules = {
+  // React Compiler-style rules. Deferred from Phase A (rules-of-hooks,
+  // exhaustive-deps, set-state-in-effect are now ON). ~103 findings, concentrated in
+  // AISongModal.tsx (refs) and useStepHandler.ts (preserve-manual-memoization).
+  // Owner: noahc42 — target: 2026-11-30.
   'react-hooks/refs': 'off',
-  'react-refresh/only-export-components': 'off',
   'react-hooks/immutability': 'off',
-  'react-hooks/rules-of-hooks': 'off',
-  'react-hooks/set-state-in-effect': 'off',
   'react-hooks/preserve-manual-memoization': 'off',
+  'react-refresh/only-export-components': 'off',
   '@typescript-eslint/no-unused-vars': 'off',
   '@typescript-eslint/no-explicit-any': 'off',
   '@typescript-eslint/ban-ts-comment': 'off',
-  'react-hooks/exhaustive-deps': 'off',
   '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
   'no-var': 'off',
   'no-case-declarations': 'off',
@@ -146,6 +147,24 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'error',
     },
   },
+  // `ESLINT_RATCHET=1` (scripts/lint-ratchet.mjs) — every rule this file keeps
+  // 'off' is switched to 'error' so its violations can be counted and compared
+  // against eslint-baseline.json. Any NEW 'off' entry above is picked up
+  // automatically; it must also get a baseline entry or the ratchet fails.
+  ...(process.env.ESLINT_RATCHET === '1'
+    ? [
+        {
+          files: ['**/*.{ts,tsx}'],
+          rules: Object.fromEntries(
+            Object.keys({
+              ...legacyRelaxedRules,
+              ...deferredTypeCheckedRules,
+              ...gradualTypeRules,
+            }).map((rule) => [rule, 'error']),
+          ),
+        },
+      ]
+    : []),
   // `ESLINT_STRICT=1 pnpm run lint` — full safety set for CI gating
   ...(process.env.ESLINT_STRICT === '1'
     ? [

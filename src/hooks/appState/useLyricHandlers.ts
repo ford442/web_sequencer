@@ -106,7 +106,7 @@ export function useLyricHandlers(deps: {
         } finally {
             setIsGenerating(false);
         }
-    }, [audioEngine, handleLoadSample, showToast, activeSamplerBankRef, setIsGenerating]);
+    }, [audioEngine, handleLoadSample, showToast, activeSamplerBankRef, setIsGenerating, setActiveAlignment]);
 
     const handleTextToDrums = useCallback(async (text: string) => {
         try {

@@ -36,6 +36,8 @@
     "build": "pnpm run build:release",
     "preview": "vite preview",
     "lint": "eslint . && node scripts/check-root.mjs && node scripts/wam-catalog-integrity.mjs --check",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",
     "check:root": "node scripts/check-root.mjs",
     "typecheck": "tsc -b",

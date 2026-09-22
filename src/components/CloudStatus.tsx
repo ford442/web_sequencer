@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, CloudStatusManager } from '../services/CloudStorage';
 
 type StatusState = 'SLEEPING' | 'WAKING' | 'ONLINE' | 'ERROR' | 'UPLOADING' | 'COMPLETE';
@@ -8,9 +8,14 @@ export const CloudStatus: React.FC = React.memo(() => {
     const [connectionStatus, setConnectionStatus] = useState<StatusState>('SLEEPING');
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'complete' | 'error'>('idle');
 
-    const checkHealth = async () => {
+    const uploadStatusRef = useRef(uploadStatus);
+    useEffect(() => {
+        uploadStatusRef.current = uploadStatus;
+    }, [uploadStatus]);
+
+    const checkHealth = useCallback(async () => {
         // If we are uploading, don't spam pings
-        if (uploadStatus === 'uploading') return;
+        if (uploadStatusRef.current === 'uploading') return;
 
         try {
             const controller = new AbortController();
@@ -27,7 +32,7 @@ export const CloudStatus: React.FC = React.memo(() => {
         } catch {
             setConnectionStatus('SLEEPING');
         }
-    };
+    }, []);
 
     useEffect(() => {
         // Subscribe to upload events
@@ -36,18 +41,19 @@ export const CloudStatus: React.FC = React.memo(() => {
             if (status === 'uploading') setConnectionStatus('UPLOADING');
             if (status === 'complete') setConnectionStatus('COMPLETE');
             if (status === 'error') setConnectionStatus('ERROR');
-            if (status === 'idle') checkHealth(); // Re-check connection when idle
+            if (status === 'idle') void checkHealth(); // Re-check connection when idle
         });
 
         // Initial Check
-        checkHealth();
+        const initialCheck = setTimeout(() => void checkHealth(), 0);
         // Poll every 30s
-        const interval = setInterval(checkHealth, 30000);
+        const interval = setInterval(() => void checkHealth(), 30000);
         return () => {
+            clearTimeout(initialCheck);
             clearInterval(interval);
             unsubscribe();
         };
-    }, []);
+    }, [checkHealth]);
 
     const handleWake = () => {
         setConnectionStatus('WAKING');

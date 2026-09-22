@@ -40,11 +40,7 @@ export function usePatchBay(): UsePatchBayResult {
     useEffect(() => subscribeActivePatchController(setController), []);
 
     useEffect(() => {
-        if (!controller) {
-            setConfig(null);
-            setNeedsRebuild(false);
-            return;
-        }
+        if (!controller) return;
         return controller.subscribe((next) => {
             // The controller hands back the same object identity only when
             // nothing changed, so a shallow copy keeps React re-rendering.
@@ -66,9 +62,9 @@ export function usePatchBay(): UsePatchBayResult {
 
     return useMemo<UsePatchBayResult>(
         () => ({
-            config,
+            config: controller ? config : null,
             ready: controller !== null,
-            needsRebuild,
+            needsRebuild: controller ? needsRebuild : false,
             lastRejection,
             connect: (from, to, gain) => run((patch) => patch.connect(from, to, gain)),
             disconnect: (from, to) => run((patch) => patch.disconnect(from, to)),

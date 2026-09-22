@@ -64,6 +64,9 @@ jobs:
       - name: Lint (ESLint)
         run: pnpm lint
 
+      - name: Lint ratchet (deferred-rule counts may only go down)
+        run: pnpm run lint:ratchet
+
   lint-strict:
     name: Lint (strict ratchet, informational)
     needs: source-integrity

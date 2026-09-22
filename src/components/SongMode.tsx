@@ -333,7 +333,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
             e.stopPropagation();
             onUpdateStep(sIdx, track, null);
         }
-    }, [onUpdateStep]);
+    }, [onUpdateStep, songStructure.length]);
 
     // Cleanup listeners
     React.useEffect(() => {

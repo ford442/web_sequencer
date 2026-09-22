@@ -62,13 +62,8 @@ export const useScheduler = (
         }
 
         if (context.state === 'suspended') {
-            try {
-                await context.resume();
-            } catch (err) {
-                console.error('[useScheduler] AudioContext.resume() failed:', err);
-                setIsPlaying(false);
-                return;
-            }
+            // Rejections propagate to the caller, which owns the isPlaying state.
+            await context.resume();
         }
 
         transportClockController.start();
@@ -80,7 +75,10 @@ export const useScheduler = (
 
     useEffect(() => {
         if (isPlaying && isAudioReady) {
-            void startClock();
+            startClock().catch((err: unknown) => {
+                console.error('[useScheduler] AudioContext.resume() failed:', err);
+                setIsPlaying(false);
+            });
         } else {
             if (isPlaying && !isAudioReady) {
                 console.warn(

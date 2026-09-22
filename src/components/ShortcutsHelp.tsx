@@ -96,8 +96,11 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(initialTopicId ?? null);
 
   useEffect(() => {
+    // consumeOpenRequest() is a one-shot read of an external store (impure, so it cannot run in a
+    // render-phase/state initializer without being lost to StrictMode double-invocation).
     const req = helpDiscoveryStore.consumeOpenRequest();
     if (req) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot store read on mount; see comment above (no tracking issue yet)
       setTab(req.tab);
       if (req.searchQuery) setQuery(req.searchQuery);
       if (req.topicId) {
