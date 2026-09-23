@@ -291,6 +291,12 @@ export class DrumKitEngine {
     logEngineFallback('drumkit', 'wasm-worklet', reason, err);
   }
 
+  /** Release the worklet node (engine re-init / teardown). */
+  dispose(): void {
+    this.cleanupWorklet();
+    this.wasmReady = false;
+  }
+
   private cleanupWorklet(): void {
     if (this.workletNode) {
       this.workletNode.disconnect();

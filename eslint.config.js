@@ -100,6 +100,12 @@ export default defineConfig([
           message:
             'audioWorklet.addModule must use a bundler-emitted URL (?worker&url), not a raw .ts path.',
         },
+        {
+          selector:
+            "CallExpression[callee.property.name='addModule'][arguments.0.type='Literal']:not([arguments.0.value=/\\.(ts|tsx)$/]), CallExpression[callee.property.name='addModule'][arguments.0.type='TemplateLiteral']",
+          message:
+            "audioWorklet.addModule must use a bundler-emitted URL (?worker&url), not a string path — addModule('x.js') 404s in production (#1177).",
+        },
       ],
       // #1134: the monolithic samplerPlayback.ts and audio/playback/*Playback.ts
       // barrel were deleted as unreachable duplicates. Ban both relative and

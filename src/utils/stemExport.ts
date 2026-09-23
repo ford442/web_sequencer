@@ -38,7 +38,11 @@ import {
 } from '../audio/loudness';
 
 /** Rates the export dialog offers explicitly; `native` goes through the pref. */
-export type StemExportSampleRate = 44100 | 48000;
+/**
+ * Any positive rate. Not narrowed to 44100 | 48000: `native` resolves to
+ * whatever the live context runs at (e.g. 96000 on a pro interface).
+ */
+export type StemExportSampleRate = number;
 
 /**
  * How the master stem is built.
@@ -53,13 +57,16 @@ export type StemMasterChain = 'dry-exclusive' | 'live-patch';
 
 export interface StemExportOptions {
     /** Explicit rate. When omitted, `sampleRatePref` + `liveSampleRate` decide. */
-    sampleRate?: StemExportSampleRate | number;
+    sampleRate?: StemExportSampleRate;
     /**
      * User sample-rate policy (#1136). `native` resolves to `liveSampleRate`,
      * so an export matches the context the user is monitoring through.
      */
     sampleRatePref?: SampleRatePref;
-    /** `AudioContext.sampleRate` of the running engine, recorded by the caller. */
+    /**
+     * `AudioContext.sampleRate` of the running engine. Defaults to the rate the
+     * live context factory last recorded (`getLastLiveSampleRate`).
+     */
     liveSampleRate?: number | null;
     /** Master stem routing. Defaults to `dry-exclusive`. */
     masterChain?: StemMasterChain;

@@ -64,7 +64,7 @@ vi.mock('../songTimeline', () => ({
 }));
 
 import { exportStemsToZip, type StemExportInput } from '../stemExport';
-import { SAMPLE_RATE_STORAGE_KEY } from '../audioContextPolicy';
+import { SAMPLE_RATE_STORAGE_KEY, recordLiveSampleRate } from '../audioContextPolicy';
 
 function fakeBuffer(length: number, sampleRate: number): AudioBuffer {
     const data = [new Float32Array(length), new Float32Array(length)];
@@ -166,6 +166,20 @@ describe('exportStemsToZip sample rate + master routing', () => {
         const options = renderSynthPattern.mock.calls[0][1] as { sampleRate: number };
         expect(options.sampleRate).toBe(48000);
         expect(writtenMetadata().sampleRate).toBe(48000);
+    });
+
+    it('resolves a stored native policy to the last live context rate, not 44100', async () => {
+        localStorage.setItem(SAMPLE_RATE_STORAGE_KEY, 'native');
+        recordLiveSampleRate(96000);
+        try {
+            await exportStemsToZip(makeInput());
+        } finally {
+            recordLiveSampleRate(null);
+        }
+
+        const options = renderSynthPattern.mock.calls[0][1] as { sampleRate: number };
+        expect(options.sampleRate).toBe(96000);
+        expect(writtenMetadata().sampleRate).toBe(96000);
     });
 
     it('falls back to the stored policy when the caller passes none', async () => {

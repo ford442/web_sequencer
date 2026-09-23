@@ -167,8 +167,13 @@ panel art cannot accumulate again.
 ---
 
 Hyphon monitors per-worklet `process()` wall time on the audio rendering thread and
-aggregates a **master budget** (% of each 128-sample quantum consumed across all
-instrumented worklets). When the budget exceeds **80%**, features are disabled in a
+aggregates a **master budget** (% of each render quantum consumed across all
+instrumented worklets). The quantum is whatever the live context reports — 128
+frames by default, but `renderSizeHint` (Chrome 125+, HUD "Render size hint")
+can change it, so the reporter measures `blockFrames` per `process()` call and
+telemetry records `renderSizeHintRequested` vs the observed
+`renderQuantumSize` / `baseLatencyMs`. Figures below quoted "per 128-frame
+quantum" are for the default size only. When the budget exceeds **80%**, features are disabled in a
 fixed order until headroom recovers below **60%** (hysteresis).
 
 ## Instrumented worklets

@@ -1,6 +1,7 @@
 // User-selectable AudioContext latency policy (P0 audio foundation, #1033).
-// Persisted so the choice survives reloads; only takes effect on the next
-// AudioContext construction (playback engine init / page reload).
+// Persisted so the choice survives reloads; takes effect on the next
+// AudioContext construction — engine start, or the HUD's "Apply (re-init
+// engine)", which rebuilds the context in place without a page reload.
 
 /** Mirrors the Web Audio spec's AudioContextLatencyCategory. */
 export type LatencyMode = AudioContextLatencyCategory;
@@ -26,7 +27,7 @@ export function getStoredLatencyMode(): LatencyMode {
   return DEFAULT_LATENCY_MODE;
 }
 
-/** Persist the latency mode. Applies on the next AudioContext construction. */
+/** Persist the latency mode. Applies on the next AudioContext construction (engine start / HUD re-init). */
 export function setStoredLatencyMode(mode: LatencyMode): void {
   try {
     localStorage.setItem(LATENCY_MODE_STORAGE_KEY, mode);

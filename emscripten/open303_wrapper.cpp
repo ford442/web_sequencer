@@ -707,7 +707,7 @@ static int open303_set_model_by_id_str(uintptr_t handle, const std::string& id)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Embind bindings  (makes the same functions callable from the JS module
-// wrapper / main-thread AudioDSP bridge)
+// wrapper)
 // ─────────────────────────────────────────────────────────────────────────────
 
 EMSCRIPTEN_BINDINGS(open303_module) {

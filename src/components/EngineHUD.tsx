@@ -2,11 +2,18 @@
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 import {
+  RENDER_SIZE_HINT_PREFS,
   SAMPLE_RATE_PREFS,
+  getStoredRenderSizeHintPref,
   getStoredSampleRatePref,
+  parseRenderSizeHintPref,
+  setStoredRenderSizeHintPref,
   setStoredSampleRatePref,
+  supportsRenderSizeHint,
+  toAudioContextRenderSizeHint,
   type SampleRatePref,
 } from '../utils/audioContextPolicy';
+import { canReinitAudioEngine, reinitAudioEngineFromGesture } from '../hooks/audioEngine/audioEngineReinit';
 import {
   applyAudioOutputSink,
   listAudioOutputDevices,
@@ -71,6 +78,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   let visible = new URLSearchParams(location.search).get('hud') === '1';
   let audioOutputDevices: MediaDeviceInfo[] = [];
   let sinkListError: string | null = null;
+  let reinitError: string | null = null;
 
   function cpuClass(pct: number): string {
     if (pct >= 80) return 'cpu-hot';
@@ -106,6 +114,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">Base latency</div><div style="min-width:72px;text-align:right">${runtime.baseLatencyMs != null ? runtime.baseLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Latency hint (active)</div><div style="min-width:72px;text-align:right">${runtime.latencyHint ?? '—'}</div></div>
+      <div class="row"><div style="flex:1">Render quantum</div><div style="min-width:72px;text-align:right" title="renderSizeHint requested: ${runtime.renderSizeHintRequested ?? 'default'}">${runtime.renderQuantumSize != null ? runtime.renderQuantumSize + ' fr' : '—'} (${runtime.renderSizeHintRequested ?? 'default'})</div></div>
+      ${runtime.contextOptionFallback ? `<div class="row"><div style="flex:1">Option fallback</div><div class="cpu-warn" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${runtime.contextOptionFallback}">dropped</div></div>` : ''}
       <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
 
     const storedMode = getStoredLatencyMode();
@@ -126,16 +136,28 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const requestedMatchesStored = storedRate === 'native'
       ? runtime.requestedSampleRate == null
       : runtime.requestedSampleRate === storedRate;
+    const renderSizeSupported = supportsRenderSizeHint();
+    const storedRenderSize = getStoredRenderSizeHintPref();
+    const renderSizeButtons = RENDER_SIZE_HINT_PREFS.map((pref) => {
+      const active = pref === storedRenderSize;
+      const style = active ? 'background:#0ea5e9;border-color:#0ea5e9;' : '';
+      return `<button type="button" aria-label="${pref} render size" class="hud-rsize-btn" data-rsize="${pref}" style="${style}">${pref}</button>`;
+    }).join('');
+    const storedRenderHint = renderSizeSupported ? toAudioContextRenderSizeHint(storedRenderSize) ?? null : null;
     const needsRestart =
       (runtime.latencyHint != null && storedMode !== runtime.latencyHint)
-      || (runtime.sampleRate != null && !requestedMatchesStored);
+      || (runtime.sampleRate != null && !requestedMatchesStored)
+      || (runtime.sampleRate != null && storedRenderHint !== runtime.renderSizeHintRequested);
     const restartNote = needsRestart
-      ? '<button type="button" id="hud-apply-restart" aria-label="Apply and restart audio context" style="margin-top:4px">Apply &amp; restart audio</button>'
+      ? `<button type="button" id="hud-apply-restart" aria-label="Apply and re-initialise the audio engine" style="margin-top:4px">${canReinitAudioEngine() ? 'Apply (re-init engine)' : 'Apply &amp; reload'}</button>`
       : '';
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>
       <div class="subheader">Sample rate</div>
-      <div class="row" style="gap:4px">${rateButtons}</div>${restartNote}`;
+      <div class="row" style="gap:4px">${rateButtons}</div>${renderSizeSupported ? `
+      <div class="subheader">Render size hint</div>
+      <div class="row" style="gap:4px">${renderSizeButtons}</div>` : ''}${reinitError ? `
+      <div style="font-size:10px;color:#f87171">${reinitError.replace(/</g, '&lt;')}</div>` : ''}${restartNote}`;
 
     const sinkSection = supportsSetSinkId()
       ? `<div class="subheader">Audio output</div>
@@ -355,8 +377,26 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         setStoredSampleRatePref(pref);
         render();
       }
+    } else if (target.classList.contains('hud-rsize-btn')) {
+      const pref = parseRenderSizeHintPref(target.getAttribute('data-rsize'));
+      if (pref) {
+        setStoredRenderSizeHintPref(pref);
+        render();
+      }
     } else if (target.id === 'hud-apply-restart') {
-      location.reload();
+      if (!canReinitAudioEngine()) {
+        location.reload();
+        return;
+      }
+      // Synchronous call from the click: the new context is built and
+      // resumed inside this gesture, before any await (see audioEngineReinit).
+      target.setAttribute('disabled', 'true');
+      reinitError = null;
+      reinitAudioEngineFromGesture()
+        .catch((err: unknown) => {
+          reinitError = err instanceof Error ? err.message : 'Audio engine re-init failed';
+        })
+        .finally(render);
     } else if (target.id === 'hud-sink-grant') {
       void (async () => {
         try {
@@ -386,7 +426,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const select = target as HTMLSelectElement;
     const deviceId = select.value;
     const device = audioOutputDevices.find((d) => d.deviceId === deviceId);
-    setStoredAudioOutput(device ? { groupId: device.groupId, label: device.label } : null);
+    setStoredAudioOutput(device ? { groupId: device.groupId, label: device.label, deviceId: device.deviceId } : null);
     const ctx = (window as Window & { audioContext?: AudioContext }).audioContext;
     if (ctx) {
       void applyAudioOutputSink(ctx, deviceId).then((sink) => {
