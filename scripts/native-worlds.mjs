@@ -147,6 +147,8 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   const RUBBERBAND_OWNED = new Set([
     'emscripten/build_rubberband.sh',
     'emscripten/rubberband_wrapper.cpp',
+    'emscripten/rubberband_fx.cpp',
+    'emscripten/rubberband_fx.h',
     'emscripten/rubberband-pre.js',
   ]);
   const emccFiles = walkFiles(repoRoot, 'emscripten', {

@@ -1,6 +1,7 @@
 import processorUrl from "../../audio-worklets/rubberband-processor.ts?worker&url";
 import type { SingingVoiceHost } from "./host";
 import { attachWorkletPerf, registerRubberbandNode } from "../../utils/workletPerfBridge";
+import { readVocalFxOverride, recordVocalFxBackend } from "./vocalFxTelemetry";
 
 export const WorkletSetupMixin = {
   /**
@@ -58,6 +59,8 @@ export const WorkletSetupMixin = {
         }
       );
 
+      const fxOverride = readVocalFxOverride();
+
       // Initialize the worklet with the fetched binary and buffers (flat structure)
       this.workletNode.port.postMessage({
         type: "INIT_WASM",
@@ -67,6 +70,7 @@ export const WorkletSetupMixin = {
         moduleUrl: "/rubberband.js",
         baseUrl: import.meta.env.BASE_URL,
         drumSidechainSAB: this.config.drumSidechainSAB,
+        fxBackend: fxOverride,
       });
 
       // Wait for ready signal.
@@ -81,6 +85,11 @@ export const WorkletSetupMixin = {
           clearTimeout(timeoutId);
           this.workletNode!.port.onmessage = null;
           if (event.data.type === "READY") {
+            const ready = event.data as { fxBackend?: string; fxReason?: string };
+            recordVocalFxBackend(
+              { backend: ready.fxBackend === "native" ? "native" : "ts", reason: ready.fxReason },
+              fxOverride === "ts",
+            );
             resolve();
           } else if (event.data.type === "ERROR") {
             reject(
@@ -93,6 +102,13 @@ export const WorkletSetupMixin = {
 
       console.log("SingingVoice: AudioWorklet initialized successfully");
       attachWorkletPerf(this.workletNode, 'rubberband');
+      // Mid-session native FX failures switch the worklet to the TS chain.
+      this.workletNode.port.addEventListener("message", (event: MessageEvent) => {
+        const msg = event.data as { type?: string; backend?: string; reason?: string } | null;
+        if (msg?.type === "FX_BACKEND") {
+          recordVocalFxBackend({ backend: msg.backend === "native" ? "native" : "ts", reason: msg.reason });
+        }
+      });
       registerRubberbandNode(this.workletNode);
     } catch (e) {
       console.error("SingingVoice: AudioWorklet initialization failed:", e);
