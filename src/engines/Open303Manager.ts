@@ -1,5 +1,8 @@
 import type { Bass2Params } from '../types';
 import type { TB303ModelId } from './TB303Models';
+import type { TB303VoiceExtra } from './tb303VoiceExtra';
+import type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficients';
+import type { LiveAbSettings } from './LiveHighFidAbPair';
 import { Open303Oscillator } from './Open303Oscillator';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
@@ -576,6 +579,11 @@ export class Open303Manager {
         value: number,
         audioTime: number
     ): void {
+        // Live A/B blend (Phase L2) — a pair of GainNodes inside the oscillator.
+        if (func === 'setAbMix') {
+            this.getVoice(voice)?.setLiveAbMix(value, audioTime);
+            return;
+        }
         // Native AudioParam setters (pan, gain) — schedule ahead of time.
         if (func === 'setDrive') {
             if (voice === 'bass1') this.setBass1Drive(value, audioTime);
@@ -810,5 +818,40 @@ export class Open303Manager {
         if (settings.lead) this.setLead303Model(settings.lead);
         if (settings.bass1) this.setBass1Model(settings.bass1);
         if (settings.bass2) this.setBass2Model(settings.bass2);
+    }
+
+    // -------------------------------------------------------------------------
+    // Live high-fid A/B (Phase L2) + diode-ladder coefficients (Phase L3)
+    // -------------------------------------------------------------------------
+
+    private getVoice(voice: 'bass1' | 'bass2' | 'lead303'): Open303Oscillator | null {
+        return voice === 'bass1' ? this.bass1 : voice === 'bass2' ? this.bass2 : this.lead303;
+    }
+
+    /** Arm / blend live A/B on one voice. Engages only while it plays live-highfid. */
+    setVoiceLiveAb(voice: 'bass1' | 'bass2' | 'lead303', settings: Partial<LiveAbSettings>, audioTime?: number): void {
+        this.getVoice(voice)?.setLiveAb(settings, audioTime);
+    }
+
+    /** Song-stored diode-ladder coefficients for one voice; undefined = canonical. */
+    setVoiceHighFidCoefficients(voice: 'bass1' | 'bass2' | 'lead303', coefficients: HighFidCoefficients | undefined): void {
+        this.getVoice(voice)?.setHighFidCoefficients(coefficients);
+    }
+
+    /** Apply persisted `model303Extra` blobs after audio init or song load. */
+    syncModel303Extras(settings: {
+        lead?: TB303VoiceExtra;
+        bass1?: TB303VoiceExtra;
+        bass2?: TB303VoiceExtra;
+    }): void {
+        const apply = (voice: 'bass1' | 'bass2' | 'lead303', extra: TB303VoiceExtra | undefined) => {
+            const osc = this.getVoice(voice);
+            if (!osc) return;
+            osc.setHighFidCoefficients(extra?.highFidCoefficients);
+            osc.setLiveAb({ armed: extra?.ab?.armed === true, ...(extra?.ab ? { mix: extra.ab.mix } : {}) });
+        };
+        apply('lead303', settings.lead);
+        apply('bass1', settings.bass1);
+        apply('bass2', settings.bass2);
     }
 }

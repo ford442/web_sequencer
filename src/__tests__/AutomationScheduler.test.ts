@@ -296,6 +296,18 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('bass2', 'setDecay', expect.any(Number), expect.any(Number));
   });
 
+  it('schedules a synthA live A/B blend (abMix) on the lead303 voice', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+
+    const lane = makeLane({ target: 'synthA', parameter: 'abMix', points: [{ step: 0, value: 0.25 }] });
+
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+    expect(mgr.scheduleParamAtTime).toHaveBeenCalledWith('lead303', 'setAbMix', 0.25, expect.any(Number));
+  });
+
   it('ignores originalRange — the lane value is already normalised', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();

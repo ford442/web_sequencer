@@ -32,6 +32,14 @@
 - Stock and JC303 voices are untouched — the high-fid WASM instance is created lazily on first selection, so real-time latency for stock voices is unchanged.
 - Docs: [303-realtime-highfid.md](docs/audio-engine/303-realtime-highfid.md), including the L2–L5 tracking checklist (live A/B, editable coefficients, hardware oracle, GPU live).
 
+### Real-time high-fidelity TB-303 — live A/B + editable diode ladder (Phases L2/L3)
+- **Live A/B** (L2): a part on `live-highfid` can arm **A/B vs stock**. The same worklet plays Stock Open303 (A) and the diode ladder (B) from one note stream on two outputs. You can flip or blend them with an equal-power crossfade while the sequencer runs. The blend is saved on the song and automatable (`abMix` on `synthA` / `synthB` / `bass2`).
+- **Lazy and stock-safe**: nothing is allocated until A/B is armed on a live-highfid part, and there is no second oscillator, WASM module or `hyphon_native` heap. The CPU gate still only trips the high-fid side and collapses the blend to A; the stock side's notes and profile are untouched.
+- **Freeze of an A/B part records one side**: high-fid at blend ≥ 0.5, stock below. Blends are not frozen until the offline graph compiler (#1235) can render both.
+- **Editable diode-ladder coefficients** (L3): transistor mismatch, decay curve, accent coupling and filter tracking are new `highfid303_set_param` ids (14–17), mirrored in the TS offline engine. They are saved on the song as `model303Extra.highFidCoefficients`. Knob moves reach the worklet through a 20-byte SharedArrayBuffer table when cross-origin isolated, otherwise by message.
+- **Canonical preset**: the defaults reproduce the pre-L3 diode ladder bit for bit, so the spectrogram / RMS gates are unchanged. A freeze uses the song's coefficients only when the song stored some; otherwise it uses the canonical preset.
+- **Engine HUD**: A/B blend plus one CPU row per side.
+
 ### In-app discoverability (closes #632, #633, #634)
 - Searchable **Help** modal (`?` key): Search · Guides · Shortcuts tabs
 - Dismissible **What's New** checklist for major workflows

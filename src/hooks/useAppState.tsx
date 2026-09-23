@@ -324,6 +324,18 @@ export function useAppState() {
         }
     }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303, synthA.model303, synthB.model303, bass2.model303]);
 
+    // Live high-fid A/B + diode-ladder coefficients (L2/L3). Runs after the
+    // model sync above so A/B engages against the voice that was just set.
+    useEffect(() => {
+        const mgr = audioEngine?.open303Engine;
+        if (!(mgr instanceof Open303Manager) || typeof mgr.syncModel303Extras !== 'function') return;
+        mgr.syncModel303Extras({
+            lead: synthA.model303Extra,
+            bass1: synthB.model303Extra,
+            bass2: bass2.model303Extra,
+        });
+    }, [audioEngine, synthA.model303Extra, synthB.model303Extra, bass2.model303Extra, synthA.model303, synthB.model303, bass2.model303]);
+
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
     const {

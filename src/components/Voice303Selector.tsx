@@ -8,7 +8,11 @@ import {
     tb303ModelFamily,
 } from '../engines/TB303Models';
 import { getBrowserCapabilities } from '../utils/engineTelemetry';
+import type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficients';
+import { DEFAULT_LIVE_AB_MIX, type LiveAbSettings } from '../engines/LiveHighFidAbPair';
+import { usesHighFidCoefficients } from '../engines/tb303VoiceExtra';
 import { HelpIconButton, HelpTip } from './help/HelpTip';
+import { HighFidCoefficientControls, LiveAbControls } from './LiveHighFidControls';
 
 interface Voice303SelectorProps {
     /** Currently active 303 voice/model for this track. */
@@ -24,6 +28,12 @@ interface Voice303SelectorProps {
     includeOfflineOnly?: boolean;
     /** Override WebGPU probe (tests). Defaults to getBrowserCapabilities().webgpu. */
     gpuAvailable?: boolean;
+    /** Live A/B request (Phase L2). The controls show only on `live-highfid`. */
+    liveAb?: LiveAbSettings;
+    onLiveAbChange?: (ab: LiveAbSettings) => void;
+    /** Song-stored diode-ladder coefficients (Phase L3); undefined = canonical. */
+    highFidCoefficients?: HighFidCoefficients;
+    onHighFidCoefficientsChange?: (coefficients: HighFidCoefficients | undefined) => void;
 }
 
 /**
@@ -44,6 +54,10 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
     accentColor = 'pink',
     includeOfflineOnly = true,
     gpuAvailable: gpuAvailableProp,
+    liveAb,
+    onLiveAbChange,
+    highFidCoefficients,
+    onHighFidCoefficientsChange,
 }) => {
     const models = getAvailableTB303Models({ includeOfflineOnly });
     const activeFamily = tb303ModelFamily(model);
@@ -198,6 +212,18 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                 >
                     Live diode ladder · freeze uses highfid-cpu · falls back to Stock Open303 over CPU budget
                 </p>
+            )}
+            {liveHighFidActive && onLiveAbChange && (
+                <LiveAbControls
+                    ab={liveAb ?? { armed: false, mix: DEFAULT_LIVE_AB_MIX }}
+                    onChange={onLiveAbChange}
+                />
+            )}
+            {usesHighFidCoefficients(model) && onHighFidCoefficientsChange && (
+                <HighFidCoefficientControls
+                    coefficients={highFidCoefficients}
+                    onChange={onHighFidCoefficientsChange}
+                />
             )}
             {selectionHint?.fallbackReason && (
                 <p

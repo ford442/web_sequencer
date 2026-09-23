@@ -247,9 +247,16 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         runtime.liveHighFidCpuPercent != null ? `${runtime.liveHighFidCpuPercent.toFixed(0)}%` : '—';
     const liveHfOs = runtime.liveHighFidOversample != null ? `${runtime.liveHighFidOversample}×` : '—';
     const liveHfReason = runtime.liveHighFidFallbackReason ?? '';
+    // Phase-L2 — live A/B: one CPU row per side, the gate only ever trips B.
+    const pct = (v: number | null) => (v != null ? `${v.toFixed(0)}%` : '—');
+    const abMix = runtime.liveAbMix != null ? `${Math.round(runtime.liveAbMix * 100)}% B` : '—';
+    const abRows = runtime.liveAbEngaged !== true ? '' : `
+      <div class="row" title="Live A/B blend: 0% = stock Open303 (A), 100% = live high-fid (B)"><div style="flex:1">A/B blend</div><div style="min-width:72px;text-align:right">${abMix}</div></div>
+      <div class="row"><div style="flex:1">A stock CPU</div><div style="min-width:72px;text-align:right">${pct(runtime.liveAbStockCpuPercent)}</div></div>
+      <div class="row"><div style="flex:1">B hifi CPU</div><div style="min-width:72px;text-align:right">${pct(runtime.liveAbHighFidCpuPercent)}</div></div>`;
     const liveSection = runtime.liveHighFidActive == null ? '' : `<div class="subheader">Live 303 path</div>
       <div class="row" title="${liveHfReason}"><div style="flex:1">Audible</div><div class="${liveHfClass}" style="min-width:96px;text-align:right;font-size:10px">${liveHfBadge}</div></div>
-      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>
+      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>${abRows}
       ${liveHfReason ? `<div class="row" title="${liveHfReason}"><div style="flex:1">Fallback</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liveHfReason}</div></div>` : ''}`;
 
     // One shared hyphon_native heap for 303 + Prophecy + live high-fid.

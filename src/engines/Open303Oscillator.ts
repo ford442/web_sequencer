@@ -12,6 +12,8 @@ import {
     type Engine303Family,
 } from './TB303Models';
 import { clampLiveOversample, type LiveHighFidOversample } from '../audio-worklets/liveHighFid303';
+import type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficients';
+import { LiveHighFidVoiceControls, type LiveAbSettings } from './LiveHighFidAbPair';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { FallbackBassSynth } from './FallbackBassSynth';
 import {
@@ -54,6 +56,22 @@ export class Open303Oscillator {
      * worth it on machines with headroom to spare.
      */
     private liveHighFidOversample: LiveHighFidOversample = 1;
+    /**
+     * Live A/B (Phase L2) + diode-ladder coefficients (Phase L3). Requests are
+     * stored here; the crossfade gains and coefficient table are only created
+     * once a live-highfid part actually needs them.
+     */
+    private readonly liveHighFid = new LiveHighFidVoiceControls(
+        () => ({
+            context: this.audioContext,
+            worklet: this.workletNode,
+            destination: this.gainNode,
+            liveHighFidSelected: isLiveHighFidModel(this.model303) && !this.isFallback,
+        }),
+        (state) => {
+            try { engineTelemetry.recordLiveAb(state); } catch { /* telemetry optional */ }
+        },
+    );
     /** Cleanup for the worklet status listener (live high-fid fallbacks). */
     private detachStatusListener: (() => void) | null = null;
     public isReady: boolean = false;
@@ -177,7 +195,11 @@ export class Open303Oscillator {
             await audioContext.audioWorklet.addModule(workletUrl);
 
             this.workletNode = new AudioWorkletNode(audioContext, 'open303-processor', {
-                outputChannelCount: [2] // Request Stereo
+                // Output 0 is the voice (stereo). Output 1 is the live A/B
+                // high-fid bus (Phase L2): unconnected and never written
+                // unless A/B is engaged on a live-highfid part.
+                numberOfOutputs: 2,
+                outputChannelCount: [2, 2],
             });
 
             // Both profiles import their memory, so the import table cannot tell them
@@ -257,6 +279,8 @@ export class Open303Oscillator {
             this.isFallback = false;
             this.applyModel303();
             this.applyAllParameters();
+            this.liveHighFid.pushCoefficients();
+            this.liveHighFid.sync();
             this.flushPendingTriggers();
             try { engineTelemetry.registerResolution('open303', hyphonNativeBackendName(artifact.threading), `worklet-ready (${artifact.wasm})`); } catch (_) {}
             return true;
@@ -451,6 +475,37 @@ export class Open303Oscillator {
             } catch { /* telemetry optional */ }
         }
         this.applyModel303();
+        this.liveHighFid.sync();
+    }
+
+    /**
+     * Arm / blend live A/B (Phase L2). Engages only while this part plays
+     * `live-highfid`; `audioTime` schedules a blend change (automation).
+     */
+    setLiveAb(settings: Partial<LiveAbSettings>, audioTime?: number): void {
+        this.liveHighFid.setLiveAb(settings, audioTime);
+    }
+
+    setLiveAbMix(mix: number, audioTime?: number): void {
+        this.liveHighFid.setLiveAb({ mix }, audioTime);
+    }
+
+    getLiveAb(): LiveAbSettings {
+        return this.liveHighFid.liveAb;
+    }
+
+    /** Both buses are wired and the worklet renders stock + high-fid. */
+    isLiveAbEngaged(): boolean {
+        return this.liveHighFid.isAbEngaged;
+    }
+
+    /** Song-stored diode-ladder coefficients (Phase L3); `undefined` = canonical. */
+    setHighFidCoefficients(coefficients: HighFidCoefficients | undefined): void {
+        this.liveHighFid.setHighFidCoefficients(coefficients);
+    }
+
+    getHighFidCoefficients(): HighFidCoefficients | undefined {
+        return this.liveHighFid.highFidCoefficients;
     }
 
     /**
@@ -541,6 +596,15 @@ export class Open303Oscillator {
                     String(payload.data?.reason ?? 'live high-fid unavailable'),
                     null,
                 );
+            } else if (payload.type === 'live-ab-cpu') {
+                const stock = payload.data?.stockPercent;
+                const highFid = payload.data?.highFidPercent;
+                try {
+                    engineTelemetry.recordLiveAbCpu({
+                        stockPercent: typeof stock === 'number' ? stock : null,
+                        highFidPercent: typeof highFid === 'number' ? highFid : null,
+                    });
+                } catch { /* telemetry optional */ }
             }
         };
 
@@ -570,11 +634,15 @@ export class Open303Oscillator {
             engineDegradationStore.reportLiveHighFidFallback({ requested, reason, cpuPercent });
         } catch { /* store optional in tests */ }
         reportTB303ModelFallback(requested, 'stock-open303', reason, 'live-highfid');
+        // A/B collapses to side A: output 0 (stock, untouched) goes straight
+        // back to the part's gain, whatever the blend was.
+        this.liveHighFid.sync();
     }
 
     private cleanupWorklet() {
         this.detachStatusListener?.();
         this.detachStatusListener = null;
+        this.liveHighFid.detach();
         if (this.workletNode) {
             // hyphon_native is shared by every voice in the audio session: ask the
             // processor to destroy its handles before the port goes away.
