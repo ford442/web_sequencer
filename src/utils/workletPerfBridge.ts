@@ -16,7 +16,13 @@ let glitchPollTimer: ReturnType<typeof setInterval> | null = null;
 let lastOutputLatencyMs: number | null = null;
 let monitoredContext: AudioContext | null = null;
 
+const sampleRateFallbackRecorded = new Set<string>();
+
 function handlePerfMessage(data: WorkletPerfMessage): void {
+  if (data.sampleRateFallback && !sampleRateFallbackRecorded.has(data.name)) {
+    sampleRateFallbackRecorded.add(data.name);
+    engineTelemetry.recordGlitch('worklet-sample-rate-fallback', { worklet: data.name });
+  }
   engineTelemetry.recordWorkletPerf(data.name, {
     cpuPercent: data.cpuPercent,
     underruns: data.underruns,
@@ -94,6 +100,9 @@ export interface GlitchMonitorMeta {
   latencyHint?: string | null;
   requestedSampleRate?: number | null;
   sampleRateFallback?: string | null;
+  renderSizeHintRequested?: string | number | null;
+  renderQuantumSize?: number | null;
+  contextOptionFallback?: string | null;
 }
 
 /** Start monitoring AudioContext state + output latency (idempotent). */
@@ -119,6 +128,9 @@ export function startGlitchMonitor(
     sampleRateFallback: meta.sampleRateFallback ?? null,
     baseLatencyMs: (context.baseLatency ?? 0) * 1000,
     latencyHint: meta.latencyHint ?? null,
+    renderSizeHintRequested: meta.renderSizeHintRequested ?? null,
+    renderQuantumSize: meta.renderQuantumSize ?? null,
+    contextOptionFallback: meta.contextOptionFallback ?? null,
   });
 
   context.addEventListener('statechange', onContextStateChange);

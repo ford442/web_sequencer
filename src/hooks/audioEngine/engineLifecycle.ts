@@ -19,7 +19,7 @@ import { DEFAULT_DRUM_KIT } from '../../constants';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
-import { startGlitchMonitor } from '../../utils/workletPerfBridge';
+import { startGlitchMonitor, stopGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import {
     PatchController,
@@ -30,12 +30,13 @@ import {
 import { WamHost, setWamHost } from '../../audio/wam';
 import {
     createMasterLoudnessStage,
+    getMasterLoudnessStage,
     setMasterLoudnessStage,
 } from '../../audio/loudness';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
-import { createAudioContext } from './audioContextFactory';
+import { createAudioContext, type AudioContextCreation } from './audioContextFactory';
 import {
     createNoiseBuffer,
     initializeHarmonizer,
@@ -104,17 +105,26 @@ export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
     latencyHint: LatencyMode = getStoredLatencyMode(),
+    /**
+     * A context already built (and resumed) inside a user gesture — the HUD
+     * "Apply" path. When omitted the context is constructed here, which is
+     * only gesture-safe because nothing is awaited before `resume()` below.
+     */
+    precreated?: AudioContextCreation,
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
     loadingProgressStore.startStep('audioContext');
-    const created = createAudioContext(latencyHint);
+    const created = precreated ?? createAudioContext(latencyHint);
     const context = created.context;
     loadingProgressStore.completeStep('audioContext');
     audioWindow.audioContext = context;
     startGlitchMonitor(context, {
-        latencyHint,
+        latencyHint: created.latencyHint,
         requestedSampleRate: created.requestedSampleRate,
         sampleRateFallback: created.sampleRateFallback,
+        renderSizeHintRequested: created.requestedRenderSizeHint,
+        renderQuantumSize: created.renderQuantumSize,
+        contextOptionFallback: created.optionFallback,
     });
     void applyAudioOutputSink(context).then((sink) => {
         if (sink) engineTelemetry.recordAudioOutputSink(sink);
@@ -364,4 +374,65 @@ export async function initializeAudioContextAndEngines(
     }
 
     return { context, masterBusInput };
+}
+
+/**
+ * Tear the running engine down so `initializeAudioContextAndEngines` can build
+ * a fresh one (HUD "Apply" for sample rate / latency / render size / sink).
+ *
+ * Worklet nodes are disconnected and their ports closed before the context is
+ * closed: closing the context is what actually releases the AudioWorklet
+ * global scope, and with it the one hyphon_native heap the voice processors
+ * share (#1229) — the next context instantiates a fresh one.
+ */
+export async function teardownAudioEngine(
+    refs: EngineLifecycleRefs,
+    context: AudioContext | null,
+): Promise<void> {
+    const safely = (label: string, fn: () => void): void => {
+        try {
+            fn();
+        } catch (e) {
+            console.warn(`[engineLifecycle] teardown ${label} failed:`, e);
+        }
+    };
+
+    safely('open303', () => refs.open303ManagerRef.current?.cleanup());
+    safely('prophecy', () => refs.prophecyManagerRef.current?.cleanup());
+    safely('drumkit', () => refs.drumKitEngineRef.current?.dispose());
+    safely('sustain', () => {
+        const node = refs.sustainNodeRef.current;
+        if (node) {
+            node.disconnect();
+            node.port.close();
+        }
+    });
+    safely('loudness', () => {
+        getMasterLoudnessStage()?.dispose();
+        setMasterLoudnessStage(null);
+    });
+    safely('wam', () => setWamHost(null));
+    stopGlitchMonitor();
+
+    refs.open303ManagerRef.current = null;
+    refs.prophecyManagerRef.current = null;
+    refs.drumKitEngineRef.current = null;
+    refs.sustainNodeRef.current = null;
+    refs.singingVoiceManagerRef.current = null;
+    refs.phonemeBufferPoolRef.current = null;
+    refs.voiceManagerARef.current = null;
+    refs.voiceManagerBRef.current = null;
+    refs.multisampleGeneratorRef.current = null;
+
+    const audioWindow = window as AudioWindow;
+    if (context && audioWindow.audioContext === context) {
+        audioWindow.audioContext = undefined;
+    }
+    if (context && context.state !== 'closed') {
+        try {
+            await context.close();
+        } catch (e) {
+            console.warn('[engineLifecycle] AudioContext.close() failed:', e);
+        }
+    }
 }

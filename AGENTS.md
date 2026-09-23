@@ -108,7 +108,6 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   │   ├── SingingVoiceManager.ts# Polyphonic TTS manager
 │   │   ├── VoiceManager.ts       # Voice allocation
 │   │   ├── Harmonizer.ts         # Vocal harmony engine
-│   │   ├── AudioDSP.ts           # DSP helpers
 │   │   ├── MultisampleGenerator.ts
 │   │   └── rubberband/           # Pitch/time stretch utilities
 │   ├── hooks/                    # React hooks
@@ -454,7 +453,7 @@ Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wa
 - **Setup**: `vitest.setup.ts` (shared mocks); `vitest.setup.unit.ts` (strict fetch guard for unit tier)
 
 ### Test Categories
-1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `AudioDSP`, `SingingVoice`, `SingingVoiceManager`, `FormantShifter`
+1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `SingingVoice`, `SingingVoiceManager`, `FormantShifter`
 2. **Component Tests**: `Knob`, `Sequencer`, `SamplerPanel`, `VoiceEditor`, `HardwareModule`, `NoteSelector`, `WaveformSelector`, `DragValue`
 3. **Integration Tests**: Full audio pipeline, TTS integration (`SingingVoice.integration.test.ts`)
 4. **Performance Tests**: `SamplerPanel.perf.test.tsx`, `audioExport.perf.test.ts`, `useAudioEngine.perf.test.tsx`, `wasmMigration.bench.test.ts`

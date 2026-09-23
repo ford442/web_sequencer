@@ -25,6 +25,12 @@ function walkTsFiles(dir: string): string[] {
 }
 
 const RAW_TS_ADD_MODULE = /addModule\s*\(\s*['"`][^'"`]*\.tsx?['"`]/;
+/**
+ * Any string literal passed to addModule is a path resolved against the page,
+ * not a bundler-emitted asset — `addModule('sustain-processor.js')` 404'd in
+ * production the same way the raw .ts paths did (#1177 / #1236).
+ */
+const LITERAL_ADD_MODULE = /addModule\s*\(\s*['"`]/;
 const RAW_TS_NEW_URL = /new\s+URL\s*\(\s*['"`][^'"`]*audio-worklets\/[^'"`]*\.tsx?['"`]/;
 
 describe('audioWorklet.addModule URLs', () => {
@@ -39,11 +45,23 @@ describe('audioWorklet.addModule URLs', () => {
       if (RAW_TS_ADD_MODULE.test(content)) {
         violations.push(`${rel}: addModule with raw .ts/.tsx string literal`);
       }
+      if (LITERAL_ADD_MODULE.test(content) && !RAW_TS_ADD_MODULE.test(content)) {
+        violations.push(`${rel}: addModule with a string literal path (use ?worker&url)`);
+      }
       if (RAW_TS_NEW_URL.test(content)) {
         violations.push(`${rel}: new URL(...audio-worklets/*.ts) worklet path`);
       }
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it('flags a bare .js literal like the deleted useSustainProcessor hook', () => {
+    expect(LITERAL_ADD_MODULE.test("audioWorklet.addModule('sustain-processor.js')")).toBe(true);
+    expect(LITERAL_ADD_MODULE.test('audioWorklet.addModule(sustainProcessorUrl)')).toBe(false);
+  });
+
+  it('the dead useSustainProcessor hook stays deleted', () => {
+    expect(fs.existsSync(path.join(srcDir, 'hooks/useSustainProcessor.ts'))).toBe(false);
   });
 });

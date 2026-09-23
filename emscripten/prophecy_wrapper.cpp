@@ -787,7 +787,7 @@ uintptr_t prophecy_process(uintptr_t handle, int numFrames)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Embind bindings  (makes the same functions callable from the JS module
-// wrapper / main-thread AudioDSP bridge)
+// wrapper)
 // ─────────────────────────────────────────────────────────────────────────────
 
 EMSCRIPTEN_BINDINGS(prophecy_module) {
