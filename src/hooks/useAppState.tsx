@@ -13,12 +13,23 @@
  * transportSyncStore.ts — each lets a component subscribe to exactly the
  * slice it needs via `useXStore(selector)`, independent of everything else):
  *
- *   1. UI modals       → src/stores/uiModalsStore.ts (done)
- *   2. Transport/mix   → src/stores/transportMixStore.ts (done)
- *   3. Sampler banks   → active bank, track storage, TTS phrases
- *   4. Pattern edit    → selection, clipboard, scale, zoom
- *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params
- *   6. Session/song    → song structure, session launcher state
+ *   1. UI modals       → src/stores/uiModalsStore.ts (done, #1259)
+ *   2. Transport/mix   → src/stores/transportMixStore.ts (done, #1284) —
+ *      wrapped by src/hooks/appState/useTransportMixState.ts so this
+ *      function keeps returning the same field names.
+ *   3. Sampler banks   → active bank, track storage, TTS phrases. Currently
+ *      src/hooks/appState/useSamplerBanksState.ts (plain useState); target
+ *      src/stores/samplerBanksStore.ts.
+ *   4. Pattern edit    → selection, clipboard, scale, zoom. Currently
+ *      src/hooks/appState/usePatternEditState.ts (plain useState); target
+ *      src/stores/patternEditStore.ts.
+ *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params.
+ *      Currently src/hooks/appState/useInstrumentState.ts (plain useState);
+ *      target src/stores/instrumentStateStore.ts.
+ *   6. Session/song    → song structure, session launcher state. Currently
+ *      src/hooks/appState/useSongModeState.ts and
+ *      src/hooks/appState/useSessionState.ts (plain useState); target
+ *      src/stores/songModeStore.ts and src/stores/sessionStore.ts.
  *
  * Each phase lands as its own PR: extract the sub-hook's `useState` calls
  * into an external store class + `useXStore(selector)` hook, keep this

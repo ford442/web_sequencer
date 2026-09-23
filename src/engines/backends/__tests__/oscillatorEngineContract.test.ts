@@ -20,7 +20,7 @@ import {
     parseWaveform,
     type OscEngineId,
 } from '../../../utils/waveformParser';
-import { getWaveformsForType } from '../../../types';
+import { getWaveformsForType } from '../../../components/oscillatorThemes';
 import type { OscillatorType, Waveform } from '../../../types';
 
 const ROOT = resolve(__dirname, '../../../..');

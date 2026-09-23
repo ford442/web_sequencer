@@ -23,7 +23,9 @@
  * - Section 3 (Phoneme Alignment): CTC (wav2vec2 ONNX) + G2P heuristic fallback
  * - Section 4 (Formant): IMPLEMENTED in FormantShifter.ts (wired when enableFormantShifting)
  * - Section 5 (Expression): IMPLEMENTED in ExpressiveVoiceProcessor / worklet
- * - Section 6 (Hybrid Neural): library + tests; freeze/export wiring is V4 follow-up
+ * - Section 6 (Hybrid Neural): quarantined in ./experimental/ — nothing in the
+ *   app constructs it; not exported from this barrel. Wiring a neural vocoder
+ *   is a later epic gated on #1257 (single `configureOrt()` entry point).
  * - Section 8 (Concatenative): STUB — V2 follow-up
  * - Section 9 (Latency): LatencyCompensator deleted; MIDI clock is TransportClockController
  * - Section 10 (Artifacts): ArtifactDetector present
@@ -57,8 +59,11 @@ export * from './FormantShifter';
 // Section 5: Expressiveness Layer (Vibrato, Dynamics)
 export * from './ExpressiveVoiceProcessor';
 
-// Section 6: Hybrid Neural + Rubber Band Approach
-export * from './HybridNeuralPipeline';
+// Section 6: Hybrid Neural + Rubber Band Approach — quarantined, not re-exported.
+// See src/engines/rubberband/experimental/HybridNeuralPipeline.ts: nothing in
+// the app constructs it. Import it directly from that path if you are working
+// on the neural-vocoder epic (#1257); do not add it back to this barrel until
+// something outside its own tests actually wires it in.
 
 // Section 7: Real-Time Performance Optimizations
 export * from './performance';
