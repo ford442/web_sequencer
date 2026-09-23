@@ -5,8 +5,8 @@ import {
     compareRenders,
     measureRender,
 } from '../backendComparison';
-import { JsOscillatorBackend, RustWasmBackend, WavPcmBackend } from '../adapters';
-import type { RustOscillator } from '../../RustOscillator';
+import { JsOscillatorBackend, WamWasmBackend, WavPcmBackend } from '../adapters';
+import type { WasmOscillator } from '../../WasmOscillator';
 import type { GenerateRequest } from '../OscillatorBackend';
 
 const SR = 44100;
@@ -42,14 +42,14 @@ function render(shape: 'saw' | 'sqr' | 'tri' | 'sin', gain = 1, n = 8192): Float
     return out;
 }
 
-/** A Rust engine stub that returns a real saw, so the harness has two backends. */
-function stubRustEngine(shape: 'saw' | 'sqr'): RustOscillator {
+/** A WASM oscillator stub returning a real wave, so the harness has two backends. */
+function stubWasmEngine(shape: 'saw' | 'sqr'): WasmOscillator {
     const engine = {
         isReady: true,
         init: async () => {},
         generate: () => render(shape),
     };
-    return engine as unknown as RustOscillator;
+    return engine as unknown as WasmOscillator;
 }
 
 describe('measureRender', () => {
@@ -67,7 +67,7 @@ describe('measureRender', () => {
 describe('compareRenders', () => {
     it('passes for identical renders', () => {
         const a = render('saw');
-        const cmp = compareRenders({ backendId: 'js', samples: a }, { backendId: 'rust', samples: a.slice() }, SR);
+        const cmp = compareRenders({ backendId: 'js', samples: a }, { backendId: 'wam', samples: a.slice() }, SR);
         expect(cmp.rmsErrorDb).toBeLessThan(0.01);
         expect(cmp.worstBandErrorDb).toBeLessThan(0.01);
         expect(cmp.withinTolerance).toBe(true);
@@ -76,7 +76,7 @@ describe('compareRenders', () => {
     it('level-matches, so a merely quieter backend is not flagged', () => {
         const cmp = compareRenders(
             { backendId: 'js', samples: render('saw', 1) },
-            { backendId: 'rust', samples: render('saw', 0.25) },
+            { backendId: 'wam', samples: render('saw', 0.25) },
             SR,
         );
         expect(cmp.withinTolerance).toBe(true);
@@ -85,7 +85,7 @@ describe('compareRenders', () => {
     it('flags a backend that silently changed wave family', () => {
         const cmp = compareRenders(
             { backendId: 'js', samples: render('sin') },
-            { backendId: 'rust', samples: render('saw') },
+            { backendId: 'wam', samples: render('saw') },
             SR,
         );
         expect(cmp.worstBandErrorDb).toBeGreaterThan(6);
@@ -95,7 +95,7 @@ describe('compareRenders', () => {
     it('flags silence from a backend that claimed to be ready', () => {
         const cmp = compareRenders(
             { backendId: 'js', samples: render('saw') },
-            { backendId: 'rust', samples: new Float32Array(8192) },
+            { backendId: 'wam', samples: new Float32Array(8192) },
             SR,
         );
         expect(cmp.withinTolerance).toBe(false);
@@ -105,12 +105,12 @@ describe('compareRenders', () => {
 describe('compareBackends', () => {
     it('renders through each backend and compares against the first', async () => {
         const js = new JsOscillatorBackend();
-        const rust = new RustWasmBackend(stubRustEngine('saw'));
+        const wam = new WamWasmBackend(stubWasmEngine('saw'));
         await js.init();
-        await rust.init();
+        await wam.init();
 
-        const report = await compareBackends([js, rust], REQ);
-        expect(report.metrics.map((m) => m.backendId).sort()).toEqual(['js', 'rust']);
+        const report = await compareBackends([js, wam], REQ);
+        expect(report.metrics.map((m) => m.backendId).sort()).toEqual(['js', 'wam']);
         expect(report.comparisons).toHaveLength(1);
         expect(report.comparisons[0].withinTolerance).toBe(true);
         expect(report.unavailable).toHaveLength(0);
@@ -118,26 +118,34 @@ describe('compareBackends', () => {
 
     it('lists backends that cannot service the request instead of dropping them', async () => {
         const js = new JsOscillatorBackend();
-        const rust = new RustWasmBackend(stubRustEngine('saw'));
-        const wav = new WavPcmBackend();
+        const wam = new WamWasmBackend(stubWasmEngine('saw'));
+        // The PCM backend has a saw asset but no tri one, so a tri request is
+        // one it must decline rather than substitute.
+        const sawTable = {
+            length: 8192,
+            numberOfChannels: 1,
+            sampleRate: SR,
+            getChannelData: () => render('saw'),
+        } as unknown as AudioBuffer;
+        const wav = new WavPcmBackend({ saw: sawTable });
         await js.init();
-        await rust.init();
+        await wam.init();
         await wav.init();
 
-        const report = await compareBackends([js, rust, wav], { ...REQ, shape: 'tri' });
-        expect(report.unavailable.map((u) => u.backendId).sort()).toEqual(['rust', 'wav']);
-        expect(report.unavailable.find((u) => u.backendId === 'rust')?.reason).toContain('tri');
-        expect(report.metrics.map((m) => m.backendId)).toEqual(['js']);
+        const report = await compareBackends([js, wam, wav], { ...REQ, shape: 'tri' });
+        expect(report.unavailable.map((u) => u.backendId)).toEqual(['wav']);
+        expect(report.unavailable.find((u) => u.backendId === 'wav')?.reason).toContain('tri');
+        expect(report.metrics.map((m) => m.backendId).sort()).toEqual(['js', 'wam']);
     });
 
     it('detects a backend that drifted to the wrong wave family', async () => {
         const js = new JsOscillatorBackend();
-        // Rust engine wired to a square while the request asks for a saw.
-        const rust = new RustWasmBackend(stubRustEngine('sqr'));
+        // WASM engine wired to a square while the request asks for a saw.
+        const wam = new WamWasmBackend(stubWasmEngine('sqr'));
         await js.init();
-        await rust.init();
+        await wam.init();
 
-        const report = await compareBackends([js, rust], REQ);
+        const report = await compareBackends([js, wam], REQ);
         expect(report.comparisons[0].withinTolerance).toBe(false);
     });
 });

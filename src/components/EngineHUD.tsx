@@ -15,6 +15,7 @@ import {
   supportsSetSinkId,
 } from '../utils/audioOutputDevice';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
+import { BACKEND_LABELS } from '../engines/backends/OscillatorBackend';
 import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
 import { getWamHost } from '../audio/wam/WamHost';
@@ -49,7 +50,10 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
   #${CONTAINER_ID} .backend-wam { background:#0ea5e9; }
-  #${CONTAINER_ID} .backend-rust { background:#b45309; }
+  #${CONTAINER_ID} .backend-pyodide { background:#ca8a04; color:#000 }
+  /* Web Audio Modules 2.0 slots — a different system to the \`wam\` oscillator
+     backend above (ADR 0001), so it gets its own badge colour. */
+  #${CONTAINER_ID} .backend-wam2 { background:#7c3aed; }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
   #${CONTAINER_ID} .cpu-ok { color:#86efac; }
   #${CONTAINER_ID} .cpu-warn { color:#fde047; }
@@ -258,7 +262,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         const state = active ? 'ACTIVE' : a.reason ?? (a.ready ? 'ready' : 'not ready');
         const color = active ? '#86efac' : a.reason ? '#f87171' : '#9ca3af';
         return `<div class="row" title="${a.reason ?? ''}">
-          <div class="badge backend-${a.id}">${a.id}</div>
+          <div class="badge backend-${a.id}" title="${BACKEND_LABELS[a.id] ?? a.id}">${BACKEND_LABELS[a.id] ?? a.id}</div>
           <div style="flex:1"></div>
           <div style="color:${color};font-size:10px;text-align:right;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state}</div>
         </div>`;
@@ -301,7 +305,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       const mounted = slot.status === 'ready' || slot.status === 'bypassed';
       const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
       const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
-      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
+      return `<div class="row"${err}><div class="badge backend-wam2">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
       ? `<div class="row"><div style="flex:1">COOP isolated</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.crossOriginIsolated ? 'yes' : 'no'}</div></div>

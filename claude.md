@@ -90,7 +90,7 @@ pnpm run deploy
 The project has multiple WASM builds with specific purposes:
 - `build:wasm:oscillators` - AssemblyScript oscillator engines
 - `build:wasm:freezer` - Track freezer/time-stretch prep
-- `build:wasm:rust` - Rust audio modules
+- `bench:wasm:rust` - Rust bench crate only; not part of `build:native` (#1294)
 - `build:wasm:jc303` - JC303 synth (C++ via Emscripten + OpenMP)
 
 ⚠️ **Important:** Individual WASM rebuilds may be needed after changes. The main `dev` and `build` commands handle this, but specific engine changes may require targeted rebuilds.

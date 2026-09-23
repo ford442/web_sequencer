@@ -127,7 +127,7 @@ class EngineDegradationStore {
                 ? 'worklet'
                 : subsystem.includes('gpu') || subsystem === 'webgpu' || subsystem === 'gpu-knobs'
                   ? 'gpu'
-                  : subsystem.includes('wasm') || subsystem === 'rust' || subsystem === 'oscillators'
+                  : subsystem.includes('wasm') || subsystem === 'oscillators'
                     ? 'wasm'
                     : 'audio';
 

@@ -6,6 +6,7 @@ modules under `assembly/`.
 
 - [Build profiles](#build-profiles)
 - [Module split](#module-split)
+- [Which engine renders a basic wave](#basic-wave-engines)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
@@ -181,6 +182,83 @@ search matching `build.sh`, the correct repo-root source path (it used to look
 for `emscripten/rubberband/`, which does not exist), release/debug profiles, and
 patching a **copy** of the submodule rather than the checkout — its two `sed`
 fixes are not idempotent and were dirtying `rubberband/`.
+
+---
+
+<a id="basic-wave-engines"></a>
+
+## Which engine renders a basic wave
+
+**One always-on path plus one WASM wavetable engine. Not nine.** (#1294)
+
+`src/engines/backends/engineCatalog.ts` maps every waveform prefix to exactly
+one renderer, and `BackendRegistry` owns the only fallback order there is:
+
+```
+WebGPU → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
+```
+
+| Family | Prefix | Renderer | Kind |
+|---|---|---|---|
+| JS oscillator | *(none — `sawtooth`/`square`/…)* | `OscillatorNode` | graph-native, sample-accurate, **always available** |
+| WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
+| WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
+| WebGPU | `wgsl-*` | `WebGpuOscillator`, tables pre-rendered at init | offline pre-render |
+| Pyodide | `pyodide-*` | NumPy/SciPy in the vendored CPython | offline pre-render |
+| Open303 / JC303 | `303-*` | `hyphon_native` AudioWorklet | native worklet |
+| Prophecy | `prophecy-*` | `hyphon_native` AudioWorklet | native worklet |
+
+### The choice, and why
+
+`OscillatorNode` stays the always-on path: it is graph-native, sample-accurate,
+costs nothing to keep, and is the only renderer that cannot fail. Everything
+below it is a *table* producer, resampled by `playbackRate`.
+
+There is **one** WASM wavetable engine, and it is the AssemblyScript kernel
+(`assembly/oscillators.ts`). It was kept over a C++ wavetable in `hyphon_native`
+because it already has a validated Safari feature intersection (`simd` +
+`bulk-memory`, no WasmGC — see the [AS browser
+matrix](#assemblyscript-browser-matrix)) and because `hyphon_native`'s budget is
+sized for *voices* — recursive filters, 303/Prophecy, analog drums — not for
+basic-wave tables. Putting a wavetable there would have widened the voice heap
+contract (`wasm_memory_budget.json`) for no DSP that needs it.
+
+`wam-*` is **not** Web Audio Modules 2.0. WAM2 is a separate system
+(`src/audio/wam`, ADR 0001); the UI labels this family **"WASM OSC"** and the
+HUD gives WAM2 slots their own badge, so the two cannot be read as one. The
+waveform ids keep the `wam-` prefix only so saved projects keep loading.
+
+### What was removed
+
+- **`rust-*`** — `rust-audio/src/lib.rs` produced a naive saw/square plus a
+  biquad on the **main thread**, looped through an `AudioBufferSourceNode`: no
+  SIMD, no worklet, and a duplicate of the AssemblyScript kernel above.
+  `rust-audio/` remains as a bench crate. It is not built into the app and is
+  not in the fallback order.
+- **`cpp-*`** — never existed. The selector, panel and HUD copy shipped; the
+  renderer did not, so selecting it silently played an `OscillatorNode`. There
+  is no `CppOscillator.ts` and `src/engines/backends/__tests__/oscillatorEngineContract.test.ts`
+  fails the build if one appears.
+
+Both are rewritten onto `wam-*` by `LEGACY_WAVEFORM_ALIASES`
+(`src/utils/waveformParser.ts`) so existing songs keep playing, and the rewrite
+is reported through `logWaveformSubstitution` rather than applied silently.
+
+### Rules for adding one
+
+A new basic-wave engine needs a reason the table above does not already cover,
+and then:
+
+1. It renders **in an AudioWorklet**, or it is a documented offline/pre-render
+   producer like WebGPU. A main-thread `generate()` into an
+   `AudioBufferSourceNode` is not a new engine — that is the pattern #1294
+   removed, and the import-graph guard rejects it.
+2. It registers as an `OscillatorBackend` and appears in
+   `BACKEND_FALLBACK_ORDER`. `VoiceManager` must not learn its name.
+3. If it is C++, it compiles under `compile_cpp` (IEEE). `audio_dsp.cpp` is the
+   only `-ffast-math` translation unit — see [`-ffast-math`](#fast-math).
+4. If it is a worklet with imported memory, it reads
+   `emscripten/wasm_memory_budget.json`, never a literal.
 
 ---
 

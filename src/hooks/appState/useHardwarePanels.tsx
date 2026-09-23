@@ -9,7 +9,6 @@ import {
     tb303ModelFamily,
 } from '../../engines/TB303Models'
 import { ProphecyPanel } from '../../components/ProphecyPanel'
-import { CppPanel } from '../../components/CppPanel'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
@@ -114,23 +113,12 @@ export function useHardwarePanels(deps: {
                     accentColor="cyan"
                     compact
                 />
-                {currentTypeA !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeA}
                     selected={synthA.waveform}
                     onChange={(w) => updateSynthA({ waveform: w })}
                     accentColor="cyan"
                 />
-                )}
-                {currentTypeA === 'cpp' && (
-                    <CppPanel
-                        waveform={synthA.waveform}
-                        fine={synthA.cppFine ?? 0.5}
-                        accentColor="cyan"
-                        onWaveformChange={(w) => updateSynthA({ waveform: w })}
-                        onFineChange={(v) => updateSynthA({ cppFine: v })}
-                    />
-                )}
                 {is303 && (
                     <Voice303Selector model={modelA} onChange={handleSynthAVoiceChange} accentColor="cyan" />
                 )}
@@ -148,7 +136,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.cppFine, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
 
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
@@ -200,23 +188,12 @@ export function useHardwarePanels(deps: {
                     accentColor="pink"
                     compact
                 />
-                {currentTypeB !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeB}
                     selected={synthB.waveform}
                     onChange={(w) => updateSynthB({ waveform: w })}
                     accentColor="pink"
                 />
-                )}
-                {currentTypeB === 'cpp' && (
-                    <CppPanel
-                        waveform={synthB.waveform}
-                        fine={synthB.cppFine ?? 0.5}
-                        accentColor="pink"
-                        onWaveformChange={(w) => updateSynthB({ waveform: w })}
-                        onFineChange={(v) => updateSynthB({ cppFine: v })}
-                    />
-                )}
                 {is303 && (
                     <Voice303Selector model={modelB} onChange={handleSynthBVoiceChange} accentColor="pink" />
                 )}
@@ -234,7 +211,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.cppFine, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
 
     const bass2Child = useMemo(() => {
         const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);

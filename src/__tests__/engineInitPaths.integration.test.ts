@@ -66,42 +66,6 @@ describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
   });
 });
 
-describe('RustOscillator.init', () => {
-  beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.doUnmock('../utils/engineTelemetry');
-    vi.resetModules();
-  });
-
-  it('logs classified fallback when dynamic import fails', async () => {
-    vi.resetModules();
-    vi.doMock('../utils/engineTelemetry', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('../utils/engineTelemetry')>();
-      return {
-        ...actual,
-        resolvePublicAsset: () => 'file:///nonexistent/missing_rust_audio.js',
-      };
-    });
-
-    const { RustOscillator: RustOsc } = await import('../engines/RustOscillator');
-    const osc = new RustOsc();
-    await osc.init();
-
-    expect(osc.isReady).toBe(false);
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('[EngineFallback] rust'),
-    );
-
-    vi.doUnmock('../utils/engineTelemetry');
-    vi.resetModules();
-  });
-});
-
 describe('WebGpuOscillator.init', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});

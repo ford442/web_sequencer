@@ -151,11 +151,13 @@ CDN URL survives into the bundle.
 `src/components/assets/knob-bezel.png` (860 KB) and `public/osc/*.jpg`
 (~2.6 MB total) were converted to WebP (`knob-bezel.webp` 31.7 KB;
 `public/osc/*.webp` ~530 KB total) — visually lossless at their display
-size. `CppPanel.tsx`'s `<img>` also got `loading="lazy" decoding="async"`.
-Note: only `OSCILLATOR_PANEL_IMAGES.cpp` is actually referenced from code —
-the other eight `public/osc/*.webp` entries (plus the unreferenced
-`dwgs.webp`) are dead weight shipped either way; left in place since
-deleting unreferenced assets was out of scope here.
+size.
+
+The panel list is now honest (#1294): `cpp.webp` and `rust.webp` went with
+their retired oscillator families, `dwgs.webp` was an orphan, and
+`check-release-dist.mjs` fails the release if `dist/osc/` and
+`OSCILLATOR_PANEL_IMAGES` disagree in either direction — so unreferenced
+panel art cannot accumulate again.
 
 ### Source maps
 

@@ -112,7 +112,7 @@ function waveformToModuleId(w: Waveform): string {
   if (s === 'square' || s.endsWith('-sqr') || s === 'pyodide-square') {
     return 'digital-sqr';
   }
-  if (s.startsWith('prophecy-') || s.startsWith('rust-')) {
+  if (s.startsWith('prophecy-')) {
     return 'aggressive';
   }
   if (s.startsWith('wav-') || s.startsWith('wam-')) {
