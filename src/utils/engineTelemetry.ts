@@ -77,6 +77,16 @@ type RuntimeTelemetry = {
   liveHighFidCpuPercent: number | null;
   /** Phase-L1 — oversample factor the live high-fid voice runs at (1 or 2). */
   liveHighFidOversample: number | null;
+  /** Phase-L2 — live A/B requested on the last part that changed it. */
+  liveAbArmed: boolean | null;
+  /** Phase-L2 — both buses wired (armed and the part is on live-highfid). */
+  liveAbEngaged: boolean | null;
+  /** Phase-L2 — equal-power blend, 0 = stock, 1 = live high-fid. */
+  liveAbMix: number | null;
+  /** Phase-L2 — rolling CPU share of the quantum used by the stock side. */
+  liveAbStockCpuPercent: number | null;
+  /** Phase-L2 — rolling CPU share of the quantum used by the high-fid side. */
+  liveAbHighFidCpuPercent: number | null;
   /** P0 audio foundation — live AudioContext.sampleRate at construction. */
   sampleRate: number | null;
   /** Sample rate passed to AudioContextOptions, or null for device native. */
@@ -247,6 +257,16 @@ export interface RuntimeSnapshot {
   liveHighFidCpuPercent: number | null;
   /** Oversample factor the live high-fid voice runs at (1 or 2). */
   liveHighFidOversample: number | null;
+  /** Live A/B requested on the last part that changed it. */
+  liveAbArmed: boolean | null;
+  /** Both A/B buses wired (armed and the part is on live-highfid). */
+  liveAbEngaged: boolean | null;
+  /** Equal-power A/B blend, 0 = stock, 1 = live high-fid. */
+  liveAbMix: number | null;
+  /** Rolling CPU share of the quantum used by the A/B stock side. */
+  liveAbStockCpuPercent: number | null;
+  /** Rolling CPU share of the quantum used by the A/B high-fid side. */
+  liveAbHighFidCpuPercent: number | null;
   /** Live AudioContext.sampleRate at construction (Hz). */
   sampleRate: number | null;
   requestedSampleRate: number | null;
@@ -360,6 +380,11 @@ export class EngineTelemetry {
     liveHighFidFallbackReason: null,
     liveHighFidCpuPercent: null,
     liveHighFidOversample: null,
+    liveAbArmed: null,
+    liveAbEngaged: null,
+    liveAbMix: null,
+    liveAbStockCpuPercent: null,
+    liveAbHighFidCpuPercent: null,
     sampleRate: null,
     requestedSampleRate: null,
     sampleRateFallback: null,
@@ -555,6 +580,19 @@ export class EngineTelemetry {
     }
   }
 
+  /** Live A/B request / routing state — Phase-L2. */
+  recordLiveAb(meta: { armed: boolean; engaged: boolean; mix: number }): void {
+    this.runtime.liveAbArmed = meta.armed;
+    this.runtime.liveAbEngaged = meta.engaged;
+    this.runtime.liveAbMix = meta.mix;
+  }
+
+  /** Per-side CPU while A/B is engaged — the HUD's two rows (Phase-L2). */
+  recordLiveAbCpu(meta: { stockPercent: number | null; highFidPercent: number | null }): void {
+    if (meta.stockPercent != null) this.runtime.liveAbStockCpuPercent = meta.stockPercent;
+    if (meta.highFidPercent != null) this.runtime.liveAbHighFidCpuPercent = meta.highFidPercent;
+  }
+
   /**
    * Record the shared hyphon_native heap as reported by a voice worklet. Every
    * voice reports the same session, so the latest report wins.
@@ -631,6 +669,11 @@ export class EngineTelemetry {
       liveHighFidFallbackReason: this.runtime.liveHighFidFallbackReason,
       liveHighFidCpuPercent: this.runtime.liveHighFidCpuPercent,
       liveHighFidOversample: this.runtime.liveHighFidOversample,
+      liveAbArmed: this.runtime.liveAbArmed,
+      liveAbEngaged: this.runtime.liveAbEngaged,
+      liveAbMix: this.runtime.liveAbMix,
+      liveAbStockCpuPercent: this.runtime.liveAbStockCpuPercent,
+      liveAbHighFidCpuPercent: this.runtime.liveAbHighFidCpuPercent,
       sampleRate: this.runtime.sampleRate,
       requestedSampleRate: this.runtime.requestedSampleRate,
       sampleRateFallback: this.runtime.sampleRateFallback,

@@ -9,6 +9,8 @@
  * voices must use separate instances.
  */
 
+import type { HighFidCoefficients } from '../../audio-worklets/liveHighFidCoefficients';
+
 export type OversampleFactor = 1 | 2 | 4;
 
 export interface Offline303Params {
@@ -395,6 +397,11 @@ export interface Offline303PatternData {
   stepDurationSec?: number;
   tempo?: number;
   params?: Partial<Offline303Params>;
+  /**
+   * Diode-ladder coefficients (Phase L3) for the `highfid-cpu` engine. Omitted
+   * means the canonical preset. Ignored by every other engine.
+   */
+  highFidCoefficients?: HighFidCoefficients;
 }
 
 /**

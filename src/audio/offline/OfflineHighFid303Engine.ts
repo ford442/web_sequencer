@@ -9,6 +9,11 @@
  */
 
 import { LIVE_HIGHFID_MODEL_ID } from '../../audio-worklets/liveHighFid303';
+import {
+  CANONICAL_HIGHFID_COEFFICIENTS,
+  normalizeHighFidCoefficients,
+  type HighFidCoefficients,
+} from '../../audio-worklets/liveHighFidCoefficients';
 import type { OversampleFactor } from './OfflineOpen303Engine';
 import {
   clampOversample,
@@ -21,6 +26,9 @@ const TWO_PI = Math.PI * 2;
 const SQRT2 = Math.SQRT2;
 const ACCENT_VELOCITY_THRESHOLD = 100;
 const FEEDBACK_HP_HZ = 150;
+// Phase L3 — must match MISMATCH_SPREAD / TRACKING_REF_HZ in highfid303_wrapper.cpp.
+const MISMATCH_SPREAD = [0.08, -0.05, 0.06, -0.09] as const;
+const TRACKING_REF_HZ = 261.6256;
 
 function fastTanh(x: number): number {
   const x2 = x * x;
@@ -88,6 +96,10 @@ class DiodeLadderFilter {
   private y3 = 0;
   private y4 = 0;
   private b0 = 0.5;
+  /** Per-stage coefficients; with mismatch 0 each is exactly b0. */
+  private b0s = [0.5, 0.5, 0.5, 0.5];
+  /** Transistor mismatch 0–1 (Phase L3). */
+  mismatch = 0;
   private k = 0;
   private g = 1;
   private sampleRate = 44100;
@@ -116,6 +128,9 @@ class DiodeLadderFilter {
     this.b0 =
       (0.00045522346 + 6.1922189 * fx) /
       (1.0 + 12.358354 * fx + 4.4156345 * (fx * fx));
+    for (let s = 0; s < 4; s++) {
+      this.b0s[s] = this.b0 * (1 + this.mismatch * MISMATCH_SPREAD[s]);
+    }
 
     const kScale =
       fx *
@@ -139,10 +154,11 @@ class DiodeLadderFilter {
 
     const fb = this.feedbackHp.process(this.k * diodeShape(this.y4));
     const y0 = input - fb;
-    this.y1 += 2 * this.b0 * (y0 - this.y1 + this.y2);
-    this.y2 += this.b0 * (this.y1 - 2 * this.y2 + this.y3);
-    this.y3 += this.b0 * (this.y2 - 2 * this.y3 + this.y4);
-    this.y4 += this.b0 * (this.y3 - 2 * this.y4);
+    const b0s = this.b0s;
+    this.y1 += 2 * b0s[0] * (y0 - this.y1 + this.y2);
+    this.y2 += b0s[1] * (this.y1 - 2 * this.y2 + this.y3);
+    this.y3 += b0s[2] * (this.y2 - 2 * this.y3 + this.y4);
+    this.y4 += b0s[3] * (this.y3 - 2 * this.y4);
     this.y1 = clampf(this.y1, -8, 8);
     this.y2 = clampf(this.y2, -8, 8);
     this.y3 = clampf(this.y3, -8, 8);
@@ -163,6 +179,10 @@ export class OfflineHighFid303Engine {
   private oversample: OversampleFactor = 1;
   private params: Offline303Params;
   private filter = new DiodeLadderFilter();
+  /** Phase L3 coefficients (filter.mismatch holds the fourth). */
+  private decayCurve = CANONICAL_HIGHFID_COEFFICIENTS.decayCurve;
+  private accentCoupling = CANONICAL_HIGHFID_COEFFICIENTS.accentCoupling;
+  private filterTracking = CANONICAL_HIGHFID_COEFFICIENTS.filterTracking;
 
   private phase = 0;
   private currentFreq = 440;
@@ -205,6 +225,25 @@ export class OfflineHighFid303Engine {
     this.updateFilterCoeffs();
   }
 
+  /** Apply diode-ladder coefficients; `undefined` restores the canonical preset. */
+  setCoefficients(coeffs: HighFidCoefficients | undefined): void {
+    const c = normalizeHighFidCoefficients(coeffs) ?? CANONICAL_HIGHFID_COEFFICIENTS;
+    this.filter.mismatch = c.transistorMismatch;
+    this.decayCurve = c.decayCurve;
+    this.accentCoupling = c.accentCoupling;
+    this.filterTracking = c.filterTracking;
+    this.updateFilterCoeffs();
+  }
+
+  getCoefficients(): HighFidCoefficients {
+    return {
+      transistorMismatch: this.filter.mismatch,
+      decayCurve: this.decayCurve,
+      accentCoupling: this.accentCoupling,
+      filterTracking: this.filterTracking,
+    };
+  }
+
   private effectiveSampleRate(): number {
     return this.sampleRate * this.oversample;
   }
@@ -220,11 +259,18 @@ export class OfflineHighFid303Engine {
   }
 
   private updateFilterCoeffs(): void {
+    // Canonical preset takes the unshaped / untracked branches — the exact
+    // pre-L3 expression (mirrors highfid303_wrapper.cpp).
+    const envShaped =
+      this.decayCurve > 0 ? Math.pow(this.envLevel, 1 + 3 * this.decayCurve) : this.envLevel;
     const envBoost =
-      this.params.envMod * this.envLevel +
-      (this.accented ? this.params.accent * 0.45 * this.accentEnv : 0);
+      this.params.envMod * envShaped +
+      (this.accented ? this.params.accent * this.accentCoupling * this.accentEnv : 0);
     const total = clampf(this.params.cutoff + envBoost, 0, 1);
-    const hz = 200 * Math.pow(4500 / 200, total);
+    let hz = 200 * Math.pow(4500 / 200, total);
+    if (this.filterTracking > 0 && this.currentFreq > 0) {
+      hz *= Math.pow(this.currentFreq / TRACKING_REF_HZ, this.filterTracking);
+    }
     this.filter.setCutoffResonance(hz, this.params.resonance);
   }
 
@@ -382,6 +428,7 @@ export function renderOfflineHighFid303Pattern(
 
   const engine = new OfflineHighFid303Engine(sampleRate, pattern.params);
   engine.setOversample(oversample);
+  if (pattern.highFidCoefficients) engine.setCoefficients(pattern.highFidCoefficients);
 
   const framesPerStep = Math.max(1, Math.round(stepDur * sampleRate));
   const totalFrames = framesPerStep * pattern.steps.length;

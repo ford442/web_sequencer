@@ -1,5 +1,8 @@
 import type { TB303ModelId } from '../engines/TB303Models';
+import type { TB303VoiceExtra } from '../engines/tb303VoiceExtra';
 export type { TB303ModelId, TB303Model, TB303ModelInfo, Engine303Family } from '../engines/TB303Models';
+export type { TB303VoiceExtra } from '../engines/tb303VoiceExtra';
+export type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficients';
 
 /**
  * Selectable oscillator waveforms. Every prefix here resolves to a live engine
@@ -45,6 +48,8 @@ export interface SynthParams {
   engine303?: Engine303;
   /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
   model303?: TB303ModelId;
+  /** Per-song state for the high-fid voice: live A/B + diode-ladder coefficients (L2/L3). */
+  model303Extra?: TB303VoiceExtra;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;
@@ -100,6 +105,8 @@ export interface Bass2Params {
   engine303?: Engine303;
   /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
   model303?: TB303ModelId;
+  /** Per-song state for the high-fid voice: live A/B + diode-ladder coefficients (L2/L3). */
+  model303Extra?: TB303VoiceExtra;
   /**
    * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
    * Maps to Open303Params.slideTime for the Devil Fish MOD.

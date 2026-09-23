@@ -96,3 +96,76 @@ describe('Voice303Selector', () => {
         expect(screen.getByRole('group', { name: '303 voice selection' })).toBeInTheDocument();
     });
 });
+
+describe('Voice303Selector — live A/B + diode-ladder coefficients (L2/L3)', () => {
+    it('offers A/B only on the live high-fid voice', () => {
+        const { rerender } = render(
+            <Voice303Selector model="stock-open303" onChange={vi.fn()} onLiveAbChange={vi.fn()} />,
+        );
+        expect(screen.queryByRole('button', { name: 'A/B vs stock' })).not.toBeInTheDocument();
+        rerender(<Voice303Selector model="live-highfid" onChange={vi.fn()} onLiveAbChange={vi.fn()} />);
+        expect(screen.getByRole('button', { name: 'A/B vs stock' })).toHaveAttribute('aria-pressed', 'false');
+        // The amber Live pill is unchanged.
+        expect(screen.getByRole('button', { name: 'Select Live High-Fidelity voice' })).toHaveTextContent('Live');
+    });
+
+    it('arms, flips and blends through onLiveAbChange', () => {
+        const onLiveAbChange = vi.fn();
+        const { rerender } = render(
+            <Voice303Selector model="live-highfid" onChange={vi.fn()} onLiveAbChange={onLiveAbChange} />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'A/B vs stock' }));
+        expect(onLiveAbChange).toHaveBeenLastCalledWith({ armed: true, mix: 1 });
+
+        rerender(
+            <Voice303Selector
+                model="live-highfid"
+                onChange={vi.fn()}
+                liveAb={{ armed: true, mix: 1 }}
+                onLiveAbChange={onLiveAbChange}
+            />,
+        );
+        expect(screen.getByRole('button', { name: 'Flip to B (live high-fidelity)' })).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.click(screen.getByRole('button', { name: 'Flip to A (Stock Open303)' }));
+        expect(onLiveAbChange).toHaveBeenLastCalledWith({ armed: true, mix: 0 });
+        fireEvent.change(screen.getByRole('slider', { name: 'A/B blend, stock to high-fidelity' }), {
+            target: { value: '30' },
+        });
+        expect(onLiveAbChange).toHaveBeenLastCalledWith({ armed: true, mix: 0.3 });
+        expect(screen.getByText(/Freeze records B \(high-fid\)/)).toBeInTheDocument();
+    });
+
+    it('edits coefficients for diode-ladder voices and resets to canonical', () => {
+        const onCoeffs = vi.fn();
+        const { rerender } = render(
+            <Voice303Selector model="jc303" onChange={vi.fn()} onHighFidCoefficientsChange={onCoeffs} />,
+        );
+        expect(screen.queryByText(/Diode ladder/)).not.toBeInTheDocument();
+
+        rerender(<Voice303Selector model="live-highfid" onChange={vi.fn()} onHighFidCoefficientsChange={onCoeffs} />);
+        expect(screen.getByText(/Diode ladder · canonical/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Canonical' })).toBeDisabled();
+        fireEvent.change(
+            screen.getByRole('slider', { name: 'Transistor mismatch — spreads the four ladder poles' }),
+            { target: { value: '40' } },
+        );
+        expect(onCoeffs).toHaveBeenLastCalledWith({
+            transistorMismatch: 0.4,
+            decayCurve: 0,
+            accentCoupling: 0.45,
+            filterTracking: 0,
+        });
+
+        rerender(
+            <Voice303Selector
+                model="highfid-cpu"
+                onChange={vi.fn()}
+                highFidCoefficients={{ transistorMismatch: 0.4, decayCurve: 0, accentCoupling: 0.45, filterTracking: 0 }}
+                onHighFidCoefficientsChange={onCoeffs}
+            />,
+        );
+        expect(screen.getByText(/Diode ladder · edited/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Canonical' }));
+        expect(onCoeffs).toHaveBeenLastCalledWith(undefined);
+    });
+});

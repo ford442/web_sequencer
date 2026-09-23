@@ -30,6 +30,11 @@ import {
   isGpuHighFidModel,
   renderGpuHighFid303,
 } from '@/engines/WebGpu303Engine';
+import {
+  resolveTB303FreezeJob,
+  type TB303FreezeJob,
+  type TB303VoiceExtra,
+} from '@/engines/tb303VoiceExtra';
 
 export type { Offline303PatternData, OversampleFactor };
 export type { Offline303Params, Offline303Step } from '@/audio/offline/OfflineOpen303Engine';
@@ -360,6 +365,32 @@ export async function render303OfflineMultiWithMeta(
   } catch {
     return render303OfflineMultiWithMeta(voices, { ...options, sync: true });
   }
+}
+
+export interface Offline303FreezeResult extends Offline303RenderMeta {
+  /** What was frozen: side, engine and where the coefficients came from. */
+  job: TB303FreezeJob;
+}
+
+/**
+ * Freeze / export / capture one 303 part as the user configured it.
+ *
+ * Resolves the A/B side and diode-ladder coefficients through
+ * {@link resolveTB303FreezeJob}: a `live-highfid` part freezes through
+ * `highfid-cpu` with the canonical preset unless the song stored
+ * coefficients, and an armed A/B part freezes only the side its blend favours.
+ */
+export async function render303FreezeOffline(
+  voice: { model303?: string; engine303?: string; model303Extra?: TB303VoiceExtra },
+  pattern: Offline303PatternData,
+  options: Render303OfflineOptions = {},
+): Promise<Offline303FreezeResult> {
+  const job = resolveTB303FreezeJob(voice);
+  const jobPattern: Offline303PatternData = { ...pattern };
+  if (job.highFidCoefficients) jobPattern.highFidCoefficients = job.highFidCoefficients;
+  else delete jobPattern.highFidCoefficients;
+  const meta = await render303OfflineWithMeta(job.modelId, jobPattern, options);
+  return { ...meta, job };
 }
 
 /** Test / shutdown helper. */
