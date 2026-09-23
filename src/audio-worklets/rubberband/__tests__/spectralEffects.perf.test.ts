@@ -9,8 +9,8 @@ describe('SpectralBandProcessor GC and Performance', () => {
 
     const outL = new Float32Array(BLOCK_FRAMES);
     const outR = new Float32Array(BLOCK_FRAMES);
-    const grainPanL = new Float32Array([0.5, 0.5, 0.5]);
-    const grainPanR = new Float32Array([0.5, 0.5, 0.5]);
+    const grainPanL = [0.5, 0.5, 0.5] as readonly number[];
+    const grainPanR = [0.5, 0.5, 0.5] as readonly number[];
 
     // Fill with some dummy data
     for (let i = 0; i < BLOCK_FRAMES; i++) {

@@ -543,7 +543,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (validPeriods > 0) {
            const avgPeriod = sum / validPeriods;
-           this.pitchDetectState.lastValidF0 = sRate / avgPeriod;
+           this.pitchDetectState.lastValidF0 = processSampleRate / avgPeriod;
         }
       }
 
