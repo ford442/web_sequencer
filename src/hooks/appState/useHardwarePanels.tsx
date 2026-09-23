@@ -16,7 +16,7 @@ import { engineTelemetry } from '../../utils/engineTelemetry'
 import { Open303Manager } from '../../engines/Open303Manager'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
-import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../types'
+import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../components/oscillatorThemes'
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
 
 export function useHardwarePanels(deps: {

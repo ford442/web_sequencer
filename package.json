@@ -35,11 +35,12 @@
     "optimize": "bash tools/optimize.sh",
     "build": "pnpm run build:release",
     "preview": "vite preview",
-    "lint": "eslint . && node scripts/check-root.mjs && node scripts/wam-catalog-integrity.mjs --check",
+    "lint": "eslint . && node scripts/check-root.mjs && node scripts/check-module-size.mjs && node scripts/wam-catalog-integrity.mjs --check",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",
     "check:root": "node scripts/check-root.mjs",
+    "check:module-size": "node scripts/check-module-size.mjs",
     "typecheck": "tsc -b",
     "test": "pnpm run test:unit",
     "test:unit": "vitest run --config vitest.unit.config.ts --pool forks",
@@ -101,11 +102,6 @@
     "vite-plugin-wasm": "^3.5.0",
     "vitest": "2.1.9",
     "wasm-pack": "^0.13.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "protobufjs": "^7.5.8"
-    }
   },
   "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457"
 }
