@@ -95,7 +95,7 @@ This plan builds on the existing [RUBBERBAND_ENHANCEMENT_PLAN.md](../audio-engin
 - ✅ Waveform visualization with zoom (50%-500%)
 - ✅ Draggable phoneme pills with color coding by type
 - ✅ Per-phoneme pitch bend control (-100¢ to +100¢)
-- ✅ Phoneme elasticity/stretch control (50%-150%)
+- Phoneme elasticity/stretch control (50%-150%) — listed here originally but not shipped until Phase 5 (#1273)
 - ✅ Timeline ruler with second markers
 - ✅ Click to select phoneme
 - ✅ Visual legend (Vowel=purple, Plosive=red, Fricative=green, etc.)
@@ -125,18 +125,19 @@ Live preview only; freeze/export of harmony layers is not in this slice.
 
 ---
 
-### Phase 5: Phoneme Elasticity per Step 📋 PLANNED
+### Phase 5: Phoneme Elasticity per Step ✅ COMPLETE (#1273)
 **Goal**: Per-phoneme time stretching with "squish/stretch" handles
 
-**Components**:
-- Extend `PhonemePainter.tsx` with elasticity controls
-- Updates to pattern JSON structure
-- Integration with RubberBand time stretching
+**How it works**:
+- `PhonemeData.elasticity` (0.5–1.5, default 1) is stored on the step's `Note.phonemes` in the pattern JSON, next to pitch bend and volume.
+- Elasticity **redistributes** time inside the note: a phoneme at 1.5 takes a bigger share and the others give it up, so the note still fills its step length (`src/engines/rubberband/phonemeElasticity.ts`).
+- `PhonemeAligner.createSharedPhonemeBuffer` writes the result into stride slot 3, which used to be hard-coded to 1.0. The worklet multiplies it into that phoneme's stretch ratio (`src/audio-worklets/rubberband/phonemeData.ts`), the same way it reads pitch bend.
+- Painter phonemes are matched to aligned segments **by time** (the midpoint of each segment), not by index. Adding, moving or deleting pills no longer shifts edits onto the wrong phoneme.
+- `playSamplerVoice` now passes the step's painter phonemes to the worklet. Before this, pitch bend and volume edits were saved but never heard.
 
-**Features**:
-- Elasticity handles on each phoneme pill
-- Per-step elasticity map stored in pattern
-- Visual feedback for stretch amount
+**UI**: a squish/stretch strip along the bottom of each pill (drag on the selected pill), a `↔N%` badge, an Elasticity slider in the selected-phoneme panel, and the `[` / `]` keys (hold Shift for ±25 %). The handlers live in `src/components/phoneme/usePhonemeEdits.ts`, `ElasticityHandle.tsx` and `ElasticityControl.tsx`.
+
+**Tests**: `src/engines/rubberband/__tests__/phonemeElasticity.test.ts`, `src/__tests__/phonemeElasticity.integration.test.ts` (real worklet + wasm: the audible phoneme boundary moves from 0.50 s to 0.74 s at 1.5 / 0.5), `src/components/__tests__/PhonemePainterElasticity.test.tsx`, `tests/phoneme-elasticity.spec.ts`.
 
 ---
 
@@ -149,7 +150,7 @@ Live preview only; freeze/export of harmony layers is not in this slice.
 | Phase 3 | ✅ COMPLETE | 2026-02-23 |
 | Alignment V1 (CTC) | ✅ COMPLETE | 2026-09-01 |
 | Phase 4 | ✅ COMPLETE | 2026-09-01 |
-| Phase 5 | 📋 PLANNED | - |
+| Phase 5 | ✅ COMPLETE | 2026-09-23 |
 | V2 Concatenative vowel pack | 📋 FOLLOW-UP | - |
 | V4 Offline neural vocoder | 📋 FOLLOW-UP | - |
 
@@ -194,8 +195,7 @@ interface SamplerBankParams {
   stretchMode?: 'Time' | 'Pitch' | 'Formant';
   autoFollow?: boolean;
   
-  // Phase 5
-  phonemeElasticity?: number[];
+  // Phase 5 shipped as PhonemeData.elasticity on the step's Note.phonemes, not here
 }
 ```
 
@@ -225,8 +225,8 @@ Implement `VowelLibrary.loadFromUrl` for `public/assets/vowels/` (`manifest.json
 ### V4 — Offline neural vocoder
 Hook `HybridNeuralPipeline.synthesize` into freeze/export only. Resample ONNX output with the AudioContext sampleRate policy (#1136). Missing model → unsupported, no crash. Live preview stays Rubber Band.
 
-### V5 — Per-step elasticity
-Add `elasticity` on `PhonemeData`; painter handles; write `createSharedPhonemeBuffer` stretch-ratio slot (currently always `1.0`).
+### V5 — Per-step elasticity ✅ (#1273)
+See Phase 5 above.
 
 Do not expand `LatencyCompensator` (deleted). RBS import wiring (`handleRbsImport` / PCF / song TRAK) is documented in `docs/audio-engine/RBS_IMPORT_PIPELINE.md` (historical #651 / #1139).
 
@@ -239,5 +239,5 @@ Do not expand `LatencyCompensator` (deleted). RBS import wiring (`handleRbsImpor
 
 ---
 
-*Last Updated: 2026-09-01*
-*Status: Phase 4 + CTC alignment shipped; V2/V4/V5 follow-ups*
+*Last Updated: 2026-09-23*
+*Status: Phase 5 (elasticity) + CTC alignment shipped; V2/V4 follow-ups. Freeze/stems of the vocal chain are reported as unsupported until the offline compiler hosts the Rubber Band module (#1273 Part C).*

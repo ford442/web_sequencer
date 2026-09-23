@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, Bass2Params } from '../types';
 import type { TrackKey } from '../constants/appDefaults';
@@ -16,6 +16,12 @@ import {
 } from '../utils/audioContextPolicy';
 import type { WavBitDepth } from '../utils/audioExport';
 import type { RenderSynthEngines } from '../utils/renderAudio';
+import { resolveSongTimeline } from '../utils/songTimeline';
+import {
+    OFFLINE_VOCAL_GAP_LABELS,
+    describeOfflineVocalSupport,
+    formatOfflineVocalWarning,
+} from '../audio/offline/vocalOfflineSupport';
 
 export interface ExportModalProps {
     isOpen: boolean;
@@ -39,6 +45,8 @@ export interface ExportModalProps {
     sampleBuffers: (AudioBuffer | null)[];
     /** Preferred sample rate from the live AudioContext when available. */
     preferredSampleRate?: number;
+    /** Live HARM state; harmony layers cannot be bounced yet. */
+    harmonizerActive?: boolean;
 }
 
 type ExportPhase = 'idle' | 'exporting' | 'done' | 'cancelled' | 'error';
@@ -53,6 +61,12 @@ function describeExport(report: StemExportReport | null): string {
 /** Follow-up toast for anything the bounce could not honour. */
 function describeExportWarning(report: StemExportReport | null): string | null {
     if (!report) return null;
+    const vocal = formatOfflineVocalWarning(report.vocalOffline);
+    const master = describeMasterWarning(report);
+    return [vocal, master].filter(Boolean).join(' ') || null;
+}
+
+function describeMasterWarning(report: StemExportReport): string | null {
     if (report.routing === 'dry-exclusive-fallback') return report.routingNote;
 
     const bypassed = report.offlineGraph?.slots.filter((slot) => slot.status === 'bypassed') ?? [];
@@ -74,6 +88,7 @@ export const ExportModal = React.memo(function ExportModal({
     engines,
     sampleBuffers,
     preferredSampleRate,
+    harmonizerActive = false,
 }: ExportModalProps) {
     const [phase, setPhase] = useState<ExportPhase>('idle');
     const [progress, setProgress] = useState(0);
@@ -90,6 +105,17 @@ export const ExportModal = React.memo(function ExportModal({
     const sampleRate = resolveExportSampleRate(sampleRatePref, preferredSampleRate);
     const abortRef = useRef<AbortController | null>(null);
     const modalRef = useFocusTrap(isOpen, onClose);
+
+    // Sampler banks the bounce cannot render as heard (live vocal chain only).
+    const vocalOffline = useMemo(() => {
+        if (!isOpen) return [];
+        const timeline = resolveSongTimeline(songStructure, trackStorage, currentPattern, useSongMode);
+        return describeOfflineVocalSupport({
+            sampler: params.sampler,
+            sequences: timeline.sequences.sampler,
+            harmonizerActive,
+        });
+    }, [isOpen, songStructure, trackStorage, currentPattern, useSongMode, params.sampler, harmonizerActive]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -145,6 +171,7 @@ export const ExportModal = React.memo(function ExportModal({
                     params,
                     engines,
                     sampleBuffers,
+                    harmonizerActive,
                 },
                 options,
             );
@@ -188,6 +215,7 @@ export const ExportModal = React.memo(function ExportModal({
         params,
         engines,
         sampleBuffers,
+        harmonizerActive,
         onShowToast,
         onClose,
     ]);
@@ -299,6 +327,31 @@ export const ExportModal = React.memo(function ExportModal({
                             Live AudioContext is {preferredSampleRate} Hz — exporting at {sampleRate} Hz
                             resamples. Pick “Match live” to bounce at the monitored rate.
                         </p>
+                    )}
+
+                    {vocalOffline.length > 0 && (
+                        <div
+                            role="note"
+                            aria-label="Vocal FX freeze unsupported"
+                            className="rounded-md border border-amber-700/50 bg-amber-950/30 px-3 py-2 space-y-1"
+                        >
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                                Vocal FX freeze unsupported
+                            </p>
+                            <p className="text-[10px] text-amber-200/80">
+                                Sampler stems are rendered dry. The live vocal chain on these banks is not in the bounce:
+                            </p>
+                            <ul className="flex flex-wrap gap-1">
+                                {vocalOffline.map((r) => (
+                                    <li
+                                        key={r.bank}
+                                        className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-700/40 text-amber-200"
+                                    >
+                                        Bank {r.bank + 1}: {r.gaps.map((g) => OFFLINE_VOCAL_GAP_LABELS[g]).join(' · ')}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     )}
 
                     {(isExporting || phase === 'cancelled' || phase === 'error') && (

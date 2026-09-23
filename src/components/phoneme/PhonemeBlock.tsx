@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, memo } from 'react';
 import type { PhonemeData } from '../../types';
 import { PHONEME_NAMES, getPhonemeColor } from '../../constants/phonemes';
+import { ElasticityHandle } from './ElasticityHandle';
 
 export interface PhonemeBlockProps {
   phoneme: PhonemeData;
@@ -13,6 +14,7 @@ export interface PhonemeBlockProps {
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   _onPitchBendChange: (id: string, bend: number) => void;
+  onElasticityChange?: (id: string, elasticity: number) => void;
   tabIndex?: number;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   ariaLabel?: string;
@@ -29,6 +31,7 @@ export const PhonemeBlock = memo(({
   onSelect,
   onDelete,
   _onPitchBendChange,
+  onElasticityChange,
   tabIndex = -1,
   onKeyDown,
   ariaLabel
@@ -120,6 +123,13 @@ export const PhonemeBlock = memo(({
           </span>
         )}
 
+        {/* Elasticity amount (1 = as aligned) */}
+        {phoneme.elasticity !== undefined && phoneme.elasticity !== 1 && (
+          <span className={`text-[8px] font-mono px-1 rounded bg-black/30 ${phoneme.elasticity > 1 ? 'text-amber-300' : 'text-sky-300'}`}>
+            ↔{Math.round(phoneme.elasticity * 100)}%
+          </span>
+        )}
+
         {/* Delete button - hardware style */}
         {isSelected && (
           <button type="button"
@@ -150,6 +160,15 @@ export const PhonemeBlock = memo(({
             <div className="w-1 h-6 bg-white/60 rounded-full shadow-sm group-hover:bg-white/80 transition-colors" />
           </div>
         </>
+      )}
+
+      {onElasticityChange && (
+        <ElasticityHandle
+          phonemeId={phoneme.id}
+          elasticity={phoneme.elasticity}
+          interactive={isSelected}
+          onChange={onElasticityChange}
+        />
       )}
 
       {/* Pitch bend visualization - mini bar with glow */}

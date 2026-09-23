@@ -1,14 +1,16 @@
 /**
  * Tuple layout returned by getPhonemeDataAtSample:
- * [stretchRatio, volume, pitchBendCents, vibratoDepth, vibratoRate, grainJitter, grainSizeMs, isVowel]
+ * [stretchRatio, volume, pitchBendCents, vibratoDepth, vibratoRate, grainJitter, grainSizeMs, isVowel, phonemeIndex]
  * A value of -1.0 in the modulation slots (index 3-6) means "no per-phoneme override".
+ * stretchRatio is the phoneme's target-fit ratio times its elasticity.
  */
 export type PhonemeSample = Float32Array; // Size 9
 
 /**
  * Determine the phoneme parameters for the current sample position.
- * phonemeData stride is 10 floats: start, end, isVowel, stretch(unused), volume,
- * pitchBend, vibDepth, vibRate, grainJitter, grainSize.
+ * phonemeData stride is 10 floats: start, end, isVowel, elasticity, volume,
+ * pitchBend, vibDepth, vibRate, grainJitter, grainSize — written by
+ * PhonemeAligner.createSharedPhonemeBuffer.
  */
 const DEFAULT_PHONEME_TUPLE = new Float32Array([1.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 0.0, -1.0]);
 
@@ -30,7 +32,9 @@ export function getPhonemeDataAtSample(
     const end = phonemeData[baseIndex + 1];
 
     if (currentSample >= start && currentSample < end) {
-      const ratio = phonemeRatios[i] || 1.0;
+      // Elasticity scales this phoneme's share of the note (1 = as aligned).
+      const elasticity = phonemeData[baseIndex + 3];
+      const ratio = (phonemeRatios[i] || 1.0) * (elasticity > 0 ? elasticity : 1.0);
       const isVowel = phonemeData[baseIndex + 2] !== undefined ? phonemeData[baseIndex + 2] : 0.0;
       const volume = phonemeData[baseIndex + 4] !== undefined ? phonemeData[baseIndex + 4] : 1.0;
       const pitchBend = phonemeData[baseIndex + 5] !== undefined ? phonemeData[baseIndex + 5] : 0.0;

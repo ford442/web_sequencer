@@ -45,6 +45,8 @@ vi.mock('../../audio/offline/compileOfflineGraph', () => ({
         bounceBuffersThroughOfflineGraph(...args),
 }));
 
+const timelineSampler = vi.hoisted(() => ({ sequences: null as null | { steps: unknown[] }[] }));
+
 vi.mock('../songTimeline', () => ({
     resolveSongTimeline: () => ({
         totalSteps: 32,
@@ -57,7 +59,7 @@ vi.mock('../songTimeline', () => ({
             snare: { steps: [] },
             closedHat: { steps: [] },
             openHat: { steps: [] },
-            sampler: Array.from({ length: 8 }, () => ({ steps: [] })),
+            sampler: timelineSampler.sequences ?? Array.from({ length: 8 }, () => ({ steps: [] })),
         },
     }),
     timelineDurationSeconds: () => 1,
@@ -155,6 +157,7 @@ describe('exportStemsToZip sample rate + master routing', () => {
 
     afterEach(() => {
         globalThis.OfflineAudioContext = originalOfflineAudioContext;
+        timelineSampler.sequences = null;
     });
 
     it('renders at the live rate when the policy says native', async () => {
@@ -245,5 +248,31 @@ describe('exportStemsToZip sample rate + master routing', () => {
         const metadata = writtenMetadata();
         expect(metadata.routing).toBe('dry-exclusive-fallback');
         expect(String(metadata.routingNote)).toContain('no OfflineAudioContext');
+    });
+
+    it('reports sampler banks whose live vocal chain the dry stems miss (#1273)', async () => {
+        timelineSampler.sequences = Array.from({ length: 8 }, (_, bank) => ({
+            steps: bank === 1 ? [{ note: 'C4', velocity: 1, phonemes: [{ id: 'a', symbol: 'AA', start: 0, end: 1, pitchBend: 0, elasticity: 1.3 }] }] : [],
+        }));
+        const input = makeInput();
+        input.params.sampler[1] = { sampleName: 'bank_1', mode: 'stretch', vocalChorus: 0.4 } as never;
+        input.harmonizerActive = true;
+        const onReport = vi.fn();
+
+        await exportStemsToZip(input, { sampleRate: 44100, onReport });
+
+        const expected = [{ bank: 1, sampleName: 'bank_1', gaps: ['rubber-band', 'vocal-fx', 'phoneme-edits', 'harmonizer'] }];
+        expect(writtenMetadata().vocalOffline).toEqual(expected);
+        expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ vocalOffline: expected }));
+    });
+
+    it('reports no vocal gaps when the sampler is muted', async () => {
+        timelineSampler.sequences = Array.from({ length: 8 }, () => ({ steps: [{ note: 'C4', velocity: 1 }] }));
+        const input = makeInput();
+        input.params.sampler = Array.from({ length: 8 }, () => ({ mode: 'stretch' })) as never;
+        input.isTrackAudible = (track) => track !== 'sampler';
+
+        await exportStemsToZip(input, { sampleRate: 44100 });
+        expect(writtenMetadata().vocalOffline).toEqual([]);
     });
 });

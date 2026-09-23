@@ -437,10 +437,11 @@ export function createPlaySamplerVoice(
           voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
         }
 
-        // 3. Phoneme Awareness (from Jules branch)
+        // 3. Phoneme Awareness: alignment + the step's painter edits
+        // (pitch bend, volume, elasticity, …) from the Phoneme Painter
         if (alignment) {
           voice.setAlignment(alignment);
-          voice.sendPhonemeDataToWorklet(targetDuration);
+          voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
         }
 
         // 4. Play
