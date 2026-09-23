@@ -26,6 +26,7 @@ export type PropertyChangeKey =
   | "bitcrush"
   | "spectralComp"
   | "subHarmonics"
+  | "consonantCrispness"
   | "vocalChorus"
   | "autoTune"
   | "microtonalVariance"
@@ -109,6 +110,7 @@ export interface NoteSelectorProps {
   currentSpectralCompression?: number;
   currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
+  currentConsonantCrispness?: number;
   currentVolumeFilterMod?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;

@@ -43,6 +43,64 @@ export class PhonemeToneFilter {
   }
 }
 
+/**
+ * Transient Extractor for TTS Consonants.
+ * Tracks the envelope and boosts fast transients when isVowel is low.
+ */
+export class TransientExtractor {
+  private envFollower = 0.0;
+  private lp1 = [0, 0];
+  private hp1 = [0, 0];
+
+  process(outputs: Float32Array[][], crispness: number, isVowel: number, sampleRate: number): void {
+    if (crispness <= 0) return;
+
+    // We only apply this on consonants (isVowel near 0)
+    // Scale depth inversely to isVowel, preserving a floor to avoid harsh switching
+    const effectiveDepth = crispness * (1.0 - (isVowel * 0.9));
+    if (effectiveDepth <= 0.01) return;
+
+    // Fast attack (~1ms), medium release (~20ms)
+    const attackMult = Math.exp(-1.0 / (sampleRate * 0.001));
+    const releaseMult = Math.exp(-1.0 / (sampleRate * 0.020));
+
+    // High-pass filter for the transient boost itself (above ~4000Hz)
+    const rc = 1.0 / (2.0 * Math.PI * 4000);
+    const dt = 1.0 / sampleRate;
+    const alpha = dt / (rc + dt);
+
+    for (let channel = 0; channel < outputs[0].length; channel++) {
+      const outCh = outputs[0][channel];
+      if (!outCh) continue;
+
+      for (let i = 0; i < outCh.length; i++) {
+        const x = outCh[i];
+
+        // Envelope follower (absolute value)
+        const absX = Math.abs(x);
+        if (absX > this.envFollower) {
+          this.envFollower = attackMult * this.envFollower + (1 - attackMult) * absX;
+        } else {
+          this.envFollower = releaseMult * this.envFollower + (1 - releaseMult) * absX;
+        }
+
+        // Differential (detect fast increase in envelope)
+        const transientDetect = Math.max(0, absX - this.envFollower);
+
+        // Map transientDetect to a boost scalar, max boost ~4x
+        const boostGain = transientDetect * 10.0;
+
+        // Simple 1-pole high-pass for the boosted signal to prevent low-end mud
+        this.lp1[channel] += alpha * (x - this.lp1[channel]);
+        const highFreq = x - this.lp1[channel];
+
+        // Apply boosted high frequencies back to the signal
+        outCh[i] = x + highFreq * boostGain * effectiveDepth;
+      }
+    }
+  }
+}
+
 /** Syllable-driven volume low-pass, weighted toward vowels. */
 export class SyllableVolumeFilter {
   private cutoffSmooth = 20000;

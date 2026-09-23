@@ -30,6 +30,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentBitcrush = 0,
     currentSpectralComp = 0,
     currentSubHarmonics = 0,
+    currentConsonantCrispness = 0,
     currentDrumDuckDepth = 0,
     currentDownsample = 1,
     currentSpectralCompression = 0,
@@ -489,6 +490,18 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         onChange={(v) => onPropertyChange?.("bitcrush", v)}
         valueFormatter={() =>
           `${((currentBitcrush ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-indigo-400 hover:accent-indigo-300"
+        borderColor="border-indigo-900/30"
+      />
+      <PropertySlider
+        label="Crisp Cons."
+        id="note-consonant-crispness"
+        ariaLabel="Consonant Crispness Amount"
+        value={currentConsonantCrispness ?? 0}
+        onChange={(v) => onPropertyChange?.("consonantCrispness", v)}
+        valueFormatter={() =>
+          `${((currentConsonantCrispness ?? 0) * 100).toFixed(0)}%`
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"
