@@ -161,7 +161,8 @@ export class ArtifactDetector {
     private analysisBuffer: Float32Array;
     private bufferIndex: number = 0;
 
-    // Pre-allocated objects to prevent GC in audio thread
+    // Pre-allocated objects so analyze / processBlock / getStatistics
+    // do not allocate on the audio thread.
     private readonly scratchMetrics: QualityMetrics = {
         spectralFlux: 0,
         zeroCrossingRate: 0,
@@ -172,7 +173,6 @@ export class ArtifactDetector {
         crestFactor: 0,
         quality: 0
     };
-
     private readonly scratchDetection: ArtifactDetection = {
         detected: false,
         severity: 0,
@@ -186,7 +186,13 @@ export class ArtifactDetector {
             crestFactor: 0
         }
     };
-
+    private readonly statsResult: ArtifactStatistics = {
+        totalAnalyzed: 0,
+        artifactRate: 0,
+        averageSeverity: 0,
+        recentArtifacts: [],
+        qualityTrend: []
+    };
     /**
      * Create a new ArtifactDetector
      * @param config Partial configuration (defaults applied for missing values)
@@ -274,13 +280,11 @@ export class ArtifactDetector {
             }
         }
 
-        // Update pre-allocated detection result
         this.scratchDetection.detected = detected;
         this.scratchDetection.severity = severity;
         this.scratchDetection.type = type;
         this.scratchDetection.timestamp = performance.now();
         this.scratchDetection.frequencyRegion = detected ? metrics.spectralCentroid : undefined;
-
         if (this.scratchDetection.metadata) {
             this.scratchDetection.metadata.threshold = threshold;
             this.scratchDetection.metadata.flux = metrics.spectralFlux;
@@ -288,10 +292,8 @@ export class ArtifactDetector {
             this.scratchDetection.metadata.crestFactor = metrics.crestFactor;
         }
 
-        // Update history (will clone internally if needed)
         this.updateHistory(this.scratchDetection, metrics);
-        
-        // Trigger callbacks if artifact detected
+
         if (detected) {
             this.notifyArtifactCallbacks(this.scratchDetection);
         }
@@ -405,7 +407,6 @@ export class ArtifactDetector {
         this.scratchMetrics.spectralFlatness = spectralFlatness;
         this.scratchMetrics.crestFactor = crestFactor;
         this.scratchMetrics.quality = quality;
-
         return this.scratchMetrics;
     }
 
@@ -560,15 +561,23 @@ export class ArtifactDetector {
             severitySum += this.artifactHistory[i].severity;
         }
         
-        return {
-            totalAnalyzed: detectedCount,
-            artifactRate: detectedCount > 0 ? 1 : 0, // In original logic this denominator was totalHistory which is now equivalent
-            averageSeverity: detectedCount > 0
-                ? severitySum / detectedCount
-                : 0,
-            recentArtifacts: [...this.artifactHistory.slice(-10)],
-            qualityTrend: [...this.qualityHistory]
-        };
+        this.statsResult.totalAnalyzed = detectedCount;
+        this.statsResult.artifactRate = detectedCount > 0 ? 1 : 0;
+        this.statsResult.averageSeverity = detectedCount > 0 ? severitySum / detectedCount : 0;
+
+        const recentCount = Math.min(10, this.artifactHistory.length);
+        this.statsResult.recentArtifacts.length = recentCount;
+        const startIdx = this.artifactHistory.length - recentCount;
+        for (let i = 0; i < recentCount; i++) {
+            this.statsResult.recentArtifacts[i] = this.artifactHistory[startIdx + i];
+        }
+
+        this.statsResult.qualityTrend.length = this.qualityHistory.length;
+        for (let i = 0; i < this.qualityHistory.length; i++) {
+            this.statsResult.qualityTrend[i] = this.qualityHistory[i];
+        }
+
+        return this.statsResult;
     }
 
     /**
