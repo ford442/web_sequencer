@@ -70,7 +70,7 @@ export function useSamplerPanelState({
       'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
-      'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'vocalChorus', 'autoTune', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',
+      'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'consonantCrispness', 'vocalChorus', 'autoTune', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',
     ] as const;
     return Object.fromEntries(paramNames.map(p => [p, (v: unknown) => {
       if (onParamChange) onParamChange(activeBankIdx, p, v);

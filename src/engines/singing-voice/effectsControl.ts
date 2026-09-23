@@ -384,6 +384,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set consonant crispness.
+   * @param amount Consonant crispness amount (0-1)
+   * @param time Optional time to apply the change
+   */
+  setConsonantCrispness(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "consonantCrispness", amount, time);
+  },
+
+  /**
    * Set downsample factor.
    * @param factor Downsample factor (1-32)
    * @param time Optional time to apply the change

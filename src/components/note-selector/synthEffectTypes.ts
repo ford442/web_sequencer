@@ -25,6 +25,7 @@ export interface SynthEffectPropertiesProps {
   currentBitcrush?: number;
   currentSpectralComp?: number;
   currentSubHarmonics?: number;
+  currentConsonantCrispness?: number;
   currentDrumDuckDepth?: number;
   currentDownsample?: number;
   currentSpectralCompression?: number;
