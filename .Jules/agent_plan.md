@@ -68,7 +68,7 @@
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
-- [ ] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+- [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
@@ -142,6 +142,11 @@
 - [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
   - Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
   - This clears out the vocal fundamental dynamically specifically when the kick hits, reducing mud without fully gating the higher vocal harmonics.
+- Completed "Explore transient extraction filters for TTS consonants to enhance percussive speech clarity."
+  - Implemented `TransientShaper` in `toneFilters.ts` that triggers an exponential decay envelope whenever the `phonemeIndex` changes and `isVowel === 0`.
+  - Added `consonantClarity` parameter to `RubberBandProcessor` to allow real-time control over the transient boost multiplier.
+  - Plumbed the parameter through the types, effects control, and UI to a new hardware slider in `SamplerVoicePanel`.
+  - Velocity Check: Hooking into the existing `isVowel` flag from the `PhonemeData` buffer allowed for highly accurate transient detection without the CPU overhead of a traditional real-time transient detection algorithm.
 - Completed "Experiment with non-linear grain panning".
   - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
   - Reduced redundant math by reusing `this.grainLfoPhase`.
