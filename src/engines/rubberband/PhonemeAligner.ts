@@ -13,6 +13,7 @@
 
 import type { PhonemeData } from '../../types';
 import { CtcForcedAligner } from './alignment/ctcForcedAligner';
+import { clampElasticity, elasticityScales } from './phonemeElasticity';
 import {
     categorizePhoneme as categorizeArpabet,
     estimatePhonemesForWord as g2pWordFallback,
@@ -470,27 +471,42 @@ export class PhonemeAligner {
     
     /**
      * Create a SharedArrayBuffer with phoneme boundary data for AudioWorklet.
-     * Format: [numPhonemes, start1, end1, isVowel1, start2, end2, isVowel2, ...]
-     * 
+     * Stride 10 per phoneme after the count: start, end (samples), isVowel,
+     * elasticity scale, volume, pitchBend, vibDepth, vibRate, grainJitter,
+     * grainSize. Read by src/audio-worklets/rubberband/phonemeData.ts.
+     *
      * @param phonemes Array of phoneme segments
      * @param sampleRate Sample rate to convert times to samples
+     * @param userPhonemes Painter data per segment, index-aligned with `phonemes`
+     *   (see matchUserPhonemes); entries may be missing
+     * @param ratios Target-fit stretch ratios; lets elasticity keep the note length
      * @returns SharedArrayBuffer with phoneme data
      */
-    createSharedPhonemeBuffer(phonemes: PhonemeSegment[], sampleRate: number, userPhonemes?: PhonemeData[]): SharedArrayBuffer {
-        // 1 int for count + 10 floats per phoneme (start, end, isVowel, stretchRatio, volume, pitchBend, vibDepth, vibRate, grainJitter, grainSize)
+    createSharedPhonemeBuffer(
+        phonemes: PhonemeSegment[],
+        sampleRate: number,
+        userPhonemes?: readonly (PhonemeData | undefined)[],
+        ratios?: readonly number[],
+    ): SharedArrayBuffer {
         const bufferSize = (1 + phonemes.length * 10) * 4; // 4 bytes per float32
         const sharedBuffer = new SharedArrayBuffer(bufferSize);
         const view = new Float32Array(sharedBuffer);
-        
+
         view[0] = phonemes.length;
-        
+
+        const elasticity = elasticityScales(
+            phonemes,
+            ratios,
+            phonemes.map((_, i) => clampElasticity(userPhonemes?.[i]?.elasticity)),
+        );
+
         for (let i = 0; i < phonemes.length; i++) {
             const p = phonemes[i];
             const baseIndex = 1 + i * 10;
             view[baseIndex] = p.start * sampleRate;     // Start sample
             view[baseIndex + 1] = p.end * sampleRate;   // End sample
             view[baseIndex + 2] = p.isVowel ? 1.0 : 0.0; // Boolean as float
-            view[baseIndex + 3] = 1.0;                   // Default stretch ratio
+            view[baseIndex + 3] = elasticity[i];
 
             // Map user phoneme data if available
             let volume = 1.0;
@@ -500,11 +516,8 @@ export class PhonemeAligner {
             let grainJitter = -1.0; // -1 means use global
             let grainSize = -1.0;   // -1 means use global
 
-            if (userPhonemes && userPhonemes.length > i) {
-                // If userPhonemes are provided, we map them by index.
-                // Alternatively, we could map them by normalized time,
-                // but index matching aligns with how PhonemePainter initializes.
-                const userP = userPhonemes[i];
+            const userP = userPhonemes?.[i];
+            if (userP) {
                 if (userP.volume !== undefined) volume = userP.volume;
                 if (userP.pitchBend !== undefined) pitchBend = userP.pitchBend;
                 if (userP.vibratoDepth !== undefined) vibDepth = userP.vibratoDepth;

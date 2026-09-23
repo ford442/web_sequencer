@@ -223,6 +223,33 @@ this budget ever needs reclaiming, in order of preference:
 Bypassing the limiter (`enabled: false`) makes the stage a near-free pass-through,
 but the meters stop as well.
 
+<a id="singing-voice-fx"></a>
+## Singing-voice FX (Rubber Band worklet)
+
+The singing-voice FX chain runs natively: `rb_fx_*` in `public/rubberband.wasm`,
+from `emscripten/rubberband_fx.cpp`. `RubberBandProcessor.process()` only schedules
+it. The TS modules in `src/audio-worklets/rubberband/` are the test oracle and the
+fallback. If the worklet falls back without being asked, it reports a `vocal-fx`
+degradation, which appears in the Engine HUD **Subsystems** row as `ts-fallback`
+with the reason. `?vocalFx=ts` pins the TS chain on purpose and raises no
+degradation.
+
+Perf tier: `src/__tests__/vocalFx.perf.test.ts`, 48 kHz, representative FX-on vocal
+(`FX_ON_BLOCK`: tone filter, syllable filter, gate, spectral comp + pan spread,
+chorus, sub harmonics, duck).
+
+| Case | TS (JIT-warm) | Native | Gate |
+|------|---------------|--------|------|
+| Post-retrieve chain, 128-frame quantum | ~0.040 ms | ~0.024 ms (**~1.7×**) | 0.5 ms ceiling; native median ≤ baseline × 1.25; native < TS |
+| Freeze granulator, 1024-frame feed | ~0.11 ms | ~0.08 ms (**~1.4×**) | native median ≤ baseline × 1.25; native < TS |
+
+Figures are medians from a local Linux run (emcc 6.0.3, Node 24). Re-baseline
+`src/test/perf-baselines/vocalFx.native.*.json` from the first CI `perf-summary.json`.
+Even the TS chain is under 2 % of the 2.67 ms quantum in a warm microbenchmark. The
+bigger audio-thread win is the tail: the TS spectral stage allocates per sample, and
+its p95 reached 0.25 ms in one run, while native p95 stayed near 0.03 ms. The
+regression gate covers the native path only, because it is the default.
+
 ## Glitch detection
 
 The HUD / session report also tracks:

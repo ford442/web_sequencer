@@ -3,6 +3,7 @@ import type { PhonemeBufferPool } from "../../services/PhonemeBufferPool";
 import { applyMicrotonalTuning } from "../../utils/musicTheory";
 import { midiToFreq } from "./pitchUtils";
 import { clampStretchRatio, PITCH_RATIO_LIMITS } from "./constants";
+import { matchUserPhonemes } from "../rubberband/phonemeElasticity";
 import type { PhonemeData } from '../../types';
 import type { SingingVoiceHost } from "./host";
 
@@ -522,11 +523,15 @@ export const PlaybackMixin = {
       );
     }
 
+    // Painter edits (0..1 of the sample) matched to aligned segments by time
+    const matched = matchUserPhonemes(phonemes, userPhonemes, this.lastAlignment.duration);
+
     // Create shared buffer with phoneme data
     const sharedBuffer = this.phonemeAligner.createSharedPhonemeBuffer(
       phonemes,
       this.audioContext.sampleRate,
-      userPhonemes,
+      matched,
+      ratios,
     );
 
     // Send to worklet

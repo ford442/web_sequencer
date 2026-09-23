@@ -105,6 +105,26 @@ fi
 
 GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"
 
+# The worklets have no fetch: they hand createRubberBandModule() the bytes the
+# main thread fetched. emcc 4+ dropped `wasmBinary` from the default
+# INCOMING_MODULE_JS_API, so without the explicit list below the glue silently
+# ignores Module.wasmBinary and aborts with "both async and sync fetching of the
+# wasm failed" inside the AudioWorklet.
+
+# Native vocal FX chain (rubberband_fx.cpp). The worklet probes for these at
+# INIT_WASM and falls back to the TS modules — loudly — if any is missing, so
+# keep this list and RB_FX_REQUIRED_EXPORTS in
+# src/audio-worklets/rubberband/nativeVocalFx.ts in step.
+RB_FX_EXPORTS=(
+    rb_fx_abi_version rb_fx_param_count rb_fx_create rb_fx_destroy
+    rb_fx_params rb_fx_channel rb_fx_seed rb_fx_note_on
+    rb_fx_sample_alloc rb_fx_window_alloc rb_fx_advance_lfo
+    rb_fx_render_grains rb_fx_exit_freeze rb_fx_process
+)
+EXPORTED_FUNCTIONS='["_malloc", "_free"'
+for fn in "${RB_FX_EXPORTS[@]}"; do EXPORTED_FUNCTIONS+=", \"_${fn}\""; done
+EXPORTED_FUNCTIONS+=']'
+
 em++ $OPT_FLAGS \
     -msimd128 \
     -frtti \
@@ -123,6 +143,7 @@ em++ $OPT_FLAGS \
     -I "$RB/src/ext/kissfft" \
     -I "$RB/src/ext/speex" \
     "$SCRIPT_DIR/rubberband_wrapper.cpp" \
+    "$SCRIPT_DIR/rubberband_fx.cpp" \
     $(find "$RB/src" -name "*.cpp" -not -path "*jni*" -not -path "*test*") \
     $(find "$RB/src/ext/kissfft" -name "*.c") \
     $(find "$RB/src/ext/speex" -name "*.c") \
@@ -136,8 +157,9 @@ em++ $OPT_FLAGS \
     -s MODULARIZE=1 \
     -s EXPORT_ES6=1 \
     -s EXPORT_NAME='createRubberBandModule' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
-    -s EXPORTED_FUNCTIONS='["_malloc", "_free"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue", "HEAPF32", "HEAPF64"]' \
+    -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
+    -s INCOMING_MODULE_JS_API='["wasmBinary", "locateFile", "print", "printErr", "onAbort"]' \
     -s ENVIRONMENT='web,worker' \
     --pre-js "$SCRIPT_DIR/rubberband-pre.js" \
     -o "$GLUE_JS"

@@ -276,6 +276,7 @@ export const App: React.FC = () => {
                         }}
                         sampleBuffers={sampleBuffers}
                         preferredSampleRate={audioEngine?.context?.sampleRate}
+                        harmonizerActive={isHarmonizeActive}
                     />
                 </Suspense>
             )}

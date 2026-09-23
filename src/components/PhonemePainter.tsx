@@ -8,6 +8,7 @@
  * - Draggable phoneme blocks with timing offset
  * - Resize handles for duration adjustment
  * - Per-phoneme pitch bend controls
+ * - Per-phoneme elasticity (squish / stretch share of the note)
  * - Waveform visualization
  * - Auto-Align using PhonemeAligner
  * - Add/Delete phonemes
@@ -22,6 +23,8 @@ import type { AlignmentResult } from '../engines/rubberband/PhonemeAligner';
 import { PHONEME_NAMES, COMMON_PHONEMES, getPhonemeColor, generateId } from '../constants/phonemes';
 import { PhonemeBlock } from './phoneme/PhonemeBlock';
 import { PhonemeWaveformDisplay } from './phoneme/PhonemeWaveformDisplay';
+import { usePhonemeEdits } from './phoneme/usePhonemeEdits';
+import { ElasticityControl } from './phoneme/ElasticityControl';
 
 // --- MAIN COMPONENT ---
 
@@ -135,146 +138,13 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
     };
   }, [isOpen, onClose, showAddMenu]);
 
-  // Keyboard navigation for phoneme blocks
-  const handlePhonemeKeyDown = (e: React.KeyboardEvent, phonemeId: string) => {
-    const phoneme = phonemes.find(p => p.id === phonemeId);
-    if (!phoneme) return;
-
-    const phonemeIndex = phonemes.findIndex(p => p.id === phonemeId);
-    const STEP_SIZE = 0.01; // 1% increments
-    const BIG_STEP = 0.05;  // 5% increments
-
-    switch (e.key) {
-      case 'ArrowRight':
-        e.preventDefault();
-        if (e.shiftKey) {
-          // Extend right
-          setPhonemes(prev => {
-            const idx = prev.findIndex(p => p.id === phonemeId);
-            if (idx === -1) return prev;
-            const newPhonemes = [...prev];
-            newPhonemes[idx] = { ...newPhonemes[idx], end: Math.min(1, newPhonemes[idx].end + BIG_STEP) };
-            return newPhonemes;
-          });
-        } else {
-          // Move right
-          setPhonemes(prev => {
-            const idx = prev.findIndex(p => p.id === phonemeId);
-            if (idx === -1) return prev;
-            const newPhonemes = [...prev];
-            const p = newPhonemes[idx];
-            const duration = p.end - p.start;
-            const newStart = Math.min(1 - duration, p.start + STEP_SIZE);
-            newPhonemes[idx] = { ...p, start: newStart, end: newStart + duration };
-            return newPhonemes;
-          });
-        }
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (e.shiftKey) {
-          // Shrink from right
-          setPhonemes(prev => {
-            const idx = prev.findIndex(p => p.id === phonemeId);
-            if (idx === -1) return prev;
-            const newPhonemes = [...prev];
-            const p = newPhonemes[idx];
-            newPhonemes[idx] = { ...p, end: Math.max(p.start + 0.05, p.end - BIG_STEP) };
-            return newPhonemes;
-          });
-        } else {
-          // Move left
-          setPhonemes(prev => {
-            const idx = prev.findIndex(p => p.id === phonemeId);
-            if (idx === -1) return prev;
-            const newPhonemes = [...prev];
-            const p = newPhonemes[idx];
-            const duration = p.end - p.start;
-            const newStart = Math.max(0, p.start - STEP_SIZE);
-            newPhonemes[idx] = { ...p, start: newStart, end: newStart + duration };
-            return newPhonemes;
-          });
-        }
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        // Increase pitch bend
-        setPhonemes(prev => {
-          const idx = prev.findIndex(p => p.id === phonemeId);
-          if (idx === -1) return prev;
-          const newPhonemes = [...prev];
-          const p = newPhonemes[idx];
-          newPhonemes[idx] = { ...p, pitchBend: Math.min(100, p.pitchBend + (e.shiftKey ? 20 : 5)) };
-          return newPhonemes;
-        });
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        // Decrease pitch bend
-        setPhonemes(prev => {
-          const idx = prev.findIndex(p => p.id === phonemeId);
-          if (idx === -1) return prev;
-          const newPhonemes = [...prev];
-          const p = newPhonemes[idx];
-          newPhonemes[idx] = { ...p, pitchBend: Math.max(-100, p.pitchBend - (e.shiftKey ? 20 : 5)) };
-          return newPhonemes;
-        });
-        break;
-      case 'Home':
-        e.preventDefault();
-        // Move to start
-        setPhonemes(prev => {
-          const idx = prev.findIndex(p => p.id === phonemeId);
-          if (idx === -1) return prev;
-          const newPhonemes = [...prev];
-          const p = newPhonemes[idx];
-          const duration = p.end - p.start;
-          newPhonemes[idx] = { ...p, start: 0, end: duration };
-          return newPhonemes;
-        });
-        break;
-      case 'End':
-        e.preventDefault();
-        // Move to end
-        setPhonemes(prev => {
-          const idx = prev.findIndex(p => p.id === phonemeId);
-          if (idx === -1) return prev;
-          const newPhonemes = [...prev];
-          const p = newPhonemes[idx];
-          const duration = p.end - p.start;
-          newPhonemes[idx] = { ...p, start: 1 - duration, end: 1 };
-          return newPhonemes;
-        });
-        break;
-      case 'Delete':
-      case 'Backspace': {
-        e.preventDefault();
-        handleDelete(phonemeId);
-        // Focus next phoneme or add button
-        const nextPhoneme = phonemes[phonemeIndex + 1];
-        if (nextPhoneme) {
-          setSelectedId(nextPhoneme.id);
-        }
-        break;
-      }
-      case 'Tab':
-        // Navigate between phonemes
-        if (e.shiftKey) {
-          const prevPhoneme = phonemes[phonemeIndex - 1];
-          if (prevPhoneme) {
-            e.preventDefault();
-            setSelectedId(prevPhoneme.id);
-          }
-        } else {
-          const nextPhoneme = phonemes[phonemeIndex + 1];
-          if (nextPhoneme) {
-            e.preventDefault();
-            setSelectedId(nextPhoneme.id);
-          }
-        }
-        break;
-    }
-  };
+  const {
+    handleDelete,
+    handlePitchBendChange,
+    handleElasticityChange,
+    handleVolumeChange,
+    handlePhonemeKeyDown,
+  } = usePhonemeEdits(phonemes, setPhonemes, selectedId, setSelectedId);
 
   // Handle drag
   const handleDrag = useCallback((id: string, deltaX: number) => {
@@ -378,23 +248,6 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
     setShowAddMenu(false);
   }, []);
 
-  // Delete phoneme
-  const handleDelete = useCallback((id: string) => {
-    setPhonemes(prev => prev.filter(p => p.id !== id));
-    if (selectedId === id) setSelectedId(null);
-  }, [selectedId]);
-
-  // Update pitch bend
-  const handlePitchBendChange = useCallback((id: string, bend: number) => {
-    setPhonemes(prev => {
-      const idx = prev.findIndex(p => p.id === id);
-      if (idx === -1) return prev;
-      const newPhonemes = [...prev];
-      newPhonemes[idx] = { ...newPhonemes[idx], pitchBend: bend };
-      return newPhonemes;
-    });
-  }, []);
-
   // Auto-align using PhonemeAligner
   const handleAutoAlign = useCallback(async () => {
     if (!audioBuffer || !alignment) return;
@@ -478,7 +331,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
 
       {/* Popover Container with hardware panel aesthetic */}
       <div
-        className="relative w-full max-w-4xl rounded-xl border overflow-hidden animate-in fade-in zoom-in duration-200"
+        className="relative w-full max-w-4xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border animate-in fade-in zoom-in duration-200"
         style={{
           background: 'linear-gradient(145deg, rgba(24,24,27,0.98), rgba(9,9,11,0.99))',
           borderColor: 'rgba(6,182,212,0.25)',
@@ -619,6 +472,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
               <span className="px-1 py-0.5 bg-zinc-800 rounded">←→ Move</span>
               <span className="px-1 py-0.5 bg-zinc-800 rounded">Shift+←→ Resize</span>
               <span className="px-1 py-0.5 bg-zinc-800 rounded">↑↓ Pitch</span>
+              <span className="px-1 py-0.5 bg-zinc-800 rounded">[ ] Elasticity</span>
               <span className="px-1 py-0.5 bg-zinc-800 rounded">Del Delete</span>
               <span className="px-1 py-0.5 bg-zinc-800 rounded">Tab Navigate</span>
             </div>
@@ -673,7 +527,8 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
             <div
               className="relative h-28 bg-zinc-950/50 rounded-lg border border-zinc-800/50 shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]"
               style={{ width: TIMELINE_WIDTH }}
-              onClick={() => setSelectedId(null)}
+              // Deselect on empty track only: pill clicks bubble here too
+              onClick={(e) => { if (!(e.target as Element).closest('[data-phoneme-id]')) setSelectedId(null); }}
             >
               {/* Grid lines */}
               {Array.from({ length: 9 }, (_, i) => (
@@ -696,9 +551,10 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
               {phonemes.map((ph, idx) => (
                 <div
                   key={ph.id}
+                  data-phoneme-id={ph.id}
                   role="button"
                   tabIndex={selectedId === ph.id ? 0 : -1}
-                  aria-label={`${ph.symbol} phoneme, ${((ph.end - ph.start) * 100).toFixed(0)}% duration, pitch ${ph.pitchBend} cents`}
+                  aria-label={`${ph.symbol} phoneme, ${((ph.end - ph.start) * 100).toFixed(0)}% duration, pitch ${ph.pitchBend} cents, elasticity ${Math.round((ph.elasticity ?? 1) * 100)}%`}
                   aria-pressed={selectedId === ph.id}
                   onKeyDown={(e) => handlePhonemeKeyDown(e, ph.id)}
                   onClick={() => setSelectedId(ph.id)}
@@ -714,6 +570,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     onSelect={setSelectedId}
                     onDelete={handleDelete}
                     _onPitchBendChange={handlePitchBendChange}
+                    onElasticityChange={handleElasticityChange}
                   />
                 </div>
               ))}
@@ -835,21 +692,18 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     min="0"
                     max="100"
                     value={(selectedPhoneme.volume || 1) * 100}
-                    onChange={(e) => {
-                      const vol = parseInt(e.target.value) / 100;
-                      setPhonemes(prev => {
-                        const idx = prev.findIndex(p => p.id === selectedPhoneme.id);
-                        if (idx === -1) return prev;
-                        const newPhonemes = [...prev];
-                        newPhonemes[idx] = { ...newPhonemes[idx], volume: vol };
-                        return newPhonemes;
-                      });
-                    }}
+                    onChange={(e) => handleVolumeChange(selectedPhoneme.id, parseInt(e.target.value) / 100)}
                     className="w-24 h-1 bg-zinc-700 rounded-lg appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:ring-cyan-500"
                     aria-label="Volume"
                     aria-valuetext={`${Math.round((selectedPhoneme.volume || 1) * 100)}%`}
                   />
                 </div>
+
+                <ElasticityControl
+                  phonemeId={selectedPhoneme.id}
+                  elasticity={selectedPhoneme.elasticity}
+                  onChange={handleElasticityChange}
+                />
 
                 {/* Timing info */}
                 <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-mono">
