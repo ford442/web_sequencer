@@ -351,10 +351,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const outputChannel = outputs[0][0];
-    let pData: Float32Array | null = null;
-    if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-        pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
-    }
     const blockFrames = outputChannel?.length ?? 128;
     this.perf.beginProcess(blockFrames);
     try {
@@ -729,9 +725,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
           pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
         }
-        if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-          pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
-        }
         const framesToRead = Math.min(availOutput, outputChannel.length);
         this.ensureHeapSize(framesToRead);
 
@@ -742,7 +735,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           outputChannel[i] = heap[ptr + i];
         }
 
-        const isVowelForExpressive = pData ? pData[7] : 1.0;
+        const isVowelForExpressive = pData ? (pData[7] > 0 ? 1.0 : 0.0) : 1.0;
         this.expressiveProcessor.process(outputChannel, outputChannel, isVowelForExpressive);
 
         // Zero-Crossing Pitch Detection for Auto-Tune
