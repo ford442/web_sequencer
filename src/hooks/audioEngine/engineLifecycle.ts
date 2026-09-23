@@ -1,11 +1,10 @@
 import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
-import { RustOscillator } from '../../engines/RustOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
 import {
     JsOscillatorBackend,
-    RustWasmBackend,
+    PyodideBackend,
     WamWasmBackend,
     WavPcmBackend,
     WebGpuBackend,
@@ -153,29 +152,38 @@ export async function initializeAudioContextAndEngines(
 
     // Initialize oscillator backends through the shared registry. Every engine
     // is wrapped in an OscillatorBackend adapter so readiness is typed and the
-    // fallback chain (WebGPU → AS WASM → Rust → WAV PCM → JS) lives in one place.
+    // fallback chain (WebGPU → WASM OSC → Pyodide → WAV PCM → JS) lives in one
+    // place — including for the realtime note path (#1294).
+    //
+    // There is exactly one WASM wavetable engine: the AssemblyScript kernel
+    // behind `WamWasmBackend`. The Rust `generate()` + looped-buffer duplicate
+    // was removed; `rust-audio/` remains a bench crate.
     const registry = new BackendRegistry();
     const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
     const wamBackend = new WamWasmBackend(new WasmOscillator());
-    const rustBackend = new RustWasmBackend(new RustOscillator());
+    const pyodideBackend = new PyodideBackend();
     const wavBackend = new WavPcmBackend();
     registry.register(webGpuBackend);
     registry.register(wamBackend);
-    registry.register(rustBackend);
+    registry.register(pyodideBackend);
     registry.register(wavBackend);
     registry.register(new JsOscillatorBackend());
     setOscillatorRegistry(registry);
 
-    // The WAV backend only becomes supported once its tables are decoded, so it
-    // is initialized further down; the GPU/WASM/Rust backends init here.
+    // The WAV backend only becomes supported once its tables are decoded, and
+    // Pyodide attaches later still (see `attachPyodideOscillator`); the
+    // GPU/WASM backends init here.
     loadingProgressStore.startStep('webGpuEngine');
     await webGpuBackend.init(context);
     loadingProgressStore.completeStep('webGpuEngine');
 
     loadingProgressStore.startStep('wasmEngine');
     await wamBackend.init(context);
-    await rustBackend.init(context);
     loadingProgressStore.completeStep('wasmEngine');
+
+    // Fails until a runtime attaches — the point of the call is to hand the
+    // backend the AudioContext it will allocate tables in.
+    await pyodideBackend.init(context);
 
     refs.gpuEngineRef.current = webGpuBackend.raw;
     refs.wasmEngineRef.current = wamBackend.raw;
@@ -262,17 +270,10 @@ export async function initializeAudioContextAndEngines(
     // Initialize Voice Managers (routed through per-track monitor buses for expression LEDs)
     const synthADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
     const synthBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
-    refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
-    refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
-
-    // Hand the initialized backends to the voices so rust-*/wam-* waveforms
-    // reach a real engine instead of dropping straight to the JS oscillator.
-    const voiceEngineDeps = {
-        wasmEngine: wamBackend.raw,
-        rustEngine: rustBackend.raw,
-    };
-    refs.voiceManagerARef.current.updateEngineDeps(voiceEngineDeps);
-    refs.voiceManagerBRef.current.updateEngineDeps(voiceEngineDeps);
+    // Voices take no engine handles: they ask `BackendRegistry` for the family
+    // they were given and it decides which backend renders it.
+    refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, refs.delayNodeRef.current || undefined);
+    refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, refs.delayNodeRef.current || undefined);
 
     if (isAppleWebKit()) {
         logEngineFallback('sustain', 'wasm-worklet', 'AudioWorklet addModule skipped on WebKit');

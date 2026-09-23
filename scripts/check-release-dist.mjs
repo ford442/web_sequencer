@@ -136,6 +136,43 @@ if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
   );
 }
 
+// Oscillator panel art: `dist/osc/` must contain exactly the WebPs that
+// OSCILLATOR_PANEL_IMAGES still names (#1294). Families that were retired
+// (cpp, rust) and orphans (dwgs) used to ship as dead weight — this keeps the
+// panel list and the shipped assets honest in both directions.
+{
+  const oscDir = path.join(distDir, 'osc');
+  if (fs.existsSync(oscDir)) {
+    const typesSrc = fs.readFileSync(path.join(repoRoot, 'src', 'types.ts'), 'utf8');
+    const block = typesSrc.match(
+      /OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = \{([\s\S]*?)\}/,
+    );
+    if (!block) {
+      console.error('[check-release-dist] could not read OSCILLATOR_PANEL_IMAGES from src/types.ts.');
+      process.exit(1);
+    }
+    const referenced = new Set(
+      [...block[1].matchAll(/'\/osc\/([^']+)'/g)].map((m) => m[1]),
+    );
+    const shipped = fs.readdirSync(oscDir).filter((f) => !fs.statSync(path.join(oscDir, f)).isDirectory());
+
+    const unreferenced = shipped.filter((f) => !referenced.has(f));
+    if (unreferenced.length) {
+      console.error('[check-release-dist] dist/osc/ ships panel art no oscillator family references:');
+      for (const f of unreferenced) console.error(`  osc/${f}`);
+      console.error('  Delete it from public/osc/, or add the family to OSCILLATOR_PANEL_IMAGES.');
+      process.exit(1);
+    }
+
+    const missing = [...referenced].filter((f) => !shipped.includes(f));
+    if (missing.length) {
+      console.error('[check-release-dist] OSCILLATOR_PANEL_IMAGES names art missing from dist/osc/:');
+      for (const f of missing) console.error(`  osc/${f}`);
+      process.exit(1);
+    }
+  }
+}
+
 // Worklets that must ship in every production bundle (imported from reachable code paths).
 const REQUIRED_WORKLET_PROCESSORS = [
   'clock-processor',

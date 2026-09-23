@@ -12,14 +12,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BackendRegistry, OSCILLATOR_SUBSYSTEM } from '../BackendRegistry';
 import {
     JsOscillatorBackend,
-    RustWasmBackend,
+    PyodideBackend,
     WamWasmBackend,
     WavPcmBackend,
     WebGpuBackend,
 } from '../adapters';
 import type { WebGpuOscillator } from '../../WebGpuOscillator';
 import type { WasmOscillator } from '../../WasmOscillator';
-import type { RustOscillator } from '../../RustOscillator';
+import type { PyodideLike } from '../../../utils/pyodideBuffers';
 import { engineTelemetry } from '../../../utils/engineTelemetry';
 import { engineDegradationStore } from '../../../stores/engineDegradationStore';
 import type { GenerateRequest } from '../OscillatorBackend';
@@ -47,40 +47,60 @@ function stubWasm(ready: boolean): WasmOscillator {
     return engine as unknown as WasmOscillator;
 }
 
-function stubRust(ready: boolean): RustOscillator {
-    const engine = {
-        isReady: false,
-        init: vi.fn(async () => {
-            engine.isReady = ready;
-        }),
-        generate: vi.fn(() => new Float32Array([0.1, -0.1, 0.1, -0.1])),
-    };
-    return engine as unknown as RustOscillator;
+/** A Pyodide runtime whose `generate_loop_buffer` returns a short saw. */
+function stubPyodide(): PyodideLike {
+    return {
+        globals: {
+            get: (name: string) =>
+                name === 'set_sample_rate'
+                    ? () => undefined
+                    : () => ({
+                          toJs: () => new Float32Array([0.1, -0.1, 0.1, -0.1]),
+                          destroy: () => undefined,
+                      }),
+        },
+    } as unknown as PyodideLike;
+}
+
+/** Mirrors how engineLifecycle assembles the chain. */
+/** A BaseAudioContext stub good enough for the GPU pre-render and PCM tables. */
+function makeCtx(): AudioContext {
+    return {
+        sampleRate: 44100,
+        createBuffer: (channels: number, length: number, sampleRate: number) => {
+            const data = new Float32Array(length);
+            return {
+                length,
+                numberOfChannels: channels,
+                sampleRate,
+                getChannelData: () => data,
+            } as unknown as AudioBuffer;
+        },
+    } as unknown as AudioContext;
 }
 
 /** Mirrors how engineLifecycle assembles the chain. */
 async function buildChain(opts: {
     gpu: boolean;
     wam: boolean;
-    rust: boolean;
+    pyodide?: boolean;
     wavBuffer?: AudioBuffer | null;
 }) {
     const registry = new BackendRegistry();
+    const ctx = makeCtx();
     const gpuBackend = new WebGpuBackend(stubGpu(opts.gpu));
     const wamBackend = new WamWasmBackend(stubWasm(opts.wam));
-    const rustBackend = new RustWasmBackend(stubRust(opts.rust));
+    const pyodideBackend = new PyodideBackend(opts.pyodide ? stubPyodide() : null);
     const wavBackend = new WavPcmBackend({ saw: opts.wavBuffer ?? null });
 
     registry.register(gpuBackend);
     registry.register(wamBackend);
-    registry.register(rustBackend);
+    registry.register(pyodideBackend);
     registry.register(wavBackend);
     registry.register(new JsOscillatorBackend());
 
-    for (const backend of registry.ordered()) {
-        await backend.init(undefined as unknown as AudioContext);
-    }
-    return { registry, gpuBackend, wamBackend, rustBackend, wavBackend };
+    await registry.initAll(ctx);
+    return { registry, ctx, gpuBackend, wamBackend, pyodideBackend, wavBackend };
 }
 
 const REQ: GenerateRequest = {
@@ -101,7 +121,7 @@ describe('oscillator backend fallback (integration)', () => {
     });
 
     it('selects WebGPU when the GPU device initializes', async () => {
-        const { registry } = await buildChain({ gpu: true, wam: true, rust: true });
+        const { registry } = await buildChain({ gpu: true, wam: true });
         const resolution = registry.resolveAndPublish();
 
         expect(resolution.active).toBe('webgpu');
@@ -110,7 +130,7 @@ describe('oscillator backend fallback (integration)', () => {
     });
 
     it('falls back GPU → AS WASM when only the GPU is unavailable, and says so', async () => {
-        const { registry } = await buildChain({ gpu: false, wam: true, rust: true });
+        const { registry } = await buildChain({ gpu: false, wam: true });
         const resolution = registry.resolveAndPublish();
 
         expect(resolution.active).toBe('wam');
@@ -120,16 +140,16 @@ describe('oscillator backend fallback (integration)', () => {
         const issue = engineDegradationStore.getIssue('oscillator-backend');
         expect(issue?.status).toBe('active');
         expect(issue?.activeBackend).toBe('wam');
-        expect(issue?.message).toContain('AS WASM');
+        expect(issue?.message).toContain('WASM OSC');
     });
 
     it('walks the full chain to the JS oscillator when every engine fails', async () => {
-        const { registry } = await buildChain({ gpu: false, wam: false, rust: false });
+        const { registry } = await buildChain({ gpu: false, wam: false });
         const resolution = registry.resolveAndPublish();
 
         expect(resolution.active).toBe('js');
-        expect(resolution.attempts.map((a) => a.id)).toEqual(['webgpu', 'wam', 'rust', 'wav', 'js']);
-        for (const id of ['webgpu', 'wam', 'rust', 'wav']) {
+        expect(resolution.attempts.map((a) => a.id)).toEqual(['webgpu', 'wam', 'pyodide', 'wav', 'js']);
+        for (const id of ['webgpu', 'wam', 'pyodide', 'wav']) {
             expect(resolution.attempts.find((a) => a.id === id)?.reason).toBeTruthy();
         }
 
@@ -143,7 +163,7 @@ describe('oscillator backend fallback (integration)', () => {
     });
 
     it('still produces audible samples of the right wave family on the fallback path', async () => {
-        const { registry } = await buildChain({ gpu: false, wam: false, rust: false });
+        const { registry } = await buildChain({ gpu: false, wam: false });
         const out = await registry.generate(REQ);
 
         expect(out).not.toBeNull();
@@ -154,15 +174,44 @@ describe('oscillator backend fallback (integration)', () => {
         expect(Math.min(...out!.samples)).toBeLessThan(-0.9);
     });
 
-    it('skips Rust for tri/sin rather than substituting a saw', async () => {
-        const { registry, rustBackend } = await buildChain({ gpu: false, wam: false, rust: true });
+    it('skips the PCM backend for shapes it has no asset for, rather than substituting', async () => {
+        const table = {
+            length: 4,
+            numberOfChannels: 1,
+            sampleRate: 44100,
+            getChannelData: () => new Float32Array([1, -1, 1, -1]),
+        } as unknown as AudioBuffer;
+        const { registry, wavBackend } = await buildChain({ gpu: false, wam: false, wavBuffer: table });
 
-        expect(registry.resolve('saw').active).toBe('rust');
+        expect(registry.resolve('saw').active).toBe('wav');
 
         const tri = registry.resolve('tri');
         expect(tri.active).toBe('js');
-        expect(tri.reason).toContain('rust: does not render "tri" natively');
-        expect(await rustBackend.generate({ ...REQ, shape: 'tri' })).toBeNull();
+        expect(tri.reason).toContain('wav: does not render "tri" natively');
+        expect(await wavBackend.generate({ ...REQ, shape: 'tri' })).toBeNull();
+    });
+
+    /**
+     * The realtime entry point (#1294): a family enters the chain at its own
+     * backend and can only ever fall *down*.
+     */
+    it('renders a wav-* note from the PCM backend without touching the GPU', async () => {
+        const table = {
+            length: 4,
+            numberOfChannels: 1,
+            sampleRate: 44100,
+            getChannelData: () => new Float32Array([1, -1, 1, -1]),
+        } as unknown as AudioBuffer;
+        const { registry, ctx, gpuBackend } = await buildChain({
+            gpu: true,
+            wam: true,
+            wavBuffer: table,
+        });
+
+        const render = registry.renderLoopFrom('wav', ctx, REQ);
+        expect(render?.buffer).toBe(table);
+        expect(gpuBackend.renderLoop(ctx, REQ)).not.toBeNull(); // GPU was usable …
+        expect(registry.getLastResolution()?.active).not.toBe('webgpu'); // … but unused.
     });
 
     it('keeps voices audible when the session WebGPU probe fails', async () => {
@@ -172,7 +221,7 @@ describe('oscillator backend fallback (integration)', () => {
         const probe = await probeWebGPU();
         expect(probe.ok).toBe(false);
 
-        const { registry } = await buildChain({ gpu: false, wam: true, rust: true });
+        const { registry } = await buildChain({ gpu: false, wam: true });
         const out = await registry.generate(REQ);
 
         expect(getLastWebGpuProbe()?.ok).toBe(false);

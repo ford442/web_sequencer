@@ -47,6 +47,8 @@ import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&u
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
 import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&url';
+import { attachPyodideOscillator } from '../engines/backends/BackendRegistry';
+import type { PyodideLike } from '../utils/pyodideBuffers';
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
@@ -155,6 +157,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     useEffect(() => {
         pyodideRef.current = pyodide;
+        // `pyodide-*` waveforms render through the registry like every other
+        // family, so the runtime is handed to its backend rather than to the
+        // voices (#1294).
+        attachPyodideOscillator((pyodide as PyodideLike | null) ?? null);
     }, [pyodide]);
 
     const initializeAudio = useCallback(async () => {

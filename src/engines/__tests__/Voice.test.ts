@@ -1,12 +1,27 @@
-// Tests for Voice.startNote engine-routing and fallback behaviour.
-// Every specialised engine path must be taken when the engine is available,
-// and must emit a loud console.error (logEngineFallback) + fall back to JS when it isn't.
+// Tests for Voice.startNote engine routing (#1294).
+//
+// Voice no longer knows any concrete engine: it asks `BackendRegistry` for the
+// backend the engine catalog names for the selected family, and builds an
+// `OscillatorNode` of the right wave family only when the chain runs out. Both
+// halves are asserted here, plus the two cases that used to be invisible:
+// native-worklet families (303 / Prophecy) and retired waveform ids.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Voice, type VoiceEngineDeps } from '../VoiceManager';
-import type { WasmOscillator } from '../WasmOscillator';
-import type { RustOscillator } from '../RustOscillator';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Voice } from '../VoiceManager';
+import {
+    BackendRegistry,
+    setOscillatorRegistry,
+} from '../backends/BackendRegistry';
+import type {
+    BackendCapabilities,
+    GenerateRequest,
+    InitResult,
+    LoopRender,
+    OscillatorBackend,
+    OscillatorBackendId,
+} from '../backends/OscillatorBackend';
 import type { SynthParams } from '../../types';
+import type { WaveShape } from '../../utils/waveformParser';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
 
 // ── Minimal SynthParams fixture ──────────────────────────────────────────────
@@ -89,7 +104,7 @@ function makeContext(oscMock = makeOscillatorMock(), bufSrcMock = makeBufferSour
             connect: vi.fn(),
             pan: { value: 0, setValueAtTime: vi.fn() },
         })),
-        createBuffer: vi.fn((ch: number, len: number, sr: number) => makeAudioBuffer(len)),
+        createBuffer: vi.fn((_ch: number, len: number) => makeAudioBuffer(len)),
     } as unknown as AudioContext;
     return context;
 }
@@ -98,286 +113,150 @@ function makeDestination() {
     return { connect: vi.fn() } as unknown as AudioNode;
 }
 
-// ── Construct a Voice with given deps ────────────────────────────────────────
+// ── A backend stub honouring the shared contract ─────────────────────────────
 
-function makeVoice(
-    deps: VoiceEngineDeps = {},
-    wavSaw?: AudioBuffer,
-    wavSqr?: AudioBuffer,
-    ctx?: AudioContext,
-) {
-    const context = ctx ?? makeContext();
-    return new Voice(context, makeDestination(), wavSaw, wavSqr, undefined, deps);
+class StubBackend implements OscillatorBackend {
+    readonly label: string;
+    isSupported = true;
+    isReady = true;
+    capabilities: BackendCapabilities;
+    renderLoopCalls = 0;
+    lastRequest: GenerateRequest | null = null;
+    /** null ⇒ this backend cannot service the request and the chain continues. */
+    table: AudioBuffer | null;
+
+    readonly id: OscillatorBackendId;
+
+    constructor(
+        id: OscillatorBackendId,
+        opts: { ready?: boolean; shapes?: readonly WaveShape[]; table?: AudioBuffer | null } = {},
+    ) {
+        this.id = id;
+        this.label = id;
+        this.isReady = opts.ready ?? true;
+        this.capabilities = {
+            simd: false,
+            threads: false,
+            offline: true,
+            polyphony: 8,
+            shapes: opts.shapes ?? ['saw', 'sqr', 'tri', 'sin'],
+        };
+        this.table = opts.table !== undefined ? opts.table : makeAudioBuffer();
+    }
+
+    init(): Promise<InitResult> {
+        return Promise.resolve({ ok: this.isReady, backendId: this.id });
+    }
+
+    supportsShape(shape: WaveShape): boolean {
+        return this.capabilities.shapes.includes(shape);
+    }
+
+    generate(): Promise<Float32Array | null> {
+        return Promise.resolve(this.table ? new Float32Array(4) : null);
+    }
+
+    renderLoop(_ctx: BaseAudioContext, req: GenerateRequest): LoopRender | null {
+        this.renderLoopCalls++;
+        this.lastRequest = req;
+        return this.table ? { buffer: this.table, baseFrequency: 261.63 } : null;
+    }
+
+    dispose(): void {
+        this.isReady = false;
+    }
 }
 
-// ── WAV tests ────────────────────────────────────────────────────────────────
+/** Install a registry holding `backends` for the duration of one test. */
+function installRegistry(...backends: OscillatorBackend[]): BackendRegistry {
+    const registry = new BackendRegistry();
+    for (const b of backends) registry.register(b);
+    setOscillatorRegistry(registry);
+    return registry;
+}
 
-describe('Voice.startNote — WAV engine', () => {
-    it('uses AudioBufferSourceNode when the saw buffer is loaded', () => {
-        const buf = makeAudioBuffer();
-        const bufSrc = makeBufferSourceMock();
-        const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({}, buf, undefined, ctx);
+function makeVoice(ctx?: AudioContext) {
+    return new Voice(ctx ?? makeContext(), makeDestination());
+}
+
+beforeEach(() => {
+    engineDegradationStore.clear('oscillator-backend');
+});
+
+afterEach(() => {
+    setOscillatorRegistry(null);
+    vi.restoreAllMocks();
+});
+
+// ── Registry-driven selection ────────────────────────────────────────────────
+
+describe('Voice.startNote — backend selection', () => {
+    it.each([
+        ['wav-saw', 'wav', 'saw'],
+        ['wam-sqr', 'wam', 'sqr'],
+        ['wgsl-tri', 'webgpu', 'tri'],
+        ['pyodide-sine', 'pyodide', 'sin'],
+    ] as const)('routes %s to the %s backend', (waveform, backendId, shape) => {
+        const backend = new StubBackend(backendId);
+        installRegistry(backend, new StubBackend('js', { table: null }));
+        const ctx = makeContext();
+        const voice = makeVoice(ctx);
+
+        voice.startNote({ ...BASE_PARAMS, waveform }, 'C4', 0);
+
+        expect(backend.renderLoopCalls).toBe(1);
+        expect(backend.lastRequest?.shape).toBe(shape);
+        expect(ctx.createBufferSource).toHaveBeenCalled();
+        expect(ctx.createOscillator).not.toHaveBeenCalled();
+    });
+
+    it('does not promote a wav-* note up the chain to a preferred backend', () => {
+        const gpu = new StubBackend('webgpu');
+        const wav = new StubBackend('wav');
+        installRegistry(gpu, wav);
+        const voice = makeVoice();
 
         voice.startNote({ ...BASE_PARAMS, waveform: 'wav-saw' }, 'C4', 0);
 
-        expect(ctx.createBufferSource).toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
+        expect(gpu.renderLoopCalls).toBe(0);
+        expect(wav.renderLoopCalls).toBe(1);
     });
 
-    it('warns and falls back to JS oscillator when saw buffer is null', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({}, undefined, undefined, ctx); // no wav buffers
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wav-saw' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wav-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('JS fallback'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-
-    it('warns and falls back when sqr buffer is null', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it('drops to the next backend down and records the degradation', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam', { table: null });
+        const wav = new StubBackend('wav');
+        installRegistry(wam, wav);
         const ctx = makeContext();
-        const voice = makeVoice({}, undefined, undefined, ctx);
 
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wav-sqr' }, 'C4', 0);
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
 
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wav-sqr'));
-        warn.mockRestore();
+        expect(wav.renderLoopCalls).toBe(1);
+        expect(ctx.createBufferSource).toHaveBeenCalled();
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('wam');
+        expect(issue?.activeBackend).toBe('wav');
     });
 });
 
-// ── WAM / WasmOscillator tests ───────────────────────────────────────────────
+// ── Terminal JS oscillator ───────────────────────────────────────────────────
 
-describe('Voice.startNote — WAM engine', () => {
-    it('uses WasmOscillator.generate() when ready', () => {
-        const float = new Float32Array(512).fill(0.1);
-        const wasmEngine = { isReady: true, generate: vi.fn(() => float) };
-        const bufSrc = makeBufferSourceMock();
-        const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
-
-        expect(wasmEngine.generate).toHaveBeenCalledWith(
-            261.63, 2.0, 44100, 'saw', expect.any(Number), expect.any(Number),
-        );
-        expect(ctx.createBufferSource).toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
-    });
-
-    it('warns and falls back when WasmOscillator is not ready', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const wasmEngine = { isReady: false, generate: vi.fn() };
+describe('Voice.startNote — terminal JS oscillator', () => {
+    it('uses createOscillator for plain waveforms without complaint', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        installRegistry(new StubBackend('js', { table: null }));
         const oscMock = makeOscillatorMock();
         const ctx = makeContext(oscMock);
-        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
 
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wam-sqr' }, 'C4', 0);
-
-        expect(wasmEngine.generate).not.toHaveBeenCalled();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wam-sqr'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready for'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-
-    it('warns and falls back when generate() returns empty', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const wasmEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
-        const ctx = makeContext();
-        const voice = makeVoice({ wasmEngine: wasmEngine as unknown as WasmOscillator }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wam-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('returned empty'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-
-    it('warns and falls back when no wasmEngine in deps', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const ctx = makeContext();
-        const voice = makeVoice({}, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wam-saw'));
-        warn.mockRestore();
-    });
-});
-
-// ── Rust tests ───────────────────────────────────────────────────────────────
-
-describe('Voice.startNote — Rust engine', () => {
-    it('uses RustOscillator.generate() when ready', () => {
-        const float = new Float32Array(512).fill(0.2);
-        const rustEngine = { isReady: true, generate: vi.fn(() => float) };
-        const bufSrc = makeBufferSourceMock();
-        const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
-
-        expect(rustEngine.generate).toHaveBeenCalledWith(
-            261.63, 2.0, 44100, 'saw', expect.any(Number), expect.any(Number),
-        );
-        expect(ctx.createBufferSource).toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
-    });
-
-    it('warns and falls back when RustOscillator is not ready', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const rustEngine = { isReady: false, generate: vi.fn() };
-        const ctx = makeContext();
-        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-sqr' }, 'C4', 0);
-
-        expect(rustEngine.generate).not.toHaveBeenCalled();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('rust-sqr'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('not ready for'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-
-    it('warns and falls back when no rustEngine in deps', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const ctx = makeContext();
-        const voice = makeVoice({}, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('rust-saw'));
-        warn.mockRestore();
-    });
-
-    it('warns and falls back when generate() returns empty', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const rustEngine = { isReady: true, generate: vi.fn(() => new Float32Array(0)) };
-        const ctx = makeContext();
-        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-sqr' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('rust-sqr'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('returned empty'));
-        warn.mockRestore();
-    });
-
-    it('reports the tri → saw wave-family substitution instead of applying it silently', () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const rustEngine = { isReady: true, generate: vi.fn(() => new Float32Array(512).fill(0.2)) };
-        const ctx = makeContext(makeOscillatorMock(), makeBufferSourceMock());
-        const voice = makeVoice({ rustEngine: rustEngine as unknown as RustOscillator }, undefined, undefined, ctx);
-
-        // 'rust-tri' is outside the Waveform union; the cast exercises the
-        // runtime guard that maps unsupported Rust shapes onto saw.
-        voice.startNote({ ...BASE_PARAMS, waveform: 'rust-tri' as SynthParams['waveform'] }, 'C4', 0);
-
-        expect(rustEngine.generate).toHaveBeenCalledWith(
-            261.63, 2.0, 44100, 'saw', expect.any(Number), expect.any(Number),
-        );
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
-        expect(engineDegradationStore.getIssue('waveform-substitution-rust-tri')?.status).toBe('active');
-        warn.mockRestore();
-    });
-});
-
-// ── WGSL / WebGPU tests ──────────────────────────────────────────────────────
-
-describe('Voice.startNote — WGSL engine', () => {
-    it('uses the pre-rendered buffer when available', () => {
-        const gpuBuf = makeAudioBuffer();
-        const bufSrc = makeBufferSourceMock();
-        const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ wgslBuffers: { saw: gpuBuf } }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wgsl-saw' }, 'C4', 0);
-
-        expect(ctx.createBufferSource).toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
-    });
-
-    it('warns and falls back when the buffer is missing (GPU unavailable)', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const ctx = makeContext();
-        const voice = makeVoice({ wgslBuffers: {} }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wgsl-saw' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('wgsl-saw'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('buffer unavailable'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-
-    it('falls back to the correct JS wave shape (sqr)', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({ wgslBuffers: {} }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'wgsl-sqr' }, 'C4', 0);
-
-        expect(oscMock.type).toBe('square');
-        warn.mockRestore();
-    });
-});
-
-// ── Pyodide tests ────────────────────────────────────────────────────────────
-
-describe('Voice.startNote — Pyodide engine', () => {
-    it('uses pre-rendered loop buffer when pyodideBuffers are available', () => {
-        const buf = makeAudioBuffer();
-        const bufSrc = makeBufferSourceMock();
-        const ctx = makeContext(makeOscillatorMock(), bufSrc);
-        const voice = makeVoice({ pyodideEngine: { globals: { get: vi.fn() } }, pyodideBuffers: { saw: buf } }, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-saw' }, 'C4', 0);
-
-        expect(ctx.createBufferSource).toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
-        expect(bufSrc.loop).toBe(true);
-    });
-
-    it('falls back to JS when pyodide is not ready', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({}, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'pyodide-sine' }, 'C4', 0);
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Pyodide not ready'));
-        expect(ctx.createOscillator).toHaveBeenCalled();
-        warn.mockRestore();
-    });
-});
-
-// ── JS / native oscillator path ──────────────────────────────────────────────
-
-describe('Voice.startNote — JS native oscillator', () => {
-    it('uses createOscillator for sawtooth without warnings', () => {
-        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const oscMock = makeOscillatorMock();
-        const ctx = makeContext(oscMock);
-        const voice = makeVoice({}, undefined, undefined, ctx);
-
-        voice.startNote({ ...BASE_PARAMS, waveform: 'sawtooth' }, 'C4', 0);
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'sawtooth' }, 'C4', 0);
 
         expect(ctx.createOscillator).toHaveBeenCalled();
         expect(oscMock.type).toBe('sawtooth');
-        expect(warn).not.toHaveBeenCalled();
-        warn.mockRestore();
+        expect(error).not.toHaveBeenCalled();
     });
 
     it('maps waveform shapes correctly (square, triangle, sine)', () => {
+        installRegistry(new StubBackend('js', { table: null }));
         const shapes: Array<[import('../../types').Waveform, OscillatorType]> = [
             ['square', 'square'],
             ['triangle', 'triangle'],
@@ -386,9 +265,77 @@ describe('Voice.startNote — JS native oscillator', () => {
         for (const [waveform, expected] of shapes) {
             const oscMock = makeOscillatorMock();
             const ctx = makeContext(oscMock);
-            const voice = makeVoice({}, undefined, undefined, ctx);
-            voice.startNote({ ...BASE_PARAMS, waveform }, 'C4', 0);
+            makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform }, 'C4', 0);
             expect(oscMock.type).toBe(expected);
         }
+    });
+
+    it('falls back to the right wave family when the whole chain is unavailable', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        installRegistry(new StubBackend('webgpu', { ready: false }));
+        const oscMock = makeOscillatorMock();
+        const ctx = makeContext(oscMock);
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'wgsl-sqr' }, 'C4', 0);
+
+        expect(oscMock.type).toBe('square');
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.activeBackend).toBe('js');
+    });
+
+    it('reports, rather than silently serves, a note with no registry at all', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        setOscillatorRegistry(null);
+        const ctx = makeContext();
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 0);
+
+        expect(ctx.createOscillator).toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('no oscillator backend registry'));
+    });
+});
+
+// ── Families Voice must not render ───────────────────────────────────────────
+
+describe('Voice.startNote — native-worklet families', () => {
+    it.each(['303-saw', 'prophecy-tri'] as const)(
+        'reports %s as owned by its worklet manager instead of rendering it',
+        (waveform) => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const gpu = new StubBackend('webgpu');
+            installRegistry(gpu);
+            const ctx = makeContext();
+
+            makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform }, 'C4', 0);
+
+            // No backend is consulted and nothing is looped — the managers own
+            // these voices.
+            expect(gpu.renderLoopCalls).toBe(0);
+            expect(ctx.createBufferSource).not.toHaveBeenCalled();
+            expect(error).toHaveBeenCalledWith(expect.stringContaining('Manager'));
+        },
+    );
+});
+
+// ── Retired waveform ids ─────────────────────────────────────────────────────
+
+describe('Voice.startNote — retired waveform ids', () => {
+    it.each([
+        ['rust-saw', 'saw'],
+        ['cpp-sqr', 'sqr'],
+        ['cpp-rand', 'saw'],
+    ] as const)('renders %s on the WASM oscillator and reports the rewrite', (waveform, shape) => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam');
+        installRegistry(wam);
+
+        makeVoice().startNote(
+            { ...BASE_PARAMS, waveform: waveform as SynthParams['waveform'] },
+            'C4',
+            0,
+        );
+
+        expect(wam.renderLoopCalls).toBe(1);
+        expect(wam.lastRequest?.shape).toBe(shape);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
     });
 });

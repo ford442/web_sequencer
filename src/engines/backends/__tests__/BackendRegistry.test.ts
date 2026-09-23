@@ -5,6 +5,7 @@ import {
     type BackendCapabilities,
     type GenerateRequest,
     type InitResult,
+    type LoopRender,
     type OscillatorBackend,
     type OscillatorBackendId,
 } from '../OscillatorBackend';
@@ -63,6 +64,17 @@ class StubBackend implements OscillatorBackend {
         return this.generateResult;
     }
 
+    renderLoopCalls = 0;
+
+    renderLoop(ctx: BaseAudioContext, _req: GenerateRequest): LoopRender | null {
+        this.renderLoopCalls++;
+        if (this.throwOnGenerate) throw new Error('boom');
+        if (!this.generateResult || !this.generateResult.length) return null;
+        const buffer = ctx.createBuffer(1, this.generateResult.length, 44100);
+        buffer.getChannelData(0).set(this.generateResult);
+        return { buffer, baseFrequency: 261.63 };
+    }
+
     dispose(): void {
         this.isReady = false;
     }
@@ -84,26 +96,26 @@ describe('BackendRegistry ordering', () => {
     });
 
     it('exposes the documented WebGPU → wam → rust → wav → js chain', () => {
-        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'wam', 'rust', 'wav', 'js']);
+        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'wam', 'pyodide', 'wav', 'js']);
     });
 
     it('orders registered backends by preference, not registration order', () => {
         const registry = new BackendRegistry();
         registry.register(new StubBackend('js'));
         registry.register(new StubBackend('webgpu'));
-        registry.register(new StubBackend('rust'));
-        expect(registry.ordered().map((b) => b.id)).toEqual(['webgpu', 'rust', 'js']);
+        registry.register(new StubBackend('pyodide'));
+        expect(registry.ordered().map((b) => b.id)).toEqual(['webgpu', 'pyodide', 'js']);
     });
 
     it('selects the highest-preference backend that is supported and ready', () => {
         const registry = new BackendRegistry();
         registry.register(new StubBackend('webgpu', { supported: false }));
         registry.register(new StubBackend('wam', { ready: false }));
-        registry.register(new StubBackend('rust'));
+        registry.register(new StubBackend('pyodide'));
         registry.register(new JsOscillatorBackend());
 
         const resolution = registry.resolve();
-        expect(resolution.active).toBe('rust');
+        expect(resolution.active).toBe('pyodide');
         expect(resolution.requested).toBe('webgpu');
         expect(resolution.degraded).toBe(true);
         expect(resolution.reason).toContain('webgpu: unsupported in this environment');
@@ -122,10 +134,10 @@ describe('BackendRegistry ordering', () => {
 
     it('skips backends that cannot render the requested shape natively', () => {
         const registry = new BackendRegistry();
-        registry.register(new StubBackend('rust', { shapes: ['saw', 'sqr'] }));
+        registry.register(new StubBackend('pyodide', { shapes: ['saw', 'sqr'] }));
         registry.register(new JsOscillatorBackend());
 
-        expect(registry.resolve('saw').active).toBe('rust');
+        expect(registry.resolve('saw').active).toBe('pyodide');
 
         const tri = registry.resolve('tri');
         expect(tri.active).toBe('js');
@@ -186,16 +198,16 @@ describe('BackendRegistry.generate', () => {
     it('falls through to the next backend when one returns no samples', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const gpu = new StubBackend('webgpu', { result: new Float32Array(0) });
-        const rust = new StubBackend('rust');
+        const fallbackBackend = new StubBackend('pyodide');
         const registry = new BackendRegistry();
         registry.register(gpu);
-        registry.register(rust);
+        registry.register(fallbackBackend);
 
         const out = await registry.generate(REQ);
-        expect(out?.backendId).toBe('rust');
+        expect(out?.backendId).toBe('pyodide');
         expect(gpu.generateCalls).toBe(1);
-        expect(rust.generateCalls).toBe(1);
-        expect(engineDegradationStore.getIssue('oscillator-backend')?.activeBackend).toBe('rust');
+        expect(fallbackBackend.generateCalls).toBe(1);
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.activeBackend).toBe('pyodide');
         warn.mockRestore();
     });
 
@@ -216,10 +228,90 @@ describe('BackendRegistry.generate', () => {
     it('reports null (loudly) when nothing can render the request', async () => {
         const err = vi.spyOn(console, 'error').mockImplementation(() => {});
         const registry = new BackendRegistry();
-        registry.register(new StubBackend('rust', { shapes: ['saw'] }));
+        registry.register(new StubBackend('pyodide', { shapes: ['saw'] }));
         const out = await registry.generate({ ...REQ, shape: 'tri' });
         expect(out).toBeNull();
         expect(err).toHaveBeenCalled();
         err.mockRestore();
+    });
+});
+
+
+/**
+ * `renderLoopFrom` is the realtime entry point that replaced VoiceManager's
+ * per-prefix ladder (#1294) — it must honour the same single fallback order.
+ */
+describe('BackendRegistry.renderLoopFrom', () => {
+    // Minimal BaseAudioContext: renderLoopFrom only ever needs createBuffer.
+    const ctx = {
+        sampleRate: 44100,
+        createBuffer: (channels: number, length: number, sampleRate: number) => {
+            const data = new Float32Array(length);
+            return {
+                length,
+                numberOfChannels: channels,
+                sampleRate,
+                getChannelData: () => data,
+            } as unknown as AudioBuffer;
+        },
+    } as unknown as BaseAudioContext;
+
+    beforeEach(() => {
+        engineDegradationStore.clear('oscillator-backend');
+    });
+
+    it('enters the chain at the requested backend and never climbs back up', () => {
+        const gpu = new StubBackend('webgpu');
+        const wav = new StubBackend('wav');
+        const registry = new BackendRegistry();
+        registry.register(gpu);
+        registry.register(wav);
+        registry.register(new JsOscillatorBackend());
+
+        expect(registry.renderLoopFrom('wav', ctx, REQ)).not.toBeNull();
+        // Selecting wav-* must not silently promote the note to the GPU engine.
+        expect(gpu.renderLoopCalls).toBe(0);
+        expect(wav.renderLoopCalls).toBe(1);
+    });
+
+    it('drops to the next backend down and reports the degradation', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam', { ready: false });
+        const wav = new StubBackend('wav');
+        const registry = new BackendRegistry();
+        registry.register(wam);
+        registry.register(wav);
+
+        expect(registry.renderLoopFrom('wam', ctx, REQ)).not.toBeNull();
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('wam');
+        expect(issue?.activeBackend).toBe('wav');
+        warn.mockRestore();
+    });
+
+    it('returns null for the terminal js step, and still publishes it', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(new StubBackend('wam', { ready: false }));
+        registry.register(new JsOscillatorBackend());
+
+        // js has no renderLoop: the caller builds an OscillatorNode instead.
+        expect(registry.renderLoopFrom('wam', ctx, REQ)).toBeNull();
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.activeBackend).toBe('js');
+        warn.mockRestore();
+    });
+
+    it('survives a backend that throws and keeps walking', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam');
+        wam.throwOnGenerate = true;
+        const wav = new StubBackend('wav');
+        const registry = new BackendRegistry();
+        registry.register(wam);
+        registry.register(wav);
+
+        expect(registry.renderLoopFrom('wam', ctx, REQ)).not.toBeNull();
+        expect(wav.renderLoopCalls).toBe(1);
+        warn.mockRestore();
     });
 });

@@ -10,14 +10,25 @@ export type { MultisampleBank } from './engines/MultisampleGenerator';
 import type { TB303ModelId } from './engines/TB303Models';
 export type { TB303ModelId, TB303Model, TB303ModelInfo, Engine303Family } from './engines/TB303Models';
 
+/**
+ * Selectable oscillator waveforms. Every prefix here resolves to a live engine
+ * through `parseWaveform` + `ENGINE_CATALOG` (#1294) — nothing in this union
+ * falls through to an undocumented `OscillatorNode`.
+ *
+ * `rust-*` and `cpp-*` were removed: neither had a worklet, both dumped (or in
+ * cpp's case, failed to dump) a buffer on the main thread. Saved songs that
+ * still contain them are rewritten by `LEGACY_WAVEFORM_ALIASES`.
+ *
+ * `wam-*` is Hyphon's AssemblyScript wavetable kernel and is labelled
+ * "WASM OSC" in the UI — it is NOT Web Audio Modules 2.0 (ADR 0001). The ids
+ * keep the `wam-` prefix so existing projects keep loading.
+ */
 export type Waveform =
   | 'sawtooth' | 'square' | 'triangle' | 'sine'
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
   | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
-  | 'rust-saw' | 'rust-sqr'
-  | 'cpp-sin' | 'cpp-saw' | 'cpp-sqr' | 'cpp-rand'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
 
@@ -56,6 +67,7 @@ export interface SynthParams {
   coarseTune?: number;
   fineTune?: number;
   /** CPP: fine tune / shape parameter 0–1 */
+  /** @deprecated CPP oscillator family removed (#1294); kept so old songs load. */
   cppFine?: number;
 }
 
@@ -228,10 +240,8 @@ export type OscillatorType =
   | 'jc303'        // Authentic JC303 / rosic::Open303 (per-voice)
   | 'prophecy'     // Korg Prophecy formant engine
   | 'pyodide'      // Python/Pyodide software oscillators
-  | 'rust'         // Rust/WASM high-precision synth
-  | 'webgpu'       // WGSL/WebGPU GPU oscillators
-  | 'wam'          // Web Audio Modules (WAM) plugins
-  | 'cpp'          // High-precision C++ math oscillators (sinf / saw / sqr / rand)
+  | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
+  | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
 ;
 
 /** Visual theme applied to the oscillator panel / overlay when this type is active. */
@@ -300,14 +310,6 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-yellow-300',
     badge: 'PY',
   },
-  rust: {
-    label: 'Rust',
-    accent: 'orange',
-    panelBg: 'bg-orange-950/30',
-    panelBorder: 'border-orange-500/30',
-    text: 'text-orange-300',
-    badge: 'RS',
-  },
   webgpu: {
     label: 'WebGPU',
     accent: 'fuchsia',
@@ -317,20 +319,12 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     badge: 'GPU',
   },
   wam: {
-    label: 'WAM',
+    label: 'WASM OSC',
     accent: 'amber',
     panelBg: 'bg-amber-950/30',
     panelBorder: 'border-amber-500/30',
     text: 'text-amber-300',
-    badge: 'WAM',
-  },
-  cpp: {
-    label: 'CPP',
-    accent: 'fuchsia',
-    panelBg: 'bg-gradient-to-br from-indigo-950/40 via-fuchsia-950/30 to-rose-950/40',
-    panelBorder: 'border-fuchsia-500/40',
-    text: 'text-fuchsia-200',
-    badge: 'CPP',
+    badge: 'AS',
   },
 };
 
@@ -342,10 +336,8 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   jc303: '/osc/jc303.webp',
   prophecy: '/osc/prophecy.webp',
   pyodide: '/osc/pyodide.webp',
-  rust: '/osc/rust.webp',
   webgpu: '/osc/webgpu.webp',
   wam: '/osc/wam.webp',
-  cpp: '/osc/cpp.webp',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
@@ -358,10 +350,8 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   }
   if (w.startsWith('prophecy-')) return 'prophecy';
   if (w.startsWith('pyodide-')) return 'pyodide';
-  if (w.startsWith('rust-')) return 'rust';
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
-  if (w.startsWith('cpp-')) return 'cpp';
   return 'javascript';
 }
 
@@ -380,10 +370,8 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'jc303': return '303-saw';
     case 'prophecy': return 'prophecy-saw';
     case 'pyodide': return 'pyodide-saw';
-    case 'rust': return 'rust-saw';
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
-    case 'cpp': return 'cpp-saw';
     default: return 'sawtooth';
   }
 }
@@ -397,10 +385,8 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'jc303': return ['303-saw', '303-sqr'];
     case 'prophecy': return ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'];
     case 'pyodide': return ['pyodide-saw', 'pyodide-square', 'pyodide-sine'];
-    case 'rust': return ['rust-saw', 'rust-sqr'];
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
-    case 'cpp': return ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'];
     default: return ['sawtooth'];
   }
 }
