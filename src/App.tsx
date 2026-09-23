@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
+import { prefetchOrtWhenIdle } from '@/services/ortRuntime'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 
 import TransportHeader from './components/appParts/TransportHeader'
@@ -142,6 +143,15 @@ export const App: React.FC = () => {
         isSongModeActive,
         currentSongMeasure,
     });
+
+    // Warm the ONNX Runtime chunk once the sequencer is interactive, so the
+    // first TTS use is not a cold multi-megabyte fetch. Runs on the idle
+    // callback and only after `hasStarted`, so it is off both the first-paint
+    // and the user-gesture paths — see prefetchOrtWhenIdle().
+    useEffect(() => {
+        if (!hasStarted) return;
+        prefetchOrtWhenIdle();
+    }, [hasStarted]);
 
     useEffect(() => {
         engineDegradationStore.setToastHandler((message, type) => {
