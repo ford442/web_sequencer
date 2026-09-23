@@ -209,6 +209,23 @@ export const HELP_TOPICS: HelpTopic[] = [
     docLink: 'docs/automation.md',
   },
   {
+    id: 'smf-import',
+    title: 'Import / export Standard MIDI (.mid) files',
+    summary: 'Bottom bar → Import .mid opens the Standard MIDI File import dialog.',
+    body:
+      'Hyphon can import format 0/1 Standard MIDI Files (.mid), quantizing notes onto the 32-step grid and routing channels ' +
+      'to tracks (ch.1→Synth A, ch.2→Synth B, ch.3→Bass2, ch.10→drums via GM note numbers). Export writes a .mid back out, ' +
+      'one track per Hyphon track, either the current pattern or the full song arrangement.\n\n' +
+      'This is the generic DAW-interchange path — use .rbs import/export for ReBirth-native round-tripping instead.',
+    keywords: ['midi', 'smf', 'mid', 'standard midi file', 'import', 'export', 'daw'],
+    category: 'import',
+    steps: [
+      'Click Import .mid in the bottom bar, or drag a .mid file onto the dialog.',
+      'Review the import report — unmapped notes, tempo/time-signature warnings, drum GM misses.',
+      'Confirm import — patterns load into the current song slots (or a full song arrangement for multi-pattern files).',
+    ],
+  },
+  {
     id: 'ai-song-import',
     title: 'Import AI-generated songs',
     summary: 'Bottom bar → Import AI Song accepts JSON from Claude, Gemini, and other AI composers.',

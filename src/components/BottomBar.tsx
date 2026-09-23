@@ -22,8 +22,10 @@ interface BottomBarProps {
     aiImportProgress: number
     exportSongToFile: () => void
     exportRbsToFile: () => void
+    exportSmfToFile: () => void
     importSongFromFile: () => void
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setIsSmfImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsCloudLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -65,8 +67,10 @@ export const BottomBar = memo(function BottomBar({
     aiImportProgress,
     exportSongToFile,
     exportRbsToFile,
+    exportSmfToFile,
     importSongFromFile,
     setIsRbsImportModalOpen,
+    setIsSmfImportModalOpen,
     setIsExportModalOpen,
     setIsAISongModalOpen,
     setIsCloudLibraryOpen,
@@ -272,6 +276,26 @@ export const BottomBar = memo(function BottomBar({
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
                     💾 Export .rbs
+                </button>
+                <HelpTip topicId="smf-import" position="top">
+                <button type="button"
+                    onClick={() => setIsSmfImportModalOpen(true)}
+                    disabled={isImportingAISong}
+                    aria-label="Import Standard MIDI .mid file"
+                    className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
+                    title={isImportingAISong ? "Cannot import while importing AI song" : "Import Standard MIDI File"}
+                >
+                    🎼 Import .mid
+                </button>
+                </HelpTip>
+                <button type="button"
+                    onClick={exportSmfToFile}
+                    disabled={isImportingAISong}
+                    aria-label="Export project as Standard MIDI .mid file"
+                    className={`h-6 px-2 text-[10px] font-bold text-teal-400 bg-zinc-900 border border-teal-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-950/30 hover:scale-105 active:scale-95'}`}
+                    title={isImportingAISong ? "Cannot export while importing AI song" : "Export as Standard MIDI file"}
+                >
+                    💾 Export .mid
                 </button>
                 <button type="button"
                     onClick={() => setIsExportModalOpen(true)}
