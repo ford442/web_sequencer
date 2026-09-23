@@ -143,12 +143,17 @@ if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
 {
   const oscDir = path.join(distDir, 'osc');
   if (fs.existsSync(oscDir)) {
-    const typesSrc = fs.readFileSync(path.join(repoRoot, 'src', 'types.ts'), 'utf8');
-    const block = typesSrc.match(
+    const themesSrc = fs.readFileSync(
+      path.join(repoRoot, 'src', 'components', 'oscillatorThemes.ts'),
+      'utf8',
+    );
+    const block = themesSrc.match(
       /OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = \{([\s\S]*?)\}/,
     );
     if (!block) {
-      console.error('[check-release-dist] could not read OSCILLATOR_PANEL_IMAGES from src/types.ts.');
+      console.error(
+        '[check-release-dist] could not read OSCILLATOR_PANEL_IMAGES from src/components/oscillatorThemes.ts.',
+      );
       process.exit(1);
     }
     const referenced = new Set(
