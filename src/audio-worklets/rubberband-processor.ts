@@ -8,6 +8,7 @@ import { GranularEngine } from "./rubberband/granularEngine";
 import { SpectralBandProcessor } from "./rubberband/spectralEffects";
 import { VocalChorusEffect } from "./rubberband/chorusEffect";
 import { SubHarmonicsEffect } from "./rubberband/subHarmonics";
+import { TransientExtractor } from "./rubberband/transientExtractor";
 import { Bitcrusher } from "./rubberband/bitcrusher";
 import { PhonemeToneFilter, SyllableVolumeFilter, TranceGate } from "./rubberband/toneFilters";
 import { DrumDuckEnvelope } from "./rubberband/drumDuckEnvelope";
@@ -43,6 +44,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly spectral = new SpectralBandProcessor();
   private readonly chorus = new VocalChorusEffect();
   private readonly subHarmonics = new SubHarmonicsEffect();
+  private readonly transientExtractor = new TransientExtractor();
   private readonly bitcrusher = new Bitcrusher();
   private readonly phonemeToneFilter = new PhonemeToneFilter();
   private readonly syllableVolumeFilter = new SyllableVolumeFilter();
@@ -382,6 +384,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const bitcrushAmount = parameters.bitcrush ? parameters.bitcrush[0] : 0.0;
     const spectralComp = parameters.spectralComp ? parameters.spectralComp[0] : 0.0;
     const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
+    const transientExtractionAmount = parameters.transientExtraction ? parameters.transientExtraction[0] : 0.0;
     const vocalChorusAmount = parameters.vocalChorus ? parameters.vocalChorus[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
@@ -821,6 +824,12 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           const isVowelForSub = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
           const sRateForSub = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
           this.subHarmonics.process(outputs, effectiveSubAmount, isVowelForSub, sRateForSub);
+        }
+
+        if (transientExtractionAmount > 0) {
+          const isVowelForTrans = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
+          const sRateForTrans = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+          this.transientExtractor.process(outputs, transientExtractionAmount, isVowelForTrans, sRateForTrans);
         }
 
         if (duckingScalar > 0) {

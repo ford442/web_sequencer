@@ -35,6 +35,7 @@ interface SamplerKnobHandlers {
   spectralComp: (v: number) => void;
   downsample: (v: number) => void;
   vocalChorus: (v: number) => void;
+  transientExtraction: (v: number) => void;
   autoTune: (v: number) => void;
   microtonalVariance: (v: number) => void;
   drumDuckDepth: (v: number) => void;
@@ -191,6 +192,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="AutoTune" value={currentParams.autoTune || 0} onChange={handlers.autoTune} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Microtonal" value={currentParams.microtonalVariance || 0} onChange={handlers.microtonalVariance} min={0} max={100} step={1} color="indigo" unit="ct" />
           <Knob label="Chorus" value={currentParams.vocalChorus || 0} onChange={handlers.vocalChorus} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Consonant Boost" value={currentParams.transientExtraction || 0} onChange={handlers.transientExtraction} min={0} max={1.0} step={0.01} color="cyan" unit="%" />
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Spectral Comp" value={currentParams.spectralComp || 0} onChange={handlers.spectralComp} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handlers.downsample} min={1} max={32} step={1} color="indigo" unit="x" />
