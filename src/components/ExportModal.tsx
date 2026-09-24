@@ -242,9 +242,10 @@ export const ExportModal = React.memo(function ExportModal({
                     </label>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <label className="text-xs text-gray-400">
+                        <label className="text-xs text-gray-400" htmlFor="export-sample-rate">
                             Sample rate
                             <select
+                                id="export-sample-rate"
                                 value={String(sampleRatePref)}
                                 onChange={(e) =>
                                     setSampleRatePref(
@@ -267,9 +268,10 @@ export const ExportModal = React.memo(function ExportModal({
                                 ))}
                             </select>
                         </label>
-                        <label className="text-xs text-gray-400">
+                        <label className="text-xs text-gray-400" htmlFor="export-bit-depth">
                             Bit depth
                             <select
+                                id="export-bit-depth"
                                 value={bitDepth}
                                 onChange={(e) => setBitDepth(Number(e.target.value) as WavBitDepth)}
                                 disabled={isExporting}

@@ -4,3 +4,4 @@
 ## 2024-06-25 - Using focus-visible instead of focus for keyboard accessibility
 **Learning:** Consistently using `focus-visible` utility classes (e.g. `focus-visible:ring`, `focus-visible:border`) instead of just `focus:` ensures that focus rings and focus indicators only appear when navigating the UI via keyboard. A common pitfall is to apply `focus:` to buttons or interactive elements, which results in focus rings showing up during mouse clicks, creating a confusing and janky visual experience.
 **Action:** When adding or updating focus indicators, always prefer `focus-visible` utilities (`focus-visible:ring-2`, `focus-visible:border-*`, etc.) to maintain standard keyboard accessibility behavior while keeping mouse interactions clean.
+I added correct sr-only labels for accessibility to BottomBar.tsx and ExportModal.tsx based on the prompt instructions.

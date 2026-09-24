@@ -1,1 +1,2 @@
 Visual verification of EngineHUD skipped due to build/WASM environment constraints on local dev server. See memory guidelines.
+Visual verification of BottomBar and ExportModal skipped due to build/WASM environment constraints on local dev server. See memory guidelines.
