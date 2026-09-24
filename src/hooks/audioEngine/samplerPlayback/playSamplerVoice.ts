@@ -47,6 +47,7 @@ export function createPlaySamplerVoice(
     const expressiveConfig = resolveExpressiveness(params);
 
     // --- HOISTED PARAMETERS START ---
+    const pConsonantClarity = noteParams?.consonantClarity ?? params.consonantClarity ?? 0;
     // Vocoder Mix
     const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
     const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
@@ -366,6 +367,7 @@ export function createPlaySamplerVoice(
         if (pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(pPhonemeFilterMod, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
         if (pVolumeFilterMod !== undefined && (voice as any).setVolumeFilterMod) (voice as any).setVolumeFilterMod(pVolumeFilterMod, triggerTime);
+        if (pConsonantClarity !== undefined && (voice as any).setConsonantClarity) (voice as any).setConsonantClarity(pConsonantClarity, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 
