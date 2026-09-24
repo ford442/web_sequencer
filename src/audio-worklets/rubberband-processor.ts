@@ -791,7 +791,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             const isVowel = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[7] : null;
             const phonemeIndex = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[8] : null;
             const sRateForShaper = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-            this.transientShaper.process(outputChannel, pConsonantClarity, isVowel, phonemeIndex, sRateForShaper);
+            this.transientShaper.process(outputChannel, pConsonantClarity, isVowel, phonemeIndex, phonemeVolume, sRateForShaper);
         }
 
         // Grain-triggered stereo pan spread

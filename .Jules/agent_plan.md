@@ -6,6 +6,7 @@
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
 
+- [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 ## Innovation Lab
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
@@ -20,7 +21,6 @@
 - [x] Implement Phoneme-driven auto-rhythm generation for TTS
 - [x] Add granular random jitter per phoneme
 - [x] Add multi-voice unison detune
-- [ ] Optimize TTS memory footprint
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
@@ -54,7 +54,6 @@
 ## Innovation Lab
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
-- [ ] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
@@ -158,3 +157,8 @@
   - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
   - Reduced redundant math by reusing `this.grainLfoPhase`.
   - Velocity Check: This architectural path was highly efficient because the `grainLfoPhase` state was already tracking per-block.
+
+- Completed "What if we link consonant boost directly to the velocity or stress parameter from the lyric track?".
+  - Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
+  - Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
+  - Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
