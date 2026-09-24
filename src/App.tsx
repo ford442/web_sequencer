@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStateContext } from './contexts/AppStateContext'
+import { prefetchOrtWhenIdle } from '@/services/ortRuntime'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 
 import TransportHeader from './components/appParts/TransportHeader'
@@ -40,6 +41,7 @@ const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowca
 const CloudLibrary = lazy(() => import('./components/CloudLibrary').then(module => ({ default: module.CloudLibrary })));
 const AISongModal = lazy(() => import('./components/AISongModal').then(module => ({ default: module.AISongModal })));
 const RbsImportModal = lazy(() => import('./components/RbsImportModal').then(module => ({ default: module.RbsImportModal })));
+const SmfImportModal = lazy(() => import('./components/SmfImportModal').then(module => ({ default: module.SmfImportModal })));
 const ExportModal = lazy(() => import('./components/ExportModal').then(module => ({ default: module.ExportModal })));
 const VoiceEditor = lazy(() => import('./components/VoiceEditor').then(module => ({ default: module.VoiceEditor })));
 const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then(module => ({ default: module.ShortcutsHelp })));
@@ -94,6 +96,7 @@ export const App: React.FC = () => {
         getSongData, getBankData, getPatternData,
         isAISongModalOpen, setIsAISongModalOpen, handleAISongImport,
         isRbsImportModalOpen, setIsRbsImportModalOpen, handleRbsImport,
+        isSmfImportModalOpen, setIsSmfImportModalOpen, handleSmfImport, exportSmfToFile,
         isExportModalOpen, setIsExportModalOpen,
         synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, pyodide,
         isVoiceEditorOpen, setIsVoiceEditorOpen,
@@ -142,6 +145,15 @@ export const App: React.FC = () => {
         isSongModeActive,
         currentSongMeasure,
     });
+
+    // Warm the ONNX Runtime chunk once the sequencer is interactive, so the
+    // first TTS use is not a cold multi-megabyte fetch. Runs on the idle
+    // callback and only after `hasStarted`, so it is off both the first-paint
+    // and the user-gesture paths — see prefetchOrtWhenIdle().
+    useEffect(() => {
+        if (!hasStarted) return;
+        prefetchOrtWhenIdle();
+    }, [hasStarted]);
 
     useEffect(() => {
         engineDegradationStore.setToastHandler((message, type) => {
@@ -239,6 +251,11 @@ export const App: React.FC = () => {
             {isRbsImportModalOpen && (
                 <Suspense fallback={<ModalLoadingFallback />}>
                     <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
+                </Suspense>
+            )}
+            {isSmfImportModalOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <SmfImportModal isOpen={isSmfImportModalOpen} onClose={() => setIsSmfImportModalOpen(false)} onImport={(...args) => { void handleSmfImport(...args); }} onShowToast={showToast} />
                 </Suspense>
             )}
             {isExportModalOpen && (
@@ -387,8 +404,10 @@ export const App: React.FC = () => {
                 aiImportProgress={aiImportProgress}
                 exportSongToFile={() => { void exportSongToFile(); }}
                 exportRbsToFile={() => { void exportRbsToFile(); }}
+                exportSmfToFile={() => { void exportSmfToFile(); }}
                 importSongFromFile={() => { void importSongFromFile(); }}
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
+                setIsSmfImportModalOpen={setIsSmfImportModalOpen}
                 setIsExportModalOpen={setIsExportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}
                 setIsCloudLibraryOpen={setIsCloudLibraryOpen}

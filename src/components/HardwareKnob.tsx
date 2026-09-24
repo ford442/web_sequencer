@@ -245,6 +245,27 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
     }, [canvasRenderValue, isHolographic, material]);
 
     const bodyRadius = CLASSIC_BODY_PX / 2;
+    const detentMarks = useMemo(() => {
+        if (!material.detents) return [];
+        return resolveDetentPositions(material).map((t) => {
+            const canvasAngle = wgslAngleToCanvas(wgslAngleFromNormalized(t, material.geometry));
+            const tickRadius = bodyRadius * (material.scale?.tickRadius ?? material.geometry.arcRadius);
+            const dimpleDepth = bodyRadius * (material.detents?.dimpleDepth ?? 0.045);
+            const innerR = tickRadius - dimpleDepth;
+            const outerR = tickRadius + dimpleDepth * 0.65;
+            const cx = bodyRadius;
+            const cy = bodyRadius;
+            return {
+                t,
+                x1: cx + Math.cos(canvasAngle) * innerR,
+                y1: cy + Math.sin(canvasAngle) * innerR,
+                x2: cx + Math.cos(canvasAngle) * outerR,
+                y2: cy + Math.sin(canvasAngle) * outerR,
+                mx: cx + Math.cos(canvasAngle) * tickRadius,
+                my: cy + Math.sin(canvasAngle) * tickRadius,
+            };
+        });
+    }, [bodyRadius, material]);
     const scaleTicks = useMemo(() => {
         if (mode !== 'classic') return [];
         const tickRadius = bodyRadius * KNOB_MATERIAL.geometry.arcRadius;
@@ -458,27 +479,6 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
     const pointerBase = material.pointer?.base ?? material.palette.needle;
     const pointerSpec = material.pointer?.specular ?? material.palette.needle;
     const pointerShadow = material.pointer?.shadow ?? { r: 0.05, g: 0.08, b: 0.12 };
-    const detentMarks = useMemo(() => {
-        if (!material.detents) return [];
-        return resolveDetentPositions(material).map((t) => {
-            const canvasAngle = wgslAngleToCanvas(wgslAngleFromNormalized(t, material.geometry));
-            const tickRadius = bodyRadius * (material.scale?.tickRadius ?? material.geometry.arcRadius);
-            const dimpleDepth = bodyRadius * (material.detents?.dimpleDepth ?? 0.045);
-            const innerR = tickRadius - dimpleDepth;
-            const outerR = tickRadius + dimpleDepth * 0.65;
-            const cx = bodyRadius;
-            const cy = bodyRadius;
-            return {
-                t,
-                x1: cx + Math.cos(canvasAngle) * innerR,
-                y1: cy + Math.sin(canvasAngle) * innerR,
-                x2: cx + Math.cos(canvasAngle) * outerR,
-                y2: cy + Math.sin(canvasAngle) * outerR,
-                mx: cx + Math.cos(canvasAngle) * tickRadius,
-                my: cy + Math.sin(canvasAngle) * tickRadius,
-            };
-        });
-    }, [bodyRadius, material]);
     return (
         <div className={`flex flex-col items-center space-y-1 ${className}`}>
             <div className="relative">

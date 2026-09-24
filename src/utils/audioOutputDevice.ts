@@ -3,6 +3,12 @@ export const AUDIO_OUTPUT_STORAGE_KEY = 'hyphon.audioOutputDevice';
 export interface StoredAudioOutput {
   groupId: string;
   label: string;
+  /**
+   * Last deviceId this choice resolved to. deviceIds are per-origin and can
+   * rotate, so groupId/label stay the matching key; the id is only a hint that
+   * lets the next AudioContext open on the device from its first quantum.
+   */
+  deviceId?: string;
 }
 
 type SinkCapableContext = AudioContext & {
@@ -17,6 +23,28 @@ export function supportsSetSinkId(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * `AudioContextOptions.sinkId` (Chromium 110+) ships alongside `setSinkId`;
+ * browsers without it ignore the dictionary member, which is harmless, but we
+ * only pass it where the context can actually report it back.
+ */
+export function supportsSinkIdOption(
+  ctor: { prototype: object } | undefined = typeof AudioContext !== 'undefined' ? AudioContext : undefined,
+): boolean {
+  try {
+    return !!ctor && 'sinkId' in ctor.prototype && typeof (ctor.prototype as SinkCapableContext).setSinkId === 'function';
+  } catch {
+    return false;
+  }
+}
+
+/** deviceId to hand the AudioContext constructor, or null for the default device. */
+export function getStoredSinkIdForConstructor(): string | null {
+  const stored = getStoredAudioOutput();
+  const id = stored?.deviceId;
+  return typeof id === 'string' && id !== '' && id !== 'default' ? id : null;
 }
 
 export function getStoredAudioOutput(): StoredAudioOutput | null {
@@ -90,6 +118,9 @@ export async function applyAudioOutputSink(
       }
       targetId = match.deviceId;
       label = match.label || stored?.label || 'default';
+      if (stored && stored.deviceId !== targetId) {
+        setStoredAudioOutput({ ...stored, deviceId: targetId });
+      }
     } else if (targetId === '' || targetId === 'default') {
       targetId = '';
       label = 'default';
@@ -98,7 +129,10 @@ export async function applyAudioOutputSink(
       label = devices.find((d) => d.deviceId === targetId)?.label || targetId;
     }
 
-    await sinkContext.setSinkId(targetId);
+    // Already opened on this device via `AudioContextOptions.sinkId`.
+    if (sinkContext.sinkId !== targetId) {
+      await sinkContext.setSinkId(targetId);
+    }
     return { sinkId: sinkContext.sinkId ?? targetId, sinkLabel: label || 'default' };
   } catch {
     return { sinkId: '', sinkLabel: 'default' };

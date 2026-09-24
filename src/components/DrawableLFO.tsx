@@ -46,11 +46,13 @@ export const DrawableLFO: React.FC<DrawableLFOProps> = React.memo(({
     });
 
     // Sync external value when not drawing
-    useEffect(() => {
+    const [syncKey, setSyncKey] = useState({ value, resolution, isDrawing });
+    if (syncKey.value !== value || syncKey.resolution !== resolution || syncKey.isDrawing !== isDrawing) {
+        setSyncKey({ value, resolution, isDrawing });
         if (!isDrawing && value && value.length === resolution) {
             setLocalShape([...value]);
         }
-    }, [value, resolution, isDrawing]);
+    }
 
     const drawCanvas = useCallback(() => {
         const canvas = canvasRef.current;

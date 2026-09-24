@@ -1,8 +1,13 @@
 /**
- * Ordered oscillator backend selection (#1034).
+ * Ordered oscillator backend selection (#1034, collapsed in #1294).
  *
  * One place decides which backend is active, in one documented order:
- *   WebGPU → AS WASM (wam) → Rust WASM → WAV PCM → pure JS
+ *   WebGPU → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
+ *
+ * This is now the *only* fallback order in the codebase. The realtime note
+ * path enters the chain at the backend `engineCatalog` names for the selected
+ * waveform family (`renderLoopFrom`) instead of running its own per-prefix
+ * ladder, so "which engine am I hearing?" has exactly one answer.
  *
  * Every step down that chain is recorded: telemetry resolution, the engine
  * degradation store (drives the banner) and the EngineHUD all read from the
@@ -13,12 +18,15 @@ import {
     BACKEND_FALLBACK_ORDER,
     BACKEND_LABELS,
     type GenerateRequest,
+    type LoopRender,
     type OscillatorBackend,
     type OscillatorBackendId,
 } from './OscillatorBackend';
 import type { WaveShape } from '../../utils/waveformParser';
 import { engineTelemetry, logWaveformSubstitution } from '../../utils/engineTelemetry';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { PyodideBackend } from './adapters';
+import type { PyodideLike } from '../../utils/pyodideBuffers';
 
 export const OSCILLATOR_SUBSYSTEM = 'oscillators';
 
@@ -58,8 +66,23 @@ export class BackendRegistry {
 
     /** Registered backends in fallback-preference order. */
     ordered(): OscillatorBackend[] {
+        return this.orderedFrom(BACKEND_FALLBACK_ORDER[0]);
+    }
+
+    /**
+     * Registered backends from `startId` down the single fallback order.
+     *
+     * This is how the realtime note path asks for a *family* (wam, wgsl,
+     * pyodide, wav) without re-implementing the chain: selecting `wav-saw`
+     * enters at `wav` and can only ever drop to `js`, never climb back up to
+     * WebGPU behind the user's back. An unknown/unregistered `startId` yields
+     * the terminal `js` step only.
+     */
+    orderedFrom(startId: OscillatorBackendId): OscillatorBackend[] {
+        const from = BACKEND_FALLBACK_ORDER.indexOf(startId);
+        const slice = from >= 0 ? BACKEND_FALLBACK_ORDER.slice(from) : ['js' as const];
         const out: OscillatorBackend[] = [];
-        for (const id of BACKEND_FALLBACK_ORDER) {
+        for (const id of slice) {
             const b = this.backends.get(id);
             if (b) out.push(b);
         }
@@ -215,6 +238,78 @@ export class BackendRegistry {
         return null;
     }
 
+    /**
+     * Synchronous realtime render, entering the chain at `startId`.
+     *
+     * Returns the first loopable table the chain produces, or null when it ran
+     * out (the caller's terminal step is an `OscillatorNode` of the right wave
+     * family). Every step down is published, so the HUD/telemetry always name
+     * the engine that actually sounded — there is no silent fall-through.
+     */
+    renderLoopFrom(
+        startId: OscillatorBackendId,
+        ctx: BaseAudioContext,
+        req: GenerateRequest,
+    ): LoopRender | null {
+        const chain = this.orderedFrom(startId);
+        const skipped: string[] = [];
+
+        for (const backend of chain) {
+            if (!backend.isSupported || !backend.isReady) {
+                skipped.push(`${backend.id}: ${backend.isSupported ? 'not initialized' : 'unsupported'}`);
+                continue;
+            }
+            if (!backend.supportsShape(req.shape)) {
+                skipped.push(`${backend.id}: cannot render "${req.shape}"`);
+                continue;
+            }
+            if (!backend.renderLoop) {
+                // `js` has no table — it is the terminal OscillatorNode step.
+                skipped.push(`${backend.id}: no realtime table (terminal backend)`);
+                continue;
+            }
+            let render: LoopRender | null = null;
+            try {
+                render = backend.renderLoop(ctx, req);
+            } catch (e) {
+                skipped.push(`${backend.id}: threw (${e instanceof Error ? e.message : String(e)})`);
+                try {
+                    engineTelemetry.recordError(OSCILLATOR_SUBSYSTEM, e);
+                } catch {
+                    /* best-effort */
+                }
+                continue;
+            }
+            if (!render) {
+                skipped.push(`${backend.id}: returned no table`);
+                continue;
+            }
+            if (backend.id !== startId) {
+                publishResolution({
+                    active: backend.id,
+                    requested: startId,
+                    degraded: true,
+                    attempts: [],
+                    reason: skipped.join('; ') || 'preferred backend produced no table',
+                    ts: Date.now(),
+                });
+            }
+            return render;
+        }
+
+        // Falling all the way through is the documented `js` outcome, not a bug
+        // — but it still has to be visible.
+        publishResolution({
+            active: 'js',
+            requested: startId,
+            degraded: startId !== 'js',
+            attempts: [],
+            reason: skipped.join('; ') || undefined,
+            ts: Date.now(),
+        });
+        return null;
+    }
+
     disposeAll(): void {
         for (const backend of this.backends.values()) {
             try {
@@ -241,6 +336,23 @@ export function setOscillatorRegistry(registry: BackendRegistry | null): void {
 
 export function getOscillatorRegistry(): BackendRegistry | null {
     return activeRegistry;
+}
+
+/**
+ * Late-bind the Pyodide runtime to its backend.
+ *
+ * Pyodide loads long after audio init (and may never load at all), so the
+ * `pyodide` backend starts unsupported and becomes ready here. Keeping this in
+ * the registry rather than on `Voice` is what stops `pyodide-*` from being a
+ * second selection story — and it does not put Pyodide on the entry graph
+ * (#1257): nothing here imports it, the caller hands over a runtime it already
+ * has.
+ */
+export function attachPyodideOscillator(engine: PyodideLike | null): void {
+    const backend = activeRegistry?.get('pyodide');
+    if (backend instanceof PyodideBackend) {
+        backend.setEngine(engine);
+    }
 }
 
 /**

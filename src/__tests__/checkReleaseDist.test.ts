@@ -106,10 +106,16 @@ function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = 
 
     mkdirSync(join(dir, 'assets'), { recursive: true });
     writeFileSync(join(dir, 'native-artifacts.json'), '{}\n');
-    writeFileSync(
-        join(dir, 'assets', 'index.js'),
-        WORKLETS.map((name) => `registerProcessor(${JSON.stringify(name)});`).join('\n'),
-    );
+    // One self-contained chunk per worklet, as `worker: { format: 'es' }` emits
+    // in production. check-release-dist.mjs asserts that shape (a worklet scope
+    // has no module loader), so the fixture has to have it too.
+    for (const worklet of WORKLETS) {
+        writeFileSync(
+            join(dir, 'assets', `${worklet}.js`),
+            `registerProcessor(${JSON.stringify(worklet)}, class {});\n`,
+        );
+    }
+    writeFileSync(join(dir, 'assets', 'index.js'), 'const app = 1;\n');
     // Minimal PWA shell fixture — unrelated to the WASM export gate this file
     // tests, but check-release-dist.mjs now requires it unconditionally.
     writeFileSync(join(dir, 'manifest.webmanifest'), JSON.stringify({ name: 'Hyphon', start_url: './' }));

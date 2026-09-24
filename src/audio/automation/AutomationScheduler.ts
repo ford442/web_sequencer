@@ -491,6 +491,10 @@ export class AutomationScheduler {
         // TRAK TUNE controller (rbs.h tb303_event_t 0x02) → OPEN303_TUNING.
         mgr.scheduleParamAtTime(voice, 'setTuning', v, effectiveTime);
         break;
+      case 'abMix':
+        // Live high-fid A/B blend (Phase L2): 0 = stock Open303, 1 = high-fid.
+        mgr.scheduleParamAtTime(voice, 'setAbMix', v, effectiveTime);
+        break;
       default:
         break;
     }

@@ -51,31 +51,104 @@ plants artifacts to prove the gate still bites.
 At the time of writing the tree contained **zero** artifacts — the five listed in
 the tracking issue had already been removed.
 
-## Modules still over budget (not in scope here)
+## Size gate
 
-These were not part of the tracked set and are **not** justified exceptions —
-they are simply un-triaged. Recorded so the next pass starts from facts:
+`scripts/check-module-size.mjs` fails CI when a `src/**/*.ts(x)` file exceeds
+the 700-line soft budget **and its path is not mentioned anywhere in this
+document**. It runs as part of `pnpm lint`. This means:
 
-| Lines | Module |
-|-------|--------|
-| 960 | `src/importers/ai-song/AISongImporter.ts` |
-| 959 | `src/components/KnobGPUContext.ts` |
-| 892 | `src/types.ts` |
-| 885 | `src/engines/rubberband/HybridNeuralPipeline.ts` |
-| 855 | `src/audio-worklets/open303-processor.ts` |
-| 853 | `src/components/PhonemePainter.tsx` |
-| 841 | `src/components/appParts/RackNode.tsx` |
-| 817 | `src/components/SamplerVoicePanel.tsx` |
-| 803 | `src/importers/rbs/types.ts` |
-| 792 | `src/engines/rubberband/performance/PerformanceOptimizer.ts` |
-| 768 | `src/engines/rubberband/FormantShifter.ts` |
-| 759 | `src/engines/Open303Manager.ts` |
-| 756 | `src/utils/xmExport.ts` |
-| 745 | `src/utils/engineTelemetry.ts` |
-| 741 | `src/__tests__/wasmMigration.test.ts` |
-| 710 | `src/components/WaveformDisplay.tsx` |
-| 709 | `src/hooks/useAppState.tsx` |
-| 702 | `src/hooks/useSongStorage.ts` |
+- Every file already over budget when the gate landed (2026-09-23) had to be
+  listed once, below, with a reason — that's the "Modules over budget" table.
+  The gate does not re-fail that historical inventory on every run.
+- A file that grows past 700 lines without ever being added here fails CI
+  immediately. Split it, or add a row with a one-line reason (a real
+  exception, a tracked follow-up, or a split plan).
+- The check only looks for the path string in this file — it does not parse
+  the table format, so a mention anywhere (prose or table) satisfies it.
+
+## Modules over budget (2026-09-23 audit)
+
+| Lines | Module | Status |
+|-------|--------|--------|
+| 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
+| 991 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below |
+| 917 | `src/components/PhonemePainter.tsx` | un-triaged |
+| 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
+| 874 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |
+| 865 | `src/audio-worklets/rubberband-processor.ts` | already split once (09-07); further split not attempted here |
+| 848 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
+| 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
+| 814 | `src/engines/Open303Manager.ts` | un-triaged |
+| 811 | `src/utils/xmExport.ts` | un-triaged |
+| 794 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
+| 792 | `src/engines/rubberband/performance/PerformanceOptimizer.ts` | un-triaged |
+| 789 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below |
+| 770 | `src/hooks/useSongStorage.ts` | justified exception — see split plan below |
+| 762 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
+| 746 | `src/hooks/useStepHandler.ts` | un-triaged |
+| 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
+| 721 | `src/components/WaveformDisplay.tsx` | un-triaged |
+| 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |
+
+`src/types.ts` is **resolved**: it was 990 lines and is now a 17-line
+re-export barrel (`export * from './types/synth'` etc. — see below). It no
+longer appears in this table.
+
+### `src/types.ts` split (2026-09-23)
+
+Split into `src/types/{synth,drums,sampler,pattern,automation,engine,song}.ts`
+along the domains the tracking issue named. `src/types.ts` is now `export *`
+only, so every pre-existing `from '../types'` import keeps working.
+`OSCILLATOR_THEMES`, `OSCILLATOR_PANEL_IMAGES`, `waveformToOscillatorType` and
+friends were UI helpers, not domain types — they moved to
+`src/components/oscillatorThemes.ts` next to `WaveformSelector.tsx`; the three
+callers (`OscillatorTypeSelector.tsx`, `OscillatorVariantSelector.tsx`,
+`useHardwarePanels.tsx`) now import them from there instead.
+
+### `HybridNeuralPipeline` quarantine (2026-09-23)
+
+901 lines, Section 6 of `RUBBERBAND_ENHANCEMENT_PLAN.md` (neural vocoding).
+`grep` for `HybridNeuralPipeline(` outside its own file and test turned up
+nothing — no app code constructs it — and nothing imports the
+`engines/rubberband` barrel except the barrel's own re-exports, so it wasn't
+reachable from the app either way. Its `onnxruntime-web` import is already
+`import type` only (fixed by #1293, prior to this pass — the static-import
+claim in earlier audits was stale), so it wasn't contributing to the ORT
+bundle graph, but the file itself is still a large, unreachable module: the
+same shape as the sampler-playback and `LatencyCompensator` shadow-stack
+cases above. Moved to `src/engines/rubberband/experimental/` (with its spec)
+and dropped from the barrel's `export *` list, rather than deleted — Section 6
+is real design work reserved for the neural-vocoder epic gated on #1257, not
+abandoned duplicate code. Import it directly from that path if picking that
+epic back up; don't re-add it to the barrel until something outside its own
+tests wires it in.
+
+### Split plans for the remaining justified exceptions
+
+Not split in this pass — each is a complex, actively-used UI/data module
+where a blind split risks the same "diverged shadow copy" hazard documented
+above, and the project's own guidance is to verify UI changes in a running
+browser before landing them. Recorded here as a plan for a focused follow-up:
+
+- **`src/components/appParts/RackNode.tsx` (848 lines):** renders the full
+  instrument rack (synth/bass2/drums/sampler panels + wiring). Split along its
+  per-instrument panel sections (already visually distinct blocks) into
+  `RackNode/SynthPanelSection.tsx`, `RackNode/DrumsPanelSection.tsx`,
+  `RackNode/SamplerPanelSection.tsx`, leaving `RackNode.tsx` as the layout
+  shell that wires them together (the `HardwareModule.tsx` split above is the
+  template: memoized presentational piece out, shared-ref interaction hook
+  out, shell stays thin).
+- **`src/components/SamplerVoicePanel.tsx` (817 lines):** one panel covering
+  pitch/voice, envelope, LFO/modulation and effects-send controls for a
+  sampler voice. Split by control group into `SamplerVoicePanel/PitchSection.tsx`,
+  `EnvelopeSection.tsx`, `ModulationSection.tsx`, `EffectsSection.tsx`, each
+  taking the voice params slice and setter it needs; `SamplerVoicePanel.tsx`
+  keeps the tab/accordion shell.
+- **`src/hooks/useSongStorage.ts` (770 lines):** one hook covering save,
+  load, import (legacy schema migration) and export. Split along those seams
+  into `useSongStorage/{save,load,migrate,export}.ts`, each a plain function
+  taking the state it needs rather than a hook, with `useSongStorage.ts` left
+  as the thin hook that wires them to component state.
 
 **`LatencyCompensator.ts` (was 1005 lines, deleted 2026-08-24):** a second,
 unwired MIDI/timing system (`NoteScheduler`, `LatencyCompensator`,
@@ -128,8 +201,12 @@ the render tree that wires the extracted pieces together.
 
 Two shapes worth distinguishing before splitting any of them:
 
-- **Type/declaration files** (`src/types.ts`, `src/importers/rbs/types.ts`) are
-  long but flat. Length there costs little; splitting them churns imports across
-  the repo for no real reviewability gain. Treat as low priority.
+- **Type/declaration files** (`src/importers/rbs/types.ts`) are long but flat.
+  Length there costs little; splitting them churns imports across the repo
+  for no real reviewability gain. Treat as low priority. (`src/types.ts` used
+  to be in this bucket too — it was split anyway, per an explicit ask on the
+  tracking issue, since it also held non-type UI helper tables that didn't
+  belong in a types file regardless of length. `importers/rbs/types.ts` has
+  no such mix, so it stays flat.)
 - **Behavioural modules** (`AISongImporter`, `KnobGPUContext`) are where length
   actually hurts, and where a split pays for its merge risk.

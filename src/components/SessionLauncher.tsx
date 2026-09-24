@@ -69,7 +69,7 @@ export const SessionLauncher = memo(function SessionLauncher({
     if (el) {
       el.focus();
     }
-  }, [focus, isVisible]);
+  }, [focus, isVisible, containerRef]);
 
   const queuedHint = useMemo(() => `Step ${currentStep + 1}`, [currentStep]);
 

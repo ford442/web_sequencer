@@ -1,5 +1,5 @@
 // src/components/CloudLibrary.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { LoadingButton } from './LoadingButton';
@@ -63,13 +63,12 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'retrying' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState<string>("");
 
+    const onShowToastRef = useRef(onShowToast);
     useEffect(() => {
-        if (isOpen && activeTab === 'browse') {
-            loadLibrary();
-        }
-    }, [isOpen, activeTab]);
+        onShowToastRef.current = onShowToast;
+    }, [onShowToast]);
 
-    const loadLibrary = async () => {
+    const loadLibrary = useCallback(async () => {
         setIsLoading(true);
         try {
             const result = await CloudStorage.getSongs(
@@ -80,10 +79,16 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
         } catch (err) {
             console.error('[CloudLibrary] Failed to load:', err);
             setSongs([]);
-            onShowToast('Failed to load library', 'error');
+            onShowToastRef.current('Failed to load library', 'error');
         }
         setIsLoading(false);
-    };
+    }, [filterType]);
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'browse') {
+            void loadLibrary();
+        }
+    }, [isOpen, activeTab, loadLibrary]);
 
     const performUpload = async (retryCount = 0): Promise<void> => {
         try {

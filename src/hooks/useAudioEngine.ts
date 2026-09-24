@@ -31,7 +31,13 @@ import {
     applyVoiceParamUpdate,
     createSampleLibraryControls,
 } from './audioEngine/sampleManagement';
-import { initializeAudioContextAndEngines, type EngineLifecycleRefs } from './audioEngine/engineLifecycle';
+import {
+    initializeAudioContextAndEngines,
+    teardownAudioEngine,
+    type EngineLifecycleRefs,
+} from './audioEngine/engineLifecycle';
+import type { AudioContextCreation } from './audioEngine/audioContextFactory';
+import { setAudioEngineReinitHandler } from './audioEngine/audioEngineReinit';
 import { buildAudioEngine } from './audioEngine/engineApiBuilder';
 import { createPlaySamplerVoice } from './audioEngine/samplerPlayback/playSamplerVoice';
 import {
@@ -47,12 +53,15 @@ import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&u
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
 import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&url';
+import { attachPyodideOscillator } from '../engines/backends/BackendRegistry';
+import type { PyodideLike } from '../utils/pyodideBuffers';
 
 export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const [isReady, setIsReady] = useState(false);
     const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
     const isInitializing = useRef(false);
     const liveContextRef = useRef<AudioContext | null>(null);
+    const lifecycleRefsRef = useRef<EngineLifecycleRefs | null>(null);
 
     // Polyphonic TTS Manager
     const singingVoiceManagerRef = useRef<SingingVoiceManager | null>(null);
@@ -155,10 +164,15 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
 
     useEffect(() => {
         pyodideRef.current = pyodide;
+        // `pyodide-*` waveforms render through the registry like every other
+        // family, so the runtime is handed to its backend rather than to the
+        // voices (#1294).
+        attachPyodideOscillator((pyodide as PyodideLike | null) ?? null);
     }, [pyodide]);
 
-    const initializeAudio = useCallback(async () => {
-        if (audioEngine || isInitializing.current) return;
+    // Builds the engine on a context from `precreated` (HUD re-init, already
+    // resumed inside the click) or constructs one itself (StartOverlay path).
+    const bootEngine = useCallback(async (precreated?: AudioContextCreation) => {
         isInitializing.current = true;
         loadingProgressStore.startLoading();
 
@@ -208,9 +222,10 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 open303ProcessorUrl,
                 prophecyProcessorUrl,
                 drumkitProcessorUrl,
-            });
+            }, precreated?.latencyHint, precreated);
 
             liveContextRef.current = context;
+            lifecycleRefsRef.current = lifecycleRefs;
 
             // --- Helper: warm the phoneme pool for all phonemes in a bank ---
             const warmPoolForBank = (sampleName: string, alignment: AlignmentResult, audioBuffer: AudioBuffer): void => {
@@ -376,7 +391,36 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
             isInitializing.current = false;
             throw e;
         }
-    }, [audioEngine, playbackRefs, tempo]);
+    }, [playbackRefs, tempo]);
+
+    const initializeAudio = useCallback(async () => {
+        if (audioEngine || isInitializing.current) return;
+        await bootEngine();
+    }, [audioEngine, bootEngine]);
+
+    // HUD "Apply (re-init engine)": swap in a context built with the current
+    // sample-rate / latency / render-size / sink prefs without a page reload.
+    useEffect(() => {
+        if (!audioEngine) return undefined;
+        return setAudioEngineReinitHandler(async (created) => {
+            if (isInitializing.current) {
+                // An init is already in flight; drop the context we were handed.
+                void created.context.close().catch(() => undefined);
+                return;
+            }
+            const previous = liveContextRef.current;
+            try { audioEngine.stopAllNotes?.(); } catch { /* old graph may be half torn down */ }
+            setAudioEngine(null);
+            setIsReady(false);
+            liveContextRef.current = null;
+            if (lifecycleRefsRef.current) {
+                await teardownAudioEngine(lifecycleRefsRef.current, previous);
+            } else if (previous && previous.state !== 'closed') {
+                await previous.close().catch(() => undefined);
+            }
+            await bootEngine(created);
+        });
+    }, [audioEngine, bootEngine]);
 
     const updateVoiceParams = useCallback((_bankIdx: number, key: keyof SamplerBankParams, value: number, rampTime?: number) => {
         applyVoiceParamUpdate({

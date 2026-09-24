@@ -111,9 +111,14 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Play the diode-ladder high-fid voice in real time — it steps back to Stock Open303 rather than glitching when CPU runs short.',
     body:
       'Live High-Fidelity runs the same diode-ladder topology as the offline high-fid voices, inside the AudioWorklet at 1x oversample, so you can A/B authenticity while the sequencer plays.\n\n' +
-      'A CPU meter watches the voice on the audio thread. If it uses too much of the audio budget for too long, or causes repeated underruns, it hands playback back to Stock Open303 and tells you why — check Engine HUD (Ctrl+Shift+E) under Live 303 path to see which engine is audible. Freeze and export of the same part render through High-Fidelity CPU, so a bounce matches what you heard.',
+      'A CPU meter watches the voice on the audio thread. If it uses too much of the audio budget for too long, or causes repeated underruns, it hands playback back to Stock Open303 and tells you why — check Engine HUD (Ctrl+Shift+E) under Live 303 path to see which engine is audible. Freeze and export of the same part render through High-Fidelity CPU, so a bounce matches what you heard.\n\n' +
+      'A/B vs stock plays Stock Open303 (A) and the diode ladder (B) from the same notes: flip between them or blend with the slider while the sequence runs. The blend is saved with the song and can be automated; a freeze records the side the blend favours. Under Diode ladder you can edit transistor mismatch, decay curve, accent coupling and keyboard tracking — the song keeps them and freezes use them; Canonical puts the reference voice back.',
     keywords: [
       'live',
+      'a/b',
+      'blend',
+      'coefficients',
+      'mismatch',
       'realtime',
       'highfid',
       'high-fidelity',
@@ -132,6 +137,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       'In 303 Voice, choose Live High-Fidelity (amber Live pill).',
       'Play — Engine HUD shows LIVE HIFID and the rolling CPU share.',
       'If it shows stock (degraded), the CPU gate stepped in; the reason is listed next to it.',
+      'Optional: press A/B vs stock to compare against Stock Open303, and open Diode ladder to edit the coefficients.',
     ],
     docLink: 'docs/audio-engine/303-realtime-highfid.md',
   },
@@ -207,6 +213,23 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Confirm import — patterns load into the current song slots.',
     ],
     docLink: 'docs/automation.md',
+  },
+  {
+    id: 'smf-import',
+    title: 'Import / export Standard MIDI (.mid) files',
+    summary: 'Bottom bar → Import .mid opens the Standard MIDI File import dialog.',
+    body:
+      'Hyphon can import format 0/1 Standard MIDI Files (.mid), quantizing notes onto the 32-step grid and routing channels ' +
+      'to tracks (ch.1→Synth A, ch.2→Synth B, ch.3→Bass2, ch.10→drums via GM note numbers). Export writes a .mid back out, ' +
+      'one track per Hyphon track, either the current pattern or the full song arrangement.\n\n' +
+      'This is the generic DAW-interchange path — use .rbs import/export for ReBirth-native round-tripping instead.',
+    keywords: ['midi', 'smf', 'mid', 'standard midi file', 'import', 'export', 'daw'],
+    category: 'import',
+    steps: [
+      'Click Import .mid in the bottom bar, or drag a .mid file onto the dialog.',
+      'Review the import report — unmapped notes, tempo/time-signature warnings, drum GM misses.',
+      'Confirm import — patterns load into the current song slots (or a full song arrangement for multi-pattern files).',
+    ],
   },
   {
     id: 'ai-song-import',

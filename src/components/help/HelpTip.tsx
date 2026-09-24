@@ -34,17 +34,23 @@ export const HelpTip = memo(({
 }: HelpTipProps) => {
   const topic = getHelpTopic(topicId);
   const tipId = useId();
-  const [open, setOpen] = useState(false);
-  const [firstUsePinned, setFirstUsePinned] = useState(false);
-  const wrapRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!showOnFirstUse || !topic) return;
-    if (!helpDiscoveryStore.hasSeenTip(topicId)) {
+  const shouldPinFirstUse = () =>
+    showOnFirstUse && !!topic && !helpDiscoveryStore.hasSeenTip(topicId);
+  const [open, setOpen] = useState(shouldPinFirstUse);
+  const [firstUsePinned, setFirstUsePinned] = useState(shouldPinFirstUse);
+  const [firstUseKey, setFirstUseKey] = useState({ showOnFirstUse, topicId, hasTopic: !!topic });
+  if (
+    firstUseKey.showOnFirstUse !== showOnFirstUse ||
+    firstUseKey.topicId !== topicId ||
+    firstUseKey.hasTopic !== !!topic
+  ) {
+    setFirstUseKey({ showOnFirstUse, topicId, hasTopic: !!topic });
+    if (shouldPinFirstUse()) {
       setFirstUsePinned(true);
       setOpen(true);
     }
-  }, [showOnFirstUse, topicId, topic]);
+  }
+  const wrapRef = useRef<HTMLSpanElement>(null);
 
   const dismissFirstUse = useCallback(() => {
     helpDiscoveryStore.markTipSeen(topicId);

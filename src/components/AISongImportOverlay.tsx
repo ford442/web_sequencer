@@ -23,11 +23,11 @@ export const AISongImportOverlay = memo(function AISongImportOverlay({
     setAiImportProgress,
     showToast,
 }: AISongImportOverlayProps) {
+    const modalRef = useFocusTrap<HTMLDivElement>(isImportingAISong);
     if (!isImportingAISong) return null;
 
     const stageOrder = ['parsing', 'validating', 'converting', 'uploading', 'loading'];
     const currentIdx = aiImportStage ? stageOrder.indexOf(aiImportStage) : -1;
-    const modalRef = useFocusTrap<HTMLDivElement>(isImportingAISong);
 
     return (
         <div ref={modalRef} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="AI Song Import Progress" tabIndex={-1}>

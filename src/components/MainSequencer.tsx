@@ -72,11 +72,15 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Sync external zoomLevel prop → local state (e.g. when app state loads a saved value).
-    const prevZoomLevelRef = useRef(zoomLevel);
+    const [prevZoomLevel, setPrevZoomLevel] = useState(zoomLevel);
+    if (zoomLevel !== prevZoomLevel) {
+        setPrevZoomLevel(zoomLevel);
+        setZoom(zoomLevel);
+    }
+    const appliedZoomLevelRef = useRef(zoomLevel);
     useLayoutEffect(() => {
-        if (zoomLevel !== prevZoomLevelRef.current) {
-            prevZoomLevelRef.current = zoomLevel;
-            setZoom(zoomLevel);
+        if (zoomLevel !== appliedZoomLevelRef.current) {
+            appliedZoomLevelRef.current = zoomLevel;
             // Also sync the CSS variable immediately if the external prop changes
             if (containerRef.current) {
                 containerRef.current.style.setProperty('--zoom-level', zoomLevel.toString());
@@ -174,11 +178,13 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         selectionRef.current = selection;
     }, [selection]);
 
-    useEffect(() => {
-        setFocusedCell((prev) =>
-            prev.rowKey === selectedTrack ? prev : { rowKey: selectedTrack, step: prev.step },
-        );
-    }, [selectedTrack]);
+    const [prevSelectedTrack, setPrevSelectedTrack] = useState(selectedTrack);
+    if (prevSelectedTrack !== selectedTrack) {
+        setPrevSelectedTrack(selectedTrack);
+        if (focusedCell.rowKey !== selectedTrack) {
+            setFocusedCell({ rowKey: selectedTrack, step: focusedCell.step });
+        }
+    }
 
     const focusSequencerCell = useCallback((coord: SequencerCellCoord) => {
         setFocusedCell(coord);

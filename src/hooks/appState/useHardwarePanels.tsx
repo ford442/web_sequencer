@@ -9,16 +9,38 @@ import {
     tb303ModelFamily,
 } from '../../engines/TB303Models'
 import { ProphecyPanel } from '../../components/ProphecyPanel'
-import { CppPanel } from '../../components/CppPanel'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
 import { engineTelemetry } from '../../utils/engineTelemetry'
 import { Open303Manager } from '../../engines/Open303Manager'
+import type { LiveAbSettings } from '../../engines/LiveHighFidAbPair'
+import type { HighFidCoefficients, TB303VoiceExtra } from '../../types'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
-import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../types'
+import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../components/oscillatorThemes'
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
+
+/**
+ * Selector props for the per-song high-fid state (L2 A/B + L3 coefficients).
+ * Writes go to song state only; useAppState syncs `model303Extra` into the
+ * Open303Manager, so load, undo and UI edits all take the same path.
+ */
+function highFidExtraProps(
+    extra: TB303VoiceExtra | undefined,
+    update: (updates: { model303Extra: TB303VoiceExtra }) => void,
+) {
+    return {
+        liveAb: extra?.ab,
+        onLiveAbChange: (ab: LiveAbSettings) => update({ model303Extra: { ...extra, ab } }),
+        highFidCoefficients: extra?.highFidCoefficients,
+        onHighFidCoefficientsChange: (highFidCoefficients: HighFidCoefficients | undefined) => {
+            const next: TB303VoiceExtra = { ...extra, highFidCoefficients };
+            if (!highFidCoefficients) delete next.highFidCoefficients;
+            update({ model303Extra: next });
+        },
+    };
+}
 
 export function useHardwarePanels(deps: {
     synthA: SynthParams;
@@ -114,25 +136,19 @@ export function useHardwarePanels(deps: {
                     accentColor="cyan"
                     compact
                 />
-                {currentTypeA !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeA}
                     selected={synthA.waveform}
                     onChange={(w) => updateSynthA({ waveform: w })}
                     accentColor="cyan"
                 />
-                )}
-                {currentTypeA === 'cpp' && (
-                    <CppPanel
-                        waveform={synthA.waveform}
-                        fine={synthA.cppFine ?? 0.5}
-                        accentColor="cyan"
-                        onWaveformChange={(w) => updateSynthA({ waveform: w })}
-                        onFineChange={(v) => updateSynthA({ cppFine: v })}
-                    />
-                )}
                 {is303 && (
-                    <Voice303Selector model={modelA} onChange={handleSynthAVoiceChange} accentColor="cyan" />
+                    <Voice303Selector
+                        model={modelA}
+                        onChange={handleSynthAVoiceChange}
+                        accentColor="cyan"
+                        {...highFidExtraProps(synthA.model303Extra, updateSynthA)}
+                    />
                 )}
                 {isProphecy && (
                     <ProphecyPanel
@@ -148,7 +164,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.cppFine, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.model303Extra, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
 
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
@@ -200,25 +216,19 @@ export function useHardwarePanels(deps: {
                     accentColor="pink"
                     compact
                 />
-                {currentTypeB !== 'cpp' && (
                 <OscillatorVariantSelector
                     type={currentTypeB}
                     selected={synthB.waveform}
                     onChange={(w) => updateSynthB({ waveform: w })}
                     accentColor="pink"
                 />
-                )}
-                {currentTypeB === 'cpp' && (
-                    <CppPanel
-                        waveform={synthB.waveform}
-                        fine={synthB.cppFine ?? 0.5}
-                        accentColor="pink"
-                        onWaveformChange={(w) => updateSynthB({ waveform: w })}
-                        onFineChange={(v) => updateSynthB({ cppFine: v })}
-                    />
-                )}
                 {is303 && (
-                    <Voice303Selector model={modelB} onChange={handleSynthBVoiceChange} accentColor="pink" />
+                    <Voice303Selector
+                        model={modelB}
+                        onChange={handleSynthBVoiceChange}
+                        accentColor="pink"
+                        {...highFidExtraProps(synthB.model303Extra, updateSynthB)}
+                    />
                 )}
                 {isProphecy && (
                     <ProphecyPanel
@@ -234,7 +244,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.cppFine, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.model303Extra, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
 
     const bass2Child = useMemo(() => {
         const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);
@@ -261,11 +271,16 @@ export function useHardwarePanels(deps: {
                     onChange={(w) => updateBass2({ waveform: w as '303-saw' | '303-sqr' })}
                     accentColor="pink"
                 />
-                <Voice303Selector model={modelB2} onChange={handleBass2VoiceChange} accentColor="pink" />
+                <Voice303Selector
+                    model={modelB2}
+                    onChange={handleBass2VoiceChange}
+                    accentColor="pink"
+                    {...highFidExtraProps(bass2.model303Extra, updateBass2)}
+                />
             </div>
         </div>
         );
-    }, [bass2.waveform, bass2.engine303, bass2.model303, updateBass2, audioEngine]);
+    }, [bass2.waveform, bass2.engine303, bass2.model303, bass2.model303Extra, updateBass2, audioEngine]);
 
     const samplerChild = useMemo(() => (
         <div className="absolute top-2 left-[10%] right-[10%] max-h-[38%] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-y-auto">

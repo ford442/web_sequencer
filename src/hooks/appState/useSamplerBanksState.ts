@@ -29,20 +29,28 @@ export function useSamplerBanksState(audioEngine: AudioEngine | null) {
 
     useEffect(() => {
         activeSamplerBankRef.current = activeSamplerBank;
+    }, [activeSamplerBank]);
+
+    // Re-read the alignment when the bank changes. Adjusting state during
+    // render (instead of in an effect) avoids a cascading extra commit. Keyed on
+    // the bank only: the engine object identity is not a safe render-phase key.
+    const [alignmentBank, setAlignmentBank] = useState(activeSamplerBank);
+    if (alignmentBank !== activeSamplerBank) {
+        setAlignmentBank(activeSamplerBank);
         if (audioEngine && audioEngine.getAlignment) {
             setActiveAlignment(audioEngine.getAlignment(activeSamplerBank));
         }
-    }, [activeSamplerBank, audioEngine]);
+    }
 
     const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
     const loadedBanks = useMemo(() => sampleBuffers.map(b => !!b), [sampleBuffers]);
 
     const multisampleReady = useMemo(() =>
-        Array.from({ length: 8 }, (_, i) => audioEngine?.isMultisampleReady?.(i) ?? false),
+        sampleBuffers.map((_, i) => audioEngine?.isMultisampleReady?.(i) ?? false),
         [audioEngine, sampleBuffers]
     );
     const multisampleProcessing = useMemo(() =>
-        Array.from({ length: 8 }, (_, i) => {
+        sampleBuffers.map((_, i) => {
             const bank = audioEngine?.getMultisampleBank?.(i);
             return bank?.isProcessing ?? false;
         }),

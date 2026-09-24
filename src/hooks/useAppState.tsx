@@ -13,12 +13,23 @@
  * transportSyncStore.ts — each lets a component subscribe to exactly the
  * slice it needs via `useXStore(selector)`, independent of everything else):
  *
- *   1. UI modals       → src/stores/uiModalsStore.ts (done)
- *   2. Transport/mix   → src/stores/transportMixStore.ts (done)
- *   3. Sampler banks   → active bank, track storage, TTS phrases
- *   4. Pattern edit    → selection, clipboard, scale, zoom
- *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params
- *   6. Session/song    → song structure, session launcher state
+ *   1. UI modals       → src/stores/uiModalsStore.ts (done, #1259)
+ *   2. Transport/mix   → src/stores/transportMixStore.ts (done, #1284) —
+ *      wrapped by src/hooks/appState/useTransportMixState.ts so this
+ *      function keeps returning the same field names.
+ *   3. Sampler banks   → active bank, track storage, TTS phrases. Currently
+ *      src/hooks/appState/useSamplerBanksState.ts (plain useState); target
+ *      src/stores/samplerBanksStore.ts.
+ *   4. Pattern edit    → selection, clipboard, scale, zoom. Currently
+ *      src/hooks/appState/usePatternEditState.ts (plain useState); target
+ *      src/stores/patternEditStore.ts.
+ *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params.
+ *      Currently src/hooks/appState/useInstrumentState.ts (plain useState);
+ *      target src/stores/instrumentStateStore.ts.
+ *   6. Session/song    → song structure, session launcher state. Currently
+ *      src/hooks/appState/useSongModeState.ts and
+ *      src/hooks/appState/useSessionState.ts (plain useState); target
+ *      src/stores/songModeStore.ts and src/stores/sessionStore.ts.
  *
  * Each phase lands as its own PR: extract the sub-hook's `useState` calls
  * into an external store class + `useXStore(selector)` hook, keep this
@@ -97,6 +108,7 @@ export function useAppState() {
         isCloudLibraryOpen, setIsCloudLibraryOpen,
         isAISongModalOpen, setIsAISongModalOpen,
         isRbsImportModalOpen, setIsRbsImportModalOpen,
+        isSmfImportModalOpen, setIsSmfImportModalOpen,
         isExportModalOpen, setIsExportModalOpen,
         isLyricTrackVisible, setIsLyricTrackVisible,
         isShortcutsHelpOpen, setIsShortcutsHelpOpen,
@@ -312,6 +324,18 @@ export function useAppState() {
         }
     }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303, synthA.model303, synthB.model303, bass2.model303]);
 
+    // Live high-fid A/B + diode-ladder coefficients (L2/L3). Runs after the
+    // model sync above so A/B engages against the voice that was just set.
+    useEffect(() => {
+        const mgr = audioEngine?.open303Engine;
+        if (!(mgr instanceof Open303Manager) || typeof mgr.syncModel303Extras !== 'function') return;
+        mgr.syncModel303Extras({
+            lead: synthA.model303Extra,
+            bass1: synthB.model303Extra,
+            bass2: bass2.model303Extra,
+        });
+    }, [audioEngine, synthA.model303Extra, synthB.model303Extra, bass2.model303Extra, synthA.model303, synthB.model303, bass2.model303]);
+
     const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
 
     const {
@@ -433,7 +457,7 @@ export function useAppState() {
             automationStore.clearLiveValues();
             automationSchedulerRef.current?.cancelAll();
         }
-    }, [schedPlaying]);
+    }, [schedPlaying, songMeasureRef, setCurrentSongMeasure, isFirstStepRef, session.sessionEngineRef]);
 
     const {
         adjustTempo,
@@ -579,9 +603,9 @@ export function useAppState() {
 
     const {
         getSongData, getBankData, getPatternData,
-        exportSongToFile, exportRbsToFile, importSongFromFile,
+        exportSongToFile, exportRbsToFile, exportSmfToFile, importSongFromFile,
         handleSaveSong, loadSong, loadCloudData,
-        handleAISongImport, handleRbsImport,
+        handleAISongImport, handleRbsImport, handleSmfImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
         setIsImportingAISong, setAiImportStage, setAiImportProgress,
     } = useSongStorage({
@@ -597,7 +621,7 @@ export function useAppState() {
         setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
-        setIsAISongModalOpen, setIsRbsImportModalOpen,
+        setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
         setDrumKit: updateDrumKit,
         setIsSongModeActive,
         isSongModeActive,
@@ -637,6 +661,7 @@ export function useAppState() {
         isCloudLibraryOpen, setIsCloudLibraryOpen,
         isAISongModalOpen, setIsAISongModalOpen,
         isRbsImportModalOpen, setIsRbsImportModalOpen,
+        isSmfImportModalOpen, setIsSmfImportModalOpen,
         isExportModalOpen, setIsExportModalOpen,
         isLyricTrackVisible, setIsLyricTrackVisible,
         isShortcutsHelpOpen, setIsShortcutsHelpOpen,
@@ -824,12 +849,14 @@ export function useAppState() {
         getPatternData,
         exportSongToFile,
         exportRbsToFile,
+        exportSmfToFile,
         importSongFromFile,
         handleSaveSong,
         loadSong,
         loadCloudData,
         handleAISongImport,
         handleRbsImport,
+        handleSmfImport,
         isImportingAISong,
         aiImportProgress,
         aiImportStage,

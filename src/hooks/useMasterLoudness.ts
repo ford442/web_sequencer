@@ -35,16 +35,20 @@ export function useMasterLoudness(): UseMasterLoudnessResult {
     useEffect(() => subscribeMasterLoudnessStage(setStage), []);
 
     useEffect(() => {
-        if (!stage) {
-            setStats(IDLE_LOUDNESS_STATS);
-            return;
-        }
-        setLocalSettings(stage.getSettings());
-        setStats(stage.latestStats);
-        return stage.subscribe((next) => {
+        if (!stage) return;
+        // Seed from the stage on attach (the subscription only reports changes).
+        const seed = window.setTimeout(() => {
+            setLocalSettings(stage.getSettings());
+            setStats(stage.latestStats);
+        }, 0);
+        const unsubscribe = stage.subscribe((next) => {
             setStats(next);
             setLatencySeconds(stage.latencySeconds);
         });
+        return () => {
+            window.clearTimeout(seed);
+            unsubscribe();
+        };
     }, [stage]);
 
     const setSettings = useCallback(
@@ -60,7 +64,7 @@ export function useMasterLoudness(): UseMasterLoudnessResult {
     }, [stage]);
 
     return {
-        stats,
+        stats: stage ? stats : IDLE_LOUDNESS_STATS,
         settings,
         ready: stage !== null,
         latencySeconds,

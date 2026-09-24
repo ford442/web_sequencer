@@ -805,6 +805,10 @@ export const RackNode = React.memo(() => {
       isHarmonizeActive,
       samplerChild,
       expressionLedProps.sampler,
+      patternIndexFor,
+      handleAutomationNudge,
+      handleAutomationPunchIn,
+      handleAutomationLaneAction,
     ],
   );
 

@@ -41,13 +41,14 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                 onClick={onPlayToggle}
                 aria-pressed={isPlaying}
                 aria-label={isPlaying ? 'Stop playback' : 'Start playback'}
-                className={`mobile-tap-target min-w-[4.5rem] flex-1 max-w-[9rem] h-11 rounded-lg font-orbitron text-sm font-bold tracking-wider touch-manipulation ${
+                title={isPlaying ? 'Stop playback' : 'Start playback'}
+                className={`mobile-tap-target min-w-[4.5rem] flex-1 max-w-[9rem] h-11 rounded-lg font-orbitron text-sm font-bold tracking-wider touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] ${
                     isPlaying
                         ? 'bg-red-600 text-white border border-red-400'
                         : 'bg-green-600 text-white border border-green-400'
                 }`}
             >
-                {isPlaying ? '■ STOP' : '▶ PLAY'}
+                {isPlaying ? <><span aria-hidden="true">■</span> STOP</> : <><span aria-hidden="true">▶</span> PLAY</>}
             </button>
 
             <button
@@ -55,7 +56,8 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                 onClick={onRecordToggle}
                 aria-pressed={isRecording}
                 aria-label="Toggle recording"
-                className={`mobile-tap-target w-11 h-11 rounded-lg font-orbitron text-xs font-bold touch-manipulation ${
+                title="Toggle recording"
+                className={`mobile-tap-target w-11 h-11 rounded-lg font-orbitron text-xs font-bold touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] ${
                     isRecording
                         ? 'bg-red-600 text-white animate-pulse border border-red-400'
                         : 'bg-zinc-800 text-red-400 border border-zinc-700'
@@ -71,9 +73,10 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                     onPointerUp={onTempoNudgeEnd}
                     onPointerLeave={onTempoNudgeEnd}
                     aria-label="Decrease tempo"
-                    className="mobile-tap-target w-10 h-11 text-cyan-400 font-bold text-lg touch-manipulation"
+                    title="Decrease tempo"
+                    className="mobile-tap-target w-10 h-11 text-cyan-400 font-bold text-lg touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] rounded-l-lg"
                 >
-                    −
+                    <span aria-hidden="true">−</span>
                 </button>
                 <span className="w-12 text-center font-mono text-cyan-200 text-sm" aria-live="polite">
                     {tempo}
@@ -84,9 +87,10 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                     onPointerUp={onTempoNudgeEnd}
                     onPointerLeave={onTempoNudgeEnd}
                     aria-label="Increase tempo"
-                    className="mobile-tap-target w-10 h-11 text-cyan-400 font-bold text-lg touch-manipulation"
+                    title="Increase tempo"
+                    className="mobile-tap-target w-10 h-11 text-cyan-400 font-bold text-lg touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] rounded-r-lg"
                 >
-                    +
+                    <span aria-hidden="true">+</span>
                 </button>
             </div>
 
@@ -95,7 +99,8 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                 onClick={onSongModeToggle}
                 aria-pressed={isSongModeOpen}
                 aria-label="Toggle song mode"
-                className={`mobile-tap-target h-11 px-3 rounded-lg font-orbitron text-xs font-bold touch-manipulation ${
+                title="Toggle song mode"
+                className={`mobile-tap-target h-11 px-3 rounded-lg font-orbitron text-xs font-bold touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] ${
                     isSongModeOpen
                         ? 'bg-purple-600 text-white border border-purple-400'
                         : 'bg-zinc-800 text-gray-300 border border-zinc-700'
@@ -110,7 +115,8 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                 onClick={onSessionToggle}
                 aria-pressed={isSessionOpen}
                 aria-label="Toggle session launcher"
-                className={`mobile-tap-target h-11 px-3 rounded-lg font-orbitron text-xs font-bold touch-manipulation ${
+                title="Toggle session launcher"
+                className={`mobile-tap-target h-11 px-3 rounded-lg font-orbitron text-xs font-bold touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10] ${
                     isSessionOpen
                         ? 'bg-cyan-600 text-white border border-cyan-400'
                         : 'bg-zinc-800 text-gray-300 border border-zinc-700'
@@ -124,9 +130,10 @@ export const MobileTransportDock = memo(function MobileTransportDock({
                 type="button"
                 onClick={onPanic}
                 aria-label="Panic stop all notes"
-                className="mobile-tap-target w-11 h-11 rounded-lg bg-red-950/80 text-red-400 border border-red-900/60 font-bold touch-manipulation"
+                title="Panic stop all notes"
+                className="mobile-tap-target w-11 h-11 rounded-lg bg-red-950/80 text-red-400 border border-red-900/60 font-bold touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0d10]"
             >
-                !
+                <span aria-hidden="true">!</span>
             </button>
         </div>
     );

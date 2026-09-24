@@ -16,7 +16,7 @@
 **The full clean build cannot complete in a vanilla container.** Missing toolchain:
 - `emcc` (Emscripten) — required by `build:emcc` and `build:wasm:jc303` (`tools/build_jc303_omp.sh`). **Genuinely absent** (not an npm dep).
 - `wasm-opt` (binaryen) **and** `wasmedge` — required by `tools/optimize.sh`, which `exit 1`s if `wasm-opt` is missing and tries a `curl | bash` network install of `wasmedge` (fails offline).
-- `build:wasm:rust` (`wasm-pack`) needs network to fetch crates.
+- `bench:wasm:rust` (`wasm-pack`) needs network to fetch crates. Bench-only since #1294 — not part of `build:native`.
 - `asc` / `wasm-pack` themselves are fine via `node_modules` (npx-runnable).
 
 The repo **commits prebuilt WASM** (`src/wasm/*.wasm`, `public/*.wasm`), which is why `vite build` succeeds despite the missing compilers — but it also **masks** that the WASM stages are unreproducible without a documented/pinned toolchain.
@@ -32,7 +32,7 @@ The repo **commits prebuilt WASM** (`src/wasm/*.wasm`, `public/*.wasm`), which i
 
 - **jc303 stub check: PASS** — the 69 KB/83 KB sizes confirm a real Open303 build, not a stub fallback.
 - **Regression vs. plan history:** the weekly-plan Done note claimed jc303 WASM was "promoted to a Vite content-hashed asset." In the current `dist/` it is served **un-hashed from `public/`**. Cache-busting on redeploy therefore relies on the fixed path, not a content hash → **stale-cache risk** for jc303 after a redeploy. The hashing that did land applies to the **AssemblyScript** wasm, not jc303. Recommend confirming whether un-hashed jc303 is intended.
-- `public/rust-wasm/` is **empty** → the Rust audio WASM (`build:wasm:rust`) output is neither committed nor buildable here. Verify the app degrades gracefully when it's absent.
+- `public/rust-wasm/` is gone: the `rust-*` oscillator family was removed in #1294 and `rust-audio/` is a bench crate. Nothing in the app loads it.
 
 ## 3. Boot status (static serve)
 
@@ -69,7 +69,7 @@ From `deploy.py`:
 - **5 committed `.orig` merge artifacts** in `src/`: `MainSequencer.tsx.orig`, `useAudioEngine.ts.orig`, `useAppState.tsx.orig`, `audioEngine/audioPlayback.ts.orig`, `engines/rubberband/PhonemeAligner.ts.orig`. Not imported (build-safe) but should be deleted.
 - **Large bundles**: `index` 2.04 MB, `Studio3D` 1.24 MB — consider `manualChunks` / lazy-loading Studio3D.
 - **Build-time warnings**: `rubberband-lib.wasm` resolved at runtime via `new URL` (verify the file name matches `public/rubberband.wasm`); `fs` externalized in `src/utils/xm_save_lib/xmWriter.ts` (Node API in browser code); `CloudStorage.ts` mixed static+dynamic import defeats code-splitting; browserslist DB 6 months stale.
-- `public/rust-wasm/` empty (rust-audio WASM absent).
+- `rust-audio/` is a bench crate; it produces no shipped artifact.
 
 ## Explicitly NOT verified
 - Real-browser boot: WebGPU knob render, AudioContext init, Pyodide load (headless container — needs Playwright/manual).

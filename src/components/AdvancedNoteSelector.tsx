@@ -161,7 +161,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> =
           }
           didDragRef.current = false;
         },
-        [],
+        [currentMidi],
       );
 
       // --- Flyout ---

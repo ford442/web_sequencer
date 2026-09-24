@@ -36,6 +36,7 @@ export interface UIModalsState {
   isCloudLibraryOpen: boolean;
   isAISongModalOpen: boolean;
   isRbsImportModalOpen: boolean;
+  isSmfImportModalOpen: boolean;
   isExportModalOpen: boolean;
   isLyricTrackVisible: boolean;
   isShortcutsHelpOpen: boolean;
@@ -62,6 +63,7 @@ function createInitialState(): UIModalsState {
     isCloudLibraryOpen: false,
     isAISongModalOpen: false,
     isRbsImportModalOpen: false,
+    isSmfImportModalOpen: false,
     isExportModalOpen: false,
     isLyricTrackVisible: false,
     isShortcutsHelpOpen: false,
@@ -79,6 +81,7 @@ const BOOL_KEYS: BoolKey[] = [
   'isCloudLibraryOpen',
   'isAISongModalOpen',
   'isRbsImportModalOpen',
+  'isSmfImportModalOpen',
   'isExportModalOpen',
   'isLyricTrackVisible',
   'isShortcutsHelpOpen',
@@ -118,6 +121,7 @@ class UIModalsStore {
   setIsCloudLibraryOpen = (v: BoolAction): void => this.setBool('isCloudLibraryOpen', v);
   setIsAISongModalOpen = (v: BoolAction): void => this.setBool('isAISongModalOpen', v);
   setIsRbsImportModalOpen = (v: BoolAction): void => this.setBool('isRbsImportModalOpen', v);
+  setIsSmfImportModalOpen = (v: BoolAction): void => this.setBool('isSmfImportModalOpen', v);
   setIsExportModalOpen = (v: BoolAction): void => this.setBool('isExportModalOpen', v);
   setIsLyricTrackVisible = (v: BoolAction): void => this.setBool('isLyricTrackVisible', v);
   setIsShortcutsHelpOpen = (v: BoolAction): void => this.setBool('isShortcutsHelpOpen', v);

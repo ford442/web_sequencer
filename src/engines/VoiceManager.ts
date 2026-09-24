@@ -1,26 +1,14 @@
 import { type SynthParams } from '../types';
 import { tunedNoteToFrequency } from '../constants';
 import type { ScaleDefinition } from '../utils/musicTheory';
-import { parseWaveform, shapeToOscillatorType, type WaveShape } from '../utils/waveformParser';
-import type { WasmOscillator } from './WasmOscillator';
-import type { RustOscillator } from './RustOscillator';
+import { parseWaveform, shapeToOscillatorType, type ParsedWaveform } from '../utils/waveformParser';
 import { logEngineFallback, logWaveformSubstitution } from '../utils/engineTelemetry';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
-import {
-    PYODIDE_REF_FREQ,
-    generatePyodideLoopBuffer,
-    type PyodideLike,
-} from '../utils/pyodideBuffers';
+import { getOscillatorRegistry } from './backends/BackendRegistry';
+import { engineEntry } from './backends/engineCatalog';
+import { TABLE_DURATION_SEC, TABLE_REF_FREQ } from './backends/OscillatorBackend';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
-
-export interface VoiceEngineDeps {
-    wasmEngine?: WasmOscillator | null;
-    wgslBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
-    rustEngine?: RustOscillator | null;
-    pyodideEngine?: PyodideLike | null;
-    pyodideBuffers?: Partial<Record<WaveShape, AudioBuffer | null>>;
-}
 
 export class Voice implements PoolableVoice {
     context: AudioContext;
@@ -41,34 +29,28 @@ export class Voice implements PoolableVoice {
     currentNote: string = '';
     currentSourceType: string = '';
 
-    // Buffers for wav-based waveforms
-    private wavSawBuffer?: AudioBuffer;
-    private wavSqrBuffer?: AudioBuffer;
-
     private cleanupTimer: any = null;
     private globalDelayNode?: DelayNode;
     private globalDelaySendGain?: GainNode;
 
-    private engineDeps?: VoiceEngineDeps;
+    /**
+     * Legacy waveform ids already reported this note-on onwards, so a saved
+     * song full of retired `rust-*`/`cpp-*` notes reports the substitution once
+     * rather than flooding the HUD on every note.
+     */
+    private static reportedLegacy = new Set<string>();
 
-    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
-        this.engineDeps = { ...this.engineDeps, ...deps };
-    }
+    /** Reference pitch of the table currently loaded in `source`, for slides. */
+    private currentBaseFrequency = TABLE_REF_FREQ;
 
     constructor(
         context: AudioContext,
         destination: AudioNode,
-        wavSaw?: AudioBuffer,
-        wavSqr?: AudioBuffer,
         globalDelayNode?: DelayNode,
-        engineDeps?: VoiceEngineDeps,
     ) {
         this.context = context;
         this.destination = destination;
-        this.wavSawBuffer = wavSaw;
-        this.wavSqrBuffer = wavSqr;
         this.globalDelayNode = globalDelayNode;
-        this.engineDeps = engineDeps;
 
         // Create permanent nodes
         this.filter = context.createBiquadFilter();
@@ -133,7 +115,6 @@ export class Voice implements PoolableVoice {
 
         const waveform = params.waveform;
         const parsed = parseWaveform(waveform);
-        const isWav = parsed.engine === 'wav';
         const canReuse = this.source &&
                         this.isActive &&
                         slideFromFreq !== undefined &&
@@ -146,7 +127,10 @@ export class Voice implements PoolableVoice {
                 this.source.frequency.setValueAtTime(slideFrom!, now);
                 this.source.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
             } else if (this.source instanceof AudioBufferSourceNode) {
-                const baseFreq = 261.63; // C4
+                // The table's own reference pitch, reported by the backend that
+                // rendered it — not a hardcoded C4 (Pyodide and the PCM/GPU
+                // tables need not agree).
+                const baseFreq = this.currentBaseFrequency;
                 const startRate = slideFrom! / baseFreq;
                 const endRate = freq / baseFreq;
                 this.source.playbackRate.cancelScheduledValues(now);
@@ -165,143 +149,21 @@ export class Voice implements PoolableVoice {
             this.stop(now);
 
             let createdSource: OscillatorNode | AudioBufferSourceNode | null = null;
+            let baseFrequency = freq;
 
-            const REF_FREQ = 261.63; // C4 — all pre-rendered buffers use this reference
-
-            if (isWav) {
-                // PCM/WAV: use preloaded buffer. If the buffer hasn't loaded yet,
-                // warn and fall through to the JS oscillator (avoids silent note).
-                const buf = parsed.shape === 'sqr' ? this.wavSqrBuffer : this.wavSawBuffer;
-                if (buf) {
-                    const src = this.context.createBufferSource();
-                    src.buffer = buf;
-                    src.loop = true;
-                    src.playbackRate.value = freq / REF_FREQ;
-                    createdSource = src;
-                } else {
-                    logEngineFallback('wav', 'pcm', `wav-${parsed.shape} buffer not loaded yet`);
-                }
-            } else if (parsed.engine === 'wam') {
-                // WAM (AssemblyScript/WASM oscillator). Bug fix: was checking 'wasm' but
-                // parseWaveform returns 'wam' for wam-* prefixes. Now checks 'wam'.
-                if (this.engineDeps?.wasmEngine?.isReady) {
-                    const float = this.engineDeps.wasmEngine.generate(
-                        REF_FREQ,
-                        2.0,
-                        this.context.sampleRate,
-                        parsed.shape,
-                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-                        Math.max(0.1, params.filterResonance),
-                    );
-                    if (float && float.length > 0) {
-                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
-                        buf.getChannelData(0).set(float);
-                        const src = this.context.createBufferSource();
-                        src.buffer = buf;
-                        src.loop = true;
-                        src.playbackRate.value = freq / REF_FREQ;
-                        createdSource = src;
-                    } else {
-                        logEngineFallback('wam', 'wasm', `WasmOscillator.generate() returned empty for wam-${parsed.shape}`);
-                    }
-                } else {
-                    logEngineFallback('wam', 'wasm', `WasmOscillator not ready for wam-${parsed.shape}`);
-                }
-            } else if (parsed.engine === 'rust') {
-                // Rust/WASM oscillator. Supports saw and sqr only; tri/sin are not
-                // defined as valid Rust waveforms in types.ts so this is a guard.
-                if (this.engineDeps?.rustEngine?.isReady) {
-                    // The Rust kernel only implements saw/sqr. Mapping tri/sin onto
-                    // saw changes the wave family the user hears, so it is reported
-                    // (HUD + telemetry) instead of being applied silently.
-                    const needsSubstitution = parsed.shape === 'tri' || parsed.shape === 'sin';
-                    const rustShape = needsSubstitution ? 'saw' : (parsed.shape as 'saw' | 'sqr');
-                    if (needsSubstitution) {
-                        logWaveformSubstitution(
-                            'rust',
-                            'rust',
-                            parsed.shape,
-                            rustShape,
-                            'Rust oscillator implements saw/sqr only',
-                        );
-                    }
-                    const float = this.engineDeps.rustEngine.generate(
-                        REF_FREQ,
-                        2.0,
-                        this.context.sampleRate,
-                        rustShape,
-                        Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-                        Math.max(0.1, params.filterResonance),
-                    );
-                    if (float && float.length > 0) {
-                        const buf = this.context.createBuffer(1, float.length, this.context.sampleRate);
-                        buf.getChannelData(0).set(float);
-                        const src = this.context.createBufferSource();
-                        src.buffer = buf;
-                        src.loop = true;
-                        src.playbackRate.value = freq / REF_FREQ;
-                        createdSource = src;
-                    } else {
-                        logEngineFallback('rust', 'wasm', `RustOscillator.generate() returned empty for rust-${parsed.shape}`);
-                    }
-                } else {
-                    logEngineFallback('rust', 'wasm', `RustOscillator not ready for rust-${parsed.shape}`);
-                }
-            } else if (parsed.engine === 'wgsl') {
-                // WebGPU: use pre-rendered buffer. Buffers are only populated when
-                // gpuEngine.isSupported; when unavailable we fall through to JS.
-                const buf = this.engineDeps?.wgslBuffers?.[parsed.shape];
-                if (buf) {
-                    const src = this.context.createBufferSource();
-                    src.buffer = buf;
-                    src.loop = true;
-                    src.playbackRate.value = freq / REF_FREQ;
-                    createdSource = src;
-                } else {
-                    logEngineFallback(
-                        'webgpu',
-                        'webgpu',
-                        `wgsl-${parsed.shape} buffer unavailable (GPU unsupported or pre-render pending)`,
-                    );
-                }
-            } else if (parsed.engine === 'pyodide') {
-                const pyodide = this.engineDeps?.pyodideEngine;
-                if (pyodide) {
-                    let buf =
-                        this.engineDeps?.pyodideBuffers?.[parsed.shape] ?? null;
-                    if (!buf) {
-                        buf = generatePyodideLoopBuffer(
-                            pyodide,
-                            this.context,
-                            parsed.shape,
-                            params.filterCutoff,
-                            params.filterResonance,
-                        );
-                    }
-                    if (buf) {
-                        const src = this.context.createBufferSource();
-                        src.buffer = buf;
-                        src.loop = true;
-                        src.playbackRate.value = freq / PYODIDE_REF_FREQ;
-                        createdSource = src;
-                        this.filter.frequency.setValueAtTime(
-                            Math.min(params.filterCutoff, 20000),
-                            now,
-                        );
-                    } else {
-                        logEngineFallback(
-                            'pyodide',
-                            'pyodide',
-                            `generate_loop_buffer returned empty for pyodide-${parsed.shape}`,
-                        );
-                    }
-                } else {
-                    logEngineFallback(
-                        'pyodide',
-                        'pyodide',
-                        `Pyodide not ready for pyodide-${parsed.shape}`,
-                    );
-                }
+            // === ENGINE SELECTION ===
+            // One story: the catalog names the backend that owns this waveform
+            // family, and BackendRegistry walks the single documented fallback
+            // order from there, publishing every step it takes. There are no
+            // per-prefix `generate()` + looped-buffer branches here any more.
+            const rendered = this.renderLoop(parsed, params);
+            if (rendered) {
+                const src = this.context.createBufferSource();
+                src.buffer = rendered.buffer;
+                src.loop = true;
+                src.playbackRate.value = freq / rendered.baseFrequency;
+                createdSource = src;
+                baseFrequency = rendered.baseFrequency;
             }
 
             // Final fallback: JS oscillator using the correct wave family so the
@@ -314,6 +176,7 @@ export class Voice implements PoolableVoice {
             }
 
             this.source = createdSource;
+            this.currentBaseFrequency = baseFrequency;
 
             this.currentSourceType = waveform;
             this.source.connect(this.filter);
@@ -393,6 +256,63 @@ export class Voice implements PoolableVoice {
         }, (releaseEnd - this.context.currentTime + 0.2) * 1000);
     }
 
+
+    /**
+     * Render the looped table for `parsed`, entering `BackendRegistry` at the
+     * backend the engine catalog names for that family.
+     *
+     * Returns null when nothing in the chain could service the request — the
+     * caller then builds an `OscillatorNode` of the right wave family, which is
+     * the documented terminal step (`js`), not a silent substitution.
+     */
+    private renderLoop(
+        parsed: ParsedWaveform,
+        params: SynthParams,
+    ): { buffer: AudioBuffer; baseFrequency: number } | null {
+        if (parsed.legacyFrom && !Voice.reportedLegacy.has(parsed.legacyFrom)) {
+            Voice.reportedLegacy.add(parsed.legacyFrom);
+            logWaveformSubstitution(
+                'oscillators',
+                parsed.engine,
+                parsed.shape,
+                parsed.shape,
+                `"${parsed.legacyFrom}" was retired; rendering on ${engineEntry(parsed.engine).label}`,
+            );
+        }
+
+        const entry = engineEntry(parsed.engine);
+        if (entry.kind === 'native-worklet') {
+            // 303 / Prophecy voices live in hyphon_native worklets owned by
+            // their managers; Voice is never the right renderer for them. Say
+            // so rather than quietly producing an OscillatorNode.
+            logEngineFallback(
+                parsed.engine,
+                'wasm-worklet',
+                `${entry.label} voices are owned by ${entry.owner}, not VoiceManager`,
+            );
+            return null;
+        }
+
+        const registry = getOscillatorRegistry();
+        if (!registry) {
+            logEngineFallback(
+                parsed.engine,
+                entry.backendId,
+                'no oscillator backend registry (audio engine not initialized)',
+            );
+            return null;
+        }
+
+        return registry.renderLoopFrom(entry.backendId, this.context, {
+            frequency: TABLE_REF_FREQ,
+            duration: TABLE_DURATION_SEC,
+            sampleRate: this.context.sampleRate,
+            shape: parsed.shape,
+            cutoff: Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+            resonance: Math.max(0.1, params.filterResonance),
+        });
+    }
+
     stop(time: number): void {
         if (this.cleanupTimer) {
             clearTimeout(this.cleanupTimer);
@@ -417,15 +337,12 @@ export class VoiceManager extends VoicePool<Voice> {
         destination: AudioNode,
         polyphony: number,
         monophonic: boolean,
-        wavSaw?: AudioBuffer,
-        wavSqr?: AudioBuffer,
         globalDelayNode?: DelayNode,
-        engineDeps?: VoiceEngineDeps,
     ) {
         super(polyphony);
         this.monophonic = monophonic;
         this.voices = Array.from({ length: this.maxVoices }, () =>
-            new Voice(context, destination, wavSaw, wavSqr, globalDelayNode, engineDeps)
+            new Voice(context, destination, globalDelayNode)
         );
     }
 
@@ -477,12 +394,6 @@ export class VoiceManager extends VoicePool<Voice> {
 
     override stopAll(time?: number): void {
         super.stopAll(time ?? this.voices[0]?.context.currentTime ?? 0);
-    }
-
-    updateEngineDeps(deps: Partial<VoiceEngineDeps>): void {
-        for (const voice of this.voices) {
-            voice.updateEngineDeps(deps);
-        }
     }
 
     /** Prefer idle voices; stop and steal the round-robin victim when saturated. */

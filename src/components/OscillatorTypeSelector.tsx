@@ -1,7 +1,8 @@
 // ⚡ Bolt: Added React.memo to prevent unnecessary re-renders when parent state changes.
 import React, { memo } from 'react';
-import type { OscillatorType, OscillatorTheme } from '../types';
-import { OSCILLATOR_THEMES } from '../types';
+import type { OscillatorType } from '../types';
+import type { OscillatorTheme } from './oscillatorThemes';
+import { OSCILLATOR_THEMES } from './oscillatorThemes';
 
 interface OscillatorTypeSelectorProps {
   /** Currently active oscillator family (derived or stored). */
@@ -70,10 +71,8 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
             jc303: 'bg-gradient-to-b from-teal-500 to-teal-600 text-white border-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.35)]',
             prophecy: 'bg-gradient-to-b from-violet-500 to-violet-600 text-white border-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.35)]',
             pyodide: 'bg-gradient-to-b from-yellow-500 to-yellow-600 text-white border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.35)]',
-            rust: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.35)]',
             webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_10px_rgba(217,70,239,0.35)]',
             wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.35)]',
-            cpp: 'bg-gradient-to-b from-fuchsia-500 via-violet-500 to-indigo-600 text-white border-fuchsia-300 shadow-[0_0_12px_rgba(217,70,239,0.45)]',
           };
 
           return (

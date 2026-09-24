@@ -19,6 +19,7 @@ export function useUIModalsState() {
         isCloudLibraryOpen: state.isCloudLibraryOpen, setIsCloudLibraryOpen: uiModalsStore.setIsCloudLibraryOpen,
         isAISongModalOpen: state.isAISongModalOpen, setIsAISongModalOpen: uiModalsStore.setIsAISongModalOpen,
         isRbsImportModalOpen: state.isRbsImportModalOpen, setIsRbsImportModalOpen: uiModalsStore.setIsRbsImportModalOpen,
+        isSmfImportModalOpen: state.isSmfImportModalOpen, setIsSmfImportModalOpen: uiModalsStore.setIsSmfImportModalOpen,
         isExportModalOpen: state.isExportModalOpen, setIsExportModalOpen: uiModalsStore.setIsExportModalOpen,
         isLyricTrackVisible: state.isLyricTrackVisible, setIsLyricTrackVisible: uiModalsStore.setIsLyricTrackVisible,
         isShortcutsHelpOpen: state.isShortcutsHelpOpen, setIsShortcutsHelpOpen: uiModalsStore.setIsShortcutsHelpOpen,

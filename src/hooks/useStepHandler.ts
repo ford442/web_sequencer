@@ -740,7 +740,7 @@ export const useStepHandler = ({
                 automationStore.setLiveValues(liveValues);
             }
         }
-    }, [audioEngine, tempo, onParamChange, currentScaleRef, automationSchedulerRef]);
+    }, [audioEngine, tempo, onParamChange, currentScaleRef, automationSchedulerRef, activeSamplerBankRef, bass2Ref, closedHatRef, currentStepRef, isFirstStepRef, isSongModeActiveRef, kickRef, lastFreqRef, lastSamplerFormantRef, lastSamplerMidiRef, onSessionTick, openHatRef, patternRef, rbsArrangementExtrasRef, samplerRef, samplerVoiceParamsRef, sequencerRef, sessionClockRef, sessionEngineRef, setBass2, setCurrentSongMeasure, setIsSongModeActive, setSynthA, setSynthB, sliceHighlightRef, snareRef, songMeasureRef, songStructureRef, synthARef, synthBRef, trackStorageRef, trakEventsRef]);
 
     return { onStep };
 };

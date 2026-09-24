@@ -2,11 +2,18 @@
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 import {
+  RENDER_SIZE_HINT_PREFS,
   SAMPLE_RATE_PREFS,
+  getStoredRenderSizeHintPref,
   getStoredSampleRatePref,
+  parseRenderSizeHintPref,
+  setStoredRenderSizeHintPref,
   setStoredSampleRatePref,
+  supportsRenderSizeHint,
+  toAudioContextRenderSizeHint,
   type SampleRatePref,
 } from '../utils/audioContextPolicy';
+import { canReinitAudioEngine, reinitAudioEngineFromGesture } from '../hooks/audioEngine/audioEngineReinit';
 import {
   applyAudioOutputSink,
   listAudioOutputDevices,
@@ -15,6 +22,7 @@ import {
   supportsSetSinkId,
 } from '../utils/audioOutputDevice';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
+import { BACKEND_LABELS } from '../engines/backends/OscillatorBackend';
 import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
 import { getWamHost } from '../audio/wam/WamHost';
@@ -49,7 +57,10 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   #${CONTAINER_ID} .backend-js { background:#6b7280; }
   #${CONTAINER_ID} .backend-wav { background:#f59e0b; color:#000 }
   #${CONTAINER_ID} .backend-wam { background:#0ea5e9; }
-  #${CONTAINER_ID} .backend-rust { background:#b45309; }
+  #${CONTAINER_ID} .backend-pyodide { background:#ca8a04; color:#000 }
+  /* Web Audio Modules 2.0 slots — a different system to the \`wam\` oscillator
+     backend above (ADR 0001), so it gets its own badge colour. */
+  #${CONTAINER_ID} .backend-wam2 { background:#7c3aed; }
   #${CONTAINER_ID} .backend-open303 { background:#7c3aed }
   #${CONTAINER_ID} .cpu-ok { color:#86efac; }
   #${CONTAINER_ID} .cpu-warn { color:#fde047; }
@@ -67,6 +78,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   let visible = new URLSearchParams(location.search).get('hud') === '1';
   let audioOutputDevices: MediaDeviceInfo[] = [];
   let sinkListError: string | null = null;
+  let reinitError: string | null = null;
 
   function cpuClass(pct: number): string {
     if (pct >= 80) return 'cpu-hot';
@@ -102,6 +114,8 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       <div class="row"><div style="flex:1">Base latency</div><div style="min-width:72px;text-align:right">${runtime.baseLatencyMs != null ? runtime.baseLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Output latency</div><div style="min-width:72px;text-align:right">${runtime.outputLatencyMs != null ? runtime.outputLatencyMs.toFixed(1) + ' ms' : '—'}</div></div>
       <div class="row"><div style="flex:1">Latency hint (active)</div><div style="min-width:72px;text-align:right">${runtime.latencyHint ?? '—'}</div></div>
+      <div class="row"><div style="flex:1">Render quantum</div><div style="min-width:72px;text-align:right" title="renderSizeHint requested: ${runtime.renderSizeHintRequested ?? 'default'}">${runtime.renderQuantumSize != null ? runtime.renderQuantumSize + ' fr' : '—'} (${runtime.renderSizeHintRequested ?? 'default'})</div></div>
+      ${runtime.contextOptionFallback ? `<div class="row"><div style="flex:1">Option fallback</div><div class="cpu-warn" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${runtime.contextOptionFallback}">dropped</div></div>` : ''}
       <div class="row"><div style="flex:1">Glitches</div><div style="min-width:72px;text-align:right">${runtime.glitches.length}</div></div>`;
 
     const storedMode = getStoredLatencyMode();
@@ -122,16 +136,28 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const requestedMatchesStored = storedRate === 'native'
       ? runtime.requestedSampleRate == null
       : runtime.requestedSampleRate === storedRate;
+    const renderSizeSupported = supportsRenderSizeHint();
+    const storedRenderSize = getStoredRenderSizeHintPref();
+    const renderSizeButtons = RENDER_SIZE_HINT_PREFS.map((pref) => {
+      const active = pref === storedRenderSize;
+      const style = active ? 'background:#0ea5e9;border-color:#0ea5e9;' : '';
+      return `<button type="button" aria-label="${pref} render size" class="hud-rsize-btn" data-rsize="${pref}" style="${style}">${pref}</button>`;
+    }).join('');
+    const storedRenderHint = renderSizeSupported ? toAudioContextRenderSizeHint(storedRenderSize) ?? null : null;
     const needsRestart =
       (runtime.latencyHint != null && storedMode !== runtime.latencyHint)
-      || (runtime.sampleRate != null && !requestedMatchesStored);
+      || (runtime.sampleRate != null && !requestedMatchesStored)
+      || (runtime.sampleRate != null && storedRenderHint !== runtime.renderSizeHintRequested);
     const restartNote = needsRestart
-      ? '<button type="button" id="hud-apply-restart" aria-label="Apply and restart audio context" style="margin-top:4px">Apply &amp; restart audio</button>'
+      ? `<button type="button" id="hud-apply-restart" aria-label="Apply and re-initialise the audio engine" style="margin-top:4px">${canReinitAudioEngine() ? 'Apply (re-init engine)' : 'Apply &amp; reload'}</button>`
       : '';
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>
       <div class="subheader">Sample rate</div>
-      <div class="row" style="gap:4px">${rateButtons}</div>${restartNote}`;
+      <div class="row" style="gap:4px">${rateButtons}</div>${renderSizeSupported ? `
+      <div class="subheader">Render size hint</div>
+      <div class="row" style="gap:4px">${renderSizeButtons}</div>` : ''}${reinitError ? `
+      <div style="font-size:10px;color:#f87171">${reinitError.replace(/</g, '&lt;')}</div>` : ''}${restartNote}`;
 
     const sinkSection = supportsSetSinkId()
       ? `<div class="subheader">Audio output</div>
@@ -221,9 +247,16 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         runtime.liveHighFidCpuPercent != null ? `${runtime.liveHighFidCpuPercent.toFixed(0)}%` : '—';
     const liveHfOs = runtime.liveHighFidOversample != null ? `${runtime.liveHighFidOversample}×` : '—';
     const liveHfReason = runtime.liveHighFidFallbackReason ?? '';
+    // Phase-L2 — live A/B: one CPU row per side, the gate only ever trips B.
+    const pct = (v: number | null) => (v != null ? `${v.toFixed(0)}%` : '—');
+    const abMix = runtime.liveAbMix != null ? `${Math.round(runtime.liveAbMix * 100)}% B` : '—';
+    const abRows = runtime.liveAbEngaged !== true ? '' : `
+      <div class="row" title="Live A/B blend: 0% = stock Open303 (A), 100% = live high-fid (B)"><div style="flex:1">A/B blend</div><div style="min-width:72px;text-align:right">${abMix}</div></div>
+      <div class="row"><div style="flex:1">A stock CPU</div><div style="min-width:72px;text-align:right">${pct(runtime.liveAbStockCpuPercent)}</div></div>
+      <div class="row"><div style="flex:1">B hifi CPU</div><div style="min-width:72px;text-align:right">${pct(runtime.liveAbHighFidCpuPercent)}</div></div>`;
     const liveSection = runtime.liveHighFidActive == null ? '' : `<div class="subheader">Live 303 path</div>
       <div class="row" title="${liveHfReason}"><div style="flex:1">Audible</div><div class="${liveHfClass}" style="min-width:96px;text-align:right;font-size:10px">${liveHfBadge}</div></div>
-      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>
+      <div class="row"><div style="flex:1">HiFi CPU</div><div style="min-width:72px;text-align:right">${liveHfCpu} @ ${liveHfOs}</div></div>${abRows}
       ${liveHfReason ? `<div class="row" title="${liveHfReason}"><div style="flex:1">Fallback</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${liveHfReason}</div></div>` : ''}`;
 
     // One shared hyphon_native heap for 303 + Prophecy + live high-fid.
@@ -258,7 +291,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         const state = active ? 'ACTIVE' : a.reason ?? (a.ready ? 'ready' : 'not ready');
         const color = active ? '#86efac' : a.reason ? '#f87171' : '#9ca3af';
         return `<div class="row" title="${a.reason ?? ''}">
-          <div class="badge backend-${a.id}">${a.id}</div>
+          <div class="badge backend-${a.id}" title="${BACKEND_LABELS[a.id] ?? a.id}">${BACKEND_LABELS[a.id] ?? a.id}</div>
           <div style="flex:1"></div>
           <div style="color:${color};font-size:10px;text-align:right;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state}</div>
         </div>`;
@@ -301,7 +334,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       const mounted = slot.status === 'ready' || slot.status === 'bypassed';
       const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
       const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
-      return `<div class="row"${err}><div class="badge backend-wam">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
+      return `<div class="row"${err}><div class="badge backend-wam2">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
       ? `<div class="row"><div style="flex:1">COOP isolated</div><div style="min-width:72px;text-align:right">${runtime.wam2Constraints.crossOriginIsolated ? 'yes' : 'no'}</div></div>
@@ -351,8 +384,26 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         setStoredSampleRatePref(pref);
         render();
       }
+    } else if (target.classList.contains('hud-rsize-btn')) {
+      const pref = parseRenderSizeHintPref(target.getAttribute('data-rsize'));
+      if (pref) {
+        setStoredRenderSizeHintPref(pref);
+        render();
+      }
     } else if (target.id === 'hud-apply-restart') {
-      location.reload();
+      if (!canReinitAudioEngine()) {
+        location.reload();
+        return;
+      }
+      // Synchronous call from the click: the new context is built and
+      // resumed inside this gesture, before any await (see audioEngineReinit).
+      target.setAttribute('disabled', 'true');
+      reinitError = null;
+      reinitAudioEngineFromGesture()
+        .catch((err: unknown) => {
+          reinitError = err instanceof Error ? err.message : 'Audio engine re-init failed';
+        })
+        .finally(render);
     } else if (target.id === 'hud-sink-grant') {
       void (async () => {
         try {
@@ -382,7 +433,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const select = target as HTMLSelectElement;
     const deviceId = select.value;
     const device = audioOutputDevices.find((d) => d.deviceId === deviceId);
-    setStoredAudioOutput(device ? { groupId: device.groupId, label: device.label } : null);
+    setStoredAudioOutput(device ? { groupId: device.groupId, label: device.label, deviceId: device.deviceId } : null);
     const ctx = (window as Window & { audioContext?: AudioContext }).audioContext;
     if (ctx) {
       void applyAudioOutputSink(ctx, deviceId).then((sink) => {

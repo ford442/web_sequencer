@@ -91,6 +91,7 @@ export interface SongStorageDeps {
     // Modal setters referenced by import functions
     setIsAISongModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsSmfImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
     // Drum kit setter (optional for backwards compat)
     setDrumKit?: (kit: DrumKitType) => void;
@@ -115,6 +116,7 @@ export interface SongStorageReturn {
     // File I/O
     exportSongToFile: () => Promise<void>;
     exportRbsToFile: () => Promise<void>;
+    exportSmfToFile: () => Promise<void>;
     importSongFromFile: () => void;
 
     // Save / Load
@@ -125,6 +127,7 @@ export interface SongStorageReturn {
     // Importers
     handleAISongImport: (song: SavedSongData, aiData: AISongData) => Promise<void>;
     handleRbsImport: (song: import('../importers/rbs').HyphonSong) => void;
+    handleSmfImport: (song: import('../importers/smf').HyphonSmfSong) => void;
 
     // AI import progress state
     isImportingAISong: boolean;
@@ -149,7 +152,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
-        setIsAISongModalOpen, setIsRbsImportModalOpen,
+        setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
         clearSongUndo,
     } = deps;
 
@@ -224,7 +227,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 presetId: DEFAULT_PRESET_ID,
             },
         } as SavedSongData;
-    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases]);
+    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases, activeTrackSlotsRef, bass2Ref, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, patternRef, samplerRef, sessionDocumentRef, snareRef, songStructureRef, synthARef, synthBRef, tempoRef, trackStorageRef]);
 
     const getBankData = useCallback(() => {
         return { type: 'bank', trackStorage };
@@ -355,7 +358,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 showToast("Pattern loaded!", "success");
             }
         }
-    }, [audioEngine, sampleBuffers, showToast]);
+    }, [audioEngine, showToast, bass2Ref, clearSongUndo, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, samplerRef, setActiveTrackSlots, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampleBuffers, setSampler, setSessionDocument, setSnare, setSongStructure, setSynthA, setSynthB, setTempo, setTrackStorage, setTtsPhrases, snareRef, synthARef, synthBRef]);
 
     const handleSaveSong = useCallback(async (slot: number) => {
         const encodedSamples: { [k: number]: string } = {};
@@ -384,7 +387,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         };
         setSongStorage(prev => { const copy = [...prev]; copy[slot] = snapshot; return copy; });
         setActiveSongSlot(slot);
-    }, [sampleBuffers, pattern, tempo, ambianceUrl, backgroundImage]);
+    }, [sampleBuffers, pattern, tempo, ambianceUrl, backgroundImage, bass2Ref, closedHatRef, kickRef, openHatRef, samplerRef, setActiveSongSlot, setSongStorage, snareRef, synthARef, synthBRef]);
 
     const loadSong = useCallback((slot: number) => {
         const snapshot = songStorage[slot];
@@ -410,7 +413,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         closedHatRef.current = snapshot.params.closedHat;
         openHatRef.current = snapshot.params.openHat;
         samplerRef.current = snapshot.params.sampler;
-    }, [songStorage]);
+    }, [songStorage, bass2Ref, closedHatRef, kickRef, openHatRef, samplerRef, setActiveSongSlot, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampler, setSnare, setSynthA, setSynthB, setTempo, snareRef, synthARef, synthBRef]);
 
     // ---- File I/O ----
 
@@ -472,7 +475,43 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             console.error('RBS export failed:', err);
             showToast('Failed to export .rbs file', 'error');
         }
-    }, [getSongData, showToast]);
+    }, [getSongData, showToast, deps.isSongModeActive, deps.trakEventsRef]);
+
+    const exportSmfToFile = useCallback(async () => {
+        try {
+            // Dynamically imported so the SMF import/export surface never lands
+            // in the entry chunk — only an actual "Export .mid" click does.
+            const { SmfExporter, hyphonSongFromSavedDataForSmf } = await import('../importers/smf');
+            const songData = await getSongData();
+            const exporter = new SmfExporter();
+            const input = hyphonSongFromSavedDataForSmf(songData);
+            const result = exporter.exportToBlob(input, { useSongMode: !!deps.isSongModeActive });
+            if (!result.success || !result.blob) {
+                showToast(result.error ?? 'MIDI export failed', 'error');
+                return;
+            }
+            if (result.warnings.length > 0) {
+                console.warn('[SMF Export warnings]', result.warnings);
+            }
+            const url = URL.createObjectURL(result.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.mid`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(
+                result.warnings.length > 0
+                    ? `Exported .mid (${result.warnings.length} compatibility warning(s))`
+                    : 'Exported Standard MIDI file!',
+                result.warnings.length > 0 ? 'info' : 'success',
+            );
+        } catch (err) {
+            console.error('SMF export failed:', err);
+            showToast('Failed to export .mid file', 'error');
+        }
+    }, [getSongData, showToast, deps.isSongModeActive]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -591,7 +630,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Re-throw so modal can handle retry if needed
             throw error;
         }
-    }, [loadCloudData, showToast]);
+    }, [loadCloudData, showToast, setIsAISongModalOpen]);
 
     // ---- RBS Import ----
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
@@ -745,7 +784,77 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         applyPcfFilterToEffect(song.pcfFilter, audioEngine?.pcfEffect ?? null);
 
         // Keep the import modal open so ImportReportPanel stays visible until the user clicks Done.
-    }, [loadCloudData, audioEngine, deps]);
+    }, [loadCloudData, audioEngine, deps, bass2Ref, setBass2]);
+
+    // ---- SMF (Standard MIDI File) Import ----
+    const handleSmfImport = useCallback((song: import('../importers/smf').HyphonSmfSong) => {
+        // SMF carries no Hyphon-specific synth params (no PCF/303 knob data) —
+        // unlike RBS import, keep the current synth/drum params and only
+        // replace pattern data + (optional) CC74 automation.
+        const automationLanes: UnifiedAutomationLane[] | undefined = song.automation && song.automation.length > 0
+            ? convertHyphonLanes(song.automation as unknown as Parameters<typeof convertHyphonLanes>[0])
+            : undefined;
+
+        const arrangement = song.songArrangement;
+
+        const trackStorage: SavedSongData['trackStorage'] = arrangement
+            ? migrateTrackStorage(arrangement.trackStorage)
+            : (() => {
+                const storage = createEmptyTrackStorage();
+                storage.partA[0] = song.pattern.partA;
+                storage.partB[0] = song.pattern.partB;
+                storage.bass2[0] = song.pattern.bass2;
+                storage.kick[0] = song.pattern.kick;
+                storage.snare[0] = song.pattern.snare;
+                storage.closedHat[0] = song.pattern.closedHat;
+                storage.openHat[0] = song.pattern.openHat;
+                storage.sampler[0] = song.pattern.sampler;
+                return storage;
+            })();
+
+        const songStructure: SavedSongData['songStructure'] = arrangement
+            ? arrangement.songStructure
+            : Array(16).fill(null).map(() => ({
+                partA: 0, partB: 0, bass2: 0, kick: 0,
+                snare: 0, closedHat: 0, openHat: 0, sampler: null,
+            }));
+
+        const activeTrackSlots = deriveActiveTrackSlotsFromStructure(
+            songStructure as Array<Partial<Record<TrackKey, number | null>>>,
+        );
+
+        const savedSong: SavedSongData = {
+            version: SAVED_SONG_DATA_VERSION,
+            pattern: song.pattern,
+            tempo: song.tempo,
+            timeSignature: song.timeSignature,
+            ambianceUrl: '',
+            backgroundImage: '',
+            params: {
+                synthA: synthARef.current,
+                synthB: synthBRef.current,
+                bass2: bass2Ref.current,
+                kick: kickRef.current,
+                snare: snareRef.current,
+                closedHat: closedHatRef.current,
+                openHat: openHatRef.current,
+                sampler: samplerRef.current,
+            },
+            trackStorage,
+            activeTrackSlots,
+            songStructure,
+            ttsPhrases: Array(8).fill('Hello World'),
+            ...(automationLanes ? { automationLanes } : {}),
+        };
+
+        void loadCloudData(savedSong, 'song');
+
+        if (arrangement && arrangement.songStructure.length > 1) {
+            deps.setIsSongModeActive?.(true);
+        }
+
+        // Keep the import modal open so the report stays visible until the user clicks Done.
+    }, [loadCloudData, deps, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef, synthARef, synthBRef]);
 
     return {
         getSongData,
@@ -753,12 +862,14 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         getPatternData,
         exportSongToFile,
         exportRbsToFile,
+        exportSmfToFile,
         importSongFromFile,
         handleSaveSong,
         loadSong,
         loadCloudData,
         handleAISongImport,
         handleRbsImport,
+        handleSmfImport,
         isImportingAISong,
         aiImportProgress,
         aiImportStage,

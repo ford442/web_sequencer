@@ -91,8 +91,10 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
   const abortControllerRef = useRef<AbortController | null>(null);
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
-  // Reset state when modal opens/closes
-  useEffect(() => {
+  // Reset state when modal closes (derived during render, not in an effect)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (!isOpen) {
       setDroppedFile(null);
       setParsedData(null);
@@ -106,10 +108,12 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
       setIsImporting(false);
       setImportReport(null);
       setImportedSongName('');
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
+    }
+  }
+  useEffect(() => {
+    if (!isOpen && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   }, [isOpen]);
 

@@ -40,7 +40,7 @@ function pyodideSamplesToFloat32(pyProxy: {
 /** Synchronous one-shot buffer for a single note (used when pre-render cache misses). */
 export function generatePyodideLoopBuffer(
   pyodide: PyodideLike,
-  context: AudioContext,
+  context: BaseAudioContext,
   shape: WaveShape,
   filterCutoff = DEFAULT_CUTOFF,
   filterResonance = DEFAULT_RESONANCE,
@@ -71,7 +71,7 @@ export function generatePyodideLoopBuffer(
 /** Pre-render C4 loop buffers for live VoiceManager playback. */
 export async function prerenderPyodideBuffers(
   pyodide: PyodideLike,
-  context: AudioContext,
+  context: BaseAudioContext,
 ): Promise<Partial<Record<WaveShape, AudioBuffer | null>>> {
   const shapes: WaveShape[] = ['saw', 'sqr', 'sin'];
   const out: Partial<Record<WaveShape, AudioBuffer | null>> = {};

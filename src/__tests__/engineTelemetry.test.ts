@@ -18,12 +18,12 @@ import { engineDegradationStore } from '../stores/engineDegradationStore';
 describe('resolvePublicAsset', () => {
   it('returns absolute URLs rooted at BASE_URL', () => {
     const wasmUrl = resolvePublicAsset('hyphon_native.wasm');
-    const rustUrl = resolvePublicAsset('/rust-wasm/rust_audio.js');
+    const oscUrl = resolvePublicAsset('/wasm/oscillators.wasm');
 
     expect(wasmUrl).toMatch(/^https?:\/\//);
     expect(wasmUrl).toMatch(/hyphon_native\.wasm$/);
-    expect(rustUrl).toMatch(/^https?:\/\//);
-    expect(new URL(rustUrl).pathname).toMatch(/rust-wasm\/rust_audio\.js$/);
+    expect(oscUrl).toMatch(/^https?:\/\//);
+    expect(new URL(oscUrl).pathname).toMatch(/wasm\/oscillators\.wasm$/);
   });
 
   it('returns an absolute URL when window.location is available', () => {
@@ -34,8 +34,8 @@ describe('resolvePublicAsset', () => {
       value: { href: 'https://test.1ink.us/hyphon/index.html' },
       configurable: true,
     });
-    const url = resolvePublicAsset('rust-wasm/rust_audio.js');
-    expect(url).toBe('https://test.1ink.us/hyphon/rust-wasm/rust_audio.js');
+    const url = resolvePublicAsset('wasm/oscillators.wasm');
+    expect(url).toBe('https://test.1ink.us/hyphon/wasm/oscillators.wasm');
     import.meta.env.BASE_URL = originalBase;
     Object.defineProperty(window, 'location', {
       value: { href: original },
@@ -231,14 +231,14 @@ describe('logEngineFallback', () => {
     const record = vi.spyOn(tel, 'recordError');
 
     // Patch module singleton methods for this assertion via direct call pattern
-    logEngineFallback('rust', 'wasm', 'import failed', new Error('404'));
+    logEngineFallback('wam', 'wasm', 'import failed', new Error('404'));
     expect(console.error).toHaveBeenCalled();
 
     // Global singleton should also have been updated
     const snap = engineTelemetry.snapshot();
-    expect(snap.rust?.resolution?.backend).toBe('fallback');
-    expect(snap.rust?.resolution?.reason).toContain('import failed');
-    expect(snap.rust?.errors.count).toBeGreaterThan(0);
+    expect(snap.wam?.resolution?.backend).toBe('fallback');
+    expect(snap.wam?.resolution?.reason).toContain('import failed');
+    expect(snap.wam?.errors.count).toBeGreaterThan(0);
 
     register.mockRestore();
     record.mockRestore();

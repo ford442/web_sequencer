@@ -1,11 +1,10 @@
 import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
-import { RustOscillator } from '../../engines/RustOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
 import {
     JsOscillatorBackend,
-    RustWasmBackend,
+    PyodideBackend,
     WamWasmBackend,
     WavPcmBackend,
     WebGpuBackend,
@@ -20,7 +19,7 @@ import { DEFAULT_DRUM_KIT } from '../../constants';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
 import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
-import { startGlitchMonitor } from '../../utils/workletPerfBridge';
+import { startGlitchMonitor, stopGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import {
     PatchController,
@@ -31,12 +30,13 @@ import {
 import { WamHost, setWamHost } from '../../audio/wam';
 import {
     createMasterLoudnessStage,
+    getMasterLoudnessStage,
     setMasterLoudnessStage,
 } from '../../audio/loudness';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
-import { createAudioContext } from './audioContextFactory';
+import { createAudioContext, type AudioContextCreation } from './audioContextFactory';
 import {
     createNoiseBuffer,
     initializeHarmonizer,
@@ -105,17 +105,26 @@ export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
     latencyHint: LatencyMode = getStoredLatencyMode(),
+    /**
+     * A context already built (and resumed) inside a user gesture — the HUD
+     * "Apply" path. When omitted the context is constructed here, which is
+     * only gesture-safe because nothing is awaited before `resume()` below.
+     */
+    precreated?: AudioContextCreation,
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
     loadingProgressStore.startStep('audioContext');
-    const created = createAudioContext(latencyHint);
+    const created = precreated ?? createAudioContext(latencyHint);
     const context = created.context;
     loadingProgressStore.completeStep('audioContext');
     audioWindow.audioContext = context;
     startGlitchMonitor(context, {
-        latencyHint,
+        latencyHint: created.latencyHint,
         requestedSampleRate: created.requestedSampleRate,
         sampleRateFallback: created.sampleRateFallback,
+        renderSizeHintRequested: created.requestedRenderSizeHint,
+        renderQuantumSize: created.renderQuantumSize,
+        contextOptionFallback: created.optionFallback,
     });
     void applyAudioOutputSink(context).then((sink) => {
         if (sink) engineTelemetry.recordAudioOutputSink(sink);
@@ -153,29 +162,38 @@ export async function initializeAudioContextAndEngines(
 
     // Initialize oscillator backends through the shared registry. Every engine
     // is wrapped in an OscillatorBackend adapter so readiness is typed and the
-    // fallback chain (WebGPU → AS WASM → Rust → WAV PCM → JS) lives in one place.
+    // fallback chain (WebGPU → WASM OSC → Pyodide → WAV PCM → JS) lives in one
+    // place — including for the realtime note path (#1294).
+    //
+    // There is exactly one WASM wavetable engine: the AssemblyScript kernel
+    // behind `WamWasmBackend`. The Rust `generate()` + looped-buffer duplicate
+    // was removed; `rust-audio/` remains a bench crate.
     const registry = new BackendRegistry();
     const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
     const wamBackend = new WamWasmBackend(new WasmOscillator());
-    const rustBackend = new RustWasmBackend(new RustOscillator());
+    const pyodideBackend = new PyodideBackend();
     const wavBackend = new WavPcmBackend();
     registry.register(webGpuBackend);
     registry.register(wamBackend);
-    registry.register(rustBackend);
+    registry.register(pyodideBackend);
     registry.register(wavBackend);
     registry.register(new JsOscillatorBackend());
     setOscillatorRegistry(registry);
 
-    // The WAV backend only becomes supported once its tables are decoded, so it
-    // is initialized further down; the GPU/WASM/Rust backends init here.
+    // The WAV backend only becomes supported once its tables are decoded, and
+    // Pyodide attaches later still (see `attachPyodideOscillator`); the
+    // GPU/WASM backends init here.
     loadingProgressStore.startStep('webGpuEngine');
     await webGpuBackend.init(context);
     loadingProgressStore.completeStep('webGpuEngine');
 
     loadingProgressStore.startStep('wasmEngine');
     await wamBackend.init(context);
-    await rustBackend.init(context);
     loadingProgressStore.completeStep('wasmEngine');
+
+    // Fails until a runtime attaches — the point of the call is to hand the
+    // backend the AudioContext it will allocate tables in.
+    await pyodideBackend.init(context);
 
     refs.gpuEngineRef.current = webGpuBackend.raw;
     refs.wasmEngineRef.current = wamBackend.raw;
@@ -262,17 +280,10 @@ export async function initializeAudioContextAndEngines(
     // Initialize Voice Managers (routed through per-track monitor buses for expression LEDs)
     const synthADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
     const synthBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
-    refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
-    refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, sawBuf || undefined, sqrBuf || undefined, refs.delayNodeRef.current || undefined);
-
-    // Hand the initialized backends to the voices so rust-*/wam-* waveforms
-    // reach a real engine instead of dropping straight to the JS oscillator.
-    const voiceEngineDeps = {
-        wasmEngine: wamBackend.raw,
-        rustEngine: rustBackend.raw,
-    };
-    refs.voiceManagerARef.current.updateEngineDeps(voiceEngineDeps);
-    refs.voiceManagerBRef.current.updateEngineDeps(voiceEngineDeps);
+    // Voices take no engine handles: they ask `BackendRegistry` for the family
+    // they were given and it decides which backend renders it.
+    refs.voiceManagerARef.current = new VoiceManager(context, synthADest, 8, false, refs.delayNodeRef.current || undefined);
+    refs.voiceManagerBRef.current = new VoiceManager(context, synthBDest, 1, true, refs.delayNodeRef.current || undefined);
 
     if (isAppleWebKit()) {
         logEngineFallback('sustain', 'wasm-worklet', 'AudioWorklet addModule skipped on WebKit');
@@ -363,4 +374,65 @@ export async function initializeAudioContextAndEngines(
     }
 
     return { context, masterBusInput };
+}
+
+/**
+ * Tear the running engine down so `initializeAudioContextAndEngines` can build
+ * a fresh one (HUD "Apply" for sample rate / latency / render size / sink).
+ *
+ * Worklet nodes are disconnected and their ports closed before the context is
+ * closed: closing the context is what actually releases the AudioWorklet
+ * global scope, and with it the one hyphon_native heap the voice processors
+ * share (#1229) — the next context instantiates a fresh one.
+ */
+export async function teardownAudioEngine(
+    refs: EngineLifecycleRefs,
+    context: AudioContext | null,
+): Promise<void> {
+    const safely = (label: string, fn: () => void): void => {
+        try {
+            fn();
+        } catch (e) {
+            console.warn(`[engineLifecycle] teardown ${label} failed:`, e);
+        }
+    };
+
+    safely('open303', () => refs.open303ManagerRef.current?.cleanup());
+    safely('prophecy', () => refs.prophecyManagerRef.current?.cleanup());
+    safely('drumkit', () => refs.drumKitEngineRef.current?.dispose());
+    safely('sustain', () => {
+        const node = refs.sustainNodeRef.current;
+        if (node) {
+            node.disconnect();
+            node.port.close();
+        }
+    });
+    safely('loudness', () => {
+        getMasterLoudnessStage()?.dispose();
+        setMasterLoudnessStage(null);
+    });
+    safely('wam', () => setWamHost(null));
+    stopGlitchMonitor();
+
+    refs.open303ManagerRef.current = null;
+    refs.prophecyManagerRef.current = null;
+    refs.drumKitEngineRef.current = null;
+    refs.sustainNodeRef.current = null;
+    refs.singingVoiceManagerRef.current = null;
+    refs.phonemeBufferPoolRef.current = null;
+    refs.voiceManagerARef.current = null;
+    refs.voiceManagerBRef.current = null;
+    refs.multisampleGeneratorRef.current = null;
+
+    const audioWindow = window as AudioWindow;
+    if (context && audioWindow.audioContext === context) {
+        audioWindow.audioContext = undefined;
+    }
+    if (context && context.state !== 'closed') {
+        try {
+            await context.close();
+        } catch (e) {
+            console.warn('[engineLifecycle] AudioContext.close() failed:', e);
+        }
+    }
 }

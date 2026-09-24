@@ -10,6 +10,7 @@
  *   HYPHON_DIST_DIR=/tmp/bundle node scripts/check-release-dist.mjs   # check a fixture
  */
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
@@ -135,6 +136,48 @@ if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
   );
 }
 
+// Oscillator panel art: `dist/osc/` must contain exactly the WebPs that
+// OSCILLATOR_PANEL_IMAGES still names (#1294). Families that were retired
+// (cpp, rust) and orphans (dwgs) used to ship as dead weight — this keeps the
+// panel list and the shipped assets honest in both directions.
+{
+  const oscDir = path.join(distDir, 'osc');
+  if (fs.existsSync(oscDir)) {
+    const themesSrc = fs.readFileSync(
+      path.join(repoRoot, 'src', 'components', 'oscillatorThemes.ts'),
+      'utf8',
+    );
+    const block = themesSrc.match(
+      /OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = \{([\s\S]*?)\}/,
+    );
+    if (!block) {
+      console.error(
+        '[check-release-dist] could not read OSCILLATOR_PANEL_IMAGES from src/components/oscillatorThemes.ts.',
+      );
+      process.exit(1);
+    }
+    const referenced = new Set(
+      [...block[1].matchAll(/'\/osc\/([^']+)'/g)].map((m) => m[1]),
+    );
+    const shipped = fs.readdirSync(oscDir).filter((f) => !fs.statSync(path.join(oscDir, f)).isDirectory());
+
+    const unreferenced = shipped.filter((f) => !referenced.has(f));
+    if (unreferenced.length) {
+      console.error('[check-release-dist] dist/osc/ ships panel art no oscillator family references:');
+      for (const f of unreferenced) console.error(`  osc/${f}`);
+      console.error('  Delete it from public/osc/, or add the family to OSCILLATOR_PANEL_IMAGES.');
+      process.exit(1);
+    }
+
+    const missing = [...referenced].filter((f) => !shipped.includes(f));
+    if (missing.length) {
+      console.error('[check-release-dist] OSCILLATOR_PANEL_IMAGES names art missing from dist/osc/:');
+      for (const f of missing) console.error(`  osc/${f}`);
+      process.exit(1);
+    }
+  }
+}
+
 // Worklets that must ship in every production bundle (imported from reachable code paths).
 const REQUIRED_WORKLET_PROCESSORS = [
   'clock-processor',
@@ -170,6 +213,234 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
     'use ?worker&url imports instead.',
   );
   process.exit(1);
+}
+
+
+// ---------------------------------------------------------------------------
+// AudioWorklet chunks must be self-contained.
+//
+// A worklet global scope has no module loader: an `import` or `export` that
+// survives into an emitted worklet chunk throws at addModule() time, and only
+// in production — dev serves the graph unbundled, so nothing fails locally.
+// The check above proves each processor NAME is present somewhere in dist/;
+// this proves the chunk that registers it can actually be loaded.
+//
+// Matching requires a QUOTED SPECIFIER rather than stripping literals first.
+// Stripping is not safe on minified JS: a regex literal such as
+// `e.match(/([^\/]+|\/)\/*$/)` contains `/*`, which a scanner reads as a
+// comment opener and then swallows most of the file. Requiring `from"…"` (or a
+// bare `import"…"`) instead is precise and stateless — and still ignores the
+// Emscripten glue's template strings like `import ${e.module}.${e.name}`,
+// which have no from-clause.
+{
+  // The chunk that calls registerProcessor() is the one the worklet loads.
+  const workletChunks = distJsFiles.filter((p) =>
+    /(^|[^\w.$])registerProcessor\s*\(/.test(fs.readFileSync(p, 'utf8')),
+  );
+
+  if (workletChunks.length < REQUIRED_WORKLET_PROCESSORS.length) {
+    console.error(
+      `[check-release-dist] expected at least ${REQUIRED_WORKLET_PROCESSORS.length} worklet chunk(s) ` +
+      `calling registerProcessor(), found ${workletChunks.length}. A worklet was probably inlined ` +
+      'into a shared chunk, which makes it unloadable in a worklet scope.',
+    );
+    process.exit(1);
+  }
+
+  // Every alternative demands a quoted specifier, so nothing inside a template
+  // string can satisfy it. Minified output has no space before `from`.
+  const Q = String.raw`["']`;
+  const STATIC_IMPORT = new RegExp(
+    [
+      String.raw`(?:^|[;}\s])import\s*\{[^}]*\}\s*from\s*` + Q,       // import{a}from"…"
+      String.raw`(?:^|[;}\s])import\s*\*\s*as\s+[\w$]+\s*from\s*` + Q, // import*as n from"…"
+      String.raw`(?:^|[;}\s])import\s+[\w$]+\s*(?:,\s*\{[^}]*\}\s*)?from\s*` + Q, // import d[,{a}]from"…"
+      String.raw`(?:^|[;}\s])import\s*` + Q,                              // bare import"…"
+    ].join('|'),
+  );
+  const STATIC_EXPORT = new RegExp(
+    [
+      String.raw`(?:^|[;}\s])export\s*[{*]`,
+      String.raw`(?:^|[;}\s])export\s+(?:default|const|let|var|function|class|async)\b`,
+    ].join('|'),
+  );
+
+  const leaky = [];
+  for (const p of workletChunks) {
+    const src = fs.readFileSync(p, 'utf8');
+    const offences = [];
+    if (STATIC_IMPORT.test(src)) offences.push('import');
+    if (STATIC_EXPORT.test(src)) offences.push('export');
+    if (offences.length) {
+      leaky.push(`${path.relative(distDir, p)} (${offences.join(', ')})`);
+    }
+  }
+
+  if (leaky.length) {
+    console.error(
+      '[check-release-dist] AudioWorklet chunk(s) contain runtime import/export — ' +
+      'a worklet scope has no module loader, so addModule() will throw in production:',
+    );
+    for (const msg of leaky) console.error(`  ${msg}`);
+    console.error(
+      '  Keep `worker: { format: "es" }` emitting one self-contained chunk per worklet; ' +
+      'do not let manualChunks split a worklet across chunks.',
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `[check-release-dist] ${workletChunks.length} worklet chunk(s) are self-contained.`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Every emitted asset URL must resolve under the deploy base.
+//
+// `base` is './' (vitest.shared.ts), so the bundler's own output is
+// base-relative. What that does NOT cover is a URL assembled at runtime —
+// addModule('/foo.js'), wasmPaths = '/onnx-runtime/' — which resolves against
+// the ORIGIN, not the base, and so 404s under a subdirectory deploy while
+// working perfectly on a root-served dev server. That is the #1176/#1177
+// failure mode: silent in dev, fatal in prod.
+{
+  const baseFailures = [];
+
+  // 1. Bundler-emitted sibling references must point at files that exist.
+  for (const p of distJsFiles) {
+    const src = fs.readFileSync(p, 'utf8');
+    // Emscripten glue carries a default `new URL('<mod>.wasm', import.meta.url)`
+    // that the caller overrides by passing `wasmBinary` (the already-fetched
+    // bytes) and/or a `locateFile` hook — see src/audio-worklets/*-processor.ts,
+    // which fetch rubberband.wasm from the deploy base themselves. In such a
+    // chunk the default path is dead, so its target is not a shipped-asset claim.
+    const overridesWasmPath = /\blocateFile\b|\bwasmBinary\b/.test(src);
+    for (const m of src.matchAll(/new URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/g)) {
+      const ref = m[1];
+      if (/^(?:[a-z]+:)?\/\//i.test(ref)) {
+        baseFailures.push(`${path.relative(distDir, p)} builds an absolute remote URL: ${ref}`);
+        continue;
+      }
+      if (ref.startsWith('/')) {
+        baseFailures.push(
+          `${path.relative(distDir, p)} builds an origin-rooted URL: ${ref} ` +
+          '(resolves against the origin, not the deploy base)',
+        );
+        continue;
+      }
+      const bare = ref.split('?')[0].split('#')[0];
+      if (bare.endsWith('.wasm') && overridesWasmPath) continue;
+      const target = path.join(path.dirname(p), bare);
+      if (!fs.existsSync(target)) {
+        baseFailures.push(`${path.relative(distDir, p)} references a missing sibling: ${ref}`);
+      }
+    }
+
+    // 2. Runtime-assembled worklet/wasm URLs must not be origin-rooted.
+    for (const m of src.matchAll(/addModule\(\s*["'](\/[^"']*)["']/g)) {
+      baseFailures.push(
+        `${path.relative(distDir, p)} calls addModule("${m[1]}") — an origin-rooted path ` +
+        'that ignores the deploy base. Use an `?worker&url` import or import.meta.env.BASE_URL.',
+      );
+    }
+    for (const m of src.matchAll(/wasmPaths\s*[:=]\s*["'](\/[^"']*)["']/g)) {
+      baseFailures.push(
+        `${path.relative(distDir, p)} sets wasmPaths to "${m[1]}" — an origin-rooted path ` +
+        'that ignores the deploy base. Derive it from import.meta.env.BASE_URL.',
+      );
+    }
+  }
+
+  // 3. index.html asset references must be base-relative and present.
+  if (fs.existsSync(indexHtmlPath)) {
+    const html = fs.readFileSync(indexHtmlPath, 'utf8');
+    const refs = [
+      ...[...html.matchAll(/<script[^>]*\ssrc=["']([^"']+)["']/gi)].map((m) => m[1]),
+      ...[...html.matchAll(/<link[^>]*\shref=["']([^"']+)["']/gi)].map((m) => m[1]),
+    ];
+    for (const ref of refs) {
+      if (/^(?:[a-z]+:)?\/\//i.test(ref) || ref.startsWith('data:')) continue;
+      if (ref.startsWith('/')) {
+        baseFailures.push(
+          `index.html references "${ref}" from the origin root — it will 404 under a ` +
+          'subdirectory deploy. Vite `base` is "./", so emitted refs should be relative.',
+        );
+        continue;
+      }
+      const target = path.join(distDir, ref.replace(/^\.\//, '').split('?')[0].split('#')[0]);
+      if (!fs.existsSync(target)) {
+        baseFailures.push(`index.html references a missing asset: ${ref}`);
+      }
+    }
+  }
+
+  if (baseFailures.length) {
+    console.error('[check-release-dist] emitted URL(s) do not resolve under the deploy base:');
+    for (const msg of baseFailures) console.error(`  ${msg}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ONNX Runtime must load its wasm binary from our own build, not a CDN.
+//
+// `ort.env.wasm.wasmPaths` used to point at jsDelivr, pinned to a hardcoded
+// version while package.json declared a caret range — so a patch bump would
+// have served newer JS against older binaries with no error anywhere. Vite
+// already emits ORT's binary as a content-hashed build asset and rewrites the
+// runtime's own `new URL(..., import.meta.url)` reference to it, so the fix was
+// to stop assigning wasmPaths at all (see src/services/ortRuntime.ts). This
+// asserts that outcome rather than trusting it.
+{
+  const ortFailures = [];
+
+  const ortWasm = walk(distDir).filter((p) => /ort-wasm[\w.-]*\.wasm$/.test(path.basename(p)));
+  const ortChunks = distJsFiles.filter((p) => /ort-wasm[\w.-]*\.wasm/.test(fs.readFileSync(p, 'utf8')));
+
+  if (ortChunks.length && !ortWasm.length) {
+    ortFailures.push(
+      'the bundle references an ORT wasm binary but none was emitted into dist/ — ' +
+      'ONNX Runtime would 404 on first TTS use',
+    );
+  }
+
+  // Every ORT binary the bundle names must actually exist next to the chunk
+  // that names it. (The generic deploy-base check above skips `.wasm` targets
+  // in chunks that override the path via locateFile/wasmBinary; ORT does not,
+  // so it is checked explicitly here.)
+  for (const p of ortChunks) {
+    const src = fs.readFileSync(p, 'utf8');
+    for (const m of src.matchAll(/new URL\(\s*["'](ort-wasm[\w.-]*\.wasm)["']\s*,\s*import\.meta\.url\s*\)/g)) {
+      if (!fs.existsSync(path.join(path.dirname(p), m[1]))) {
+        ortFailures.push(`${path.relative(distDir, p)} references a missing ORT binary: ${m[1]}`);
+      }
+    }
+  }
+
+  // No ORT consumer may reach a CDN: that puts a headline feature on a third
+  // party and outside our COOP/COEP, which ORT's threading depends on.
+  for (const p of distJsFiles) {
+    if (/cdn\.jsdelivr\.net[^"']*onnxruntime|unpkg\.com[^"']*onnxruntime/.test(fs.readFileSync(p, 'utf8'))) {
+      ortFailures.push(
+        `${path.relative(distDir, p)} points ONNX Runtime at a CDN — the wasm binary must come ` +
+        'from this build (do not assign ort.env.wasm.wasmPaths; see src/services/ortRuntime.ts)',
+      );
+    }
+  }
+
+  if (ortFailures.length) {
+    console.error('[check-release-dist] ONNX Runtime wasm hosting:');
+    for (const msg of ortFailures) console.error(`  ${msg}`);
+    process.exit(1);
+  }
+
+  if (ortWasm.length) {
+    const total = ortWasm.reduce((sum, p) => sum + fs.statSync(p).size, 0);
+    console.log(
+      `[check-release-dist] ONNX Runtime is self-hosted — ${ortWasm.length} binary/binaries, ` +
+      `${(total / 1e6).toFixed(1)} MB, no CDN.`,
+    );
+  }
 }
 
 // Both hyphon_native link profiles ship (docs/wasm/BUILD_NOTES.md#threading-profiles):
@@ -330,8 +601,10 @@ if (rawTsInDist.length) {
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by
 // onnxruntime-web on first TTS use, not part of what ships to every visitor.
 const budgetPath = path.join(repoRoot, 'dist-budget.json');
-if (fs.existsSync(budgetPath)) {
-  const budget = JSON.parse(fs.readFileSync(budgetPath, 'utf8'));
+const budget = fs.existsSync(budgetPath)
+  ? JSON.parse(fs.readFileSync(budgetPath, 'utf8'))
+  : null;
+if (budget) {
   const budgetFailures = [];
 
   const indexHtml = fs.existsSync(indexHtmlPath) ? fs.readFileSync(indexHtmlPath, 'utf8') : '';
@@ -384,6 +657,136 @@ if (fs.existsSync(budgetPath)) {
   if (budgetFailures.length) {
     console.error('[check-release-dist] bundle-size budget exceeded (dist-budget.json):');
     for (const msg of budgetFailures) console.error(`  ${msg}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Compressed per-chunk budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget).
+//
+// Raw bytes are not the wire cost, so these rows gate on brotli. They are
+// per-chunk rather than per-directory because once React and ORT move out of
+// the entry, the next regression is not "the bundle grew" but "the vendor-onnx
+// chunk quietly became 4 MB" — which a directory total would absorb.
+//
+// Budget values live in dist-budget.json, so raising one is a reviewed diff
+// with a stated reason. See that file's `_procedure` field.
+{
+  const brotli = (p) => zlib.brotliCompressSync(fs.readFileSync(p)).length;
+  const rows = [];
+  const failures = [];
+
+  const compressed = budget?.compressed;
+  if (compressed) {
+    const indexHtml = fs.existsSync(indexHtmlPath) ? fs.readFileSync(indexHtmlPath, 'utf8') : '';
+    const entrySrc = indexHtml.match(/<script[^>]*\stype=["']module["'][^>]*\ssrc=["']([^"']+)["']/i)?.[1];
+    const entryPath = entrySrc ? path.join(distDir, entrySrc.replace(/^\.\//, '')) : null;
+
+    // Chunks reachable from the entry by STATIC import only — what a visitor
+    // downloads before anything is interactive. A dynamic import() is
+    // deliberately not followed: that is the whole point of deferring ORT.
+    const eager = new Set();
+    if (entryPath && fs.existsSync(entryPath)) {
+      const rel = (f) => path.relative(distDir, f).split(path.sep).join('/');
+      const queue = [entryPath];
+      eager.add(rel(entryPath));
+      while (queue.length) {
+        const file = queue.pop();
+        const src = fs.readFileSync(file, 'utf8');
+        for (const m of src.matchAll(/(?:^|[;}\s])(?:import|export)\s*(?:[\w${},*\s]*?\sfrom\s*)?["']([^"']+)["']/g)) {
+          const spec = m[1];
+          if (!spec.startsWith('.')) continue;
+          const target = path.join(path.dirname(file), spec);
+          if (!fs.existsSync(target)) continue;
+          const key = rel(target);
+          if (eager.has(key)) continue;
+          eager.add(key);
+          queue.push(target);
+        }
+      }
+    }
+
+    const named = (prefix) =>
+      distJsFiles.filter((p) => path.basename(p).startsWith(prefix + '-'));
+
+    const addRow = (label, file, max) => {
+      if (!file || !fs.existsSync(file)) return;
+      const size = brotli(file);
+      const name = path.relative(distDir, file);
+      rows.push({ label, name, size, max });
+      if (typeof max === 'number' && size > max) {
+        failures.push(
+          `${label} (${name}) is ${size.toLocaleString()} B brotli, over budget of ` +
+          `${max.toLocaleString()} B — ${(size - max).toLocaleString()} B over`,
+        );
+      }
+    };
+
+    addRow('entry JS', entryPath, compressed.entryChunkMaxBytes);
+    addRow('vendor-react chunk', named('vendor-react')[0], compressed.vendorReactChunkMaxBytes);
+
+    const onnxChunk = named('vendor-onnx')[0];
+    addRow('vendor-onnx chunk', onnxChunk, compressed.vendorOnnxChunkMaxBytes);
+
+    // The gate that matters more than the ORT chunk's size: it must not be
+    // pulled into the eager graph. A single static `import * as ort` anywhere
+    // undoes the deferral without changing any chunk's size.
+    if (onnxChunk) {
+      const key = path.relative(distDir, onnxChunk).split(path.sep).join('/');
+      if (eager.has(key)) {
+        failures.push(
+          `vendor-onnx chunk (${key}) is reachable from the entry chunk by static import — ` +
+          'ONNX Runtime must stay behind the dynamic import() in src/services/ortRuntime.ts, ' +
+          'or every visitor pays for it before the sequencer is interactive',
+        );
+      }
+    }
+
+    const workletChunks = distJsFiles.filter((p) =>
+      /(^|[^\w.$])registerProcessor\s*\(/.test(fs.readFileSync(p, 'utf8')),
+    );
+    const largestWorklet = workletChunks
+      .map((p) => ({ p, size: brotli(p) }))
+      .sort((a, b) => b.size - a.size)[0];
+    if (largestWorklet) {
+      addRow('largest worklet chunk', largestWorklet.p, compressed.largestWorkletChunkMaxBytes);
+    }
+
+    // Total wire cost of the Vite-built graph. Excludes .wasm for the same
+    // reason the raw rows do: those are runtime-fetched, not shipped to every
+    // visitor, and are already brotli-incompressible in practice.
+    const assetsDirPath = path.join(distDir, 'assets');
+    if (fs.existsSync(assetsDirPath)) {
+      const excludeExts = new Set(budget.assetsDirExcludeExtensions ?? []);
+      const files = walk(assetsDirPath).filter((p) => !excludeExts.has(path.extname(p).toLowerCase()));
+      const total = files.reduce((sum, p) => sum + brotli(p), 0);
+      rows.push({ label: 'dist/assets total', name: `${files.length} files`, size: total, max: compressed.assetsDirMaxBytes });
+      if (typeof compressed.assetsDirMaxBytes === 'number' && total > compressed.assetsDirMaxBytes) {
+        failures.push(
+          `dist/assets total is ${total.toLocaleString()} B brotli, over budget of ` +
+          `${compressed.assetsDirMaxBytes.toLocaleString()} B`,
+        );
+      }
+    }
+
+    console.log('[check-release-dist] compressed budget (brotli):');
+    const pad = Math.max(...rows.map((r) => r.label.length), 0);
+    for (const r of rows) {
+      const max = typeof r.max === 'number' ? r.max.toLocaleString() : '—';
+      const flag = typeof r.max === 'number' && r.size > r.max ? ' OVER' : '';
+      console.log(
+        `  ${r.label.padEnd(pad)}  ${r.size.toLocaleString().padStart(10)} B / ${max.padStart(10)} B  ${r.name}${flag}`,
+      );
+    }
+  }
+
+  if (failures.length) {
+    console.error('[check-release-dist] compressed bundle budget exceeded (dist-budget.json):');
+    for (const msg of failures) console.error(`  ${msg}`);
+    console.error(
+      '  To raise a budget, edit dist-budget.json in a reviewed commit and say why — ' +
+      'see the `_procedure` field in that file.',
+    );
     process.exit(1);
   }
 }

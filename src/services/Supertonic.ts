@@ -1,27 +1,8 @@
-// `onnxruntime-web` is dynamically imported on first use (see loadOrt()) so it
-// never lands in the entry chunk — only Supertonic.init() (post user-gesture
-// "start" click, see useAppState.handleStart) pulls it in.
+// ONNX Runtime is loaded through the shared `ortRuntime` helper, which owns the
+// dynamic import (so ORT never lands in the entry chunk) and is the single
+// writer of `ort.env` — see src/services/ortRuntime.ts.
 import type * as ort from 'onnxruntime-web';
-
-type Ort = typeof ort;
-let ortPromise: Promise<Ort> | null = null;
-
-function loadOrt(): Promise<Ort> {
-    if (!ortPromise) {
-        ortPromise = import('onnxruntime-web').then((mod) => {
-            // OPTIMIZATION 1: WASM Configuration (Fallback)
-            // If WebGPU fails, we want WASM to use more threads, not just 1.
-            // We set it to roughly half the logical cores to prevent UI freezing.
-            const numThreads = typeof navigator !== 'undefined' ? Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)) : 1;
-
-            mod.env.wasm.numThreads = numThreads;
-            mod.env.wasm.simd = true; // Ensure SIMD is enabled
-            mod.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
-            return mod;
-        });
-    }
-    return ortPromise;
-}
+import { loadOrt, type Ort } from './ortRuntime';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
