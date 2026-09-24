@@ -244,8 +244,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         const startSample = Math.max(0, Math.floor(data.startSample || 0));
         const endSample = data.endSample
-          ? Math.min(this.fullSampleBuffer!.length, Math.floor(data.endSample))
-          : this.fullSampleBuffer!.length;
+          ? Math.min(this.fullSampleBuffer.length, Math.floor(data.endSample))
+          : this.fullSampleBuffer.length;
 
         if (startSample >= endSample) return;
 
@@ -351,13 +351,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const outputChannel = outputs[0][0];
+    let pData: Float32Array | null = null;
+    if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
+        pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
+    }
     const blockFrames = outputChannel?.length ?? 128;
     this.perf.beginProcess(blockFrames);
     try {
-      let pData: Float32Array | null = null;
-      if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
-          pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
-      }
     outputChannel.fill(0);
 
     if (!this.initialized || !this.rubberBand || !this.outputRingBuffer) {
@@ -501,7 +501,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       // Only attempt detection on voiced vowels with sufficient envelope
       if (isVowel && envelopeValue > 0.01) {
         // Fast zero-crossing period detector on the input buffer slice
-        const searchFrames = Math.min(1024, this.fullSampleBuffer!.length - this.currentSamplePtr);
+        const searchFrames = Math.min(1024, this.fullSampleBuffer.length - this.currentSamplePtr);
         const minPeriod = Math.floor(sRate / 400); // 400 Hz max
         const maxPeriod = Math.floor(sRate / 70);  // 70 Hz min
 
@@ -509,7 +509,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         for (let i = 0; i < searchFrames; i++) {
           const idx = this.currentSamplePtr + i;
-          const x = this.fullSampleBuffer![idx];
+          const x = this.fullSampleBuffer[idx];
 
           // Hysteresis threshold to avoid noise false triggers
           if (x > 0.02 && this.pitchDetectState.lastSample <= 0.02) {
@@ -735,7 +735,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           outputChannel[i] = heap[ptr + i];
         }
 
-        const isVowelForExpressive = pData ? (pData[7] > 0 ? 1.0 : 0.0) : 1.0;
+        const isVowelForExpressive = pData ? pData[7] : 1.0;
         this.expressiveProcessor.process(outputChannel, outputChannel, isVowelForExpressive);
 
         // Zero-Crossing Pitch Detection for Auto-Tune
