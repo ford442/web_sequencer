@@ -30,15 +30,15 @@ class MockAudioContext {
     currentTime = 0;
     
     createBiquadFilter(): BiquadFilterNode {
-        return new MockBiquadFilterNode() as any;
+        return new MockBiquadFilterNode() as unknown as BiquadFilterNode;
     }
 
     createGain(): GainNode {
-        return new MockGainNode() as any;
+        return new MockGainNode() as unknown as GainNode;
     }
 
     createConstantSource(): ConstantSourceNode {
-        return new MockConstantSourceNode() as any;
+        return new MockConstantSourceNode() as unknown as ConstantSourceNode;
     }
 }
 
@@ -47,7 +47,7 @@ describe('FormantShifter', () => {
     let mockContext: AudioContext;
     
     beforeEach(() => {
-        mockContext = new MockAudioContext() as any;
+        mockContext = new MockAudioContext() as unknown as AudioContext;
         shifter = new FormantShifter({ audioContext: mockContext });
     });
     
@@ -264,8 +264,8 @@ describe('FormantShifter', () => {
             const shift = { f1Shift: 2, f2Shift: 3, f3Shift: 4 };
             shifter.createFilterChain(shift);
             
-            const mockSource = new MockBiquadFilterNode() as any;
-            const mockDest = new MockBiquadFilterNode() as any;
+            const mockSource = new MockBiquadFilterNode() as unknown as AudioNode;
+            const mockDest = new MockBiquadFilterNode() as unknown as AudioNode;
             
             shifter.connect(mockSource, mockDest);
             

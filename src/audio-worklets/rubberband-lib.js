@@ -546,31 +546,6 @@ async function createWasm() {
   
   
   var uncaughtExceptionCount = 0;
-  var ___cxa_begin_catch = (ptr) => {
-      var info = new ExceptionInfo(ptr);
-      if (!info.get_caught()) {
-        info.set_caught(true);
-        uncaughtExceptionCount--;
-      }
-      info.set_rethrown(false);
-      exceptionCaught.push(info);
-      return ___cxa_get_exception_ptr(ptr);
-    };
-
-  
-  
-  
-  var exceptionLast = null;
-  var ___cxa_end_catch = () => {
-      // Clear state flag.
-      _setThrew(0, 0);
-      // Call destructor if one is registered then clear it.
-      var info = exceptionCaught.pop();
-  
-      ___cxa_decrement_exception_refcount(info.excPtr);
-      exceptionLast = null; // XXX in decRef?
-    };
-
   
   
   /** @type {!Uint32Array} */
@@ -631,9 +606,35 @@ async function createWasm() {
         return HEAPU32[(((this.ptr)+(16))>>2)];
       }
     }
+  var ___cxa_begin_catch = (ptr) => {
+      var info = new ExceptionInfo(ptr);
+      if (!info.get_caught()) {
+        info.set_caught(true);
+        uncaughtExceptionCount--;
+      }
+      info.set_rethrown(false);
+      exceptionCaught.push(info);
+      return ___cxa_get_exception_ptr(ptr);
+    };
+
+
+
   
+  var exceptionLast = null;
+  var ___cxa_end_catch = () => {
+      // Clear state flag.
+      _setThrew(0, 0);
+      // Call destructor if one is registered then clear it.
+      var info = exceptionCaught.pop();
   
+      ___cxa_decrement_exception_refcount(info.excPtr);
+      exceptionLast = null; // XXX in decRef?
+    };
+
   var setTempRet0 = (val) => __emscripten_tempret_set(val);
+
+
+
   var findMatchingCatch = (args) => {
       var thrown = exceptionLast?.excPtr;
       if (!thrown) {
@@ -1727,8 +1728,31 @@ async function createWasm() {
       return false;
     }
   
+  function argsUseStackAlloc(argTypes) {
+      // Skip return value at index 0 - only arguments stack-allocate.
+      for (var i = 1; i < argTypes.length; ++i) {
+        if (argTypes[i] !== null && argTypes[i].argStackAlloc) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+
+
+
   function createJsInvoker(argTypes, isClassMethodFunc, returns, isAsync) {
       var needsDestructorStack = usesDestructorStack(argTypes);
+      var argsNeedStack = argsUseStackAlloc(argTypes);
+      // JSPI-async invokers resume after the frame would be gone, so they
+      // defer through the destructors array instead.
+      var useStackFrame = argsNeedStack && !isAsync && !needsDestructorStack;
+      if (argsNeedStack && !useStackFrame) {
+        // A stack-allocating type must never see a null destructors argument
+        // without a bracketing frame; route it through the destructors array
+        // (it heap-allocates on that path).
+        needsDestructorStack = true;
+      }
       var argCount = argTypes.length - 2;
       var argsList = [];
       var argsListWired = ['fn'];
@@ -1747,9 +1771,18 @@ async function createWasm() {
       if (needsDestructorStack) {
         invokerFnBody += 'var destructors = [];\n';
       }
+      if (useStackFrame) {
+        // The frame must be released on every completion, including a throwing
+        // argument conversion or callee: a skipped stackRestore permanently
+        // leaks wasm stack. `var` declarations hoist out of the try block.
+        invokerFnBody += 'var sp = stackSave();\ntry {\n';
+      }
   
       var dtorStack = needsDestructorStack ? 'destructors' : 'null';
       var args1 = ['humanName', 'throwBindingError', 'invoker', 'fn', 'runDestructors', 'fromRetWire', 'toClassParamWire'];
+      if (useStackFrame) {
+        args1.push('stackSave', 'stackRestore');
+      }
   
       if (isClassMethodFunc) {
         invokerFnBody += `var thisWired = toClassParamWire(${dtorStack}, this);\n`;
@@ -1762,6 +1795,11 @@ async function createWasm() {
       }
   
       invokerFnBody += (returns || isAsync ? 'var rv = ' : '') + `invoker(${argsListWired});\n`;
+      if (useStackFrame) {
+        // The callee has consumed the stack-allocated argument temporaries;
+        // release the frame before any post-call work.
+        invokerFnBody += '} finally {\nstackRestore(sp);\n}\n';
+      }
   
       var returnVal = returns ? 'rv' : '';
   
@@ -1815,6 +1853,14 @@ async function createWasm() {
       // TODO: Remove this completely once all function invokers are being dynamically generated.
       var needsDestructorStack = usesDestructorStack(argTypes);
   
+      // Stack-allocating trivial value types get a stackSave/stackRestore
+      // bracket around the call; see createJsInvoker for the async carve-outs.
+      var argsNeedStack = argsUseStackAlloc(argTypes);
+      var useStackFrame = argsNeedStack && !isAsync && !needsDestructorStack;
+      if (argsNeedStack && !useStackFrame) {
+        needsDestructorStack = true;
+      }
+
       var returns = !argTypes[0].isVoid;
 
       var expectedArgCount = argCount - 2;
@@ -1823,6 +1869,10 @@ async function createWasm() {
       var retType = argTypes[0];
       var instType = argTypes[1];
       var closureArgs = [humanName, throwBindingError, cppInvokerFunc, cppTargetFunc, runDestructors, retType.fromWireType.bind(retType), instType?.toWireType.bind(instType)];
+      if (useStackFrame) {
+        // Must mirror the `args1.push('stackSave', 'stackRestore')` in createJsInvoker.
+        closureArgs.push(stackSave, stackRestore);
+      }
       for (var i = 2; i < argCount; ++i) {
         var argType = argTypes[i];
         closureArgs.push(argType.toWireType.bind(argType));

@@ -183,7 +183,7 @@ describe('AutomationScheduler — construction', () => {
     const ctx = makeAudioContext();
     const mgr = makeOpen303Manager();
     expect(() =>
-      new AutomationScheduler(ctx, mgr as any, { lookaheadSeconds: 0.2, rampDuration: 0.1, ppq: 24 })
+      new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { lookaheadSeconds: 0.2, rampDuration: 0.1, ppq: 24 })
     ).not.toThrow();
   });
 
@@ -191,7 +191,7 @@ describe('AutomationScheduler — construction', () => {
     const ctx = makeAudioContext();
     const scheduler = new AutomationScheduler(ctx, null);
     const mgr = makeOpen303Manager();
-    expect(() => scheduler.setOpen303Manager(mgr as any)).not.toThrow();
+    expect(() => scheduler.setOpen303Manager(mgr as unknown as Open303Manager)).not.toThrow();
   });
 });
 
@@ -528,7 +528,7 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
 
     // value 0.5 → pcfMidiNormToHz(0.5) ≈ 632 Hz
     expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
-    const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
+    const actualHz = (pcf.setAutomationCutoff as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(actualHz).toBeCloseTo(testPcfMidiNormToHz(0.5), 1);
   });
 
@@ -619,7 +619,7 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     vi.runAllTimers();
 
     expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
-    const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
+    const actualHz = (pcf.setAutomationCutoff as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(actualHz).toBeCloseTo(testPcfMidiNormToHz(64 / 127), 1);
   });
 
@@ -701,8 +701,8 @@ describe('AutomationScheduler lane sweep (acceptance)', () => {
     scheduler.scheduleFromLanes([lane], 0, steps, 0.125, 0);
     vi.runAllTimers();
 
-    return (mgr.scheduleParamAtTime as ReturnType<typeof vi.fn>).mock.calls.map(
-      (call) => call[2] as number,
+    return (mgr.scheduleParamAtTime as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call) => call[2],
     );
   }
 
