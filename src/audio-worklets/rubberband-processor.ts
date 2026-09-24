@@ -495,7 +495,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const autoTuneAmount = parameters.autoTune ? parameters.autoTune[0] : 0.0;
     const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
 
-    if (autoTuneAmount > 0.0 && pData && this.targetHz > 0) {
+    if (autoTuneAmount > 0.0 && pData && this.targetHz > 0 && this.fullSampleBuffer) {
       const isVowel = pData[7] > 0;
 
       // Only attempt detection on voiced vowels with sufficient envelope
