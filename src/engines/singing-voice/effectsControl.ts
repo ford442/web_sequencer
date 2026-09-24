@@ -391,6 +391,9 @@ export const EffectsControlMixin = {
   setVocalChorus(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "vocalChorus", amount, time);
   },
+  setTransientExtraction(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "transientExtraction", amount, time);
+  },
 
   /**
    * Set downsample factor.

@@ -54,6 +54,7 @@
 ## Innovation Lab
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
+- [ ] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
@@ -138,6 +139,12 @@
   - Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
   - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
   - Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
+- [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+  - Implemented a high-pass filtered transient extractor in the `RubberBandProcessor` AudioWorklet.
+  - Fixed DSP bug related to channel-shared states.
+  - Uses dual fast/slow envelope followers to detect transients and injects the high-passed signal back into the mix.
+  - Fully bypasses processing for vowels using the `isVowel` SharedArrayBuffer flag.
+- Velocity Check: Utilizing a fast-decaying dual-envelope follower structure allowed for highly accurate transient detection in speech without allocating large delay buffers.
 - [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
 - [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
   - Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
