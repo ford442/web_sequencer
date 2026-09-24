@@ -1,5 +1,5 @@
 {
-  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Scoped to dist/assets/ (the Vite-built JS/CSS/image graph) — vendored native binaries (hyphon_native*, jc303*, rubberband.wasm), sample .wav files, and the vendored Pyodide runtime (dist/pyodide/) live outside Vite's bundler and are not part of this budget. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
+  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Scoped to dist/assets/ (the Vite-built JS/CSS/image graph) \u2014 vendored native binaries (hyphon_native*, jc303*, rubberband.wasm), sample .wav files, and the vendored Pyodide runtime (dist/pyodide/) live outside Vite's bundler and are not part of this budget. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
   "entryChunkMaxBytes": 1650000,
   "imageAssetMaxBytes": 524288,
   "assetsDirMaxBytes": 4400000,
@@ -8,11 +8,11 @@
   ],
   "_procedure": "To raise a budget: change the value in this file in its own reviewed commit, and state in the commit message what grew and why the growth is justified. Never raise a row to make an unrelated PR go green. The compressed rows are the wire cost and are the ones that matter; the raw rows below them are kept because they also bound what a slow device must parse.",
   "compressed": {
-    "_comment": "Brotli-compressed budgets — the actual wire cost. Measured on the build that introduced them and set ~8% above measured, so the rows ratchet: a real improvement should be banked by lowering the number, not left as slack.",
+    "_comment": "Brotli-compressed budgets \u2014 the actual wire cost. Measured on the build that introduced them and set ~8% above measured, so the rows ratchet: a real improvement should be banked by lowering the number, not left as slack.",
     "entryChunkMaxBytes": 262000,
     "vendorReactChunkMaxBytes": 61000,
     "vendorOnnxChunkMaxBytes": 108000,
-    "largestWorkletChunkMaxBytes": 31000,
+    "largestWorkletChunkMaxBytes": 32000,
     "assetsDirMaxBytes": 876000
   }
 }

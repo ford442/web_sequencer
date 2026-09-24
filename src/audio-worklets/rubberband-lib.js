@@ -617,6 +617,8 @@ async function createWasm() {
       return ___cxa_get_exception_ptr(ptr);
     };
 
+
+
   
   
   
@@ -632,6 +634,9 @@ async function createWasm() {
     };
 
   var setTempRet0 = (val) => __emscripten_tempret_set(val);
+
+
+
   
   
   
@@ -1737,6 +1742,10 @@ async function createWasm() {
       }
       return false;
     }
+
+
+
+
   
   
   
@@ -1860,6 +1869,7 @@ async function createWasm() {
       if (argsNeedStack && !useStackFrame) {
         needsDestructorStack = true;
       }
+
   
       var returns = !argTypes[0].isVoid;
   

@@ -67,6 +67,7 @@ export interface Note {
   tranceGate?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  transientExtraction?: number;
   autoTune?: number;
   microtonalVariance?: number;
   drumDuckDepth?: number;
