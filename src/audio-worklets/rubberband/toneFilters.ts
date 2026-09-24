@@ -51,14 +51,14 @@ export class TransientShaper {
   private currentEnvelope = 0.0;
   private lastPhonemeIndex = -1;
 
-  process(outputChannel: Float32Array, consonantClarity: number, isVowel: number | null, phonemeIndex: number | null, sampleRate: number): void {
+  process(outputChannel: Float32Array, consonantClarity: number, isVowel: number | null, phonemeIndex: number | null, phonemeVolume: number | null, sampleRate: number): void {
     if (consonantClarity <= 0.0) return;
 
     if (isVowel !== null && phonemeIndex !== null) {
       if (phonemeIndex !== this.lastPhonemeIndex) {
         if (isVowel === 0) {
-          // Trigger the envelope for a new consonant
-          this.currentEnvelope = 1.0;
+          // Trigger the envelope for a new consonant, scaled by stress/velocity
+          this.currentEnvelope = phonemeVolume !== null ? phonemeVolume : 1.0;
         }
         this.lastPhonemeIndex = phonemeIndex;
       }
