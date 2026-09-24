@@ -133,7 +133,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
       document.removeEventListener('keydown', handleKeyDown);
       clearTimeout(timer);
     };
-  }, [isOpen, onClose, showAddMenu]);
+  }, [isOpen, onClose, showAddMenu, containerRef]);
 
   // Keyboard navigation for phoneme blocks
   const handlePhonemeKeyDown = (e: React.KeyboardEvent, phonemeId: string) => {

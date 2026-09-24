@@ -157,6 +157,8 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
           {TABS.map((t) => (
             <button
               key={t.id}
+              id={`tab-${t.id}`}
+              aria-controls={`tabpanel-${t.id}`}
               type="button"
               role="tab"
               aria-selected={tab === t.id}
@@ -177,7 +179,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
           {tab === 'search' && (
-            <div role="tabpanel" className="space-y-4">
+            <div role="tabpanel" id="tabpanel-search" aria-labelledby="tab-search" className="space-y-4">
               <label className="block">
                 <span className="sr-only">Search help</span>
                 <input
@@ -230,7 +232,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
           )}
 
           {tab === 'guides' && (
-            <div role="tabpanel">
+            <div role="tabpanel" id="tabpanel-guides" aria-labelledby="tab-guides">
               {selectedTopic ? (
                 <TopicDetail topic={selectedTopic} onBack={() => setSelectedTopicId(null)} />
               ) : (
@@ -254,7 +256,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
           )}
 
           {tab === 'shortcuts' && (
-            <div role="tabpanel" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div role="tabpanel" id="tabpanel-shortcuts" aria-labelledby="tab-shortcuts" className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {SHORTCUT_SECTIONS.map((section) => (
                 <div key={section.title} className="bg-gray-800/20 rounded-lg p-4 border border-gray-800">
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 border-b border-gray-700 pb-2">
