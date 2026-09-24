@@ -67,7 +67,7 @@ export function useSamplerPanelState({
       'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
       'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainLfoRate', 'grainLfoDepth', 'grainPosLfoDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
-      'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
+      'consonantClarity', 'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
       'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'vocalChorus', 'autoTune', 'transientExtraction', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',

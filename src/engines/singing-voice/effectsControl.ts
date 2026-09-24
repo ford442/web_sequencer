@@ -28,6 +28,15 @@ export const EffectsControlMixin = {
   },
 
   /**
+   * Set Consonant Clarity (transient shaper).
+   * @param amount Consonant clarity depth (0-1)
+   * @param time Optional time to apply the change
+   */
+  setConsonantClarity(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "consonantClarity", amount, time);
+  },
+
+  /**
    * Set drum ducking depth.
    * @param amount Ducking amount (0-1)
    * @param time Optional time to apply the change

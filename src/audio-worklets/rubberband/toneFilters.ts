@@ -43,6 +43,43 @@ export class PhonemeToneFilter {
   }
 }
 
+/**
+ * Transient extraction filter for TTS consonants to enhance percussive speech clarity.
+ * Applies a fast envelope boost to the signal when a new consonant begins.
+ */
+export class TransientShaper {
+  private currentEnvelope = 0.0;
+  private lastPhonemeIndex = -1;
+
+  process(outputChannel: Float32Array, consonantClarity: number, isVowel: number | null, phonemeIndex: number | null, sampleRate: number): void {
+    if (consonantClarity <= 0.0) return;
+
+    if (isVowel !== null && phonemeIndex !== null) {
+      if (phonemeIndex !== this.lastPhonemeIndex) {
+        if (isVowel === 0) {
+          // Trigger the envelope for a new consonant
+          this.currentEnvelope = 1.0;
+        }
+        this.lastPhonemeIndex = phonemeIndex;
+      }
+    }
+
+    if (this.currentEnvelope <= 0.001) {
+      this.currentEnvelope = 0.0;
+      return;
+    }
+
+    // Fast decay: e.g., ~30ms release
+    const decayFactor = Math.exp(-1.0 / (0.03 * sampleRate));
+
+    for (let i = 0; i < outputChannel.length; i++) {
+      const boostMultiplier = 1.0 + consonantClarity * this.currentEnvelope;
+      outputChannel[i] *= boostMultiplier;
+      this.currentEnvelope *= decayFactor;
+    }
+  }
+}
+
 /** Syllable-driven volume low-pass, weighted toward vowels. */
 export class SyllableVolumeFilter {
   private cutoffSmooth = 20000;
