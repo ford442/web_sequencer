@@ -1,5 +1,16 @@
 # OpenMP Audio DSP Implementation
 
+> **Status: main-thread bridge removed.** `src/engines/AudioDSP.ts` (and its
+> `Open303Native` / `hasOpen303Native` exports) drove these helpers through
+> `window.Module` on the main thread — a second `hyphon_native` instance
+> fighting the AudioWorklet's imported heap (#1229), and absent entirely from
+> the single-threaded (WebKit / non-COOP) build. It had no production importers
+> and was deleted; `mainThreadNativeModuleGuard.test.ts` keeps it out.
+> `audio_dsp.cpp` is still compiled into the pthread build only. Any future
+> consumer must be a dedicated offline worker using the module's exports
+> explicitly; freeze/export goes through `compileOfflineGraph` (#1235). The
+> sections below describe the C++ side and are kept for reference.
+
 ## Summary
 
 This implementation adds actual OpenMP parallelization to the Hyphon audio engine, replacing the previous situation where libomp was linked but never used.

@@ -51,20 +51,15 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>TRI</div>;
     case 'wgsl-sin':
       return <div className="font-bold text-[10px] leading-none text-center">GPU<br/>SIN</div>;
-    // NEW: WAM icons
+    // AssemblyScript WASM oscillator icons (labelled AS, not WAM — ADR 0001)
     case 'wam-saw':
-      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SAW</div>;
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">AS<br/>SAW</div>;
     case 'wam-sqr':
-      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SQR</div>;
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">AS<br/>SQR</div>;
     case 'wam-tri':
-      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>TRI</div>;
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">AS<br/>TRI</div>;
     case 'wam-sin':
-      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">WAM<br/>SIN</div>;
-    // NEW: Rust icons
-    case 'rust-saw':
-      return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SAW</div>;
-    case 'rust-sqr':
-      return <div className="font-bold text-[10px] leading-none text-center text-orange-500">RUST<br/>SQR</div>;
+      return <div className="font-bold text-[10px] leading-none text-center text-yellow-500">AS<br/>SIN</div>;
     // NEW: Open303 (TB-303 clone) icons
     case '303-saw':
       return <div className="font-bold text-[10px] leading-none text-center text-green-400">303<br/>SAW</div>;
@@ -79,14 +74,6 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>TRI</div>;
     case 'prophecy-pulse':
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>PLS</div>;
-    case 'cpp-sin':
-      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SIN</div>;
-    case 'cpp-saw':
-      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SAW</div>;
-    case 'cpp-sqr':
-      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>SQR</div>;
-    case 'cpp-rand':
-      return <div className="font-bold text-[10px] leading-none text-center text-fuchsia-300">CPP<br/>RND</div>;
     default:
       // Always show at least the waveform name so unknown types are visible
       return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
@@ -99,10 +86,10 @@ const OSCILLATOR_GROUPS = [
   { label: 'Open303', items: ['303-saw', '303-sqr'] as Waveform[] },
   { label: 'Prophecy', items: ['prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse'] as Waveform[] },
   { label: 'Pyodide', items: ['pyodide-saw', 'pyodide-square', 'pyodide-sine'] as Waveform[] },
-  { label: 'Rust', items: ['rust-saw', 'rust-sqr'] as Waveform[] },
   { label: 'WebGPU', items: ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'] as Waveform[] },
-  { label: 'Web Audio Module', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
-  { label: 'CPP', items: ['cpp-sin', 'cpp-saw', 'cpp-sqr', 'cpp-rand'] as Waveform[] },
+  // AssemblyScript WASM wavetable kernel — deliberately NOT called "WAM":
+  // Web Audio Modules 2.0 is a different system (src/audio/wam, ADR 0001).
+  { label: 'WASM OSC', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
 ];
 
 // Flat list of all waveforms in display order, for cycling

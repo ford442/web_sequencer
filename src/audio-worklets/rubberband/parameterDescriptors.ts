@@ -8,6 +8,7 @@ export const RUBBERBAND_PARAMETER_DESCRIPTORS = [
   { name: 'gateDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'gateRate', defaultValue: 4.0, minValue: 0.1, maxValue: 50.0 },
   { name: 'breathIntensity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+  { name: 'consonantClarity', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
 
   { name: 'pitchAttack', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
   { name: 'pitchDecay', defaultValue: 0.0, minValue: 0.0, maxValue: 2.0 },
@@ -41,5 +42,6 @@ export const RUBBERBAND_PARAMETER_DESCRIPTORS = [
   { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'drumDuckDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'autoTune', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+  { name: 'transientExtraction', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'microtonalVariance', defaultValue: 0.0, minValue: 0.0, maxValue: 100.0 }
 ];

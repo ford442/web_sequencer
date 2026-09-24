@@ -45,8 +45,7 @@
 ### Audio Architecture (Multi-Engine "Four Worlds")
 | Engine | Language | Build Output | Purpose |
 |--------|----------|--------------|---------|
-| AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators, track freezer, FFT, audio export, XM export |
-| Rust/WASM | Rust | `public/rust-wasm/` | High-precision synthesis |
+| AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators (the one WASM wavetable engine — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`), track freezer, FFT, audio export, XM export |
 | Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband, Open303 + JC303 dual-engine wrappers, Prophecy formant engine, Pyodide bootstrap |
 | JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
@@ -109,7 +108,6 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   │   ├── SingingVoiceManager.ts# Polyphonic TTS manager
 │   │   ├── VoiceManager.ts       # Voice allocation
 │   │   ├── Harmonizer.ts         # Vocal harmony engine
-│   │   ├── AudioDSP.ts           # DSP helpers
 │   │   ├── MultisampleGenerator.ts
 │   │   └── rubberband/           # Pitch/time stretch utilities
 │   ├── hooks/                    # React hooks
@@ -177,7 +175,6 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   └── helper.py                 # TTS model utilities
 ├── public/                       # Static assets + compiled WASM
 │   ├── audio-worklets/           # Copied worklet files
-│   ├── rust-wasm/                # Rust wasm-pack output
 │   ├── hyphon_native.js          # Emscripten output
 │   ├── hyphon_native.worker.js   # Emscripten pthread worker
 │   ├── rubberband.wasm           # Rubberband binary
@@ -235,9 +232,6 @@ pnpm run build:wasm:freezer        # Track freezer / rendering
 pnpm run build:wasm:fft            # FFT DSP
 pnpm run build:wasm:audioexport    # WAV export DSP
 pnpm run build:wasm:xmexport       # XM export DSP
-
-# Build Rust audio engine
-pnpm run build:wasm:rust
 
 # Build JC-303 (requires Emscripten, git submodule)
 pnpm run build:wasm:jc303
@@ -312,10 +306,17 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `src/wasm/*.wasm` (created at build time; not present in a clean checkout)
 - **Bridge**: Corresponding engine files in `src/engines/`
 
-### 2. Rust World (`/rust-audio`)
-- **Build**: `cd rust-audio && wasm-pack build --target web --out-dir ../public/rust-wasm`
-- **Output**: `public/rust-wasm/`
-- **Bridge**: `src/engines/RustOscillator.ts`
+### 2. Rust bench crate (`/rust-audio`) — **not shipped**
+- `rust-audio/` is a benchmark crate only (#1294). It is not a native world,
+  `build:native` does not build it, and nothing in `src/` imports it.
+- Its oscillator produced a naive saw/square + biquad on the **main thread**,
+  looped through an `AudioBufferSourceNode` — a duplicate of the
+  AssemblyScript kernel with no SIMD and no worklet, so the `rust-*` waveform
+  family was removed.
+- **Bench build** (opt in): `pnpm run bench:wasm:rust` → `rust-audio/pkg/`.
+- Bringing it back into the app means owning a kernel the other worlds do not
+  (e.g. a SIMD wavetable/granular voice **inside a worklet**) and registering
+  as an `OscillatorBackend` — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
@@ -452,7 +453,7 @@ Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wa
 - **Setup**: `vitest.setup.ts` (shared mocks); `vitest.setup.unit.ts` (strict fetch guard for unit tier)
 
 ### Test Categories
-1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `AudioDSP`, `SingingVoice`, `SingingVoiceManager`, `FormantShifter`
+1. **Engine Tests**: `WasmOscillator`, `WebGPU`, `SingingVoice`, `SingingVoiceManager`, `FormantShifter`
 2. **Component Tests**: `Knob`, `Sequencer`, `SamplerPanel`, `VoiceEditor`, `HardwareModule`, `NoteSelector`, `WaveformSelector`, `DragValue`
 3. **Integration Tests**: Full audio pipeline, TTS integration (`SingingVoice.integration.test.ts`)
 4. **Performance Tests**: `SamplerPanel.perf.test.tsx`, `audioExport.perf.test.ts`, `useAudioEngine.perf.test.tsx`, `wasmMigration.bench.test.ts`
@@ -698,7 +699,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 - **`pnpm run dev` is slow**: it always rebuilds all Four Worlds before Vite. Use `pnpm run dev:fast` after a successful `build:native` / `build:native:changed` when source hashes still match.
 - **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
 - **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
-- **Rust audio import warning**: a console warning about `/rust-wasm/rust_audio.js` may appear in dev; core sequencer/audio still works. Use `public/rust-wasm/` paths if debugging the Rust engine.
+- **Missing `src/wasm/oscillators.wasm`**: `wam-*` waveforms fall back down the documented chain to the JS oscillator and say so in the EngineHUD. Run `pnpm run build:wasm:oscillators`.
 
 ---
 

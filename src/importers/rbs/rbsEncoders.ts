@@ -207,7 +207,8 @@ export function pcfSettingsToDevlPayload(pcf: PcfSettings): {
 }
 
 const PROPHECY_PREFIX = 'prophecy-';
-const UNSUPPORTED_WAVEFORMS = new Set(['sampler', 'wav', 'rust', 'webgpu']);
+/** Waveform prefixes with no ReBirth equivalent — exported as a TB-303 saw. */
+const UNSUPPORTED_WAVEFORM_PREFIXES = ['wav-', 'wgsl-', 'wam-', 'pyodide-'];
 
 export function collectExportWarnings(song: HyphonSong): string[] {
   const warnings: string[] = [];
@@ -218,7 +219,7 @@ export function collectExportWarnings(song: HyphonSong): string[] {
   const checkWave = (wf: string, label: string) => {
     if (wf.startsWith(PROPHECY_PREFIX)) {
       warnings.push(`${label} uses Prophecy waveform "${wf}" — exported as TB-303 saw.`);
-    } else if (UNSUPPORTED_WAVEFORMS.has(wf) || wf.includes('rust') || wf.includes('wasm')) {
+    } else if (UNSUPPORTED_WAVEFORM_PREFIXES.some((p) => wf.startsWith(p))) {
       warnings.push(`${label} waveform "${wf}" is not supported in ReBirth — exported as TB-303 saw.`);
     }
   };

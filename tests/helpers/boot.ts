@@ -18,7 +18,7 @@ import { expect, type Page, type Locator } from '@playwright/test';
 const CONSOLE_FAIL_RE =
   /Failed to (start|create|resume).*AudioContext|AudioContext.*(not allowed|suspended permanently)|InvalidStateError.*AudioContext|WebGPU.*(device lost|validation error|uncaptured)/i;
 const CONSOLE_IGNORE_RE =
-  /Download the React DevTools|\[devtools\]|Supertonic TTS failed|rust-wasm|rust_audio|EngineFallback|requestAdapter\(\) returned null|worklet ready timeout/i;
+  /Download the React DevTools|\[devtools\]|Supertonic TTS failed|EngineFallback|requestAdapter\(\) returned null|worklet ready timeout/i;
 
 export type BootOptions = {
   /** Extra query string without leading `?`. Default: `e2e=1`. */
@@ -145,7 +145,7 @@ export const OSC_FAMILY_BADGE = {
   open303: '303',
   jc303: 'JC',
   prophecy: 'PRO',
-  rust: 'RS',
+  wam: 'AS',
   javascript: 'JS',
 } as const;
 

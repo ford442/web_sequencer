@@ -41,6 +41,7 @@ const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowca
 const CloudLibrary = lazy(() => import('./components/CloudLibrary').then(module => ({ default: module.CloudLibrary })));
 const AISongModal = lazy(() => import('./components/AISongModal').then(module => ({ default: module.AISongModal })));
 const RbsImportModal = lazy(() => import('./components/RbsImportModal').then(module => ({ default: module.RbsImportModal })));
+const SmfImportModal = lazy(() => import('./components/SmfImportModal').then(module => ({ default: module.SmfImportModal })));
 const ExportModal = lazy(() => import('./components/ExportModal').then(module => ({ default: module.ExportModal })));
 const VoiceEditor = lazy(() => import('./components/VoiceEditor').then(module => ({ default: module.VoiceEditor })));
 const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then(module => ({ default: module.ShortcutsHelp })));
@@ -95,6 +96,7 @@ export const App: React.FC = () => {
         getSongData, getBankData, getPatternData,
         isAISongModalOpen, setIsAISongModalOpen, handleAISongImport,
         isRbsImportModalOpen, setIsRbsImportModalOpen, handleRbsImport,
+        isSmfImportModalOpen, setIsSmfImportModalOpen, handleSmfImport, exportSmfToFile,
         isExportModalOpen, setIsExportModalOpen,
         synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, pyodide,
         isVoiceEditorOpen, setIsVoiceEditorOpen,
@@ -251,6 +253,11 @@ export const App: React.FC = () => {
                     <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
                 </Suspense>
             )}
+            {isSmfImportModalOpen && (
+                <Suspense fallback={<ModalLoadingFallback />}>
+                    <SmfImportModal isOpen={isSmfImportModalOpen} onClose={() => setIsSmfImportModalOpen(false)} onImport={(...args) => { void handleSmfImport(...args); }} onShowToast={showToast} />
+                </Suspense>
+            )}
             {isExportModalOpen && (
                 <Suspense fallback={<ModalLoadingFallback />}>
                     <ExportModal
@@ -397,8 +404,10 @@ export const App: React.FC = () => {
                 aiImportProgress={aiImportProgress}
                 exportSongToFile={() => { void exportSongToFile(); }}
                 exportRbsToFile={() => { void exportRbsToFile(); }}
+                exportSmfToFile={() => { void exportSmfToFile(); }}
                 importSongFromFile={() => { void importSongFromFile(); }}
                 setIsRbsImportModalOpen={setIsRbsImportModalOpen}
+                setIsSmfImportModalOpen={setIsSmfImportModalOpen}
                 setIsExportModalOpen={setIsExportModalOpen}
                 setIsAISongModalOpen={setIsAISongModalOpen}
                 setIsCloudLibraryOpen={setIsCloudLibraryOpen}

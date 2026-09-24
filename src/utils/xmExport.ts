@@ -519,6 +519,7 @@ const bass2ToSynthParams = (p: Bass2Params): SynthParams => ({
     delayMix: 0,
     engine303: p.engine303,
     model303: p.model303,
+    model303Extra: p.model303Extra,
 });
 
 export const exportSongToXM = async (

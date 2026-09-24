@@ -189,7 +189,7 @@ Combine Rubber Band's strengths with neural vocoding for ultimate quality.
 
 ### Implementation
 
-See `src/engines/rubberband/HybridNeuralPipeline.ts` for full implementation.
+See `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` for full implementation.
 
 ```typescript
 // Full pipeline: TTS → Mel → Pitch Shift → Vocoder
@@ -455,7 +455,7 @@ Exposed option constants for JavaScript:
 | **Section 3: Phoneme Alignment** | `src/engines/rubberband/PhonemeAligner.ts` | ✅ CTC + heuristic |
 | **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | ✅ wired |
 | **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ IMPLEMENTED |
-| **Section 6: Hybrid Neural** | `src/engines/rubberband/HybridNeuralPipeline.ts` | library; not on live voice path (V4) |
+| **Section 6: Hybrid Neural** | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | library; not on live voice path (V4) |
 | **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | present |
 | **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (V2) |
 | **Section 9: Latency Sync** | `LatencyCompensator.ts` | **Deleted** — MIDI clock is `TransportClockController` |
@@ -472,7 +472,8 @@ src/engines/
     ├── alignment/                # CTC Viterbi + G2P
     ├── FormantShifter.ts         # Section 4: Formant control
     ├── ExpressiveVoiceProcessor.ts # Section 5: Vibrato, tremolo, breath
-    ├── HybridNeuralPipeline.ts   # Section 6: Neural vocoding (offline V4)
+    ├── experimental/
+    │   └── HybridNeuralPipeline.ts # Section 6: Neural vocoding (quarantined, not barrel-exported)
     ├── PerformanceOptimizer.ts    # Section 7: WASM optimization
     ├── ConcatenativeHybrid.ts    # Section 8: Sample blending (V2)
     └── ArtifactDetector.ts       # Section 10: Quality monitoring

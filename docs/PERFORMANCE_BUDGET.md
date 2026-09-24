@@ -151,11 +151,13 @@ CDN URL survives into the bundle.
 `src/components/assets/knob-bezel.png` (860 KB) and `public/osc/*.jpg`
 (~2.6 MB total) were converted to WebP (`knob-bezel.webp` 31.7 KB;
 `public/osc/*.webp` ~530 KB total) — visually lossless at their display
-size. `CppPanel.tsx`'s `<img>` also got `loading="lazy" decoding="async"`.
-Note: only `OSCILLATOR_PANEL_IMAGES.cpp` is actually referenced from code —
-the other eight `public/osc/*.webp` entries (plus the unreferenced
-`dwgs.webp`) are dead weight shipped either way; left in place since
-deleting unreferenced assets was out of scope here.
+size.
+
+The panel list is now honest (#1294): `cpp.webp` and `rust.webp` went with
+their retired oscillator families, `dwgs.webp` was an orphan, and
+`check-release-dist.mjs` fails the release if `dist/osc/` and
+`OSCILLATOR_PANEL_IMAGES` disagree in either direction — so unreferenced
+panel art cannot accumulate again.
 
 ### Source maps
 
@@ -165,8 +167,13 @@ deleting unreferenced assets was out of scope here.
 ---
 
 Hyphon monitors per-worklet `process()` wall time on the audio rendering thread and
-aggregates a **master budget** (% of each 128-sample quantum consumed across all
-instrumented worklets). When the budget exceeds **80%**, features are disabled in a
+aggregates a **master budget** (% of each render quantum consumed across all
+instrumented worklets). The quantum is whatever the live context reports — 128
+frames by default, but `renderSizeHint` (Chrome 125+, HUD "Render size hint")
+can change it, so the reporter measures `blockFrames` per `process()` call and
+telemetry records `renderSizeHintRequested` vs the observed
+`renderQuantumSize` / `baseLatencyMs`. Figures below quoted "per 128-frame
+quantum" are for the default size only. When the budget exceeds **80%**, features are disabled in a
 fixed order until headroom recovers below **60%** (hysteresis).
 
 ## Instrumented worklets

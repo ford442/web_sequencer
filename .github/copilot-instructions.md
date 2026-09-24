@@ -32,17 +32,17 @@ High-level architecture (big picture)
 - Frontend: React + TypeScript + Vite. Source: `src/` (alias `@` -> `/src`).
 - "Four Worlds" audio engine strategy (separate build/toolchains):
   - AssemblyScript (assembly/ -> produces `src/wasm/*.wasm`) — oscillators, freezer, FFT, export helpers
-  - Rust (rust-audio/ -> `public/rust-wasm/`) — high-precision synthesis
+  - Rust (rust-audio/) — **bench crate only**, not built or shipped (#1294)
   - Emscripten C++ (emscripten/ -> `public/hyphon_native.js`, `rubberband.wasm`) — Rubberband, pyodide glue, native code
   - JC-303 submodule (jc303_wasm/) — TB-303 clone; builds to `public/jc303.*`
 - Other runtimes: WebGPU (voice designer / GPU DSP), Pyodide (Python DSP/TTS), ONNX Runtime Web for TTS, and standard Web Audio for the final audio graph.
-- Build outputs (generated): `src/wasm/`, `public/rust-wasm/`, `public/hyphon_native.js`, `public/jc303_*`. These are build artifacts — expect them to be missing on a fresh checkout.
+- Build outputs (generated): `src/wasm/`, `public/hyphon_native.js`, `public/jc303_*`. These are build artifacts — expect them to be missing on a fresh checkout.
 
 Important runtime & build notes
 
 - Vite dev server enforces Cross-Origin headers (COOP/COEP) required for SharedArrayBuffer and threaded WASM (see `vite.config.ts`).
 - Many build scripts require native toolchains (emsdk, wasm-pack, asc). `npm run build` runs all heavy steps; it can fail if toolchain not present.
-- `package.json` exposes granular build scripts (e.g., `build:wasm:oscillators`, `build:wasm:rust`, `build:emcc`) — use the specific one when you only changed that domain.
+- `package.json` exposes granular build scripts (e.g., `build:wasm:oscillators`, `build:emcc`) — use the specific one when you only changed that domain.
 - WASM artifacts are generated — do not rely on committing them. If you change `assembly/*`, rebuild the corresponding `build:wasm:*` target.
 
 Key conventions (project-specific)
@@ -62,7 +62,7 @@ Places to look first when debugging audio/backends
 - `src/engines/**` (engine wrappers and bridges)
 - `src/audio-worklets/` and `public/audio-worklets/` (worklets)
 - `assembly/` and `src/wasm/` (source and generated WASM)
-- `public/` for generated binaries (rust-wasm, hyphon_native, jc303)
+- `public/` for generated binaries (hyphon_native, jc303)
 - Network console for ONNX / model downloads (TTS)
 
 AI-assistant / repo docs to fuse into Copilot behavior

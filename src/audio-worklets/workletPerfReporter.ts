@@ -18,6 +18,38 @@ export interface WorkletPerfMessage {
   blockFrames: number;
   processUs: number;
   quantumUs: number;
+  /**
+   * True once any processor in this global scope fell back to a guessed
+   * sample rate — the processor ran outside a real AudioWorkletGlobalScope.
+   */
+  sampleRateFallback: boolean;
+}
+
+// One flag per global scope: every processor in an AudioWorkletGlobalScope
+// shares the same `sampleRate`, so one missing rate means all of them guess.
+let sampleRateFallbackSource: string | null = null;
+
+/**
+ * Record (once per global scope) that `sampleRate` was missing and a fallback
+ * rate was used. Logged immediately and carried on every later perf message so
+ * the main thread surfaces it in telemetry instead of it being silent.
+ */
+export function reportWorkletSampleRateFallback(source: string, fallbackRate: number): void {
+  if (sampleRateFallbackSource !== null) return;
+  sampleRateFallbackSource = source;
+  console.warn(
+    `[WorkletPerfReporter] ${source}: AudioWorkletGlobalScope.sampleRate missing; `
+      + `assuming ${fallbackRate} Hz (processor is running outside a real worklet)`,
+  );
+}
+
+export function hasWorkletSampleRateFallback(): boolean {
+  return sampleRateFallbackSource !== null;
+}
+
+/** Test hook: forget a previously reported fallback. */
+export function resetWorkletSampleRateFallbackForTests(): void {
+  sampleRateFallbackSource = null;
 }
 
 function nowUs(): number {
@@ -53,7 +85,9 @@ export class WorkletPerfReporter {
   ) {
     this.port = port;
     this.name = name;
-    this.cachedSampleRate = typeof sampleRate === 'number' && sampleRate > 0 ? sampleRate : 48000;
+    const hasRate = typeof sampleRate === 'number' && sampleRate > 0;
+    this.cachedSampleRate = hasRate ? sampleRate : 48000;
+    if (!hasRate) reportWorkletSampleRateFallback(name, this.cachedSampleRate);
     this.reportIntervalFrames = Math.max(128, Math.floor((this.cachedSampleRate * reportIntervalMs) / 1000));
     this.lastReportFrame = typeof currentFrame === 'number' ? currentFrame : 0;
 
@@ -65,6 +99,7 @@ export class WorkletPerfReporter {
       blockFrames: 0,
       processUs: 0,
       quantumUs: 0,
+      sampleRateFallback: false,
     };
   }
 
@@ -103,6 +138,7 @@ export class WorkletPerfReporter {
     this.msg.blockFrames = this.accBlockFrames;
     this.msg.processUs = this.accProcessUs;
     this.msg.quantumUs = this.accQuantumUs;
+    this.msg.sampleRateFallback = sampleRateFallbackSource !== null;
 
     try {
       this.port.postMessage(this.msg);

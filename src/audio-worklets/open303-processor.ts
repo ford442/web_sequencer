@@ -30,6 +30,21 @@ const JC303_PARAM_MAP: Record<string, number> = {
     jc303_setFilterMode: 8,  // OPEN303_FILTER_MODE
 };
 
+/** open303_* entry points the live A/B stock side (Phase L2) drives. */
+interface StockSideExports {
+    open303_note_on(handle: number | bigint, note: number, velocity: number): void;
+    open303_note_off(handle: number | bigint, note: number): void;
+    open303_all_notes_off(handle: number | bigint): void;
+    open303_process(handle: number | bigint, outPtr: number | bigint, numFrames: number): void;
+}
+
+/** Payloads of the L2/L3 configuration messages. */
+interface LiveHighFidMessageData {
+    armed?: unknown;
+    coefficients?: unknown;
+    buffer?: unknown;
+}
+
 class Open303Processor extends AudioWorkletProcessor {
     private readonly session = new Open303EngineSession(this.port);
     private readonly engineSelection = new Open303EngineSelection(this.session, this.port, () => this.clearAllNotes());
@@ -90,7 +105,7 @@ class Open303Processor extends AudioWorkletProcessor {
         }
 
         if (!this.session.isReady) {
-            if (type === 'set-engine' || type === 'set-303-model' || type === 'param') {
+            if (typeof type === 'string' && Open303Processor.QUEUED_BEFORE_READY.has(type)) {
                 this.pendingMessages.push({ type, data });
             }
             return;
@@ -98,6 +113,16 @@ class Open303Processor extends AudioWorkletProcessor {
 
         this.dispatchMessage(type, data);
     }
+
+    /** Configuration messages replayed once the worklet reaches READY. */
+    private static readonly QUEUED_BEFORE_READY = new Set([
+        'set-engine',
+        'set-303-model',
+        'param',
+        'set-live-ab',
+        'set-highfid-coeffs',
+        'attach-highfid-coeff-table',
+    ]);
 
     private dispatchMessage(type: string, data: any): void {
         if (type === 'noteOn') {
@@ -114,6 +139,52 @@ class Open303Processor extends AudioWorkletProcessor {
             );
         } else if (type === 'param') {
             this.handleParam(data);
+        } else if (type === 'set-live-ab' || type === 'set-highfid-coeffs' || type === 'attach-highfid-coeff-table') {
+            this.handleLiveHighFidMessage(type, data as LiveHighFidMessageData | undefined);
+        }
+    }
+
+    private handleLiveHighFidMessage(type: string, data: LiveHighFidMessageData | undefined): void {
+        if (type === 'set-live-ab') {
+            const wasShadowing = this.engineSelection.abActive;
+            this.engineSelection.setLiveAb(data?.armed === true);
+            // Side A stops rendering: don't leave its notes hanging for the next arm.
+            if (wasShadowing && !this.engineSelection.abActive) this.stockAllNotesOff();
+        } else if (type === 'set-highfid-coeffs') {
+            this.engineSelection.setHighFidCoefficients(data?.coefficients ?? null);
+        } else {
+            this.engineSelection.attachCoefficientTable(data?.buffer);
+        }
+    }
+
+    // ── Live A/B stock side (Phase L2) ────────────────────────────────────────
+    // While A/B is active the custom open303 instance shadows the live high-fid
+    // voice note for note, so both sides hear one MIDI stream.
+
+    private get stockExports(): StockSideExports {
+        return this.session.getExports() as StockSideExports;
+    }
+
+    private get stockHandle(): number | bigint {
+        return this.session.toWasmHandle(this.session.instanceHandle);
+    }
+
+    private stockNoteOn(note: number, velocity: number): void {
+        if (!this.engineSelection.abActive || !this.session.isNativeApi) return;
+        this.stockExports.open303_note_on(this.stockHandle, note, velocity);
+    }
+
+    private stockNoteOff(note: number): void {
+        if (!this.engineSelection.abActive || !this.session.isNativeApi) return;
+        this.stockExports.open303_note_off(this.stockHandle, note);
+    }
+
+    private stockAllNotesOff(): void {
+        if (!this.session.isInstantiated || !this.session.isNativeApi) return;
+        try {
+            this.stockExports.open303_all_notes_off(this.stockHandle);
+        } catch (e) {
+            console.error('[Open303] A/B stock all-notes-off failed:', e);
         }
     }
 
@@ -199,6 +270,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
+                this.stockNoteOff(note);
                 this.engineSelection.liveHighFid.noteOff(note);
             } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
                 exports.jc303_note_off(this.session.toWasmHandle(this.session.jc303Handle), note);
@@ -223,6 +295,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
+                if (this.engineSelection.abActive) this.stockAllNotesOff();
                 this.engineSelection.liveHighFid.allNotesOff();
             } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
                 exports.jc303_all_notes_off(this.session.toWasmHandle(this.session.jc303Handle));
@@ -250,6 +323,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
         try {
             if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
+                this.stockNoteOn(note, velocity);
                 this.engineSelection.liveHighFid.noteOn(note, velocity);
             } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
                 exports.jc303_note_on(this.session.toWasmHandle(this.session.jc303Handle), note, velocity);
@@ -315,24 +389,39 @@ class Open303Processor extends AudioWorkletProcessor {
                     return true;
                 }
 
-                const t0 = getTime();
-                this.engineSelection.liveHighFid.process(this.session.nativeOutputPtr, numFrames);
-                const renderUs = (getTime() - t0) * 1000;
+                // L3: pick up knob moves from the shared coefficient table.
+                this.engineSelection.pollCoefficientTable();
 
-                const floatOffset = this.session.getWasmSampleOffset(this.session.nativeOutputPtr, numFrames);
-                if (floatOffset < 0) {
-                    if (this.processErrorCount++ < 5) {
-                        console.error('[Open303] highfid303_process output buffer unreadable');
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-                this.session.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
-
-                // CPU meter / glitch gate — degrade to stock rather than glitch.
                 const quantumUs = (numFrames / this.session.sampleRateHz) * 1_000_000;
-                this.engineSelection.recordHighFidTiming(renderUs, quantumUs);
+                const busB = outputs[1];
+                if (this.engineSelection.abActive && busB) {
+                    // ── Live A/B (Phase L2): stock → output 0, high-fid → output 1 ──
+                    // One scratch buffer, rendered and copied out twice.
+                    const tStock = getTime();
+                    this.stockExports.open303_process(
+                        this.stockHandle,
+                        this.session.toWasmHandle(this.session.nativeOutputPtr),
+                        numFrames,
+                    );
+                    const stockUs = (getTime() - tStock) * 1000;
+                    if (!this.copyNativeOutput(numFrames, channelL, channelR, gain)) return true;
+
+                    const tHigh = getTime();
+                    this.engineSelection.liveHighFid.process(this.session.nativeOutputPtr, numFrames);
+                    const renderUs = (getTime() - tHigh) * 1000;
+                    if (!this.copyNativeOutput(numFrames, busB[0], busB[1], gain)) return true;
+
+                    // Only the high-fid time feeds the gate — it can only trip side B.
+                    this.engineSelection.recordAbTiming(stockUs, renderUs, quantumUs);
+                } else {
+                    const t0 = getTime();
+                    this.engineSelection.liveHighFid.process(this.session.nativeOutputPtr, numFrames);
+                    const renderUs = (getTime() - t0) * 1000;
+                    if (!this.copyNativeOutput(numFrames, channelL, channelR, gain)) return true;
+
+                    // CPU meter / glitch gate — degrade to stock rather than glitch.
+                    this.engineSelection.recordHighFidTiming(renderUs, quantumUs);
+                }
             } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
                 // ── Authentic rosic::Open303 multi-instance API ───────────────
                 const ptr = exports.jc303_process_handle(
@@ -402,6 +491,15 @@ class Open303Processor extends AudioWorkletProcessor {
                 }
             }
 
+            // A/B still armed but side B is gone (CPU gate): mirror stock onto
+            // bus B until the main thread collapses the blend to side A, so a
+            // blend parked at high-fid never drops to silence.
+            const busB = outputs[1];
+            if (busB && this.engineSelection.isAbArmed && !this.engineSelection.abActive) {
+                if (busB[0] && channelL) busB[0].set(channelL);
+                if (busB[1] && channelR) busB[1].set(channelR);
+            }
+
             // Stuck note detection (common to both APIs)
             this.checkStuckNotes(exports);
 
@@ -419,6 +517,26 @@ class Open303Processor extends AudioWorkletProcessor {
         }
     }
 
+    /** Copy the shared native scratch buffer to a stereo pair; false (and silence) if unreadable. */
+    private copyNativeOutput(
+        numFrames: number,
+        left: Float32Array | undefined,
+        right: Float32Array | undefined,
+        gain: number,
+    ): boolean {
+        const floatOffset = this.session.getWasmSampleOffset(this.session.nativeOutputPtr, numFrames);
+        if (floatOffset < 0) {
+            if (this.processErrorCount++ < 5) {
+                console.error('[Open303] live high-fid output buffer unreadable');
+            }
+            if (left) left.fill(0);
+            if (right) right.fill(0);
+            return false;
+        }
+        this.session.writeOutputSamples(floatOffset, numFrames, left, right, gain);
+        return true;
+    }
+
     private checkStuckNotes(exports: any): void {
         if (this.activeNoteCount === 0) return;
         const now = getTime();
@@ -432,6 +550,7 @@ class Open303Processor extends AudioWorkletProcessor {
                     }
                     try {
                         if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
+                            this.stockNoteOff(note);
                             this.engineSelection.liveHighFid.noteOff(note);
                         } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
                             exports.jc303_note_off(this.session.jc303Handle, note);

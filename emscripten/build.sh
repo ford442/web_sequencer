@@ -271,8 +271,10 @@ build_profile() {
         # 1. Compile Audio DSP.
         # The one fast-math consumer: block mix / gain / pan over stateless float arrays,
         # where reassociation is safe and vectorises well. Everything below is compiled
-        # IEEE-safe. pthread-only: it links libomp and is driven from the main thread
-        # (src/engines/AudioDSP.ts), never from a worklet.
+        # IEEE-safe. pthread-only: it links libomp.
+        # No JS caller remains: the main-thread AudioDSP.ts bridge was deleted
+        # (it fought the worklet's imported heap, #1229). A future offline
+        # consumer must be a dedicated worker, never main-thread window.Module.
         compile_cpp_fast "$SCRIPT_DIR/audio_dsp.cpp"
         extra_libs="$SCRIPT_DIR/libomp.a"
     fi

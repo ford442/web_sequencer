@@ -22,3 +22,6 @@
 ## 2026-09-21 - Accessible Toggle Overlay Visibility
 **Learning:** When an overlay uses `inert` and `aria-hidden` to stay out of the accessibility tree, both attributes must be toggled together when the visibility changes. Leaving `aria-hidden="true"` while making elements focusable causes axe violations and ignores `aria-label`s.
 **Action:** Always ensure that when an overlay's `inert` property is removed to allow interaction, its `aria-hidden` attribute is also removed or set to `false`. They must stay synchronized to maintain correct screen reader behavior.
+## 2024-05-18 - Tooltips and aria-hidden on icon buttons
+**Learning:** When making mobile-friendly or responsive buttons that rely heavily on icons, adding `title` attributes provides essential tooltips for desktop mouse users. However, if those icons are text characters (like `+`, `-`, or `!`), they must be wrapped in `<span aria-hidden="true">` to prevent screen readers from reading the character alongside the `aria-label`.
+**Action:** Always pair `aria-label` with `title` on icon-heavy buttons, and ensure any text-based icons within those buttons are explicitly hidden from screen readers.

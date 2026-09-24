@@ -11,7 +11,8 @@
  *   - Coupled accent envelope (short attack → decay) modulating filter + VCA
  *   - Optional oversampling (1|2|4) for offline / freeze / export
  *
- * Real-time AudioWorklet path is NOT used — this module is offline-only.
+ * Also driven in real time by the `live-highfid` voice (Phase L1/L2/L3,
+ * src/audio-worklets/liveHighFid303.ts) at oversample 1.
  *
  * C API (EMSCRIPTEN_KEEPALIVE + embind):
  *   highfid303_create / destroy / init
@@ -19,7 +20,14 @@
  *   highfid303_set_param / set_oversample / get_oversample
  *   highfid303_process
  *
- * Parameter IDs match Open303Param (src/engines/Open303Params.ts).
+ * Parameter IDs 0–13 match Open303Param (src/engines/Open303Params.ts).
+ * Ids 14–17 are the editable diode-ladder coefficients (Phase L3) — see
+ * src/audio-worklets/liveHighFidCoefficients.ts. Their defaults are the
+ * canonical preset and reproduce the pre-L3 output bit for bit, which is what
+ * the spectrogram / RMS gates measure.
+ *
+ * Built with compile_cpp (NOT compile_cpp_fast): -ffast-math would let the
+ * compiler reassociate the canonical-preset maths and break bit-exactness.
  */
 
 #include <emscripten.h>
@@ -59,7 +67,20 @@ enum HighFidParam : int {
     HF_SLIDE_TIME    = 11,
     HF_SOFT_ATTACK   = 12,
     HF_SQUARE_DRIVER = 13,
+    // Phase L3 — editable diode-ladder coefficients (HIGHFID_COEFFICIENT_PARAM_IDS).
+    HF_TRANSISTOR_MISMATCH = 14,
+    HF_DECAY_CURVE         = 15,
+    HF_ACCENT_COUPLING     = 16,
+    HF_FILTER_TRACKING     = 17,
 };
+
+// Canonical preset (CANONICAL_HIGHFID_COEFFICIENTS). accentCoupling 0.45 is the
+// constant the accent path hard-coded before L3.
+static constexpr float CANON_ACCENT_COUPLING = 0.45f;
+// Per-stage pole spread for full transistor mismatch (stage b0 *= 1 + m·s).
+static constexpr float MISMATCH_SPREAD[4] = { 0.08f, -0.05f, 0.06f, -0.09f };
+// Filter-tracking reference pitch (C4): no cutoff shift at this note.
+static constexpr float TRACKING_REF_HZ = 261.6256f;
 
 static inline float midiToFreq(int midiNote)
 {
@@ -135,6 +156,9 @@ struct OnePoleHP {
 struct DiodeLadderFilter {
     float y1 = 0.0f, y2 = 0.0f, y3 = 0.0f, y4 = 0.0f;
     float b0 = 0.5f;
+    // Per-stage coefficients. With mismatch 0 each is b0 * 1.0f == b0 exactly.
+    float b0s[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
+    float mismatch = 0.0f;
     float k  = 0.0f;
     float g  = 1.0f;
     float sampleRate = 44100.0f;
@@ -167,6 +191,9 @@ struct DiodeLadderFilter {
 
         b0 = (0.00045522346f + 6.1922189f * fx) /
              (1.0f + 12.358354f * fx + 4.4156345f * (fx * fx));
+        for (int s = 0; s < 4; ++s) {
+            b0s[s] = b0 * (1.0f + mismatch * MISMATCH_SPREAD[s]);
+        }
 
         float kScale = fx * (fx * (fx * (fx * (fx * (fx + 7198.6997f)
                         - 5837.7917f) - 476.47308f) + 614.95611f) + 213.87126f) + 16.998792f;
@@ -191,10 +218,10 @@ struct DiodeLadderFilter {
         const float fb = feedbackHp.process(k * diodeShape(y4));
         const float y0 = in - fb;
 
-        y1 += 2.0f * b0 * (y0 - y1 + y2);
-        y2 +=       b0 * (y1 - 2.0f * y2 + y3);
-        y3 +=       b0 * (y2 - 2.0f * y3 + y4);
-        y4 +=       b0 * (y3 - 2.0f * y4);
+        y1 += 2.0f * b0s[0] * (y0 - y1 + y2);
+        y2 +=       b0s[1] * (y1 - 2.0f * y2 + y3);
+        y3 +=       b0s[2] * (y2 - 2.0f * y3 + y4);
+        y4 +=       b0s[3] * (y3 - 2.0f * y4);
 
         y1 = clampf(y1, -8.0f, 8.0f);
         y2 = clampf(y2, -8.0f, 8.0f);
@@ -229,6 +256,11 @@ struct HighFid303Instance {
     float accentDecay = 0.03f;
     float slideTime  = 0.33f;
     float squareDrv  = 0.25f;
+
+    // Phase L3 coefficients — defaults are the canonical preset.
+    float decayCurve     = 0.0f;
+    float accentCoupling = CANON_ACCENT_COUPLING;
+    float filterTracking = 0.0f;
 
     float phase        = 0.0f;
     float currentFreq  = 440.0f;
@@ -304,6 +336,12 @@ struct HighFid303Instance {
             case HF_ACCENT_DECAY:  accentDecay = value; updateRates(); break;
             case HF_SLIDE_TIME:    slideTime   = value; break;
             case HF_SQUARE_DRIVER: squareDrv   = value; break;
+            case HF_TRANSISTOR_MISMATCH:
+                filter.mismatch = clampf(value, 0.0f, 1.0f); updateFilterCoeffs(); break;
+            case HF_DECAY_CURVE:     decayCurve     = clampf(value, 0.0f, 1.0f); break;
+            case HF_ACCENT_COUPLING: accentCoupling = clampf(value, 0.0f, 1.0f); break;
+            case HF_FILTER_TRACKING:
+                filterTracking = clampf(value, 0.0f, 1.0f); updateFilterCoeffs(); break;
             default: break;
         }
     }
@@ -326,9 +364,17 @@ struct HighFid303Instance {
     {
         // TeeBee-like floor (~200 Hz) and darker top than stock open303 —
         // targets soft-oracle spectral body (G2 / mid-band).
-        const float envBoost = envMod * envLevel + (accented ? accent * 0.45f * accentEnv : 0.0f);
+        // Canonical preset takes the unshaped / untracked branches, so the
+        // arithmetic is exactly the pre-L3 expression.
+        const float envShaped = (decayCurve > 0.0f)
+            ? std::pow(envLevel, 1.0f + 3.0f * decayCurve)
+            : envLevel;
+        const float envBoost = envMod * envShaped + (accented ? accent * accentCoupling * accentEnv : 0.0f);
         const float total = clampf(cutoff + envBoost, 0.0f, 1.0f);
-        const float hz = 200.0f * std::pow(4500.0f / 200.0f, total);
+        float hz = 200.0f * std::pow(4500.0f / 200.0f, total);
+        if (filterTracking > 0.0f && currentFreq > 0.0f) {
+            hz *= std::pow(currentFreq / TRACKING_REF_HZ, filterTracking);
+        }
         filter.setCutoffResonance(hz, resonance);
     }
 

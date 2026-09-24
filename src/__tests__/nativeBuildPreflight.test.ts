@@ -34,8 +34,8 @@ describe('native preflight', () => {
     const root = fixtureRoot();
     writeFileSync(join(root, 'out.wasm'), 'wasm');
     const world = {
-      id: 'rust',
-      rebuildCommand: 'pnpm run build:wasm:rust',
+      id: 'as-fft',
+      rebuildCommand: 'pnpm run build:wasm:fft',
       inputs: [{ kind: 'file' as const, name: 'in.c' }],
       outputs: ['out.wasm'],
     };
@@ -43,8 +43,8 @@ describe('native preflight', () => {
     writeFileSync(join(root, 'in.c'), 'int y;\n');
     const result = evaluateWorld(root, world, { inputHash: first });
     expect(result.status).toBe('stale');
-    expect(result.rebuildCommand).toBe('pnpm run build:wasm:rust');
-    expect(formatPreflightReport([result])).toContain('rebuild: pnpm run build:wasm:rust');
+    expect(result.rebuildCommand).toBe('pnpm run build:wasm:fft');
+    expect(formatPreflightReport([result])).toContain('rebuild: pnpm run build:wasm:fft');
   });
 
   it('passes when hashes match and outputs exist', () => {
@@ -76,15 +76,18 @@ describe('native preflight', () => {
     }
   });
 
-  it('maps C++ / Rust / AS worlds to targeted commands', () => {
+  it('maps C++ / AS worlds to targeted commands', () => {
     const worlds = defineWorlds(defaultRepoRoot());
     const byId = Object.fromEntries(
       worlds.map((w: { id: string; rebuildCommand: string }) => [w.id, w.rebuildCommand]),
     );
     expect(byId.emcc).toBe('pnpm run build:emcc');
-    expect(byId.rust).toBe('pnpm run build:wasm:rust');
     expect(byId.jc303).toBe('pnpm run build:wasm:jc303');
     expect(byId['as-oscillators']).toBe('pnpm run build:wasm:oscillators');
+    // rust-audio/ is a bench crate (#1294): nothing in the app loads
+    // public/rust-wasm/, so it is not a native world and `build:native` must
+    // not demand a Rust toolchain.
+    expect(byId.rust).toBeUndefined();
   });
 
   it('jc303 world still stamps the historical pthread worker path', () => {

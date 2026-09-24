@@ -134,7 +134,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     toolchain: 'asc',
   }));
 
-  const rustSrc = walkFiles(repoRoot, 'rust-audio/src', { excludeDirNames: new Set(['target']) });
 
   const jc303WasmFiles = walkFiles(repoRoot, 'jc303_wasm/wasm', {
     excludeDirNames: new Set(['build_threaded', 'build_single', 'dist', 'build']),
@@ -162,21 +161,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
 
   return [
     ...asWorlds,
-    {
-      id: 'rust',
-      world: 'rust',
-      rebuildCommand: 'pnpm run build:wasm:rust',
-      inputs: [
-        ...rustSrc.map(fileInput),
-        fileInput('rust-audio/Cargo.toml'),
-        fileInput('rust-audio/Cargo.lock'),
-      ],
-      outputs: [
-        'public/rust-wasm/rust_audio.js',
-        'public/rust-wasm/rust_audio_bg.wasm',
-      ],
-      toolchain: 'rustc',
-    },
     {
       id: 'jc303',
       world: 'jc303',
