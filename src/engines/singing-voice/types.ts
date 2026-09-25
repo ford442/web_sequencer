@@ -26,8 +26,10 @@ export interface SingingVoiceCoreMethods {
   setSpectralCompression(amount: number, time?: number): void;
   setSubHarmonics(amount: number, time?: number): void;
   setVocalChorus(amount: number, time?: number): void;
+  setTransientExtraction(amount: number, time?: number): void;
   setPhonemeFilterMod(amount: number, time?: number): void;
   setDrumDuckDepth(amount: number, time?: number): void;
+  setConsonantClarity(amount: number, time?: number): void;
   setReverse(reverse: boolean): void;
 }
 
