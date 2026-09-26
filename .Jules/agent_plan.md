@@ -20,7 +20,7 @@
 - [x] Implement Phoneme-driven auto-rhythm generation for TTS
 - [x] Add granular random jitter per phoneme
 - [x] Add multi-voice unison detune
-- [ ] Optimize TTS memory footprint
+- [x] Optimize TTS memory footprint
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] Implement per-phoneme granular synthesis grain size control
 - [x] Could we create a visually interactive overlay on the sequencer for modifying TTS granular envelope shapes directly per note?
@@ -54,7 +54,7 @@
 ## Innovation Lab
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
-- [ ] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
+- [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
@@ -71,6 +71,8 @@
 - [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 
+
+- Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
 - Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.
@@ -121,6 +123,10 @@
 
 - Completed "Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection." by moving it into the Active Backlog and implementing a simple zero-crossing pitch tracker inside `RubberBandProcessor` that dynamically feeds the previous block's detected pitch correction ratio into RubberBand's pitch scalar.
 - Velocity Check: Detecting zero crossings on the generated output to apply a pitch offset to RubberBand's input works nicely as a rapid feedback look, enabling a basic hard-tuning effect inside the time-stretcher without expensive STFT operations. Added "Explore real-time cross-modulation between two TTS engines to create a vocoder-like effect." to the Innovation Lab.
+
+
+- Completed "Optimize TTS memory footprint" by caching `resolveWorkletSampleRate` block-wide in `RubberBandProcessor` to remove redundant inline parameter object allocations in the hot audio processing loop, vastly reducing GC pressure. Also completed linking consonant boost to velocity by extracting `pVol` and scaling `consonantClarity` before passing it to the Transient Shaper. This makes loud syllables punchier while keeping quiet whispers soft.
+- Velocity Check: Identifying the massive GC pressure from repeated `{ sampleRate: ... }` allocations in `process()` was a huge win for audio stability. The consonant scaling was computationally nearly free since `pVol` is already mapped from the SharedArrayBuffer.
 
 ## Roadmap
 - Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.
