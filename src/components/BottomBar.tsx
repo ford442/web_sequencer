@@ -249,7 +249,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot save while importing AI song" : "Save to JSON"}
                 >
-                    💾 SAVE
+                    <span aria-hidden="true">💾</span> SAVE
                 </button>
                 <button type="button"
                     onClick={importSongFromFile} 
@@ -258,7 +258,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot load while importing AI song" : "Load from JSON"}
                 >
-                    📂 LOAD
+                    <span aria-hidden="true">📂</span> LOAD
                 </button>
                 <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
