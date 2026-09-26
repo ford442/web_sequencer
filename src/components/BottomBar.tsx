@@ -208,7 +208,7 @@ export const BottomBar = memo(function BottomBar({
                         }
                         className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'bg-zinc-800 text-red-400 border border-red-900/50 hover:bg-red-950 hover:text-red-300'} ${!isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                        {isAutomationRecording ? '● REC' : 'REC AUTO'}
+                        {isAutomationRecording ? <><span aria-hidden="true">●</span> REC</> : 'REC AUTO'}
                     </button>
                     </HelpTip>
                 )}
@@ -249,7 +249,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot save while importing AI song" : "Save to JSON"}
                 >
-                    💾 SAVE
+                    <span aria-hidden="true">💾</span> SAVE
                 </button>
                 <button type="button"
                     onClick={importSongFromFile} 
@@ -258,7 +258,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot load while importing AI song" : "Load from JSON"}
                 >
-                    📂 LOAD
+                    <span aria-hidden="true">📂</span> LOAD
                 </button>
                 <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
@@ -268,7 +268,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot import while importing AI song" : "Import ReBirth RB-338 file"}
                 >
-                    🎹 Import .rbs
+                    <span aria-hidden="true">🎹</span> Import .rbs
                 </button>
                 </HelpTip>
                 <button type="button"
@@ -278,7 +278,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
-                    💾 Export .rbs
+                    <span aria-hidden="true">💾</span> Export .rbs
                 </button>
                 <HelpTip topicId="smf-import" position="top">
                 <button type="button"
@@ -288,7 +288,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot import while importing AI song" : "Import Standard MIDI File"}
                 >
-                    🎼 Import .mid
+                    <span aria-hidden="true">🎼</span> Import .mid
                 </button>
                 </HelpTip>
                 <button type="button"
@@ -298,7 +298,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-teal-400 bg-zinc-900 border border-teal-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as Standard MIDI file"}
                 >
-                    💾 Export .mid
+                    <span aria-hidden="true">💾</span> Export .mid
                 </button>
                 <button type="button"
                     onClick={() => setIsExportModalOpen(true)}
@@ -307,7 +307,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export dry stems (WAV ZIP)"}
                 >
-                    🎚 Export Stems
+                    <span aria-hidden="true">🎚</span> Export Stems
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
