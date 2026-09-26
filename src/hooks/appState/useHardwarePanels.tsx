@@ -12,6 +12,7 @@ import { ProphecyPanel } from '../../components/ProphecyPanel'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
+import { samplerBanksStore, useSamplerBanksStore, loadedBanksFrom, multisampleFlagsFrom } from '../../stores/samplerBanksStore'
 import { engineTelemetry } from '../../utils/engineTelemetry'
 import { Open303Manager } from '../../engines/Open303Manager'
 import type { LiveAbSettings } from '../../engines/LiveHighFidAbPair'
@@ -52,38 +53,36 @@ export function useHardwarePanels(deps: {
     updateBass2: (updates: Partial<Bass2Params>) => void;
     updateSampler: (u: SamplerParams) => void;
     audioEngine: AudioEngine | null;
-    activeSamplerBank: number;
-    setActiveSamplerBank: React.Dispatch<React.SetStateAction<number>>;
     isVoiceEditorOpen: boolean;
     setIsVoiceEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    ttsPhrases: string[];
     handleTtsPhraseChange: (newPhrases: string[]) => void;
     handleGenerateTTS: (text: string) => Promise<void>;
     handleSamplerParamChange: (bankIdx: number, key: string, val: unknown) => void;
     handleLoadSample: (name: string, buffer: AudioBuffer, onProgress?: (progress: number) => void) => Promise<void>;
-    loadedBanks: boolean[];
-    sampleBuffers: (AudioBuffer | null)[];
-    sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
     melodicMode: boolean;
     setMelodicMode: React.Dispatch<React.SetStateAction<boolean>>;
-    multisampleReady: boolean[];
-    multisampleProcessing: boolean[];
-    activeAlignment: AlignmentResult | null;
-    setActiveAlignment: React.Dispatch<React.SetStateAction<AlignmentResult | null>>;
     handleHarmonizerConfigChange: (config: HarmonizerConfig, isActive: boolean) => void;
 }) {
     const {
         synthA, synthB, bass2, sampler,
         updateSynthA, updateSynthB, updateBass2, updateSampler,
-        audioEngine, activeSamplerBank, setActiveSamplerBank,
+        audioEngine,
         isVoiceEditorOpen, setIsVoiceEditorOpen,
-        ttsPhrases, handleTtsPhraseChange, handleGenerateTTS,
+        handleTtsPhraseChange, handleGenerateTTS,
         handleSamplerParamChange, handleLoadSample,
-        loadedBanks, sampleBuffers, sliceHighlightRef,
-        melodicMode, setMelodicMode, multisampleReady, multisampleProcessing,
-        activeAlignment, setActiveAlignment,
+        melodicMode, setMelodicMode,
         handleHarmonizerConfigChange,
     } = deps;
+
+    const activeSamplerBank = useSamplerBanksStore(s => s.activeSamplerBank);
+    const ttsPhrases = useSamplerBanksStore(s => s.ttsPhrases);
+    const sampleBuffers = useSamplerBanksStore(s => s.sampleBuffers);
+    const sliceHighlightRef = useSamplerBanksStore(s => s.sliceHighlightRef);
+    const activeAlignment = useSamplerBanksStore(s => s.activeAlignment);
+
+    const loadedBanks: boolean[] = loadedBanksFrom(sampleBuffers);
+    const { ready: multisampleReady, processing: multisampleProcessing } = multisampleFlagsFrom(sampleBuffers, audioEngine);
+    const { setActiveSamplerBank, setActiveAlignment } = samplerBanksStore;
 
     const synthAChild = useMemo(() => {
         const is303 = synthA.waveform === '303-saw' || synthA.waveform === '303-sqr';
