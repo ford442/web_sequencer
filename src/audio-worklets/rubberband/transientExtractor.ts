@@ -4,7 +4,7 @@ export class TransientExtractor {
   private hpState1 = [0, 0];
   private hpState2 = [0, 0];
 
-  process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number): void {
+  process(outputs: Float32Array[][], amount: number, isVowel: number, phonemeVolume: number | null, sampleRate: number): void {
     if (amount <= 0 || isVowel > 0) {
       // Fast decay when not active to prevent stuck envelopes
       this.fastEnv[0] *= 0.9;
@@ -43,7 +43,10 @@ export class TransientExtractor {
 
         // Scale and limit transient modifier
         // Map to roughly 0.0 - 2.0 multiplier
-        const transientGain = transientAmount * 10.0 * amount;
+        let transientGain = transientAmount * 10.0 * amount;
+        if (phonemeVolume !== null) {
+            transientGain *= Math.max(0.3, Math.min(1.0, phonemeVolume));
+        }
 
         // High-pass the sample to get just the top end
         // Simple 1-pole HPF: y[n] = alpha * (y[n-1] + x[n] - x[n-1])

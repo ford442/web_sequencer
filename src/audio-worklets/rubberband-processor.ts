@@ -358,6 +358,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
         pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
     }
+    const currentSampleRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
     const blockFrames = outputChannel?.length ?? 128;
     this.perf.beginProcess(blockFrames);
     try {
@@ -413,9 +414,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     }
 
     // Drum sidechain envelope follower
-    const fsForDuck = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+
     const { duckingScalar, isSnare: drumIsSnare } = this.drumDuck.process(
-      this.drumSidechainSAB, drumDuckDepth, currentTime, blockFrames, fsForDuck
+      this.drumSidechainSAB, drumDuckDepth, currentTime, blockFrames, currentSampleRate
     );
 
     const cfg = this.currentExpressiveConfig;
@@ -497,7 +498,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     // Pitch Correction (AutoTune)
     const autoTuneAmount = parameters.autoTune ? parameters.autoTune[0] : 0.0;
-    const sRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+
 
     if (autoTuneAmount > 0.0 && pData && this.targetHz > 0 && this.fullSampleBuffer) {
       const isVowel = pData[7] > 0;
@@ -580,8 +581,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     // Apply Auto-Tune Pitch Correction based on previous block's detected pitch
     const autoTune = parameters.autoTune ? parameters.autoTune[0] : 0.0;
     if (autoTune > 0.0 && this.autoTuneSmoothedPeriod > 0) {
-      const fs = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-      const detectedFreq = fs / this.autoTuneSmoothedPeriod;
+
+      const detectedFreq = currentSampleRate / this.autoTuneSmoothedPeriod;
 
       // Quantize detected frequency to nearest MIDI note
       if (detectedFreq > 20 && detectedFreq < 20000) {
@@ -629,9 +630,9 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const grainPosLfoDepth = parameters.grainPosLfoDepth ? parameters.grainPosLfoDepth[0] : 0.0;
 
         // Advance LFO phase once per block (128 samples, standard Web Audio block size)
-        const sRateFreeze = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+
         const framesInBlock = 128;
-        this.granular.advanceLfoPhases(freezeLfoRate, grainLfoRate, sRateFreeze, framesInBlock);
+        this.granular.advanceLfoPhases(freezeLfoRate, grainLfoRate, currentSampleRate, framesInBlock);
 
         const lfoValue = this.granular.getFreezeLfoValue();
         // Bipolar modulation: freezeBase + freezeLfoDepth * sin, plus envelope follower modulation
@@ -646,7 +647,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           // FREEZE STREAMING (Spectral Granulator)
           this.frozenGrainParams.rubberBand = this.rubberBand;
           this.frozenGrainParams.fullSampleBuffer = this.fullSampleBuffer;
-          this.frozenGrainParams.sampleRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+          this.frozenGrainParams.sampleRate = currentSampleRate;
           this.frozenGrainParams.phonemeData = this.phonemeData;
           this.frozenGrainParams.phonemeRatios = this.phonemeRatios;
           this.frozenGrainParams.currentSamplePtr = this.currentSamplePtr;
@@ -772,8 +773,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const phonemeFilterMod = parameters.phonemeFilterMod ? parameters.phonemeFilterMod[0] : 0.0;
         const hasPhonemeContext = this.isPlaying && !!this.fullSampleBuffer && !!this.phonemeData && !!this.phonemeRatios;
         const phonemeVolume = pData ? pData[1] : null;
-        const sRateForPhonemeFilter = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-        this.phonemeToneFilter.process(outputChannel, phonemeFilterMod, phonemeVolume, sRateForPhonemeFilter);
+
+        this.phonemeToneFilter.process(outputChannel, phonemeFilterMod, phonemeVolume, currentSampleRate);
 
         // Apply Syllable Volume Filter
         const volFilterMod = parameters.volumeFilterMod ? parameters.volumeFilterMod[0] : 0.0;
@@ -782,16 +783,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
 
         // Apply Rhythmic Gating (Trance Gate)
-        const sRateForGate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-        this.tranceGate.process(outputChannel, gateDepth, gateRate, sRateForGate);
+
+        this.tranceGate.process(outputChannel, gateDepth, gateRate, currentSampleRate);
 
         // Apply Transient Shaper for Consonants
         const pConsonantClarity = parameters.consonantClarity ? parameters.consonantClarity[0] : 0.0;
         if (pConsonantClarity > 0) {
             const isVowel = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[7] : null;
             const phonemeIndex = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[8] : null;
-            const sRateForShaper = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-            this.transientShaper.process(outputChannel, pConsonantClarity, isVowel, phonemeIndex, sRateForShaper);
+
+            this.transientShaper.process(outputChannel, pConsonantClarity, isVowel, phonemeIndex, phonemeVolume, currentSampleRate);
         }
 
         // Grain-triggered stereo pan spread
@@ -807,7 +808,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const outL = outputs[0][0];
         const outR = outputs[0][1];
         const hasStereo = !!(outL && outR);
-        const sRateForSpectral = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+
 
         this.bandSplitParams.outL = outL;
         this.bandSplitParams.outR = outR;
@@ -817,7 +818,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         this.bandSplitParams.grainPanSpread = grainPanSpread;
         this.bandSplitParams.grainPanL = this.granular.grainPanL;
         this.bandSplitParams.grainPanR = this.granular.grainPanR;
-        this.bandSplitParams.sampleRate = sRateForSpectral;
+        this.bandSplitParams.sampleRate = currentSampleRate;
         this.spectral.applyBandSplitAndCompression(this.bandSplitParams);
 
         // Vocal Stack Chorus Effect (Post-Retrieve Micro-Delay Taps)
@@ -832,20 +833,20 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const effectiveSubAmount = subHarmonicsAmount * (drumIsSnare === 0.0 ? Math.max(0, 1.0 - duckingScalar) : 1.0);
         if (effectiveSubAmount > 0) {
           const isVowelForSub = pData ? pData[7] : 1.0;
-          const sRateForSub = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-          this.subHarmonics.process(outputs, effectiveSubAmount, isVowelForSub, sRateForSub);
+
+          this.subHarmonics.process(outputs, effectiveSubAmount, isVowelForSub, currentSampleRate);
         }
 
         if (transientExtractionAmount > 0) {
           const isVowelForTrans = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
-          const sRateForTrans = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-          this.transientExtractor.process(outputs, transientExtractionAmount, isVowelForTrans, sRateForTrans);
+
+          this.transientExtractor.process(outputs, transientExtractionAmount, isVowelForTrans, phonemeVolume, currentSampleRate);
         }
 
         if (duckingScalar > 0) {
           const isVowelForDuck = pData ? pData[7] : 1.0;
-          const sRateForDuck = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
-          this.drumDuck.applyMasterDuck(outputs, duckingScalar, isVowelForDuck, sRateForDuck);
+
+          this.drumDuck.applyMasterDuck(outputs, duckingScalar, isVowelForDuck, currentSampleRate);
         }
 
         // Apply Bitcrush & Downsample

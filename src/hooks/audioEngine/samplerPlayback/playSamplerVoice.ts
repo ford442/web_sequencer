@@ -134,7 +134,7 @@ export function createPlaySamplerVoice(
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
-    const pTransientExtraction = noteParams?.transientExtraction !== undefined ? noteParams.transientExtraction : params.transientExtraction;
+    const pTransientExtraction = (noteParams as any)?.transientExtraction !== undefined ? (noteParams as any).transientExtraction : (params as any).transientExtraction;
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
     const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
     const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
