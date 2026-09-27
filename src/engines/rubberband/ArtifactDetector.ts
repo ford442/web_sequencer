@@ -345,7 +345,10 @@ export class ArtifactDetector {
         // Ensure audio is correct length
         if (audio.length !== this.config.fftSize) {
             this.paddedAudio.fill(0);
-            this.paddedAudio.set(audio.subarray(0, Math.min(audio.length, this.config.fftSize)));
+            const copyLen = Math.min(audio.length, this.config.fftSize);
+            for (let i = 0; i < copyLen; i++) {
+                this.paddedAudio[i] = audio[i];
+            }
             audio = this.paddedAudio;
         }
 
@@ -361,7 +364,7 @@ export class ArtifactDetector {
         // Calculate spectral flux
         let spectralFlux = 0;
         if (this.hasPrevMagnitude) {
-            spectralFlux = calculateSpectralFlux(this.prevMagnitude.subarray(0, magnitude.length), magnitude);
+            spectralFlux = calculateSpectralFlux(this.prevMagnitude, magnitude, magnitude.length);
         }
         this.prevMagnitude.set(magnitude);
         this.hasPrevMagnitude = true;
