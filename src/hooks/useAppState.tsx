@@ -637,13 +637,11 @@ export function useAppState() {
     const { synthAChild, synthBChild, bass2Child, samplerChild } = useHardwarePanels({
         synthA, synthB, bass2, sampler,
         updateSynthA, updateSynthB, updateBass2, updateSampler,
-        audioEngine, activeSamplerBank, setActiveSamplerBank,
+        audioEngine,
         isVoiceEditorOpen, setIsVoiceEditorOpen,
-        ttsPhrases, handleTtsPhraseChange, handleGenerateTTS,
+        handleTtsPhraseChange, handleGenerateTTS,
         handleSamplerParamChange, handleLoadSample,
-        loadedBanks, sampleBuffers, sliceHighlightRef,
-        melodicMode, setMelodicMode, multisampleReady, multisampleProcessing,
-        activeAlignment, setActiveAlignment,
+        melodicMode, setMelodicMode,
         handleHarmonizerConfigChange,
     });
 

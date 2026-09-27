@@ -453,25 +453,28 @@ export class FFT {
  * Spectral flux calculation between consecutive frames
  * @param prevMagnitude Previous frame's magnitude spectrum
  * @param currMagnitude Current frame's magnitude spectrum
+ * @param computeLength Optional length to iterate. Must be valid for both arrays
  * @returns Spectral flux value
  */
 export function calculateSpectralFlux(
     prevMagnitude: Float32Array,
-    currMagnitude: Float32Array
+    currMagnitude: Float32Array,
+    computeLength?: number
 ): number {
-    if (prevMagnitude.length !== currMagnitude.length) {
+    const len = computeLength ?? currMagnitude.length;
+    if (computeLength === undefined && prevMagnitude.length !== currMagnitude.length) {
         throw new Error('Magnitude arrays must have same length');
     }
 
     let flux = 0;
-    for (let i = 0; i < currMagnitude.length; i++) {
+    for (let i = 0; i < len; i++) {
         const diff = currMagnitude[i] - prevMagnitude[i];
         if (diff > 0) {
             flux += diff;
         }
     }
 
-    return flux / currMagnitude.length;
+    return flux / len;
 }
 
 /**

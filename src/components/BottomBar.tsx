@@ -165,19 +165,22 @@ export const BottomBar = memo(function BottomBar({
                 </div>
 
                 {viewMode === 'automation' && (
-                    <select
-                        value={automationParam}
-                        onChange={(e) => setAutomationParam(e.target.value)}
-                        aria-label="Automation Parameter"
-                        title="Automation Parameter"
-                        className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 px-1.5 py-1 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded"
-                    >
-                        <option value="formantShift">Formant</option>
-                        <option value="vibratoDepth">Vibrato</option>
-                        <option value="chordInversion">Chord Inversion</option>
-                        <option value="vowel">Vowel (Prophecy)</option>
-                        <option value="portamento">Portamento (Prophecy)</option>
-                    </select>
+                    <>
+                        <label className="sr-only" htmlFor="automation-param-select">Automation Parameter</label>
+                        <select
+                            id="automation-param-select"
+                            value={automationParam}
+                            onChange={(e) => setAutomationParam(e.target.value)}
+                            title="Automation Parameter"
+                            className="bg-zinc-950 text-[10px] text-gray-300 border border-zinc-800 px-1.5 py-1 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded"
+                        >
+                            <option value="formantShift">Formant</option>
+                            <option value="vibratoDepth">Vibrato</option>
+                            <option value="chordInversion">Chord Inversion</option>
+                            <option value="vowel">Vowel (Prophecy)</option>
+                            <option value="portamento">Portamento (Prophecy)</option>
+                        </select>
+                    </>
                 )}
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />
@@ -246,7 +249,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot save while importing AI song" : "Save to JSON"}
                 >
-                    💾 SAVE
+                    <span aria-hidden="true">💾</span> SAVE
                 </button>
                 <button type="button"
                     onClick={importSongFromFile} 
@@ -255,7 +258,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot load while importing AI song" : "Load from JSON"}
                 >
-                    📂 LOAD
+                    <span aria-hidden="true">📂</span> LOAD
                 </button>
                 <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
@@ -360,11 +363,12 @@ export const BottomBar = memo(function BottomBar({
                     </button>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
+                    <label className="sr-only" htmlFor="reverb-type-select">Master Reverb Type</label>
                     <select
+                        id="reverb-type-select"
                         value={reverbType} onChange={handleReverbType}
                         className="bg-zinc-800 text-xs text-gray-300 px-1 py-0.5 border border-gray-700 cursor-pointer uppercase transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded"
                         title="Master Reverb Type"
-                        aria-label="Master Reverb Type"
                     >
                         <option value="room">Room</option>
                         <option value="plate">Plate</option>
