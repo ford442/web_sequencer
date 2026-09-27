@@ -1,39 +1,35 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
-import type { PartSequence, AudioEngine } from '../../types'
-import {
-    UPDATED_INITIAL_PATTERN,
-    type TrackKey, type SongSnapshot,
-    getInitialTrackStorage,
-} from '../../constants/appDefaults'
+import { useMemo, useState } from 'react'
+import type { AudioEngine } from '../../types'
+import { samplerBanksStore, useSamplerBanksStore } from '../../stores/samplerBanksStore'
 
 export function useSamplerBanksState(audioEngine: AudioEngine | null) {
-    const [trackStorage, setTrackStorage] = useState<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>(
-        getInitialTrackStorage(UPDATED_INITIAL_PATTERN)
-    );
-    const [activeTrackSlots, setActiveTrackSlots] = useState<Record<TrackKey, number>>({
-        partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0
-    });
-    const activeTrackSlotsRef = useRef(activeTrackSlots);
-    useEffect(() => { activeTrackSlotsRef.current = activeTrackSlots; }, [activeTrackSlots]);
-    const trackStorageRef = useRef(trackStorage);
-    useEffect(() => { trackStorageRef.current = trackStorage; }, [trackStorage]);
+    const trackStorage = useSamplerBanksStore(s => s.trackStorage);
+    const activeTrackSlots = useSamplerBanksStore(s => s.activeTrackSlots);
+    const songStorage = useSamplerBanksStore(s => s.songStorage);
+    const activeSongSlot = useSamplerBanksStore(s => s.activeSongSlot);
+    const activeAlignment = useSamplerBanksStore(s => s.activeAlignment);
+    const activeSamplerBank = useSamplerBanksStore(s => s.activeSamplerBank);
+    const sampleBuffers = useSamplerBanksStore(s => s.sampleBuffers);
+    const ttsPhrases = useSamplerBanksStore(s => s.ttsPhrases);
 
-    const [songStorage, setSongStorage] = useState<(SongSnapshot | null)[]>([null, null, null, null]);
-    const [activeSongSlot, setActiveSongSlot] = useState<number | null>(null);
+    // Refs aren't strictly reactive, but we need to return them for the shim
+    const trackStorageRef = samplerBanksStore.getSnapshot().trackStorageRef;
+    const activeTrackSlotsRef = samplerBanksStore.getSnapshot().activeTrackSlotsRef;
+    const activeSamplerBankRef = samplerBanksStore.getSnapshot().activeSamplerBankRef;
+    const lastSamplerMidiRef = samplerBanksStore.getSnapshot().lastSamplerMidiRef;
+    const lastSamplerFormantRef = samplerBanksStore.getSnapshot().lastSamplerFormantRef;
+    const sliceHighlightRef = samplerBanksStore.getSnapshot().sliceHighlightRef;
 
-    const [activeAlignment, setActiveAlignment] = useState<AlignmentResult | null>(null);
+    const setTrackStorage = samplerBanksStore.setTrackStorage;
+    const setActiveTrackSlots = samplerBanksStore.setActiveTrackSlots;
+    const setSongStorage = samplerBanksStore.setSongStorage;
+    const setActiveSongSlot = samplerBanksStore.setActiveSongSlot;
+    const setActiveAlignment = samplerBanksStore.setActiveAlignment;
+    const setActiveSamplerBank = samplerBanksStore.setActiveSamplerBank;
+    const setSampleBuffers = samplerBanksStore.setSampleBuffers;
+    const setTtsPhrases = samplerBanksStore.setTtsPhrases;
 
-    const [activeSamplerBank, setActiveSamplerBank] = useState(0);
-    const activeSamplerBankRef = useRef(activeSamplerBank);
-
-    useEffect(() => {
-        activeSamplerBankRef.current = activeSamplerBank;
-    }, [activeSamplerBank]);
-
-    // Re-read the alignment when the bank changes. Adjusting state during
-    // render (instead of in an effect) avoids a cascading extra commit. Keyed on
-    // the bank only: the engine object identity is not a safe render-phase key.
+    // Mimic the previous behavior of syncing alignment from engine on bank change
     const [alignmentBank, setAlignmentBank] = useState(activeSamplerBank);
     if (alignmentBank !== activeSamplerBank) {
         setAlignmentBank(activeSamplerBank);
@@ -42,7 +38,7 @@ export function useSamplerBanksState(audioEngine: AudioEngine | null) {
         }
     }
 
-    const [sampleBuffers, setSampleBuffers] = useState<(AudioBuffer | null)[]>(new Array(8).fill(null));
+    // Derived state
     const loadedBanks = useMemo(() => sampleBuffers.map(b => !!b), [sampleBuffers]);
 
     const multisampleReady = useMemo(() =>
@@ -56,11 +52,6 @@ export function useSamplerBanksState(audioEngine: AudioEngine | null) {
         }),
         [audioEngine, sampleBuffers]
     );
-    const [ttsPhrases, setTtsPhrases] = useState<string[]>(Array(8).fill("Hello World"));
-
-    const lastSamplerMidiRef = useRef<Record<number, number>>({});
-    const lastSamplerFormantRef = useRef<Record<number, number>>({});
-    const sliceHighlightRef = useRef<((slice: number) => void) | null>(null);
 
     return {
         trackStorage, setTrackStorage, trackStorageRef,
