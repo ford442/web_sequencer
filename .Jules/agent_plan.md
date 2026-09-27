@@ -6,6 +6,7 @@
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
 
+- [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 ## Innovation Lab
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
@@ -164,3 +165,8 @@
   - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
   - Reduced redundant math by reusing `this.grainLfoPhase`.
   - Velocity Check: This architectural path was highly efficient because the `grainLfoPhase` state was already tracking per-block.
+
+- Completed "What if we link consonant boost directly to the velocity or stress parameter from the lyric track?".
+  - Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
+  - Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
+  - Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
