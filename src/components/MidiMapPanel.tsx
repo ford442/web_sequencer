@@ -32,6 +32,7 @@ export const MidiMapPanel = memo(function MidiMapPanel({ onClose }: MidiMapPanel
             onClick={onClose}
             className="text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-purple-500 rounded p-1"
             aria-label="Close MIDI Map"
+            title="Close MIDI Map"
           >
             <span aria-hidden="true">✕</span>
           </button>
