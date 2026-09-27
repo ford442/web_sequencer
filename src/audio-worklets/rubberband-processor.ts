@@ -186,7 +186,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             }
           });
 
-          const safeSampleRate = Math.floor(resolveWorkletSampleRate({ sampleRate: this.sampleRate }));
+          const safeSampleRate = Math.floor(this.sampleRate);
 
           // Options: RealTime (1) | Finer (32) | FormantPreserved (1048576) = 1048609
           const options = 1 | 32 | 1048576;
@@ -353,7 +353,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
-    const blockSampleRate = resolveWorkletSampleRate({ sampleRate: this.sampleRate || globalThis.sampleRate });
+    const blockSampleRate = this.sampleRate;
     const outputChannel = outputs[0][0];
     let pData: Float32Array | null = null;
     if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {

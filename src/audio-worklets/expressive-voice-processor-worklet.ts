@@ -31,6 +31,7 @@ const EPSILON = 1e-3;
 class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
   private expressiveProcessor: ExpressiveVoiceProcessor;
   private lastGate = 0;
+  private readonly sampleRate: number;
 
   // Pre-allocated configuration for expressive processor to avoid per-block GC allocations
   private readonly currentExpressiveConfig = {
@@ -57,8 +58,9 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
+    this.sampleRate = resolveWorkletSampleRate();
     this.expressiveProcessor = new ExpressiveVoiceProcessor({
-      sampleRate: resolveWorkletSampleRate(),
+      sampleRate: this.sampleRate,
     });
     this.expressiveProcessor.noteOn();
   }
@@ -119,7 +121,7 @@ class ExpressiveVoiceWorkletProcessor extends AudioWorkletProcessor {
     const now =
       typeof globalThis.currentTime === 'number'
         ? globalThis.currentTime
-        : (typeof currentFrame === 'number' ? currentFrame / resolveWorkletSampleRate() : 0);
+        : (typeof currentFrame === 'number' ? currentFrame / this.sampleRate : 0);
     this.expressiveProcessor.setCurrentTime(now);
 
     const cfg = this.currentExpressiveConfig;
