@@ -148,6 +148,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
             onClick={onClose}
             className="text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded p-1"
             aria-label="Close Help"
+            title="Close Help"
           >
             <span aria-hidden="true">✕</span>
           </button>
