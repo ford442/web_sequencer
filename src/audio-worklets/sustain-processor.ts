@@ -27,6 +27,7 @@ const LCG_MODULUS = 0x7FFFFFFF;
 
 class SustainProcessor extends AudioWorkletProcessor {
     private buffer: Float32Array | null = null;
+    private readonly sampleRate: number;
 
     // Playback State
     private playhead = 0;
@@ -65,6 +66,7 @@ class SustainProcessor extends AudioWorkletProcessor {
 
     constructor() {
         super();
+        this.sampleRate = resolveWorkletSampleRate();
 
         // Message handler for receiving buffer and settings
         this.port.onmessage = async (event: MessageEvent) => {
@@ -92,7 +94,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                             }
                         });
 
-                        const safeSampleRate = Math.floor(resolveWorkletSampleRate());
+                        const safeSampleRate = Math.floor(this.sampleRate);
 
                         // RealTime (1) | Finer (32) | FormantPreserved (1048576)
                         const options = 1 | 32 | 1048576;
@@ -305,7 +307,7 @@ class SustainProcessor extends AudioWorkletProcessor {
 
         const blockSize = output[0].length;
         // Use global sampleRate or fallback
-        const currentSampleRate = resolveWorkletSampleRate();
+        const currentSampleRate = this.sampleRate;
         
         // Get mode once for the entire block
         const mode = modeParam[0];
