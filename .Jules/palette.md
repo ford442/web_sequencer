@@ -25,3 +25,6 @@
 ## 2024-05-18 - Tooltips and aria-hidden on icon buttons
 **Learning:** When making mobile-friendly or responsive buttons that rely heavily on icons, adding `title` attributes provides essential tooltips for desktop mouse users. However, if those icons are text characters (like `+`, `-`, or `!`), they must be wrapped in `<span aria-hidden="true">` to prevent screen readers from reading the character alongside the `aria-label`.
 **Action:** Always pair `aria-label` with `title` on icon-heavy buttons, and ensure any text-based icons within those buttons are explicitly hidden from screen readers.
+## 2026-09-26 - Accessible Decorative Emojis in BottomBar
+**Learning:** Verified that the "Accessible Decorative Emojis" rule (2026-09-17) also applies to inline emoji text in file-ops buttons (e.g. `💾 SAVE`, `📂 LOAD`). A screen reader will read the emoji name + the visible text + the `aria-label`, leading to auditory clutter.
+**Action:** Wrapped the leading decorative emojis in the `BottomBar.tsx` file-ops row (and the `●` in REC AUTO) in `<span aria-hidden="true">` to prevent this double-announcement.

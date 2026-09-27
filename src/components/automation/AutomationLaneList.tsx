@@ -158,6 +158,7 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
         </p>
         <button
           type="button"
+          aria-label="Add Example Automation Lane"
           onClick={() => {
             automationStore.addLane({
               id: generateLaneId(),

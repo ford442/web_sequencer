@@ -76,6 +76,9 @@ export class SpectralBandProcessor {
       const ratio = 1.0 + 3.0 * spectralComp;
       const channel = 0;
 
+      const compAttackConst = 1 - Math.exp(-1.0 / (fs * 0.005));
+      const compReleaseConst = 1 - Math.exp(-1.0 / (fs * 0.070));
+
       for (let i = 0; i < outL.length; i++) {
         const x = outL[i];
         this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
@@ -87,11 +90,14 @@ export class SpectralBandProcessor {
         let high = rest - this.scState.lp2[channel] - q * this.scState.bp2[channel];
         this.scState.bp2[channel] += f2_c * high;
         let mid = this.scState.lp2[channel];
-        const bands = [low, mid, high];
+
+        this.scratchBands[0] = low;
+        this.scratchBands[1] = mid;
+        this.scratchBands[2] = high;
 
         if (spectralComp > 0) {
           for (let b = 0; b < 3; b++) {
-            const absIn = Math.abs(bands[b]);
+            const absIn = Math.abs(this.scratchBands[b]);
             const env = this.scState.env;
             if (absIn > env[b]) {
               env[b] = attackCoef * env[b] + (1 - attackCoef) * absIn;
@@ -104,17 +110,17 @@ export class SpectralBandProcessor {
               const grDb = Math.min(over * (1.0 - 1.0 / ratio), maxGR);
               gain = Math.pow(10, -grDb / 20);
             }
-            bands[b] *= gain;
+            this.scratchBands[b] *= gain;
           }
         }
 
-        low = bands[0];
-        mid = bands[1];
-        high = bands[2];
+        low = this.scratchBands[0];
+        mid = this.scratchBands[1];
+        high = this.scratchBands[2];
 
         if (spectralCompression > 0) {
-          const attackConst = 1 - Math.exp(-1.0 / (fs * 0.005));
-          const releaseConst = 1 - Math.exp(-1.0 / (fs * 0.070));
+          const attackConst = compAttackConst;
+          const releaseConst = compReleaseConst;
           const absLow = Math.abs(low);
           const absMid = Math.abs(mid);
           const absHigh = Math.abs(high);
