@@ -28,3 +28,7 @@
 ## 2026-09-26 - Accessible Decorative Emojis in BottomBar
 **Learning:** Verified that the "Accessible Decorative Emojis" rule (2026-09-17) also applies to inline emoji text in file-ops buttons (e.g. `💾 SAVE`, `📂 LOAD`). A screen reader will read the emoji name + the visible text + the `aria-label`, leading to auditory clutter.
 **Action:** Wrapped the leading decorative emojis in the `BottomBar.tsx` file-ops row (and the `●` in REC AUTO) in `<span aria-hidden="true">` to prevent this double-announcement.
+
+## 2024-10-06 - Hidden glyphs in Transport
+**Learning:** For components that rely on state hooks to provide button labels containing decorative glyphs (e.g. `■ STOP`, `▶ PLAY`, `◎ ARM`), the hook must remain pure strings, while the component splits the string and wraps the glyph in `<span aria-hidden="true">` to prevent screen reader clutter, while also ensuring the button relies on its `aria-label` for a consistent accessible name regardless of visual state.
+**Action:** Always parse combined strings at the UI layer to wrap decorative glyphs in `aria-hidden` rather than putting React nodes into app state hooks.
