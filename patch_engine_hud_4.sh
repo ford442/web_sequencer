@@ -1,1 +1,0 @@
-sed -i 's/return `<button type="button" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}<\/button>`;/return `<button type="button" aria-label="${mode} latency mode" class="hud-latency-btn" data-mode="${mode}" style="${style}">${mode}<\/button>`;/' src/components/EngineHUD.tsx

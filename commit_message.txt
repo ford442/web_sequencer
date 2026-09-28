@@ -1,3 +1,0 @@
-🎨 Palette: Added `role="img"` to canvas elements
-
-- Added `role="img"` and `aria-label` to canvas elements in `WaveformDisplay` and `Oscilloscope` to ensure they are accessible to screen readers, as they convey visual information without text context.

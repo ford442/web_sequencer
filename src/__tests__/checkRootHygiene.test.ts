@@ -9,7 +9,7 @@
 
 import { describe, expect, it, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(__dirname, '../..');
@@ -41,10 +41,16 @@ function plant(relativePath: string): void {
     PLANTED.push(full);
 }
 
+function plantDir(relativePath: string): void {
+    const full = join(ROOT, relativePath);
+    mkdirSync(full, { recursive: true });
+    PLANTED.push(full);
+}
+
 afterEach(() => {
     while (PLANTED.length > 0) {
         const full = PLANTED.pop()!;
-        if (existsSync(full)) rmSync(full);
+        if (existsSync(full)) rmSync(full, { recursive: true });
     }
 });
 
@@ -83,6 +89,28 @@ describe('check:root hygiene gate', () => {
         const nodeModules = join(ROOT, 'node_modules');
         if (!existsSync(nodeModules)) return;
         plant('node_modules/__checkroot_fixture__.orig');
+        expect(runCheckRoot().status).toBe(0);
+    });
+
+    it('fails when an unlisted file appears at the repo root', () => {
+        plant('__checkroot_fixture_root__.tmp');
+        const result = runCheckRoot();
+        expect(result.status).not.toBe(0);
+        expect(result.output).toMatch(/Unexpected root file/);
+        expect(result.output).toContain('__checkroot_fixture_root__.tmp');
+    });
+
+    it('fails when an unlisted directory appears at the repo root', () => {
+        plantDir('__checkroot_fixture_dir__');
+        const result = runCheckRoot();
+        expect(result.status).not.toBe(0);
+        expect(result.output).toMatch(/Unexpected root directory/);
+        expect(result.output).toContain('__checkroot_fixture_dir__');
+    });
+
+    it('does not flag unlisted files or directories nested below the root', () => {
+        plant('src/__checkroot_fixture_nested__.tmp');
+        plantDir('src/__checkroot_fixture_nested_dir__');
         expect(runCheckRoot().status).toBe(0);
     });
 });
