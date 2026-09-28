@@ -380,11 +380,26 @@ migrated off the mega-context one by one, along with the remaining phase stores
 the **unit** tier (`test:unit`), not `test:perf`: mounting `<AppStateProvider>`
 pulls in `useAudioEngine`, which imports real `.wasm?init` modules that only the
 unit tier's Vite config stubs out (`vitest.unit.config.ts`'s
-`wasm-stub-resolve` plugin). The perf tier intentionally does *not* stub WASM —
-`exportLoudness.perf.test.ts` and `wasmMigration.bench.test.ts` need the real
-modules to produce meaningful timings — so adding the stub there would corrupt
-those benchmarks. Render-count assertions are deterministic (no wall-clock
-sampling needed), so the unit tier is the right home for them regardless.
+`wasm-stub-resolve` plugin). Render-count assertions are deterministic (no
+wall-clock sampling needed), so the unit tier is the right home for them
+regardless.
+
+**Rule: the perf tier does not stub WASM, it builds it.** Two perf files need
+the real AssemblyScript modules: `src/__tests__/audioExport.perf.test.ts`
+(through `src/utils/audioExport.ts` → `audioExport.wasm?init`) and
+`src/__tests__/useAudioEngine.perf.test.tsx` (through `useAudioEngine` →
+`src/utils/trackFreezer.ts` → `trackFreezer.wasm?init`). `src/wasm/` is
+gitignored build output. So `.github/workflows/test-perf.yml` runs the five
+AssemblyScript builds (`build:wasm:oscillators`, `:freezer`, `:fft`,
+`:audioexport`, `:xmexport`) before `pnpm run test:perf`. It does not run
+`build:wasm`, because that also pulls in Rust and Emscripten, which no perf test
+touches. Without that step both files fail to resolve their `.wasm?init`
+import, which is why the nightly job was red 48/48 until 2026-09-28. Do not add
+the unit tier's WASM stub to `vitest.perf.config.ts`: a stubbed module would
+time a no-op. Locally, run the same five builds before `pnpm run test:perf`.
+(`exportLoudness.perf.test.ts` is pure TypeScript, and
+`wasmMigration.bench.test.ts` benchmarks JS `*Sim` stand-ins. Neither loads
+WASM, despite what this note used to say.)
 
 ## Test tiers
 
