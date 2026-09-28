@@ -21,6 +21,7 @@ export interface Note {
   retrigger?: number;
   glitchChance?: number;
   reverse?: boolean;
+  dynamicChops?: boolean;
   sliceIndex?: number;
   freeze?: number;
   formantShift?: number;

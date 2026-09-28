@@ -41,6 +41,7 @@ export interface SamplerBankParams {
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
   glitchChance?: number;
+  dynamicChops?: boolean;
   freeze?: number;
   portamentoType?: 'linear' | 'exponential';
   freezeLfoRate?: number;

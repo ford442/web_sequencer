@@ -789,7 +789,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             // Link consonant boost to phoneme velocity/stress
             const pVol = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[1] : 1.0;
             const dynamicConsonantClarity = pConsonantClarity * pVol;
-            this.transientShaper.process(outputChannel, dynamicConsonantClarity, isVowel, phonemeIndex, blockSampleRate);
+            this.transientShaper.process(outputChannel, dynamicConsonantClarity, isVowel, phonemeIndex, pVol, blockSampleRate);
         }
 
         // Grain-triggered stereo pan spread

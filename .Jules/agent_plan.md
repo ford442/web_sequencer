@@ -12,7 +12,7 @@
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
-- Implement dynamic vocal chops by using the slice index and varying direction over time.
+- [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
 
 # Agent Plan
@@ -161,6 +161,11 @@
   - Added `consonantClarity` parameter to `RubberBandProcessor` to allow real-time control over the transient boost multiplier.
   - Plumbed the parameter through the types, effects control, and UI to a new hardware slider in `SamplerVoicePanel`.
   - Velocity Check: Hooking into the existing `isVowel` flag from the `PhonemeData` buffer allowed for highly accurate transient detection without the CPU overhead of a traditional real-time transient detection algorithm.
+- Completed "Implement dynamic vocal chops by using the slice index and varying direction over time."
+  - Added a `dynamicChops` boolean to `SamplerBankParams` and `Note` types.
+  - Added a "CHOPS ON" toggle UI to `SamplerModeSelector` that appears when `sliceMode` is 'phoneme'.
+  - Added logic in `playSamplerVoice.ts` to dynamically calculate `finalReverse` by alternating direction based on whether `sliceIndex` is even or odd when `dynamicChops` is true.
+- Velocity Check: Extending the `sliceMode` feature to allow for alternating sample reversing provides an instant "glitch/chop" vocal effect out of the box without requiring manual sequencer automation on every step.
 - Completed "Experiment with non-linear grain panning".
   - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
   - Reduced redundant math by reusing `this.grainLfoPhase`.

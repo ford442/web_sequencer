@@ -403,12 +403,17 @@ export function createPlaySamplerVoice(
 
           if (sliceIndex >= 0) {
             const phonemeId = `${params.sampleName}_${sliceIndex}`;
+
+            // Apply dynamic chops if enabled: vary reverse direction over time based on slice index
+            const dynamicReverse = params.dynamicChops ? (sliceIndex % 2 === 1) : false;
+            const finalReverse = noteParams?.reverse !== undefined ? noteParams.reverse : dynamicReverse;
+
             void voice.triggerSlice(
               buffer.getChannelData(0),
               sliceIndex,
               alignment,
               pitchRatio,
-              noteParams?.reverse,
+              finalReverse,
               targetDuration,
               triggerTime,
               phonemeId,

@@ -132,6 +132,7 @@ export interface SamplerBankParams {
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
   glitchChance?: number;
+  dynamicChops?: boolean;
   freeze?: number;
   portamentoType?: 'linear' | 'exponential';
   freezeLfoRate?: number;
@@ -480,6 +481,7 @@ export interface Note {
   glitchChance?: number;
   consonantClarity?: number;
   reverse?: boolean;
+  dynamicChops?: boolean;
   sliceIndex?: number;
   freeze?: number;
   formantShift?: number;
