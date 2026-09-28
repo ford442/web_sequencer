@@ -248,13 +248,28 @@ export function createPlaySamplerVoice(
 
         // Apply Timbre Modulation (Formant Shift)
         const baseShift = params.formantShift || 0;
+        let finalFormantShift: number | undefined;
         if (noteParams?.formantShift !== undefined) {
-          voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+          finalFormantShift = baseShift + noteParams.formantShift;
         } else if (noteParams?.timbre !== undefined) {
           const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-          voice.setFormantShift(baseShift + mod, triggerTime);
+          finalFormantShift = baseShift + mod;
         } else if (params.formantShift !== undefined) {
-          voice.setFormantShift(params.formantShift, triggerTime);
+          finalFormantShift = params.formantShift;
+        }
+
+        // Dynamic Formant Pitch Link: move formants with the played pitch by `ratio` semitones per semitone
+        const formantLinkRatio = noteParams?.formantPitchLink ?? params.formantPitchLink ?? 0;
+        if (formantLinkRatio !== 0) {
+          const rootNote = params.rootNote ?? 60;
+          const coarse = noteParams?.coarseTune ?? params.coarseTune ?? 0;
+          const fine = (noteParams?.fineTune ?? params.fineTune ?? 0) / 100;
+          const noteMidi = noteToMidi(noteStr) + pitchOffsetSemitones + coarse + fine;
+          finalFormantShift = (finalFormantShift ?? baseShift) + (noteMidi - rootNote) * formantLinkRatio;
+        }
+
+        if (finalFormantShift !== undefined) {
+          voice.setFormantShift(finalFormantShift, triggerTime);
         }
 
         // Apply Character Morphing
