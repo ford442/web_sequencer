@@ -1,1 +1,1 @@
-Visual verification of EngineHUD skipped due to build/WASM environment constraints on local dev server. See memory guidelines.
+Could not start Vite dev server to verify frontend because of the `loader.mjs` dependency error. Skipped visual verification.
