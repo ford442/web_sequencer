@@ -306,26 +306,44 @@ slow `process()` loop and asserts the underrun counter increments.
 ## React render budget (UI thread)
 
 Unlike the audio-thread budgets above, this section tracks **main-thread React
-re-render fan-out** — how many times the app's top-level UI regions
-(`TransportHeader`, `BottomBar`, `RackNode`, `SequencerNode`, `KeyboardNode`) get
-called by React while the user edits a pattern.
+re-render fan-out** — how many times the app's UI regions get called by React
+while the user edits a pattern.
 
-### Why this exists
+### How the app state reaches components
 
 `useAppState()` (`src/hooks/useAppState.tsx`) composes ~25 sub-hooks into one
-~835-line hook and returns a single flat object, which `AppStateContext`
-(`src/contexts/AppStateContext.tsx`) hands to `React.createContext` unmemoized.
-Because that object is a fresh reference on every render of `AppStateProvider`,
-**every** component that reads anything off `useAppStateContext()` re-renders on
-**every** state change anywhere in the app — a knob turn, a step toggle, a
-transport tick — regardless of which field it actually reads.
+flat object that is a fresh reference on every render. It used to be handed to
+`React.createContext` directly, so **every** component that read anything off
+`useAppStateContext()` re-rendered on **every** state change — a knob turn, a
+step toggle, a transport tick — regardless of which field it read.
 
-`useAppState.tsx`'s module doc and the stores under `src/stores/` (e.g.
-`uiModalsStore.ts`) describe the fix: split the mega-context's surface into
-external `useSyncExternalStore`-backed slice stores (the same pattern already
-used for `automationStore`, `midiMapStore`, `transportSyncStore`, etc.) that
-components can subscribe to directly, bypassing the shared context entirely for
-the fields they need.
+It now goes through an external store:
+
+- `AppStateProvider` (`src/contexts/AppStateContext.tsx`) owns the one
+  `useAppState()` instance and publishes each render's result to
+  `src/stores/appStateStore.ts`. The context value is the store itself, which
+  never changes, so the provider re-rendering does not re-render consumers.
+- Components read state with `useAppStateSlice(KEYS)` (a fixed field list,
+  declared at module scope) or `useAppStateSelector(fn, isEqual?)` (a derived
+  value) and re-render only when what they selected changes.
+- **Function fields are published as stable proxies** that forward to the
+  latest closure. Selecting a handler therefore never re-renders anything and
+  never goes stale. The flip side: a handler's identity no longer signals that
+  its closure changed, so derive values by *calling* it inside a selector
+  (`useAppStateSelector((s) => s.canUndoSong())`) instead of keying a `useMemo`
+  on it.
+- A publish that changes no data field keeps the snapshot identity and does
+  not notify.
+
+`App.tsx` is a layout shell (background image + 3D flag only); each region
+under `src/components/appParts/` (`TransportHeader`, `RackNode`,
+`SequencerNode`, `KeyboardNode`, `BottomBarNode`, `ModalHosts`, `PanelNodes`,
+`AppOverlays`, `AppEffects`) subscribes to exactly the fields it renders.
+Modals are host/body pairs: the host subscribes only to its own open flag, the
+body — mounted only while open — subscribes to the state it needs.
+
+The whole-state `useAppStateContext()` remains for tests and is deprecated: it
+follows every change.
 
 ### Baseline: full 32-step edit pass
 
@@ -334,57 +352,46 @@ the fields they need.
 each its own commit (not batched together), matching a real step edit, a MIDI
 event, or a recorded step. Each region is `React.memo(fn)`; the test patches
 `.type` on that same singleton object so the real render function still runs
-— subject to memo's prop-equality bailout and the region's own
-`useAppStateContext()`/store subscriptions — with only the call itself also
-counted. (An earlier version of this test replaced each region with a stub
-component instead; that measured whether `App` re-renders and passes a new
-element, not whether the real region actually re-renders, so a future fix
-that stopped `App`'s cascade without also fixing a region's own context
-subscription could have passed unnoticed. Patching `.type` avoids that gap.)
+— subject to memo's prop-equality bailout and the region's own subscriptions —
+with only the call itself also counted. (Replacing each region with a stub
+instead would measure whether the parent passes a new element, not whether the
+real region re-renders.)
 
 | Metric | Value |
 |--------|-------|
-| Regions instrumented | `TransportHeader`, `RackNode`, `SequencerNode`, `KeyboardNode`, `BottomBar` (5) |
+| Regions instrumented | `TransportHeader`, `RackNode`, `SequencerGrid`, `KeyboardNode`, `BottomBar`, `ContextMenuNode`, `ToastNode`, `SongModeNode`, `SessionNode`, `MobileTransportNode`, `LyricTrackNode` (11) |
 | Edits per pass | 32 (one per sequencer step) |
-| **Measured baseline (this PR)** | **128 renders**: `TransportHeader`, `RackNode`, `SequencerNode`, `BottomBar` re-render on all 32 edits (4 × 32 = 128); `KeyboardNode` renders **0** times |
-| Enforced budget | ≤ 145 renders (small headroom over the measured baseline) |
+| Previous baseline (single mega-context) | 128 renders — `TransportHeader`, `RackNode`, `SequencerNode`, `BottomBar` × 32 |
+| **Measured now** | **32 renders** — `SequencerGrid` × 32; every other region **0** |
+| Enforced budget | ≤ 34 total, **and** every region other than `SequencerGrid` must be exactly 0 |
 
-`KeyboardNode` already sits at 0 because it takes its props from `App`
-instead of reading `useAppStateContext()` itself, and none of those props
-(`selectedTrack`, the keyboard/drum-pad handlers) change for a step edit —
-`React.memo`'s prop-equality bailout does the rest. It's a preview of what
-the other four regions look like once they've made the same move: they still
-read the shared context directly and re-render on every edit regardless of
-whether they use `pattern`. This is **today's starting point, not a
-target**: the budget exists so a future change can't make fan-out *worse*
-without failing CI, while each migration phase below should drive the
-measured number down toward `KeyboardNode`'s 0.
+32 is the floor: `SequencerGrid` is the one region that draws the pattern, so
+it re-renders once per edit. If a region other than the grid starts rendering
+on a pattern edit, the gate names it. The usual causes are a region reading a
+field it doesn't draw, or an upstream hook returning a fresh array/object each
+render (a hook that recomputes a derived value must keep the previous
+reference while the contents are equal — see `useStableFlags` in
+`useHardwarePanels.tsx`, which was rebuilding the sampler panel element on
+every app-state change).
 
-`src/stores/uiModalsStore.ts` and `src/stores/transportMixStore.ts` are the
-first slices moved off the mega-context (the `is3DMode` flag, and transport/mix
-state like `tempo` and `masterVolume`, which components can read directly via
-their respective stores instead of `useAppStateContext()`).
-`src/__tests__/uiModalsStore.renderIsolation.test.tsx` and
-`src/__tests__/transportMixStore.renderIsolation.test.tsx` lock in that these
-slices are fully isolated: a component subscribed only to the store does not
-re-render on a pattern edit. `TransportHeader`/`BottomBar`/`RackNode` don't
-reach 0 in the 32-step budget yet because they still read most of their other
-fields off the shared context — that requires the regions themselves to be
-migrated off the mega-context one by one, along with the remaining phase stores
-(sampler banks, pattern edit, instrument state, session/song) described in
-`useAppState.tsx`'s module doc, each landing as its own PR.
+Hook-level guarantees (only-when-selected re-render, stable handler identity,
+stable handlers routing to the latest state) are pinned by
+`src/__tests__/appStateSelectors.test.tsx` and
+`src/stores/__tests__/appStateStore.test.ts`;
+`uiModalsStore.renderIsolation.test.tsx` and
+`transportMixStore.renderIsolation.test.tsx` cover the store-only consumers.
 
 ### Test tier note
 
-`appRenderBudget.test.tsx` and `uiModalsStore.renderIsolation.test.tsx` live in
-the **unit** tier (`test:unit`), not `test:perf`: mounting `<AppStateProvider>`
-pulls in `useAudioEngine`, which imports real `.wasm?init` modules that only the
-unit tier's Vite config stubs out (`vitest.unit.config.ts`'s
-`wasm-stub-resolve` plugin). The perf tier intentionally does *not* stub WASM —
-`exportLoudness.perf.test.ts` and `wasmMigration.bench.test.ts` need the real
-modules to produce meaningful timings — so adding the stub there would corrupt
-those benchmarks. Render-count assertions are deterministic (no wall-clock
-sampling needed), so the unit tier is the right home for them regardless.
+`appRenderBudget.test.tsx` lives in the **unit** tier (`test:unit`), not
+`test:perf`: mounting `<AppStateProvider>` pulls in `useAudioEngine`, which
+imports real `.wasm?init` modules that only the unit tier's Vite config stubs
+out (`vitest.unit.config.ts`'s `wasm-stub-resolve` plugin). The perf tier
+intentionally does *not* stub WASM — `exportLoudness.perf.test.ts` and
+`wasmMigration.bench.test.ts` need the real modules to produce meaningful
+timings — so adding the stub there would corrupt those benchmarks.
+Render-count assertions are deterministic (no wall-clock sampling needed), so
+the unit tier is the right home for them regardless.
 
 ## Test tiers
 

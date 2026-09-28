@@ -1,17 +1,13 @@
 import React from 'react';
-import type { TrackKey } from '../../constants/appDefaults';
-import type { DrumSound } from '../../types';
+import { useAppStateSlice } from '../../contexts/AppStateContext';
 import { LiveKeyboard } from '../LiveKeyboard';
 import { DrumPads } from '../DrumPads';
 
-interface KeyboardNodeProps {
-  selectedTrack: TrackKey;
-  handleKeyboardPlay: (note: string) => void;
-  handleKeyboardStop: (note: string) => void;
-  handleDrumPadPlay: (sound: DrumSound, velocity?: number) => void;
-}
+const KEYBOARD_KEYS = ['selectedTrack', 'handleKeyboardPlay', 'handleKeyboardStop', 'handleDrumPadPlay'] as const;
 
-export const KeyboardNode = React.memo(({ selectedTrack, handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay }: KeyboardNodeProps) => {
+export const KeyboardNode = React.memo(() => {
+  const { selectedTrack, handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay } = useAppStateSlice(KEYBOARD_KEYS);
+
   const activeTrackColor = selectedTrack.startsWith('part')
     ? (selectedTrack === 'partA' ? '#06b6d4' : '#d946ef')
     : selectedTrack === 'bass2' ? '#ff0066' : selectedTrack === 'kick' ? '#f97316' : selectedTrack === 'snare' ? '#22c55e' : selectedTrack === 'sampler' ? '#a855f7' : '#eab308'

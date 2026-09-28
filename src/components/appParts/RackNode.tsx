@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, memo } from "react";
-import { useAppStateContext } from "../../contexts/AppStateContext";
+import { useAppStateSlice } from "../../contexts/AppStateContext";
 import { useUIModalsStore } from "@/stores/uiModalsStore";
 import { HardwareModule, type KnobConfig } from "../HardwareModule";
 import { SamplerVoicePanel } from "../SamplerVoicePanel";
@@ -197,6 +197,47 @@ function applyAutomationPreviewFlags(
   });
 }
 
+const RACK_KEYS = [
+  "synthAControls",
+  "synthBControls",
+  "bass2Controls",
+  "kickControls",
+  "snareControls",
+  "closedHatControls",
+  "openHatControls",
+  "samplerControls",
+  "onSynthAParamChange",
+  "onSynthBParamChange",
+  "onBass2ParamChange",
+  "handleKickChange",
+  "handleSnareChange",
+  "handleClosedHatChange",
+  "handleOpenHatChange",
+  "handleSamplerChange",
+  "handleKnobRecordToggle",
+  "synthAChild",
+  "synthBChild",
+  "bass2Child",
+  "samplerChild",
+  "activeSamplerBank",
+  "samplerVoiceParams",
+  "handleSamplerVoiceChange",
+  "harmonizerConfig",
+  "handleHarmonizerConfigChange",
+  "isHarmonizeActive",
+  "setSelectedTrack",
+  "selectedTrack",
+  "synthB",
+  "bass2",
+  "drumKit",
+  "updateDrumKit",
+  "activeTrackSlots",
+  "handleAutomationNudge",
+  "handleAutomationPunchIn",
+  "handleAutomationLaneAction",
+  "audioEngine",
+] as const;
+
 export const RackNode = React.memo(() => {
   // Sourced directly from the store (not the mega-context) so this flag
   // alone never forces a re-render on an unrelated app-state update.
@@ -240,7 +281,7 @@ export const RackNode = React.memo(() => {
     handleAutomationPunchIn,
     handleAutomationLaneAction,
     audioEngine,
-  } = useAppStateContext();
+  } = useAppStateSlice(RACK_KEYS);
 
   const expressionLedProps = React.useMemo(() => {
     const analysers = audioEngine?.trackAnalysers;
