@@ -1,1 +1,0 @@
-sed -i 's/if ('\''inert'\'' in container) { (container as HTMLElement & { inert: boolean }).inert = true; }/if ('\''inert'\'' in container) { (container as HTMLElement \& { inert: boolean }).inert = true; }\n      container.setAttribute('\''aria-hidden'\'', '\''true'\'');/' src/components/EngineHUD.tsx
