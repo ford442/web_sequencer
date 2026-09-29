@@ -235,13 +235,13 @@ export class Harmonizer {
         
         return voices.map(voice => ({
             ...baseParams,
-            // Apply pitch offset via playback speed (semitone to ratio); see formantShift below
+            // Apply pitch offset via playback speed (semitone to ratio)
             playbackSpeed: baseParams.playbackSpeed * Math.pow(2, voice.pitchOffset / 12),
             // Apply fine detune
             fineTune: (baseParams.fineTune || 0) + voice.detuneCents,
-            // Apply formant shift. `playbackSpeed` scales the formants along with the pitch
-            // (chipmunk effect), so subtract the pitch offset to hold them at the source position.
-            formantShift: (baseParams.formantShift || 0) + voice.formantShift - voice.pitchOffset,
+            // Apply formant spread (width only). Stretch-mode pitch runs through Rubber Band with
+            // OptionFormantPreserved, so no -pitchOffset compensation belongs here (#1297).
+            formantShift: (baseParams.formantShift || 0) + voice.formantShift,
             // Apply pan
             pan: voice.pan,
             // Adjust volume

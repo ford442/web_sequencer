@@ -3,6 +3,7 @@ import { ExpressiveVoiceProcessor } from "../engines/rubberband/ExpressiveVoiceP
 import { WorkletPerfReporter } from "./workletPerfReporter";
 import { resolveWorkletSampleRate } from "../utils/workletSampleRate";
 import { RUBBERBAND_PARAMETER_DESCRIPTORS } from "./rubberband/parameterDescriptors";
+import { getStretchProfileOptions, type StretchProfile } from "../engines/rubberband/stretchProfiles";
 import { getPhonemeDataAtSample, type PhonemeSample } from "./rubberband/phonemeData";
 import { GranularEngine } from "./rubberband/granularEngine";
 import { SpectralBandProcessor } from "./rubberband/spectralEffects";
@@ -189,8 +190,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const safeSampleRate = Math.floor(this.sampleRate);
 
-          // Options: RealTime (1) | Finer (32) | FormantPreserved (1048576) = 1048609
-          const options = 1 | 32 | 1048576;
+          const options = getStretchProfileOptions('vocal');
 
           console.log(`[RubberBandProcessor] Initializing with: Rate=${safeSampleRate}, Ch=1, Opts=${options}`);
 
@@ -298,15 +298,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
              const timeRatio = this.rubberBand.getTimeRatio();
              const pitchScale = this.rubberBand.getPitchScale();
 
-             let options = 1 | 32 | 1048576; // Default to vocal
-
-             if (data.profile === 'harmonic') {
-                 options = 1 | 32 | 256 | 0x02000000; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionPitchHighQuality
-             } else if (data.profile === 'fast') {
-                 options = 1; // OptionProcessRealTime | OptionEngineFaster
-             } else {
-                 options = 1 | 32 | 256 | 1048576; // OptionProcessRealTime | OptionEngineFiner | OptionTransientsMixed | OptionFormantPreserved
-             }
+             // Unknown profile strings fall through to 'vocal' in the switch default.
+             const options = getStretchProfileOptions(data.profile as StretchProfile);
 
              // Free old buffers if they exist
              if (this.inputHeapPtr) this.rubberBand.module._free(this.inputHeapPtr);

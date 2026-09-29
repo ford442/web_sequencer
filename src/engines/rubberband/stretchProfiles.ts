@@ -32,13 +32,22 @@ export const RUBBERBAND_OPTIONS = {
 
 export type StretchProfile = 'vocal' | 'harmonic' | 'fast';
 
+/**
+ * Rubber Band option bitmask for each stretch profile. Shared by the
+ * RubberBandProcessor and sustain-processor worklets.
+ *
+ * The engine is deliberately R2 (OptionEngineFaster): real-time R3
+ * (OptionEngineFiner) costs roughly 3-5x the CPU per voice, and the harmonizer
+ * can run 4 voices plus choir. These masks match what has shipped so far. The
+ * worklets used to hand-write `1 | 32 | 1048576`, where `32` is not a flag and
+ * `1048576` is OptionWindowShort, so formants were never actually preserved
+ * (#1297).
+ */
 export function getStretchProfileOptions(profile: StretchProfile): number {
     switch (profile) {
         case 'harmonic':
             return RUBBERBAND_OPTIONS.OptionProcessRealTime |
-                   RUBBERBAND_OPTIONS.OptionEngineFiner |
                    RUBBERBAND_OPTIONS.OptionTransientsMixed |
-                   RUBBERBAND_OPTIONS.OptionPhaseLaminar |
                    RUBBERBAND_OPTIONS.OptionPitchHighQuality;
         case 'fast':
             return RUBBERBAND_OPTIONS.OptionProcessRealTime |
@@ -46,8 +55,8 @@ export function getStretchProfileOptions(profile: StretchProfile): number {
         case 'vocal':
         default:
             return RUBBERBAND_OPTIONS.OptionProcessRealTime |
-                   RUBBERBAND_OPTIONS.OptionEngineFiner |
                    RUBBERBAND_OPTIONS.OptionTransientsMixed |
+                   RUBBERBAND_OPTIONS.OptionWindowShort |
                    RUBBERBAND_OPTIONS.OptionFormantPreserved;
     }
 }
