@@ -157,6 +157,12 @@ export function useSamplerPanelState({
     else updateParamRef.current('sliceMode', newVal);
   }, [activeBankIdx, currentParams.sliceMode, onParamChange]);
 
+  const handleDynamicChopsToggle = useCallback(() => {
+    const newVal = !currentParams.dynamicChops;
+    if (onParamChange) onParamChange(activeBankIdx, 'dynamicChops', newVal);
+    else updateParamRef.current('dynamicChops', newVal);
+  }, [activeBankIdx, currentParams.dynamicChops, onParamChange]);
+
   useEffect(() => {
     if (audioEngine?.setSustainMode && currentParams.mode) {
       audioEngine.setSustainMode(currentParams.mode);
@@ -391,6 +397,7 @@ export function useSamplerPanelState({
     handleModeChange,
     handleGrainSizeChange,
     handleSliceModeToggle,
+    handleDynamicChopsToggle,
     loadBufferToBank,
     currentTtsText,
     setCurrentTtsText,

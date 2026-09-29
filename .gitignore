@@ -62,3 +62,23 @@ public/utils/
 .cache/
 __pycache__/
 emscripten/temp_build_rubberband/
+
+# Agent scratch output — recurring categories that have repeatedly leaked
+# into commits (see AGENTS.md "Root hygiene"). scripts/check-root.mjs is the
+# backstop: it fails the build if one of these reaches a commit anyway.
+/*.webm
+/verification*.png
+/*_output.txt
+/build_log.txt
+/lint_output.txt
+/build_pid.txt
+/debug.txt
+/commit_message.txt
+/pr_body.txt
+/previous_changes.patch
+/verification_notes.txt
+/patch_*.sh
+perf-summary.json
+/test-results/
+/videos/
+/playwright-report/
