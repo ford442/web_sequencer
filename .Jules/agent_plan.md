@@ -1,6 +1,7 @@
 # Web Sequencer Active Backlog & Innovation Lab
 
 ## Active Backlog
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
@@ -18,6 +19,7 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement Phoneme-driven auto-rhythm generation for TTS
 - [x] Add granular random jitter per phoneme
 - [x] Add multi-voice unison detune
@@ -73,13 +75,15 @@
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 
 
-- Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
 - Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.
 - What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
+- Completed "Explore dynamic granular 'time-smearing' by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect." Added `timeSmear` property threaded from the sequencer properties directly into the Worklet. Implemented a `chaoticLfoPhase` inside the `GranularEngine` that increments non-linearly. Added chaotic `posMod` driven by this phase exclusively scaled inversely by `isVowel` to target consonants without destroying vowel pitch tracking.
+- Velocity Check: Expanding the Worklet's capabilities using native AudioParams rather than heavy SAB additions keeps overhead minimal while greatly enhancing the sound-design toolset for granular synthesis over TTS.
 - Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?" by applying a 1-pole IIR lowpass filter to the combined grain output in the `RubberBandProcessor`. Muffled syllables (lower volume) exponentially map to a lower cutoff frequency, creating a dynamic dampening effect for speech.
 - Velocity Check: Moving the cutoff calculation outside the inner granular loop fixed the initial performance regression where filter state sharing and heavy Math operations were causing audio artifacts. The current approach is computationally cheap and correctly isolates states.
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.

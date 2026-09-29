@@ -169,6 +169,14 @@ export const EffectsControlMixin = {
     setWorkletParam(this, "grainPosLfoDepth", depth, time);
   },
 
+  setTimeSmear(
+    this: SingingVoiceHost,
+    depth: number,
+    time?: number,
+  ): void {
+    setWorkletParam(this, "timeSmear", depth, time);
+  },
+
   setGrainLfoDepth(
     this: SingingVoiceHost,
     depth: number,

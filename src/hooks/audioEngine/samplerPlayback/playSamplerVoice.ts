@@ -117,6 +117,7 @@ export function createPlaySamplerVoice(
     const pGrainLfoRate = noteParams?.grainLfoRate !== undefined ? noteParams.grainLfoRate : params.grainLfoRate;
     const pGrainLfoDepth = noteParams?.grainLfoDepth !== undefined ? noteParams.grainLfoDepth : params.grainLfoDepth;
     const pGrainPosLfoDepth = noteParams?.grainPosLfoDepth !== undefined ? noteParams.grainPosLfoDepth : params.grainPosLfoDepth;
+    const pTimeSmear = noteParams?.timeSmear !== undefined ? noteParams.timeSmear : params.timeSmear;
 
     // Envelopes
     const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
@@ -347,6 +348,7 @@ export function createPlaySamplerVoice(
         if (pGrainLfoRate !== undefined) voice.setGrainLfoRate(pGrainLfoRate, triggerTime);
         if (pGrainLfoDepth !== undefined) voice.setGrainLfoDepth(pGrainLfoDepth, triggerTime);
         if (pGrainPosLfoDepth !== undefined) voice.setGrainPosLfoDepth(pGrainPosLfoDepth, triggerTime);
+        if (pTimeSmear !== undefined) voice.setTimeSmear(pTimeSmear, triggerTime);
 
         if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
         if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);

@@ -54,6 +54,7 @@ export interface SamplerBankParams {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPitchQuantize?: number;
   grainPanSpread?: number;
   granularPitchShift?: number;
