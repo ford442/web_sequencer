@@ -10,7 +10,7 @@ export type { MultisampleBank } from '../engines/MultisampleGenerator';
 import type { SynthParams } from './synth';
 import type { DrumSound, KickParams, SnareParams, HatParams } from './drums';
 import type { SamplerBankParams } from './sampler';
-import type { PartSequence, ReverbType } from './pattern';
+import type { PartSequence, ReverbType, SamplerNoteParams } from './pattern';
 export type { ReverbType } from './pattern';
 
 /** Instruments that expose a color-coded expression LED in the rack UI. */
@@ -71,7 +71,7 @@ export interface AudioEngine {
     time: number,
     durationSteps?: number,
     stepTime?: number,
-    noteParams?: any,
+    noteParams?: SamplerNoteParams,
     tuning?: ScaleDefinition | null
   ) => void;
 

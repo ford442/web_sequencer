@@ -113,4 +113,12 @@ describe('check:root hygiene gate', () => {
         plantDir('src/__checkroot_fixture_nested_dir__');
         expect(runCheckRoot().status).toBe(0);
     });
+
+    it('does not flag gitignored root entries (e.g. an npm package-lock.json or *.log)', () => {
+        // `*.log` is in .gitignore — it can never be committed, so it is not clutter.
+        plant('__checkroot_fixture_ignored__.log');
+        const result = runCheckRoot();
+        expect(result.output).not.toContain('__checkroot_fixture_ignored__.log');
+        expect(result.status).toBe(0);
+    });
 });

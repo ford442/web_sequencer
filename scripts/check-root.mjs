@@ -10,6 +10,7 @@
  *    build-safe but they poison greps, diffs and agent context.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -116,6 +117,7 @@ const ALLOWED_ROOT_DIRS = new Set([
   '.husky', // git hooks
   '.jules',
   '.Jules', // agent memory/state (see docs/weekly_plan.md)
+  '.claude', // Claude Code project settings + runtime state (scheduled_tasks.lock is not gitignored)
   // The Four Worlds + the tools that build them
   'assembly',
   'rust-audio',
@@ -138,9 +140,35 @@ const ALLOWED_ROOT_DIRS = new Set([
 
 const errors = [];
 
+/**
+ * Root entry names git would ever show: tracked, or untracked and NOT ignored.
+ * Ignored entries (a local `.claude/`, an npm `package-lock.json`, editor
+ * state) can never be committed, so flagging them only fails `pnpm lint` and
+ * the pre-push hook on an otherwise clean checkout. Untracked-but-not-ignored
+ * entries are still flagged — that is what catches scratch output before it
+ * is committed. A directory whose contents are all ignored counts as ignored,
+ * matching `git status --ignored`. Returns null outside a git work tree, in
+ * which case every entry is checked.
+ */
+function gitVisibleRootEntries() {
+  try {
+    const listed = [
+      ['ls-files', '-z'],
+      ['ls-files', '-z', '--others', '--exclude-standard', '--directory'],
+    ].flatMap((args) =>
+      execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\0'),
+    );
+    return new Set(listed.filter(Boolean).map((path) => path.split('/')[0]));
+  } catch {
+    return null;
+  }
+}
+
 function checkRootEntries() {
   const entries = readdirSync(ROOT, { withFileTypes: true });
+  const visible = gitVisibleRootEntries();
   for (const entry of entries) {
+    if (visible && !visible.has(entry.name)) continue;
     const isDir = entry.isDirectory() || (entry.isSymbolicLink() && safeIsDirectory(join(ROOT, entry.name)));
     if (isDir) {
       if (SCAN_SKIP_DIRS.has(entry.name)) continue;

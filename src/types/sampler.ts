@@ -11,6 +11,7 @@ export interface SamplerVoiceParams {
   vibratoDepth: number;
   tremoloDepth: number;
   breathAmount: number;
+  consonantClarity?: number;
   stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
@@ -38,6 +39,7 @@ export interface SamplerBankParams {
   tremoloDepth?: number;
   tremoloRate?: number;
   breathIntensity?: number;
+  consonantClarity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
   glitchChance?: number;

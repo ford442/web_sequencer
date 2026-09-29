@@ -69,6 +69,7 @@ export interface Note {
   subHarmonics?: number;
   vocalChorus?: number;
   transientExtraction?: number;
+  consonantClarity?: number;
   autoTune?: number;
   microtonalVariance?: number;
   drumDuckDepth?: number;
@@ -103,6 +104,14 @@ export interface Note {
   portamento?: number;
   // ... other fields as needed
 }
+
+/**
+ * Per-step overrides handed to sampler playback. Keys that also exist on
+ * `SamplerBankParams` (vocoder, spectral pan, formant envelope, ...) override
+ * the bank value for that hit only; `slideFrom*` are the glide origins the step
+ * handler derives from the previous step. The note pitches travel separately.
+ */
+export type SamplerNoteParams = Partial<Omit<Note, 'note' | 'chord' | 'phonemes'>>;
 
 export interface PartSequence {
   steps: (Note | null)[];

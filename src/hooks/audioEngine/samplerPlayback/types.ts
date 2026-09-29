@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import type { MultisampleBank, Note, SamplerBankParams } from "../../../types";
+import type { MultisampleBank, SamplerBankParams, SamplerNoteParams } from "../../../types";
 import type { AlignmentResult } from "../../../engines/rubberband/PhonemeAligner";
 import type { SingingVoiceManager } from "../../../engines/SingingVoiceManager";
 import type { Harmonizer } from "../../../engines/Harmonizer";
@@ -32,7 +32,7 @@ export type PlaySamplerVoiceFn = (
   time: number,
   durationSteps?: number,
   stepTime?: number,
-  noteParams?: Partial<Note>,
+  noteParams?: SamplerNoteParams,
   pitchOffsetSemitones?: number,
   tuning?: ScaleDefinition | null,
 ) => void;
@@ -43,6 +43,6 @@ export type PlaySamplerFn = (
   time: number,
   durationSteps?: number,
   stepTime?: number,
-  noteParams?: Partial<Note>,
+  noteParams?: SamplerNoteParams,
   tuning?: ScaleDefinition | null,
 ) => void;
