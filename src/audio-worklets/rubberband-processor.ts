@@ -725,6 +725,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       const availOutput = this.rubberBand.available();
       if (availOutput > 0) {
         if (this.isPlaying && this.fullSampleBuffer && this.phonemeData && this.phonemeRatios) {
+          // pData has already been updated at the beginning of the process block, but we update it here after streaming advance
           pData = this.getPhonemeDataAtSample(this.currentSamplePtr);
         }
         const framesToRead = Math.min(availOutput, outputChannel.length);
@@ -784,10 +785,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Apply Transient Shaper for Consonants
         const pConsonantClarity = parameters.consonantClarity ? parameters.consonantClarity[0] : 0.0;
         if (pConsonantClarity > 0) {
-            const isVowel = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[7] : null;
-            const phonemeIndex = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[8] : null;
+            const isVowel = pData ? pData[7] : null;
+            const phonemeIndex = pData ? pData[8] : null;
             // Link consonant boost to phoneme velocity/stress
-            const pVol = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[1] : 1.0;
+            const pVol = pData ? pData[1] : 1.0;
             const dynamicConsonantClarity = pConsonantClarity * pVol;
             this.transientShaper.process(outputChannel, dynamicConsonantClarity, isVowel, phonemeIndex, pVol, blockSampleRate);
         }
@@ -833,7 +834,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
 
         if (transientExtractionAmount > 0) {
-          const isVowelForTrans = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
+          const isVowelForTrans = pData ? pData[7] : 1.0;
           this.transientExtractor.process(outputs, transientExtractionAmount, isVowelForTrans, blockSampleRate);
         }
 
