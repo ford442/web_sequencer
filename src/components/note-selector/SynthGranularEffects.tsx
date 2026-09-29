@@ -4,7 +4,6 @@ import { VocoderProperties } from "./VocoderProperties";
 import { DrawableLFO } from "../DrawableLFO";
 import type { SynthEffectPropertiesProps } from "./synthEffectTypes";
 
-
 export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.memo((props) => {
   const {
     trackType,
@@ -332,7 +331,8 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
             )
           }
           className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-          aria-valuetext={`${Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%`}
+
+
           aria-label="Time Smear"
         />
       </div>

@@ -27,7 +27,6 @@ interface SamplerKnobHandlers {
   grainLfoDepth: (v: number) => void;
   grainPosLfoDepth: (v: number) => void;
   timeSmear: (v: number) => void;
-
   grainEnvDepth: (v: number) => void;
   grainPitchEnvDepth: (v: number) => void;
   grainJitter: (v: number) => void;
@@ -187,7 +186,6 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Grain LFO Depth" value={currentParams.grainLfoDepth || 0} onChange={handlers.grainLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Grain Pos Scan" value={currentParams.grainPosLfoDepth || 0} onChange={handlers.grainPosLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Time Smear" value={currentParams.timeSmear || 0} onChange={handlers.timeSmear} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
-
           <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handlers.grainEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handlers.grainPitchEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Jitter" value={currentParams.grainJitter || 0} onChange={handlers.grainJitter} min={0} max={1.0} step={0.01} color="indigo" unit="%" />

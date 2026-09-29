@@ -25,6 +25,7 @@ export interface FrozenGrainParams {
   windowShape: number;
   grainLfoDepth: number;
   grainPosLfoDepth: number;
+  timeSmear: number;
   samplesRequired: number;
   velocity: number;
 }
@@ -46,6 +47,7 @@ export class GranularEngine {
   private grainLpState = 0;
   private freezeLfoPhase = 0;
   private grainLfoPhase = 0;
+  private chaoticLfoPhase = 0;
   private wasFrozen = false;
 
   grainWrapPending = false;
@@ -69,6 +71,11 @@ export class GranularEngine {
     this.grainLfoPhase += (2 * Math.PI * grainLfoRate * framesInBlock) / sampleRate;
     if (this.grainLfoPhase > 2 * Math.PI) {
       this.grainLfoPhase -= 2 * Math.PI;
+    }
+
+    this.chaoticLfoPhase += (Math.sin(this.chaoticLfoPhase) + 1.1) * (framesInBlock / sampleRate) * 10;
+    if (this.chaoticLfoPhase > 2 * Math.PI) {
+      this.chaoticLfoPhase -= 2 * Math.PI;
     }
   }
 
@@ -196,7 +203,13 @@ export class GranularEngine {
     const sliceEnd = hasActiveSlice ? p.endSamplePtr : buf.length;
     const sliceLengthSamples = Math.max(0, sliceEnd - sliceStart);
     const allowedScanSamples = Math.min(maxPosScanSamples, Math.floor(sliceLengthSamples * 0.5));
-    const posMod = Math.floor(grainLfoValue * p.grainPosLfoDepth * allowedScanSamples);
+    let posMod = Math.floor(grainLfoValue * p.grainPosLfoDepth * allowedScanSamples);
+
+    if (p.timeSmear > 0.0) {
+      const isVowelForSmear = p.phonemeData ? getPhonemeDataAtSample(p.phonemeData, p.phonemeRatios, p.currentSamplePtr, this.phonemeTuple)[7] : 1.0;
+      const chaoticPosMod = Math.floor(Math.sin(this.chaoticLfoPhase) * p.timeSmear * allowedScanSamples * (1.0 - isVowelForSmear));
+      posMod += chaoticPosMod;
+    }
 
     const maxJitterSamples = Math.floor(0.05 * sRate * grainJitter);
 

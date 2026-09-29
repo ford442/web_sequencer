@@ -69,8 +69,6 @@ export const ContextMenuNode = React.memo(() => {
           currentGrainLfoRate={stepData?.grainLfoRate}
           currentGrainLfoDepth={stepData?.grainLfoDepth}
           currentGrainPosLfoDepth={stepData?.grainPosLfoDepth}
-
-          currentGrainPosLfoDepth={stepData?.grainPosLfoDepth}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}

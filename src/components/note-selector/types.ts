@@ -15,6 +15,7 @@ export type PropertyChangeKey =
   | "grainLfoRate"
   | "grainLfoDepth"
   | "grainPosLfoDepth"
+  | "timeSmear"
   | "grainJitter"
   | "grainPitchQuantize"
   | "windowShape"

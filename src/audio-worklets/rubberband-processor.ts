@@ -116,6 +116,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     windowShape: 0,
     grainLfoDepth: 0,
     grainPosLfoDepth: 0,
+    timeSmear: 0,
     samplesRequired: 0,
     velocity: 1.0
   };
@@ -626,6 +627,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         const grainLfoRate = parameters.grainLfoRate ? parameters.grainLfoRate[0] : 0.0;
         const grainLfoDepth = parameters.grainLfoDepth ? parameters.grainLfoDepth[0] : 0.0;
         const grainPosLfoDepth = parameters.grainPosLfoDepth ? parameters.grainPosLfoDepth[0] : 0.0;
+        const timeSmear = parameters.timeSmear ? parameters.timeSmear[0] : 0.0;
 
         // Advance LFO phase once per block (128 samples, standard Web Audio block size)
         const framesInBlock = 128;
@@ -657,6 +659,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.windowShape = windowShape;
           this.frozenGrainParams.grainLfoDepth = grainLfoDepth;
           this.frozenGrainParams.grainPosLfoDepth = grainPosLfoDepth;
+          this.frozenGrainParams.timeSmear = timeSmear;
           this.frozenGrainParams.samplesRequired = samplesRequired;
           this.frozenGrainParams.velocity = this.currentSampleVelocity;
 

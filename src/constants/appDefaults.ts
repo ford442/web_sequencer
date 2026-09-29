@@ -18,6 +18,7 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     freezeLfoDepth: 0,
     timeStretchEnvDepth: 0,
     grainPosLfoDepth: 0,
+    timeSmear: 0,
     granularPitchShift: 0,
     expressiveness: {
         vibratoRate: 5.5,
