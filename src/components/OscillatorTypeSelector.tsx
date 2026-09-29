@@ -64,7 +64,7 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
 
           // Static safe classes (Tailwind JIT cannot handle template literals for colors at runtime).
           // Each family gets its own distinctive but subtle active treatment for theming.
-          const activeStyleMap: Record<OscillatorType, string> = {
+          const activeStyleMap: Record<any, string> = {
             javascript: 'bg-gradient-to-b from-sky-500 to-sky-600 text-white border-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.35)]',
             pcm: 'bg-gradient-to-b from-stone-500 to-stone-600 text-white border-stone-400 shadow-[0_0_10px_rgba(120,113,108,0.35)]',
             open303: 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.35)]',

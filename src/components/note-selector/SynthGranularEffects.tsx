@@ -4,6 +4,7 @@ import { VocoderProperties } from "./VocoderProperties";
 import { DrawableLFO } from "../DrawableLFO";
 import type { SynthEffectPropertiesProps } from "./synthEffectTypes";
 
+
 export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.memo((props) => {
   const {
     trackType,
@@ -331,8 +332,34 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
             )
           }
           className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
-
-
+          aria-valuetext={`${Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%`}
+          aria-label="Time Smear"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <span className="flex items-center gap-1">
+            <span>⏱️</span>
+            Time Smear
+          </span>
+          <span>
+            {Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={props.currentTimeSmear || 0}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "timeSmear",
+              parseFloat(e.target.value)
+            )
+          }
+          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+          aria-valuetext={`${Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%`}
           aria-label="Time Smear"
         />
       </div>
