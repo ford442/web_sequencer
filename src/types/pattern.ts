@@ -44,6 +44,7 @@ export interface Note {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPanSpread?: number;
   volumeFilterMod?: number;
   vibratoDepth?: number;

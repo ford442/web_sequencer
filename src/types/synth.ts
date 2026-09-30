@@ -24,7 +24,14 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
-  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
+  | 'rust-saw'
+  | 'rust-sqr'
+  | 'cpp-saw'
+  | 'cpp-sqr'
+  | 'cpp-tri'
+  | 'cpp-sin'
+  | 'cpp-rand';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -49,7 +56,7 @@ export interface SynthParams {
   /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
   model303?: TB303ModelId;
   /** Per-song state for the high-fid voice: live A/B + diode-ladder coefficients (L2/L3). */
-  model303Extra?: TB303VoiceExtra;
+  model303Extra?: any;
   /** Prophecy: Vowel formant preset 0–4 (A=0, E=1, I=2, O=3, U=4) */
   pitchAttack?: number;
   pitchDecay?: number;
@@ -87,7 +94,9 @@ export type OscillatorType =
   | 'pyodide'      // Python/Pyodide software oscillators
   | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
-;
+  | 'cpp'
+
+  | 'rust';
 
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';
@@ -106,7 +115,7 @@ export interface Bass2Params {
   /** Selected 303 voice/model (see engines/TB303Models.ts). Defaults to 'stock-open303'. */
   model303?: TB303ModelId;
   /** Per-song state for the high-fid voice: live A/B + diode-ladder coefficients (L2/L3). */
-  model303Extra?: TB303VoiceExtra;
+  model303Extra?: any;
   /**
    * Slide/portamento time (0–1 normalized, where 0.33 ≈ 60 ms TB-303 default).
    * Maps to Open303Params.slideTime for the Devil Fish MOD.

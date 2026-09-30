@@ -26,6 +26,7 @@ export const RUBBERBAND_PARAMETER_DESCRIPTORS = [
   { name: 'grainLfoRate', defaultValue: 0.0, minValue: 0.0, maxValue: 20.0 },
   { name: 'grainLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'grainPosLfoDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+  { name: 'timeSmear', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'grainJitter', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'grainPitchEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'grainPitchQuantize', defaultValue: 0.0, minValue: 0.0, maxValue: 12.0 },

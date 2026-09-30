@@ -19,9 +19,11 @@ export type Waveform =
   | 'rust-saw' | 'rust-sqr'
   | 'cpp-sin' | 'cpp-saw' | 'cpp-sqr' | 'cpp-rand'
   | '303-saw' | '303-sqr'
-  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
+  | 'cpp-tri';
 
 export interface SynthParams {
+  model303Extra?: any;
   waveform: Waveform;
   pitch: number; // Semitones adjustment
   filterCutoff: number; // Hz
@@ -108,6 +110,7 @@ export interface SamplerVoiceParams {
 }
 
 export interface SamplerBankParams {
+  transientExtraction?: number;
   grainJitter?: number;
   sampleName: string;
   playbackSpeed: number;
@@ -145,6 +148,7 @@ export interface SamplerBankParams {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPitchQuantize?: number;
   grainPanSpread?: number;
   granularPitchShift?: number;
@@ -409,6 +413,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
 }
 
 export interface Bass2Params {
+  model303Extra?: any;
   waveform: '303-saw' | '303-sqr';
   cutoff: number;
   resonance: number;
@@ -441,6 +446,7 @@ export interface AllDrumParams {
 export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat' | 'sampler';
 
 export interface AmbianceTrack {
+  id: string;
   name: string;
   url: string;
 }
@@ -462,6 +468,7 @@ export interface PhonemeData {
 }
 
 export interface Note {
+  transientExtraction?: number;
   note: string;
   pan?: number;
   velocity: number;
@@ -504,6 +511,7 @@ export interface Note {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPanSpread?: number;
   volumeFilterMod?: number;
   vibratoDepth?: number;
