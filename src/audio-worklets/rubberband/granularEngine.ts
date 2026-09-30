@@ -36,6 +36,22 @@ export interface FrozenGrainParams {
  * of advancing the streaming pointer. Also owns the grain-triggered stereo
  * pan spread applied post-retrieve.
  */
+const LUT_SIZE = 1024;
+const SHAPE_HANN = new Float32Array(LUT_SIZE);
+const SHAPE_HAMMING = new Float32Array(LUT_SIZE);
+const SHAPE_BLACKMAN = new Float32Array(LUT_SIZE);
+const SHAPE_GAUSSIAN = new Float32Array(LUT_SIZE);
+const SHAPE_SHARP_EXP = new Float32Array(LUT_SIZE);
+
+for (let i = 0; i < LUT_SIZE; i++) {
+  const phase = i / (LUT_SIZE - 1);
+  SHAPE_HANN[i] = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+  SHAPE_HAMMING[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
+  SHAPE_BLACKMAN[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
+  SHAPE_GAUSSIAN[i] = Math.exp(-0.5 * Math.pow((phase - 0.5) / 0.15, 2));
+  SHAPE_SHARP_EXP[i] = Math.pow(Math.sin(Math.PI * phase), 4);
+}
+
 export class GranularEngine {
   private readonly phonemeTuple = new Float32Array(9);
   private grains: [Grain, Grain] = [
@@ -263,18 +279,27 @@ export class GranularEngine {
               windowVal = lowerVal + (upperVal - lowerVal) * fraction;
             } else {
               // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None), 4: Gaussian, 5: Sharp Exponential
-              if (p.windowShape < 0.5) {
-                windowVal = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
-              } else if (p.windowShape < 1.5) {
-                windowVal = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
-              } else if (p.windowShape < 2.5) {
-                windowVal = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
-              } else if (p.windowShape < 3.5) {
+              if (p.windowShape >= 2.5 && p.windowShape < 3.5) {
                 windowVal = 1.0;
-              } else if (p.windowShape < 4.5) {
-                windowVal = Math.exp(-0.5 * Math.pow((phase - 0.5) / 0.15, 2));
               } else {
-                windowVal = Math.pow(Math.sin(Math.PI * phase), 4);
+                let lut: Float32Array;
+                if (p.windowShape < 0.5) {
+                  lut = SHAPE_HANN;
+                } else if (p.windowShape < 1.5) {
+                  lut = SHAPE_HAMMING;
+                } else if (p.windowShape < 2.5) {
+                  lut = SHAPE_BLACKMAN;
+                } else if (p.windowShape < 4.5) {
+                  lut = SHAPE_GAUSSIAN;
+                } else {
+                  lut = SHAPE_SHARP_EXP;
+                }
+
+                const index = phase * (LUT_SIZE - 1);
+                const lower = Math.floor(index);
+                const upper = Math.ceil(index);
+                const weight = index - lower;
+                windowVal = lut[lower] * (1 - weight) + lut[upper] * weight;
               }
             }
 
