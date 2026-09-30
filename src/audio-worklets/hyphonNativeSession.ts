@@ -206,18 +206,7 @@ async function createSession(
     if (memory) registry.heapCount++;
 
     try {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const timeout = new Promise<never>((_, reject) => {
-            timer = setTimeout(
-                () => reject(new Error(`WASM instantiation timeout (${INSTANTIATE_TIMEOUT_MS / 1000}s)`)),
-                INSTANTIATE_TIMEOUT_MS,
-            );
-        });
-        try {
-            pendingInstance = await Promise.race([WebAssembly.instantiate(module, imports), timeout]);
-        } finally {
-            clearTimeout(timer);
-        }
+        pendingInstance = await instantiateWithTimeout(module, imports);
 
         const exports = normalizeWasmExports(pendingInstance.exports, data.exportMap ?? {}) as Record<string, any>;
         const ownMemory =
@@ -239,6 +228,39 @@ async function createSession(
         // The memory is unreachable now; don't let it inflate the HUD's heap count.
         if (memory) registry.heapCount = Math.max(0, registry.heapCount - 1);
         throw e;
+    }
+}
+
+/**
+ * Instantiate, bounded by INSTANTIATE_TIMEOUT_MS where timers exist.
+ *
+ * AudioWorkletGlobalScope has no setTimeout / clearTimeout, and that is where
+ * this runs in the app: referencing them threw a ReferenceError that failed every
+ * voice (Open303, Prophecy, drums) over to its JS fallback. There the main
+ * thread's per-voice ready timeout is the bound instead.
+ */
+async function instantiateWithTimeout(
+    module: WebAssembly.Module,
+    imports: WebAssembly.Imports,
+): Promise<WebAssembly.Instance> {
+    const g = globalThis as {
+        setTimeout?: (fn: () => void, ms: number) => unknown;
+        clearTimeout?: (id: unknown) => void;
+    };
+    const instantiating = WebAssembly.instantiate(module, imports);
+    if (typeof g.setTimeout !== 'function') return instantiating;
+
+    let timer: unknown;
+    const timeout = new Promise<never>((_, reject) => {
+        timer = g.setTimeout!(
+            () => reject(new Error(`WASM instantiation timeout (${INSTANTIATE_TIMEOUT_MS / 1000}s)`)),
+            INSTANTIATE_TIMEOUT_MS,
+        );
+    });
+    try {
+        return await Promise.race([instantiating, timeout]);
+    } finally {
+        g.clearTimeout?.(timer);
     }
 }
 
