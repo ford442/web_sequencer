@@ -787,10 +787,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Apply Transient Shaper for Consonants
         const pConsonantClarity = parameters.consonantClarity ? parameters.consonantClarity[0] : 0.0;
         if (pConsonantClarity > 0) {
-            const isVowel = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[7] : null;
-            const phonemeIndex = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[8] : null;
+            const isVowel = pData ? pData[7] : null;
+            const phonemeIndex = pData ? pData[8] : null;
             // Link consonant boost to phoneme velocity/stress
-            const pVol = hasPhonemeContext ? this.getPhonemeDataAtSample(this.currentSamplePtr)[1] : 1.0;
+            const pVol = pData ? pData[1] : 1.0;
             const dynamicConsonantClarity = pConsonantClarity * pVol;
             this.transientShaper.process(outputChannel, dynamicConsonantClarity, isVowel, phonemeIndex, pVol, blockSampleRate);
         }
@@ -836,7 +836,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         }
 
         if (transientExtractionAmount > 0) {
-          const isVowelForTrans = this.getPhonemeDataAtSample(this.currentSamplePtr)[7];
+          // No phoneme context -> the default tuple's isVowel (0), so the extractor stays active.
+          const isVowelForTrans = pData ? pData[7] : 0.0;
           this.transientExtractor.process(outputs, transientExtractionAmount, isVowelForTrans, blockSampleRate);
         }
 
