@@ -21,3 +21,7 @@
 2. Hoist transcendental calculations out of the per-sample loop in `Bitcrusher`, `SpectralBandProcessor`, and `PhonemeToneFilter`.
 3. Introduce pre-computed `Float32Array` lookup tables with linear interpolation for window shapes in `GranularEngine`.
 4. Call `getPhonemeDataAtSample` only once per audio quantum block and pass the resulting tuple (`pData`) through `FrozenGrainParams` and to sub-processors to eliminate redundant scans.
+
+## 2024-12-07 - Pre-compute window shapes in GranularEngine
+**Learning:** In `granularEngine.ts`, the DSP loop was calculating window shapes using expensive transcendental math (`Math.cos`, `Math.exp`, `Math.pow`, `Math.sin`) per sample and per active grain. This was happening up to 2 times per sample frame, degrading real-time performance on the audio thread.
+**Action:** Replace these expensive per-sample calculations with pre-computed `Float32Array` lookup tables and fast linear interpolation, hoisting the transcendental math out of the hot path to module-load time.
