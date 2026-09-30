@@ -29,7 +29,7 @@ import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } fro
  */
 function highFidExtraProps(
     extra: TB303VoiceExtra | undefined,
-    update: (updates: { model303Extra?: any }) => void,
+    update: (updates: { model303Extra?: TB303VoiceExtra }) => void,
 ) {
     return {
         liveAb: extra?.ab,
