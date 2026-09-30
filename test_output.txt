@@ -1,0 +1,1565 @@
+
+> hyphon-daw@1.0.0 test /app
+> vitest run
+
+
+ RUN  v2.1.9 /app
+
+stdout | src/__tests__/wasmMigration.bench.test.ts
+
+=== WASM Migration Benchmark Summary ===
+Expected: WASM should be at least 2x faster than JS for compute-heavy operations
+Note: Currently using JS implementations as WASM placeholders
+      Replace with actual WASM calls once modules are compiled
+
+
+ ✓ src/engines/rubberband/__tests__/LatencyCompensator.test.ts (86 tests) 93ms
+stdout | src/__tests__/wasmMigration.test.ts > WASM Migration Tests > Numerical Accuracy Tests > should maintain reasonable tolerance for audio conversions
+  Max relative error: 2.9570%
+
+ ✓ src/__tests__/wasmMigration.test.ts (40 tests) 407ms
+ ✓ src/__tests__/AutomationScheduler.test.ts (39 tests) 47ms
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Constructor > should create with default config
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Constructor > should merge custom config with defaults
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Initialization > should initialize successfully
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Initialization > should not reinitialize if already initialized
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Initialization > should handle WASM module initialization
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stderr | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Initialization > should handle WASM module initialization
+PerformanceOptimizer: WASM buffer allocation failed: Invalid typed array length: 8192
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Initialization > should handle WASM allocation failure gracefully
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > SIMD Detection > should detect SIMD support
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > SIMD Detection > should return consistent results
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > SharedArrayBuffer Detection > should check SharedArrayBuffer support
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > SharedArrayBuffer Detection > should check Atomics support
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > WASM Memory Allocation > should fail allocation without WASM module
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > WASM Memory Allocation > should allocate buffers with valid WASM module
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > WASM Memory Allocation > should handle allocation failure
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > WASM Memory Allocation > should free buffers
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should return null if SharedArrayBuffer not supported
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should create circular buffer with SharedArrayBuffer
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should retrieve circular buffer by ID
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should delete circular buffer
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should write and read from circular buffer
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Circular Buffers > should handle buffer wraparound
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > CPU Load Monitoring > should record processing times
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > CPU Load Monitoring > should detect overload condition
+PerformanceOptimizer: Quality adjusted high -> medium (load: 62.4%)
+PerformanceOptimizer: Quality adjusted medium -> low (load: 91.2%)
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > CPU Load Monitoring > should recommend appropriate quality levels
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > CPU Load Monitoring > should handle empty processing times
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > CPU Load Monitoring > should provide headroom calculation
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should return default quality config
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should return specific quality configs
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should get current quality level
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should set quality level
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should trigger quality change callbacks
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should remove quality change callbacks
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Quality Management > should not trigger callback if quality unchanged
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Overload Callbacks > should register overload callback
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Quality adjusted high -> medium (load: 68.4%)
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Overload Callbacks > should register overload callback
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Overload Callbacks > should remove overload callback
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Quality adjusted high -> medium (load: 68.4%)
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Overload Callbacks > should remove overload callback
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Adaptive Buffer Sizing > should return configured buffer size when adaptive sizing disabled
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Adaptive Buffer Sizing > should return smaller buffer for low CPU load
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Adaptive Buffer Sizing > should return larger buffer for high CPU load
+PerformanceOptimizer: Quality adjusted high -> medium (load: 68.4%)
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Worker Pool > should return null worker when not initialized
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Worker Pool > should return worker stats
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Worker Pool > should create workers during init
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Created 4 TTS workers
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Task Submission > should queue tasks when workers are busy
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Created 4 TTS workers
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Disposal > should clean up all resources
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+stdout | src/engines/rubberband/PerformanceOptimizer.spec.ts > PerformanceOptimizer > Disposal > should terminate workers on dispose
+PerformanceOptimizer: SIMD enabled
+PerformanceOptimizer: Created 4 TTS workers
+PerformanceOptimizer: Initialized successfully
+PerformanceOptimizer: Disposed
+PerformanceOptimizer: Disposed
+
+ ✓ src/engines/rubberband/PerformanceOptimizer.spec.ts (50 tests) 342ms
+ ✓ src/__tests__/ExpressiveVoiceProcessor.test.ts (23 tests) 150ms
+stderr | src/engines/__tests__/Voice.test.ts > Voice.startNote — WAV engine > warns and falls back to JS oscillator when saw buffer is null
+[Hyphon Engine Warning] Hyphon: "wav" engine could not load (wav-saw buffer not loaded yet). Audio will use the basic JavaScript oscillator instead of "pcm".
+
+stderr | src/engines/__tests__/Voice.test.ts > Voice.startNote — WAM engine > warns and falls back when WasmOscillator is not ready
+[Hyphon Engine Warning] Hyphon: "wam" engine could not load (WasmOscillator not ready for wam-sqr). Audio will use the basic JavaScript oscillator instead of "wasm".
+
+stderr | src/engines/__tests__/Voice.test.ts > Voice.startNote — Rust engine > warns and falls back when RustOscillator is not ready
+[Hyphon Engine Warning] Hyphon: "rust" engine could not load (RustOscillator not ready for rust-sqr). Audio will use the basic JavaScript oscillator instead of "wasm".
+
+stderr | src/engines/__tests__/Voice.test.ts > Voice.startNote — WGSL engine > warns and falls back when the buffer is missing (GPU unavailable)
+[Hyphon Engine Warning] Hyphon: "webgpu" engine could not load (wgsl-saw buffer unavailable (GPU unsupported or pre-render pending)). Audio will use the basic JavaScript oscillator instead of "webgpu".
+
+stderr | src/engines/__tests__/Voice.test.ts > Voice.startNote — Pyodide engine > falls back to JS when pyodide is not ready
+[Hyphon Engine Warning] Hyphon: "pyodide" engine could not load (Pyodide not ready for pyodide-sin). Audio will use the basic JavaScript oscillator instead of "pyodide".
+
+ ✓ src/engines/__tests__/Voice.test.ts (19 tests) 89ms
+stderr | src/__tests__/TB303Models.test.ts > resolveRealtimeTB303Model() > maps offline high-fid voices to stock for AudioWorklet
+[TB303] Model "highfid-cpu" unavailable (offline-only high-fid voice (realtime uses stock)) — using "stock-open303"
+[TB303] Model "gpu-highfid" unavailable (offline-only high-fid voice (realtime uses stock)) — using "stock-open303"
+
+stderr | src/__tests__/TB303Models.test.ts > Open303Oscillator.setModel303() > normalizes unknown model ids to stock-open303
+[TB303] Model "definitely-not-a-voice" unavailable (runtime apply) — using "stock-open303"
+
+stderr | src/__tests__/TB303Models.test.ts > Open303Oscillator.setModel303() > maps offline high-fid voices to stock on the worklet
+[TB303] Model "gpu-highfid" unavailable (offline-only high-fid voice (realtime uses stock)) — using "stock-open303"
+
+stderr | src/__tests__/TB303Models.test.ts > model303 persistence > offline high-fid ids survive JSON round-trip and normalize
+[TB303] Model "highfid-cpu" unavailable (offline-only high-fid voice (realtime uses stock)) — using "stock-open303"
+[TB303] Model "gpu-highfid" unavailable (offline-only high-fid voice (realtime uses stock)) — using "stock-open303"
+
+ ❯ src/__tests__/TB303Models.test.ts (41 tests | 2 failed) 55ms
+   × TB303_MODELS registry > has unique ids 15ms
+     → expected 10 to be 11 // Object.is equality
+   × TB303_MODELS registry > includeOfflineOnly exposes highfid-cpu and gpu-highfid 11ms
+     → expected 'High-Fidelity GPU' to contain 'offline'
+ ✓ src/__tests__/automationStore.test.ts (38 tests) 23ms
+ ✓ src/engines/rubberband/__tests__/HybridNeuralPipeline.spec.ts (35 tests) 1049ms
+ ✓ src/engines/rubberband/__tests__/ArtifactDetector.spec.ts (21 tests) 109ms
+ ✓ src/__tests__/RbsImporter.test.ts (17 tests) 25ms
+ ✓ src/__tests__/ProphecyOscillator.test.ts (37 tests) 26ms
+ ✓ src/utils/__tests__/fft.spec.ts (27 tests) 126ms
+stderr | Fetch.onError (file:/app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:493:24)
+DOMException [AbortError]: The operation was aborted.
+    at Fetch.onAsyncTaskManagerAbort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:506:17)
+    at Object.<anonymous> (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:361:10)
+    at AsyncTaskManager.abortAll (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:266:21)
+    at AsyncTaskManager.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:56:15)
+    at DetachedBrowserFrame.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/browser/detached-browser/DetachedBrowserFrame.ts:147:49)
+    at DetachedWindowAPI.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/window/DetachedWindowAPI.ts:62:29)
+    at teardownWindow (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:363:24)
+    at Object.teardown (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:415:15)
+    at withEnv (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:94:15)
+    at run (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+
+ ✓ src/components/__tests__/knobMaterial/canvas2d-value0.contract.test.ts (1 test) 18ms
+ ✓ src/components/__tests__/knobMaterial/canvas2d-value100.contract.test.ts (1 test) 18ms
+ ✓ src/components/__tests__/knobMaterial/canvas2d-value50.contract.test.ts (1 test) 25ms
+ ✓ src/__tests__/patternRandomizer.test.ts (36 tests) 33ms
+ ✓ src/audio/graph/__tests__/compileGraph.test.ts (15 tests) 174ms
+ ✓ src/__tests__/xm_export_audio.test.ts (14 tests) 22ms
+ ✓ src/__tests__/FormantShifter.test.ts (26 tests) 65ms
+ ✓ src/audio/loudness/__tests__/truePeakLimiter.test.ts (19 tests) 1148ms
+ ✓ src/__tests__/PcfProcessor.test.ts (11 tests) 39ms
+ ✓ src/__tests__/projectPersistence.test.ts (21 tests) 260ms
+stderr | src/__tests__/SingingVoice.integration.test.ts > SingingVoice Integration > Phoneme Alignment (Section 3) > should warn when phoneme alignment is disabled
+PhonemeAligner not enabled. Set enablePhonemeStretching: true in config.
+
+stderr | src/__tests__/SingingVoice.integration.test.ts > SingingVoice Integration > Formant Shifting (Section 4) > should warn when formant shifting is disabled
+FormantShifter not enabled. Set enableFormantShifting: true in config.
+
+ ✓ src/__tests__/SingingVoice.integration.test.ts (20 tests) 35ms
+stderr | src/components/__tests__/EngineA11y.test.tsx > Engine303Selector – accessibility > clicking a button does not leave focus in an ambiguous state
+An update to HelpTip inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/components/__tests__/EngineA11y.test.tsx (20 tests) 198ms
+stderr | src/__tests__/SingingVoiceSlice.test.ts > SingingVoice Slice Triggering > should handle out of bounds index gracefully
+Slice index 99 out of bounds (max 3)
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > SingingVoice Slice Triggering > should clamp stretch ratio to MAX when targetDuration is very large
+[SingingVoice] Stretch ratio 100.000 is outside optimal range [0.25, 4]; clamping to 4.000.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > SingingVoice Slice Triggering > should clamp stretch ratio to MIN when targetDuration is very small
+[SingingVoice] Stretch ratio 0.010 is outside optimal range [0.25, 4]; clamping to 0.250.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > SingingVoice Slice Triggering > should emit console.warn when stretch ratio is clamped
+[SingingVoice] Stretch ratio 100.000 is outside optimal range [0.25, 4]; clamping to 4.000.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > clampStretchRatio > clamps to MIN when ratio is below range
+[SingingVoice] Stretch ratio 0.100 is outside optimal range [0.25, 4]; clamping to 0.250.
+[SingingVoice] Stretch ratio 0.000 is outside optimal range [0.25, 4]; clamping to 0.250.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > clampStretchRatio > clamps to MAX when ratio is above range
+[SingingVoice] Stretch ratio 5.000 is outside optimal range [0.25, 4]; clamping to 4.000.
+[SingingVoice] Stretch ratio 100.000 is outside optimal range [0.25, 4]; clamping to 4.000.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > clampStretchRatio > emits console.warn when ratio is below MIN
+[SingingVoice] Stretch ratio 0.100 is outside optimal range [0.25, 4]; clamping to 0.250.
+
+stderr | src/__tests__/SingingVoiceSlice.test.ts > clampStretchRatio > emits console.warn when ratio is above MAX
+[SingingVoice] Stretch ratio 10.000 is outside optimal range [0.25, 4]; clamping to 4.000.
+
+ ✓ src/__tests__/SingingVoiceSlice.test.ts (17 tests) 31ms
+ ✓ src/components/__tests__/KnobGPUContext.scheduler.test.ts (8 tests) 445ms
+ ✓ src/__tests__/Open303EngineSelect.test.ts (21 tests) 18ms
+ ✓ src/__tests__/engine303-roundtrip.test.ts (16 tests) 11ms
+ ✓ src/__tests__/AudioDSP.test.ts (18 tests) 34ms
+ ✓ src/__tests__/automationCurveEditor.test.ts (16 tests) 12ms
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (small buffer - 1 second)
+floatToInt16 (1s mono): JS=1000.47ms, WASM=768.13ms, Speedup=1.30x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (medium buffer - 10 seconds)
+floatToInt16 (10s mono): JS=880.10ms, WASM=717.75ms, Speedup=1.23x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (large buffer - 60 seconds)
+floatToInt16 (60s mono): JS=968.79ms, WASM=867.27ms, Speedup=1.12x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: channelInterleave (stereo)
+channelInterleave (stereo, 5s): JS=1848.77ms, WASM=1589.70ms, Speedup=1.16x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: channelInterleave (multi-channel)
+channelInterleave (6ch, 5s): JS=1282.20ms, WASM=1422.19ms, Speedup=0.90x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: findPeak (small buffer)
+findPeak (1k samples): JS=15.03ms, WASM=19.21ms, Speedup=0.78x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: findPeak (medium buffer)
+findPeak (44.1k samples): JS=73.51ms, WASM=85.58ms, Speedup=0.86x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: findPeak (large buffer)
+findPeak (441k samples): JS=74.58ms, WASM=84.68ms, Speedup=0.88x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: findZeroCrossing
+findZeroCrossing (sine wave): JS=4.15ms, WASM=0.56ms, Speedup=7.35x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: normalizeAndConvert
+normalizeAndConvert (44.1k samples): JS=267.85ms, WASM=225.48ms, Speedup=1.19x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT forward transform (size 256)
+FFT forward (256): JS=13.45ms, WASM=11.73ms, Speedup=1.15x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT forward transform (size 512)
+FFT forward (512): JS=28.37ms, WASM=24.67ms, Speedup=1.15x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT forward transform (size 1024)
+FFT forward (1024): JS=52.02ms, WASM=50.29ms, Speedup=1.03x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT forward transform (size 2048)
+FFT forward (2048): JS=63.77ms, WASM=58.92ms, Speedup=1.08x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT forward transform (size 4096)
+FFT forward (4096): JS=130.66ms, WASM=124.92ms, Speedup=1.05x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT magnitude computation (size 256)
+FFT magnitude (256): JS=22.95ms, WASM=2.16ms, Speedup=10.64x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT magnitude computation (size 512)
+FFT magnitude (512): JS=18.12ms, WASM=3.84ms, Speedup=4.72x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT magnitude computation (size 1024)
+FFT magnitude (1024): JS=6.11ms, WASM=6.13ms, Speedup=1.00x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT magnitude computation (size 2048)
+FFT magnitude (2048): JS=10.71ms, WASM=18.59ms, Speedup=0.58x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: FFT magnitude computation (size 4096)
+FFT magnitude (4096): JS=20.92ms, WASM=27.37ms, Speedup=0.76x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: Hann window (size 256)
+Hann window (256): JS=25.01ms, WASM=9.49ms, Speedup=2.64x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: Hann window (size 512)
+Hann window (512): JS=14.23ms, WASM=14.12ms, Speedup=1.01x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: Hann window (size 1024)
+Hann window (1024): JS=27.50ms, WASM=30.93ms, Speedup=0.89x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: Hann window (size 2048)
+Hann window (2048): JS=61.64ms, WASM=59.64ms, Speedup=1.03x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > FFT Module Benchmarks > benchmark: Hann window (size 4096)
+Hann window (4096): JS=108.77ms, WASM=104.80ms, Speedup=1.04x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > Combined Operation Benchmarks > benchmark: full audio export pipeline
+Full export pipeline (5s stereo): JS=869.48ms, WASM=780.32ms, Speedup=1.11x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > Combined Operation Benchmarks > benchmark: spectral analysis pipeline
+Spectral analysis (FFT + magnitude): JS=88.01ms, WASM=82.79ms, Speedup=1.06x
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > Memory and Throughput Benchmarks > reports memory throughput for floatToInt16
+  floatToInt16 (44100 samples): 211.12 MB/s
+  floatToInt16 (441000 samples): 220.04 MB/s
+  floatToInt16 (2646000 samples): 198.38 MB/s
+
+stdout | src/__tests__/wasmMigration.bench.test.ts > WASM Migration Benchmarks > Memory and Throughput Benchmarks > reports FFT performance in GFLOPS equivalent
+  FFT (1024): 0.853 GFLOPS equivalent
+  FFT (2048): 1.022 GFLOPS equivalent
+  FFT (4096): 1.085 GFLOPS equivalent
+
+ ✓ src/__tests__/wasmMigration.bench.test.ts (29 tests) 18689ms
+   ✓ WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (small buffer - 1 second) 1814ms
+   ✓ WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (medium buffer - 10 seconds) 1807ms
+   ✓ WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: floatToInt16 (large buffer - 60 seconds) 3001ms
+   ✓ WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: channelInterleave (stereo) 3609ms
+   ✓ WASM Migration Benchmarks > audioExport Module Benchmarks > benchmark: channelInterleave (multi-channel) 3016ms
+   ✓ WASM Migration Benchmarks > xmExport Module Benchmarks > benchmark: normalizeAndConvert 506ms
+   ✓ WASM Migration Benchmarks > Combined Operation Benchmarks > benchmark: full audio export pipeline 1886ms
+   ✓ WASM Migration Benchmarks > Memory and Throughput Benchmarks > reports memory throughput for floatToInt16 1002ms
+ ✓ src/components/__tests__/knobMaterial/wgsl.contract.test.ts (1 test) 13ms
+ ✓ src/__tests__/Open303Native.test.ts (16 tests) 26ms
+ ✓ src/__tests__/voicePresets.test.ts (23 tests) 18ms
+stderr | src/__tests__/SamplerPanel.test.tsx > SamplerPanel TTS per-bank functionality > handles invalid bank indices gracefully
+Invalid bank index: 10
+
+ ✓ src/__tests__/SamplerPanel.test.tsx (9 tests) 3809ms
+   ✓ SamplerPanel TTS per-bank functionality > displays TTS text for the active bank 661ms
+   ✓ SamplerPanel TTS per-bank functionality > updates TTS text for the current bank when typing 395ms
+   ✓ SamplerPanel TTS per-bank functionality > preserves TTS text when switching banks 519ms
+   ✓ SamplerPanel TTS per-bank functionality > renders 8 bank selector buttons 307ms
+   ✓ SamplerPanel TTS per-bank functionality > highlights the active bank button 362ms
+   ✓ SamplerPanel TTS per-bank functionality > handles missing or incomplete ttsPhrases array 547ms
+   ✓ SamplerPanel TTS per-bank functionality > has accessible labels and live region for status 395ms
+   ✓ SamplerPanel TTS per-bank functionality > uses fieldset/legend for BASIC and ENGINE parameter groups 321ms
+ ✓ src/engines/backends/__tests__/BackendRegistry.test.ts (11 tests) 14ms
+ ✓ src/audio/loudness/__tests__/loudnessMeter.test.ts (18 tests) 15835ms
+   ✓ LoudnessMeter — TECH 3341 tone cases > reads -23 LUFS for a -23 dBFS 1 kHz stereo tone 1218ms
+   ✓ LoudnessMeter — TECH 3341 tone cases > reads -33 LUFS for the same tone 10 dB quieter 1198ms
+   ✓ LoudnessMeter — TECH 3341 tone cases > agrees between momentary, short-term and integrated on steady tone 591ms
+   ✓ LoudnessMeter — gating > ignores silence below the absolute gate 2654ms
+   ✓ LoudnessMeter — gating > drops blocks below the relative gate 1751ms
+   ✓ LoudnessMeter — gating > keeps blocks within 10 LU of the mean 1161ms
+   ✓ LoudnessMeter — gating > resets the integrated measurement on request without disturbing momentary 2342ms
+   ✓ LoudnessMeter — sample rate independence > reads -23 LUFS at 44100 Hz 1143ms
+   ✓ LoudnessMeter — sample rate independence > reads -23 LUFS at 48000 Hz 691ms
+   ✓ LoudnessMeter — sample rate independence > reads -23 LUFS at 96000 Hz 791ms
+   ✓ LoudnessMeter — sample rate independence > gives the same reading for the same signal at different rates 1951ms
+ ✓ src/__tests__/RbsImporter.fidelity.test.ts (8 tests) 30ms
+ ✓ src/__tests__/PhonemeBufferPool.test.ts (14 tests) 12ms
+stdout | src/__tests__/RbsIffParser.test.ts > RbsParser IFF CAT RB40 > parses synthetic IFF CAT RB40 song file with GLOB and TRAK data
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsIffParser.test.ts > RbsParser IFF CAT RB40 > parses pattern mode IFF file correctly
+[RbsParser] IFF CAT form detected: RB40, root size 872
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsIffParser.test.ts > RbsParser IFF CAT RB40 > tempo is correctly parsed from GLOB (BPM × 1000 encoding)
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsIffParser.test.ts > RebirthRBSParser song arrangement > returns song arrangement with pattern slots from TRAK events
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RebirthRBSParser] Parsed "song_arrangement.rbs" – version 2.0, 0 pattern entries, 0 automation lane(s).
+
+stdout | src/__tests__/RbsIffParser.test.ts > RebirthRBSParser song arrangement > returns pattern mode for files without song arrangement
+[RbsParser] IFF CAT form detected: RB40, root size 872
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RebirthRBSParser] Parsed "pattern_only.rbs" – version 2.0, 0 pattern entries, 0 automation lane(s).
+
+stdout | src/__tests__/RbsIffParser.test.ts > RbsImporter song mode > populates songArrangement in HyphonSong when songData is present
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsIffParser.test.ts > RbsImporter song mode > report includes song mode info when songData is present
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsIffParser.test.ts > RbsImporter song mode > imports 16 referenced patterns without truncation warning
+[RbsParser] IFF CAT form detected: RB40, root size 940
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsIffParser.test.ts (11 tests) 24ms
+ ✓ src/audio/loudness/__tests__/exportLoudness.test.ts (11 tests) 10320ms
+   ✓ offline loudness report > reports integrated loudness, true peak and sample peak 411ms
+   ✓ live vs offline parity > matches within 0.1 LU and 0.1 dBTP 1837ms
+   ✓ normalizeToTarget > brings a quiet mix up to the streaming target 1832ms
+   ✓ normalizeToTarget > brings a hot mix down and keeps the ceiling 2857ms
+   ✓ normalizeToTarget > accepts a numeric target and reports what was actually achieved 2171ms
+   ✓ audio-thread budget > processes a stereo quantum well inside the 2.67 ms budget 982ms
+stdout | src/__tests__/RbsExporter.test.ts > RbsExporter > writes IFF CAT RB40 with HEAD and GLOB pattern mode
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsExporter.test.ts > RbsExporter > round-trips TB-303 steps and static knob values through export → import
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsExporter.test.ts > RbsExporter > re-imports exported file without parser errors
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsExporter.test.ts > RbsExporter > emits warnings for unsupported Hyphon features
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsExporter.test.ts > RbsExporter > exports drum triggers in DEVL 808 chunk
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsExporter.test.ts (5 tests) 50ms
+stdout | src/__tests__/RbsPcfDevl.test.ts > DEVL PCF extraction (IFF path) > parses enabled PCF from DEVL instead of mock sweep
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsPcfDevl.test.ts > DEVL PCF extraction (IFF path) > returns disabled PCF when DEVL PCF chunk is off
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsPcfDevl.test.ts > DEVL PCF extraction (IFF path) > maps MIXR pcf_id to drum routing
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsPcfDevl.test.ts > DEVL PCF extraction (IFF path) > copies TB-303 device params into every pattern bank entry
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsPcfDevl.test.ts > PCF → automation (IFF + importer) > wave ramp preset produces monotonic filter-cutoff automation
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsPcfDevl.test.ts (8 tests) 41ms
+stdout | src/__tests__/RbsDevlParser.test.ts > RbsParser DEVL catalog > parses struct-accurate 303/808 chunks from DEVL catalog
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsDevlParser.test.ts > RbsParser DEVL catalog > does not use mock TB-303 A melody when DEVL catalog is present
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsDevlParser.test.ts > RbsParser DEVL catalog > v1.5-style DEVL with single 303 does not inject mock melody into TB-303 B
+[RbsParser] IFF CAT form detected: RB40, root size 14640
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsDevlParser.test.ts > RbsParser DEVL catalog > pattern bank count covers TRAK pattern-select indices
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsDevlParser.test.ts (9 tests | 1 skipped) 22ms
+ ↓ src/__tests__/HardwareModule.gpu.test.tsx (2 tests | 2 skipped)
+stderr | src/__tests__/WebGpu303Engine.test.ts > WebGpu303Engine fallback > falls back to highfid-cpu without crashing when WebGPU is missing
+[EngineFallback] gpu-highfid: requested "webgpu" → JS fallback (navigator.gpu unavailable (browser lacks WebGPU))
+[Hyphon Engine Warning] Hyphon: "gpu-highfid" engine could not load (navigator.gpu unavailable (browser lacks WebGPU)). Audio will use the basic JavaScript oscillator instead of "webgpu".
+
+stderr | src/__tests__/WebGpu303Engine.test.ts > render303Offline gpu-highfid path > async path also falls back gracefully
+[EngineFallback] gpu-highfid: requested "webgpu" → JS fallback (navigator.gpu unavailable (browser lacks WebGPU))
+
+ ✓ src/__tests__/WebGpu303Engine.test.ts (12 tests) 842ms
+   ✓ WebGpu303Engine fallback > falls back to highfid-cpu without crashing when WebGPU is missing 509ms
+ ✓ src/utils/__tests__/engineTelemetry.test.ts (11 tests) 14ms
+stdout | src/__tests__/xm_export_fallback.test.ts > XM Export Fallback Pattern > should correctly identify when to use fallback pattern
+Using fallback pattern: true
+
+stdout | src/__tests__/xm_export_fallback.test.ts > XM Export Fallback Pattern > should correctly fill XM pattern from current pattern
+Pattern data at [0][0] (partA): {"note":49,"instrument":1,"effectType":0,"effectParam":0,"volume":64}
+Pattern data at [0][2] (kick): {"note":49,"instrument":3,"effectType":0,"effectParam":0,"volume":64}
+
+stdout | src/__tests__/xm_export_fallback.test.ts > XM Export Fallback Pattern > should NOT use fallback when song structure has data
+Using fallback pattern: false
+Last active measure: 0
+
+ ✓ src/__tests__/xm_export_fallback.test.ts (3 tests) 7ms
+ ✓ src/__tests__/PhonemeAligner.test.ts (13 tests) 25ms
+ ✓ src/components/__tests__/EngineStatusPill.test.tsx (13 tests) 80ms
+ ✓ src/components/__tests__/AdvancedNoteSelector.test.tsx (11 tests) 398ms
+ ✓ src/__tests__/HardwareModule.test.tsx (10 tests) 178ms
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should initialize successfully
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+[Open303Oscillator] Fetched 2048 bytes
+[Open303Oscillator] WASM variant: single, native=true
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should initialize successfully
+[Open303] Engine Fully Operational (wasm-native)
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send noteOn messages
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+[Open303Oscillator] Fetched 2048 bytes
+[Open303Oscillator] WASM variant: single, native=true
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send noteOn messages
+[Open303] Engine Fully Operational (wasm-native)
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send noteOff messages
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+[Open303Oscillator] Fetched 2048 bytes
+[Open303Oscillator] WASM variant: single, native=true
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send noteOff messages
+[Open303] Engine Fully Operational (wasm-native)
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send param updates
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+[Open303Oscillator] Fetched 2048 bytes
+[Open303Oscillator] WASM variant: single, native=true
+
+ ✓ src/__tests__/Open303Config.test.ts (5 tests) 36ms
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should send param updates
+[Open303] Engine Fully Operational (wasm-native)
+
+stdout | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should handle initialization failure gracefully
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+
+stderr | src/__tests__/Open303Config.test.ts > Open303 Oscillator > should handle initialization failure gracefully
+[EngineFallback] open303: requested "wasm-worklet" → JS fallback (hyphon_native.wasm fetch HTTP 404 (http://localhost:3000/hyphon_native.wasm))
+[Hyphon Engine Warning] Hyphon: "open303" engine could not load (hyphon_native.wasm fetch HTTP 404 (http://localhost:3000/hyphon_native.wasm)). Audio will use the basic JavaScript oscillator instead of "wasm-worklet".
+[Open303] Activating FallbackBassSynth (JS voice)
+
+ ✓ src/engines/backends/__tests__/oscillatorFallback.integration.test.ts (5 tests) 14ms
+ ✓ src/utils/__tests__/songModeEditing.test.ts (13 tests) 12ms
+ ✓ src/__tests__/RbsImporter.boundaries.test.ts (4 tests) 19ms
+ ✓ src/__tests__/playbackStress.test.ts (7 tests) 23ms
+ ✓ src/hooks/__tests__/useTimelineZoom.test.ts (8 tests) 47ms
+ ↓ src/__tests__/trackFreezer.test.ts (5 tests | 5 skipped)
+stdout | src/__tests__/engineInitPaths.test.ts > Open303Oscillator.init export map wiring > includes non-empty exportMap in init-wasm message
+[Open303Oscillator] Fetching WASM: http://localhost:3000/hyphon_native.wasm
+[Open303Oscillator] Fetched 64 bytes
+[Open303Oscillator] WASM variant: threaded, native=true
+
+ ✓ src/__tests__/engineInitPaths.test.ts (4 tests) 58ms
+ ✓ src/components/__tests__/knobInteraction.test.ts (18 tests) 15ms
+ ✓ src/components/__tests__/ProphecyPanel.test.tsx (12 tests) 162ms
+ ✓ src/__tests__/LiveKeyboard.test.tsx (10 tests) 553ms
+ ✓ src/__tests__/useMidi.test.ts (17 tests) 9ms
+ ✓ src/components/__tests__/SongModeA11y.test.tsx (10 tests) 240ms
+ ✓ src/__tests__/Offline303Renderer.test.ts (9 tests) 838ms
+   ✓ OfflineOpen303Engine > renders deterministically at 1× oversample 502ms
+ ✓ src/__tests__/TB303LevelAlignment.test.ts (4 tests) 30ms
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > detects truncated IFF chunk (length past EOF)
+[RbsParser] IFF CAT form detected: RB40, root size 888
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > skips unknown IFF chunk by length without crashing
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > handles zero-length IFF chunk
+[RbsParser] IFF CAT form detected: RB40, root size 884
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > consumes odd-length chunk pad byte correctly
+[RbsParser] IFF CAT form detected: RB40, root size 886
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > parses IFF with alternate form type when HEAD chunk is still present
+[RbsParser] IFF CAT form detected: XXXX, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > handles chunk length 0xFFFFFFFF without throwing (safe int clamp)
+[RbsParser] IFF CAT form detected: RB40, root size 876
+
+stderr | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > parses legacy file with NaN/Infinity tempo byte without throwing
+[RbsParser] Unusual tempo value: 255
+
+stdout | src/__tests__/RbsParser.edge.test.ts > RbsParser binary edge cases > nested CAT DEVL/TRKL does not recurse infinitely
+[RbsParser] IFF CAT form detected: RB40, root size 900
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsParser.edge.test.ts (12 tests) 18ms
+ ✓ src/engines/backends/__tests__/backendComparison.test.ts (8 tests) 231ms
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > renders one button per available voice including offline high-fid
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > marks the active voice with aria-pressed
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > calls onChange with the picked model id
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > exposes the voice description as a tooltip (offline voices mention freeze/export)
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > shows Offline badges on high-fid voices
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > shows the OPEN303 family badge for open303-family voices
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > shows the JC303 family badge when a jc303-family voice is active
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > shows HIFID badge and status when a high-fid voice is active
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > shows No GPU badge and fallback message when selecting gpu-highfid without WebGPU
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+[TB303] Model "gpu-highfid" unavailable (WebGPU unavailable — using High-Fidelity CPU for offline render) — using "highfid-cpu"
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > persists gpu-highfid selection and shows CPU fallback status when GPU is unavailable
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+stderr | src/components/__tests__/Voice303Selector.test.tsx > Voice303Selector > is grouped and labelled for assistive tech
+Encountered two children with the same key, `gpu-highfid`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+ ✓ src/components/__tests__/Voice303Selector.test.tsx (11 tests) 248ms
+ ✓ src/__tests__/NoteSelector.test.tsx (6 tests) 460ms
+ ✓ src/components/__tests__/NoteSelector.test.tsx (6 tests) 785ms
+ ✓ src/utils/__tests__/musicTheory.test.ts (18 tests) 12ms
+stdout | src/__tests__/RbsTrakAutomation.test.ts > IFF TRAK parse + importer split > tags events with trackIndex and eventKind
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsTrakAutomation.test.ts > IFF TRAK parse + importer split > splits trakParamEvents from arrangement events
+[RbsParser] IFF CAT form detected: RB40, root size 888
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsTrakAutomation.test.ts (5 tests) 20ms
+Traceback (most recent call last):
+  File "/app/scripts/303_metrics_cli.py", line 14, in <module>
+    _lib = import_module("303_metrics_lib")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/app/scripts/303_metrics_lib.py", line 8, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+ ✓ src/components/__tests__/Engine303Selector.test.tsx (11 tests) 128ms
+Traceback (most recent call last):
+  File "/app/scripts/303_metrics_cli.py", line 14, in <module>
+    _lib = import_module("303_metrics_lib")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/app/scripts/303_metrics_lib.py", line 8, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > returns null before init / when unavailable
+WebGPU Backend Initialized 🚀
+
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > returns a copy of the input when ops is empty
+WebGPU Backend Initialized 🚀
+
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > dispatches one compute pass per op and reads back exactly once
+WebGPU Backend Initialized 🚀
+
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > ping-pongs: the input of op N+1 is the output of op N
+WebGPU Backend Initialized 🚀
+
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > returns null on an unknown op without leaving pool buffers mapped
+WebGPU Backend Initialized 🚀
+
+stderr | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > returns null on an unknown op without leaving pool buffers mapped
+[EngineFallback] webgpu-compute: requested "webgpu" → JS fallback (runChain dispatch/readback failed: unknown op "bogus")
+[Hyphon Engine Warning] Hyphon: "webgpu-compute" engine could not load (runChain dispatch/readback failed: unknown op "bogus"). Audio will use the basic JavaScript oscillator instead of "webgpu".
+
+stdout | src/services/WebGpuBackend.test.ts > WebGpuBackend.runChain > reuses pooled buffers across calls (no unbounded allocation)
+WebGPU Backend Initialized 🚀
+
+ ✓ src/services/WebGpuBackend.test.ts (6 tests) 24ms
+Traceback (most recent call last):
+  File "/app/scripts/303_metrics_cli.py", line 14, in <module>
+    _lib = import_module("303_metrics_lib")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/app/scripts/303_metrics_lib.py", line 8, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+stderr | src/__tests__/TB303SpectrogramQuality.test.ts
+Python 303 metrics CLI unavailable, returning dummy metrics.
+Python 303 metrics CLI unavailable, returning dummy metrics.
+Python 303 metrics CLI unavailable, returning dummy metrics.
+
+ ✓ src/__tests__/TB303SpectrogramQuality.test.ts (6 tests) 132ms
+stderr | src/components/__tests__/MasterLoudnessMeter.test.tsx > MasterLoudnessMeter > shows momentary, short-term, integrated and true peak from the worklet
+An update to MasterLoudnessMeter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/__tests__/MasterLoudnessMeter.test.tsx > MasterLoudnessMeter > renders silence as -inf rather than NaN
+An update to MasterLoudnessMeter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/__tests__/MasterLoudnessMeter.test.tsx > MasterLoudnessMeter > sends limiter changes one way, to the stage
+An update to MasterLoudnessMeter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/__tests__/MasterLoudnessMeter.test.tsx > MasterLoudnessMeter > asks the stage to restart the integrated measurement
+An update to MasterLoudnessMeter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/components/__tests__/MasterLoudnessMeter.test.tsx > MasterLoudnessMeter > reports the limiter lookahead as monitor latency
+An update to MasterLoudnessMeter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/components/__tests__/MasterLoudnessMeter.test.tsx (6 tests) 143ms
+ ✓ src/__tests__/clockProcessor.test.ts (7 tests) 7ms
+stdout | src/__tests__/RbsV15Parser.test.ts > RbsParser v1.5 subset > parses IFF v1.5 HEAD signature with single 303 DEVL bank
+[RbsParser] IFF CAT form detected: RB40, root size 14640
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsV15Parser.test.ts > v2.0 regression > IFF v2.0 synthetic file still parses with both 303 devices when present
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsV15Parser.test.ts (5 tests) 23ms
+ ✓ src/__tests__/wasmMemoryBudget.test.ts (8 tests) 8ms
+ ✓ src/hooks/__tests__/useScheduler.test.ts (3 tests) 169ms
+ ✓ src/__tests__/VoiceEditor.test.tsx (6 tests) 137ms
+ ✓ src/__tests__/workletPerf.test.ts (6 tests) 12ms
+stderr | src/__tests__/engineTelemetry.test.ts > logEngineFallback > records resolution + error in telemetry
+[Hyphon Engine Warning] Hyphon: "rust" engine could not load (import failed: 404). Audio will use the basic JavaScript oscillator instead of "wasm".
+
+stderr | src/__tests__/engineTelemetry.test.ts > logEngineFallback > records degradation in engineDegradationStore
+[Hyphon Engine Warning] Hyphon: "webgpu-test" engine could not load (navigator.gpu unavailable). Audio will use the basic JavaScript oscillator instead of "webgpu".
+
+ ✓ src/__tests__/engineTelemetry.test.ts (7 tests) 15ms
+ ✓ src/__tests__/audioExport.test.ts (2 tests) 6ms
+stderr | Fetch.onError (file:/app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:493:24)
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+
+stderr | loadWasm (/app/src/utils/audioExport.ts:45:17)
+Failed to load audioExport.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/audioExport.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/__tests__/TB303AuthenticityBaselines.test.ts (3 tests) 14ms
+ ✓ src/__tests__/useUndoRedo.test.ts (9 tests) 37ms
+ ✓ src/components/__tests__/DragValue.test.tsx (7 tests) 88ms
+ ✓ src/__tests__/HighFid303Offline.test.ts (8 tests) 857ms
+   ✓ OfflineHighFid303Engine > renders deterministically and stays finite 496ms
+   ✓ render303Offline highfid-cpu path > renders 64-step pattern at 4× oversample via OfflineRenderer 339ms
+stdout | src/__tests__/RbsParser.property.test.ts > RbsParser property tests > valid IFF file round-trips GLOB tempo and play mode
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+[RbsParser] IFF CAT form detected: RB40, root size 876
+[RbsParser] Detected full IFF CAT RB40 structure with 3 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsParser.property.test.ts (3 tests) 77ms
+ ✓ src/__tests__/clipboardUtils.test.ts (5 tests) 7ms
+stderr | src/engines/WebGpuOscillator.test.ts > WebGpuOscillator > should handle lack of WebGPU support gracefully
+[Hyphon Engine Warning] Hyphon: "webgpu" engine could not load (navigator.gpu unavailable (browser lacks WebGPU)). Audio will use the basic JavaScript oscillator instead of "webgpu".
+
+ ✓ src/engines/WebGpuOscillator.test.ts (4 tests) 14ms
+ ✓ src/__tests__/SongMode.test.tsx (4 tests) 128ms
+ ✓ src/stores/__tests__/engineDegradationStore.test.ts (5 tests) 12ms
+ ✓ src/__tests__/SamplerPanelSlice.test.tsx (5 tests) 2062ms
+   ✓ SamplerPanel Slice Mode > does NOT show Slice toggle when mode is LOOP 537ms
+   ✓ SamplerPanel Slice Mode > does NOT show Slice toggle when mode is WAVETABLE 483ms
+   ✓ SamplerPanel Slice Mode > SHOWS Slice toggle when mode is STRETCH 344ms
+   ✓ SamplerPanel Slice Mode > toggles Slice Mode ON when clicked 332ms
+   ✓ SamplerPanel Slice Mode > toggles Slice Mode OFF when clicked again 363ms
+ ✓ src/__tests__/HardwareKnob.test.tsx (5 tests) 100ms
+ ✓ src/components/__tests__/ScaleSelector.test.tsx (8 tests) 116ms
+ ✓ src/__tests__/SustainProcessor.test.ts (5 tests) 6ms
+ ✓ src/components/__tests__/SamplerPanel.test.tsx (4 tests) 1877ms
+   ✓ SamplerPanel > renders bank tabs correctly 578ms
+   ✓ SamplerPanel > shows loaded status when bank is loaded 509ms
+   ✓ SamplerPanel > provides accessible value text for Grain Size slider in stretch mode 403ms
+   ✓ SamplerPanel > renders Grain Quantization knob 385ms
+stderr | src/__tests__/AppAccessibility.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load audioExport.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/audioExport.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/hooks/appState/__tests__/patternUpdates.test.ts (5 tests) 8ms
+ ✓ src/utils/__tests__/keyboardOctave.test.ts (10 tests) 17ms
+ ✓ src/__tests__/SamplerPanel.perf.test.tsx (3 tests) 243ms
+ ✓ src/components/__tests__/WaveformSelector.test.tsx (5 tests) 256ms
+stdout | src/engines/__tests__/SingingVoiceManager.test.ts > SingingVoiceManager > initializes the correct number of voices
+SingingVoiceManager: Initialized 4 voices
+
+stdout | src/engines/__tests__/SingingVoiceManager.test.ts > SingingVoiceManager > acquires free voices correctly
+SingingVoiceManager: Initialized 4 voices
+
+stdout | src/engines/__tests__/SingingVoiceManager.test.ts > SingingVoiceManager > steals the oldest voice when full
+SingingVoiceManager: Initialized 4 voices
+
+stdout | src/engines/__tests__/SingingVoiceManager.test.ts > SingingVoiceManager > releases voices correctly
+SingingVoiceManager: Initialized 4 voices
+
+ ✓ src/engines/__tests__/SingingVoiceManager.test.ts (4 tests) 19ms
+stderr | src/__tests__/AppAccessibility.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load trackFreezer.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/trackFreezer.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 song-mode (DEVL + TRAK) > parses generated_v20_song_arrangement.rbs without mock fallback
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 song-mode (DEVL + TRAK) > matches golden summary for generated_v20_song_arrangement.rbs
+[RbsParser] IFF CAT form detected: RB40, root size 15746
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 pattern-mode > parses generated_v20_pattern_mode.rbs without mock fallback
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 pattern-mode > matches golden summary for generated_v20_pattern_mode.rbs
+[RbsParser] IFF CAT form detected: RB40, root size 15730
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v1.5-style subset (single 303 + 808) > parses generated_v15_single_303.rbs without mock fallback
+[RbsParser] IFF CAT form detected: RB40, root size 14624
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v1.5-style subset (single 303 + 808) > matches golden summary for generated_v15_single_303.rbs
+[RbsParser] IFF CAT form detected: RB40, root size 14624
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 song with multi-pattern TRAK > parses generated_v20_song_multi_pattern.rbs without mock fallback
+[RbsParser] IFF CAT form detected: RB40, root size 15750
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+stdout | src/__tests__/RbsCorpus.test.ts > RBS generated corpus (#774) > Generated v2.0 song with multi-pattern TRAK > matches golden summary for generated_v20_song_multi_pattern.rbs
+[RbsParser] IFF CAT form detected: RB40, root size 15750
+[RbsParser] Detected full IFF CAT RB40 structure with 4 top-level chunks. Attempting full song parse.
+
+ ✓ src/__tests__/RbsCorpus.test.ts (9 tests) 85ms
+ ✓ src/hooks/audioEngine/samplerPlayback/__tests__/samplerStretchFx.test.ts (3 tests) 15ms
+ ✓ src/hooks/__tests__/useKnobInteraction.test.ts (3 tests) 36ms
+ ✓ src/__tests__/Knob.test.tsx (5 tests) 129ms
+ ✓ src/components/__tests__/VoiceEditorA11y.test.tsx (2 tests) 77ms
+ ✓ src/components/__tests__/AutomationStepA11y.test.tsx (2 tests) 56ms
+ ✓ src/hooks/audioEngine/__tests__/sampleManagement.test.ts (2 tests) 8ms
+ ✓ src/__tests__/PatternSelector.test.tsx (5 tests) 172ms
+ ✓ src/__tests__/AppAccessibility.test.tsx (4 tests) 3960ms
+   ✓ App Accessibility > resets master volume when pressing Delete/Backspace 1310ms
+   ✓ App Accessibility > resets global pan when pressing Delete/Backspace 977ms
+   ✓ App Accessibility > triggers tape stop on Escape key press 885ms
+   ✓ App Accessibility > renders skip link and live region for screen readers 786ms
+stderr | Fetch.onError (file:/app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:493:24)
+DOMException [AbortError]: The operation was aborted.
+    at Fetch.onAsyncTaskManagerAbort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:506:17)
+    at Object.<anonymous> (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:361:10)
+    at AsyncTaskManager.abortAll (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:266:21)
+    at AsyncTaskManager.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:56:15)
+    at DetachedBrowserFrame.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/browser/detached-browser/DetachedBrowserFrame.ts:147:49)
+    at DetachedWindowAPI.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/window/DetachedWindowAPI.ts:62:29)
+    at teardownWindow (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:363:24)
+    at Object.teardown (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:415:15)
+    at withEnv (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:94:15)
+    at run (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+DOMException [AbortError]: The operation was aborted.
+    at Fetch.onAsyncTaskManagerAbort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:506:17)
+    at Object.<anonymous> (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:361:10)
+    at AsyncTaskManager.abortAll (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:266:21)
+    at AsyncTaskManager.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:56:15)
+    at DetachedBrowserFrame.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/browser/detached-browser/DetachedBrowserFrame.ts:147:49)
+    at DetachedWindowAPI.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/window/DetachedWindowAPI.ts:62:29)
+    at teardownWindow (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:363:24)
+    at Object.teardown (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:415:15)
+    at withEnv (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:94:15)
+    at run (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+DOMException [AbortError]: The operation was aborted.
+    at Fetch.onAsyncTaskManagerAbort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:506:17)
+    at Object.<anonymous> (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:361:10)
+    at AsyncTaskManager.abortAll (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:266:21)
+    at AsyncTaskManager.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:56:15)
+    at DetachedBrowserFrame.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/browser/detached-browser/DetachedBrowserFrame.ts:147:49)
+    at DetachedWindowAPI.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/window/DetachedWindowAPI.ts:62:29)
+    at teardownWindow (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:363:24)
+    at Object.teardown (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:415:15)
+    at withEnv (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:94:15)
+    at run (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+DOMException [AbortError]: The operation was aborted.
+    at Fetch.onAsyncTaskManagerAbort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:506:17)
+    at Object.<anonymous> (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:361:10)
+    at AsyncTaskManager.abortAll (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:266:21)
+    at AsyncTaskManager.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/async-task-manager/AsyncTaskManager.ts:56:15)
+    at DetachedBrowserFrame.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/browser/detached-browser/DetachedBrowserFrame.ts:147:49)
+    at DetachedWindowAPI.abort (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/window/DetachedWindowAPI.ts:62:29)
+    at teardownWindow (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:363:24)
+    at Object.teardown (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/index.K90BXFOx.js:415:15)
+    at withEnv (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:94:15)
+    at run (file:///app/node_modules/.pnpm/vitest@2.1.9_@types+node@24.10.4_happy-dom@15.11.7/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+
+ ↓ src/__tests__/rbs/generateCorpusFiles.test.ts (1 test | 1 skipped)
+ ✓ src/components/__tests__/WaveformDisplay.test.tsx (3 tests) 55ms
+ ✓ src/__tests__/WasmOscillator.test.ts (2 tests) 6ms
+ ✓ src/utils/__tests__/tb303AuthenticityMetrics.test.ts (3 tests | 2 skipped) 8ms
+ ✓ src/utils/__tests__/midiParamDispatch.test.ts (3 tests) 7ms
+ ✓ src/engines/__tests__/SingingVoiceSlice.test.ts (2 tests) 10ms
+stderr | src/__tests__/App.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load trackFreezer.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/trackFreezer.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+stderr | src/__tests__/App.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load audioExport.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/audioExport.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/components/__tests__/knobMaterial/geometry.contract.test.ts (2 tests) 6ms
+stdout | src/services/__tests__/Supertonic.test.ts > SupertonicService Preload & Purge > should successfully preload and set the manifest to true
+Supertonic: Purging ONNX session cache...
+Supertonic: ONNX cache purged. isReady=false
+Supertonic: Warming ONNX session with dummy inference...
+Supertonic: ONNX session warmed.
+
+stdout | src/services/__tests__/Supertonic.test.ts > SupertonicService Preload & Purge > should handle preload errors gracefully and reset isPreloading state
+Supertonic: Purging ONNX session cache...
+Supertonic: ONNX cache purged. isReady=false
+Supertonic: Warming ONNX session with dummy inference...
+
+stderr | src/services/__tests__/Supertonic.test.ts > SupertonicService Preload & Purge > should handle preload errors gracefully and reset isPreloading state
+Supertonic: Preload dummy inference failed (non-critical): Error: Dummy inference failed
+    at /app/src/services/__tests__/Supertonic.test.ts:28:77
+    at file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at runSuite (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///app/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+
+stdout | src/services/__tests__/Supertonic.test.ts > SupertonicService Preload & Purge > should successfully purge cache and reset readiness and manifest
+Supertonic: Purging ONNX session cache...
+Supertonic: ONNX cache purged. isReady=false
+Supertonic: Purging ONNX session cache...
+Supertonic: ONNX cache purged. isReady=false
+
+ ✓ src/services/__tests__/Supertonic.test.ts (3 tests) 14ms
+ ✓ src/components/__tests__/TransportToolbarA11y.test.tsx (3 tests) 96ms
+ ✓ src/__tests__/audioContextFactory.test.ts (4 tests) 8ms
+ ✓ src/__tests__/DrumKitEngine.test.ts (9 tests) 6ms
+ ✓ src/__tests__/App.test.tsx (4 tests) 4000ms
+   ✓ App > renders HYPHON heading 1044ms
+   ✓ App > renders volume control 1011ms
+   ✓ App > renders song controls 1066ms
+   ✓ App > renders Tape Stop button 878ms
+ ✓ src/__tests__/Offline303Stress.test.ts (3 tests) 5499ms
+   ✓ Offline303 concurrent render stress > runs 8 concurrent highfid-cpu renders without OOM or non-finite samples 2691ms
+   ✓ Offline303 concurrent render stress > mixes stock + highfid + gpu-highfid voices concurrently 1010ms
+   ✓ Offline303 concurrent render stress > rapid burst of renders completes without unhandled rejections 1797ms
+ ✓ src/__tests__/WaveformSelector.test.tsx (3 tests) 185ms
+ ✓ src/__tests__/useLevelMeter.test.ts (8 tests) 7ms
+stdout | src/__tests__/audioExport.perf.test.ts > audioBufferToWav Performance > benchmarks execution time
+audioBufferToWav average time (100 runs): 6.264ms
+
+stderr | src/__tests__/audioExport.perf.test.ts
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load audioExport.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/audioExport.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/__tests__/audioExport.perf.test.ts (1 test) 658ms
+   ✓ audioBufferToWav Performance > benchmarks execution time 656ms
+ ✓ src/stores/__tests__/midiMapStore.test.ts (4 tests) 6ms
+ ✓ src/__tests__/RbsParser.test.ts (3 tests) 8ms
+ ✓ src/utils/__tests__/patchBuilder.spec.ts (6 tests) 8ms
+ ✓ src/__tests__/expressionLed.test.ts (4 tests) 6ms
+ ✓ src/__tests__/RbsImporter.snapshot.test.ts (1 test) 15ms
+ ✓ src/__tests__/trackStorageUtils.test.ts (4 tests) 7ms
+ ✓ src/__tests__/songTimeline.test.ts (3 tests) 8ms
+ ✓ src/components/automation/__tests__/CurveEditor.test.tsx (1 test) 58ms
+stderr | src/hooks/__tests__/useAppState.stepInteraction.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load trackFreezer.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/trackFreezer.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/__tests__/stemExport.test.ts (2 tests) 4ms
+stderr | src/hooks/__tests__/useAppState.stepInteraction.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load audioExport.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/audioExport.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/hooks/__tests__/useAppState.stepInteraction.test.tsx (2 tests) 74ms
+ ✓ src/components/__tests__/LiveKeyboardA11y.test.tsx (1 test) 113ms
+ ✓ src/utils/__tests__/touchHitTesting.test.ts (5 tests) 5ms
+stderr | src/__tests__/useAudioEngine.perf.test.tsx
+AggregateError:
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 3000
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:3000
+        at createConnectionError (node:net:1678:14)
+        at afterConnectMultiple (node:net:1708:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 3000
+    }
+  ]
+}
+Failed to load trackFreezer.wasm, using JS fallback DOMException [NetworkError]: Failed to execute "fetch()" on "Window" with URL "http://localhost:3000/src/wasm/trackFreezer.wasm?init":
+    at Fetch.onError (file:///app/node_modules/.pnpm/happy-dom@15.11.7/node_modules/happy-dom/src/fetch/Fetch.ts:495:4)
+    at ClientRequest.emit (node:events:519:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:89:21)
+
+ ✓ src/__tests__/useAudioEngine.perf.test.tsx (1 test) 25ms
+ ✓ src/components/__tests__/DrumMachineA11y.test.tsx (1 test) 213ms
+ ✓ src/hooks/__tests__/usePyodideEngine.test.ts (2 tests) 44ms
+ ✓ src/__tests__/audioLatencyMode.test.ts (5 tests) 7ms
+ ✓ src/components/__tests__/EngineDegradationBanner.test.tsx (2 tests) 58ms
+ ✓ src/__tests__/DragValue.test.tsx (3 tests) 75ms
+ ✓ src/utils/__tests__/sequencerGridKeyboard.test.ts (5 tests) 6ms
+ ✓ src/__tests__/helpTopics.test.ts (7 tests) 6ms
+ ✓ src/utils/__tests__/pitchOffset.test.ts (5 tests) 5ms
+ ✓ src/__tests__/constants.test.ts (3 tests) 5ms
+ ✓ src/__tests__/engineLifecycleManagers.test.ts (2 tests) 6ms
+ ✓ src/stores/__tests__/KnobGPUContext.degradation.test.ts (2 tests) 6ms
+ ✓ src/components/__tests__/MelodicStep.test.tsx (1 test) 56ms
+ ✓ src/__tests__/workletPerfBridge.test.ts (2 tests) 4ms
+ ✓ src/utils/__tests__/songModeGridKeyboard.test.ts (4 tests) 6ms
+ ✓ src/utils/__tests__/pyodideBuffers.test.ts (1 test) 5ms
+ ✓ src/components/__tests__/Toast.test.tsx (4 tests) 45ms
+ ✓ src/components/__tests__/CloudStatus.test.tsx (1 test) 49ms
+ ✓ src/stores/__tests__/a11yAnnouncerStore.test.ts (2 tests) 4ms
+ ✓ src/__tests__/loadingProgress.integration.test.ts (1 test) 4ms
+ ✓ src/utils/__tests__/knobAutomationCurve.test.ts (3 tests) 6ms
+ ✓ src/components/__tests__/stepHitGeometry.test.ts (3 tests) 4ms
+ ✓ src/hooks/__tests__/useTTSPreloader.test.ts (1 test) 532ms
+   ✓ useTTSPreloader > retries preload after Supertonic becomes ready 530ms
+ ✓ src/__tests__/zipStore.test.ts (1 test) 4ms
+stderr | src/__tests__/RustOscillator.test.ts > RustOscillator.init > logs fallback when dynamic import fails
+[Hyphon Engine Warning] Hyphon: "rust" engine could not load (dynamic import failed (http://localhost:3000/rust-wasm/rust_audio.js): Only URLs with a scheme in: file and data are supported by the default ESM loader. Received protocol 'http:'). Audio will use the basic JavaScript oscillator instead of "wasm".
+
+ ✓ src/__tests__/RustOscillator.test.ts (1 test) 10ms
+ ✓ src/types/__tests__/midi.test.ts (2 tests) 4ms
+ ✓ src/hooks/audioEngine/__tests__/distortion.test.ts (2 tests) 10ms
+ ✓ src/__tests__/hyphonNativeImports.test.ts (1 test) 3ms
+ ✓ src/__tests__/AudioWorkletFallback.test.tsx (1 test) 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/TB303Models.test.ts > TB303_MODELS registry > has unique ids
+AssertionError: expected 10 to be 11 // Object.is equality
+
+- Expected
++ Received
+
+- 11
++ 10
+
+ ❯ src/__tests__/TB303Models.test.ts:41:35
+     39|     it('has unique ids', () => {
+     40|         const ids = TB303_MODELS.map((m) => m.id);
+     41|         expect(new Set(ids).size).toBe(ids.length);
+       |                                   ^
+     42|     });
+     43|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/__tests__/TB303Models.test.ts > TB303_MODELS registry > includeOfflineOnly exposes highfid-cpu and gpu-highfid
+AssertionError: expected 'High-Fidelity GPU' to contain 'offline'
+
+Expected: "offline"
+Received: "High-Fidelity GPU"
+
+ ❯ src/__tests__/TB303Models.test.ts:94:53
+     92|         expect(withOffline.some((m) => m.id === 'gpu-highfid')).toBe(t…
+     93|         expect(getTB303Model('highfid-cpu')?.label).toContain('offline…
+     94|         expect(getTB303Model('gpu-highfid')?.label).toContain('offline…
+       |                                                     ^
+     95|     });
+     96|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed | 168 passed | 3 skipped (172)
+      Tests  2 failed | 1555 passed | 11 skipped (1568)
+   Start at  00:59:55
+   Duration  81.25s (transform 7.59s, setup 19.67s, collect 25.54s, tests 82.78s, environment 59.24s, prepare 16.92s)
+
+ ELIFECYCLE  Test failed. See above for more details.

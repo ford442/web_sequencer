@@ -11,7 +11,6 @@ interface SamplerModeSelectorProps {
   onModeKeyDown: (e: React.KeyboardEvent, index: number) => void;
   onGrainSizeChange: (size: number) => void;
   onSliceModeToggle: () => void;
-  onDynamicChopsToggle: () => void;
 }
 
 export const SamplerModeSelector = React.memo(function SamplerModeSelector({
@@ -21,7 +20,6 @@ export const SamplerModeSelector = React.memo(function SamplerModeSelector({
   onModeKeyDown,
   onGrainSizeChange,
   onSliceModeToggle,
-  onDynamicChopsToggle,
 }: SamplerModeSelectorProps) {
   return (
     <div className="bg-gray-800/30 p-1.5 rounded">
@@ -87,21 +85,6 @@ export const SamplerModeSelector = React.memo(function SamplerModeSelector({
             >
               {currentParams.sliceMode === 'phoneme' ? 'ON (PHONEMES)' : 'OFF'}
             </button>
-            {currentParams.sliceMode === 'phoneme' && (
-              <button type="button"
-                aria-label="Toggle Dynamic Chops"
-                aria-pressed={currentParams.dynamicChops}
-                onClick={onDynamicChopsToggle}
-                className={`flex-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
-                  currentParams.dynamicChops
-                    ? 'bg-purple-600 border-purple-400 text-white'
-                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
-                }`}
-                title="Vary direction over time using slice index"
-              >
-                {currentParams.dynamicChops ? 'CHOPS ON' : 'CHOPS OFF'}
-              </button>
-            )}
           </div>
         </div>
       )}

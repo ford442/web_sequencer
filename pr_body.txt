@@ -1,0 +1,4 @@
+💡 What: Added `aria-hidden="true"` to decorative `✕` close button characters across components. Added missing `title` to the Session Launcher close button.
+🎯 Why: Prevents screen readers from announcing literal character names (like 'multiplication X') in addition to the button's `aria-label`.
+📸 Before/After: Visuals remain unchanged.
+♿ Accessibility: Ensures correct naming for screen readers, avoiding double-announcement of close buttons.

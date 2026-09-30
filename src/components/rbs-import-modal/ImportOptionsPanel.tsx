@@ -24,7 +24,7 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
         className="w-full p-3 bg-gray-900/50 flex items-center justify-between hover:bg-gray-800/50 transition-all"
       >
         <span className="text-sm font-medium text-gray-300">Import Options</span>
-        <span className="text-gray-500" aria-hidden="true">{showOptions ? '▼' : '▶'}</span>
+        <span className="text-gray-500">{showOptions ? '▼' : '▶'}</span>
       </button>
 
       {showOptions && (

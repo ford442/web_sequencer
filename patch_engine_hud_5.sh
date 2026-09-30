@@ -1,0 +1,1 @@
+sed -i 's/return `<button type="button" class="hud-rate-btn" data-rate="${pref}" style="${style}">${label}<\/button>`;/return `<button type="button" aria-label="${label} sample rate" class="hud-rate-btn" data-rate="${pref}" style="${style}">${label}<\/button>`;/' src/components/EngineHUD.tsx

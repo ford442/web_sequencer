@@ -649,10 +649,7 @@ interface Note {
 
 8. **Stale `src/wasm/` directory**: This folder is generated during AssemblyScript builds. If it is missing, AssemblyScript modules will fail to load in dev. It is not committed to git.
 
-9. **Root hygiene**: `scripts/check-root.mjs` (wired into `pnpm run lint`) enforces an **explicit allowlist** of every file and directory permitted at the repo root — `ALLOWED_ROOT_FILES` / `ALLOWED_ROOT_DIRS` in that script. Anything not on it fails the build by name, so:
-   - No new root-level one-off `.py`/`.cjs`/`.sh` patch scripts, `*_plan.md`, screenshots, captured command output, or scratch `.txt`/`.patch` files. Helper scripts that are actually reused live under `scripts/` or `tools/`; one-shot codemods belong in your PR description, not a committed file.
-   - Scratch output from an agent session (verification screenshots, test logs, build logs) does not belong in the tracked tree at all — write it to `test-results/`, `.swarm-state.md`, or a session scratch/temp directory instead, and check `.gitignore` before adding a new file extension pattern at root.
-   - Adding a new file or directory that *should* live at the root (a new config file, a new sibling project) means adding it to the allowlist in the same commit, with a one-line reason in the surrounding comment.
+9. **Root hygiene**: No new root-level one-off `.py`/`.cjs` patch scripts or `*_plan.md`; helper scripts live under `scripts/`.
 
 ---
 

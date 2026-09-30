@@ -147,16 +147,9 @@ export const TransportToolbar = memo(function TransportToolbar({
                     aria-pressed={isPlaying}
                     aria-label={isPlaying ? "Stop Playback" : "Start Playback"}
                     title={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"}
-                    className={`h-8 px-5 font-orbitron text-sm font-bold tracking-wider transition-all duration-150 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
+                    aria-label={isPlaying ? "Stop Playback" : "Start Playback"} aria-label={isPlaying ? "Stop Playback (Space)" : "Start Playback (Space)"} className={`h-8 px-5 font-orbitron text-sm font-bold tracking-wider transition-all duration-150 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-400' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)] border border-green-400'}`}
                 >
-                    {(() => {
-                        const label = isPlaying ? '■ STOP' : (playLabel ?? '▶ PLAY');
-                        const parts = label.split(' ');
-                        if (parts.length > 1) {
-                            return <><span aria-hidden="true">{parts[0]}</span> {parts.slice(1).join(' ')}</>;
-                        }
-                        return label;
-                    })()}
+                    {isPlaying ? '<span aria-hidden="true">■</span> STOP' : (playLabel ?? '<span aria-hidden="true">▶</span> PLAY')}
                 </button>
 
                 {/* Record Button */}

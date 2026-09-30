@@ -107,7 +107,6 @@ const SamplerPanelComponent: React.FC<SamplerPanelProps> = React.memo(({
           onModeKeyDown={state.handleModeKeyDown}
           onGrainSizeChange={state.handleGrainSizeChange}
           onSliceModeToggle={state.handleSliceModeToggle}
-          onDynamicChopsToggle={state.handleDynamicChopsToggle}
         />
 
         <MelodicLyricModeToggle

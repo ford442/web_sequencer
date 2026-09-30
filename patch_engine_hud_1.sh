@@ -1,0 +1,1 @@
+sed -i 's/container.setAttribute('\''aria-hidden'\'', '\''true'\'');/container.setAttribute('\''aria-hidden'\'', '\''true'\'');\n  container.setAttribute('\''role'\'', '\''region'\'');\n  container.setAttribute('\''aria-label'\'', '\''Engine diagnostics'\'');/' src/components/EngineHUD.tsx

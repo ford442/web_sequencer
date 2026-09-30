@@ -1,0 +1,4 @@
+sed -i 's/<button type="button" id="hud-apply-restart"/<button type="button" id="hud-apply-restart" aria-label="Apply and restart audio context"/' src/components/EngineHUD.tsx
+sed -i 's/<button type="button" id="hud-resync-btn">Resync<\/button>/<button type="button" id="hud-resync-btn" aria-label="Resync transport clock">Resync<\/button>/' src/components/EngineHUD.tsx
+sed -i 's/<button type="button" id="hud-export-btn">Download Report<\/button>/<button type="button" id="hud-export-btn" aria-label="Download engine telemetry report">Download Report<\/button>/' src/components/EngineHUD.tsx
+sed -i 's/<button type="button" id="hud-copy-btn">Copy JSON<\/button>/<button type="button" id="hud-copy-btn" aria-label="Copy engine telemetry to clipboard">Copy JSON<\/button>/' src/components/EngineHUD.tsx
