@@ -122,6 +122,37 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
     setTab('guides');
   }, []);
 
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = TABS.findIndex((t) => t.id === tab);
+    let nextIndex = currentIndex;
+
+    switch (e.key) {
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % TABS.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = TABS.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    const nextTab = TABS[nextIndex];
+    setTab(nextTab.id);
+    if (nextTab.id === "search") setSelectedTopicId(null);
+
+    setTimeout(() => {
+      const tabElement = document.getElementById(`tab-${nextTab.id}`);
+      if (tabElement) tabElement.focus();
+    }, 0);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="absolute inset-0 z-0" onClick={onClose} aria-hidden="true" />
@@ -154,7 +185,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
           </button>
         </div>
 
-        <div className="flex border-b border-gray-800 bg-zinc-950/50" role="tablist" aria-label="Help sections">
+        <div className="flex border-b border-gray-800 bg-zinc-950/50" role="tablist" aria-label="Help sections" onKeyDown={handleTabKeyDown}>
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -163,6 +194,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
               type="button"
               role="tab"
               aria-selected={tab === t.id}
+              tabIndex={tab === t.id ? 0 : -1}
               onClick={() => {
                 setTab(t.id);
                 if (t.id === 'search') setSelectedTopicId(null);

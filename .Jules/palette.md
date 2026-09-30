@@ -28,3 +28,7 @@
 ## 2026-09-26 - Accessible Decorative Emojis in BottomBar
 **Learning:** Verified that the "Accessible Decorative Emojis" rule (2026-09-17) also applies to inline emoji text in file-ops buttons (e.g. `💾 SAVE`, `📂 LOAD`). A screen reader will read the emoji name + the visible text + the `aria-label`, leading to auditory clutter.
 **Action:** Wrapped the leading decorative emojis in the `BottomBar.tsx` file-ops row (and the `●` in REC AUTO) in `<span aria-hidden="true">` to prevent this double-announcement.
+## 2024-05-24 - Modal Keyboard Accessibility
+
+**Learning:** When building or fixing tabbed modals, implementing a roving `tabIndex` pattern where the active tab has `tabIndex={0}` and inactive tabs have `-1`, combined with explicit arrow key handling, vastly improves keyboard navigation. Modal focus traps should be applied directly to the `role="dialog"` node rather than the outer backdrop element to prevent focus from escaping to the underlying UI (e.g., the sequencer).
+**Action:** Always check modals for focus trap application directly on the dialog node. Use `CloudLibrary.tsx`'s pattern for roving `tabIndex` when building custom tab lists.

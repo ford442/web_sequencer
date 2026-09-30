@@ -55,7 +55,6 @@ export function useAISongModal({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -567,7 +566,6 @@ export function useAISongModal({
     setShowCloseConfirm,
     textareaRef,
     fileInputRef,
-    modalRef,
     handleClose,
     confirmClose,
     handleJsonChange,

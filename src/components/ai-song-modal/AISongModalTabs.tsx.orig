@@ -20,27 +20,23 @@ export const AISongModalTabs = React.memo(function AISongModalTabs({
 
     switch (e.key) {
       case 'ArrowRight':
-        do {
-            nextIndex = (nextIndex + 1) % TABS.length;
-        } while (TABS[nextIndex] === 'preview' && !isValid && nextIndex !== currentIndex);
+        nextIndex = (currentIndex + 1) % TABS.length;
         break;
       case 'ArrowLeft':
-        do {
-            nextIndex = (nextIndex - 1 + TABS.length) % TABS.length;
-        } while (TABS[nextIndex] === 'preview' && !isValid && nextIndex !== currentIndex);
+        nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
         break;
       case 'Home':
         nextIndex = 0;
         break;
       case 'End':
-        nextIndex = isValid ? TABS.length - 1 : TABS.length - 2;
+        nextIndex = TABS.length - 1;
         break;
       default:
         return;
     }
 
-    if (nextIndex === currentIndex) return;
     const nextTab = TABS[nextIndex];
+    if (nextTab === 'preview' && !isValid) return; // Prevent focus on disabled tab
 
     // Call the tab change immediately. It will trigger a re-render setting focus if we had focus management in here.
     // In React 18, state updates are batched, so we might need a small timeout or useEffect to focus the newly active tab
