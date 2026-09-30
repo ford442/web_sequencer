@@ -9,6 +9,7 @@ import React from 'react';
 import type { AISongModalProps } from '../types/aiSongModal';
 import { useAISongModal } from './ai-song-modal/useAISongModal';
 import { useAISongPreviewElements } from './ai-song-modal/useAISongPreviewElements';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { AISongModalHeader } from './ai-song-modal/AISongModalHeader';
 import { AISongModalTabs } from './ai-song-modal/AISongModalTabs';
 import { AISongModalFooter, ImportProgressBar } from './ai-song-modal/AISongModalFooter';
@@ -25,12 +26,12 @@ export const AISongModal = React.memo(function AISongModal({
 }: AISongModalProps): React.ReactElement | null {
   const modal = useAISongModal({ isOpen, onClose, onImport, onShowToast });
   const preview = useAISongPreviewElements(modal.parsedData, modal.trackStats);
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, modal.handleClose);
 
   if (!isOpen) return null;
 
   return (
     <div
-      ref={modal.modalRef}
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
     >
       <div
@@ -39,6 +40,7 @@ export const AISongModal = React.memo(function AISongModal({
         aria-hidden="true"
       />
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-song-modal-title"

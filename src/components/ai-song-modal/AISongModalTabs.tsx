@@ -12,13 +12,56 @@ export const AISongModalTabs = React.memo(function AISongModalTabs({
   isValid,
   onTabChange,
 }: AISongModalTabsProps) {
+  const TABS: TabType[] = ['paste', 'template', 'preview'];
+
+  const handleTabKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = TABS.indexOf(activeTab);
+    let nextIndex = currentIndex;
+
+    switch (e.key) {
+      case 'ArrowRight':
+        do {
+            nextIndex = (nextIndex + 1) % TABS.length;
+        } while (TABS[nextIndex] === 'preview' && !isValid && nextIndex !== currentIndex);
+        break;
+      case 'ArrowLeft':
+        do {
+            nextIndex = (nextIndex - 1 + TABS.length) % TABS.length;
+        } while (TABS[nextIndex] === 'preview' && !isValid && nextIndex !== currentIndex);
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = isValid ? TABS.length - 1 : TABS.length - 2;
+        break;
+      default:
+        return;
+    }
+
+    if (nextIndex === currentIndex) return;
+    const nextTab = TABS[nextIndex];
+
+    // Call the tab change immediately. It will trigger a re-render setting focus if we had focus management in here.
+    // In React 18, state updates are batched, so we might need a small timeout or useEffect to focus the newly active tab
+    // However, typical accessible tabs focus the element directly.
+    onTabChange(nextTab);
+
+    // We also need to manually focus the newly selected tab button
+    setTimeout(() => {
+       const tabElement = document.getElementById(`ai-modal-tab-${nextTab}`);
+       if (tabElement) tabElement.focus();
+    }, 0);
+  };
+
   return (
-    <div className="flex border-b border-gray-800 overflow-x-auto" role="tablist" aria-label="Import method">
+    <div className="flex border-b border-gray-800 overflow-x-auto" role="tablist" aria-label="Import method" onKeyDown={handleTabKeyDown}>
       <button type="button"
         id="ai-modal-tab-paste"
         role="tab"
         aria-selected={activeTab === 'paste'}
         aria-controls="ai-modal-panel-paste"
+        tabIndex={activeTab === 'paste' ? 0 : -1}
         onClick={() => onTabChange('paste')}
         className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
           activeTab === 'paste'
@@ -33,6 +76,7 @@ export const AISongModalTabs = React.memo(function AISongModalTabs({
         role="tab"
         aria-selected={activeTab === 'template'}
         aria-controls="ai-modal-panel-template"
+        tabIndex={activeTab === 'template' ? 0 : -1}
         onClick={() => onTabChange('template')}
         className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
           activeTab === 'template'
@@ -47,6 +91,7 @@ export const AISongModalTabs = React.memo(function AISongModalTabs({
         role="tab"
         aria-selected={activeTab === 'preview'}
         aria-controls="ai-modal-panel-preview"
+        tabIndex={activeTab === 'preview' ? 0 : -1}
         onClick={() => isValid && onTabChange('preview')}
         disabled={!isValid}
         className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset ${
