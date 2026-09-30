@@ -1,6 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect } from 'react'
-import { useAppStateContext } from './contexts/AppStateContext'
-import { prefetchOrtWhenIdle } from '@/services/ortRuntime'
+import { lazy, Suspense } from 'react'
+import { useAppStateSelector } from './contexts/AppStateContext'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 
 import TransportHeader from './components/appParts/TransportHeader'
@@ -8,169 +7,47 @@ import SequencerNode from './components/appParts/SequencerNode'
 import ContextMenuNode from './components/appParts/ContextMenuNode'
 import RackNode from './components/appParts/RackNode'
 import KeyboardNode from './components/appParts/KeyboardNode'
+import { BottomBarNode } from './components/appParts/BottomBarNode'
+import { AppEffects } from './components/appParts/AppEffects'
+import {
+    AISongImportNode, CrashRecoveryNode, LoadingOverlayNode, StartOverlayNode, ToastNode,
+} from './components/appParts/AppOverlays'
+import { ModalHosts } from './components/appParts/ModalHosts'
+import { LyricTrackNode, MobileTransportNode, SessionNode, SongModeNode } from './components/appParts/PanelNodes'
 
-import { BottomBar } from './components/BottomBar'
-import { AISongImportOverlay } from './components/AISongImportOverlay'
-import { helpDiscoveryStore, useHelpDiscoveryStore } from './stores/helpDiscoveryStore'
 import { WhatsNewBanner } from './components/help/WhatsNewBanner'
-import { LyricTrack } from './components/LyricTrack'
-import { Toast } from './components/Toast'
-import { CrashRecoveryPrompt } from '@/components/CrashRecoveryPrompt'
 import { UpdateAvailableToast } from '@/components/UpdateAvailableToast'
-import { StartOverlay } from './components/StartOverlay'
-import { LoadingOverlay } from './components/LoadingOverlay'
 import { SEQUENCER_STYLES } from './components/sequencer/constants'
-import { SongMode } from './components/SongMode'
-import { SessionLauncher } from './components/SessionLauncher'
-import { MobileTransportDock } from './components/MobileTransportDock'
 import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
 import { PatchBay } from './components/PatchBay'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
-import { engineDegradationStore } from './stores/engineDegradationStore'
-import { midiMapStore, useMidiMapStore } from './stores/midiMapStore'
-import { useA11yPlaybackAnnouncements } from './hooks/useA11yPlaybackAnnouncements'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 
-// Route-split: none of these render on first paint — each is behind a modal
-// toggle, a query-param dev view, or a 3D-mode switch — so keep them out of
-// the entry chunk and fetch on demand, same as Studio3D below.
+// Route-split: neither renders on first paint — each is behind a query-param
+// dev view or the 3D-mode switch — so keep them out of the entry chunk and
+// fetch on demand. (The modals are lazy in appParts/ModalHosts.tsx.)
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
-const CloudLibrary = lazy(() => import('./components/CloudLibrary').then(module => ({ default: module.CloudLibrary })));
-const AISongModal = lazy(() => import('./components/AISongModal').then(module => ({ default: module.AISongModal })));
-const RbsImportModal = lazy(() => import('./components/RbsImportModal').then(module => ({ default: module.RbsImportModal })));
-const SmfImportModal = lazy(() => import('./components/SmfImportModal').then(module => ({ default: module.SmfImportModal })));
-const ExportModal = lazy(() => import('./components/ExportModal').then(module => ({ default: module.ExportModal })));
-const VoiceEditor = lazy(() => import('./components/VoiceEditor').then(module => ({ default: module.VoiceEditor })));
-const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp').then(module => ({ default: module.ShortcutsHelp })));
-const MidiMapPanel = lazy(() => import('./components/MidiMapPanel').then(module => ({ default: module.MidiMapPanel })));
-const GamepadDebugger = lazy(() => import('./components/GamepadDebugger').then(module => ({ default: module.GamepadDebugger })));
 
-/** Shared fallback for the small modal/panel Suspense boundaries below — the
- * dynamic import is typically already warm from a hover/click, so this is
- * rarely visible for more than a frame. */
-const ModalLoadingFallback = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="font-mono text-xs uppercase tracking-widest text-cyan-400 animate-pulse">Loading…</div>
-    </div>
-);
-
+/**
+ * Layout shell. It reads no app state of its own beyond the background image
+ * and the 3D flag: every region below subscribes to exactly the fields it
+ * renders (see the `appParts/` components), so a state change re-renders that
+ * region and nothing else.
+ */
 export const App: React.FC = () => {
-    const state = useAppStateContext();
+    const backgroundImage = useAppStateSelector((s) => s.backgroundImage);
 
-    const {
-        selectedTrack, setSelectedTrack,
-        pattern, activeSamplerBank, activeTrackSlots, trackStorage,
-        selection, isDrawing, handleStepToggle, handleRightMouseDown,
-        handleEditLength, handleSelectRow, handleTrackSlotClick,
-        handleSelectionStart, handleSelectionEnter, handleDrawEnter,
-        viewMode, automationParam, handleAutomationChange,
-        activeAlignment, melodicMode, handlePitchChange, handlePhonemeUpdate,
-        sampleBuffers, isSongModeOpen, songStructure, currentSongMeasure,
-        backgroundImage, setBackgroundImage, handleSongModeToggle,
-        handleSongStructureUpdate, handleEditSongStructure, handleAddMeasure, handleRemoveMeasure,
-        handleExportXM, isSongModeActive, setIsSongModeActive,
-        undoSongStructure, redoSongStructure, canUndoSong, canRedoSong,
-        isSessionOpen, setIsSessionOpen, sessionDocument, setSessionDocument,
-        sessionPlayingSlots, isSessionCapturing, launchSessionClip, launchSessionScene,
-        stopSessionTrack, stopSessionAll, setSessionQuantization,
-        beginSessionCapture, finishSessionCapture, undoSession, redoSession,
-        canUndoSession, canRedoSession, loadSessionPack,
-        contextMenu, setContextMenu, handleNoteSelect, handleNoteLengthChange,
-        handleNotePropertyChange, currentScale,
-        handleKeyboardPlay, handleKeyboardStop, handleDrumPadPlay,
-        synthAControls, synthBControls, bass2Controls, kickControls,
-        snareControls, closedHatControls, openHatControls, samplerControls,
-        onSynthAParamChange, onSynthBParamChange, onBass2ParamChange,
-        handleKickChange, handleSnareChange, handleClosedHatChange,
-        handleOpenHatChange, handleSamplerChange,
-        synthAChild, synthBChild, bass2Child, samplerChild,
-        samplerVoiceParams, handleSamplerVoiceChange, harmonizerConfig,
-        handleHarmonizerConfigChange, isHarmonizeActive,
-        toast, setToast, hasStarted, handleStart, isPyodideReady, pyodideStatus, isInitialized,
-        isImportingAISong, aiImportStage, aiImportProgress, aiImportError,
-        setIsImportingAISong, setAiImportStage, setAiImportProgress, showToast,
-        isCloudLibraryOpen, setIsCloudLibraryOpen, loadCloudData,
-        getSongData, getBankData, getPatternData,
-        isAISongModalOpen, setIsAISongModalOpen, handleAISongImport,
-        isRbsImportModalOpen, setIsRbsImportModalOpen, handleRbsImport,
-        isSmfImportModalOpen, setIsSmfImportModalOpen, handleSmfImport, exportSmfToFile,
-        isExportModalOpen, setIsExportModalOpen,
-        synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler, pyodide,
-        isVoiceEditorOpen, setIsVoiceEditorOpen,
-        isShortcutsHelpOpen, setIsShortcutsHelpOpen,
-        showGamepadDebug, setShowGamepadDebug,
-        isLyricTrackVisible, setIsLyricTrackVisible, ttsPhrases,
-        isGenerating, handleLyricApply,
-        tempo, isRecording, isPlaying,
-        isAutomationRecording, setIsAutomationRecording,
-        setIsRecording, setIsSongModeOpen,
-        songStorage, activeSongSlot, loadSong, handleSaveSong,
-        pendingRestore, restoreProject, dismissRestore,
-        handleClearPattern, handleTempoHoldStart, handleTempoHoldEnd,
-        handleTempoKeyDown, handlePanic, handlePlayToggle,
-        setCurrentScale,
-        handleAutoMix, reverbType, handleReverbType,
-        masterSaturation, handleMasterSaturation, handleMasterSaturationKeyDown,
-        handleMasterSaturationReset, masterVolume, handleMasterVolume,
-        handleMasterVolumeKeyDown, handleMasterVolumeReset,
-        globalPan, handleGlobalPan, handleGlobalPanKeyDown, handleGlobalPanReset,
-        audioEngine, forceScriptProcessorFallback, setForceScriptProcessorFallback,
-        setViewMode, setAutomationParam, exportSongToFile, exportRbsToFile, importSongFromFile,
-    } = state;
-
-    // Sourced directly from the store (not the mega-context) so this flag
-    // alone never forces a re-render on an unrelated app-state update.
+    // Sourced directly from the store so this flag alone never forces a
+    // re-render on an unrelated app-state update.
     const is3DMode = useUIModalsStore((s) => s.is3DMode);
     const setIs3DMode = uiModalsStore.setIs3DMode;
 
     const { isCompact, toggleCompact } = useCompactLayoutContext();
-    const { panelOpen: isMidiMapPanelOpen } = useMidiMapStore();
-    const { helpOpen } = useHelpDiscoveryStore();
-    const showHelpModal = isShortcutsHelpOpen || helpOpen;
-    const closeHelpModal = () => {
-        setIsShortcutsHelpOpen(false);
-        helpDiscoveryStore.closeHelp();
-    };
-
-    useA11yPlaybackAnnouncements({
-        isPlaying,
-        isAutomationRecording,
-        selectedTrack,
-        activeTrackSlots,
-        viewMode,
-        automationParam,
-        isSongModeActive,
-        currentSongMeasure,
-    });
-
-    // Warm the ONNX Runtime chunk once the sequencer is interactive, so the
-    // first TTS use is not a cold multi-megabyte fetch. Runs on the idle
-    // callback and only after `hasStarted`, so it is off both the first-paint
-    // and the user-gesture paths — see prefetchOrtWhenIdle().
-    useEffect(() => {
-        if (!hasStarted) return;
-        prefetchOrtWhenIdle();
-    }, [hasStarted]);
-
-    useEffect(() => {
-        engineDegradationStore.setToastHandler((message, type) => {
-            showToast(message, type === 'error' ? 'error' : 'info');
-        });
-        return () => engineDegradationStore.setToastHandler(null);
-    }, [showToast]);
 
     useSurfaceTexture();
-
-    const handleRestoreProject = useCallback(async () => {
-        const data = await restoreProject();
-        if (data) {
-            await loadCloudData(data, 'song');
-            showToast('Restored previous session', 'success');
-        }
-    }, [restoreProject, loadCloudData, showToast]);
 
     const showVisualReview = typeof location !== 'undefined'
         && new URLSearchParams(location.search).has('visual-review');
@@ -186,10 +63,11 @@ export const App: React.FC = () => {
     if (is3DMode) {
         return (
             <Suspense fallback={<div className="flex items-center justify-center h-screen w-screen bg-black text-cyan-400 font-orbitron text-xl tracking-widest animate-pulse">LOADING 3D STUDIO...</div>}>
+                <AppEffects />
                 <Studio3D
                     header={<TransportHeader />}
                     sequencer={<SequencerNode />}
-                    keyboard={<KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />}
+                    keyboard={<KeyboardNode />}
                     rack={<RackNode />}
                     onExit={() => setIs3DMode(false)}
                 />
@@ -199,162 +77,32 @@ export const App: React.FC = () => {
 
     return (
         <div className={`flex flex-col h-screen w-screen bg-gradient-to-br from-[#050709] via-[#080a0b] to-[#0a0c0f] text-gray-200 overflow-hidden font-sans relative bg-cover bg-center ${isCompact ? 'hyphon-compact' : ''}`} style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined }}>
+            <AppEffects />
             <a href="#main-content" className="skip-link">Skip to main content</a>
             <A11yAnnouncer />
             <style>{SEQUENCER_STYLES}</style>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <ToastNode />
             <UpdateAvailableToast />
-            {isInitialized && pendingRestore && (
-                <CrashRecoveryPrompt
-                    onRestore={() => { void handleRestoreProject(); }}
-                    onDiscard={dismissRestore}
-                />
-            )}
+            <CrashRecoveryNode />
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
-            {!hasStarted && (
-                <StartOverlay
-                    onStart={() => void handleStart()}
-                    isPyodideReady={isPyodideReady}
-                    pyodideStatus={pyodideStatus}
-                    hasWebGpu={typeof navigator !== 'undefined' && 'gpu' in navigator}
-                    hasNativeModule={
-                        typeof globalThis !== 'undefined'
-                        && !!(globalThis as { Module?: unknown }).Module
-                        || !!(globalThis as { hyphonPyodideReady?: boolean }).hyphonPyodideReady
-                    }
-                />
-            )}
-            <LoadingOverlay isVisible={hasStarted && !isInitialized} />
+            <StartOverlayNode />
+            <LoadingOverlayNode />
 
+            <AISongImportNode />
 
-            <AISongImportOverlay
-                isImportingAISong={isImportingAISong}
-                aiImportStage={aiImportStage}
-                aiImportProgress={aiImportProgress}
-                aiImportError={aiImportError}
-                setIsImportingAISong={setIsImportingAISong}
-                setAiImportStage={setAiImportStage}
-                setAiImportProgress={setAiImportProgress}
-                showToast={showToast}
-            />
-
-            {isCloudLibraryOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <CloudLibrary isOpen={isCloudLibraryOpen} onClose={() => setIsCloudLibraryOpen(false)} onLoadData={(...args) => void loadCloudData(...args)} onShowToast={showToast} getSongData={getSongData} getBankData={getBankData} getPatternData={getPatternData} />
-                </Suspense>
-            )}
-            {isAISongModalOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <AISongModal isOpen={isAISongModalOpen} onClose={() => setIsAISongModalOpen(false)} onImport={(...args) => { void handleAISongImport(...args); }} onShowToast={showToast} isImporting={isImportingAISong} audioEngine={audioEngine} />
-                </Suspense>
-            )}
-            {isRbsImportModalOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <RbsImportModal isOpen={isRbsImportModalOpen} onClose={() => setIsRbsImportModalOpen(false)} onImport={(...args) => { void handleRbsImport(...args); }} onShowToast={showToast} />
-                </Suspense>
-            )}
-            {isSmfImportModalOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <SmfImportModal isOpen={isSmfImportModalOpen} onClose={() => setIsSmfImportModalOpen(false)} onImport={(...args) => { void handleSmfImport(...args); }} onShowToast={showToast} />
-                </Suspense>
-            )}
-            {isExportModalOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <ExportModal
-                        isOpen={isExportModalOpen}
-                        onClose={() => setIsExportModalOpen(false)}
-                        onShowToast={showToast}
-                        songStructure={songStructure}
-                        trackStorage={trackStorage}
-                        currentPattern={pattern}
-                        tempo={tempo}
-                        params={{ synthA, synthB, bass2, kick, snare, closedHat, openHat, sampler }}
-                        engines={{
-                            webGpuEngine: audioEngine?.webGpuEngine,
-                            wasmEngine: audioEngine?.wasmEngine,
-                            pyodide,
-                        }}
-                        sampleBuffers={sampleBuffers}
-                        preferredSampleRate={audioEngine?.context?.sampleRate}
-                    />
-                </Suspense>
-            )}
-            {isVoiceEditorOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <VoiceEditor onClose={() => setIsVoiceEditorOpen(false)} />
-                </Suspense>
-            )}
-            {showHelpModal && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <ShortcutsHelp onClose={closeHelpModal} />
-                </Suspense>
-            )}
-            {showGamepadDebug && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <GamepadDebugger onClose={() => setShowGamepadDebug(false)} />
-                </Suspense>
-            )}
-            {isMidiMapPanelOpen && (
-                <Suspense fallback={<ModalLoadingFallback />}>
-                    <MidiMapPanel onClose={() => midiMapStore.setPanelOpen(false)} />
-                </Suspense>
-            )}
+            <ModalHosts />
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 
             <EngineDegradationBanner />
 
-            <SongMode isVisible={isSongModeOpen} songStructure={songStructure} currentSongStep={currentSongMeasure} backgroundImage={backgroundImage} onSetBackgroundImage={setBackgroundImage} onToggle={handleSongModeToggle} onUpdateStep={handleSongStructureUpdate} onEditStructure={handleEditSongStructure} onUndoSong={undoSongStructure} onRedoSong={redoSongStructure} canUndoSong={canUndoSong()} canRedoSong={canRedoSong()} onAddMeasure={handleAddMeasure} onRemoveMeasure={handleRemoveMeasure} onExportXM={handleExportXM} isSongModeActive={isSongModeActive} onSetIsSongModeActive={setIsSongModeActive} />
+            <SongModeNode />
 
-            <SessionLauncher
-                isVisible={isSessionOpen}
-                document={sessionDocument}
-                playingSlots={sessionPlayingSlots}
-                currentStep={state.currentStepRef.current}
-                isCapturing={isSessionCapturing}
-                quantization={sessionDocument.quantization}
-                onClose={() => setIsSessionOpen(false)}
-                onLaunchClip={launchSessionClip}
-                onLaunchScene={launchSessionScene}
-                onStopTrack={stopSessionTrack}
-                onStopAll={stopSessionAll}
-                onSetQuantization={setSessionQuantization}
-                onBeginCapture={beginSessionCapture}
-                onFinishCapture={() => {
-                    const captured = finishSessionCapture();
-                    handleEditSongStructure(() => captured);
-                    setIsSongModeOpen(true);
-                }}
-                onUndo={undoSession}
-                onRedo={redoSession}
-                canUndo={canUndoSession()}
-                canRedo={canRedoSession()}
-                onLoadPack={loadSessionPack}
-                onUpdateDocument={(doc) => setSessionDocument(doc)}
-            />
+            <SessionNode />
 
-            <MobileTransportDock
-                isPlaying={isPlaying}
-                isRecording={isRecording}
-                tempo={tempo}
-                isSongModeOpen={isSongModeOpen}
-                isSessionOpen={isSessionOpen}
-                onPlayToggle={() => void handlePlayToggle()}
-                onRecordToggle={() => setIsRecording(!isRecording)}
-                onTempoNudgeStart={handleTempoHoldStart}
-                onTempoNudgeEnd={handleTempoHoldEnd}
-                onSongModeToggle={() => setIsSongModeOpen(!isSongModeOpen)}
-                onSessionToggle={() => setIsSessionOpen(!isSessionOpen)}
-                onPanic={handlePanic}
-            />
+            <MobileTransportNode />
 
-            <LyricTrack
-                isVisible={isLyricTrackVisible}
-                initialText={ttsPhrases[activeSamplerBank] || ""}
-                isGenerating={isGenerating}
-                onApply={(...args) => void handleLyricApply(...args)}
-                onClose={() => setIsLyricTrackVisible(false)}
-            />
+            <LyricTrackNode />
 
             <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-28' : 'pb-12'} hyphon-main-scroll`}>
                 <WhatsNewBanner />
@@ -388,54 +136,11 @@ export const App: React.FC = () => {
                 </details>
 
                 <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
-                    <KeyboardNode selectedTrack={selectedTrack} handleKeyboardPlay={handleKeyboardPlay} handleKeyboardStop={handleKeyboardStop} handleDrumPadPlay={handleDrumPadPlay} />
+                    <KeyboardNode />
                 </div>
             </main>
 
-            <BottomBar
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-                automationParam={automationParam}
-                setAutomationParam={setAutomationParam}
-                isLyricTrackVisible={isLyricTrackVisible}
-                setIsLyricTrackVisible={setIsLyricTrackVisible}
-                isImportingAISong={isImportingAISong}
-                aiImportStage={aiImportStage}
-                aiImportProgress={aiImportProgress}
-                exportSongToFile={() => { void exportSongToFile(); }}
-                exportRbsToFile={() => { void exportRbsToFile(); }}
-                exportSmfToFile={() => { void exportSmfToFile(); }}
-                importSongFromFile={() => { void importSongFromFile(); }}
-                setIsRbsImportModalOpen={setIsRbsImportModalOpen}
-                setIsSmfImportModalOpen={setIsSmfImportModalOpen}
-                setIsExportModalOpen={setIsExportModalOpen}
-                setIsAISongModalOpen={setIsAISongModalOpen}
-                setIsCloudLibraryOpen={setIsCloudLibraryOpen}
-                isAutomationRecording={isAutomationRecording}
-                setIsAutomationRecording={setIsAutomationRecording}
-                isPlaying={isPlaying}
-                handleAutoMix={handleAutoMix}
-                reverbType={reverbType}
-                handleReverbType={handleReverbType}
-                masterSaturation={masterSaturation}
-                handleMasterSaturation={handleMasterSaturation}
-                handleMasterSaturationKeyDown={handleMasterSaturationKeyDown}
-                handleMasterSaturationReset={handleMasterSaturationReset}
-                masterVolume={masterVolume}
-                handleMasterVolume={handleMasterVolume}
-                handleMasterVolumeKeyDown={handleMasterVolumeKeyDown}
-                handleMasterVolumeReset={handleMasterVolumeReset}
-                globalPan={globalPan}
-                handleGlobalPan={handleGlobalPan}
-                handleGlobalPanKeyDown={handleGlobalPanKeyDown}
-                handleGlobalPanReset={handleGlobalPanReset}
-                audioEngine={audioEngine}
-                forceScriptProcessorFallback={forceScriptProcessorFallback}
-                setForceScriptProcessorFallback={setForceScriptProcessorFallback}
-                showToast={showToast}
-                setShowGamepadDebug={setShowGamepadDebug}
-                setIsShortcutsHelpOpen={setIsShortcutsHelpOpen}
-            />
+            <BottomBarNode />
         </div>
     )
 }

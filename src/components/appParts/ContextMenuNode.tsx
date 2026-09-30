@@ -1,11 +1,25 @@
 import React, { useMemo } from 'react'
-import { useAppStateContext } from '../../contexts/AppStateContext'
+import { useAppStateSelector, useAppStateSlice } from '../../contexts/AppStateContext'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
 
+const CONTEXT_MENU_KEYS = [
+  'contextMenu', 'pattern', 'activeSamplerBank', 'handleNoteSelect', 'handleNoteLengthChange',
+  'handleNotePropertyChange', 'currentScale', 'setContextMenu',
+] as const
+
+// Gate: subscribes to `contextMenu` alone, so a closed menu costs nothing on
+// pattern edits. The open menu below is the only thing that reads `pattern`.
 export const ContextMenuNode = React.memo(() => {
-  const state = useAppStateContext()
-  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB } = state
+  const isOpen = useAppStateSelector((s) => s.contextMenu !== null)
+  return isOpen ? <OpenContextMenu /> : null
+})
+
+const OpenContextMenu = React.memo(() => {
+  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = useAppStateSlice(CONTEXT_MENU_KEYS)
+  // Only the two waveform strings matter, not the synth param objects.
+  const partAWaveform = useAppStateSelector((s) => s.synthA?.waveform)
+  const partBWaveform = useAppStateSelector((s) => s.synthB?.waveform)
 
   return useMemo(() => {
     if (!contextMenu) return null
@@ -15,7 +29,7 @@ export const ContextMenuNode = React.memo(() => {
     const stepData = sequence?.steps[step] || null
 
     // Determine if the active synth for this track is a Prophecy voice
-    const waveform = track === 'partA' ? synthA?.waveform : (track === 'partB' ? synthB?.waveform : undefined)
+    const waveform = track === 'partA' ? partAWaveform : (track === 'partB' ? partBWaveform : undefined)
     const isProphecy = waveform?.startsWith('prophecy-') ?? false
 
     return (
@@ -92,7 +106,7 @@ export const ContextMenuNode = React.memo(() => {
         />
       </div>
     )
-  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB])
+  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, partAWaveform, partBWaveform])
 })
 
 export default ContextMenuNode
