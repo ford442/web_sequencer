@@ -67,7 +67,8 @@ class TransportMixStore {
 
   private setField<K extends keyof TransportMixState>(key: K, action: TransportMixState[K] | ((prev: TransportMixState[K]) => TransportMixState[K])): void {
     const prev = this.state[key];
-    const next = typeof action === 'function' ? (action as any)(prev) : action;
+    const next: TransportMixState[K] =
+      typeof action === 'function' ? (action as (prev: TransportMixState[K]) => TransportMixState[K])(prev) : action;
     if (next === prev) return;
     this.state = { ...this.state, [key]: next };
 
