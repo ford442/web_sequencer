@@ -110,9 +110,11 @@ export interface Note {
  * Per-step overrides handed to sampler playback. Keys that also exist on
  * `SamplerBankParams` (vocoder, spectral pan, formant envelope, ...) override
  * the bank value for that hit only; `slideFrom*` are the glide origins the step
- * handler derives from the previous step. The note pitches travel separately.
+ * handler derives from the previous step. The note pitches travel separately;
+ * `phonemes` are the step's Phoneme Painter edits, applied on top of the
+ * alignment when the voice plays (#1273).
  */
-export type SamplerNoteParams = Partial<Omit<Note, 'note' | 'chord' | 'phonemes'>>;
+export type SamplerNoteParams = Partial<Omit<Note, 'note' | 'chord'>>;
 
 export interface PartSequence {
   steps: (Note | null)[];

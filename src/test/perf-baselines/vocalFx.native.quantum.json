@@ -1,0 +1,5 @@
+{
+  "medianMs": 0.025,
+  "runner": "local-linux (emcc 6.0.3, Node 24)",
+  "note": "Native singing-voice FX post-retrieve chain (FX_ON_BLOCK) per 128-frame quantum at 48 kHz; TS chain measured ~0.040 ms alongside. Re-baseline from CI perf-summary.json. See PERFORMANCE_BUDGET.md#singing-voice-fx."
+}

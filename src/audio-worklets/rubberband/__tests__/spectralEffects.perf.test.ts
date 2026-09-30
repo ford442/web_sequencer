@@ -41,7 +41,6 @@ describe('SpectralBandProcessor GC and Performance', () => {
           outR,
           hasStereo: true,
           spectralComp: 0.5, // Turn on spectral effects to hit the loop
-          spectralCompression: 0.5, // Turn on spectral compression
           grainPanSpread: 0.2,
           grainPanL,
           grainPanR,

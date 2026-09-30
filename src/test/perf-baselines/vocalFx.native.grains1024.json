@@ -1,0 +1,5 @@
+{
+  "medianMs": 0.09,
+  "runner": "local-linux (emcc 6.0.3, Node 24)",
+  "note": "Native freeze granulator rendering a 1024-frame stretcher feed at 48 kHz; TS measured ~0.11 ms alongside. Re-baseline from CI perf-summary.json. See PERFORMANCE_BUDGET.md#singing-voice-fx."
+}

@@ -84,7 +84,7 @@ const closeExportModal = () => uiModalsStore.setIsExportModalOpen(false)
 const EXPORT_KEYS = [
     'showToast', 'songStructure', 'trackStorage', 'pattern', 'tempo',
     'synthA', 'synthB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler',
-    'audioEngine', 'pyodide', 'sampleBuffers',
+    'audioEngine', 'pyodide', 'sampleBuffers', 'isHarmonizeActive',
 ] as const
 
 const ExportModalBody = () => {
@@ -107,6 +107,7 @@ const ExportModalBody = () => {
             }}
             sampleBuffers={s.sampleBuffers}
             preferredSampleRate={audioEngine?.context?.sampleRate}
+            harmonizerActive={s.isHarmonizeActive}
         />
     )
 }
