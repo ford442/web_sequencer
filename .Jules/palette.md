@@ -33,3 +33,7 @@
 
 **Learning:** When building or fixing tabbed modals, implementing a roving `tabIndex` pattern where the active tab has `tabIndex={0}` and inactive tabs have `-1`, combined with explicit arrow key handling, vastly improves keyboard navigation. Modal focus traps should be applied directly to the `role="dialog"` node rather than the outer backdrop element to prevent focus from escaping to the underlying UI (e.g., the sequencer).
 **Action:** Always check modals for focus trap application directly on the dialog node. Use `CloudLibrary.tsx`'s pattern for roving `tabIndex` when building custom tab lists.
+
+## 2024-06-03 - Refactor role="status" empty states
+**Learning:** Putting action buttons inside a container with `role="status"` causes screen readers to read both the message and the button text together. When the button text is also an `aria-label` (or visible text), this creates redundant double-announcements.
+**Action:** Always move interactive buttons out of the `role="status"` region, leaving only the informative text inside the live region.
