@@ -17,16 +17,35 @@ export class PhonemeToneFilter {
         const brightness = Math.pow(clampedVol, 0.7);
         const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
 
-        for (let i = 0; i < outputChannel.length; i++) {
-          // Smooth fc over time to prevent zippering
-          this.lastCutoffHz = this.lastCutoffHz * 0.99 + targetFc * 0.01;
+        const startFc = this.lastCutoffHz;
+        const frames = outputChannel.length;
 
-          const costh = 2.0 - Math.cos(2.0 * Math.PI * this.lastCutoffHz / sampleRate);
-          const b1 = Math.sqrt(costh * costh - 1.0) - costh;
-          const a0 = 1.0 + b1;
+        // Target after 128 samples of 0.99 smoothing
+        // Let's do a simple linear slide for the block to avoid per-sample pow/exp
+        // The original formula: y[n] = 0.99 * y[n-1] + 0.01 * target
+        // After 128 samples, it approaches the target.
+        const endFc = startFc * Math.pow(0.99, frames) + targetFc * (1.0 - Math.pow(0.99, frames));
+        this.lastCutoffHz = endFc;
 
+        const costhStart = 2.0 - Math.cos(2.0 * Math.PI * startFc / sampleRate);
+        const b1Start = Math.sqrt(costhStart * costhStart - 1.0) - costhStart;
+        const a0Start = 1.0 + b1Start;
+
+        const costhEnd = 2.0 - Math.cos(2.0 * Math.PI * endFc / sampleRate);
+        const b1End = Math.sqrt(costhEnd * costhEnd - 1.0) - costhEnd;
+        const a0End = 1.0 + b1End;
+
+        const a0Step = (a0End - a0Start) / frames;
+        const b1Step = (b1End - b1Start) / frames;
+
+        let a0 = a0Start;
+        let b1 = b1Start;
+
+        for (let i = 0; i < frames; i++) {
           this.state = a0 * outputChannel[i] - b1 * this.state;
           outputChannel[i] = this.state;
+          a0 += a0Step;
+          b1 += b1Step;
         }
       } else if (outputChannel.length > 0) {
         this.state = outputChannel[outputChannel.length - 1];
