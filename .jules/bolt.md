@@ -25,3 +25,7 @@
 ## 2024-12-07 - Pre-compute window shapes in GranularEngine
 **Learning:** In `granularEngine.ts`, the DSP loop was calculating window shapes using expensive transcendental math (`Math.cos`, `Math.exp`, `Math.pow`, `Math.sin`) per sample and per active grain. This was happening up to 2 times per sample frame, degrading real-time performance on the audio thread.
 **Action:** Replace these expensive per-sample calculations with pre-computed `Float32Array` lookup tables and fast linear interpolation, hoisting the transcendental math out of the hot path to module-load time.
+
+## 2024-12-07 - Avoid inline object allocations in postMessage calls
+**Learning:** In multiple audio worklets (\`open303/engineSelection.ts\`, \`open303/engineSession.ts\`, \`prophecy-processor.ts\`, etc.), inline object literals were being passed to \`this.port.postMessage({ type: '...', data: ... })\`. While \`postMessage\` relies on structured cloning, allocating the literal itself repeatedly (especially in continuous or interval-based paths like \`live-ab-cpu\` reports) causes garbage collection pressure on the audio thread.
+**Action:** Pre-allocate a single message object as a class property (e.g. \`private readonly reportMessage = { ... }\`) and mutate its fields before sending it to eliminate per-interval GC allocations, as \`postMessage\` clones the current state synchronously.

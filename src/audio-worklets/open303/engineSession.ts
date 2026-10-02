@@ -46,6 +46,10 @@ export class Open303EngineSession {
     private static readonly MAX_INIT_ATTEMPTS = 3;
     private lastErrorMessage: string = '';
 
+    private readonly readyMessage = { type: 'ready' as const, heap: undefined as any };
+    private readonly errorMessage = { type: 'error' as const, error: '', recoverable: false };
+    private readonly heapMessage = { type: 'hyphon-heap' as const, data: undefined as any };
+
     private readonly port: MessagePort;
 
     constructor(port: MessagePort) {
@@ -213,7 +217,8 @@ export class Open303EngineSession {
                     console.log('[Open303] WASM initialized successfully');
                     this.attachToSession();
                     onReady();
-                    this.port.postMessage({ type: 'ready', heap: this.native?.stats });
+                    this.readyMessage.heap = this.native?.stats;
+                    this.port.postMessage(this.readyMessage);
                     return;
                 }
             } catch (e) {
@@ -236,11 +241,9 @@ export class Open303EngineSession {
         // All attempts failed
         console.error('[Open303] All initialization attempts failed');
         this.synthState = SynthState.FAILED;
-        this.port.postMessage({
-            type: 'error',
-            error: `Failed to initialize after ${Open303EngineSession.MAX_INIT_ATTEMPTS} attempts. Last error: ${this.lastErrorMessage}`,
-            recoverable: false
-        });
+        this.errorMessage.error = `Failed to initialize after ${Open303EngineSession.MAX_INIT_ATTEMPTS} attempts. Last error: ${this.lastErrorMessage}`;
+        this.errorMessage.recoverable = false;
+        this.port.postMessage(this.errorMessage);
     }
 
     private async tryInitialize(data: any): Promise<boolean> {
@@ -453,7 +456,8 @@ export class Open303EngineSession {
         this.native.retain();
         const unsubscribe = this.native.onHeapGrow((stats) => {
             this.updateHeap();
-            this.port.postMessage({ type: 'hyphon-heap', data: stats });
+            this.heapMessage.data = stats;
+            this.port.postMessage(this.heapMessage);
         });
         const native = this.native;
         this.detachHeapListener = () => {

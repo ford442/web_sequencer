@@ -36,6 +36,9 @@ class DrumkitProcessor extends AudioWorkletProcessor {
     private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
     private synthState: DrumkitStateType = DrumkitState.UNINITIALIZED;
+
+    private readonly readyMessage = { type: 'ready' as const, heapCount: 1 };
+    private readonly errorMessage = { type: 'error' as const, error: '' };
     private isThreaded = false;
     private instanceHandle = 0;
     private readonly bufFrames = 128;
@@ -173,12 +176,13 @@ class DrumkitProcessor extends AudioWorkletProcessor {
             if (ok !== 1) throw new Error(`[Drumkit] drumkit_init() returned ${ok}`);
 
             this.synthState = DrumkitState.READY;
-            this.port.postMessage({ type: 'ready', heapCount: 1 });
+            this.port.postMessage(this.readyMessage);
         } catch (e: unknown) {
             this.synthState = DrumkitState.FAILED;
             const message = e instanceof Error ? e.message : String(e);
             console.error('[Drumkit] WASM init failed:', e);
-            this.port.postMessage({ type: 'error', error: message });
+            this.errorMessage.error = message;
+            this.port.postMessage(this.errorMessage);
         }
     }
 

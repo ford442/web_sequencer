@@ -53,7 +53,14 @@ export class Open303EngineSelection {
 
     private readonly session: Open303EngineSession;
     private readonly port: MessagePort;
-    private readonly clearAllNotes: () => void;
+
+    private readonly engineChangedMessage = { type: 'engine-changed' as const, data: { engine: 'open303' as EngineFamily } };
+    private readonly modelChangedMessage = { type: 'model-changed' as const, data: { model: 'stock-open303', engine: 'open303' as EngineFamily } };
+    private readonly abChangedMessage = { type: 'live-ab-changed' as const, data: { armed: false } };
+    private readonly abCpuMessage = { type: 'live-ab-cpu' as const, data: { stockPercent: 0, highFidPercent: 0 } };
+    private readonly highFidUnavailableMessage = { type: 'live-highfid-unavailable' as const, data: { model: '', reason: '', fallbackModel: 'stock-open303' } };
+    private readonly highFidDegradedMessage = { type: 'live-highfid-degraded' as const, data: { reason: '', cpuPercent: 0, underruns: 0, fallbackModel: 'stock-open303', ab: false } };
+private readonly clearAllNotes: () => void;
 
     constructor(
         session: Open303EngineSession,
@@ -111,7 +118,8 @@ export class Open303EngineSelection {
 
         this.engine = engine;
         console.log(`[Open303] Engine switched to: ${engine}`);
-        this.port.postMessage({ type: 'engine-changed', data: { engine } });
+        this.engineChangedMessage.data.engine = engine;
+        this.port.postMessage(this.engineChangedMessage);
     }
 
     /** Select the active 303 voice/model. Resolves the engine family from the
@@ -170,7 +178,9 @@ export class Open303EngineSelection {
         this.model = model;
         this.syncAbStockProfile();
         console.log(`[Open303] 303 model set to: ${model} (engine=${engine}, native=${entry !== undefined})`);
-        this.port.postMessage({ type: 'model-changed', data: { model, engine } });
+        this.modelChangedMessage.data.model = model;
+        this.modelChangedMessage.data.engine = engine;
+        this.port.postMessage(this.modelChangedMessage);
     }
 
     // ── Live high-fid (Phase L1) ─────────────────────────────────────────────
@@ -214,7 +224,8 @@ export class Open303EngineSelection {
         this.abStockCpuEma = 0;
         this.abBlocks = 0;
         this.syncAbStockProfile();
-        this.port.postMessage({ type: 'live-ab-changed', data: { armed } });
+        this.abChangedMessage.data.armed = armed;
+        this.port.postMessage(this.abChangedMessage);
     }
 
     /** Side A is Stock Open303 — whatever profile the instance carried before. */
@@ -247,10 +258,9 @@ export class Open303EngineSelection {
         }
         this.abBlocks += 1;
         if (this.abBlocks % AB_CPU_REPORT_BLOCKS === 0) {
-            this.port.postMessage({
-                type: 'live-ab-cpu',
-                data: { stockPercent: this.abStockCpuEma, highFidPercent: this.highFidGuard.cpuPercent },
-            });
+            this.abCpuMessage.data.stockPercent = this.abStockCpuEma;
+            this.abCpuMessage.data.highFidPercent = this.highFidGuard.cpuPercent;
+            this.port.postMessage(this.abCpuMessage);
         }
         this.recordHighFidTiming(highFidUs, quantumUs);
     }
@@ -303,10 +313,9 @@ export class Open303EngineSelection {
 
     /** Tell the main thread the requested live high-fid voice cannot be used. */
     private reportLiveHighFidUnavailable(model: string, reason: string): void {
-        this.port.postMessage({
-            type: 'live-highfid-unavailable',
-            data: { model, reason, fallbackModel: 'stock-open303' },
-        });
+        this.highFidUnavailableMessage.data.model = model;
+        this.highFidUnavailableMessage.data.reason = reason;
+        this.port.postMessage(this.highFidUnavailableMessage);
     }
 
     /** Feed one block's high-fid render timing to the CPU/glitch gate, and
@@ -340,13 +349,13 @@ export class Open303EngineSelection {
         // profile was selected before the high-fid voice — put it back on stock.
         if (!wasAb) this.applyStockProfile();
         console.warn(`[Open303] Live high-fid degraded to stock: ${reason}`);
-        this.port.postMessage({
-            type: 'live-highfid-degraded',
-            data: { reason, cpuPercent, underruns, fallbackModel: 'stock-open303', ab: wasAb },
-        });
-        this.port.postMessage({
-            type: 'model-changed',
-            data: { model: 'stock-open303', engine: 'open303' },
-        });
+        this.highFidDegradedMessage.data.reason = reason;
+        this.highFidDegradedMessage.data.cpuPercent = cpuPercent;
+        this.highFidDegradedMessage.data.underruns = underruns;
+        this.highFidDegradedMessage.data.ab = wasAb;
+        this.port.postMessage(this.highFidDegradedMessage);
+        this.modelChangedMessage.data.model = 'stock-open303';
+        this.modelChangedMessage.data.engine = 'open303';
+        this.port.postMessage(this.modelChangedMessage);
     }
 }
