@@ -35,7 +35,7 @@
 
 ## Innovation Lab
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
-- [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
+- [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
@@ -138,6 +138,16 @@
 - Velocity Check: Identifying the massive GC pressure from repeated `{ sampleRate: ... }` allocations in `process()` was a huge win for audio stability. The consonant scaling was computationally nearly free since `pVol` is already mapped from the SharedArrayBuffer.
 
 ## Roadmap
+
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?".
+  - Initialized a new `bassSidechainSAB` SharedArrayBuffer in `SingingVoiceManager.ts`.
+  - Exposed the buffer up to the sequencer via `getBassSidechainSAB()`.
+  - Added trigger writes (`noteTime`, `velocity`, `decay`) in `playSynth.ts` whenever a root synth bass (`partB`) note is played.
+  - Initialized a secondary `DrumDuckEnvelope` inside `RubberBandProcessor` tracking the new buffer via `bassDuckDepth`.
+  - Plumbed the envelope scalar into the `duckedGrainSize` calculation within the `GranularEngine`.
+  - Further optimized `PhonemeToneFilter` by hoisting the transcendental coefficient math (`a0`, `b1`, `costh`) out of the inner loop and moving smoothing to block-rate.
+- Velocity Check: Expanding the cross-engine trigger pattern via SAB allowed us to build dynamic parameter modulation without running full state-variable filters or envelopes on the audio thread. By re-using `DrumDuckEnvelope`, the architecture handles ducking natively and securely across AudioWorklet contexts.
+
 - Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.
 - Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal...". I added an inexpensive soft-clipper to the sub-bass signal path inside the AudioWorklet before mixing it back with the dry signal.
 - Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.

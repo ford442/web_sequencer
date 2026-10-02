@@ -17,14 +17,14 @@ export class PhonemeToneFilter {
         const brightness = Math.pow(clampedVol, 0.7);
         const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
 
+        // Smooth fc over time to prevent zippering
+        this.lastCutoffHz = this.lastCutoffHz * 0.99 + targetFc * 0.01;
+
+        const costh = 2.0 - Math.cos(2.0 * Math.PI * this.lastCutoffHz / sampleRate);
+        const b1 = Math.sqrt(costh * costh - 1.0) - costh;
+        const a0 = 1.0 + b1;
+
         for (let i = 0; i < outputChannel.length; i++) {
-          // Smooth fc over time to prevent zippering
-          this.lastCutoffHz = this.lastCutoffHz * 0.99 + targetFc * 0.01;
-
-          const costh = 2.0 - Math.cos(2.0 * Math.PI * this.lastCutoffHz / sampleRate);
-          const b1 = Math.sqrt(costh * costh - 1.0) - costh;
-          const a0 = 1.0 + b1;
-
           this.state = a0 * outputChannel[i] - b1 * this.state;
           outputChannel[i] = this.state;
         }

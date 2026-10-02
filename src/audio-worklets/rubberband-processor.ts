@@ -51,6 +51,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly syllableVolumeFilter = new SyllableVolumeFilter();
   private readonly tranceGate = new TranceGate();
   private readonly drumDuck = new DrumDuckEnvelope();
+  private readonly bassDuck = new DrumDuckEnvelope();
   private readonly transientShaper = new TransientShaper();
 
   // Pre-allocated configuration for expressive processor to avoid per-block GC allocations
@@ -92,6 +93,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   // Drum Envelope Sidechain
   private drumSidechainSAB: Float32Array | null = null;
+  private bassSidechainSAB: Float32Array | null = null;
 
   // Playback State (Unified)
   private isPlaying = false;
@@ -111,6 +113,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     startSamplePtr: 0,
     endSamplePtr: 0,
     duckingScalar: 0,
+    bassEnvelopeValue: 0,
     envelopeValue: 0,
     grainJitterParam: 0,
     grainEnvDepth: 0,
@@ -164,13 +167,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     switch (type) {
       case 'INIT_WASM':
         try {
-          const { inputBuffer, outputBuffer, wasmBinary, baseUrl, drumSidechainSAB } = event.data;
+          const { inputBuffer, outputBuffer, wasmBinary, baseUrl, drumSidechainSAB, bassSidechainSAB } = event.data;
 
           this.inputRingBuffer = new RingBuffer(inputBuffer);
           this.outputRingBuffer = new RingBuffer(outputBuffer);
 
           if (drumSidechainSAB) {
             this.drumSidechainSAB = new Float32Array(drumSidechainSAB);
+          }
+          if (bassSidechainSAB) {
+            this.bassSidechainSAB = new Float32Array(bassSidechainSAB);
           }
 
           if (!wasmBinary) {
@@ -390,6 +396,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
     const drumDuckDepth = parameters.drumDuckDepth ? parameters.drumDuckDepth[0] : 0.0;
+    const bassDuckDepth = parameters.bassDuckDepth ? parameters.bassDuckDepth[0] : 0.0;
 
     const pitchAttack = parameters.pitchAttack ? parameters.pitchAttack[0] : 0.0;
     const pitchDecay = parameters.pitchDecay ? parameters.pitchDecay[0] : 0.0;
@@ -411,6 +418,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     // Drum sidechain envelope follower
     const { duckingScalar, isSnare: drumIsSnare } = this.drumDuck.process(
       this.drumSidechainSAB, drumDuckDepth, currentTime, blockFrames, blockSampleRate
+    );
+
+    // Bass sidechain envelope follower
+    const { duckingScalar: bassEnvelopeValue } = this.bassDuck.process(
+      this.bassSidechainSAB, bassDuckDepth, currentTime, blockFrames, blockSampleRate
     );
 
     const cfg = this.currentExpressiveConfig;
@@ -646,6 +658,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.startSamplePtr = this.startSamplePtr;
           this.frozenGrainParams.endSamplePtr = this.endSamplePtr;
           this.frozenGrainParams.duckingScalar = duckingScalar;
+          this.frozenGrainParams.bassEnvelopeValue = bassEnvelopeValue;
           this.frozenGrainParams.envelopeValue = envelopeValue;
           this.frozenGrainParams.grainJitterParam = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
           this.frozenGrainParams.grainEnvDepth = grainEnvDepth;
