@@ -46,6 +46,7 @@ export class Open303EngineSession {
     private static readonly MAX_INIT_ATTEMPTS = 3;
     private lastErrorMessage: string = '';
 
+
     private readonly readyMessage = { type: 'ready' as const, heap: undefined as any };
     private readonly errorMessage = { type: 'error' as const, error: '', recoverable: false };
     private readonly heapMessage = { type: 'hyphon-heap' as const, data: undefined as any };

@@ -36,7 +36,6 @@ class DrumkitProcessor extends AudioWorkletProcessor {
     private importedMemory: WebAssembly.Memory | null = null;
     private heapFloat32: Float32Array | null = null;
     private synthState: DrumkitStateType = DrumkitState.UNINITIALIZED;
-
     private readonly readyMessage = { type: 'ready' as const, heapCount: 1 };
     private readonly errorMessage = { type: 'error' as const, error: '' };
     private isThreaded = false;

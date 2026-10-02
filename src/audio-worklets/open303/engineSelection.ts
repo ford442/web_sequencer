@@ -60,7 +60,7 @@ export class Open303EngineSelection {
     private readonly abCpuMessage = { type: 'live-ab-cpu' as const, data: { stockPercent: 0, highFidPercent: 0 } };
     private readonly highFidUnavailableMessage = { type: 'live-highfid-unavailable' as const, data: { model: '', reason: '', fallbackModel: 'stock-open303' } };
     private readonly highFidDegradedMessage = { type: 'live-highfid-degraded' as const, data: { reason: '', cpuPercent: 0, underruns: 0, fallbackModel: 'stock-open303', ab: false } };
-private readonly clearAllNotes: () => void;
+    private readonly clearAllNotes: () => void;
 
     constructor(
         session: Open303EngineSession,

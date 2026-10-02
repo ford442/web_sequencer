@@ -38,7 +38,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private inputRingBuffer: RingBuffer | null = null;
   private outputRingBuffer: RingBuffer | null = null;
   private expressiveProcessor: ExpressiveVoiceProcessor;
-
   private readonly readyMessage = { type: 'READY' as const };
   private readonly errorMessage = { type: 'ERROR' as const, error: '' };
   private readonly perf = new WorkletPerfReporter(this.port, 'rubberband');
