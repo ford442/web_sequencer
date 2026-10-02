@@ -17,36 +17,24 @@ export class PhonemeToneFilter {
         const brightness = Math.pow(clampedVol, 0.7);
         const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
 
-        const startFc = this.lastCutoffHz;
-        const frames = outputChannel.length;
-
-        // Target after 128 samples of 0.99 smoothing
-        // Let's do a simple linear slide for the block to avoid per-sample pow/exp
-        // The original formula: y[n] = 0.99 * y[n-1] + 0.01 * target
-        // After 128 samples, it approaches the target.
-        const endFc = startFc * Math.pow(0.99, frames) + targetFc * (1.0 - Math.pow(0.99, frames));
-        this.lastCutoffHz = endFc;
-
-        const costhStart = 2.0 - Math.cos(2.0 * Math.PI * startFc / sampleRate);
-        const b1Start = Math.sqrt(costhStart * costhStart - 1.0) - costhStart;
-        const a0Start = 1.0 + b1Start;
-
-        const costhEnd = 2.0 - Math.cos(2.0 * Math.PI * endFc / sampleRate);
-        const b1End = Math.sqrt(costhEnd * costhEnd - 1.0) - costhEnd;
-        const a0End = 1.0 + b1End;
-
-        const a0Step = (a0End - a0Start) / frames;
-        const b1Step = (b1End - b1Start) / frames;
-
-        let a0 = a0Start;
-        let b1 = b1Start;
-
-        for (let i = 0; i < frames; i++) {
-          this.state = a0 * outputChannel[i] - b1 * this.state;
-          outputChannel[i] = this.state;
-          a0 += a0Step;
-          b1 += b1Step;
-        }
+  const r = 0.99;
+  const n = outputChannel.length;
+  const rN = Math.pow(r, n);
+  const fcStart = this.lastCutoffHz * r + targetFc * (1 - r);
+  const fcEnd = this.lastCutoffHz * rN + targetFc * (1 - rN);
+  const costhStart = 2.0 - Math.cos(2.0 * Math.PI * fcStart / sampleRate);
+  const b1Start = Math.sqrt(costhStart * costhStart - 1.0) - costhStart;
+  const costhEnd = 2.0 - Math.cos(2.0 * Math.PI * fcEnd / sampleRate);
+  const b1End = Math.sqrt(costhEnd * costhEnd - 1.0) - costhEnd;
+  const b1Inc = n > 1 ? (b1End - b1Start) / (n - 1) : 0;
+  let b1 = b1Start;
+  for (let i = 0; i < n; i++) {
+    const a0 = 1.0 + b1;
+    this.state = a0 * outputChannel[i] - b1 * this.state;
+    outputChannel[i] = this.state;
+    b1 += b1Inc;
+  }
+  this.lastCutoffHz = fcEnd;
       } else if (outputChannel.length > 0) {
         this.state = outputChannel[outputChannel.length - 1];
       }
