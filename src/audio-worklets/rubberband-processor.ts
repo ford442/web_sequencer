@@ -38,6 +38,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private inputRingBuffer: RingBuffer | null = null;
   private outputRingBuffer: RingBuffer | null = null;
   private expressiveProcessor: ExpressiveVoiceProcessor;
+  private readonly readyMessage = { type: 'READY' as const };
+  private readonly errorMessage = { type: 'ERROR' as const, error: '' };
   private readonly perf = new WorkletPerfReporter(this.port, 'rubberband');
 
   // DSP effect modules (each owns its own state)
@@ -210,10 +212,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           this.rubberBand.module = module;
           this.initialized = true;
-          this.port.postMessage({ type: 'READY' });
+          this.port.postMessage(this.readyMessage);
         } catch (e) {
           console.error("RubberBand WASM Failed:", e);
-          this.port.postMessage({ type: 'ERROR', error: String(e) });
+          this.errorMessage.error = String(e);
+          this.port.postMessage(this.errorMessage);
         }
         break;
 

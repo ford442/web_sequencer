@@ -30,6 +30,9 @@ class SustainProcessor extends AudioWorkletProcessor {
     private buffer: Float32Array | null = null;
     private readonly sampleRate: number;
 
+    private readonly readyMessage = { type: 'READY' as const };
+    private readonly errorMessage = { type: 'ERROR' as const, error: '' };
+
     // Playback State
     private playhead = 0;
     private isPlaying = false;
@@ -109,10 +112,11 @@ class SustainProcessor extends AudioWorkletProcessor {
 
                         this.rubberBand.module = module;
                         this.rubberBandInitialized = true;
-                        this.port.postMessage({ type: 'READY' });
+                        this.port.postMessage(this.readyMessage);
                     } catch (e) {
                         console.error("RubberBand WASM Failed:", e);
-                        this.port.postMessage({ type: 'ERROR', error: String(e) });
+                        this.errorMessage.error = String(e);
+                        this.port.postMessage(this.errorMessage);
                     }
                     break;
 
