@@ -35,7 +35,7 @@
 
 ## Innovation Lab
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
-- [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
+- [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
@@ -84,6 +84,9 @@
 - What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added a `bassSidechainSAB` to track synth bass triggers (velocity and duration) from the main thread. Processed these triggers inside `RubberBandProcessor` using a secondary `DrumDuckEnvelope` instance, yielding a `bassDuckingScalar`. Passed this scalar to the `GranularEngine` to modulate `grainSizeSamplesActive` dynamically. Added a new `bassGrainSizeMod` audio parameter to control the depth of this modulation.
+- Velocity Check: Expanding the sidechain SAB pattern to support sustained synth bass hits allows complex interplay between the rhythm section and the vocal granulator without introducing cross-worklet Web Audio graph complexities. This ensures the granulator stays on the audio fast path while responding dynamically to the groove.
+
 - Completed "Explore dynamic granular 'time-smearing' by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect." Added `timeSmear` property threaded from the sequencer properties directly into the Worklet. Implemented a `chaoticLfoPhase` inside the `GranularEngine` that increments non-linearly. Added chaotic `posMod` driven by this phase exclusively scaled inversely by `isVowel` to target consonants without destroying vowel pitch tracking.
 - Velocity Check: Expanding the Worklet's capabilities using native AudioParams rather than heavy SAB additions keeps overhead minimal while greatly enhancing the sound-design toolset for granular synthesis over TTS.
 - Completed "Explore dynamic granular 'time-smearing' by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect." Added `timeSmear` property threaded from the sequencer properties directly into the Worklet. Implemented a `chaoticLfoPhase` inside the `GranularEngine` that increments non-linearly. Added chaotic `posMod` driven by this phase exclusively scaled inversely by `isVowel` to target consonants without destroying vowel pitch tracking.
