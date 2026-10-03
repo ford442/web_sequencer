@@ -33,3 +33,6 @@
 
 **Learning:** When building or fixing tabbed modals, implementing a roving `tabIndex` pattern where the active tab has `tabIndex={0}` and inactive tabs have `-1`, combined with explicit arrow key handling, vastly improves keyboard navigation. Modal focus traps should be applied directly to the `role="dialog"` node rather than the outer backdrop element to prevent focus from escaping to the underlying UI (e.g., the sequencer).
 **Action:** Always check modals for focus trap application directly on the dialog node. Use `CloudLibrary.tsx`'s pattern for roving `tabIndex` when building custom tab lists.
+## 2026-10-03 - Title matches ARIA label for icon buttons
+**Learning:** Only force `title` to match `aria-label` for strictly icon-only buttons (like those with cryptic text or just a glyph). Forcing this match on buttons that already have visible text can destroy useful existing tooltips (like disabled reasons or keyboard shortcuts). For icon-only buttons, having identical `title` and `aria-label` ensures consistent screen reader announcements and visible tooltips without double-speaking.
+**Action:** When running A11y sweeps for matching titles and aria-labels, visually verify the component's rendered output to ensure it is actually an icon-only button before blindly duplicating strings.
