@@ -81,4 +81,6 @@ export interface SingingVoiceConfig {
   enableCtcAlignment?: boolean;
   /** Cross-engine shared array buffer for drum envelope follower sidechaining */
   drumSidechainSAB?: SharedArrayBuffer;
+  /** Cross-engine shared array buffer for bass envelope follower sidechaining */
+  bassSidechainSAB?: SharedArrayBuffer;
 }
