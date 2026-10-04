@@ -39,6 +39,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private inputRingBuffer: RingBuffer | null = null;
   private outputRingBuffer: RingBuffer | null = null;
   private expressiveProcessor: ExpressiveVoiceProcessor;
+  private readonly readyMessage = { type: 'READY' as const };
+  private readonly errorMessage = { type: 'ERROR' as const, error: '' };
   private readonly perf = new WorkletPerfReporter(this.port, 'rubberband');
 
   // DSP effect modules (each owns its own state)
@@ -114,6 +116,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     startSamplePtr: 0,
     endSamplePtr: 0,
     duckingScalar: 0,
+    bassDuckingScalar: 0,
     envelopeValue: 0,
     grainJitterParam: 0,
     grainEnvDepth: 0,
@@ -212,10 +215,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           this.rubberBand.module = module;
           this.initialized = true;
-          this.port.postMessage({ type: 'READY' });
+          this.port.postMessage(this.readyMessage);
         } catch (e) {
           console.error("RubberBand WASM Failed:", e);
-          this.port.postMessage({ type: 'ERROR', error: String(e) });
+          this.errorMessage.error = String(e);
+          this.port.postMessage(this.errorMessage);
         }
         break;
 
@@ -660,6 +664,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.startSamplePtr = this.startSamplePtr;
           this.frozenGrainParams.endSamplePtr = this.endSamplePtr;
           this.frozenGrainParams.duckingScalar = duckingScalar;
+          this.frozenGrainParams.bassDuckingScalar = bassDuckingScalar;
           this.frozenGrainParams.envelopeValue = envelopeValue;
           this.frozenGrainParams.grainJitterParam = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
           this.frozenGrainParams.grainEnvDepth = grainEnvDepth;

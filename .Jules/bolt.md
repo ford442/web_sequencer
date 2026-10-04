@@ -8,3 +8,7 @@
 ## 2026-09-14 - Live master limiter 4x detect oversample
 **Learning:** The `TruePeakLimiter` was running its true-peak detector at 8x oversampling during live playback, consuming ~13% of the real-time audio thread budget (`masterLoudness` processor). Offline exports strictly require 8x to avoid near-Nyquist inter-sample peak artifacts, but the live pass can safely degrade to 4x.
 **Action:** When configuring the live `MasterLoudnessStage`, set `detectOversample: 4` via `LimiterSettings` to significantly reduce the quantum cost without compromising offline render quality.
+
+## 2024-05-18 - AudioWorklet Block-Rate Coefficient Interpolation
+**Learning:** Performing transcendental math operations (like `Math.cos` and `Math.sqrt`) inside a per-sample AudioWorklet DSP loop creates significant CPU overhead, especially when modulating parameters like filter cutoffs at audio rate.
+**Action:** When smoothing dynamic parameters (like SVF or 1-pole filter cutoffs), compute the start and end values for the block boundary, calculate the required filter coefficients at both boundaries, and linearly interpolate the *coefficients* across the per-sample loop. This removes expensive math from the inner loop while maintaining smooth, zipper-free parameter changes.

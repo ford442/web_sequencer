@@ -79,6 +79,9 @@ export class SpectralBandProcessor {
       const compAttackConst = 1 - Math.exp(-1.0 / (fs * 0.005));
       const compReleaseConst = 1 - Math.exp(-1.0 / (fs * 0.070));
 
+      const compSlope = 1.0 - (1.0 / ratio);
+      const compMinGain = Math.pow(10, -maxGR / 20);
+
       for (let i = 0; i < outL.length; i++) {
         const x = outL[i];
         this.scState.lp1[channel] += f1_c * this.scState.bp1[channel];
@@ -106,9 +109,8 @@ export class SpectralBandProcessor {
             }
             let gain = 1.0;
             if (env[b] > threshold) {
-              const over = 20 * Math.log10(env[b]) - 20 * Math.log10(threshold);
-              const grDb = Math.min(over * (1.0 - 1.0 / ratio), maxGR);
-              gain = Math.pow(10, -grDb / 20);
+              const unconstrainedGain = Math.pow(env[b] / threshold, -compSlope);
+              gain = Math.max(unconstrainedGain, compMinGain);
             }
             this.scratchBands[b] *= gain;
           }
