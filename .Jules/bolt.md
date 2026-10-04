@@ -12,3 +12,6 @@
 ## 2024-05-18 - AudioWorklet Block-Rate Coefficient Interpolation
 **Learning:** Performing transcendental math operations (like `Math.cos` and `Math.sqrt`) inside a per-sample AudioWorklet DSP loop creates significant CPU overhead, especially when modulating parameters like filter cutoffs at audio rate.
 **Action:** When smoothing dynamic parameters (like SVF or 1-pole filter cutoffs), compute the start and end values for the block boundary, calculate the required filter coefficients at both boundaries, and linearly interpolate the *coefficients* across the per-sample loop. This removes expensive math from the inner loop while maintaining smooth, zipper-free parameter changes.
+## 2026-10-04 - AudioWorklet Allocations inside updateHistory
+**Learning:** Returning closures from helper methods and allocating objects and arrays in real-time loops like `ArtifactDetector.updateHistory` or `FFT.forward` causes GC pressure on the audio thread. While optimizing `pendingArtifacts` wasn't useful because it doesn't happen continuously, `updateHistory` does.
+**Action:** Used circular buffers with index pointers for `ArtifactHistory`, `fluxHistory`, and `qualityHistory` and prevented `Array.push()` and `Array.shift()`. Stored the returned FFT result object in `this.fftResultObj` and modified `forward()` to mutate and return that object rather than reallocating.
