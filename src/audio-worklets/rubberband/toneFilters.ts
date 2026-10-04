@@ -140,7 +140,7 @@ export class TranceGate {
         this.phase -= 2 * Math.PI;
       }
 
-      const targetGate = Math.sin(this.phase) > 0 ? 1.0 : 0.0;
+      const targetGate = this.phase < Math.PI ? 1.0 : 0.0;
 
       // ~4-6 ms one-pole smoothing at 44.1/48 kHz - tight but click-free
       this.currentLfo = this.currentLfo * 0.92 + targetGate * 0.08;
