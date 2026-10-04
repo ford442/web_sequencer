@@ -474,6 +474,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
                                 onClick={() => onSetBackgroundImage('')}
                                 className="text-gray-500 hover:text-white px-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
                                 aria-label="Clear Background Image"
+                                title="Clear Background Image"
                             ><span aria-hidden="true">✕</span></button>
                         )}
                     </div>
