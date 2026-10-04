@@ -69,6 +69,8 @@ export interface Note {
   tranceGate?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  phonemeDelayAmount?: number;
+  phonemeDelayFeedback?: number;
   transientExtraction?: number;
   consonantClarity?: number;
   autoTune?: number;

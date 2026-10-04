@@ -76,6 +76,8 @@ export type PropertyChangeKey =
   | "vocoderPreservation"
   | "vocoderAttack"
   | "vocoderRelease"
+  | "phonemeDelayAmount"
+  | "phonemeDelayFeedback"
   | "vowel"
   | "portamento"
   | "pitchAttack"
@@ -112,6 +114,8 @@ export interface NoteSelectorProps {
   currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
   currentVolumeFilterMod?: number;
+  currentPhonemeDelayAmount?: number;
+  currentPhonemeDelayFeedback?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;

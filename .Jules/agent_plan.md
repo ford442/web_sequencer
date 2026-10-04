@@ -84,6 +84,9 @@
 - What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
+
+- Completed "Implement dynamic spatialization routing per phoneme (e.g. delay sends driven by phoneme intensity)." Implemented a `PhonemeDelayEffect` delay line inside `RubberBandProcessor` that echoes the signal based on phoneme intensity and vowel status. Wired it up to the `phonemeDelayAmount` and `phonemeDelayFeedback` parameters in the UI (bank knobs in `SamplerKnobControls.tsx` and per-step sliders in `SynthGranularEffects.tsx`) and correctly routed through types and state.
+- Velocity Check: Hooking into the phoneme data for spatialization works very well and adds immediate rhythmic and musical interest to the TTS output, specifically by only repeating vowels and keeping the echo clean from consonants. The plumbing across `playSamplerVoice.ts` and `EffectsControlMixin` matches our established pattern, preventing any friction. Added real-time cross-synthesis task to the backlog.
 - Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added a `bassSidechainSAB` to track synth bass triggers (velocity and duration) from the main thread. Processed these triggers inside `RubberBandProcessor` using a secondary `DrumDuckEnvelope` instance, yielding a `bassDuckingScalar`. Passed this scalar to the `GranularEngine` to modulate `grainSizeSamplesActive` dynamically. Added a new `bassGrainSizeMod` audio parameter to control the depth of this modulation.
 - Velocity Check: Expanding the sidechain SAB pattern to support sustained synth bass hits allows complex interplay between the rhythm section and the vocal granulator without introducing cross-worklet Web Audio graph complexities. This ensures the granulator stays on the audio fast path while responding dynamically to the groove.
 

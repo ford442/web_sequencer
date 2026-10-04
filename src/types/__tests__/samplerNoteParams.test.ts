@@ -4,6 +4,8 @@ import type { AudioEngine, Note, SamplerNoteParams } from '../../types';
 describe('SamplerNoteParams', () => {
     it('carries the per-step vocoder, spectral-pan and formant-envelope overrides', () => {
         expectTypeOf<SamplerNoteParams>().toHaveProperty('vocoderMix');
+        expectTypeOf<SamplerNoteParams>().toHaveProperty('phonemeDelayAmount');
+        expectTypeOf<SamplerNoteParams>().toHaveProperty('phonemeDelayFeedback');
         expectTypeOf<SamplerNoteParams>().toHaveProperty('spectralPanDepth');
         expectTypeOf<SamplerNoteParams>().toHaveProperty('formantEnvAmount');
         expectTypeOf<SamplerNoteParams>().toHaveProperty('slideFromMidi');
