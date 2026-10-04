@@ -178,6 +178,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
           if (refs.singingVoiceManagerRef?.current) {
             const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
@@ -216,6 +218,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
           if (refs.singingVoiceManagerRef?.current) {
             const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
@@ -277,6 +281,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
           if (refs.singingVoiceManagerRef?.current) {
             const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
@@ -330,6 +336,8 @@ export function createPlaySynth(
           refs.bassSidechainEQBusRef.current,
           noteTime,
           noteDuration,
+          refs.singingVoiceManagerRef.current,
+          velocity
         );
         if (refs.singingVoiceManagerRef?.current) {
           const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
