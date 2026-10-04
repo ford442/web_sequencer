@@ -33,3 +33,6 @@
 
 **Learning:** When building or fixing tabbed modals, implementing a roving `tabIndex` pattern where the active tab has `tabIndex={0}` and inactive tabs have `-1`, combined with explicit arrow key handling, vastly improves keyboard navigation. Modal focus traps should be applied directly to the `role="dialog"` node rather than the outer backdrop element to prevent focus from escaping to the underlying UI (e.g., the sequencer).
 **Action:** Always check modals for focus trap application directly on the dialog node. Use `CloudLibrary.tsx`'s pattern for roving `tabIndex` when building custom tab lists.
+## 2026-10-01 - Interactive Elements inside role="status"
+**Learning:** When building empty state panels (especially dynamic ones updating on keystrokes, like search results), ensure interactive elements like action buttons are placed outside the `role="status"` live region wrapper. If inside, screen readers read the button text redundantly on every keystroke update. Ensure the extracted button maintains valid HTML structure (e.g., keeping it as a sibling inside the parent `<li>`, rather than placing it directly under a `<ul>`).
+**Action:** Move interactive elements out of `<div role="status">` wrappers and place them alongside the region, ensuring clean announcements.
