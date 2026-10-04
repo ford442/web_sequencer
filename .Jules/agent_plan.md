@@ -35,7 +35,7 @@
 
 ## Innovation Lab
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
-- [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
+- [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
@@ -183,3 +183,5 @@
   - Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
   - Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
   - Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
+- Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.

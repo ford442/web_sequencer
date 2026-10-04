@@ -27,6 +27,7 @@ export function createPlaySynth(
     | "reverbNodesRef"
     | "reverbTypeRef"
     | "bassSidechainEQBusRef"
+    | "singingVoiceManagerRef"
   >,
 ): PlaySynthFn {
   return (
@@ -177,6 +178,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
 
           const driveAmount =
@@ -207,6 +210,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
 
           const driveAmount =
@@ -260,6 +265,8 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity
           );
 
           refs.prophecyManagerRef?.current?.noteOnPartB(engineMidi, 100, noteTime);
@@ -305,6 +312,8 @@ export function createPlaySynth(
           refs.bassSidechainEQBusRef.current,
           noteTime,
           noteDuration,
+          refs.singingVoiceManagerRef.current,
+          velocity
         );
       } else if (refs.voiceManagerARef.current) {
         voice = refs.voiceManagerARef.current.playNote(

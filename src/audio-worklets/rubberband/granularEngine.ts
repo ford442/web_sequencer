@@ -28,6 +28,8 @@ export interface FrozenGrainParams {
   timeSmear: number;
   samplesRequired: number;
   velocity: number;
+  bassEnvelopeValue: number;
+  bassEnvDepth: number;
 }
 
 /**
@@ -156,7 +158,9 @@ export class GranularEngine {
   }
 
   private initGrain(g: Grain, p: FrozenGrainParams, baseGrainSize: number, lfoMod: number, maxJitterSamples: number, posMod: number, sliceStart: number, sliceEnd: number, bufLength: number) {
-    const duckedGrainSize = baseGrainSize * (1.0 - (p.duckingScalar * 0.5));
+    let duckedGrainSize = baseGrainSize * (1.0 - (p.duckingScalar * 0.5));
+    // Modulate the granular window size using an envelope follower driven by the root synth bass
+    duckedGrainSize = Math.max(256, duckedGrainSize * (1.0 - (p.bassEnvelopeValue * p.bassEnvDepth)));
     const grainSizeSamplesActive = Math.max(100, Math.floor(duckedGrainSize * lfoMod * (1.0 - p.grainEnvDepth * p.envelopeValue)));
     const jitterOffsetActive = maxJitterSamples > 0 ? Math.floor((Math.random() * 2 - 1) * maxJitterSamples) : 0;
     const rawCenter = p.currentSamplePtr + jitterOffsetActive + posMod;

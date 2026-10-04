@@ -23,6 +23,7 @@ export function createNoteOnSynth(
     | "nextSynthNoteId"
     | "activeSynthNotes"
     | "bassSidechainEQBusRef"
+    | "singingVoiceManagerRef"
   >,
 ): NoteOnSynthFn {
   return (params, note, time, track) => {
@@ -40,6 +41,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         ); // Approximate duration for interactive play
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass2Drive(params.drive || 0);
@@ -72,6 +75,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         ); // Approximate duration
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass1Drive(params.drive || 0);
@@ -127,6 +132,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         );
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
