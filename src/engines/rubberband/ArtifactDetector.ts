@@ -144,9 +144,13 @@ export class ArtifactDetector {
     private maxBinIndex: number;
     
     // Running statistics for adaptive thresholding
-    private fluxHistory: number[] = [];
-    private qualityHistory: number[] = [];
-    private artifactHistory: ArtifactDetection[] = [];
+    private fluxHistory: Float32Array;
+    private qualityHistory: Float32Array;
+    private artifactHistory: ArtifactDetection[];
+    private historyIndex: number = 0;
+    private historyCount: number = 0;
+    private artifactHistoryIndex: number = 0;
+    private artifactHistoryCount: number = 0;
     
     // Blend smoothing state
     private currentBlend: number = 0;
@@ -219,6 +223,21 @@ export class ArtifactDetector {
         // Initialize blend coefficients
         this.blendAttackCoeff = 1 - Math.exp(-1 / this.config.blendAttackSamples);
         this.blendReleaseCoeff = 1 - Math.exp(-1 / this.config.blendReleaseSamples);
+
+        // Initialize circular history buffers
+        this.fluxHistory = new Float32Array(this.config.historySize);
+        this.qualityHistory = new Float32Array(this.config.historySize);
+        this.artifactHistory = new Array(this.config.historySize);
+        for (let i = 0; i < this.config.historySize; i++) {
+            this.artifactHistory[i] = {
+                detected: false,
+                severity: 0,
+                type: 'none',
+                timestamp: 0,
+                frequencyRegion: undefined,
+                metadata: { threshold: 0, flux: 0, flatness: 0, crestFactor: 0 }
+            };
+        }
         
         // Initialize analysis buffer
         this.analysisBuffer = new Float32Array(this.config.fftSize);
@@ -416,23 +435,23 @@ export class ArtifactDetector {
      * Get adaptive threshold based on running statistics.
      */
     private getAdaptiveThreshold(): number {
-        if (!this.config.enableAdaptiveThreshold || this.fluxHistory.length < 10) {
+        if (!this.config.enableAdaptiveThreshold || this.historyCount < 10) {
             return this.config.artifactThreshold;
         }
 
         // Calculate running mean and std dev
         // ⚡ Bolt Optimization: Replace reduce with traditional for loop to avoid closure allocation
         let sum = 0;
-        for (let i = 0; i < this.fluxHistory.length; i++) {
+        for (let i = 0; i < this.historyCount; i++) {
             sum += this.fluxHistory[i];
         }
-        const mean = sum / this.fluxHistory.length;
+        const mean = sum / this.historyCount;
 
         let varianceSum = 0;
-        for (let i = 0; i < this.fluxHistory.length; i++) {
+        for (let i = 0; i < this.historyCount; i++) {
             varianceSum += (this.fluxHistory[i] - mean) ** 2;
         }
-        const variance = varianceSum / this.fluxHistory.length;
+        const variance = varianceSum / this.historyCount;
         const stdDev = Math.sqrt(variance);
 
         // Adaptive threshold = mean + factor * stdDev
@@ -443,32 +462,35 @@ export class ArtifactDetector {
      * Update history buffers.
      */
     private updateHistory(detection: ArtifactDetection, metrics: QualityMetrics): void {
-        // Update flux history
-        this.fluxHistory.push(metrics.spectralFlux);
-        if (this.fluxHistory.length > this.config.historySize) {
-            this.fluxHistory.shift();
-        }
-
-        // Update quality history
-        this.qualityHistory.push(metrics.quality);
-        if (this.qualityHistory.length > this.config.historySize) {
-            this.qualityHistory.shift();
+        // Update flux and quality history using circular buffer
+        this.fluxHistory[this.historyIndex] = metrics.spectralFlux;
+        this.qualityHistory[this.historyIndex] = metrics.quality;
+        this.historyIndex = (this.historyIndex + 1) % this.config.historySize;
+        if (this.historyCount < this.config.historySize) {
+            this.historyCount++;
         }
 
         // Update artifact history
         if (detection.detected) {
-            // Must clone the object before pushing to history since detection is mutated
-            const clonedDetection: ArtifactDetection = {
-                detected: detection.detected,
-                severity: detection.severity,
-                type: detection.type,
-                timestamp: detection.timestamp,
-                frequencyRegion: detection.frequencyRegion,
-                metadata: detection.metadata ? { ...detection.metadata } : undefined
-            };
-            this.artifactHistory.push(clonedDetection);
-            if (this.artifactHistory.length > this.config.historySize) {
-                this.artifactHistory.shift();
+            const histObj = this.artifactHistory[this.artifactHistoryIndex];
+            histObj.detected = detection.detected;
+            histObj.severity = detection.severity;
+            histObj.type = detection.type;
+            histObj.timestamp = detection.timestamp;
+            histObj.frequencyRegion = detection.frequencyRegion;
+            if (detection.metadata) {
+                if (!histObj.metadata) histObj.metadata = {};
+                histObj.metadata.threshold = detection.metadata.threshold;
+                histObj.metadata.flux = detection.metadata.flux;
+                histObj.metadata.flatness = detection.metadata.flatness;
+                histObj.metadata.crestFactor = detection.metadata.crestFactor;
+            } else {
+                histObj.metadata = undefined;
+            }
+
+            this.artifactHistoryIndex = (this.artifactHistoryIndex + 1) % this.config.historySize;
+            if (this.artifactHistoryCount < this.config.historySize) {
+                this.artifactHistoryCount++;
             }
         }
     }
@@ -556,11 +578,25 @@ export class ArtifactDetector {
     getStatistics(): ArtifactStatistics {
         // ⚡ Bolt Optimization: Replace filter and reduce with traditional for loop to avoid closure allocation
         // Note: updateHistory already guarantees only detected items enter artifactHistory
-        const detectedCount = this.artifactHistory.length;
+        const detectedCount = this.artifactHistoryCount;
         let severitySum = 0;
 
         for (let i = 0; i < detectedCount; i++) {
             severitySum += this.artifactHistory[i].severity;
+        }
+
+        const recentArtifacts: ArtifactDetection[] = [];
+        const qualityTrend: number[] = [];
+
+        for (let i = 0; i < Math.min(10, detectedCount); i++) {
+            const idx = (this.artifactHistoryIndex - 1 - i + this.config.historySize) % this.config.historySize;
+            recentArtifacts.push(this.artifactHistory[idx]);
+        }
+        recentArtifacts.reverse(); // To return them in chronological order
+
+        for (let i = 0; i < this.historyCount; i++) {
+             const idx = (this.historyIndex - this.historyCount + i + this.config.historySize) % this.config.historySize;
+             qualityTrend.push(this.qualityHistory[idx]);
         }
         
         return {
@@ -569,8 +605,25 @@ export class ArtifactDetector {
             averageSeverity: detectedCount > 0
                 ? severitySum / detectedCount
                 : 0,
-            recentArtifacts: [...this.artifactHistory.slice(-10)],
-            qualityTrend: [...this.qualityHistory]
+            recentArtifacts,
+            qualityTrend
+        };
+    }
+
+    /**
+     * Get basic statistics without array allocations, ideal for periodic reporting.
+     */
+    getBasicStatistics(): { artifactRate: number, averageSeverity: number } {
+        const detectedCount = this.artifactHistoryCount;
+        let severitySum = 0;
+
+        for (let i = 0; i < detectedCount; i++) {
+            severitySum += this.artifactHistory[i].severity;
+        }
+
+        return {
+            artifactRate: detectedCount > 0 ? 1 : 0,
+            averageSeverity: detectedCount > 0 ? severitySum / detectedCount : 0
         };
     }
 
@@ -578,9 +631,12 @@ export class ArtifactDetector {
      * Clear artifact history.
      */
     clearHistory(): void {
-        this.artifactHistory = [];
-        this.fluxHistory = [];
-        this.qualityHistory = [];
+        this.historyCount = 0;
+        this.historyIndex = 0;
+        this.artifactHistoryCount = 0;
+        this.artifactHistoryIndex = 0;
+        this.fluxHistory.fill(0);
+        this.qualityHistory.fill(0);
         this.currentBlend = 0;
         this.hasPrevMagnitude = false;
         this.prevMagnitude.fill(0);

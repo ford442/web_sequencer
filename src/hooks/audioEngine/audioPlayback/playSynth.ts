@@ -178,15 +178,9 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity / 127
           );
-
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current?.getBassSidechainSAB();
-          if (bassSidechainSAB) {
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127.0;
-            view[2] = params.decay || 0.5;
-          }
 
           const driveAmount =
             noteParams?.drive !== undefined
@@ -216,15 +210,9 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity / 127
           );
-
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current?.getBassSidechainSAB();
-          if (bassSidechainSAB) {
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127.0;
-            view[2] = params.decay || 0.5;
-          }
 
           const driveAmount =
             noteParams?.drive !== undefined
@@ -277,15 +265,9 @@ export function createPlaySynth(
             refs.bassSidechainEQBusRef.current,
             noteTime,
             noteDuration,
+            refs.singingVoiceManagerRef.current,
+            velocity / 127
           );
-
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current?.getBassSidechainSAB();
-          if (bassSidechainSAB) {
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127.0;
-            view[2] = params.decay || 0.5;
-          }
 
           refs.prophecyManagerRef?.current?.noteOnPartB(engineMidi, 100, noteTime);
 
@@ -330,15 +312,9 @@ export function createPlaySynth(
           refs.bassSidechainEQBusRef.current,
           noteTime,
           noteDuration,
+          refs.singingVoiceManagerRef.current,
+          velocity / 127
         );
-
-        const bassSidechainSAB = refs.singingVoiceManagerRef.current?.getBassSidechainSAB();
-        if (bassSidechainSAB) {
-          const view = new Float32Array(bassSidechainSAB);
-          view[0] = noteTime;
-          view[1] = velocity / 127.0;
-          view[2] = params.decay || 0.5;
-        }
       } else if (refs.voiceManagerARef.current) {
         voice = refs.voiceManagerARef.current.playNote(
           effectiveParams,

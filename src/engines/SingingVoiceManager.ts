@@ -13,7 +13,7 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
         super(maxVoices);
         this.audioContext = audioContext;
         this.drumSidechainSAB = new SharedArrayBuffer(4 * 4); // 4 floats: [triggerTime, velocity, decay, isSnare]
-        this.bassSidechainSAB = new SharedArrayBuffer(4 * 4); // 4 floats: [triggerTime, velocity, decay, unused]
+        this.bassSidechainSAB = new SharedArrayBuffer(3 * 4); // 3 floats: [triggerTime, velocity, duration]
         this.config = {
             useHighQuality: false,
             preserveFormants: true,
