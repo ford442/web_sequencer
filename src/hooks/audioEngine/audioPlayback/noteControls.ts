@@ -23,6 +23,7 @@ export function createNoteOnSynth(
     | "nextSynthNoteId"
     | "activeSynthNotes"
     | "bassSidechainEQBusRef"
+    | "singingVoiceManagerRef"
   >,
 ): NoteOnSynthFn {
   return (params, note, time, track) => {
@@ -41,6 +42,14 @@ export function createNoteOnSynth(
           now,
           0.25,
         ); // Approximate duration for interactive play
+        if (refs.singingVoiceManagerRef?.current) {
+          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
+          const view = new Float32Array(bassSidechainSAB);
+          view[0] = now;
+          view[1] = params.volume !== undefined ? params.volume : 0.8;
+          view[2] = 0.5;
+          view[3] = 0;
+        }
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass2Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnBass2(midi, 100);
@@ -73,6 +82,14 @@ export function createNoteOnSynth(
           now,
           0.25,
         ); // Approximate duration
+        if (refs.singingVoiceManagerRef?.current) {
+          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
+          const view = new Float32Array(bassSidechainSAB);
+          view[0] = now;
+          view[1] = params.volume !== undefined ? params.volume : 0.8;
+          view[2] = 0.5;
+          view[3] = 0;
+        }
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass1Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnBass1(midi, 100);
@@ -128,6 +145,14 @@ export function createNoteOnSynth(
           now,
           0.25,
         );
+        if (refs.singingVoiceManagerRef?.current) {
+          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
+          const view = new Float32Array(bassSidechainSAB);
+          view[0] = now;
+          view[1] = params.volume !== undefined ? params.volume : 0.8;
+          view[2] = 0.5;
+          view[3] = 0;
+        }
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
         const t1 = performance.now();

@@ -47,6 +47,10 @@ class ProphecyProcessor extends AudioWorkletProcessor {
     private processErrorCount    = 0;
     private allocationErrorCount = 0;
 
+    private readonly readyMessage = { type: 'ready' as const, heap: undefined as any };
+    private readonly errorMessage = { type: 'error' as const, error: '' };
+    private readonly heapMessage = { type: 'hyphon-heap' as const, data: undefined as any };
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
@@ -165,7 +169,8 @@ class ProphecyProcessor extends AudioWorkletProcessor {
             native.retain();
             const unsubscribe = native.onHeapGrow((stats) => {
                 this.updateHeap();
-                this.port.postMessage({ type: 'hyphon-heap', data: stats });
+                this.heapMessage.data = stats;
+                this.port.postMessage(this.heapMessage);
             });
             this.detachHeapListener = () => {
                 unsubscribe();
@@ -174,13 +179,15 @@ class ProphecyProcessor extends AudioWorkletProcessor {
 
             this.synthState = ProphecyState.READY;
             console.log(`[Prophecy] Engine ready: handle=${this.instanceHandle}, sr=${sampleRate}`);
-            this.port.postMessage({ type: 'ready', heap: native.stats });
+            this.readyMessage.heap = native.stats;
+            this.port.postMessage(this.readyMessage);
 
         } catch (e: any) {
             this.destroyHandle();
             this.synthState = ProphecyState.FAILED;
             console.error('[Prophecy] WASM init failed:', e);
-            this.port.postMessage({ type: 'error', error: String(e?.message ?? e) });
+            this.errorMessage.error = String(e?.message ?? e);
+            this.port.postMessage(this.errorMessage);
         }
     }
 
