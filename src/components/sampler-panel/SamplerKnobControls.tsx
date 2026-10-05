@@ -36,6 +36,8 @@ interface SamplerKnobHandlers {
   spectralComp: (v: number) => void;
   downsample: (v: number) => void;
   vocalChorus: (v: number) => void;
+  phonemeDelayAmount: (v: number) => void;
+  phonemeDelayFeedback: (v: number) => void;
   transientExtraction: (v: number) => void;
   autoTune: (v: number) => void;
   microtonalVariance: (v: number) => void;
@@ -195,6 +197,8 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handlers.granularPitchShift} min={-24} max={24} step={1} color="indigo" unit="st" />
           <Knob label="AutoTune" value={currentParams.autoTune || 0} onChange={handlers.autoTune} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Microtonal" value={currentParams.microtonalVariance || 0} onChange={handlers.microtonalVariance} min={0} max={100} step={1} color="indigo" unit="ct" />
+          <Knob label="Phon Delay" value={currentParams.phonemeDelayAmount || 0} onChange={handlers.phonemeDelayAmount} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Phon F.Back" value={currentParams.phonemeDelayFeedback || 0} onChange={handlers.phonemeDelayFeedback} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Chorus" value={currentParams.vocalChorus || 0} onChange={handlers.vocalChorus} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Consonant Boost" value={currentParams.transientExtraction || 0} onChange={handlers.transientExtraction} min={0} max={1.0} step={0.01} color="cyan" unit="%" />
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />

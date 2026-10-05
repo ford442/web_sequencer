@@ -135,6 +135,9 @@ export function createPlaySamplerVoice(
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
+    const pPhonemeDelayAmount = noteParams?.phonemeDelayAmount !== undefined ? noteParams.phonemeDelayAmount : params.phonemeDelayAmount;
+    const pPhonemeDelayFeedback = noteParams?.phonemeDelayFeedback !== undefined ? noteParams.phonemeDelayFeedback : params.phonemeDelayFeedback;
+
     const pTransientExtraction = noteParams?.transientExtraction !== undefined ? noteParams.transientExtraction : params.transientExtraction;
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
     const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
@@ -380,6 +383,9 @@ export function createPlaySamplerVoice(
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
+        if (pPhonemeDelayAmount !== undefined && voice.setPhonemeDelayAmount) voice.setPhonemeDelayAmount(pPhonemeDelayAmount, triggerTime);
+        if (pPhonemeDelayFeedback !== undefined && voice.setPhonemeDelayFeedback) voice.setPhonemeDelayFeedback(pPhonemeDelayFeedback, triggerTime);
+
         if (pTransientExtraction !== undefined && voice.setTransientExtraction) voice.setTransientExtraction(pTransientExtraction, triggerTime);
         if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);
         if (pDrumDuckDepth !== undefined && (voice as any).setDrumDuckDepth) (voice as any).setDrumDuckDepth(pDrumDuckDepth, triggerTime);

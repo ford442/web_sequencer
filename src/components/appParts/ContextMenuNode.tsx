@@ -78,6 +78,8 @@ const OpenContextMenu = React.memo(() => {
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentVocoderMix={stepData?.vocoderMix}
+          currentPhonemeDelayAmount={stepData?.phonemeDelayAmount}
+          currentPhonemeDelayFeedback={stepData?.phonemeDelayFeedback}
           currentTranceGate={stepData?.tranceGate}
           currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}

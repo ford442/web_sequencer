@@ -54,6 +54,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly syllableVolumeFilter = new SyllableVolumeFilter();
   private readonly tranceGate = new TranceGate();
   private readonly drumDuck = new DrumDuckEnvelope();
+  private readonly bassDuck = new DrumDuckEnvelope();
+  private bassDuckingScalar = 0;
   private readonly bassEnvelopeFollower = new BassEnvelopeFollower();
   private readonly transientShaper = new TransientShaper();
 
@@ -425,10 +427,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       this.drumSidechainSAB, drumDuckDepth, currentTime, blockFrames, blockSampleRate
     );
 
+    const bassGrainSizeMod = parameters.bassGrainSizeMod ? parameters.bassGrainSizeMod[0] : 0.0;
+    const bassDuckResult = this.bassDuck.process(
+      this.bassSidechainSAB, bassGrainSizeMod, currentTime, blockFrames, blockSampleRate
     // Bass sidechain envelope follower
     const bassEnvelopeValue = this.bassEnvelopeFollower.process(
       this.bassSidechainSAB, currentTime, blockFrames, blockSampleRate
     );
+    this.bassDuckingScalar = bassDuckResult.duckingScalar;
 
     const cfg = this.currentExpressiveConfig;
     cfg.vibrato.depth = currentVibDepth;
@@ -663,6 +669,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.startSamplePtr = this.startSamplePtr;
           this.frozenGrainParams.endSamplePtr = this.endSamplePtr;
           this.frozenGrainParams.duckingScalar = duckingScalar;
+          this.frozenGrainParams.bassDuckingScalar = this.bassDuckingScalar;
           this.frozenGrainParams.envelopeValue = envelopeValue;
           this.frozenGrainParams.grainJitterParam = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
           this.frozenGrainParams.grainEnvDepth = grainEnvDepth;
