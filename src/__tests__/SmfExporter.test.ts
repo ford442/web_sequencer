@@ -45,6 +45,58 @@ describe('SmfExporter', () => {
     expect(imported.song.pattern.kick.steps[4]).not.toBeNull();
   });
 
+  it('round-trips a 3/4 song: meter in the conductor track, 24-step patterns, identical note ticks', () => {
+    const steps24 = (hits: number[], note: string) =>
+      Array.from({ length: 24 }, (_, i) => (hits.includes(i) ? { note, velocity: 1 } : null));
+    const trackStorage = createEmptyTrackStorage();
+    trackStorage.partA[0] = { steps: steps24([0, 5, 23], 'C4') };
+    trackStorage.partA[1] = { steps: steps24([2, 12], 'E4') };
+    const songStructure: Array<Record<TrackKey, number | null>> = [
+      { partA: 0, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
+      { partA: 1, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null },
+    ];
+
+    const result = new SmfExporter().exportToBytes(
+      { songStructure, trackStorage, currentPattern: EMPTY_PATTERN, tempo: 100, timeSignature: [3, 4], stepCount: 24 },
+      { useSongMode: true },
+    );
+    expect(result.success).toBe(true);
+    if (!result.bytes) return;
+
+    const parsed = parseSmfBytes(result.bytes, { filename: 'three-four.mid' });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.timeSignatures[0]).toMatchObject({ numerator: 3, denominator: 4 });
+
+    const ticksPerStep = parsed.data.ppq / 4;
+    const startTicks = parsed.data.notes.map((n) => n.startTick).sort((a, b) => a - b);
+    // Measure 1 hits 0/5/23, measure 2 (offset 24) hits 2/12 — a step is one 16th.
+    expect(startTicks).toEqual([0, 5, 23, 24 + 2, 24 + 12].map((step) => step * ticksPerStep));
+
+    const imported = convertToHyphonSong(parsed.data);
+    expect(imported.report.timeSignatureMismatch).toBe(false);
+    expect(imported.song.timeSignature).toEqual([3, 4]);
+    expect(imported.song.stepCount).toBe(24);
+    const slots = imported.song.songArrangement!.trackStorage.partA;
+    const hitsOf = (slot: number) =>
+      ((slots[slot] as { steps: unknown[] }).steps)
+        .map((s, i) => (s ? i : -1))
+        .filter((i) => i >= 0);
+    expect(hitsOf(0)).toEqual([0, 5, 23]);
+    expect(hitsOf(1)).toEqual([2, 12]);
+  });
+
+  it('defaults the conductor track to 4/4 when no meter is given', () => {
+    const result = new SmfExporter().exportToBytes(
+      { songStructure: [], trackStorage: createEmptyTrackStorage(), currentPattern: EMPTY_PATTERN, tempo: 120 },
+      { useSongMode: false },
+    );
+    const parsed = parseSmfBytes(result.bytes!, { filename: 'default.mid' });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.timeSignatures[0]).toMatchObject({ numerator: 4, denominator: 4 });
+  });
+
   it('song-mode export writes concatenated clips in SongStructure order', () => {
     const trackStorage = createEmptyTrackStorage();
     const patternA = { steps: Array(32).fill(null).map((_, i) => (i === 0 ? { note: 'C4', velocity: 1 } : null)) };

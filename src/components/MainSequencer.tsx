@@ -16,13 +16,22 @@ import {
     type SequencerCellCoord,
 } from '../utils/sequencerGridKeyboard';
 import { RackPanelChrome } from './ui/RackPanelChrome';
+import type { HighlightTrackStep } from './sequencer/SequencerRow';
+import { sequencerCssWidth, sequencerViewBoxWidth } from './sequencer/stepHitGeometry';
+import { useTransportMixStore } from '../stores/transportMixStore';
+import { gridColumns, trackLoopLength } from '../utils/songMeter';
+import { stepsPerBar as meterStepsPerBar, stepsPerBeat as meterStepsPerBeat } from '../utils/musicTheory';
 
 export { ROWS };
 export { AutomationStep };
 export type { SequencerRowHandle };
 
 export interface MainSequencerHandle {
-    setHighlight: (step: number) => void;
+    /**
+     * Light the playing step. `trackStep` is passed when tracks loop at their own
+     * length, so each row lights its own step; otherwise every row lights `step`.
+     */
+    setHighlight: (step: number, trackStep?: HighlightTrackStep) => void;
 }
 
 export interface MainSequencerProps {
@@ -62,6 +71,18 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const { pattern, activeSamplerBank, selectedTrack, activeTrackSlots, trackStorage, selection, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, children,
         melodicMode = false, onPitchChange, viewMode = 'notes', automationParam, onAutomationChange, alignment, onPhonemeUpdate, samplerAudioBuffer,
         zoomLevel = DEFAULT_ZOOM, onZoomChange } = props;
+
+    // Song-wide meter drives how many columns render and where beat/bar marks fall.
+    const stepCount = useTransportMixStore((s) => s.stepCount);
+    const trackLengths = useTransportMixStore((s) => s.trackLengths);
+    const timeSignature = useTransportMixStore((s) => s.timeSignature);
+    const columns = gridColumns({ stepCount, trackLengths });
+    const beatSteps = meterStepsPerBeat(timeSignature);
+    const barSteps = meterStepsPerBar(timeSignature) ?? 16;
+    const columnsRef = useRef(columns);
+    useLayoutEffect(() => {
+        columnsRef.current = columns;
+    }, [columns]);
 
     const rowRefs = useRef<(SequencerRowHandle | null)[]>([]);
     const melodicRowRef = useRef<MelodicSequencerRowHandle | null>(null);
@@ -112,9 +133,9 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     }>({ isOpen: false, stepIndex: 0, note: null });
 
     useImperativeHandle(ref, () => ({
-        setHighlight: (step: number) => {
-            rowRefs.current.forEach(r => r?.setHighlight(step));
-            melodicRowRef.current?.setHighlight(step);
+        setHighlight: (step: number, trackStep?: HighlightTrackStep) => {
+            rowRefs.current.forEach(r => r?.setHighlight(step, trackStep));
+            melodicRowRef.current?.setHighlight(step, trackStep);
         }
     }));
 
@@ -202,7 +223,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
             const direction = keyToGridDirection(e.key);
             if (!direction) return;
             e.preventDefault();
-            const next = getAdjacentSequencerCell(rowKey, step, direction);
+            const next = getAdjacentSequencerCell(rowKey, step, direction, columnsRef.current);
             if (e.shiftKey) {
                 const sel = selectionRef.current;
                 if (!sel) onSelectionStart(rowKey, step);
@@ -213,9 +234,6 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
         [onSelectionStart, onSelectionEnter, focusSequencerCell],
     );
 
-
-    const baseWidth = 1050;
-    const timelineWidth = 830;
 
     return (
         <div
@@ -242,7 +260,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </div>
             )}
 
-            <svg viewBox="0 0 1050 680" style={{ width: 'calc(220px + 830px * var(--zoom-level))', height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg viewBox={`0 0 ${sequencerViewBoxWidth(columns)} 680`} style={{ width: sequencerCssWidth(columns), height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
                     {ROWS.map((row, rIdx) => {
@@ -266,6 +284,10 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                     onEditLength={onEditLength}
                                     onSelectRow={onSelectRow}
                                     onSelectSlot={onSelectSlot}
+                                    columns={columns}
+                                    loopLength={trackLoopLength({ stepCount, trackLengths }, row.key)}
+                                    stepsPerBeat={beatSteps}
+                                    stepsPerBar={barSteps}
                                 />
                             );
                         }
@@ -298,6 +320,10 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                                 focusedCell={focusedCell}
                                 onStepRef={handleStepRef}
                                 onStepGridKeyDown={handleStepGridKeyDown}
+                                columns={columns}
+                                loopLength={trackLoopLength({ stepCount, trackLengths }, row.key)}
+                                stepsPerBeat={beatSteps}
+                                stepsPerBar={barSteps}
                             />
                         );
                     })}

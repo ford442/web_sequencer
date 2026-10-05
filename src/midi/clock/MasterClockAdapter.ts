@@ -81,8 +81,8 @@ export class MasterClockAdapter implements TransportClock {
   onStep(cb: StepCallback): () => void {
     this.stepListeners.add(cb);
     if (!this.stepUnsub) {
-      this.stepUnsub = this.internal.onStep((step, audioTime) => {
-        for (const listener of this.stepListeners) listener(step, audioTime);
+      this.stepUnsub = this.internal.onStep((step, audioTime, absStep) => {
+        for (const listener of this.stepListeners) listener(step, audioTime, absStep);
       });
     }
     return () => this.stepListeners.delete(cb);

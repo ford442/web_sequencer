@@ -17,6 +17,8 @@ import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
 import { midiMapStore } from '../stores/midiMapStore';
+import { transportMixStore } from '../stores/transportMixStore';
+import { resolveSongMeter } from '../utils/songMeter';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { applyPcfFilterToEffect, convert303Waveform } from '../importers/rbs/applyImportedEngineState';
 import type { RbsArrangementExtras } from './appState/useSongModeState';
@@ -177,10 +179,15 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         // so memoization of this callback does not cause stale automation data.
         const exportedLanes = automationStore.exportLanes();
         const exportedMidi = midiMapStore.exportMappings();
+        const meter = transportMixStore.getMeter();
         return {
             version: SAVED_SONG_DATA_VERSION,
             pattern: patternRef.current,
             tempo: tempoRef.current,
+            stepCount: meter.stepCount,
+            timeSignature: meter.timeSignature,
+            swing: meter.swing,
+            ...(Object.keys(meter.trackLengths).length > 0 ? { trackLengths: meter.trackLengths } : {}),
             ambianceUrl,
             backgroundImage,
             params: {
@@ -245,6 +252,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             const songData = data as SavedSongData;
             if (songData.pattern) setPattern(songData.pattern);
             if (songData.tempo) setTempo(songData.tempo);
+            // v1–v3 songs (no meter fields) resolve to 32 steps, 4/4, straight.
+            transportMixStore.applyMeter(resolveSongMeter(songData));
             if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
             if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage);
             if (songData.params) {
@@ -372,6 +381,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         const snapshot: SongSnapshot = {
             pattern,
             tempo,
+            meter: transportMixStore.getMeter(),
             ambianceUrl,
             backgroundImage,
             params: {
@@ -394,6 +404,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         if (!snapshot) return;
         setPattern(snapshot.pattern);
         setTempo(snapshot.tempo);
+        transportMixStore.applyMeter(resolveSongMeter(snapshot.meter));
         setAmbianceUrl(snapshot.ambianceUrl);
         setBackgroundImage(snapshot.backgroundImage);
         setSynthA(snapshot.params.synthA);
@@ -676,6 +687,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             version: SAVED_SONG_DATA_VERSION,
             pattern: song.pattern,
             tempo: song.tempo,
+            stepCount: song.stepCount,
             timeSignature: song.timeSignature,
             swing: song.swing,
             ambianceUrl: '',
@@ -827,6 +839,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             version: SAVED_SONG_DATA_VERSION,
             pattern: song.pattern,
             tempo: song.tempo,
+            stepCount: song.stepCount,
             timeSignature: song.timeSignature,
             ambianceUrl: '',
             backgroundImage: '',

@@ -16,7 +16,12 @@ export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
   convertPcfToAutomation: true,
   importSwing: true,
   drumKitMapping: 'auto',
-  expandTo32Steps: true,
+  /**
+   * Off by default: a 16-step ReBirth pattern imports as a 16-step Hyphon
+   * pattern (`HyphonSong.stepCount = 16`). On restores the legacy behaviour
+   * (TB-303 stretched ×2, drums duplicated) for a 32-step grid.
+   */
+  expandTo32Steps: false,
   interpolateAutomation: true,
   quantizeTo16th: true,
   importPcfAsFilter: false,

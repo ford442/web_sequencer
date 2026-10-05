@@ -286,7 +286,8 @@ export async function parseAndSummarizeCorpusEntry(entry: CorpusManifestEntry) {
 
   assertCorpusInvariants(result.data, entry);
 
-  const importer = new RbsImporter({ expandTo32Steps: true });
+  // Default options: ReBirth's 16-step patterns stay 16 steps (no ×2 expansion).
+  const importer = new RbsImporter();
   const converted = importer.convertToHyphonSong(result.data);
   if (!converted.success) {
     throw new Error(`import failed for ${entry.file}`);

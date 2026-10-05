@@ -3,6 +3,7 @@ import type { AudioEngine, Pattern, PartSequence, SynthParams, Bass2Params, Kick
 import type { TrackKey, SongSnapshot } from '../../constants/appDefaults'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { PyodideLike } from '../../utils/pyodideBuffers'
+import { transportMixStore } from '../../stores/transportMixStore'
 
 export function useSongHandlers(deps: {
     songStructure: ({ [key in TrackKey]: number | null })[];
@@ -80,6 +81,10 @@ export function useSongHandlers(deps: {
             patternRef.current,
             { webGpuEngine: audioEngine?.webGpuEngine, wasmEngine: audioEngine?.wasmEngine, pyodide },
             sampleBuffers,
+            {
+                stepCount: transportMixStore.meterRef.current.stepCount,
+                trackLengths: transportMixStore.meterRef.current.trackLengths,
+            },
         )).then(result => {
             // The .xm still downloaded; surface anything the format could not hold.
             if (result.truncationMessage) showToast(result.truncationMessage, 'error');

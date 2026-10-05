@@ -84,11 +84,52 @@ describe('SmfImporter', () => {
     expect(result.song.pattern.partA.steps[0]?.length).toBe(3);
   });
 
-  it('flags a non-4/4 time signature as a mismatch warning', () => {
-    const parsed = baseParsed({ timeSignatures: [{ tick: 0, numerator: 3, denominator: 4 }] });
+  it('imports 3/4 as 24-step (2-bar) patterns without a mismatch', () => {
+    const parsed = baseParsed({
+      timeSignatures: [{ tick: 0, numerator: 3, denominator: 4 }],
+      notes: [
+        note({ channel: 0, note: 60, startTick: 0, endTick: TICKS_PER_STEP }),
+        // Step 24 starts the second 3/4 pattern.
+        note({ channel: 0, note: 62, startTick: TICKS_PER_STEP * 24, endTick: TICKS_PER_STEP * 25 }),
+      ],
+    });
+    const result = convertToHyphonSong(parsed);
+    expect(result.report.timeSignatureMismatch).toBe(false);
+    expect(result.report.warnings.some((w) => w.includes('3/4'))).toBe(false);
+    expect(result.song.timeSignature).toEqual([3, 4]);
+    expect(result.song.stepCount).toBe(24);
+    expect(result.song.pattern.partA.steps).toHaveLength(24);
+    const slot1 = result.song.songArrangement?.trackStorage.partA[1] as { steps: unknown[] } | undefined;
+    expect(slot1?.steps[0]).toMatchObject({ note: 'D4' });
+  });
+
+  it('imports 7/8 as 28-step patterns', () => {
+    const parsed = baseParsed({ timeSignatures: [{ tick: 0, numerator: 7, denominator: 8 }] });
+    const result = convertToHyphonSong(parsed);
+    expect(result.report.timeSignatureMismatch).toBe(false);
+    expect(result.song.stepCount).toBe(28);
+  });
+
+  it('flags a meter that cannot sit on the 16th grid as a mismatch', () => {
+    const parsed = baseParsed({ timeSignatures: [{ tick: 0, numerator: 5, denominator: 32 }] });
     const result = convertToHyphonSong(parsed);
     expect(result.report.timeSignatureMismatch).toBe(true);
-    expect(result.report.warnings.some((w) => w.includes('3/4'))).toBe(true);
+    expect(result.report.warnings.some((w) => w.includes('5/32'))).toBe(true);
+    expect(result.song.stepCount).toBe(32);
+    expect(result.song.timeSignature).toEqual([4, 4]);
+  });
+
+  it('flags mid-file meter changes as a mismatch and keeps the first meter', () => {
+    const parsed = baseParsed({
+      timeSignatures: [
+        { tick: 0, numerator: 3, denominator: 4 },
+        { tick: TICKS_PER_STEP * 24, numerator: 4, denominator: 4 },
+      ],
+    });
+    const result = convertToHyphonSong(parsed);
+    expect(result.report.timeSignatureMismatch).toBe(true);
+    expect(result.song.timeSignature).toEqual([3, 4]);
+    expect(result.song.stepCount).toBe(24);
   });
 
   it('counts tempo changes after the first pattern', () => {

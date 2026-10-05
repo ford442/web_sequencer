@@ -142,6 +142,10 @@ export interface StemExportInput {
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
     currentPattern: Pattern;
     tempo: number;
+    /** Song pattern length (default 32) — sets each measure's length. */
+    stepCount?: number;
+    /** Per-track loop lengths, tiled into each measure like live playback. */
+    trackLengths?: import('./songMeter').TrackLengths;
     params: StemExportParams;
     engines?: PatternRenderEngines;
     sampleBuffers?: (AudioBuffer | null)[];
@@ -276,6 +280,7 @@ export async function exportStemsToZip(
         input.trackStorage,
         input.currentPattern,
         useSongMode,
+        { stepCount: input.stepCount, trackLengths: input.trackLengths },
     );
 
     const targetLength = Math.ceil(

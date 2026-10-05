@@ -5,7 +5,11 @@ import type { SongMeasure, SongStructure } from '@/types/songMode';
 import { createEmptyMeasure } from '@/utils/songModeEditing';
 import type { SessionCaptureEvent } from './types';
 
-export const SESSION_STEPS_PER_MEASURE = 16;
+/**
+ * Fallback measure length. Callers pass the song's `stepCount` so captured
+ * measures line up with Song Mode playback (one measure = one pattern loop).
+ */
+export const SESSION_STEPS_PER_MEASURE = NUM_STEPS;
 
 /**
  * Compile a captured live-launch performance into Song Mode measures.

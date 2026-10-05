@@ -7,6 +7,7 @@ import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore'
 import { useTransportSyncStore } from '../stores/transportSyncStore'
 import { HelpTip } from './help/HelpTip'
 import { TransportSyncControls } from './TransportSyncControls'
+import { MeterControls } from './transport/MeterControls'
 
 interface TransportToolbarProps {
     songStorage: (SongSnapshot | null)[]
@@ -204,6 +205,12 @@ export const TransportToolbar = memo(function TransportToolbar({
                         </button>
                     </div>
                 </div>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                {/* Pattern length / time signature / swing */}
+                <MeterControls />
 
                 {/* Divider */}
                 <div className="w-px h-5 bg-gray-700 mx-1 hidden lg:block" />

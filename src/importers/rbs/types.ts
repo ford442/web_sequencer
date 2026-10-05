@@ -104,7 +104,7 @@ export interface RbsGlobData {
   playMode: 0 | 1;
   /** Tempo in BPM (40-250) */
   tempo: number;
-  /** Shuffle/swing amount (0-127, 64 = no shuffle) */
+  /** Shuffle/swing amount (0-127, 64 = no shuffle). `rbsShuffleToSwingPercent` converts. */
   shuffle: number;
   /** Song loop start position (in pattern slots / bars) */
   loopStart: number;
@@ -306,7 +306,7 @@ export interface RbsProject {
   /** Time signature denominator (usually 4) */
   timeSignatureDen: number;
   
-  /** Swing amount (0-100%, where 50% = no swing) */
+  /** Swing amount (0-100%, where 50% = no swing). IFF GLOB shuffle is converted into this unit at parse. */
   swing: number;
   
   /** Total pattern length in steps (typically 16 or 32) */
@@ -571,7 +571,14 @@ export interface HyphonSong {
   /** Global settings */
   tempo: number;
   timeSignature: [number, number];
+  /** Song swing percent: 0–100, 50 = straight (ReBirth shuffle is converted on parse/export). */
   swing: number;
+  /**
+   * Pattern length in 16th steps (16 for ReBirth, 32 when `expandTo32Steps`).
+   * Optional so hand-built songs stay valid; exporters treat absent as the
+   * length of `pattern.partA.steps`.
+   */
+  stepCount?: number;
   
   /** Pattern data (converted from RBS patterns) */
   pattern: Pattern;

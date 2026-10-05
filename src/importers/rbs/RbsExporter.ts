@@ -10,6 +10,8 @@ import type { TrackKey } from '../../constants/appDefaults';
 import { resolveTrakEventKind } from './trakControllers';
 import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 import { buildIffRbsFile } from './iffBuilder';
+import { swingPercentToRbsShuffle } from './shuffle';
+import { resolveSongMeter } from '../../utils/songMeter';
 import {
   buildDrumPatternFromHyphon,
   buildDrumPatternsFromTrackStorage,
@@ -55,6 +57,18 @@ export class RbsExporter {
     }
 
     const collapse = opts.collapse32Steps;
+    // Trim every sequence to the song length first: step arrays never shrink
+    // when LEN goes down, so a 16-step song can still carry 32 stored steps.
+    const stepCount = song.stepCount;
+    if (stepCount !== undefined && stepCount !== 16 && stepCount !== 32 && stepCount > 16) {
+      warnings.push(
+        `${stepCount}-step patterns can't be represented in ReBirth (16 steps) — exporting the first 16 steps of each pattern.`,
+      );
+    }
+    const fit = (seq: PartSequence | null | undefined): PartSequence => {
+      const s = seq ?? { steps: Array(16).fill(null) };
+      return stepCount === undefined ? s : { ...s, steps: s.steps.slice(0, stepCount) };
+    };
     const arrangement = song.songArrangement;
     const isSongExport = opts.mode === 'song' && arrangement?.mode === 'song';
 
@@ -88,17 +102,24 @@ export class RbsExporter {
 
       tb303ASteps = arrangement.trackStorage.partA
         .slice(0, exportSlots)
-        .map((seq) => partSequenceToTb303Steps(seq ?? { steps: Array(16).fill(null) }, collapse));
+        .map((seq) => partSequenceToTb303Steps(fit(seq), collapse));
 
       const partBSource = opts.tb303BSource === 'bass2' ? arrangement.trackStorage.bass2 : arrangement.trackStorage.partB;
       tb303BSteps = include303B
         ? partBSource
           .slice(0, exportSlots)
-          .map((seq) => partSequenceToTb303Steps(seq ?? { steps: Array(16).fill(null) }, collapse))
+          .map((seq) => partSequenceToTb303Steps(fit(seq), collapse))
         : undefined;
 
+      const ts = arrangement.trackStorage;
+      const fitSlots = (slots: (PartSequence | null)[]) => slots.map((seq) => (seq ? fit(seq) : null));
       drumPattern = buildDrumPatternsFromTrackStorage(
-        arrangement.trackStorage,
+        {
+          kick: fitSlots(ts.kick),
+          snare: fitSlots(ts.snare),
+          closedHat: fitSlots(ts.closedHat),
+          openHat: fitSlots(ts.openHat),
+        },
         exportSlots,
         collapse,
         drumKit,
@@ -106,9 +127,19 @@ export class RbsExporter {
     } else {
       const partA = this.resolvePartSequence(song, opts.tb303ASource);
       const partB = this.resolvePartSequence(song, opts.tb303BSource);
-      tb303ASteps = partSequenceToTb303Steps(partA, collapse);
-      tb303BSteps = include303B ? partSequenceToTb303Steps(partB, collapse) : undefined;
-      drumPattern = buildDrumPatternFromHyphon(song.pattern, collapse, drumKit);
+      tb303ASteps = partSequenceToTb303Steps(fit(partA), collapse);
+      tb303BSteps = include303B ? partSequenceToTb303Steps(fit(partB), collapse) : undefined;
+      drumPattern = buildDrumPatternFromHyphon(
+        {
+          ...song.pattern,
+          kick: fit(song.pattern.kick),
+          snare: fit(song.pattern.snare),
+          closedHat: fit(song.pattern.closedHat),
+          openHat: fit(song.pattern.openHat),
+        },
+        collapse,
+        drumKit,
+      );
     }
 
     const metaA = song.rbsMetadata?.tb303AParams;
@@ -170,7 +201,7 @@ export class RbsExporter {
     const bytes = buildIffRbsFile({
       playMode,
       tempoBpm: song.tempo,
-      shuffle: Math.round(song.swing ?? 64),
+      shuffle: swingPercentToRbsShuffle(song.swing),
       loopStartBars,
       loopEndBars,
       headVersionString: headVersion,
@@ -312,6 +343,7 @@ export function hyphonSongFromSavedData(
   const trakEvents = trakFromRef ?? trakFromData;
 
   const isSong = shouldExportRbsSongMode(data, extras.isSongModeActive);
+  const meter = resolveSongMeter(data);
 
   const song: HyphonSong = {
     version: 1,
@@ -321,8 +353,9 @@ export function hyphonSongFromSavedData(
       importedAt: new Date(),
     },
     tempo: data.tempo,
-    timeSignature: [4, 4],
-    swing: 64,
+    timeSignature: meter.timeSignature,
+    swing: meter.swing,
+    stepCount: meter.stepCount,
     pattern: data.pattern,
     params: {
       synthA: data.params.synthA,

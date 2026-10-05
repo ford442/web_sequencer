@@ -9,6 +9,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     items: [
       { key: '?', desc: 'Open Help (shortcuts, guides, search)' },
       { key: 'Space', desc: 'Play / Stop' },
+      { key: 'Shift + [ / ]', desc: 'Shorter / longer pattern (gamepad LT / RT)' },
       { key: 'Ctrl + C', desc: 'Copy Selection' },
       { key: 'Ctrl + V', desc: 'Paste Selection' },
       { key: 'Delete', desc: 'Clear Selection / Reset Knobs' },
@@ -22,6 +23,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { key: 'Alt + Click', desc: 'Toggle Slide (Gliss)' },
       { key: 'Ctrl + Click', desc: 'Toggle Chord (Major/Minor)' },
       { key: 'Right Click', desc: 'Note Properties Menu' },
+      { key: 'L= chip (row header)', desc: 'Cycle the track loop length (Shift-click: back) for polyrhythm' },
     ],
   },
   {
