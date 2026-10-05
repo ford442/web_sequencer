@@ -70,6 +70,8 @@ export interface Note {
   subHarmonics?: number;
   vocalChorus?: number;
   vocoder?: number;
+  phonemeDelayAmount?: number;
+  phonemeDelayFeedback?: number;
   transientExtraction?: number;
   consonantClarity?: number;
   autoTune?: number;

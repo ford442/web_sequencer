@@ -75,6 +75,8 @@ export interface SamplerBankParams {
   subHarmonics?: number;
   vocalChorus?: number;
   vocoder?: number;
+  phonemeDelayAmount?: number;
+  phonemeDelayFeedback?: number;
   transientExtraction?: number;
   autoTune?: number;
   microtonalVariance?: number;
