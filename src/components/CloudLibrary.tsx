@@ -271,16 +271,18 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     {[1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
                                 </div>
                             ) : songs.length === 0 ? (
-                                <div role="status" className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-                                    <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                                        </svg>
+                                <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+                                    <div role="status" className="flex flex-col items-center justify-center">
+                                        <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-gray-300 font-bold mb-2 text-sm">Library is empty</h3>
+                                        <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
+                                            The library is empty. Be the first to share your creation with the world!
+                                        </p>
                                     </div>
-                                    <h3 className="text-gray-300 font-bold mb-2 text-sm">Library is empty</h3>
-                                    <p className="text-gray-500 text-xs mb-6 max-w-[200px]">
-                                        The library is empty. Be the first to share your creation with the world!
-                                    </p>
                                     <button type="button"
                                         onClick={() => setActiveTab('upload')}
                                         className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
@@ -292,16 +294,18 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                     </button>
                                 </div>
                             ) : filteredSongs.length === 0 ? (
-                                <div role="status" className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-                                    <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                                        </svg>
+                                <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+                                    <div role="status" className="flex flex-col items-center justify-center">
+                                        <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-gray-300 font-bold mb-1 text-sm">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
+                                        <p className="text-gray-500 text-xs mb-4 max-w-[200px]">
+                                            Try changing or clearing your active filters to see more results.
+                                        </p>
                                     </div>
-                                    <h3 className="text-gray-300 font-bold mb-1 text-sm">No {filterType !== 'all' ? filterType + 's' : 'items'} match this filter</h3>
-                                    <p className="text-gray-500 text-xs mb-4 max-w-[200px]">
-                                        Try changing or clearing your active filters to see more results.
-                                    </p>
                                     <button type="button"
                                         onClick={() => setFilterType('all')}
                                         className="bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-600 px-4 py-1.5 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"

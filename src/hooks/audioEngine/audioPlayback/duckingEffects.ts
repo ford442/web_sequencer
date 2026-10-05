@@ -23,13 +23,27 @@ export const triggerSidechainDuck = (
   gain.setTargetAtTime(0.0, time + 0.01, releaseTime / 3);
 };
 
+import type { SingingVoiceManager } from "../../../engines/SingingVoiceManager";
+
 export const triggerBassEQDuck = (
   audioCtx: AudioContext,
   eqNode: BiquadFilterNode | null,
   time: number,
   duration: number,
+  singingVoiceManager: SingingVoiceManager | null,
+  velocity: number,
   depthDb: number = -6,
 ) => {
+  if (singingVoiceManager) {
+    const bassSidechainSAB = singingVoiceManager.getBassSidechainSAB();
+    if (bassSidechainSAB) {
+      const view = new Float32Array(bassSidechainSAB);
+      view[0] = time;
+      view[1] = velocity;
+      view[2] = duration;
+    }
+  }
+
   if (!eqNode) return;
 
   const gain = eqNode.gain;

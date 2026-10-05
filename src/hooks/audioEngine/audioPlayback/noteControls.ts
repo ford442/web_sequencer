@@ -41,6 +41,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         ); // Approximate duration for interactive play
         if (refs.singingVoiceManagerRef?.current) {
           const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
@@ -81,6 +83,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         ); // Approximate duration
         if (refs.singingVoiceManagerRef?.current) {
           const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
@@ -144,6 +148,8 @@ export function createNoteOnSynth(
           refs.bassSidechainEQBusRef.current,
           now,
           0.25,
+          refs.singingVoiceManagerRef.current,
+          1.0
         );
         if (refs.singingVoiceManagerRef?.current) {
           const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
