@@ -9,6 +9,7 @@ import { GranularEngine } from "./rubberband/granularEngine";
 import { SpectralBandProcessor } from "./rubberband/spectralEffects";
 import { VocalChorusEffect } from "./rubberband/chorusEffect";
 import { SubHarmonicsEffect } from "./rubberband/subHarmonics";
+import { VocoderEffect } from "./rubberband/vocoderEffect";
 import { TransientExtractor } from "./rubberband/transientExtractor";
 import { Bitcrusher } from "./rubberband/bitcrusher";
 import { PhonemeToneFilter, SyllableVolumeFilter, TranceGate, TransientShaper } from "./rubberband/toneFilters";
@@ -48,6 +49,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly spectral = new SpectralBandProcessor();
   private readonly chorus = new VocalChorusEffect();
   private readonly subHarmonics = new SubHarmonicsEffect();
+  private readonly vocoder = new VocoderEffect();
   private readonly transientExtractor = new TransientExtractor();
   private readonly bitcrusher = new Bitcrusher();
   private readonly phonemeToneFilter = new PhonemeToneFilter();
@@ -398,6 +400,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const subHarmonicsAmount = parameters.subHarmonics ? parameters.subHarmonics[0] : 0.0;
     const transientExtractionAmount = parameters.transientExtraction ? parameters.transientExtraction[0] : 0.0;
     const vocalChorusAmount = parameters.vocalChorus ? parameters.vocalChorus[0] : 0.0;
+    const vocoderAmount = parameters.vocoder ? parameters.vocoder[0] : 0.0;
     const downsampleFactor = parameters.downsample ? parameters.downsample[0] : 1.0;
     const breath = parameters.breathIntensity[0];
     const drumDuckDepth = parameters.drumDuckDepth ? parameters.drumDuckDepth[0] : 0.0;
@@ -845,6 +848,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (effectiveSubAmount > 0) {
           const isVowelForSub = pData ? pData[7] : 1.0;
           this.subHarmonics.process(outputs, effectiveSubAmount, isVowelForSub, blockSampleRate);
+        }
+
+        if (vocoderAmount > 0) {
+          const isVowelForVocoder = pData ? pData[7] : 1.0;
+          this.vocoder.process(outputs, vocoderAmount, isVowelForVocoder, blockSampleRate);
         }
 
         if (transientExtractionAmount > 0) {

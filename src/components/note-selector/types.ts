@@ -28,6 +28,7 @@ export type PropertyChangeKey =
   | "spectralComp"
   | "subHarmonics"
   | "vocalChorus"
+  | "vocoder"
   | "transientExtraction"
   | "autoTune"
   | "microtonalVariance"
@@ -157,6 +158,7 @@ export interface NoteSelectorProps {
   currentTranceGate?: number;
   currentDelaySend?: number;
   currentChoir?: number;
+  currentVocoder?: number;
   currentVocoderMix?: number;
   currentVocoderFormantShift?: number;
   currentVocoderPreservation?: number;
