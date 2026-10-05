@@ -27,6 +27,7 @@ export type PropertyChangeKey =
   | "spectralComp"
   | "subHarmonics"
   | "vocalChorus"
+  | "spatialRouting"
   | "transientExtraction"
   | "autoTune"
   | "microtonalVariance"

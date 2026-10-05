@@ -102,6 +102,8 @@ export interface Note {
   /** Prophecy: Portamento rate 0–1 */
   portamento?: number;
   // ... other fields as needed
+
+  spatialRouting?: number;
 }
 
 export interface PartSequence {

@@ -133,8 +133,9 @@ export function createPlaySamplerVoice(
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
+    const pSpatialRouting = ((noteParams as any)?.spatialRouting !== undefined) ? Number((noteParams as any).spatialRouting) : ((params as any).spatialRouting ?? 0);
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
-    const pTransientExtraction = noteParams?.transientExtraction !== undefined ? noteParams.transientExtraction : params.transientExtraction;
+    const pTransientExtraction = ((noteParams as any)?.transientExtraction !== undefined) ? Number((noteParams as any).transientExtraction) : ((params as any).transientExtraction ?? 0);
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
     const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
     const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
@@ -362,6 +363,7 @@ export function createPlaySamplerVoice(
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
+        if (pSpatialRouting !== undefined && voice.setSpatialRouting) voice.setSpatialRouting(pSpatialRouting, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
         if (pTransientExtraction !== undefined && voice.setTransientExtraction) voice.setTransientExtraction(pTransientExtraction, triggerTime);
         if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);

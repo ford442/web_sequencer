@@ -118,7 +118,9 @@ export interface SamplerBankParams {
     vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
-  };
+
+  spatialRouting?: number;
+};
 }
 
 export type SamplerParams = SamplerBankParams[];

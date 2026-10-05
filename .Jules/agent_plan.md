@@ -10,7 +10,7 @@
 ## Innovation Lab
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
-- Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
+- [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
@@ -74,6 +74,12 @@
 
 
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+
+- Completed "Explore dynamic spatialization routing per phoneme" task from the Innovation Lab backlog.
+- Built `SpatialRouter` AudioWorklet processor that splits spatialization logic: consonants are hard-panned left or right deterministically based on their phoneme index hash, while vowels dynamically increase stereo width based on phoneme intensity/volume using mid-side processing. Added smooth interpolation to prevent clicking.
+- Wired `spatialRouting` amount parameter through `RubberBandProcessor`, `SingingVoice`, types, and exposed via the UI sequencer overlays.
+- Velocity Check: Splitting spatialization strategies by phoneme type creates a deeply immersive vocal field where consonants jump around the stereo field while the vowels sustain in a wide image. No GC allocations occur in the hot path.
+
 ## Refactoring Roadblocks
 - [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
 - Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.

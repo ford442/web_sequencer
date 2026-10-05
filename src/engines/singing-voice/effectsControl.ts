@@ -379,6 +379,16 @@ export const EffectsControlMixin = {
    * @param amount Sub-harmonics amount (0-1)
    * @param time Optional time to apply the change
    */
+
+  /**
+   * Set dynamic spatial routing amount.
+   * @param amount Amount (0-1)
+   * @param time Optional scheduling time
+   */
+  setSpatialRouting(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "spatialRouting", amount, time);
+  },
+
   setSubHarmonics(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "subHarmonics", amount, time);
   },
