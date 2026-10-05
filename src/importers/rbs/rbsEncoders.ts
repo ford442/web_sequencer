@@ -123,11 +123,11 @@ export function synthParamsToTb303DeviceParams(
 
   const isBass2 = 'cutoff' in params && !('filterCutoff' in params);
   const cutoffHz = isBass2
-    ? (params as Bass2Params).cutoff
-    : (params as SynthParams).filterCutoff;
+    ? params.cutoff
+    : params.filterCutoff;
   const resonanceVal = isBass2
-    ? (params as Bass2Params).resonance
-    : (params as SynthParams).filterResonance;
+    ? params.resonance
+    : params.filterResonance;
 
   return {
     cutoff: hzToRbsCutoff(cutoffHz),

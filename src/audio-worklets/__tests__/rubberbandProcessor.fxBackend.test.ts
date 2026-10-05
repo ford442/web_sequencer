@@ -11,7 +11,7 @@ type ProcessorInstance = {
 let nextModule: Record<string, unknown> = {};
 
 vi.mock('../rubberband-lib.js', () => ({
-  default: vi.fn(async () => nextModule),
+  default: vi.fn(() => Promise.resolve(nextModule)),
 }));
 
 class FakeStretcher {
