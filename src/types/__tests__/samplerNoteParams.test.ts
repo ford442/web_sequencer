@@ -16,6 +16,10 @@ describe('SamplerNoteParams', () => {
         expectTypeOf<SamplerNoteParams>().not.toHaveProperty('note');
     });
 
+    it("carries the step's Phoneme Painter edits", () => {
+        expectTypeOf<SamplerNoteParams>().toHaveProperty('phonemes');
+    });
+
     it('is the noteParams type of AudioEngine.playSampler (no any)', () => {
         type Arg = Parameters<AudioEngine['playSampler']>[5];
         expectTypeOf<Arg>().toEqualTypeOf<SamplerNoteParams | undefined>();
