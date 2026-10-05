@@ -116,7 +116,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     startSamplePtr: 0,
     endSamplePtr: 0,
     duckingScalar: 0,
-    bassDuckingScalar: 0,
     envelopeValue: 0,
     grainJitterParam: 0,
     grainEnvDepth: 0,
@@ -664,7 +663,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.frozenGrainParams.startSamplePtr = this.startSamplePtr;
           this.frozenGrainParams.endSamplePtr = this.endSamplePtr;
           this.frozenGrainParams.duckingScalar = duckingScalar;
-          this.frozenGrainParams.bassDuckingScalar = bassDuckingScalar;
           this.frozenGrainParams.envelopeValue = envelopeValue;
           this.frozenGrainParams.grainJitterParam = parameters.grainJitter ? parameters.grainJitter[0] : 0.0;
           this.frozenGrainParams.grainEnvDepth = grainEnvDepth;
