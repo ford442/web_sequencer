@@ -54,6 +54,27 @@ describe('quantizeLaunch', () => {
     expect(a.step).toBe(b.step);
     expect(a.timelineStep).toBe(b.timelineStep);
   });
+
+  it('quantizes to a 12-step bar in 3/4', () => {
+    const c = clock({ step: 5, audioTime: 2, patternSteps: 24, stepsPerBar: 12 });
+    const q = quantizeLaunch('bar', c, 5, 2, 5);
+    expect(q.deltaSteps).toBe(7);
+    expect(q.step).toBe(12);
+  });
+
+  it('lands on the swung boundary when the clock swings', () => {
+    const tempo = 120;
+    const base = secondsPerStep(tempo);
+    // From an odd step with full swing, the next step is half a base step away,
+    // then each pair takes 2 × base.
+    const c = clock({ step: 5, audioTime: 2, swing: 1 });
+    const q = quantizeLaunch('beat', c, 5, 2, 5);
+    expect(q.deltaSteps).toBe(3);
+    expect(q.audioTime).toBeCloseTo(2 + base * 0.5 + 2 * base);
+    // Even deltas from any origin are swing-neutral.
+    const bar = quantizeLaunch('bar', clock({ step: 4, audioTime: 2, swing: 1 }), 4, 2, 4);
+    expect(bar.audioTime).toBeCloseTo(2 + 12 * base);
+  });
 });
 
 describe('SessionLaunchEngine', () => {

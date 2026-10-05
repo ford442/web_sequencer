@@ -30,7 +30,9 @@ function corpusSuite(kind: 'generated' | 'external', enabled: boolean) {
 
             expect(outcome.result.data.songData).toBeDefined();
             expect(outcome.converted!.success).toBe(true);
-            expect(outcome.converted!.song.pattern.partA.steps).toHaveLength(32);
+            // 16-step ReBirth patterns import at their native length.
+            expect(outcome.converted!.song.stepCount).toBe(16);
+            expect(outcome.converted!.song.pattern.partA.steps).toHaveLength(16);
           });
 
           it(`matches golden summary for ${entry.file}`, async () => {

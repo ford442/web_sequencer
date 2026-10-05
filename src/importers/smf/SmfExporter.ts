@@ -3,7 +3,8 @@
  *
  * Writes one Standard MIDI File, format 1: a conductor track (tempo + time
  * signature) plus one note track per non-empty Hyphon track. Pattern-mode
- * export writes the current 32-step pattern as one loop (2 bars of 16ths);
+ * export writes the current pattern as one loop (`stepCount` 16ths, 32 by
+ * default) in the song's time signature;
  * song-mode export walks the full arrangement via `resolveSongTimeline` and
  * writes the concatenated result, so the file contains every measure in
  * `SongStructure` order, not just the currently-active pattern.
@@ -12,10 +13,12 @@
 import type { Pattern, PartSequence, Note } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
 import { resolveSongTimeline } from '../../utils/songTimeline';
-import { noteToMidi } from '../../utils/musicTheory';
+import { noteToMidi, ticksPerStep, DEFAULT_TIME_SIGNATURE, type TimeSignature } from '../../utils/musicTheory';
+import { resolveSongMeter, type TrackLengths } from '../../utils/songMeter';
 import { DEFAULT_PPQ } from './SmfParser';
 
-const TICKS_PER_STEP = DEFAULT_PPQ / 4; // 16th-note grid, matches the importer's convention
+// A step is always a 16th note, whatever the meter — matches the importer's convention.
+const TICKS_PER_STEP = ticksPerStep(DEFAULT_PPQ);
 
 const TRACK_CHANNEL: Record<Exclude<TrackKey, 'sampler'>, number> = {
   partA: 0,
@@ -45,6 +48,12 @@ export interface SmfExportInput {
   trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
   currentPattern: Pattern;
   tempo: number;
+  /** Written to the conductor track; absent = 4/4. */
+  timeSignature?: TimeSignature;
+  /** Song pattern length in 16th steps (each measure's length); absent = 32. */
+  stepCount?: number;
+  /** Per-track loop lengths, tiled into each measure like live playback. */
+  trackLengths?: TrackLengths;
 }
 
 export interface SmfExportOptions {
@@ -174,14 +183,16 @@ export class SmfExporter {
   exportToBytes(input: SmfExportInput, options: SmfExportOptions): SmfExportResult {
     const warnings: string[] = [];
     try {
+      const meter = { stepCount: input.stepCount, trackLengths: input.trackLengths };
       const timeline = options.useSongMode
         ? resolveSongTimeline(
             input.songStructure as ({ [key in TrackKey]: number | null })[],
             input.trackStorage,
             input.currentPattern,
             true,
+            meter,
           )
-        : resolveSongTimeline([], input.trackStorage, input.currentPattern, false);
+        : resolveSongTimeline([], input.trackStorage, input.currentPattern, false, meter);
 
       const noteTrackChunks: ByteWriter[] = [];
 
@@ -212,7 +223,8 @@ export class SmfExporter {
         warnings.push('Nothing to export — every track is empty.');
       }
 
-      const conductor = buildConductorTrack(input.tempo, 4, 4);
+      const [numerator, denominator] = input.timeSignature ?? DEFAULT_TIME_SIGNATURE;
+      const conductor = buildConductorTrack(input.tempo, numerator, denominator);
       const ntrks = 1 + noteTrackChunks.length;
 
       const header = new ByteWriter();
@@ -247,11 +259,18 @@ export function hyphonSongFromSavedDataForSmf(songData: {
   trackStorage: unknown;
   pattern: Pattern;
   tempo: number;
+  stepCount?: number;
+  timeSignature?: [number, number];
+  trackLengths?: unknown;
 }): SmfExportInput {
+  const meter = resolveSongMeter(songData);
   return {
     songStructure: songData.songStructure as Array<Record<TrackKey, number | null>>,
     trackStorage: songData.trackStorage as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
     currentPattern: songData.pattern,
     tempo: songData.tempo,
+    timeSignature: meter.timeSignature,
+    stepCount: meter.stepCount,
+    trackLengths: meter.trackLengths,
   };
 }

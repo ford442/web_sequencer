@@ -28,6 +28,17 @@ describe('sequencerGridKeyboard', () => {
         expect(getAdjacentSequencerCell('sampler', 31, 'right')).toEqual({ rowKey: 'sampler', step: 31 });
     });
 
+    it('clamps to a shorter pattern length', () => {
+        expect(getAdjacentSequencerCell('kick', 15, 'right', 16)).toEqual({ rowKey: 'kick', step: 15 });
+        expect(getAdjacentSequencerCell('kick', 11, 'right', 12)).toEqual({ rowKey: 'kick', step: 11 });
+        // Moving between rows keeps the cursor on the grid after the pattern shrank.
+        expect(getAdjacentSequencerCell('kick', 20, 'down', 16)).toEqual({ rowKey: 'snare', step: 15 });
+    });
+
+    it('extends to longer patterns', () => {
+        expect(getAdjacentSequencerCell('kick', 31, 'right', 64)).toEqual({ rowKey: 'kick', step: 32 });
+    });
+
     it('builds stable cell keys', () => {
         expect(sequencerCellKey('snare', 12)).toBe('snare:12');
     });

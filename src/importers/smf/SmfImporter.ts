@@ -2,14 +2,16 @@
  * SMF → Hyphon importer.
  *
  * Converts a `ParsedSmf` (raw ticks/channels, format-agnostic) into a
- * `HyphonSmfSong`: quantized 32-step patterns keyed by Hyphon `TrackKey`,
- * routed by channel, with an `ImportReport` describing anything that
- * couldn't be represented losslessly.
+ * `HyphonSmfSong`: quantized patterns keyed by Hyphon `TrackKey`, routed by
+ * channel, with an `ImportReport` describing anything that couldn't be
+ * represented losslessly.
  *
- * Grid convention (see issue): one Hyphon pattern is 32 steps = **2 bars**
- * of 4/4 16th notes, i.e. `ticksPerStep = ppq / 4` and
- * `ticksPerPattern = ticksPerStep * 32`. This is not simply "1 MIDI bar =
- * 1 pattern" — it only lines up that way when the file is 4/4.
+ * Grid convention: a step is always a 16th note (`ticksPerStep = ppq / 4`),
+ * and one Hyphon pattern is **2 bars** of the file's time signature —
+ * `patternSteps = 2 * stepsPerBar(meter)`: 4/4 → 32, 3/4 → 24, 7/8 → 28.
+ * When two bars would exceed the 64-step maximum, a pattern is one bar.
+ * Meters that can't sit on a 16th grid (denominator not 2/4/8/16) fall back
+ * to 32 steps and set `timeSignatureMismatch`.
  */
 
 import type {
@@ -27,7 +29,8 @@ import type { TrackKey } from '../../constants/appDefaults';
 import { EMPTY_PATTERN } from '../../constants/appDefaults';
 import { NUM_STEPS, TRACK_KEYS } from '../../constants';
 import { MAX_TRACK_PATTERN_SLOTS, createEmptyTrackStorage } from '../../utils/trackStorageUtils';
-import { midiToNote } from '../../utils/musicTheory';
+import { midiToNote, stepsPerBar, ticksPerStep as ticksPerStepFor } from '../../utils/musicTheory';
+import { MAX_STEPS } from '../../utils/songMeter';
 
 const DRUM_MIDI_CHANNEL = 9; // MIDI channel 10, 0-based
 const MELODIC_TRACK_KEYS: TrackKey[] = ['partA', 'partB', 'bass2'];
@@ -36,8 +39,18 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-function emptyPartSequence(): PartSequence {
-  return { steps: Array.from({ length: NUM_STEPS }, (): null => null) };
+function emptyPartSequence(patternSteps: number): PartSequence {
+  return { steps: Array.from({ length: patternSteps }, (): null => null) };
+}
+
+/**
+ * Pattern length for a file meter: two bars when they fit in `MAX_STEPS`,
+ * else one bar; `null` when the meter can't be represented on a 16th grid.
+ */
+export function smfPatternSteps(numerator: number, denominator: number): number | null {
+  const bar = stepsPerBar([numerator, denominator]);
+  if (bar === null || bar > MAX_STEPS || !Number.isInteger(bar)) return null;
+  return bar * 2 <= MAX_STEPS ? bar * 2 : bar;
 }
 
 interface QuantizedNote {
@@ -46,12 +59,12 @@ interface QuantizedNote {
   note: Note;
 }
 
-function quantizeNote(ev: SmfNoteEvent, ticksPerStep: number, quantize: boolean): QuantizedNote {
+function quantizeNote(ev: SmfNoteEvent, ticksPerStep: number, patternSteps: number, quantize: boolean): QuantizedNote {
   const rawStep = ev.startTick / ticksPerStep;
   const stepIndex = quantize ? Math.round(rawStep) : Math.floor(rawStep);
   const microtiming = quantize ? clampMicrotiming(rawStep - stepIndex) : 0;
-  const patternIndex = Math.floor(stepIndex / NUM_STEPS);
-  const stepInPattern = ((stepIndex % NUM_STEPS) + NUM_STEPS) % NUM_STEPS;
+  const patternIndex = Math.floor(stepIndex / patternSteps);
+  const stepInPattern = ((stepIndex % patternSteps) + patternSteps) % patternSteps;
 
   const stepLength = Math.max(1, Math.round((ev.endTick - ev.startTick) / ticksPerStep));
 
@@ -109,18 +122,27 @@ export function convertToHyphonSong(
   const warnings: string[] = [...parsed.warnings];
 
   const ppq = parsed.ppq;
-  const ticksPerStep = ppq / 4; // 16th-note grid
+  const ticksPerStep = ticksPerStepFor(ppq); // 16th-note grid, for every meter
   const bpm = parsed.tempoMap[0]?.bpm ?? 120;
 
   const timeSig = parsed.timeSignatures[0] ?? { tick: 0, numerator: 4, denominator: 4 };
-  const timeSignatureMismatch = timeSig.numerator !== 4 || timeSig.denominator !== 4;
-  if (timeSignatureMismatch) {
+  const meterSteps = smfPatternSteps(timeSig.numerator, timeSig.denominator);
+  const patternSteps = meterSteps ?? NUM_STEPS;
+  const distinctMeters = new Set(parsed.timeSignatures.map((ts) => `${ts.numerator}/${ts.denominator}`));
+  const hasMeterChanges = distinctMeters.size > 1;
+  const timeSignatureMismatch = meterSteps === null || hasMeterChanges;
+  if (meterSteps === null) {
     warnings.push(
-      `Time signature ${timeSig.numerator}/${timeSig.denominator} is not 4/4 — the 32-step grid assumes 4/4 16th notes, so timing will drift from the original bars.`,
+      `Time signature ${timeSig.numerator}/${timeSig.denominator} can't sit on Hyphon's 16th-note grid — imported as 32-step 4/4-style patterns, so bar lines will drift from the original.`,
+    );
+  }
+  if (hasMeterChanges) {
+    warnings.push(
+      `${distinctMeters.size} time signatures in this file (${Array.from(distinctMeters).join(', ')}) — Hyphon uses one meter per song, so only the first (${timeSig.numerator}/${timeSig.denominator}) is kept.`,
     );
   }
 
-  const tempoChangesAfterBar1 = parsed.tempoMap.filter((t) => t.tick > ticksPerStep * NUM_STEPS).length;
+  const tempoChangesAfterBar1 = parsed.tempoMap.filter((t) => t.tick > ticksPerStep * patternSteps).length;
   if (tempoChangesAfterBar1 > 0) {
     warnings.push(`${tempoChangesAfterBar1} tempo change(s) after the first pattern were ignored (Hyphon has a single song BPM, taken from the first Set Tempo event).`);
   }
@@ -142,14 +164,14 @@ export function convertToHyphonSong(
       if (!drumTrack) {
         // Unmapped GM drum note → sampler bank 0, sharing the drum-channel timeline.
         drumGmMisses += 1;
-        const q = quantizeNote(ev, ticksPerStep, options.quantize);
+        const q = quantizeNote(ev, ticksPerStep, patternSteps, options.quantize);
         if (q.patternIndex >= MAX_TRACK_PATTERN_SLOTS) {
           warnings.push(`Dropped a note past pattern slot ${MAX_TRACK_PATTERN_SLOTS} on the sampler bank (channel 10, GM note ${ev.note}).`);
           continue;
         }
         let seq = samplerPatterns.get(q.patternIndex);
         if (!seq) {
-          seq = emptyPartSequence();
+          seq = emptyPartSequence(patternSteps);
           samplerPatterns.set(q.patternIndex, seq);
           samplerPatternCount = Math.max(samplerPatternCount, q.patternIndex + 1);
         }
@@ -162,14 +184,14 @@ export function convertToHyphonSong(
         lane = { target: drumTrack, lane: 0, channel: ev.channel, patterns: new Map(), patternCount: 0 };
         lanes.set(key, lane);
       }
-      const q = quantizeNote(ev, ticksPerStep, options.quantize);
+      const q = quantizeNote(ev, ticksPerStep, patternSteps, options.quantize);
       if (q.patternIndex >= MAX_TRACK_PATTERN_SLOTS) {
         warnings.push(`Dropped a note past pattern slot ${MAX_TRACK_PATTERN_SLOTS} on ${drumTrack} (channel 10).`);
         continue;
       }
       let seq = lane.patterns.get(q.patternIndex);
       if (!seq) {
-        seq = emptyPartSequence();
+        seq = emptyPartSequence(patternSteps);
         lane.patterns.set(q.patternIndex, seq);
         lane.patternCount = Math.max(lane.patternCount, q.patternIndex + 1);
       }
@@ -184,7 +206,7 @@ export function convertToHyphonSong(
       lane = { target: route.target, lane: route.lane, channel: ev.channel, patterns: new Map(), patternCount: 0 };
       lanes.set(key, lane);
     }
-    const q = quantizeNote(ev, ticksPerStep, options.quantize);
+    const q = quantizeNote(ev, ticksPerStep, patternSteps, options.quantize);
     if (q.patternIndex >= MAX_TRACK_PATTERN_SLOTS) {
       warnings.push(`Dropped a note past pattern slot ${MAX_TRACK_PATTERN_SLOTS} on ${route.target} (channel ${ev.channel + 1}).`);
       notesUnmapped += 1;
@@ -192,7 +214,7 @@ export function convertToHyphonSong(
     }
     let seq = lane.patterns.get(q.patternIndex);
     if (!seq) {
-      seq = emptyPartSequence();
+      seq = emptyPartSequence(patternSteps);
       lane.patterns.set(q.patternIndex, seq);
       lane.patternCount = Math.max(lane.patternCount, q.patternIndex + 1);
     }
@@ -220,13 +242,13 @@ export function convertToHyphonSong(
 
   for (const lane of primaryLaneEntries) {
     for (let p = 0; p < primaryPatternCount; p++) {
-      trackStorage[lane.target][p] = lane.patterns.get(p) ?? emptyPartSequence();
+      trackStorage[lane.target][p] = lane.patterns.get(p) ?? emptyPartSequence(patternSteps);
     }
   }
   if (samplerPatternCount > 0) {
     for (let p = 0; p < primaryPatternCount; p++) {
-      const bank0 = samplerPatterns.get(p) ?? emptyPartSequence();
-      trackStorage.sampler[p] = [bank0, ...Array.from({ length: 7 }, () => emptyPartSequence())];
+      const bank0 = samplerPatterns.get(p) ?? emptyPartSequence(patternSteps);
+      trackStorage.sampler[p] = [bank0, ...Array.from({ length: 7 }, () => emptyPartSequence(patternSteps))];
     }
   }
 
@@ -256,7 +278,7 @@ export function convertToHyphonSong(
     warnings.push(`Channel ${lane.channel + 1} had no default track — routed to ${lane.target} as ${count} extra pattern slot(s) appended after the main song (measures ${slotBase}-${slotBase + count - 1}).`);
     for (let i = 0; i < count; i++) {
       const slot = primaryPatternCount + i;
-      trackStorage[lane.target][slot] = lane.patterns.get(i) ?? emptyPartSequence();
+      trackStorage[lane.target][slot] = lane.patterns.get(i) ?? emptyPartSequence(patternSteps);
       const measure = emptyMeasure();
       measure[lane.target] = slot;
       songStructure.push(measure);
@@ -270,13 +292,13 @@ export function convertToHyphonSong(
   // ---- Primary pattern (slot 0) for non-song-mode load. ----
   const pattern: Pattern = {
     ...EMPTY_PATTERN,
-    partA: trackStorage.partA[0] as PartSequence ?? emptyPartSequence(),
-    partB: trackStorage.partB[0] as PartSequence ?? emptyPartSequence(),
-    bass2: trackStorage.bass2[0] as PartSequence ?? emptyPartSequence(),
-    kick: trackStorage.kick[0] as PartSequence ?? emptyPartSequence(),
-    snare: trackStorage.snare[0] as PartSequence ?? emptyPartSequence(),
-    closedHat: trackStorage.closedHat[0] as PartSequence ?? emptyPartSequence(),
-    openHat: trackStorage.openHat[0] as PartSequence ?? emptyPartSequence(),
+    partA: trackStorage.partA[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    partB: trackStorage.partB[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    bass2: trackStorage.bass2[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    kick: trackStorage.kick[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    snare: trackStorage.snare[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    closedHat: trackStorage.closedHat[0] as PartSequence ?? emptyPartSequence(patternSteps),
+    openHat: trackStorage.openHat[0] as PartSequence ?? emptyPartSequence(patternSteps),
     sampler: (trackStorage.sampler[0] as PartSequence[] | null) ?? EMPTY_PATTERN.sampler,
   };
 
@@ -286,10 +308,10 @@ export function convertToHyphonSong(
   if (options.importCC74Automation) {
     for (const lane of primaryLaneEntries) {
       if (lane.target !== 'partA' && lane.target !== 'partB' && lane.target !== 'bass2') continue;
-      const cc74 = parsed.controlChanges.filter((cc) => cc.channel === lane.channel && cc.controller === 74 && cc.tick < ticksPerStep * NUM_STEPS);
+      const cc74 = parsed.controlChanges.filter((cc) => cc.channel === lane.channel && cc.controller === 74 && cc.tick < ticksPerStep * patternSteps);
       if (cc74.length === 0) continue;
       const points: [number, number][] = cc74.map((cc) => {
-        const step = Math.max(0, Math.min(NUM_STEPS - 1, cc.tick / ticksPerStep));
+        const step = Math.max(0, Math.min(patternSteps - 1, cc.tick / ticksPerStep));
         return [step, clamp01(cc.value / 127)];
       });
       const automationTarget = lane.target === 'partA' ? 'synthA' : lane.target === 'partB' ? 'synthB' : 'bass2';
@@ -318,7 +340,8 @@ export function convertToHyphonSong(
     version: 1,
     metadata: { name: 'Imported MIDI', importedFrom: 'smf', importedAt: new Date() },
     tempo: Math.round(bpm),
-    timeSignature: [timeSig.numerator, timeSig.denominator],
+    timeSignature: meterSteps === null ? [4, 4] : [timeSig.numerator, timeSig.denominator],
+    stepCount: patternSteps,
     pattern,
     ...(automation.length > 0 ? { automation } : {}),
     ...(songStructure.length > 1 || samplerPatternCount > 1

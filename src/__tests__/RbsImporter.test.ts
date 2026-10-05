@@ -94,8 +94,10 @@ describe('RbsImporter', () => {
     const result = importer.convertToHyphonSong(makeRawData());
 
     expect(result.success).toBe(true);
-    expect(result.song.pattern.partA.steps).toHaveLength(32);
-    expect(result.song.pattern.partB.steps).toHaveLength(32);
+    // Default import keeps ReBirth's native 16-step length.
+    expect(result.song.stepCount).toBe(16);
+    expect(result.song.pattern.partA.steps).toHaveLength(16);
+    expect(result.song.pattern.partB.steps).toHaveLength(16);
 
     const lanes = result.song.automation ?? [];
     // PCF lanes follow the tb303A/tb303B routing options (defaults: partA, bass2).

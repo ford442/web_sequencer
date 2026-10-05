@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useStepHandler } from '../useStepHandler';
 import type { Note, Pattern, PartSequence } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
+import { transportMixStore } from '../../stores/transportMixStore';
+import { resolveSongMeter } from '../../utils/songMeter';
 
 /**
  * Trigger dispatch for the sequencer's eight tracks.
@@ -122,5 +124,72 @@ describe('useStepHandler trigger dispatch', () => {
     expect(engine.playSynth).not.toHaveBeenCalled();
     expect(engine.playDrum).not.toHaveBeenCalled();
     expect(engine.playSampler).not.toHaveBeenCalled();
+  });
+});
+
+describe('useStepHandler pattern length and per-track loops', () => {
+  afterEach(() => transportMixStore.reset());
+
+  /** bass2 and closedHat armed on step 0 only; everything else empty. */
+  function bassAndHatPattern(): Pattern {
+    const armed = (): PartSequence => {
+      const seq = emptySeq();
+      seq.steps[0] = { note: 'C2', velocity: 1, length: 1 };
+      return seq;
+    };
+    return {
+      partA: emptySeq(), partB: emptySeq(), bass2: armed(), kick: emptySeq(),
+      snare: emptySeq(), closedHat: armed(), openHat: emptySeq(),
+      sampler: Array.from({ length: 8 }, () => emptySeq()),
+    } as unknown as Pattern;
+  }
+
+  /** Feed `count` clock ticks for a `stepCount`-step pattern; return abs steps that fired each track. */
+  function drive(onStep: (step: number, time: number, abs: number) => void, engine: ReturnType<typeof makeEngine>, stepCount: number, count: number) {
+    const hats: number[] = [];
+    const bass: number[] = [];
+    for (let abs = 0; abs < count; abs++) {
+      const synthBefore = engine.playSynth.mock.calls.length;
+      const drumBefore = engine.playDrum.mock.calls.length;
+      onStep(abs % stepCount, 1 + abs * 0.125, abs);
+      if (engine.playSynth.mock.calls.slice(synthBefore).some((c) => c[6] === 'bass2')) bass.push(abs);
+      if (engine.playDrum.mock.calls.slice(drumBefore).some((c) => c[0] === 'closedHat')) hats.push(abs);
+    }
+    return { hats, bass };
+  }
+
+  it('wraps a 16-step pattern on the clock step', () => {
+    transportMixStore.applyMeter(resolveSongMeter({ stepCount: 16 }));
+    const engine = makeEngine();
+    const { result } = renderHook(() => useStepHandler(makeOptions(engine, bassAndHatPattern())));
+    const { bass, hats } = drive(result.current.onStep, engine, 16, 48);
+    expect(bass).toEqual([0, 16, 32]);
+    expect(hats).toEqual([0, 16, 32]);
+  });
+
+  it('loops a 12-step hat against a 16-step bass without drift', () => {
+    transportMixStore.applyMeter(resolveSongMeter({ stepCount: 16, trackLengths: { closedHat: 12 } }));
+    const engine = makeEngine();
+    const { result } = renderHook(() => useStepHandler(makeOptions(engine, bassAndHatPattern())));
+    const { bass, hats } = drive(result.current.onStep, engine, 16, 48);
+    expect(bass).toEqual([0, 16, 32]);
+    expect(hats).toEqual([0, 12, 24, 36]);
+  });
+
+  it('re-anchors track loops at each Song Mode measure', () => {
+    transportMixStore.applyMeter(resolveSongMeter({ stepCount: 16, trackLengths: { closedHat: 12 } }));
+    const engine = makeEngine();
+    const pattern = bassAndHatPattern();
+    const options = makeOptions(engine, pattern) as unknown as Record<string, { current: unknown }>;
+    const storage = {} as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
+    for (const key of ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat'] as const) storage[key] = [pattern[key]];
+    storage.sampler = [pattern.sampler];
+    const slot0 = { partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0 };
+    options.isSongModeActiveRef.current = true;
+    options.songStructureRef.current = [slot0, slot0];
+    options.trackStorageRef.current = storage;
+    const { result } = renderHook(() => useStepHandler(options as unknown as Parameters<typeof useStepHandler>[0]));
+    const { hats } = drive(result.current.onStep, engine, 16, 32);
+    expect(hats).toEqual([0, 12, 16, 28]);
   });
 });

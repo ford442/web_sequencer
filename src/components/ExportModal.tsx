@@ -22,6 +22,7 @@ import {
     describeOfflineVocalSupport,
     formatOfflineVocalWarning,
 } from '../audio/offline/vocalOfflineSupport';
+import { transportMixStore } from '../stores/transportMixStore';
 
 export interface ExportModalProps {
     isOpen: boolean;
@@ -172,6 +173,8 @@ export const ExportModal = React.memo(function ExportModal({
                     engines,
                     sampleBuffers,
                     harmonizerActive,
+                    stepCount: transportMixStore.meterRef.current.stepCount,
+                    trackLengths: transportMixStore.meterRef.current.trackLengths,
                 },
                 options,
             );

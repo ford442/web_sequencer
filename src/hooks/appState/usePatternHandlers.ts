@@ -1,5 +1,7 @@
 import { useCallback } from 'react'
 import { NUM_STEPS } from '@/constants'
+import { transportMixStore } from '@/stores/transportMixStore'
+import { gridColumns } from '@/utils/songMeter'
 import { midiToNote, noteToMidi } from '@/utils/musicTheory'
 import type { Note, Pattern, PartSequence, PhonemeData } from '@/types'
 import type { TrackKey } from '@/constants/appDefaults'
@@ -249,15 +251,17 @@ export function usePatternHandlers(deps: {
 
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
+            const n = Math.max(NUM_STEPS, gridColumns(transportMixStore.meterRef.current));
+            const emptySteps = () => Array<Note | null>(n).fill(null);
             const emptyPattern: Pattern = {
-                partA: { steps: Array<Note | null>(32).fill(null) },
-                partB: { steps: Array<Note | null>(32).fill(null) },
-                bass2: { steps: Array<Note | null>(32).fill(null) },
-                kick: { steps: Array<Note | null>(32).fill(null) },
-                snare: { steps: Array<Note | null>(32).fill(null) },
-                closedHat: { steps: Array<Note | null>(32).fill(null) },
-                openHat: { steps: Array<Note | null>(32).fill(null) },
-                sampler: Array.from({ length: 8 }, () => ({ steps: Array<Note | null>(32).fill(null) })),
+                partA: { steps: emptySteps() },
+                partB: { steps: emptySteps() },
+                bass2: { steps: emptySteps() },
+                kick: { steps: emptySteps() },
+                snare: { steps: emptySteps() },
+                closedHat: { steps: emptySteps() },
+                openHat: { steps: emptySteps() },
+                sampler: Array.from({ length: 8 }, () => ({ steps: emptySteps() })),
             };
             setPattern(emptyPattern);
             setTrackStorage(prevStorage => {

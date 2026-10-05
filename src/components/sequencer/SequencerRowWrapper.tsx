@@ -29,6 +29,10 @@ interface SequencerRowWrapperProps {
     focusedCell?: SequencerCellCoord | null;
     onStepRef?: (rowKey: TrackKey, step: number, el: SVGGElement | null) => void;
     onStepGridKeyDown?: (rowKey: TrackKey, step: number, e: React.KeyboardEvent) => void;
+    columns?: number;
+    loopLength?: number;
+    stepsPerBeat?: number;
+    stepsPerBar?: number;
 }
 
 export const SequencerRowWrapper = memo(({
@@ -37,6 +41,7 @@ export const SequencerRowWrapper = memo(({
     onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
     viewMode, automationParam, onAutomationChange, alignment, activeSamplerBank,
     focusedCell, onStepRef, onStepGridKeyDown,
+    columns, loopLength, stepsPerBeat, stepsPerBar,
 }: SequencerRowWrapperProps) => {
     // We isolate the ref callback here so it doesn't cause constant re-renders during parent renders
     const setRef = useCallback((el: SequencerRowHandle | null) => {
@@ -70,6 +75,10 @@ export const SequencerRowWrapper = memo(({
             focusedCell={focusedCell}
             onStepRef={onStepRef}
             onStepGridKeyDown={onStepGridKeyDown}
+            columns={columns}
+            loopLength={loopLength}
+            stepsPerBeat={stepsPerBeat}
+            stepsPerBar={stepsPerBar}
         />
     );
 }, (prev: SequencerRowWrapperProps, next: SequencerRowWrapperProps) => {
@@ -101,6 +110,10 @@ export const SequencerRowWrapper = memo(({
         prev.focusedCell?.rowKey === next.focusedCell?.rowKey &&
         prev.focusedCell?.step === next.focusedCell?.step &&
         prev.onStepRef === next.onStepRef &&
-        prev.onStepGridKeyDown === next.onStepGridKeyDown
+        prev.onStepGridKeyDown === next.onStepGridKeyDown &&
+        prev.columns === next.columns &&
+        prev.loopLength === next.loopLength &&
+        prev.stepsPerBeat === next.stepsPerBeat &&
+        prev.stepsPerBar === next.stepsPerBar
     );
 });
