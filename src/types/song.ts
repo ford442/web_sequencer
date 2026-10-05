@@ -1,4 +1,4 @@
-import type { Pattern } from './pattern';
+import type { Pattern, TrackKey } from './pattern';
 import type { SynthParams, Bass2Params } from './synth';
 import type { KickParams, SnareParams, HatParams } from './drums';
 import type { SamplerParams } from './sampler';
@@ -15,7 +15,11 @@ export interface SongStructure {
 }
 
 export interface SavedSongData {
-  /** Schema version: 1 = 8 pattern slots, 2 = 32 slots, 3 = 32 slots + session. */
+  /**
+   * Schema version: 1 = 8 pattern slots, 2 = 32 slots, 3 = 32 slots + session,
+   * 4 = song meter (`stepCount`, `timeSignature`, `trackLengths`, `swing` are
+   * written and honoured). v1–v3 load as 32 steps, 4/4, straight.
+   */
   version?: number;
   pattern: Pattern;
   params: {
@@ -39,13 +43,19 @@ export interface SavedSongData {
    */
   timeSignature?: [number, number];
   /**
-   * Shuffle amount, 0–100 where 50 = straight (the unit shared by the `.rbs`
-   * header and the AI song format). Optional: absent means straight.
-   *
-   * Storage only for now — the transport's swing input is not yet wired to
-   * song state, so loading a song does not change playback feel.
+   * Shuffle amount, 0–100 where 50 = straight (MPC-style percent of the step
+   * pair given to the on-beat; 66.7 = triplet, 75 = hardest the clock plays).
+   * Shared unit with the AI song format; `.rbs` shuffle is converted on import.
+   * Optional: absent means straight. Drives the transport clock on load.
    */
   swing?: number;
+  /**
+   * Master pattern length in 16th-note steps (1–64). Song-wide: every pattern
+   * and Song Mode measure has this length. Absent = 32.
+   */
+  stepCount?: number;
+  /** Per-track loop lengths (polyrhythm). Absent key = follow `stepCount`. */
+  trackLengths?: Partial<Record<TrackKey, number>>;
   ambianceUrl?: string;
   backgroundImage?: string;
   embeddedSamples?: { [bankIndex: number]: string };

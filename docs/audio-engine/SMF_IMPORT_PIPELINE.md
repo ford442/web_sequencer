@@ -13,7 +13,7 @@ DAW" path.
 src/importers/smf/
   types.ts        Parsed/imported data shapes, channel-map defaults, GM drum map
   SmfParser.ts     .mid bytes -> ParsedSmf (MThd/MTrk, running status, tempo/timesig, sustain)
-  SmfImporter.ts   ParsedSmf -> HyphonSmfSong (quantized 32-step patterns, ImportReport)
+  SmfImporter.ts   ParsedSmf -> HyphonSmfSong (quantized 2-bar patterns in the file's meter, ImportReport)
   SmfExporter.ts   Hyphon pattern/song data -> .mid bytes (format 1)
   index.ts         Barrel
 
@@ -40,22 +40,33 @@ the entry chunk:
 
 ## Grid convention (read this before touching quantization)
 
-One Hyphon pattern is **32 steps = 2 bars** of 4/4 16th notes:
+A Hyphon step is always a **16th note**, whatever the meter. One Hyphon
+pattern is **2 bars** of the file's first time signature
+(`smfPatternSteps` in `SmfImporter.ts`, built on `stepsPerBar` in
+`src/utils/musicTheory.ts`):
 
 ```
-ticksPerStep    = ppq / 4        // 16th-note grid
-ticksPerPattern = ticksPerStep * 32
+ticksPerStep    = ppq / 4                       // 16th-note grid, every meter
+stepsPerBar     = numerator * 16 / denominator  // 4/4 → 16, 3/4 → 12, 7/8 → 14
+patternSteps    = 2 * stepsPerBar               // 4/4 → 32, 3/4 → 24, 7/8 → 28
+ticksPerPattern = ticksPerStep * patternSteps
 ```
 
-This is *not* simply "1 MIDI bar = 1 Hyphon pattern" — it only lines up
-that way when the file's time signature is 4/4. A non-4/4 file still
-imports (quantized onto the same 16th-note grid), but `ImportReport.timeSignatureMismatch`
-is set and a warning is added, since the bars will drift from the source
-file's actual bar lines.
+When two bars would exceed the 64-step maximum, a pattern is one bar. The
+song gets `stepCount = patternSteps` and `timeSignature = [num, den]`, so
+the pattern grid lines up with the source file's bar lines.
+
+`ImportReport.timeSignatureMismatch` is set (with a warning) only when the
+meter can't be represented:
+
+- the denominator isn't 2/4/8/16 (e.g. 5/32) — patterns fall back to 32
+  steps and the song is treated as 4/4, so bars will drift; or
+- the file changes time signature mid-song — Hyphon has one meter per song,
+  so only the first is kept (time-signature *changes* are out of scope).
 
 The importer and exporter always use this same formula, so an SMF file
-Hyphon exported and re-imports round-trips ticks exactly (see
-`src/__tests__/SmfExporter.test.ts`).
+Hyphon exported and re-imports round-trips ticks and meter exactly (see
+`src/__tests__/SmfExporter.test.ts`, including a 3/4 round trip).
 
 ## Channel routing (import)
 
@@ -100,8 +111,11 @@ GM-program → waveform mapping.
 
 `SmfExporter` writes one SMF format-1 file: a conductor track (tempo +
 time signature) plus one note track per non-empty Hyphon track (channels
-mirror the import defaults; sampler banks get their own channels). Pattern
-mode exports the current 32-step pattern as one loop; song mode
+mirror the import defaults; sampler banks get their own channels). The
+conductor track carries the song's `timeSignature` (4/4 when absent), and
+every measure is the song's `stepCount` long, with per-track loop lengths
+(`trackLengths`) tiled into each measure as they play live. Pattern
+mode exports the current pattern as one loop; song mode
 (`useSongMode: true`) walks the full arrangement via
 `src/utils/songTimeline.ts#resolveSongTimeline` — the same helper stem
 export uses — so the file contains every measure in `SongStructure` order,

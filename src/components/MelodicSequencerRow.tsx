@@ -3,6 +3,9 @@ import { MelodicStep } from './MelodicStep';
 import { GridIndicators } from './GridIndicators';
 import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { TrackMuteSoloButtons } from './sequencer/TrackMuteSoloButtons';
+import { TrackLoopLengthChip } from './sequencer/TrackLoopLengthChip';
+import type { HighlightTrackStep } from './sequencer/SequencerRow';
+import { NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
 import type { Note, PartSequence, TrackKey } from '../types';
 
@@ -14,7 +17,7 @@ import type { Note, PartSequence, TrackKey } from '../types';
  */
 
 export interface MelodicSequencerRowHandle {
-  setHighlight: (step: number) => void;
+  setHighlight: (step: number, trackStep?: HighlightTrackStep) => void;
 }
 
 interface MelodicSequencerRowProps {
@@ -31,6 +34,12 @@ interface MelodicSequencerRowProps {
   onEditLength: (k: TrackKey, i: number, len: number) => void;
   onSelectRow: (k: TrackKey) => void;
   onSelectSlot: (k: TrackKey, slot: number) => void;
+  /** Columns to draw: the longest of the pattern and every track loop. */
+  columns?: number;
+  /** The sampler's own loop length; steps at or past it render as out of loop. */
+  loopLength?: number;
+  stepsPerBeat?: number;
+  stepsPerBar?: number;
 }
 
 export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, MelodicSequencerRowProps>(
@@ -47,7 +56,11 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
       onPitchChange,
       onEditLength,
       onSelectRow,
-      onSelectSlot
+      onSelectSlot,
+      columns = NUM_STEPS,
+      loopLength = columns,
+      stepsPerBeat = 4,
+      stepsPerBar = 16,
     } = props;
 
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
@@ -100,7 +113,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
     }, []);
 
     useImperativeHandle(ref, () => ({
-      setHighlight: (step: number) => {
+      setHighlight: (masterStep: number, trackStep?: HighlightTrackStep) => {
+        const step = masterStep === -1 || !trackStep ? masterStep : trackStep(rowKey);
         if (step === -1) {
           if (lastActiveIndexRef.current !== -1) {
             stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
@@ -129,7 +143,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         const stepsArray = [];
         let skipCount = 0;
 
-        for (let i = 0; i < 32; i++) {
+        for (let i = 0; i < columns; i++) {
           if (skipCount > 0) {
             skipCount--;
             continue;
@@ -170,6 +184,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
               onPitchChange={onPitchChange}
               onEditLength={onEditLength}
               reverse={stepData?.reverse}
+              beatSize={stepsPerBeat}
+              outOfLoop={i >= loopLength}
             />
           );
 
@@ -178,7 +194,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           }
         }
         return stepsArray;
-    }, [steps, label, rowKey, onToggle, onPitchChange, onEditLength]);
+    }, [steps, label, rowKey, onToggle, onPitchChange, onEditLength, columns, loopLength, stepsPerBeat]);
 
       const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
       const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -232,6 +248,9 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         <g transform="translate(0, 16)">
           <TrackMuteSoloButtons trackKey={rowKey} label={label} />
         </g>
+        <g transform="translate(0, 33)">
+          <TrackLoopLengthChip trackKey={rowKey} label={label} />
+        </g>
 
         {/* Pattern slots */}
         <g transform="translate(30, 16)">
@@ -240,7 +259,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
 
         {/* Grid indicators and Steps wrapped in zoom scale */}
         <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
-            <GridIndicators />
+            <GridIndicators columns={columns} stepsPerBeat={stepsPerBeat} stepsPerBar={stepsPerBar} />
             {renderedSteps}
         </g>
       </g>
@@ -256,7 +275,11 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         // ⚡ Bolt: Relying on reference equality since useAppState performs immutable updates via shallow cloning.
         // This avoids deep arraysEqual checks on 256 items per row per render.
         prev.steps === next.steps &&
-        prev.trackSlots === next.trackSlots
+        prev.trackSlots === next.trackSlots &&
+        prev.columns === next.columns &&
+        prev.loopLength === next.loopLength &&
+        prev.stepsPerBeat === next.stepsPerBeat &&
+        prev.stepsPerBar === next.stepsPerBar
     );
 });
 

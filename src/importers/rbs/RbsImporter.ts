@@ -6,7 +6,7 @@ import { DEFAULT_RBS_IMPORT_OPTIONS } from './types';
 import { inferDevicesPresent } from './deviceInference';
 import type { RbsImportResult } from './importer-types';
 import type { ImporterContext } from './importer/importerContext';
-import { convertPattern } from './importer/patternConversion';
+import { convertPattern, rbsImportStepCount } from './importer/patternConversion';
 import { convertSynthParams } from './importer/synthParams';
 import {
   convertPcfToAutomation,
@@ -100,7 +100,9 @@ export class RbsImporter {
       },
       tempo: raw.project.tempo,
       timeSignature: [raw.project.timeSignatureNum, raw.project.timeSignatureDen],
-      swing: raw.project.swing,
+      // `project.swing` is already song percent (IFF shuffle converted at parse).
+      swing: this.options.importSwing ? raw.project.swing : 50,
+      stepCount: rbsImportStepCount(ctx, raw),
       pattern,
       params,
       automation: automation.length > 0 ? automation : undefined,

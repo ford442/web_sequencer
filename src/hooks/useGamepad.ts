@@ -17,6 +17,8 @@ const MAPPINGS = {
       3: 'ShiftLeft',   // Action 4
       4: 'KeyZ',        // Action 5
       5: 'KeyX',        // Action 6
+      6: 'Shift+BracketLeft',  // LT: shorter pattern
+      7: 'Shift+BracketRight', // RT: longer pattern
       8: 'Digit5',      // Coin
       9: 'Digit1',      // Start
     } as Record<number, string>
@@ -57,9 +59,13 @@ export function useGamepad() {
 
       keyState.current[code] = type === 'keydown';
 
+      // `Shift+Code` mappings dispatch the code with the Shift modifier held.
+      const shiftKey = code.startsWith('Shift+');
+      const keyCode = shiftKey ? code.slice('Shift+'.length) : code;
       const event = new KeyboardEvent(type, {
-        code: code,
-        key: code, // Simplification
+        code: keyCode,
+        key: keyCode, // Simplification
+        shiftKey,
         bubbles: true,
         cancelable: true,
       });

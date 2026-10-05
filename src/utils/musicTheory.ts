@@ -168,3 +168,42 @@ export const getTunedFrequency = (note: string, tuningSystem: string, root: stri
     const definition: ScaleDefinition = { root, scale: 'Chromatic', tuning: tuningSystem };
     return tunedNoteToFrequency(note, definition);
 };
+// ==================== METER ====================
+//
+// A Hyphon step is always a 16th note. The time-signature denominator decides
+// how many 16ths make a bar, never how long a step is — so tick math
+// (`ticksPerStep`) does not take the denominator.
+
+export type TimeSignature = [number, number];
+
+export const DEFAULT_TIME_SIGNATURE: TimeSignature = [4, 4];
+
+const REPRESENTABLE_DENOMINATORS = new Set([2, 4, 8, 16]);
+
+/** 16th-note steps in one bar, or `null` when the meter cannot sit on a 16th grid. */
+export const stepsPerBar = (ts: TimeSignature): number | null => {
+    const [num, den] = ts;
+    if (!Number.isInteger(num) || num < 1 || num > 32) return null;
+    if (!REPRESENTABLE_DENOMINATORS.has(den)) return null;
+    return (num * 16) / den;
+};
+
+/** 16th-note steps per felt beat: 16/den, or a dotted quarter (6) for compound x/8. */
+export const stepsPerBeat = (ts: TimeSignature): number => {
+    const [num, den] = ts;
+    if (den === 8 && num > 3 && num % 3 === 0) return 6;
+    return REPRESENTABLE_DENOMINATORS.has(den) ? 16 / den : 4;
+};
+
+/** MIDI/SMF ticks per 16th-note step for a given pulses-per-quarter resolution. */
+export const ticksPerStep = (ppq: number): number => ppq / 4;
+
+/**
+ * Song swing (MPC-style percent of the step pair given to the on-beat:
+ * 50 = straight, 66.7 = triplet, 75 = hardest) → clock-processor swing (0–1,
+ * where 1 is a 75/25 split). Values below 50 clamp to straight.
+ */
+export const swingPercentToClock = (percent: number): number => {
+    if (!Number.isFinite(percent)) return 0;
+    return Math.max(0, Math.min(1, (percent - 50) / 25));
+};

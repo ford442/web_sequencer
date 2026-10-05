@@ -41,10 +41,19 @@ export function hyphonWaveformToRbs(waveform: string): 0 | 1 {
   return waveform === '303-sqr' || waveform === 'square' ? 1 : 0;
 }
 
-/** Collapse 32 Hyphon steps to 16 ReBirth steps (first sub-step of each 16th). */
+/**
+ * Fit Hyphon steps to ReBirth's 16. Callers trim `steps` to the song's
+ * `stepCount` first (see `RbsExporter`), so a 16-step (or shorter) pattern
+ * passes through unchanged and is padded to 16; only a 32-step pattern is
+ * collapsed (first sub-step of each 16th). Any other length can't be
+ * represented and keeps its first 16 steps.
+ */
 export function collapseHyphonStepsTo16(steps: (Note | null)[]): (Note | null)[] {
   if (steps.length <= 16) {
     return steps.slice(0, 16).concat(Array(Math.max(0, 16 - steps.length)).fill(null));
+  }
+  if (steps.length !== 32) {
+    return steps.slice(0, 16);
   }
   const out: (Note | null)[] = [];
   for (let i = 0; i < 16; i++) {

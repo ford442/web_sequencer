@@ -55,6 +55,38 @@ describe('SlaveClockAdapter', () => {
     slave.dispose();
   });
 
+  it('keeps 6 ticks per step on a 16-step pattern and wraps without runaway', () => {
+    const ctx = { currentTime: 1 } as AudioContext;
+    const steps: Array<{ step: number; abs: number }> = [];
+    const slave = new SlaveClockAdapter(ctx, 120, 0, 16, 'in1');
+    slave.onStep((step, _audioTime, abs) => steps.push({ step, abs }));
+    slave.setArmed(true);
+    emitRealtime([0xfa], 1000);
+
+    const period = (60_000 / 120) / 24;
+    let t = 1000;
+    // 40 steps' worth of clock: one emitted step per 6 ticks, wrapping at 16.
+    for (let i = 0; i < MIDI_TICKS_PER_STEP * 40; i++) {
+      t += period;
+      emitRealtime([0xf8], t);
+    }
+    expect(steps.length).toBe(40);
+    steps.forEach(({ step, abs }, i) => {
+      expect(abs).toBe(i);
+      expect(step).toBe(i % 16);
+    });
+
+    // Shrinking mid-run re-wraps instead of running past the new end.
+    slave.setSteps(8);
+    const before = steps.length;
+    for (let i = 0; i < MIDI_TICKS_PER_STEP * 10; i++) {
+      t += period;
+      emitRealtime([0xf8], t);
+    }
+    for (const { step } of steps.slice(before)) expect(step).toBeLessThan(8);
+    slave.dispose();
+  });
+
   it('maps song position pointer forward only', () => {
     const ctx = { currentTime: 1 } as AudioContext;
     const slave = new SlaveClockAdapter(ctx, 120, 0, 32, 'in1');

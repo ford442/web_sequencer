@@ -598,7 +598,15 @@ interface Pattern {
 }
 
 interface PartSequence {
-  steps: (Note | null)[];
+  steps: (Note | null)[];   // length is NOT assumed to be 32 — reads past the end are rests
+}
+
+// Song-wide meter (SavedSongData v4, lives in transportMixStore) — see docs/audio-engine/pattern-length-meter.md
+interface SongMeter {
+  stepCount: number;                              // 1–64 16th steps, default NUM_STEPS (32)
+  timeSignature: [number, number];                // bar = num * 16 / den steps
+  trackLengths: Partial<Record<TrackKey, number>>; // per-track loop (polyrhythm)
+  swing: number;                                  // MPC percent, 50 = straight
 }
 
 interface Note {

@@ -10,8 +10,9 @@ import {
     hasTruncation,
     velocityToXmVolume,
     resolveTrackSlot,
+    buildXmSongPatterns,
 } from '../utils/xmPatternFill';
-import type { Note, PartSequence } from '../types';
+import type { Note, PartSequence, TrackKey } from '../types';
 
 const emptySteps = (n: number): (Note | null)[] => Array(n).fill(null) as (Note | null)[];
 
@@ -285,5 +286,49 @@ describe('bass2 XM channel (gap 14)', () => {
             }
         }
         expect(found).toBe(true);
+    });
+});
+
+describe('XM export pattern length (song meter)', () => {
+    const emptyMeasure = { partA: null, partB: null, bass2: null, kick: null, snare: null, closedHat: null, openHat: null, sampler: null };
+    const storage = () => ({
+        partA: [], partB: [], bass2: [], kick: [], snare: [], closedHat: [], openHat: [], sampler: [],
+    }) as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
+
+    it('writes 16-row patterns for a 16-step song', () => {
+        const trackStorage = storage();
+        trackStorage.kick[0] = seq(Array.from({ length: 32 }, (_, i) => (i % 4 === 0 ? { note: 'C2', velocity: 1 } : null)));
+        const { patterns, patternOrderTable, truncation } = buildXmSongPatterns({
+            songStructure: [{ ...emptyMeasure, kick: 0 }, { ...emptyMeasure, kick: 0 }],
+            trackStorage,
+            stepCount: 16,
+        });
+        expect(patterns).toHaveLength(2);
+        expect(patterns.every((p) => p.data.length === 16)).toBe(true);
+        expect(patternOrderTable).toEqual([0, 1]);
+        // Steps past the 16-step loop are not played live, so they are not reported as lost.
+        expect(hasTruncation(truncation)).toBe(false);
+        const kickChan = XM_TRACK_MAP.kick.chan;
+        const rows = patterns[0].data.map((row, i) => (row[kickChan].note ? i : -1)).filter((i) => i >= 0);
+        expect(rows).toEqual([0, 4, 8, 12]);
+    });
+
+    it('defaults to 32-row patterns', () => {
+        const { patterns } = buildXmSongPatterns({ songStructure: [], trackStorage: storage(), currentPattern: undefined });
+        expect(patterns[0].data).toHaveLength(XM_PATTERN_ROWS);
+    });
+
+    it('tiles a per-track loop into each pattern', () => {
+        const trackStorage = storage();
+        trackStorage.closedHat[0] = seq(Array.from({ length: 16 }, (_, i) => (i === 0 ? { note: 'C4', velocity: 1 } : null)));
+        const { patterns } = buildXmSongPatterns({
+            songStructure: [{ ...emptyMeasure, closedHat: 0 }],
+            trackStorage,
+            stepCount: 16,
+            trackLengths: { closedHat: 6 },
+        });
+        const chan = XM_TRACK_MAP.closedHat.chan;
+        const rows = patterns[0].data.map((row, i) => (row[chan].note ? i : -1)).filter((i) => i >= 0);
+        expect(rows).toEqual([0, 6, 12]);
     });
 });

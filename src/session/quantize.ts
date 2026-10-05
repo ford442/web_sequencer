@@ -34,6 +34,22 @@ export function secondsPerStep(tempo: number): number {
 }
 
 /**
+ * Seconds covered by `n` steps starting at a step of `startParity`, matching
+ * the clock's swing model: an even step lasts T·(1+s/2), an odd one T·(1−s/2),
+ * so every pair is exactly 2T.
+ */
+export function swungStepsSeconds(tempo: number, swing: number, startParity: number, n: number): number {
+  const base = secondsPerStep(tempo);
+  const pairs = Math.floor(n / 2);
+  let seconds = pairs * 2 * base;
+  if (n % 2 === 1) {
+    const shift = swing * base * 0.5;
+    seconds += startParity % 2 === 0 ? base + shift : base - shift;
+  }
+  return seconds;
+}
+
+/**
  * Map a launch request onto the next quantization boundary of the audio timeline.
  *
  * Uses only the last known worklet step timestamp — never `performance.now()` or
@@ -51,8 +67,10 @@ export function quantizeLaunch(
   timelineOriginStep = 0,
 ): QuantizeResult {
   const stepDur = secondsPerStep(clock.tempo);
+  const swing = clock.swing ?? 0;
   const pattern = Math.max(1, clock.patternSteps);
   const originStep = ((clock.step % pattern) + pattern) % pattern;
+  const offsetSeconds = (n: number) => swungStepsSeconds(clock.tempo, swing, originStep, n);
   const originTime = clock.audioTime;
   const originTimeline = timelineOriginStep;
 
@@ -69,7 +87,7 @@ export function quantizeLaunch(
     const deltaSteps = 1;
     return {
       step: (originStep + 1) % pattern,
-      audioTime: originTime + stepDur,
+      audioTime: originTime + offsetSeconds(1),
       deltaSteps,
       timelineStep: originTimeline + deltaSteps,
     };
@@ -93,7 +111,7 @@ export function quantizeLaunch(
 
   return {
     step: (originStep + deltaSteps) % pattern,
-    audioTime: originTime + deltaSteps * stepDur,
+    audioTime: originTime + offsetSeconds(deltaSteps),
     deltaSteps,
     timelineStep: originTimeline + deltaSteps,
   };

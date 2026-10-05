@@ -150,6 +150,11 @@ export interface SmfImportReport {
   tracksInFile: number;
   channelsUsed: number[];
   tempoChangesAfterBar1: number;
+  /**
+   * True only when the file's meter can't be represented: its denominator
+   * isn't 2/4/8/16 (patterns fall back to 32 steps), or it changes meter
+   * mid-file (only the first is kept).
+   */
   timeSignatureMismatch: boolean;
   drumGmMisses: number;
   automationLanesConverted: number;
@@ -174,12 +179,15 @@ export interface HyphonSmfSong {
     importedAt: Date;
   };
   tempo: number;
+  /** Song meter as Hyphon plays it ([4, 4] when the file's meter can't be represented). */
   timeSignature: [number, number];
-  /** Primary pattern (first 32-step slot) — always populated so a non-song-mode load works. */
+  /** Pattern length in 16th steps: two bars of `timeSignature` (32 for 4/4, 24 for 3/4). */
+  stepCount: number;
+  /** Primary pattern (first slot) — always populated so a non-song-mode load works. */
   pattern: Pattern;
   /** Automation lanes converted from CC74 (filter cutoff), in HyphonAutomationLane-compatible shape. */
   automation?: SmfAutomationLane[];
-  /** Multi-pattern arrangement, populated whenever the file's notes span more than one 32-step pattern. */
+  /** Multi-pattern arrangement, populated whenever the file's notes span more than one pattern. */
   songArrangement?: {
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
     songStructure: Array<Record<TrackKey, number | null>>;

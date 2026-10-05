@@ -11,12 +11,14 @@ import type {
 } from '../types';
 import type { MainSequencerHandle } from '../components/MainSequencer';
 import type { TrackKey } from '../constants/appDefaults';
-import { noteToMidi, midiToNote, tunedNoteToFrequency } from '../utils/musicTheory';
+import { noteToMidi, midiToNote, tunedNoteToFrequency, swingPercentToClock } from '../utils/musicTheory';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import { TRACK_KEYS } from '../constants';
 import type { SynthNoteParams } from './audioEngine/audioPlayback';
 import { automationStore } from '../stores/automationStore';
+import { transportMixStore } from '../stores/transportMixStore';
+import { trackStepFor, transportGrid } from '../utils/songMeter';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
 import type { AutomationTarget, UnifiedAutomationLane } from '../types';
 
@@ -207,11 +209,23 @@ export const useStepHandler = ({
         snare: true, closedHat: true, openHat: true, sampler: true,
     });
 
-    const onStep = useCallback((step: number, audioTime?: number) => {
+    const onStep = useCallback((step: number, audioTime?: number, absStepArg?: number) => {
+        // Steps since PLAY (never wraps); per-track loops run off this. Callers
+        // without a clock (tests, legacy) get the wrapped step.
+        const absStep = absStepArg ?? step;
+        const meter = transportMixStore.meterRef.current;
         currentStepRef.current = step;
         automationStore.setPlaybackStep(step);
         if (isE2eMode()) setE2eTransportStep(step);
-        if (sequencerRef.current) sequencerRef.current.setHighlight(step);
+        if (sequencerRef.current) {
+            // Rows with their own loop length light their own step.
+            if (Object.keys(meter.trackLengths).length > 0) {
+                const loopsAnchored = isSongModeActiveRef.current && !sessionEngineRef?.current?.hasPlaying();
+                sequencerRef.current.setHighlight(step, (key: TrackKey) => trackStepFor(meter, key, step, absStep, loopsAnchored));
+            } else {
+                sequencerRef.current.setHighlight(step);
+            }
+        }
         if (!audioEngine) return;
 
         // Use the sample-accurate audioTime from the AudioWorklet clock when available.
@@ -253,9 +267,8 @@ export const useStepHandler = ({
                 step,
                 audioTime: time,
                 tempo,
-                patternSteps: 32,
-                stepsPerBeat: 4,
-                stepsPerBar: 16,
+                ...transportGrid(meter),
+                swing: swingPercentToClock(meter.swing),
                 isPlaying: true,
                 songModeActive: isSongModeActiveRef.current,
             });
@@ -280,6 +293,10 @@ export const useStepHandler = ({
             }
         }
 
+        // Song Mode re-anchors per-track loops at each measure; pattern and
+        // session playback let them run free from PLAY.
+        let songModeLoops = false;
+
         // Session clip playback overlays the live pattern (stopped tracks are silent).
         if (sessionEngine?.hasPlaying()) {
             const slots = sessionEngine.playingSlots();
@@ -300,6 +317,8 @@ export const useStepHandler = ({
                 sampler: getSessionSeq('sampler'),
             } as Pattern;
         } else if (isSongModeActiveRef.current) {
+            songModeLoops = true;
+            // One measure = one master loop (`meter.stepCount`); the clock wraps there.
             if (step === 0) {
                 if (isFirstStepRef.current) {
                     isFirstStepRef.current = false;
@@ -311,6 +330,8 @@ export const useStepHandler = ({
                 }
 
                 // Schedule sub-step trakEvents for the current bar (RBS imported songs).
+                // One song measure is one RBS bar (TICKS_PER_BAR) whether the
+                // import kept 16 steps or expanded to 32.
                 if (trakEventsRef?.current?.length && automationSchedulerRef?.current) {
                     const mIdx = songMeasureRef.current;
                     if (lastTrakBarRef.current !== mIdx) {
@@ -392,11 +413,14 @@ export const useStepHandler = ({
 
         const p = activePattern;
         const stepTime = 60 / tempo / 4;
+        // Step each track reads: its own loop when it has a length override.
+        const trackStep = (key: TrackKey): number => trackStepFor(meter, key, step, absStep, songModeLoops);
         const currentScale = currentScaleRef.current;
 
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
             if (!trackMuteSoloStore.isAudible(trackKey)) return;
-            const stepData = p[trackKey].steps[step];
+            const tStep = trackStep(trackKey);
+            const stepData = p[trackKey].steps[tStep];
             if (!stepData) return;
 
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
@@ -410,7 +434,7 @@ export const useStepHandler = ({
                 }
                 rawNotes = _chordScratch;
             }
-            const invVal = activePattern[trackKey].automation?.['chordInversion']?.[step] ?? 0;
+            const invVal = activePattern[trackKey].automation?.['chordInversion']?.[tStep] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
             const slideFrom = stepData.slide && lastFreqRef.current[trackKey] > 0
@@ -436,11 +460,11 @@ export const useStepHandler = ({
             if (stepData.drive !== undefined) noteParams.drive = stepData.drive;
             // Apply per-lane automation overrides for prophecy params
             const automation = activePattern[trackKey]?.automation;
-            const autoVowel = automation?.['vowel']?.[step];
+            const autoVowel = automation?.['vowel']?.[tStep];
             if (autoVowel !== undefined && autoVowel !== null) noteParams.vowel = autoVowel;
-            const autoPortamento = automation?.['portamento']?.[step];
+            const autoPortamento = automation?.['portamento']?.[tStep];
             if (autoPortamento !== undefined && autoPortamento !== null) noteParams.portamento = autoPortamento;
-            const autoFormantShift = automation?.['formantShift']?.[step];
+            const autoFormantShift = automation?.['formantShift']?.[tStep];
             if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
 
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
@@ -469,7 +493,8 @@ export const useStepHandler = ({
         // === Bass 2 (TB-303) ===
         const triggerBass2 = () => {
             if (!trackMuteSoloStore.isAudible('bass2')) return;
-            const stepData = p.bass2.steps[step];
+            const tStep = trackStep('bass2');
+            const stepData = p.bass2.steps[tStep];
             if (!stepData) return;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
 
@@ -482,7 +507,7 @@ export const useStepHandler = ({
                 }
                 rawNotes = _chordScratch;
             }
-            const invVal = activePattern.bass2.automation?.['chordInversion']?.[step] ?? 0;
+            const invVal = activePattern.bass2.automation?.['chordInversion']?.[tStep] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
             const bass2Params: SynthParams = {
@@ -534,7 +559,7 @@ export const useStepHandler = ({
         // === Drums ===
         const playDrumIfActive = (trackKey: 'kick' | 'snare' | 'closedHat' | 'openHat', sound: any, params: any) => {
             if (!trackMuteSoloStore.isAudible(trackKey)) return;
-            const stepData = p[trackKey].steps[step];
+            const stepData = p[trackKey].steps[trackStep(trackKey)];
             if (stepData && !(stepData.probability !== undefined && Math.random() > stepData.probability)) {
                 audioEngine.playDrum(sound, params, time, currentScale, stepTime, stepData.note);
             }
@@ -543,7 +568,7 @@ export const useStepHandler = ({
         playDrumIfActive('kick', 'kick', kickRef.current);
         playDrumIfActive('snare', 'snare', snareRef.current);
         playDrumIfActive('openHat', 'openHat', openHatRef.current);
-        if (!p.openHat.steps[step]) {
+        if (!p.openHat.steps[trackStep('openHat')]) {
             playDrumIfActive('closedHat', 'closedHat', closedHatRef.current);
         }
 
@@ -551,9 +576,10 @@ export const useStepHandler = ({
         // Track-level mute/solo only — per-bank muting is a separate concern.
         // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
         const samplerAudible = trackMuteSoloStore.isAudible('sampler');
+        const samplerStep = trackStep('sampler');
         for (let bankIdx = 0; samplerAudible && bankIdx < p.sampler.length; bankIdx++) {
             const seq = p.sampler[bankIdx];
-            const stepData = seq.steps[step];
+            const stepData = seq.steps[samplerStep];
             if (!stepData) continue;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) continue;
 
@@ -579,7 +605,7 @@ export const useStepHandler = ({
                 for (let i = 0; i < seq.steps.length; i++) {
                     if (seq.steps[i]) {
                         if (firstActiveStep === -1) firstActiveStep = i;
-                        if (i >= step) {
+                        if (i >= samplerStep) {
                             targetStep = i;
                             break;
                         }

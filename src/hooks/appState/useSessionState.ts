@@ -5,10 +5,27 @@ import { SessionLaunchEngine } from '../../session/SessionLaunchEngine';
 import { createDefaultSessionDocument } from '../../session/defaults';
 import { captureEventsToSongStructure } from '../../session/capture';
 import { parseSessionMidiParam } from '../../session/midiMap';
-import type { LaunchQuantization, SessionDocument } from '../../session/types';
+import type { LaunchQuantization, SessionDocument, TransportClockSnapshot } from '../../session/types';
 import type { SongStructure } from '../../types/songMode';
 import { getSessionPack, mergePackStorage } from '../../session/packs';
 import type { TrackStorageMap } from '../../utils/trackStorageUtils';
+import { transportMixStore } from '../../stores/transportMixStore';
+import { transportGrid } from '../../utils/songMeter';
+import { swingPercentToClock } from '../../utils/musicTheory';
+
+/** Clock snapshot for launch requests made between steps (UI, MIDI, gamepad). */
+function clockSnapshot(clock: { step: number; audioTime: number; tempo: number }): TransportClockSnapshot {
+  const meter = transportMixStore.meterRef.current;
+  return {
+    step: clock.step,
+    audioTime: clock.audioTime || 0,
+    tempo: clock.tempo,
+    ...transportGrid(meter),
+    swing: swingPercentToClock(meter.swing),
+    isPlaying: true,
+    songModeActive: false,
+  };
+}
 
 export function useSessionState() {
   const [isSessionOpen, setIsSessionOpen] = useState(false);
@@ -60,16 +77,7 @@ export function useSessionState() {
       track,
       clipId: clip.id,
       gateDown,
-    }, {
-      step: clockRef.current.step,
-      audioTime: clockRef.current.audioTime || 0,
-      tempo: clockRef.current.tempo,
-      patternSteps: 32,
-      stepsPerBeat: 4,
-      stepsPerBar: 16,
-      isPlaying: true,
-      songModeActive: false,
-    });
+    }, clockSnapshot(clockRef.current));
   }, []);
 
   const launchScene = useCallback((sceneIndex: number, source: 'manual' | 'midi' | 'gamepad' | 'scene' = 'scene') => {
@@ -83,16 +91,7 @@ export function useSessionState() {
       requestAudioTime: clockRef.current.audioTime,
       requestStep: clockRef.current.step,
       sceneId: scene.id,
-    }, {
-      step: clockRef.current.step,
-      audioTime: clockRef.current.audioTime || 0,
-      tempo: clockRef.current.tempo,
-      patternSteps: 32,
-      stepsPerBeat: 4,
-      stepsPerBar: 16,
-      isPlaying: true,
-      songModeActive: false,
-    });
+    }, clockSnapshot(clockRef.current));
   }, []);
 
   const stopTrack = useCallback((track: TrackKey, source: 'manual' | 'midi' | 'gamepad' = 'manual') => {
@@ -102,16 +101,7 @@ export function useSessionState() {
       requestAudioTime: clockRef.current.audioTime,
       requestStep: clockRef.current.step,
       track,
-    }, {
-      step: clockRef.current.step,
-      audioTime: clockRef.current.audioTime || 0,
-      tempo: clockRef.current.tempo,
-      patternSteps: 32,
-      stepsPerBeat: 4,
-      stepsPerBar: 16,
-      isPlaying: true,
-      songModeActive: false,
-    });
+    }, clockSnapshot(clockRef.current));
   }, []);
 
   const stopAll = useCallback(() => {
@@ -120,16 +110,7 @@ export function useSessionState() {
       source: 'manual',
       requestAudioTime: clockRef.current.audioTime,
       requestStep: clockRef.current.step,
-    }, {
-      step: clockRef.current.step,
-      audioTime: clockRef.current.audioTime || 0,
-      tempo: clockRef.current.tempo,
-      patternSteps: 32,
-      stepsPerBeat: 4,
-      stepsPerBar: 16,
-      isPlaying: true,
-      songModeActive: false,
-    });
+    }, clockSnapshot(clockRef.current));
   }, []);
 
   const setQuantization = useCallback((q: LaunchQuantization) => {
@@ -157,7 +138,9 @@ export function useSessionState() {
   const finishCapture = useCallback((): SongStructure => {
     const events = engineRef.current?.disarmCapture() ?? [];
     setIsCapturing(false);
-    return captureEventsToSongStructure(events);
+    return captureEventsToSongStructure(events, {
+      stepsPerMeasure: transportMixStore.meterRef.current.stepCount,
+    });
   }, []);
 
   const undoSession = useCallback(() => {

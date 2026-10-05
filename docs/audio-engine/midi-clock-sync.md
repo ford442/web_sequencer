@@ -18,20 +18,34 @@ MidiPortManager (single requestMIDIAccess, sysex disabled)
   └─ system realtime  → TransportClockController
         ├─ InternalClockAdapter → clock-processor worklet
         ├─ MasterClockAdapter   → internal + MIDI output
-        └─ SlaveClockAdapter    → PLL + onStep(step, audioTime)
+        └─ SlaveClockAdapter    → PLL + onStep(step, audioTime, absStep)
 ```
 
 All note and automation scheduling uses `audioTime` from the active clock adapter, never raw message receipt time ([PLAYBACK_STABILITY.md](./PLAYBACK_STABILITY.md)).
 
 ## PPQN mapping
 
-Hyphon’s grid is 16th notes:
+Hyphon’s grid is 16th notes. A step is a 16th in **every** time signature —
+the meter changes how many steps make a bar, not how long a step is — so ticks
+per step never depend on the denominator:
+
+```
+ticksPerStep = PPQN / 4                  = 6   (24 PPQN)
+patternTicks = stepCount × ticksPerStep         (16 steps = 96, 32 steps = 192)
+barTicks     = stepsPerBar(meter) × 6           (stepsPerBar = num × 16 / den: 4/4 = 16 → 96, 3/4 = 12 → 72, 7/8 = 14 → 84)
+```
 
 | Unit | MIDI ticks |
 |------|------------|
 | Quarter note | 24 |
 | 16th step | 6 |
-| 32-step pattern | 192 |
+| 16-step pattern | 96 |
+| 32-step pattern (default) | 192 |
+
+Helpers: `ticksPerStep(ppq)` / `stepsPerBar(ts)` in `src/utils/musicTheory.ts`.
+The slave wraps its step counter at the song's `stepCount` and re-wraps when the
+length shrinks mid-run; `absStep` (steps since Start) drives per-track loop
+lengths. See [pattern-length-meter.md](./pattern-length-meter.md).
 
 ## Drift bounds (v1 targets)
 

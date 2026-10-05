@@ -3,6 +3,16 @@ import type { Pattern, PartSequence, Note } from '../../../types';
 import { midiToNote } from '../../../utils/musicTheory';
 import { convertAccentToBoost } from './parameterCurves';
 import type { ImporterContext } from './importerContext';
+import { isValidStepCount } from '../../../utils/songMeter';
+
+/**
+ * Hyphon pattern length for an RBS import: 32 when `expandTo32Steps` is on,
+ * otherwise the file's own pattern length (16 for every ReBirth file).
+ */
+export function rbsImportStepCount(ctx: ImporterContext, raw: RawRbsData): number {
+  if (ctx.options.expandTo32Steps) return 32;
+  return isValidStepCount(raw.project.patternLength) ? raw.project.patternLength : 16;
+}
 
 /** Get default note for drum type. */
 function getDefaultDrumNote(drumType: string): string {
@@ -159,7 +169,7 @@ export function convertDrumPattern(
 
 /** Convert RBS patterns to Hyphon Pattern. */
 export function convertPattern(ctx: ImporterContext, raw: RawRbsData, _warnings: string[]): Pattern {
-  const numSteps = ctx.options.expandTo32Steps ? 32 : raw.project.patternLength;
+  const numSteps = rbsImportStepCount(ctx, raw);
   const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
 
   let partA: PartSequence;

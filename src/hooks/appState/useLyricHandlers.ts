@@ -5,6 +5,8 @@ import type { AudioEngine, Note, Pattern, PartSequence, SamplerParams } from '..
 import type { TrackKey } from '../../constants/appDefaults'
 import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/PhonemeAligner'
 import { updateSamplerRange } from './patternUpdates'
+import { transportMixStore } from '../../stores/transportMixStore'
+import { padSteps } from '../../utils/songMeter'
 
 const NOTE_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_TO_SHARP: Record<string, string> = {
@@ -118,15 +120,16 @@ export function useLyricHandlers(deps: {
             const newSnare = { ...newPattern.snare, steps: [...newPattern.snare.steps] };
             const newCH = { ...newPattern.closedHat, steps: [...newPattern.closedHat.steps] };
             const newOH = { ...newPattern.openHat, steps: [...newPattern.openHat.steps] };
-            newKick.steps = Array<Note | null>(32).fill(null);
-            newSnare.steps = Array<Note | null>(32).fill(null);
-            newCH.steps = Array<Note | null>(32).fill(null);
-            newOH.steps = Array<Note | null>(32).fill(null);
+            const stepCount = transportMixStore.getSnapshot().stepCount;
+            newKick.steps = Array<Note | null>(stepCount).fill(null);
+            newSnare.steps = Array<Note | null>(stepCount).fill(null);
+            newCH.steps = Array<Note | null>(stepCount).fill(null);
+            newOH.steps = Array<Note | null>(stepCount).fill(null);
             const stepTime = 60 / tempoRef.current / 4;
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = Math.round(p.start / stepTime);
-                if (stepIdx >= 0 && stepIdx < 32) {
+                if (stepIdx >= 0 && stepIdx < stepCount) {
                     const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
                     const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
                     const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
@@ -208,7 +211,8 @@ export function useLyricHandlers(deps: {
 
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                 const stepTime = 60 / tempoRef.current / 4;
-                const newSteps = new Array<Note | null>(32).fill(null);
+                const stepCount = transportMixStore.getSnapshot().stepCount;
+                const newSteps = new Array<Note | null>(stepCount).fill(null);
 
                 let currentPitchIdx = 0;
                 let lastPhonemeEnd = 0;
@@ -224,7 +228,7 @@ export function useLyricHandlers(deps: {
                         }
                     }
 
-                    if (startStep >= 0 && startStep < 32) {
+                    if (startStep >= 0 && startStep < stepCount) {
                         const durationSteps = Math.max(1, Math.round((p.end - p.start) / stepTime));
                         newSteps[startStep] = {
                             note: pitches[currentPitchIdx] || 'C4',
@@ -246,7 +250,7 @@ export function useLyricHandlers(deps: {
                     sampler: newSampler,
                 };
             } else {
-                newPattern = updateSamplerRange(prev, bankIdx, 0, 31, (stepData) => {
+                newPattern = updateSamplerRange(prev, bankIdx, 0, transportMixStore.getSnapshot().stepCount - 1, (stepData) => {
                     if (stepData && stepData.velocity > 0) {
                         const newStep = { ...stepData, sliceIndex: noteIndex };
                         noteIndex++;
@@ -262,7 +266,7 @@ export function useLyricHandlers(deps: {
                 if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                     const stepTime = 60 / tempoRef.current / 4;
                     const newSamplerSequence = [...newPattern.sampler];
-                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: [...newSamplerSequence[bankIdx].steps] };
+                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: padSteps([...newSamplerSequence[bankIdx].steps], transportMixStore.getSnapshot().stepCount) };
                     let currentPitchIdx = 0;
 
                     // Group phonemes into words/syllables based on pauses (simple heuristic)
@@ -275,7 +279,7 @@ export function useLyricHandlers(deps: {
 
                         // Treat as new syllable if there's a gap or it's the first phoneme
                         if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
-                            if (stepIdx >= 0 && stepIdx < 32 && !currentBankSequence.steps[stepIdx]) {
+                            if (stepIdx >= 0 && stepIdx < transportMixStore.getSnapshot().stepCount && !currentBankSequence.steps[stepIdx]) {
                                 currentBankSequence.steps[stepIdx] = {
                                     note: pitches[currentPitchIdx] || 'C4',
                                     velocity: 1,

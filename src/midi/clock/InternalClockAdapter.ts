@@ -30,6 +30,7 @@ export class InternalClockAdapter implements TransportClock {
   private startPromise: Promise<void> | null = null;
   private mainThreadTimer: ReturnType<typeof setTimeout> | null = null;
   private mainThreadNextStep = 0;
+  private mainThreadAbsStep = 0;
   private mainThreadNextAt = 0;
 
   constructor(context: AudioContext, tempo: number, swing: number, steps: number) {
@@ -57,6 +58,7 @@ export class InternalClockAdapter implements TransportClock {
         this.stopMainThreadClock();
         this.running = true;
         this.mainThreadNextStep = 0;
+        this.mainThreadAbsStep = 0;
         this.mainThreadNextAt = this.context.currentTime;
         this.tickMainThreadClock();
         return;
@@ -78,8 +80,8 @@ export class InternalClockAdapter implements TransportClock {
 
       node.port.onmessage = (e: MessageEvent) => {
         if (e.data?.type === 'step') {
-          const { step, audioTime } = e.data as { step: number; audioTime: number };
-          for (const cb of this.stepListeners) cb(step, audioTime);
+          const { step, audioTime, absStep } = e.data as { step: number; audioTime: number; absStep: number };
+          for (const cb of this.stepListeners) cb(step, audioTime, absStep);
         }
       };
 
@@ -126,6 +128,8 @@ export class InternalClockAdapter implements TransportClock {
 
   setSteps(steps: number): void {
     this.steps = steps;
+    // Shrinking mid-run must not emit a step past the new end.
+    this.mainThreadNextStep %= steps;
     this.clockNode?.port.postMessage({ type: 'setSteps', steps });
   }
 
@@ -145,10 +149,13 @@ export class InternalClockAdapter implements TransportClock {
     while (this.mainThreadNextAt <= now + 0.002) {
       const audioTime = this.mainThreadNextAt;
       const step = this.mainThreadNextStep;
-      for (const cb of this.stepListeners) cb(step, audioTime);
-      const parity = (step % 2) as 0 | 1;
+      const absStep = this.mainThreadAbsStep;
+      for (const cb of this.stepListeners) cb(step, audioTime, absStep);
+      // Parity from the absolute count keeps swing alternating across odd-length wraps.
+      const parity = (absStep % 2) as 0 | 1;
       this.mainThreadNextAt += this.stepDurationSec(parity);
       this.mainThreadNextStep = (step + 1) % this.steps;
+      this.mainThreadAbsStep = absStep + 1;
     }
     this.mainThreadTimer = setTimeout(() => this.tickMainThreadClock(), 8);
   }

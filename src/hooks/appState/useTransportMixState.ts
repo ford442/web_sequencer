@@ -6,6 +6,10 @@ export function useTransportMixState() {
     return {
         tempo: state.tempo, setTempo: transportMixStore.setTempo, tempoRef: transportMixStore.tempoRef,
         swing: state.swing, setSwing: transportMixStore.setSwing,
+        stepCount: state.stepCount, setStepCount: transportMixStore.setStepCount,
+        timeSignature: state.timeSignature, setTimeSignature: transportMixStore.setTimeSignature,
+        trackLengths: state.trackLengths, setTrackLength: transportMixStore.setTrackLength,
+        meterRef: transportMixStore.meterRef,
         lastFreqRef: transportMixStore.lastFreqRef,
         ambianceUrl: state.ambianceUrl, setAmbianceUrl: transportMixStore.setAmbianceUrl,
         backgroundImage: state.backgroundImage, setBackgroundImage: transportMixStore.setBackgroundImage,

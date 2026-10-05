@@ -16,6 +16,7 @@ import {
 } from '../utils/audioContextPolicy';
 import type { WavBitDepth } from '../utils/audioExport';
 import type { RenderSynthEngines } from '../utils/renderAudio';
+import { transportMixStore } from '../stores/transportMixStore';
 
 export interface ExportModalProps {
     isOpen: boolean;
@@ -145,6 +146,8 @@ export const ExportModal = React.memo(function ExportModal({
                     params,
                     engines,
                     sampleBuffers,
+                    stepCount: transportMixStore.meterRef.current.stepCount,
+                    trackLengths: transportMixStore.meterRef.current.trackLengths,
                 },
                 options,
             );

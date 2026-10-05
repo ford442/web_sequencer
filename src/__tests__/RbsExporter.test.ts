@@ -9,6 +9,7 @@ import { parseTb303DeviceChunk, parseTr808DeviceChunk } from '../importers/rbs/d
 import { buildSyntheticIffFile } from './rbs/fixtures';
 import type { Tb303Step } from '../importers/rbs/types';
 import { TRAK_TRACK_INDEX } from '../importers/rbs/types';
+import { rbsShuffleToSwingPercent, swingPercentToRbsShuffle } from '../importers/rbs/shuffle';
 
 function findIffChunk(bytes: Uint8Array, id: string): Uint8Array | null {
   let pos = 12;
@@ -367,6 +368,59 @@ describe('RbsExporter', () => {
     expect(reParsed.data.songData?.glob.playMode).toBe(1);
   });
 
+  it('writes the song meter and swing (converted to ReBirth shuffle) from SavedSongData', async () => {
+    const parser = new RbsParser();
+    const source = await parser.parseBytes(buildSyntheticIffFile({ includeDevl: true, playMode: 0, trakEvents: [] }));
+    expect(source.success).toBe(true);
+    if (!source.success) return;
+    const imported = new RbsImporter().convertToHyphonSong(source.data).song;
+
+    const saved = {
+      version: 4,
+      pattern: imported.pattern,
+      tempo: imported.tempo,
+      params: imported.params,
+      trackStorage: {},
+      activeTrackSlots: {},
+      songStructure: [],
+      timeSignature: [3, 4],
+      swing: 66,
+      stepCount: 16,
+    };
+    const song = hyphonSongFromSavedData(saved as any);
+    expect(song.timeSignature).toEqual([3, 4]);
+    expect(song.swing).toBe(66);
+    expect(song.stepCount).toBe(16);
+
+    const { bytes } = new RbsExporter().exportToBytes(song);
+    const glob = findIffChunk(bytes, 'GLOB');
+    expect(glob).toBeTruthy();
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success) return;
+    expect(reParsed.data.songData?.glob.shuffle).toBe(swingPercentToRbsShuffle(66));
+    expect(reParsed.data.project.swing).toBeCloseTo(66, 0);
+  });
+
+  it('exports a 16-step song as-is even when stored steps run past 16 (no ×2 collapse)', async () => {
+    const parser = new RbsParser();
+    const source = await parser.parseBytes(buildSyntheticIffFile({ includeDevl: true, playMode: 0, trakEvents: [] }));
+    if (!source.success) return;
+    const song = new RbsImporter({ drumKitMapping: '808' }).convertToHyphonSong(source.data).song;
+
+    // LEN went 32 → 16 in the app: arrays keep 32 entries, but only 16 play.
+    const kick = Array.from({ length: 32 }, (_, i) => (i === 1 || i === 3 || i === 20 ? { note: 'C2', velocity: 1 } : null));
+    const songAt16 = { ...song, stepCount: 16, pattern: { ...song.pattern, kick: { steps: kick } } };
+
+    const { bytes } = new RbsExporter({ drumKit: '808' }).exportToBytes(songAt16);
+    const reParsed = await parser.parseBytes(bytes);
+    expect(reParsed.success).toBe(true);
+    if (!reParsed.success) return;
+    const kicks = reParsed.data.drums.kick.map((on, i) => (on ? i : -1)).filter((i) => i >= 0);
+    // Odd 16ths survive (a 32-step collapse would keep only even indices), step 20 is past the loop.
+    expect(kicks).toEqual([1, 3]);
+  });
+
   it('exports 9 used pattern slots without truncating to 8', async () => {
     const parser = new RbsParser();
     const importer = new RbsImporter({ expandTo32Steps: false });
@@ -458,5 +512,26 @@ describe('RbsExporter', () => {
     );
     const cutoffs = tb303Track?.events.filter((e) => e.eventKind === 'paramChange') ?? [];
     expect(cutoffs.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('RBS shuffle ↔ song swing', () => {
+  it('maps ReBirth neutral shuffle 64 to straight 50 and back', () => {
+    expect(rbsShuffleToSwingPercent(64)).toBe(50);
+    expect(swingPercentToRbsShuffle(50)).toBe(64);
+    expect(swingPercentToRbsShuffle(undefined)).toBe(64);
+  });
+
+  it('maps full shuffle 127 to the hardest swing (75) and round-trips', () => {
+    expect(rbsShuffleToSwingPercent(127)).toBe(75);
+    for (const shuffle of [0, 40, 64, 69, 100, 127]) {
+      expect(swingPercentToRbsShuffle(rbsShuffleToSwingPercent(shuffle))).toBe(shuffle);
+    }
+  });
+
+  it('clamps out-of-range values', () => {
+    expect(swingPercentToRbsShuffle(200)).toBe(127);
+    expect(swingPercentToRbsShuffle(-50)).toBe(0);
+    expect(rbsShuffleToSwingPercent(Number.NaN)).toBe(50);
   });
 });

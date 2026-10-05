@@ -4,11 +4,12 @@
 // Extracted from xmExport.ts so this logic can be unit-tested without pulling in
 // the WASM module, OfflineAudioContext, or the DOM download path.
 
-import { noteNameToValue } from './xm_save_lib/index';
+import { createPattern, noteNameToValue } from './xm_save_lib/index';
 import type { XMPattern } from './xm_save_lib/index';
-import type { PartSequence, TrackKey } from '../types';
+import type { PartSequence, Pattern, TrackKey } from '../types';
+import { tilePartSequence, type TrackLengths } from './songMeter';
 
-/** Rows per exported XM pattern. Sequences longer than this are truncated. */
+/** Default rows per XM pattern (one 32-step Hyphon pattern); the export uses the song `stepCount`. */
 export const XM_PATTERN_ROWS = 32;
 
 /**
@@ -81,7 +82,7 @@ export const velocityToXmVolume = (velocity: number | undefined): number => {
 export interface XmRowOverflow {
     patternIndex: number;
     trackName: string;
-    /** Rows the source sequence has beyond XM_PATTERN_ROWS. */
+    /** Rows the source sequence has beyond the pattern's row count. */
     rowCount: number;
     /** Notes actually lost in those rows. */
     noteCount: number;
@@ -199,11 +200,12 @@ export const fillPatternFromSequence = (
     }
 
     let droppedNotes = 0;
+    const rowLimit = xmPat.data.length;
 
     steps.forEach((stepData, row) => {
         if (!stepData) return;
 
-        if (row >= XM_PATTERN_ROWS) {
+        if (row >= rowLimit) {
             droppedNotes++;
             return;
         }
@@ -218,8 +220,104 @@ export const fillPatternFromSequence = (
         report.rowOverflows.push({
             patternIndex,
             trackName,
-            rowCount: steps.length - XM_PATTERN_ROWS,
+            rowCount: steps.length - rowLimit,
             noteCount: droppedNotes,
         });
     }
+};
+
+export interface XmSongPatternsInput {
+    songStructure: { [key in TrackKey]: number | null }[];
+    trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
+    /** Exported alone when the song structure is empty. */
+    currentPattern?: Pattern;
+    /** Rows per XM pattern = the song pattern length. Absent = `XM_PATTERN_ROWS`. */
+    stepCount?: number;
+    /** Per-track loop lengths, tiled into each pattern like live playback. */
+    trackLengths?: TrackLengths;
+}
+
+export interface XmSongPatterns {
+    patterns: XMPattern[];
+    patternOrderTable: number[];
+    truncation: XmTruncationReport;
+}
+
+/**
+ * Build one XM pattern per Hyphon measure, `stepCount` rows long (or one from
+ * `currentPattern` when the arrangement is empty). Each track is tiled to that
+ * length by its own loop length — re-anchored per pattern like live Song Mode
+ * — so steps stored past a track's loop are not played live and not exported.
+ */
+export const buildXmSongPatterns = (input: XmSongPatternsInput): XmSongPatterns => {
+    const { songStructure, trackStorage, currentPattern } = input;
+    const patternRows = input.stepCount ?? XM_PATTERN_ROWS;
+    const fit = (trackKey: TrackKey, seq: PartSequence): PartSequence =>
+        tilePartSequence(seq, patternRows, input.trackLengths?.[trackKey] ?? patternRows);
+
+    let lastActiveMeasure = -1;
+    for (let i = songStructure.length - 1; i >= 0; i--) {
+        const measure = songStructure[i];
+        if (Object.values(measure).some(slot => slot !== null)) {
+            lastActiveMeasure = i;
+            break;
+        }
+    }
+
+    const patterns: XMPattern[] = [];
+    const patternOrderTable: number[] = [];
+    // Every track the exporter knows how to place, sampler included.
+    const exportTrackKeys: TrackKey[] = [...(Object.keys(XM_TRACK_MAP) as Exclude<TrackKey, 'sampler'>[]), 'sampler'];
+    // Collects anything the XM format cannot hold, so it can be reported rather
+    // than silently discarded.
+    const truncation = createTruncationReport();
+
+    if (lastActiveMeasure === -1 && currentPattern) {
+        const xmPat = createPattern(patternRows, XM_CHANNEL_COUNT);
+
+        exportTrackKeys.forEach(trackKey => {
+            if (trackKey === 'sampler') {
+                currentPattern.sampler.forEach((seq, idx) => {
+                    fillPatternFromSequence(xmPat, fit('sampler', seq), 'sampler', idx, 0, truncation);
+                });
+            } else {
+                const sequence = currentPattern[trackKey] as PartSequence | undefined;
+                if (sequence) {
+                    fillPatternFromSequence(xmPat, fit(trackKey, sequence), trackKey, 0, 0, truncation);
+                }
+            }
+        });
+
+        patterns.push(xmPat);
+        patternOrderTable.push(0);
+        return { patterns, patternOrderTable, truncation };
+    }
+
+    const activeLength = Math.max(1, lastActiveMeasure + 1);
+    for (let m = 0; m < activeLength; m++) {
+        const measure = songStructure[m];
+        const xmPat = createPattern(patternRows, XM_CHANNEL_COUNT);
+
+        exportTrackKeys.forEach(trackKey => {
+            const slotIndex = measure?.[trackKey];
+            if (slotIndex === null || slotIndex === undefined) return;
+
+            const storedData = trackStorage[trackKey]?.[slotIndex];
+            if (!storedData) return;
+
+            if (trackKey === 'sampler') {
+                const sequences = storedData as PartSequence[];
+                sequences.forEach((seq, idx) => {
+                    fillPatternFromSequence(xmPat, fit('sampler', seq), 'sampler', idx, m, truncation);
+                });
+            } else {
+                fillPatternFromSequence(xmPat, fit(trackKey, storedData as PartSequence), trackKey, 0, m, truncation);
+            }
+        });
+
+        patterns.push(xmPat);
+        patternOrderTable.push(m);
+    }
+
+    return { patterns, patternOrderTable, truncation };
 };
