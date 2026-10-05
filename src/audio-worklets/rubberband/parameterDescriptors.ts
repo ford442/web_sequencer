@@ -45,6 +45,5 @@ export const RUBBERBAND_PARAMETER_DESCRIPTORS = [
   { name: 'bassEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'autoTune', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'transientExtraction', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
-  { name: 'microtonalVariance', defaultValue: 0.0, minValue: 0.0, maxValue: 100.0 },
-  { name: 'bassGrainSizeMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 }
+  { name: 'microtonalVariance', defaultValue: 0.0, minValue: 0.0, maxValue: 100.0 }
 ];

@@ -179,16 +179,8 @@ export function createPlaySynth(
             noteTime,
             noteDuration,
             refs.singingVoiceManagerRef.current,
-            velocity
+            velocity / 127
           );
-          if (refs.singingVoiceManagerRef?.current) {
-            const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127; // normalize velocity
-            view[2] = noteDuration;
-            view[3] = 0;
-          }
 
           const driveAmount =
             noteParams?.drive !== undefined
@@ -219,16 +211,8 @@ export function createPlaySynth(
             noteTime,
             noteDuration,
             refs.singingVoiceManagerRef.current,
-            velocity
+            velocity / 127
           );
-          if (refs.singingVoiceManagerRef?.current) {
-            const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127; // normalize velocity
-            view[2] = noteDuration;
-            view[3] = 0;
-          }
 
           const driveAmount =
             noteParams?.drive !== undefined
@@ -282,16 +266,8 @@ export function createPlaySynth(
             noteTime,
             noteDuration,
             refs.singingVoiceManagerRef.current,
-            velocity
+            velocity / 127
           );
-          if (refs.singingVoiceManagerRef?.current) {
-            const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-            const view = new Float32Array(bassSidechainSAB);
-            view[0] = noteTime;
-            view[1] = velocity / 127; // normalize velocity
-            view[2] = noteDuration;
-            view[3] = 0;
-          }
 
           refs.prophecyManagerRef?.current?.noteOnPartB(engineMidi, 100, noteTime);
 
@@ -337,16 +313,8 @@ export function createPlaySynth(
           noteTime,
           noteDuration,
           refs.singingVoiceManagerRef.current,
-          velocity
+          velocity / 127
         );
-        if (refs.singingVoiceManagerRef?.current) {
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-          const view = new Float32Array(bassSidechainSAB);
-          view[0] = noteTime;
-          view[1] = params.volume !== undefined ? params.volume : 0.8;
-          view[2] = noteDuration;
-          view[3] = 0;
-        }
       } else if (refs.voiceManagerARef.current) {
         voice = refs.voiceManagerARef.current.playNote(
           effectiveParams,

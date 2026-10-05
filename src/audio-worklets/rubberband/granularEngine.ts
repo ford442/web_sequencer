@@ -19,7 +19,6 @@ export interface FrozenGrainParams {
   startSamplePtr: number;
   endSamplePtr: number;
   duckingScalar: number;
-  bassDuckingScalar: number;
   envelopeValue: number;
   grainJitterParam: number;
   grainEnvDepth: number;

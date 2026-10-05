@@ -227,7 +227,7 @@ export class ArtifactDetector {
         // Initialize circular history buffers
         this.fluxHistory = new Float32Array(this.config.historySize);
         this.qualityHistory = new Float32Array(this.config.historySize);
-        this.artifactHistory = new Array(this.config.historySize);
+        this.artifactHistory = new Array<ArtifactDetection>(this.config.historySize);
         for (let i = 0; i < this.config.historySize; i++) {
             this.artifactHistory[i] = {
                 detected: false,
