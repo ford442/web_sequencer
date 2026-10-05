@@ -560,18 +560,23 @@ export function createPlaySamplerVoice(
     const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
       const source = context.createBufferSource();
 
-      const targetMidi = pitchSemitones;
+      // Harmony voices arrive as an integer pitchOffsetSemitones plus detune folded into
+      // fineTune. The pitchBank is Rubber Band output with formants preserved, so keying it on
+      // the offset note keeps harmonies natural; the resample fallback (no bank, out of range,
+      // still processing) chipmunks. formantShift has no stage in this chain.
+      const targetMidi = pitchSemitones + pitchOffsetSemitones;
+      const fineRatio = Math.pow(2, (noteParams?.fineTune ?? params.fineTune ?? 0) / 1200);
       let playbackBuffer: AudioBuffer;
       let pitchRatio = 1.0;
 
       if (multisampleBank?.pitchBank.has(targetMidi)) {
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-        pitchRatio = params.playbackSpeed;
+        pitchRatio = params.playbackSpeed * fineRatio;
       } else {
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = multisampleBank?.rootNote ?? 60;
         const speed = params.playbackSpeed;
-        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12) * fineRatio;
       }
 
       if (noteParams?.reverse) {
