@@ -52,6 +52,8 @@ export interface VocalFxBlock {
   timeSmear: number;
   /** Note velocity 0..1 (noteOn); softer notes jitter the grains more. */
   velocity: number;
+  bassEnvelopeValue: number;
+  bassEnvDepth: number;
 }
 
 export function createVocalFxBlock(): VocalFxBlock {
@@ -85,6 +87,8 @@ export function createVocalFxBlock(): VocalFxBlock {
     grainPosLfoDepth: 0,
     timeSmear: 0,
     velocity: 1,
+    bassEnvelopeValue: 0,
+    bassEnvDepth: 0,
   };
 }
 
@@ -161,6 +165,8 @@ export class TsVocalFx implements VocalFxChain {
     grainPosLfoDepth: 0,
     timeSmear: 0,
     velocity: 1,
+    bassEnvelopeValue: 0,
+    bassEnvDepth: 0,
   };
   private readonly bandSplitParams = {
     outL: new Float32Array(0) as Float32Array,
@@ -231,6 +237,8 @@ export class TsVocalFx implements VocalFxChain {
     p.grainPosLfoDepth = block.grainPosLfoDepth;
     p.timeSmear = block.timeSmear;
     p.velocity = block.velocity;
+    p.bassEnvelopeValue = block.bassEnvelopeValue;
+    p.bassEnvDepth = block.bassEnvDepth;
     return this.granular.renderGrains(p, heap, offset, frames);
   }
 

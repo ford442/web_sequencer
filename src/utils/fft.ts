@@ -53,6 +53,7 @@ export class FFT {
     private outPhase: Float32Array;
     private outFrequencies: Float32Array;
     private windowScratch: Float32Array;
+    private fftResultObj: FFTResult;
 
     // WASM memory buffers
     private wasmReal: Float32Array | null = null;
@@ -86,6 +87,11 @@ export class FFT {
         this.outPhase = new Float32Array(halfSize);
         this.outFrequencies = new Float32Array(halfSize);
         this.windowScratch = new Float32Array(this.size);
+        this.fftResultObj = {
+            magnitude: this.outMagnitude,
+            phase: this.outPhase,
+            frequencies: this.outFrequencies
+        };
 
         // Frequencies are uninitialized here to match original empty array behavior.
         // Use getFrequencies(sampleRate) to get populated array.
@@ -261,11 +267,7 @@ export class FFT {
         this.outMagnitude.set(this.wasmMagnitude);
         this.outPhase.set(this.wasmPhase);
 
-        return {
-            magnitude: this.outMagnitude,
-            phase: this.outPhase,
-            frequencies: this.outFrequencies
-        };
+        return this.fftResultObj;
     }
 
     /**
@@ -323,15 +325,11 @@ export class FFT {
         const phase = this.outPhase;
 
         for (let i = 0; i < halfSize; i++) {
-            magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
-            phase[i] = Math.atan2(imag[i], real[i]);
+            this.outMagnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+            this.outPhase[i] = Math.atan2(imag[i], real[i]);
         }
 
-        return {
-            magnitude,
-            phase,
-            frequencies: this.outFrequencies
-        };
+        return this.fftResultObj;
     }
 
     /**

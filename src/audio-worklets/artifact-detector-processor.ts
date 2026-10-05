@@ -322,7 +322,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private sendPeriodicReport(): void {
         if (!this.detector) return;
 
-        const stats = this.detector.getStatistics();
+        const stats = this.detector.getBasicStatistics();
         
         // Average quality over the period
         const avgQuality = this.qualityCount > 0 

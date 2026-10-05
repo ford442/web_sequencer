@@ -1,7 +1,7 @@
 import type { VocalFxBlock, VocalFxChain } from "./vocalFx";
 
 /** Must equal RB_FX_ABI_VERSION in emscripten/rubberband_fx.h. */
-export const RB_FX_ABI_VERSION = 3;
+export const RB_FX_ABI_VERSION = 4;
 
 /**
  * Index of each control in the double block returned by rb_fx_params(), in
@@ -38,9 +38,11 @@ export const RB_FX_PARAM = {
   CONSONANT_CLARITY: 26,
   TRANSIENT_EXTRACTION: 27,
   TIME_SMEAR: 28,
+  BASS_ENVELOPE_VALUE: 29,
+  BASS_ENV_DEPTH: 30,
 } as const;
 
-export const RB_FX_PARAM_COUNT = 29;
+export const RB_FX_PARAM_COUNT = 31;
 
 const RB_FX_WINDOW_CUSTOM_SHAPE = 1;
 const RB_FX_WINDOW_CUSTOM_ENVELOPE = 2;
@@ -258,5 +260,7 @@ export class NativeVocalFx implements VocalFxChain {
     h[o + P.CONSONANT_CLARITY] = b.consonantClarity;
     h[o + P.TRANSIENT_EXTRACTION] = b.transientExtraction;
     h[o + P.TIME_SMEAR] = b.timeSmear;
+    h[o + P.BASS_ENVELOPE_VALUE] = b.bassEnvelopeValue;
+    h[o + P.BASS_ENV_DEPTH] = b.bassEnvDepth;
   }
 }

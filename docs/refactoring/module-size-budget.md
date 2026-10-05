@@ -76,11 +76,13 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | Lines | Module | Status |
 |-------|--------|--------|
 | 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
+| 756 | `src/engines/rubberband/ArtifactDetector.ts` | justified exception - complex analysis logic |
 | 991 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below |
 | 917 | `src/components/PhonemePainter.tsx` | un-triaged |
 | 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
 | 874 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |
-| 865 | `src/audio-worklets/rubberband-processor.ts` | already split once (09-07); further split not attempted here |
+| 865 | `src/audio-worklets/rubberband-processor.ts` | Adding PhonemeDelayEffect |
+| `src/components/note-selector/SynthGranularEffects.tsx` | Added phoneme delay UI | already split once (09-07); further split not attempted here |
 | 848 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
 | 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
 | 814 | `src/engines/Open303Manager.ts` | un-triaged |

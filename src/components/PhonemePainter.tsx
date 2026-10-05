@@ -461,7 +461,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                   aria-haspopup="menu"
                   title="Toggle add phoneme menu (A)"
                 >
-                  <span className="flex items-center gap-1">+ Add Phoneme</span>
+                  <span className="flex items-center gap-1"><span aria-hidden="true">+</span> Add Phoneme</span>
                 </button>
               </div>
             </div>
@@ -590,7 +590,7 @@ export const PhonemePainter: React.FC<PhonemePainterProps> = React.memo(({
                     onClick={() => setShowAddMenu(true)}
                     className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 font-mono shadow-[0_2px_8px_rgba(6,182,212,0.2)]"
                   >
-                    + Add Phoneme
+                    <span aria-hidden="true">+</span> Add Phoneme
                   </button>
                 </div>
               )}

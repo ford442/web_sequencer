@@ -180,7 +180,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                             title="Decrease Tempo"
                             aria-label="Decrease Tempo"
                         >
-                            −
+                            <span aria-hidden="true">−</span>
                         </button>
                         <span 
                             className="w-12 text-center font-mono text-cyan-300 text-sm font-semibold" 
@@ -200,7 +200,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                             title="Increase Tempo"
                             aria-label="Increase Tempo"
                         >
-                            +
+                            <span aria-hidden="true">+</span>
                         </button>
                     </div>
                 </div>
@@ -315,9 +315,9 @@ export const TransportToolbar = memo(function TransportToolbar({
                     onClick={handlePanic} 
                     aria-label="Panic Stop All Notes" 
                     className="h-7 w-7 bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"
-                    title="Panic (!)"
+                    title="Panic Stop All Notes"
                 >
-                    !
+                    <span aria-hidden="true">!</span>
                 </button>
             </div>
         </header>

@@ -32,6 +32,8 @@ export interface FrozenGrainParams {
   timeSmear: number;
   /** Note velocity 0..1; softer notes jitter more. */
   velocity: number;
+  bassEnvelopeValue: number;
+  bassEnvDepth: number;
 }
 
 interface GrainGeometry {
@@ -172,7 +174,10 @@ export class GranularEngine {
   }
 
   private initGrain(g: Grain, p: FrozenGrainParams, geo: GrainGeometry): void {
-    const duckedGrainSize = geo.baseGrainSize * (1.0 - (p.duckingScalar * 0.5));
+    const duckedGrainSize = Math.max(
+      256,
+      geo.baseGrainSize * (1.0 - (p.duckingScalar * 0.5)) * (1.0 - p.bassEnvelopeValue * p.bassEnvDepth),
+    );
     const grainSizeSamplesActive = Math.max(100, Math.floor(duckedGrainSize * geo.lfoMod * (1.0 - p.grainEnvDepth * p.envelopeValue)));
     const jitterOffsetActive = geo.maxJitterSamples > 0 ? Math.floor((this.random() * 2 - 1) * geo.maxJitterSamples) : 0;
     const rawCenter = p.currentSamplePtr + jitterOffsetActive + geo.posMod;

@@ -731,9 +731,10 @@ EMSCRIPTEN_KEEPALIVE int rb_fx_render_grains(RbFx* fx, float* out, int frames, i
     const int maxJitter = static_cast<int>(std::floor(0.05 * sr * jitter));
     const double ducking = fx->param(RB_FX_DUCKING_SCALAR);
     const double envShrink = 1.0 - fx->param(RB_FX_GRAIN_ENV_DEPTH) * fx->param(RB_FX_ENVELOPE_VALUE);
+    const double bassShrink = 1.0 - fx->param(RB_FX_BASS_ENVELOPE_VALUE) * fx->param(RB_FX_BASS_ENV_DEPTH);
 
     auto initGrain = [&](Grain& g) {
-        const double ducked = baseGrainSize * (1.0 - ducking * 0.5);
+        const double ducked = std::max(256.0, baseGrainSize * (1.0 - ducking * 0.5) * bassShrink);
         const int size = std::max(100, static_cast<int>(std::floor(ducked * lfoMod * envShrink)));
         const int jitterOffset = maxJitter > 0
             ? static_cast<int>(std::floor((fx->random() * 2 - 1) * maxJitter)) : 0;

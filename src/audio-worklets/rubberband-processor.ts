@@ -6,6 +6,7 @@ import { RUBBERBAND_PARAMETER_DESCRIPTORS } from "./rubberband/parameterDescript
 import { getStretchProfileOptions, type StretchProfile } from "../engines/rubberband/stretchProfiles";
 import { getPhonemeDataAtSample } from "./rubberband/phonemeData";
 import { DrumDuckEnvelope } from "./rubberband/drumDuckEnvelope";
+import { BassEnvelopeFollower } from "./rubberband/bassEnvelopeFollower";
 import { PitchController, type PitchContext } from "./rubberband/pitchControl";
 import { TsVocalFx, createVocalFxBlock, type VocalFxBackend, type VocalFxBlock, type VocalFxChain } from "./rubberband/vocalFx";
 import { NativeVocalFx, probeNativeVocalFx } from "./rubberband/nativeVocalFx";
@@ -40,9 +41,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private inputRingBuffer: RingBuffer | null = null;
   private outputRingBuffer: RingBuffer | null = null;
   private expressiveProcessor: ExpressiveVoiceProcessor;
+  private readonly errorMessage = { type: 'ERROR' as const, error: '' };
   private readonly perf = new WorkletPerfReporter(this.port, 'rubberband');
 
   private readonly drumDuck = new DrumDuckEnvelope();
+  private readonly bassEnvelopeFollower = new BassEnvelopeFollower();
   private readonly pitch = new PitchController();
 
   // Singing-voice FX chain. Native (rb_fx_* in rubberband.wasm) once INIT_WASM
@@ -93,6 +96,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   // Drum Envelope Sidechain
   private drumSidechainSAB: Float32Array | null = null;
+  private bassSidechainSAB: Float32Array | null = null;
 
   // Playback State (Unified)
   private isPlaying = false;
@@ -164,13 +168,16 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     switch (type) {
       case 'INIT_WASM':
         try {
-          const { inputBuffer, outputBuffer, wasmBinary, baseUrl, drumSidechainSAB, fxBackend } = event.data;
+          const { inputBuffer, outputBuffer, wasmBinary, baseUrl, drumSidechainSAB, bassSidechainSAB, fxBackend } = event.data;
 
           this.inputRingBuffer = new RingBuffer(inputBuffer);
           this.outputRingBuffer = new RingBuffer(outputBuffer);
 
           if (drumSidechainSAB) {
             this.drumSidechainSAB = new Float32Array(drumSidechainSAB);
+          }
+          if (bassSidechainSAB) {
+            this.bassSidechainSAB = new Float32Array(bassSidechainSAB);
           }
 
           if (!wasmBinary) {
@@ -211,7 +218,8 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.port.postMessage({ type: 'READY', fxBackend: fx.backend, fxReason: fx.reason });
         } catch (e) {
           console.error("RubberBand WASM Failed:", e);
-          this.port.postMessage({ type: 'ERROR', error: String(e) });
+          this.errorMessage.error = String(e);
+          this.port.postMessage(this.errorMessage);
         }
         break;
 
@@ -352,6 +360,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    const blockSampleRate = this.sampleRate;
     // Block start time on the audio clock, for the expressive envelopes.
     // @ts-ignore - AudioWorkletGlobalScope.currentTime
     const currentTime = typeof globalThis.currentTime === 'number' ? globalThis.currentTime : 0;
@@ -364,6 +373,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     const gateRate = param(parameters, 'gateRate', 4.0);
     const tremDepth = parameters.tremoloDepth[0];
     const breath = parameters.breathIntensity[0];
+    const bassEnvDepth = parameters.bassEnvDepth ? parameters.bassEnvDepth[0] : 0.0;
 
     // Per-phoneme vibrato overrides the global vibrato
     const phoneme = this.hasPhonemeContext() ? this.phonemeAt() : null;
@@ -377,6 +387,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     // Drum sidechain envelope follower
     const { duckingScalar, isSnare: drumIsSnare } = this.drumDuck.process(
       this.drumSidechainSAB, param(parameters, 'drumDuckDepth', 0.0), currentTime, blockFrames, this.sampleRate
+    );
+
+    // Bass sidechain envelope follower
+    const bassEnvelopeValue = this.bassEnvelopeFollower.process(
+      this.bassSidechainSAB, currentTime, blockFrames, blockSampleRate
     );
 
     const cfg = this.currentExpressiveConfig;
@@ -440,7 +455,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         if (freezeAmt > 0.5) {
           // The read pointer does not move while frozen: reuse the block's tuple.
-          this.renderFrozen(parameters, samplesRequired, duckingScalar, envelopeValue, phoneme ?? undefined);
+          this.renderFrozen(parameters, samplesRequired, duckingScalar, envelopeValue, bassEnvelopeValue, bassEnvDepth, phoneme ?? undefined);
         } else {
           this.fx.exitFreeze();
           this.streamSample(samplesRequired);
@@ -525,12 +540,14 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   /** Frozen block: the granulator writes the stretcher input in place of the sample stream. */
   private renderFrozen(
     parameters: Record<string, Float32Array>, samplesRequired: number, duckingScalar: number, envelopeValue: number,
-    phoneme?: Float32Array,
+    bassEnvelopeValue: number, bassEnvDepth: number, phoneme?: Float32Array,
   ): void {
     const block = this.fxBlock;
     this.fillPhonemeFx(block, phoneme);
     block.duckingScalar = duckingScalar;
     block.envelopeValue = envelopeValue;
+    block.bassEnvelopeValue = bassEnvelopeValue;
+    block.bassEnvDepth = bassEnvDepth;
     block.grainJitter = param(parameters, 'grainJitter', 0.0);
     block.grainEnvDepth = param(parameters, 'grainEnvDepth', 0.0);
     block.windowShape = param(parameters, 'windowShape', 0.0);

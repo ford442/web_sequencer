@@ -70,6 +70,7 @@ export const WorkletSetupMixin = {
         moduleUrl: "/rubberband.js",
         baseUrl: import.meta.env.BASE_URL,
         drumSidechainSAB: this.config.drumSidechainSAB,
+        bassSidechainSAB: this.config.bassSidechainSAB,
         fxBackend: fxOverride,
       });
 

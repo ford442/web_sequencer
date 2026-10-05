@@ -44,13 +44,14 @@ export const LyricTrack: React.FC<LyricTrackProps> = React.memo(({
                 onClick={() => onApply(text)}
                 disabled={isGenerating || !text.trim()}
                 aria-busy={isGenerating}
-                className="px-4 py-1.5 bg-cyan-900 text-cyan-100 border border-cyan-700 rounded hover:bg-cyan-800 disabled:opacity-50 text-xs font-bold font-orbitron whitespace-nowrap"
+                aria-label={isGenerating ? "Generating lyrics..." : "Apply lyrics to track"}
+                className="px-4 py-1.5 bg-cyan-900 text-cyan-100 border border-cyan-700 rounded hover:bg-cyan-800 disabled:opacity-50 text-xs font-bold font-orbitron whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
             >
                 {isGenerating ? 'GENERATING...' : 'APPLY TO TRACK'}
             </button>
             <button type="button"
                 onClick={onClose}
-                className="px-2 py-1.5 text-gray-500 hover:text-white"
+                className="px-2 py-1.5 text-gray-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded"
                 aria-label="Close Lyric Track"
                 title="Close Lyric Track"
             ><span aria-hidden="true">✕</span></button>

@@ -135,6 +135,9 @@ export function createPlaySamplerVoice(
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
+    const pPhonemeDelayAmount = noteParams?.phonemeDelayAmount !== undefined ? noteParams.phonemeDelayAmount : params.phonemeDelayAmount;
+    const pPhonemeDelayFeedback = noteParams?.phonemeDelayFeedback !== undefined ? noteParams.phonemeDelayFeedback : params.phonemeDelayFeedback;
+
     const pTransientExtraction = noteParams?.transientExtraction !== undefined ? noteParams.transientExtraction : params.transientExtraction;
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
     const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
@@ -380,6 +383,9 @@ export function createPlaySamplerVoice(
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
+        if (pPhonemeDelayAmount !== undefined && voice.setPhonemeDelayAmount) voice.setPhonemeDelayAmount(pPhonemeDelayAmount, triggerTime);
+        if (pPhonemeDelayFeedback !== undefined && voice.setPhonemeDelayFeedback) voice.setPhonemeDelayFeedback(pPhonemeDelayFeedback, triggerTime);
+
         if (pTransientExtraction !== undefined && voice.setTransientExtraction) voice.setTransientExtraction(pTransientExtraction, triggerTime);
         if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);
         if (pDrumDuckDepth !== undefined && (voice as any).setDrumDuckDepth) (voice as any).setDrumDuckDepth(pDrumDuckDepth, triggerTime);
@@ -561,18 +567,23 @@ export function createPlaySamplerVoice(
     const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
       const source = context.createBufferSource();
 
-      const targetMidi = pitchSemitones;
+      // Harmony voices arrive as an integer pitchOffsetSemitones plus detune folded into
+      // fineTune. The pitchBank is Rubber Band output with formants preserved, so keying it on
+      // the offset note keeps harmonies natural; the resample fallback (no bank, out of range,
+      // still processing) chipmunks. formantShift has no stage in this chain.
+      const targetMidi = pitchSemitones + pitchOffsetSemitones;
+      const fineRatio = Math.pow(2, (noteParams?.fineTune ?? params.fineTune ?? 0) / 1200);
       let playbackBuffer: AudioBuffer;
       let pitchRatio = 1.0;
 
       if (multisampleBank?.pitchBank.has(targetMidi)) {
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-        pitchRatio = params.playbackSpeed;
+        pitchRatio = params.playbackSpeed * fineRatio;
       } else {
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = multisampleBank?.rootNote ?? 60;
         const speed = params.playbackSpeed;
-        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12) * fineRatio;
       }
 
       if (noteParams?.reverse) {

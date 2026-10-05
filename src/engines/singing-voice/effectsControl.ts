@@ -399,6 +399,13 @@ export const EffectsControlMixin = {
   setVocalChorus(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "vocalChorus", amount, time);
   },
+  setPhonemeDelayAmount(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "phonemeDelayAmount", amount, time);
+  },
+  setPhonemeDelayFeedback(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "phonemeDelayFeedback", amount, time);
+  },
+
   setTransientExtraction(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "transientExtraction", amount, time);
   },

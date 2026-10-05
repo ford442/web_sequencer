@@ -21,8 +21,11 @@ export class DrumTriggerQueue {
   }
 
   schedule(entry: ScheduledDrumTrigger): void {
-    this.pending.push(entry);
-    this.pending.sort((a, b) => a.audioTime - b.audioTime);
+    let i = this.pending.length - 1;
+    while (i >= 0 && this.pending[i].audioTime > entry.audioTime) {
+      i--;
+    }
+    this.pending.splice(i + 1, 0, entry);
   }
 
   drain(now: number, apply: (entry: ScheduledDrumTrigger) => void): void {
