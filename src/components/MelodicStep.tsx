@@ -57,6 +57,10 @@ interface MelodicStepProps {
   gap?: number;
   x?: number;
   reverse?: boolean;
+  /** Steps per shaded beat group (16/den, or 6 for compound meters). */
+  beatSize?: number;
+  /** Step sits past the sampler's own loop length — drawn dimmed, still editable. */
+  outOfLoop?: boolean;
 }
 
 export const MelodicStep = memo(({
@@ -79,7 +83,9 @@ export const MelodicStep = memo(({
   baseWidth = 18,
   gap = 4,
   x: propX,
-  reverse
+  reverse,
+  beatSize = 4,
+  outOfLoop = false,
 }: MelodicStepProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartY = useRef(0);
@@ -100,7 +106,7 @@ export const MelodicStep = memo(({
   const borderColor = pitch ? getNoteColor(midiToNoteName(pitch), rowKey) : color;
   
   // Group index for alternating background
-  const groupIndex = Math.floor(stepIndex / 4);
+  const groupIndex = Math.floor(stepIndex / beatSize);
   const isAltGroup = groupIndex % 2 === 1;
   const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
@@ -241,7 +247,8 @@ export const MelodicStep = memo(({
         className="svg-step melodic-step"
         role="button"
         tabIndex={0}
-        aria-label={`${rowLabel} step ${stepIndex + 1}`}
+        aria-label={`${rowLabel} step ${stepIndex + 1}${outOfLoop ? ', outside track loop' : ''}`}
+        opacity={outOfLoop ? 0.35 : undefined}
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
         onContextMenu={(e) => e.preventDefault()}
@@ -269,8 +276,9 @@ export const MelodicStep = memo(({
       className={`svg-step melodic-step ${isCurrent ? 'is-current' : ''} ${isDragging ? 'is-dragging' : ''}`}
       role="button"
       tabIndex={0}
-      aria-label={`${rowLabel} step ${stepIndex + 1}, pitch ${midiToNoteName(pitch)}`}
+      aria-label={`${rowLabel} step ${stepIndex + 1}, pitch ${midiToNoteName(pitch)}${outOfLoop ? ', outside track loop' : ''}`}
       aria-pressed={active}
+      opacity={outOfLoop ? 0.35 : undefined}
       onPointerDown={handlePointerDown}
       onKeyDown={handleKeyDown}
       onContextMenu={(e) => e.preventDefault()}
@@ -464,7 +472,9 @@ export const MelodicStep = memo(({
     prev.isSlide === next.isSlide &&
     prev.isCurrent === next.isCurrent &&
     prev.reverse === next.reverse &&
-    prev.phonemes === next.phonemes
+    prev.phonemes === next.phonemes &&
+    prev.beatSize === next.beatSize &&
+    prev.outOfLoop === next.outOfLoop
   );
 });
 

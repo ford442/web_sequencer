@@ -8,8 +8,15 @@ import { SvgStep } from './SvgStep';
 import { TrackSlotStrip } from './TrackSlotButton';
 import { GridIndicators } from '../GridIndicators';
 import { TrackMuteSoloButtons } from './TrackMuteSoloButtons';
+import { TrackLoopLengthChip } from './TrackLoopLengthChip';
+import { NUM_STEPS } from '../../constants';
 
-export interface SequencerRowHandle { setHighlight: (step: number) => void; }
+/**
+ * `trackStep` maps a row to the step it is playing when tracks loop at their own
+ * length; without it every row lights the master `step`.
+ */
+export type HighlightTrackStep = (key: TrackKey) => number;
+export interface SequencerRowHandle { setHighlight: (step: number, trackStep?: HighlightTrackStep) => void; }
 
 interface SequencerRowProps {
     rowKey: TrackKey, label: string, rowIndex: number, steps: (Note | null)[], isSelected: boolean, activeSlot: number,
@@ -28,12 +35,19 @@ interface SequencerRowProps {
     focusedCell?: SequencerCellCoord | null,
     onStepRef?: (rowKey: TrackKey, step: number, el: SVGGElement | null) => void,
     onStepGridKeyDown?: (rowKey: TrackKey, step: number, e: React.KeyboardEvent) => void,
+    /** Columns to draw: the longest of the pattern and every track loop. */
+    columns?: number,
+    /** This track's own loop length; steps at or past it render as out of loop. */
+    loopLength?: number,
+    stepsPerBeat?: number,
+    stepsPerBar?: number,
 }
 
 export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProps>((props, ref) => {
     const { rowKey, label, rowIndex, steps, isSelected, activeSlot, trackSlots, onToggle, onRightMouseDown, onEditLength, onSelectRow, onSelectSlot, onSelectionStart, onSelectionEnter, selectionRange,
         automation, viewMode, automationParam, onAutomationChange, alignment,
-        focusedCell, onStepRef, onStepGridKeyDown } = props;
+        focusedCell, onStepRef, onStepGridKeyDown,
+        columns = NUM_STEPS, loopLength = columns, stepsPerBeat = 4, stepsPerBar = 16 } = props;
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -83,7 +97,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     }, []);
 
     useImperativeHandle(ref, () => ({
-        setHighlight: (step: number) => {
+        setHighlight: (masterStep: number, trackStep?: HighlightTrackStep) => {
+            const step = masterStep === -1 || !trackStep ? masterStep : trackStep(rowKey);
             if (step === -1) {
                 if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); lastActiveIndexRef.current = -1; }
                 lastStepRef.current = -1;
@@ -109,8 +124,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     const renderedSteps = useMemo(() => {
         const stepsArray = [];
         if (viewMode === 'automation' && isSelected && onAutomationChange && automationParam) {
-             const values = automation?.[automationParam] || Array(32).fill(null);
-             for (let i = 0; i < 32; i++) {
+             const values = automation?.[automationParam] ?? [];
+             for (let i = 0; i < columns; i++) {
                  const val = values[i] ?? 0.5;
                  stepsArray.push(
                     <AutomationStep
@@ -121,16 +136,16 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
              }
         } else if (viewMode === 'automation' && !isSelected) {
             let skipCount = 0;
-            for (let i = 0; i < 32; i++) {
+            for (let i = 0; i < columns; i++) {
                 if (skipCount > 0) { skipCount--; continue; }
                 const stepData = steps[i];
                 const length = stepData?.length || 1;
-                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} {...stepGridProps(i)} />);
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={false} reverse={stepData?.reverse} beatSize={stepsPerBeat} outOfLoop={i >= loopLength} {...stepGridProps(i)} />);
                 if (stepData && length > 1) { skipCount = length - 1; }
             }
         } else {
             let skipCount = 0;
-            for (let i = 0; i < 32; i++) {
+            for (let i = 0; i < columns; i++) {
                 if (skipCount > 0) { skipCount--; continue; }
                 const stepData = steps[i];
                 const length = stepData?.length || 1;
@@ -152,12 +167,12 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
                         phonemeLabel = alignment.phonemes[sliceIdx].phoneme;
                     }
                 }
-                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} {...stepGridProps(i)} />);
+                stepsArray.push(<SvgStep key={i} stepIndex={i} active={!!stepData} note={stepData ? stepData.note : null} length={length} isSlide={!!stepData?.slide} refsArray={stepRefs} rowLabel={label} rowKey={rowKey} onToggle={onToggle} onRightMouseDown={onRightMouseDown} onEditLength={onEditLength} onSelectionStart={onSelectionStart} onSelectionEnter={onSelectionEnter} isRangeSelected={isRangeSelected} phonemeLabel={phonemeLabel} retrigger={stepData?.retrigger} reverse={stepData?.reverse} beatSize={stepsPerBeat} outOfLoop={i >= loopLength} {...stepGridProps(i)} />);
                 if (stepData && length > 1) { skipCount = length - 1; }
             }
         }
         return stepsArray;
-    }, [viewMode, isSelected, onAutomationChange, automationParam, automation, steps, label, rowKey, onToggle, onRightMouseDown, onEditLength, onSelectionStart, onSelectionEnter, selectionRange, alignment, stepGridProps]);
+    }, [viewMode, isSelected, onAutomationChange, automationParam, automation, steps, label, rowKey, onToggle, onRightMouseDown, onEditLength, onSelectionStart, onSelectionEnter, selectionRange, alignment, stepGridProps, columns, loopLength, stepsPerBeat]);
 
 
     const handleRowClick = useCallback(() => onSelectRow(rowKey), [onSelectRow, rowKey]);
@@ -215,11 +230,14 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
             <g transform="translate(0, 16)">
                 <TrackMuteSoloButtons trackKey={rowKey} label={label} />
             </g>
+            <g transform="translate(0, 33)">
+                <TrackLoopLengthChip trackKey={rowKey} label={label} />
+            </g>
             <g transform="translate(30, 16)">
                 {renderedTrackSlots}
             </g>
             <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
-                <GridIndicators />
+                <GridIndicators columns={columns} stepsPerBeat={stepsPerBeat} stepsPerBar={stepsPerBar} />
                 {renderedSteps}
             </g>
         </g>
@@ -242,6 +260,10 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
         prev.trackSlots === next.trackSlots &&
         prev.alignment === next.alignment &&
         prev.focusedCell?.rowKey === next.focusedCell?.rowKey &&
-        prev.focusedCell?.step === next.focusedCell?.step
+        prev.focusedCell?.step === next.focusedCell?.step &&
+        prev.columns === next.columns &&
+        prev.loopLength === next.loopLength &&
+        prev.stepsPerBeat === next.stepsPerBeat &&
+        prev.stepsPerBar === next.stepsPerBar
     );
 });

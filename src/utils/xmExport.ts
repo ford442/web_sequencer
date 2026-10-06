@@ -9,15 +9,16 @@
 // kept as fallbacks when WASM is unavailable.
 
 import {
-    createModule, createPattern, createInstrument, createSample, addSampleToInstrument,
+    createModule, createInstrument, createSample, addSampleToInstrument,
     XMWriter, LoopType
 } from './xm_save_lib/index';
 import type { PartSequence, Pattern, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, TrackKey } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
 import { resolveExportSampleRate, type SampleRatePref } from './audioContextPolicy';
+import type { TrackLengths } from './songMeter';
 import {
-    XM_PATTERN_ROWS, XM_CHANNEL_COUNT, XM_TRACK_MAP, XM_SAMPLER_BANK_COUNT,
-    createTruncationReport, fillPatternFromSequence, formatTruncationMessage,
+    XM_CHANNEL_COUNT, XM_TRACK_MAP, XM_SAMPLER_BANK_COUNT,
+    buildXmSongPatterns, formatTruncationMessage,
     type XmTruncationReport
 } from './xmPatternFill';
 
@@ -482,6 +483,10 @@ export interface XmExportOptions {
     sampleRatePref?: SampleRatePref;
     /** `AudioContext.sampleRate` of the running engine, when there is one. */
     liveSampleRate?: number | null;
+    /** Song pattern length: rows per XM pattern. Absent = `XM_PATTERN_ROWS` (32). */
+    stepCount?: number;
+    /** Per-track loop lengths, tiled into each pattern like live playback. */
+    trackLengths?: TrackLengths;
 }
 
 /** Outcome of an XM export. The file is always written; `truncationMessage` is
@@ -725,70 +730,14 @@ export const exportSongToXM = async (
 
     mod.header.numberOfInstruments = mod.instruments.length;
 
-    let lastActiveMeasure = -1;
-    for (let i = songStructure.length - 1; i >= 0; i--) {
-        const measure = songStructure[i];
-        if (Object.values(measure).some(slot => slot !== null)) {
-            lastActiveMeasure = i;
-            break;
-        }
-    }
-
-    const useFallbackPattern = lastActiveMeasure === -1 && currentPattern;
-    const activeLength = Math.max(1, lastActiveMeasure + 1);
-    const patternOrderTable: number[] = [];
-
-    // Every track the exporter knows how to place, sampler included.
-    const exportTrackKeys: TrackKey[] = [...(Object.keys(XM_TRACK_MAP) as Exclude<TrackKey, 'sampler'>[]), 'sampler'];
-
-    // Collects anything the XM format cannot hold, so it can be reported rather
-    // than silently discarded.
-    const truncation: XmTruncationReport = createTruncationReport();
-
-    if (useFallbackPattern) {
-        const xmPat = createPattern(XM_PATTERN_ROWS, XM_CHANNEL_COUNT);
-
-        exportTrackKeys.forEach(trackKey => {
-            if (trackKey === 'sampler') {
-                currentPattern.sampler.forEach((seq, idx) => {
-                    fillPatternFromSequence(xmPat, seq, 'sampler', idx, 0, truncation);
-                });
-            } else {
-                const sequence = currentPattern[trackKey] as PartSequence | undefined;
-                if (sequence) {
-                    fillPatternFromSequence(xmPat, sequence, trackKey, 0, 0, truncation);
-                }
-            }
-        });
-
-        mod.patterns.push(xmPat);
-        patternOrderTable.push(0);
-    } else {
-        for (let m = 0; m < activeLength; m++) {
-            const measure = songStructure[m];
-            const xmPat = createPattern(XM_PATTERN_ROWS, XM_CHANNEL_COUNT);
-
-            exportTrackKeys.forEach(trackKey => {
-                const slotIndex = measure[trackKey];
-                if (slotIndex === null || slotIndex === undefined) return;
-
-                const storedData = trackStorage[trackKey]?.[slotIndex];
-                if (!storedData) return;
-
-                if (trackKey === 'sampler') {
-                    const sequences = storedData as PartSequence[];
-                    sequences.forEach((seq, idx) => {
-                        fillPatternFromSequence(xmPat, seq, 'sampler', idx, m, truncation);
-                    });
-                } else {
-                    fillPatternFromSequence(xmPat, storedData as PartSequence, trackKey, 0, m, truncation);
-                }
-            });
-
-            mod.patterns.push(xmPat);
-            patternOrderTable.push(m);
-        }
-    }
+    const { patterns, patternOrderTable, truncation } = buildXmSongPatterns({
+        songStructure,
+        trackStorage,
+        currentPattern,
+        stepCount: options.stepCount,
+        trackLengths: options.trackLengths,
+    });
+    mod.patterns.push(...patterns);
 
     mod.header.numberOfPatterns = mod.patterns.length;
     mod.header.songLength = patternOrderTable.length;

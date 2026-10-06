@@ -223,6 +223,33 @@ this budget ever needs reclaiming, in order of preference:
 Bypassing the limiter (`enabled: false`) makes the stage a near-free pass-through,
 but the meters stop as well.
 
+<a id="singing-voice-fx"></a>
+## Singing-voice FX (Rubber Band worklet)
+
+The singing-voice FX chain runs natively: `rb_fx_*` in `public/rubberband.wasm`,
+from `emscripten/rubberband_fx.cpp`. `RubberBandProcessor.process()` only schedules
+it. The TS modules in `src/audio-worklets/rubberband/` are the test oracle and the
+fallback. If the worklet falls back without being asked, it reports a `vocal-fx`
+degradation, which appears in the Engine HUD **Subsystems** row as `ts-fallback`
+with the reason. `?vocalFx=ts` pins the TS chain on purpose and raises no
+degradation.
+
+Perf tier: `src/__tests__/vocalFx.perf.test.ts`, 48 kHz, representative FX-on vocal
+(`FX_ON_BLOCK`: tone filter, syllable filter, gate, spectral comp + pan spread,
+chorus, sub harmonics, duck).
+
+| Case | TS (JIT-warm) | Native | Gate |
+|------|---------------|--------|------|
+| Post-retrieve chain, 128-frame quantum | ~0.040 ms | ~0.024 ms (**~1.7×**) | 0.5 ms ceiling; native median ≤ baseline × 1.25; native < TS |
+| Freeze granulator, 1024-frame feed | ~0.11 ms | ~0.08 ms (**~1.4×**) | native median ≤ baseline × 1.25; native < TS |
+
+Figures are medians from a local Linux run (emcc 6.0.3, Node 24). Re-baseline
+`src/test/perf-baselines/vocalFx.native.*.json` from the first CI `perf-summary.json`.
+Even the TS chain is under 2 % of the 2.67 ms quantum in a warm microbenchmark. The
+bigger audio-thread win is the tail: the TS spectral stage allocates per sample, and
+its p95 reached 0.25 ms in one run, while native p95 stayed near 0.03 ms. The
+regression gate covers the native path only, because it is the default.
+
 ## Glitch detection
 
 The HUD / session report also tracks:
@@ -380,11 +407,26 @@ migrated off the mega-context one by one, along with the remaining phase stores
 the **unit** tier (`test:unit`), not `test:perf`: mounting `<AppStateProvider>`
 pulls in `useAudioEngine`, which imports real `.wasm?init` modules that only the
 unit tier's Vite config stubs out (`vitest.unit.config.ts`'s
-`wasm-stub-resolve` plugin). The perf tier intentionally does *not* stub WASM —
-`exportLoudness.perf.test.ts` and `wasmMigration.bench.test.ts` need the real
-modules to produce meaningful timings — so adding the stub there would corrupt
-those benchmarks. Render-count assertions are deterministic (no wall-clock
-sampling needed), so the unit tier is the right home for them regardless.
+`wasm-stub-resolve` plugin). Render-count assertions are deterministic (no
+wall-clock sampling needed), so the unit tier is the right home for them
+regardless.
+
+**Rule: the perf tier does not stub WASM, it builds it.** Two perf files need
+the real AssemblyScript modules: `src/__tests__/audioExport.perf.test.ts`
+(through `src/utils/audioExport.ts` → `audioExport.wasm?init`) and
+`src/__tests__/useAudioEngine.perf.test.tsx` (through `useAudioEngine` →
+`src/utils/trackFreezer.ts` → `trackFreezer.wasm?init`). `src/wasm/` is
+gitignored build output. So `.github/workflows/test-perf.yml` runs the five
+AssemblyScript builds (`build:wasm:oscillators`, `:freezer`, `:fft`,
+`:audioexport`, `:xmexport`) before `pnpm run test:perf`. It does not run
+`build:wasm`, because that also pulls in Rust and Emscripten, which no perf test
+touches. Without that step both files fail to resolve their `.wasm?init`
+import, which is why the nightly job was red 48/48 until 2026-09-28. Do not add
+the unit tier's WASM stub to `vitest.perf.config.ts`: a stubbed module would
+time a no-op. Locally, run the same five builds before `pnpm run test:perf`.
+(`exportLoudness.perf.test.ts` is pure TypeScript, and
+`wasmMigration.bench.test.ts` benchmarks JS `*Sim` stand-ins. Neither loads
+WASM, despite what this note used to say.)
 
 ## Test tiers
 

@@ -366,7 +366,8 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
             if (e.target instanceof HTMLElement && e.target.isContentEditable) return;
 
-            if (e.code === OCTAVE_DOWN_CODE || e.code === OCTAVE_UP_CODE) {
+            // Shift + [ / ] belongs to the transport (pattern length).
+            if ((e.code === OCTAVE_DOWN_CODE || e.code === OCTAVE_UP_CODE) && !e.shiftKey) {
                 e.preventDefault();
                 if (!e.repeat) shiftOctave(e.code === OCTAVE_UP_CODE ? 1 : -1);
                 return;

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { Voice303Selector } from '../../components/Voice303Selector'
 import {
     legacyEngine303ForModel,
@@ -23,13 +23,27 @@ import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanel
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
 
 /**
+ * Returns the previous array while `next` has the same contents. The flag
+ * arrays below are recomputed every render (engine state can change without a
+ * buffer change), but a fresh array each time would invalidate every
+ * `useMemo` that lists one as a dependency — rebuilding the sampler panel
+ * element, and re-rendering everything that receives it, on any app-state change.
+ */
+function useStableFlags(next: boolean[]): boolean[] {
+    const ref = useRef(next);
+    const prev = ref.current;
+    if (prev.length !== next.length || prev.some((v, i) => v !== next[i])) ref.current = next;
+    return ref.current;
+}
+
+/**
  * Selector props for the per-song high-fid state (L2 A/B + L3 coefficients).
  * Writes go to song state only; useAppState syncs `model303Extra` into the
  * Open303Manager, so load, undo and UI edits all take the same path.
  */
 function highFidExtraProps(
     extra: TB303VoiceExtra | undefined,
-    update: (updates: { model303Extra: TB303VoiceExtra }) => void,
+    update: (updates: { model303Extra?: TB303VoiceExtra }) => void,
 ) {
     return {
         liveAb: extra?.ab,
@@ -80,8 +94,10 @@ export function useHardwarePanels(deps: {
     const sliceHighlightRef = useSamplerBanksStore(s => s.sliceHighlightRef);
     const activeAlignment = useSamplerBanksStore(s => s.activeAlignment);
 
-    const loadedBanks: boolean[] = loadedBanksFrom(sampleBuffers);
-    const { ready: multisampleReady, processing: multisampleProcessing } = multisampleFlagsFrom(sampleBuffers, audioEngine);
+    const loadedBanks = useStableFlags(loadedBanksFrom(sampleBuffers));
+    const multisampleFlags = multisampleFlagsFrom(sampleBuffers, audioEngine);
+    const multisampleReady = useStableFlags(multisampleFlags.ready);
+    const multisampleProcessing = useStableFlags(multisampleFlags.processing);
     const { setActiveSamplerBank, setActiveAlignment } = samplerBanksStore;
 
     const synthAChild = useMemo(() => {

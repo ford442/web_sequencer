@@ -1,21 +1,36 @@
 import React, { useMemo } from 'react'
-import { useAppStateContext } from '../../contexts/AppStateContext'
+import { useAppStateSelector, useAppStateSlice } from '../../contexts/AppStateContext'
 import { NoteSelector } from '../NoteSelector'
 import { getNoteColor } from '../../utils/noteColors'
+import type { PartSequence } from '../../types'
 
+const CONTEXT_MENU_KEYS = [
+  'contextMenu', 'pattern', 'activeSamplerBank', 'handleNoteSelect', 'handleNoteLengthChange',
+  'handleNotePropertyChange', 'currentScale', 'setContextMenu',
+] as const
+
+// Gate: subscribes to `contextMenu` alone, so a closed menu costs nothing on
+// pattern edits. The open menu below is the only thing that reads `pattern`.
 export const ContextMenuNode = React.memo(() => {
-  const state = useAppStateContext()
-  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB } = state
+  const isOpen = useAppStateSelector((s) => s.contextMenu !== null)
+  return isOpen ? <OpenContextMenu /> : null
+})
+
+const OpenContextMenu = React.memo(() => {
+  const { contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu } = useAppStateSlice(CONTEXT_MENU_KEYS)
+  // Only the two waveform strings matter, not the synth param objects.
+  const partAWaveform = useAppStateSelector((s) => s.synthA?.waveform)
+  const partBWaveform = useAppStateSelector((s) => s.synthB?.waveform)
 
   return useMemo(() => {
     if (!contextMenu) return null
     const track = contextMenu.track
     const step = contextMenu.step
-    const sequence = track === 'sampler' ? pattern.sampler[activeSamplerBank] : (pattern as any)[track]
+    const sequence: PartSequence | undefined = track === 'sampler' ? pattern.sampler[activeSamplerBank] : pattern[track]
     const stepData = sequence?.steps[step] || null
 
     // Determine if the active synth for this track is a Prophecy voice
-    const waveform = track === 'partA' ? synthA?.waveform : (track === 'partB' ? synthB?.waveform : undefined)
+    const waveform = track === 'partA' ? partAWaveform : (track === 'partB' ? partBWaveform : undefined)
     const isProphecy = waveform?.startsWith('prophecy-') ?? false
 
     return (
@@ -63,12 +78,15 @@ export const ContextMenuNode = React.memo(() => {
           currentDelaySend={stepData?.delaySend}
           currentChoir={stepData?.choir}
           currentVocoderMix={stepData?.vocoderMix}
+          currentPhonemeDelayAmount={stepData?.phonemeDelayAmount}
+          currentPhonemeDelayFeedback={stepData?.phonemeDelayFeedback}
           currentTranceGate={stepData?.tranceGate}
           currentTimeStretchEnvDepth={stepData?.timeStretchEnvDepth}
           currentFreezeEnvDepth={stepData?.freezeEnvDepth}
           currentGrainLfoRate={stepData?.grainLfoRate}
           currentGrainLfoDepth={stepData?.grainLfoDepth}
           currentGrainPosLfoDepth={stepData?.grainPosLfoDepth}
+          currentTimeSmear={stepData?.timeSmear}
           currentGrainEnvDepth={stepData?.grainEnvDepth}
           currentGrainPitchEnvDepth={stepData?.grainPitchEnvDepth}
           currentGrainPitchQuantize={stepData?.grainPitchQuantize}
@@ -84,14 +102,14 @@ export const ContextMenuNode = React.memo(() => {
           currentPortamento={stepData?.portamento ?? 0}
           onSelect={handleNoteSelect}
           onLengthChange={handleNoteLengthChange}
-          onPropertyChange={handleNotePropertyChange as any}
+          onPropertyChange={handleNotePropertyChange}
           onClose={() => setContextMenu(null)}
           getNoteColor={getNoteColor}
           currentScale={currentScale}
         />
       </div>
     )
-  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, synthA, synthB])
+  }, [contextMenu, pattern, activeSamplerBank, handleNoteSelect, handleNoteLengthChange, handleNotePropertyChange, currentScale, setContextMenu, partAWaveform, partBWaveform])
 })
 
 export default ContextMenuNode

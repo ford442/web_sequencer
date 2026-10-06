@@ -14,6 +14,7 @@ export interface SynthEffectPropertiesProps {
   currentGrainLfoRate?: number;
   currentGrainLfoDepth?: number;
   currentGrainPosLfoDepth?: number;
+  currentTimeSmear?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;
@@ -25,6 +26,7 @@ export interface SynthEffectPropertiesProps {
   currentBitcrush?: number;
   currentSpectralComp?: number;
   currentSubHarmonics?: number;
+  currentSpatialRouting?: number;
   currentDrumDuckDepth?: number;
   currentDownsample?: number;
   currentSpectralCompression?: number;
@@ -61,4 +63,6 @@ export interface SynthEffectPropertiesProps {
   currentReverse?: boolean;
   currentCustomWindowShape?: number[];
   currentVolumeFilterMod?: number;
+  currentPhonemeDelayAmount?: number;
+  currentPhonemeDelayFeedback?: number;
 }

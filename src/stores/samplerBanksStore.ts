@@ -45,8 +45,8 @@ class SamplerBanksStore {
       activeSongSlot: null,
       activeAlignment: null,
       activeSamplerBank: initialActiveSamplerBank,
-      sampleBuffers: new Array(8).fill(null),
-      ttsPhrases: Array(8).fill("Hello World"),
+      sampleBuffers: new Array<AudioBuffer | null>(8).fill(null),
+      ttsPhrases: new Array<string>(8).fill("Hello World"),
 
       trackStorageRef: { current: initialTrackStorage },
       activeTrackSlotsRef: { current: initialActiveTrackSlots },

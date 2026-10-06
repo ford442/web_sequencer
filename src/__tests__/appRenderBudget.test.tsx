@@ -2,14 +2,17 @@ import '@testing-library/jest-dom';
 import { act, render } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import App from '@/App';
-import { AppStateProvider, useAppStateContext } from '@/contexts/AppStateContext';
+import { AppStateProvider, useAppStateSelector } from '@/contexts/AppStateContext';
 import { CompactLayoutProvider } from '@/contexts/CompactLayoutContext';
 import { NUM_STEPS } from '@/constants';
 import TransportHeader from '@/components/appParts/TransportHeader';
 import RackNode from '@/components/appParts/RackNode';
-import SequencerNode from '@/components/appParts/SequencerNode';
+import { SequencerGrid } from '@/components/appParts/SequencerNode';
 import KeyboardNode from '@/components/appParts/KeyboardNode';
 import { BottomBar } from '@/components/BottomBar';
+import ContextMenuNode from '@/components/appParts/ContextMenuNode';
+import { ToastNode } from '@/components/appParts/AppOverlays';
+import { LyricTrackNode, MobileTransportNode, SessionNode, SongModeNode } from '@/components/appParts/PanelNodes';
 
 vi.mock('@/services/AISongStorage', () => ({
     AISongStorage: {
@@ -19,42 +22,33 @@ vi.mock('@/services/AISongStorage', () => ({
 }));
 
 /**
- * Render budget for the app's top-level UI regions across one full pass of
- * 32 sequential step edits — the same `setPattern` update a user toggling
- * every step of a track (or the automation/step-recording path) performs.
+ * Render budget for the app's UI regions across one full pass of 32
+ * sequential step edits — the same `setPattern` update a user toggling every
+ * step of a track (or the automation/step-recording path) performs.
  *
  * Real playback-driven step *highlighting* already bypasses React state
  * (`sequencerRef.current.setHighlight()` mutates the DOM directly — see
- * useAppState.tsx's onStep wiring), so it isn't what's measured here; this
- * budget targets the mega-context re-render fan-out this test file's
- * sibling (uiModalsStore.renderIsolation.test.tsx) and useAppState.tsx's
- * module doc both describe: any `setPattern`-driven change re-renders every
- * region that reads `useAppStateContext()`, whether or not it uses
- * `pattern`.
+ * useAppState.tsx's onStep wiring), so it isn't what's measured here.
  *
- * Instrumentation: each region (`TransportHeader`, `RackNode`,
- * `SequencerNode`, `KeyboardNode`, `BottomBar`) is exported as
- * `React.memo(fn)`, an object of shape `{ type: fn, compare, ... }`. Rather
- * than replacing the component with a stub (which would only measure
- * whether `App` re-renders and passes it a new element — a *different*
- * question, since `React.memo`'s prop-equality bailout and each region's own
- * `useAppStateContext()`/store subscriptions are what actually decide
- * whether it re-renders), this patches `.type` in place so the real render
- * function still runs, still subject to memo's bailout and each region's own
- * context/store subscriptions — only the call itself is also counted. This
- * mutates the same singleton module object `App` imports, so it observes
- * exactly what `App` would trigger.
+ * Every region subscribes to exactly the fields it renders via
+ * `useAppStateSlice` / `useAppStateSelector` (see AppStateContext.tsx and
+ * stores/appStateStore.ts), so a pattern edit re-renders `SequencerGrid` —
+ * the one region that draws the pattern — and nothing else. That is the
+ * floor: one grid render per edit. Anything above it means a region has
+ * started reading state it doesn't draw, or a hook upstream is handing out an
+ * unstable value (a fresh array/closure each render) that invalidates a
+ * memoised child.
  *
- * The budget recorded here (see docs/PERFORMANCE_BUDGET.md) is today's
- * *baseline*, not an already-met target — TransportHeader, RackNode,
- * SequencerNode and BottomBar still pull most of their fields from the
- * shared context and re-render on every one of the 32 edits; only
- * KeyboardNode (which takes props from App rather than reading
- * useAppStateContext() itself) is already at 0. The other four are expected
- * to shrink toward 0 only once the remaining migration phases (transport/mix,
- * sampler banks, pattern edit, instrument state, session/song) land. This
- * test exists so that number can only go down from here, not silently
- * regress upward.
+ * Instrumentation: each region is `React.memo(fn)`, an object of shape
+ * `{ type: fn, compare, ... }`. Rather than replacing the component with a
+ * stub (which would only measure whether the parent passes a new element —
+ * a different question, since memo's prop bailout and each region's own
+ * subscriptions are what actually decide whether it re-renders), this patches
+ * `.type` in place so the real render function still runs — only the call
+ * itself is also counted. This mutates the same singleton module object the
+ * app imports, so it observes exactly what the app would trigger.
+ *
+ * See docs/PERFORMANCE_BUDGET.md.
  */
 
 interface MemoComponent {
@@ -77,16 +71,25 @@ function spyOnRender(component: unknown): { spy: ReturnType<typeof vi.fn>; resto
     };
 }
 
+/** The one region that legitimately re-renders on a pattern edit. */
+const GRID_REGION = 'SequencerGrid';
+
 const REGIONS: Array<{ name: string; component: unknown }> = [
     { name: 'TransportHeader', component: TransportHeader },
     { name: 'RackNode', component: RackNode },
-    { name: 'SequencerNode', component: SequencerNode },
+    { name: GRID_REGION, component: SequencerGrid },
     { name: 'KeyboardNode', component: KeyboardNode },
     { name: 'BottomBar', component: BottomBar },
+    { name: 'ContextMenuNode', component: ContextMenuNode },
+    { name: 'ToastNode', component: ToastNode },
+    { name: 'SongModeNode', component: SongModeNode },
+    { name: 'SessionNode', component: SessionNode },
+    { name: 'MobileTransportNode', component: MobileTransportNode },
+    { name: 'LyricTrackNode', component: LyricTrackNode },
 ];
 
 function StepEditDriver({ captureToggle }: { captureToggle: (toggle: (i: number) => void) => void }) {
-    const { handleStepToggle } = useAppStateContext();
+    const handleStepToggle = useAppStateSelector((s) => s.handleStepToggle);
     captureToggle((i: number) => {
         handleStepToggle('kick', i % NUM_STEPS, {
             altKey: false,
@@ -98,15 +101,12 @@ function StepEditDriver({ captureToggle }: { captureToggle: (toggle: (i: number)
     return null;
 }
 
-// Current measured baseline is 128: TransportHeader, RackNode, SequencerNode
-// and BottomBar each re-render on all 32 edits (4 × 32 = 128); KeyboardNode
-// renders 0 times because it takes its props from App instead of reading
-// useAppStateContext() itself, and none of those props change for a step
-// edit — a preview of what the other regions look like once they've made
-// the same move. Budget adds modest headroom above that measured baseline
-// so incidental fluctuations don't flake the gate — see
-// docs/PERFORMANCE_BUDGET.md.
-const RENDER_BUDGET = 145;
+// Measured: SequencerGrid renders once per edit (32) and every other region
+// renders 0 times. The budget is that floor plus a little slack for an
+// incidental extra grid commit; the per-region assertion below is what pins
+// the other regions at exactly zero. Lowering it is always safe; raising it
+// means a region regressed — see docs/PERFORMANCE_BUDGET.md.
+const RENDER_BUDGET = 34;
 
 describe('App top-level render budget', () => {
     it('stays within the documented budget across a full 32-step edit pass', () => {
@@ -139,6 +139,8 @@ describe('App top-level render budget', () => {
             const renders = spies.reduce((sum, s) => sum + s.spy.mock.calls.length, 0);
             const breakdown = spies.map((s) => `${s.name}=${s.spy.mock.calls.length}`).join(', ');
             console.log(`[perf] appRenderBudget.32StepPass: ${renders} renders across ${REGIONS.length} regions (budget ${RENDER_BUDGET}) — ${breakdown}`);
+            const offenders = spies.filter((s) => s.name !== GRID_REGION && s.spy.mock.calls.length > 0);
+            expect(offenders.map((s) => `${s.name}=${s.spy.mock.calls.length}`)).toEqual([]);
             expect(renders).toBeLessThanOrEqual(RENDER_BUDGET);
         } finally {
             spies.forEach((s) => s.restore());

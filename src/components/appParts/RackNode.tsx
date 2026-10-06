@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, memo } from "react";
-import { useAppStateContext } from "../../contexts/AppStateContext";
+import { useAppStateSlice } from "../../contexts/AppStateContext";
 import { useUIModalsStore } from "@/stores/uiModalsStore";
 import { HardwareModule, type KnobConfig } from "../HardwareModule";
 import { SamplerVoicePanel } from "../SamplerVoicePanel";
@@ -28,7 +28,7 @@ import type {
   UnifiedAutomationLane,
   TrackAnalysers,
 } from "../../types";
-import { NUM_STEPS } from "../../constants";
+import { useTransportMixStore } from "@/stores/transportMixStore";
 import { sampleLaneArcValues } from "../../utils/knobAutomationCurve";
 import type { TrackKey } from "../../constants/appDefaults";
 
@@ -156,6 +156,7 @@ function applyAutomationPreviewFlags(
   lanes: UnifiedAutomationLane[],
   patternIndex: number,
   showHardwareAutomation: boolean,
+  stepCount: number,
 ): KnobConfig[] {
   return controls.map((c) => {
     const matching: UnifiedAutomationLane[] = [];
@@ -175,7 +176,7 @@ function applyAutomationPreviewFlags(
     }
     const hasLane = matching.length > 0;
     const curveSamples = activeLane
-      ? sampleLaneArcValues(activeLane, NUM_STEPS)
+      ? sampleLaneArcValues(activeLane, stepCount)
       : [];
     const automationPreview = hasLane
       ? {
@@ -196,6 +197,47 @@ function applyAutomationPreviewFlags(
     return { ...c, automationPreview, automationDimmed };
   });
 }
+
+const RACK_KEYS = [
+  "synthAControls",
+  "synthBControls",
+  "bass2Controls",
+  "kickControls",
+  "snareControls",
+  "closedHatControls",
+  "openHatControls",
+  "samplerControls",
+  "onSynthAParamChange",
+  "onSynthBParamChange",
+  "onBass2ParamChange",
+  "handleKickChange",
+  "handleSnareChange",
+  "handleClosedHatChange",
+  "handleOpenHatChange",
+  "handleSamplerChange",
+  "handleKnobRecordToggle",
+  "synthAChild",
+  "synthBChild",
+  "bass2Child",
+  "samplerChild",
+  "activeSamplerBank",
+  "samplerVoiceParams",
+  "handleSamplerVoiceChange",
+  "harmonizerConfig",
+  "handleHarmonizerConfigChange",
+  "isHarmonizeActive",
+  "setSelectedTrack",
+  "selectedTrack",
+  "synthB",
+  "bass2",
+  "drumKit",
+  "updateDrumKit",
+  "activeTrackSlots",
+  "handleAutomationNudge",
+  "handleAutomationPunchIn",
+  "handleAutomationLaneAction",
+  "audioEngine",
+] as const;
 
 export const RackNode = React.memo(() => {
   // Sourced directly from the store (not the mega-context) so this flag
@@ -240,7 +282,7 @@ export const RackNode = React.memo(() => {
     handleAutomationPunchIn,
     handleAutomationLaneAction,
     audioEngine,
-  } = useAppStateContext();
+  } = useAppStateSlice(RACK_KEYS);
 
   const expressionLedProps = React.useMemo(() => {
     const analysers = audioEngine?.trackAnalysers;
@@ -305,6 +347,8 @@ export const RackNode = React.memo(() => {
     [activeTrackSlots],
   );
 
+  // Knob arc previews sample automation across the current pattern length.
+  const stepCount = useTransportMixStore((s) => s.stepCount);
   const previewControlsMap = useMemo(() => {
     const withMidi = {
       synthA: applyMidiFlags(
@@ -348,6 +392,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("synthA"),
         showHardwareAutomation,
+        stepCount,
       ),
       synthB: applyAutomationPreviewFlags(
         withMidi.synthB,
@@ -355,6 +400,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("synthB"),
         showHardwareAutomation,
+        stepCount,
       ),
       bass2: applyAutomationPreviewFlags(
         withMidi.bass2,
@@ -362,6 +408,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("bass2"),
         showHardwareAutomation,
+        stepCount,
       ),
       kick: applyAutomationPreviewFlags(
         withMidi.kick,
@@ -369,6 +416,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("kick"),
         showHardwareAutomation,
+        stepCount,
       ),
       snare: applyAutomationPreviewFlags(
         withMidi.snare,
@@ -376,6 +424,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("snare"),
         showHardwareAutomation,
+        stepCount,
       ),
       closedHat: applyAutomationPreviewFlags(
         withMidi.closedHat,
@@ -383,6 +432,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("closedHat"),
         showHardwareAutomation,
+        stepCount,
       ),
       openHat: applyAutomationPreviewFlags(
         withMidi.openHat,
@@ -390,6 +440,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("openHat"),
         showHardwareAutomation,
+        stepCount,
       ),
       sampler: applyAutomationPreviewFlags(
         withMidi.sampler,
@@ -397,6 +448,7 @@ export const RackNode = React.memo(() => {
         lanes,
         patternIndexFor("sampler"),
         showHardwareAutomation,
+        stepCount,
       ),
     };
   }, [
@@ -413,6 +465,7 @@ export const RackNode = React.memo(() => {
     lanes,
     showHardwareAutomation,
     patternIndexFor,
+    stepCount,
   ]);
 
   const armedControlsMap = useMemo(() => {

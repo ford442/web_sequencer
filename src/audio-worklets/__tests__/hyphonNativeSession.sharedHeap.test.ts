@@ -211,6 +211,25 @@ describe('hyphon_native shared heap (one per audio session)', () => {
     expect(memoryCtor).toHaveBeenCalledTimes(1);
   });
 
+  it('instantiates without timers, as in a real AudioWorkletGlobalScope', async () => {
+    // AudioWorkletGlobalScope has no setTimeout/clearTimeout; touching them used
+    // to throw a ReferenceError that dropped every voice to its JS fallback.
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    let voices: Awaited<ReturnType<typeof bootFiveVoices>>;
+    try {
+      delete (globalThis as { setTimeout?: unknown }).setTimeout;
+      delete (globalThis as { clearTimeout?: unknown }).clearTimeout;
+      voices = await bootFiveVoices();
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+    }
+    for (const [name, v] of Object.entries(voices)) {
+      expect(v.port.posted.map((m) => m.type), name).toContain('ready');
+    }
+  });
+
   it('retries a failed instantiation instead of caching the failure', async () => {
     instantiateSpy.mockRejectedValueOnce(new Error('boom'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});

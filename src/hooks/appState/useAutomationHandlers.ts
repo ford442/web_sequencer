@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { automationStore } from '../../stores/automationStore'
 import { NUM_STEPS } from '../../constants'
+import { padSteps } from '../../utils/songMeter'
 import type { Pattern, PartSequence, AutomationTarget } from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
 import { GLOBAL_ARM_PARAMS } from './constants'
@@ -34,9 +35,10 @@ export function useAutomationHandlers(deps: {
             const bankIdx = activeSamplerBankRef.current;
             const bank = prev.sampler[bankIdx];
             const nextAutomation: { [param: string]: (number | null)[] } = bank.automation ? { ...bank.automation } : {};
-            const nextParamArray: (number | null)[] = nextAutomation[automationParam]
-                ? [...nextAutomation[automationParam]]
-                : Array<number | null>(NUM_STEPS).fill(null);
+            const nextParamArray: (number | null)[] = padSteps(
+                nextAutomation[automationParam] ? [...nextAutomation[automationParam]] : [],
+                Math.max(NUM_STEPS, step + 1),
+            );
 
             nextParamArray[step] = value;
 
@@ -51,9 +53,10 @@ export function useAutomationHandlers(deps: {
         } else {
             const track = prev[trackKey as NonSamplerTrackKey];
             const nextAutomation: { [param: string]: (number | null)[] } = track.automation ? { ...track.automation } : {};
-            const nextParamArray: (number | null)[] = nextAutomation[automationParam]
-                ? [...nextAutomation[automationParam]]
-                : Array<number | null>(NUM_STEPS).fill(null);
+            const nextParamArray: (number | null)[] = padSteps(
+                nextAutomation[automationParam] ? [...nextAutomation[automationParam]] : [],
+                Math.max(NUM_STEPS, step + 1),
+            );
 
             nextParamArray[step] = value;
 

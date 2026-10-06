@@ -15,6 +15,7 @@ export type PropertyChangeKey =
   | "grainLfoRate"
   | "grainLfoDepth"
   | "grainPosLfoDepth"
+  | "timeSmear"
   | "grainJitter"
   | "grainPitchQuantize"
   | "windowShape"
@@ -76,6 +77,8 @@ export type PropertyChangeKey =
   | "vocoderPreservation"
   | "vocoderAttack"
   | "vocoderRelease"
+  | "phonemeDelayAmount"
+  | "phonemeDelayFeedback"
   | "vowel"
   | "portamento"
   | "pitchAttack"
@@ -111,7 +114,10 @@ export interface NoteSelectorProps {
   currentSpectralCompression?: number;
   currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
+  currentSpatialRouting?: number;
   currentVolumeFilterMod?: number;
+  currentPhonemeDelayAmount?: number;
+  currentPhonemeDelayFeedback?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;
   currentSlideFormant?: boolean;
@@ -147,6 +153,7 @@ export interface NoteSelectorProps {
   currentGrainLfoRate?: number;
   currentGrainLfoDepth?: number;
   currentGrainPosLfoDepth?: number;
+  currentTimeSmear?: number;
   currentGrainJitter?: number;
   currentGrainPitchQuantize?: number;
   currentGranularPitchShift?: number;

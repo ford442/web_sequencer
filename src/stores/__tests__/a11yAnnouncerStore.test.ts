@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { a11yAnnouncerStore } from '../a11yAnnouncerStore';
+import { a11yAnnouncerStore, type A11yAnnouncement } from '../a11yAnnouncerStore';
 
 describe('a11yAnnouncerStore', () => {
     it('notifies subscribers with announcements', () => {
-        const listener = vi.fn();
+        const listener = vi.fn<(announcement: A11yAnnouncement | null) => void>();
         const unsub = a11yAnnouncerStore.subscribe(listener);
         a11yAnnouncerStore.announce('Playback started');
         expect(listener).toHaveBeenCalled();

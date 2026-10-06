@@ -4,6 +4,7 @@ import { VocoderProperties } from "./VocoderProperties";
 import { DrawableLFO } from "../DrawableLFO";
 import type { SynthEffectPropertiesProps } from "./synthEffectTypes";
 
+
 export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.memo((props) => {
   const {
     trackType,
@@ -53,6 +54,8 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentDrive,
     currentVibratoDepth = 0,
     currentVolumeFilterMod = 0,
+    currentPhonemeDelayAmount = 0,
+    currentPhonemeDelayFeedback = 0,
     currentCustomWindowShape,
     currentVowel = 0,
     currentPortamento = 0,
@@ -67,11 +70,34 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentReverse = false,
   } = props;
 
-  if (trackType !== "synth") return null;
+  if (trackType !== "synth" && trackType !== "voice") return null;
 
   return (
     <>
       <div className="flex flex-col gap-1">
+        <PropertySlider
+          id="note-phoneme-delay-amount"
+          label="Phoneme Delay"
+          value={currentPhonemeDelayAmount}
+          onChange={(v: number) => onPropertyChange?.("phonemeDelayAmount", v)}
+          min={0} max={1} step={0.01}
+          valueFormatter={(v: number) => `${Math.round(v * 100)}%`}
+        />
+        <PropertySlider
+          id="note-phoneme-delay-feedback"
+          label="Delay Feedback"
+          value={currentPhonemeDelayFeedback}
+          onChange={(v: number) => onPropertyChange?.("phonemeDelayFeedback", v)}
+          min={0} max={1} step={0.01}
+          valueFormatter={(v: number) => `${Math.round(v * 100)}%`}
+        />
+
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-freeze">Freeze</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -159,6 +185,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         )}
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-freeze-depth">Frz LFO Depth</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -184,6 +216,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-freeze-env">Env Frz</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -209,6 +247,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-env">Env Grn</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -234,6 +278,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
       <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-lfo-rate">Grain LFO Rate</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -259,6 +309,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
       <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-lfo-depth">Grain LFO Depth</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -285,6 +341,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
       </div>
 
       <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-pos-osc">Pos Oscillation</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -309,7 +371,79 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
           aria-label="Grain Position Oscillation Depth"
         />
       </div>
+      <div className="flex flex-col gap-1">
+
+
+
+
+
+
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <span className="flex items-center gap-1">
+            <span>⏱️</span>
+            Time Smear
+          </span>
+          <span>
+            {Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={props.currentTimeSmear || 0}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "timeSmear",
+              parseFloat(e.target.value)
+            )
+          }
+          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+          aria-valuetext={`${Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%`}
+          aria-label="Time Smear"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+
+
+
+
+
+
+        <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
+          <span className="flex items-center gap-1">
+            <span>⏱️</span>
+            Time Smear
+          </span>
+          <span>
+            {Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={props.currentTimeSmear || 0}
+          onChange={(e) =>
+            onPropertyChange?.(
+              "timeSmear",
+              parseFloat(e.target.value)
+            )
+          }
+          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-cyan-900/30 hover:accent-cyan-300 transition-all"
+          aria-valuetext={`${Math.round(((props.currentTimeSmear || 0) + 0.0001) * 100)}%`}
+          aria-label="Time Smear"
+        />
+      </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-jitter">Grain Jitter</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -335,6 +469,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-pitch-env">
             Grain Pitch Env
@@ -363,6 +503,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-grain-quant">Grain Quant</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -388,6 +534,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />{" "}
       </div>
       <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-spectral-compression">Band Dyn</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -413,6 +565,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-gran-pitch">Gran Pitch Shift</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
@@ -438,6 +596,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         />
       </div>
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-window-shape">Window Shape</label>
         </div>
@@ -569,6 +733,12 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         borderColor="border-indigo-900/30"
       />
        <div className="flex flex-col gap-1">
+
+
+
+
+
+
         <div className="flex justify-between text-[10px] text-cyan-200/70 font-bold uppercase">
           <label htmlFor="note-trance-gate">Gate</label>
           <span className="text-cyan-400 font-mono text-[10px] drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">

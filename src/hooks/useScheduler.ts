@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { transportClockController } from '../midi/clock/TransportClockController';
+import type { StepCallback } from '../midi/clock/types';
 import { engineTelemetry } from '../utils/engineTelemetry';
 
-export type StepCallback = (step: number, audioTime: number) => void;
+export type { StepCallback };
 
 export interface UseSchedulerReturn {
     isPlaying: boolean;
@@ -46,8 +47,8 @@ export const useScheduler = (
     }, [context]);
 
     useEffect(() => {
-        return transportClockController.onStep((step, audioTime) => {
-            onStepRef.current(step, audioTime);
+        return transportClockController.onStep((step, audioTime, absStep) => {
+            onStepRef.current(step, audioTime, absStep);
         });
     }, []);
 

@@ -44,6 +44,7 @@ export interface Note {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPanSpread?: number;
   volumeFilterMod?: number;
   vibratoDepth?: number;
@@ -68,7 +69,10 @@ export interface Note {
   tranceGate?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  phonemeDelayAmount?: number;
+  phonemeDelayFeedback?: number;
   transientExtraction?: number;
+  consonantClarity?: number;
   autoTune?: number;
   microtonalVariance?: number;
   drumDuckDepth?: number;
@@ -105,6 +109,16 @@ export interface Note {
 
   spatialRouting?: number;
 }
+
+/**
+ * Per-step overrides handed to sampler playback. Keys that also exist on
+ * `SamplerBankParams` (vocoder, spectral pan, formant envelope, ...) override
+ * the bank value for that hit only; `slideFrom*` are the glide origins the step
+ * handler derives from the previous step. The note pitches travel separately;
+ * `phonemes` are the step's Phoneme Painter edits, applied on top of the
+ * alignment when the voice plays (#1273).
+ */
+export type SamplerNoteParams = Partial<Omit<Note, 'note' | 'chord'>>;
 
 export interface PartSequence {
   steps: (Note | null)[];

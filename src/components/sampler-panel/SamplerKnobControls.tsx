@@ -26,6 +26,7 @@ interface SamplerKnobHandlers {
   grainLfoRate: (v: number) => void;
   grainLfoDepth: (v: number) => void;
   grainPosLfoDepth: (v: number) => void;
+  timeSmear: (v: number) => void;
   grainEnvDepth: (v: number) => void;
   grainPitchEnvDepth: (v: number) => void;
   grainJitter: (v: number) => void;
@@ -35,6 +36,8 @@ interface SamplerKnobHandlers {
   spectralComp: (v: number) => void;
   downsample: (v: number) => void;
   vocalChorus: (v: number) => void;
+  phonemeDelayAmount: (v: number) => void;
+  phonemeDelayFeedback: (v: number) => void;
   transientExtraction: (v: number) => void;
   autoTune: (v: number) => void;
   microtonalVariance: (v: number) => void;
@@ -185,6 +188,9 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Grain LFO Rate" value={currentParams.grainLfoRate || 0} onChange={handlers.grainLfoRate} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
           <Knob label="Grain LFO Depth" value={currentParams.grainLfoDepth || 0} onChange={handlers.grainLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Grain Pos Scan" value={currentParams.grainPosLfoDepth || 0} onChange={handlers.grainPosLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Time Smear" value={currentParams.timeSmear || 0} onChange={handlers.timeSmear} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Time Smear" value={currentParams.timeSmear || 0} onChange={handlers.timeSmear} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+
           <Knob label="Env → Grain" value={currentParams.grainEnvDepth || 0} onChange={handlers.grainEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Env → Grn Pitch" value={currentParams.grainPitchEnvDepth || 0} onChange={handlers.grainPitchEnvDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Jitter" value={currentParams.grainJitter || 0} onChange={handlers.grainJitter} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
@@ -193,6 +199,8 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="AutoTune" value={currentParams.autoTune || 0} onChange={handlers.autoTune} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Microtonal" value={currentParams.microtonalVariance || 0} onChange={handlers.microtonalVariance} min={0} max={100} step={1} color="indigo" unit="ct" />
           <Knob label="Phoneme Pan" value={currentParams.spatialRouting || 0} onChange={handlers.spatialRouting} min={0} max={1.0} step={0.01} color="cyan" unit="%" />
+          <Knob label="Phon Delay" value={currentParams.phonemeDelayAmount || 0} onChange={handlers.phonemeDelayAmount} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
+          <Knob label="Phon F.Back" value={currentParams.phonemeDelayFeedback || 0} onChange={handlers.phonemeDelayFeedback} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Chorus" value={currentParams.vocalChorus || 0} onChange={handlers.vocalChorus} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Consonant Boost" value={currentParams.transientExtraction || 0} onChange={handlers.transientExtraction} min={0} max={1.0} step={0.01} color="cyan" unit="%" />
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />

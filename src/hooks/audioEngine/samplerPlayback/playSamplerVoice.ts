@@ -117,6 +117,7 @@ export function createPlaySamplerVoice(
     const pGrainLfoRate = noteParams?.grainLfoRate !== undefined ? noteParams.grainLfoRate : params.grainLfoRate;
     const pGrainLfoDepth = noteParams?.grainLfoDepth !== undefined ? noteParams.grainLfoDepth : params.grainLfoDepth;
     const pGrainPosLfoDepth = noteParams?.grainPosLfoDepth !== undefined ? noteParams.grainPosLfoDepth : params.grainPosLfoDepth;
+    const pTimeSmear = noteParams?.timeSmear !== undefined ? noteParams.timeSmear : params.timeSmear;
 
     // Envelopes
     const pFreezeEnvDepth = noteParams?.freezeEnvDepth !== undefined ? noteParams.freezeEnvDepth : params.freezeEnvDepth;
@@ -133,9 +134,12 @@ export function createPlaySamplerVoice(
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
-    const pSpatialRouting = ((noteParams as any)?.spatialRouting !== undefined) ? Number((noteParams as any).spatialRouting) : ((params as any).spatialRouting ?? 0);
+    const pSpatialRouting = noteParams?.spatialRouting !== undefined ? noteParams.spatialRouting : (params.spatialRouting ?? 0);
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
-    const pTransientExtraction = ((noteParams as any)?.transientExtraction !== undefined) ? Number((noteParams as any).transientExtraction) : ((params as any).transientExtraction ?? 0);
+    const pPhonemeDelayAmount = noteParams?.phonemeDelayAmount !== undefined ? noteParams.phonemeDelayAmount : params.phonemeDelayAmount;
+    const pPhonemeDelayFeedback = noteParams?.phonemeDelayFeedback !== undefined ? noteParams.phonemeDelayFeedback : params.phonemeDelayFeedback;
+
+    const pTransientExtraction = noteParams?.transientExtraction !== undefined ? noteParams.transientExtraction : params.transientExtraction;
     const pAutoTune = noteParams?.autoTune !== undefined ? noteParams.autoTune : params.autoTune;
     const pDrumDuckDepth = noteParams?.drumDuckDepth !== undefined ? noteParams.drumDuckDepth : params.drumDuckDepth;
     const pPhonemeFilterMod = noteParams?.phonemeFilterMod !== undefined ? noteParams.phonemeFilterMod : params.phonemeFilterMod;
@@ -248,13 +252,28 @@ export function createPlaySamplerVoice(
 
         // Apply Timbre Modulation (Formant Shift)
         const baseShift = params.formantShift || 0;
+        let finalFormantShift: number | undefined;
         if (noteParams?.formantShift !== undefined) {
-          voice.setFormantShift(baseShift + noteParams.formantShift, triggerTime);
+          finalFormantShift = baseShift + noteParams.formantShift;
         } else if (noteParams?.timbre !== undefined) {
           const mod = (noteParams.timbre * 12) - 6; // +/- 6 semitones
-          voice.setFormantShift(baseShift + mod, triggerTime);
+          finalFormantShift = baseShift + mod;
         } else if (params.formantShift !== undefined) {
-          voice.setFormantShift(params.formantShift, triggerTime);
+          finalFormantShift = params.formantShift;
+        }
+
+        // Dynamic Formant Pitch Link: move formants with the played pitch by `ratio` semitones per semitone
+        const formantLinkRatio = noteParams?.formantPitchLink ?? params.formantPitchLink ?? 0;
+        if (formantLinkRatio !== 0) {
+          const rootNote = params.rootNote ?? 60;
+          const coarse = noteParams?.coarseTune ?? params.coarseTune ?? 0;
+          const fine = (noteParams?.fineTune ?? params.fineTune ?? 0) / 100;
+          const noteMidi = noteToMidi(noteStr) + pitchOffsetSemitones + coarse + fine;
+          finalFormantShift = (finalFormantShift ?? baseShift) + (noteMidi - rootNote) * formantLinkRatio;
+        }
+
+        if (finalFormantShift !== undefined) {
+          voice.setFormantShift(finalFormantShift, triggerTime);
         }
 
         // Apply Character Morphing
@@ -348,6 +367,7 @@ export function createPlaySamplerVoice(
         if (pGrainLfoRate !== undefined) voice.setGrainLfoRate(pGrainLfoRate, triggerTime);
         if (pGrainLfoDepth !== undefined) voice.setGrainLfoDepth(pGrainLfoDepth, triggerTime);
         if (pGrainPosLfoDepth !== undefined) voice.setGrainPosLfoDepth(pGrainPosLfoDepth, triggerTime);
+        if (pTimeSmear !== undefined) voice.setTimeSmear(pTimeSmear, triggerTime);
 
         if (pFreezeEnvDepth !== undefined) voice.setFreezeEnvDepth(pFreezeEnvDepth, triggerTime);
         if (pTimeStretchEnvDepth !== undefined) voice.setTimeStretchEnvDepth(pTimeStretchEnvDepth, triggerTime);
@@ -365,6 +385,9 @@ export function createPlaySamplerVoice(
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
         if (pSpatialRouting !== undefined && voice.setSpatialRouting) voice.setSpatialRouting(pSpatialRouting, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
+        if (pPhonemeDelayAmount !== undefined && voice.setPhonemeDelayAmount) voice.setPhonemeDelayAmount(pPhonemeDelayAmount, triggerTime);
+        if (pPhonemeDelayFeedback !== undefined && voice.setPhonemeDelayFeedback) voice.setPhonemeDelayFeedback(pPhonemeDelayFeedback, triggerTime);
+
         if (pTransientExtraction !== undefined && voice.setTransientExtraction) voice.setTransientExtraction(pTransientExtraction, triggerTime);
         if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);
         if (pDrumDuckDepth !== undefined && (voice as any).setDrumDuckDepth) (voice as any).setDrumDuckDepth(pDrumDuckDepth, triggerTime);
@@ -448,10 +471,11 @@ export function createPlaySamplerVoice(
           voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
         }
 
-        // 3. Phoneme Awareness (from Jules branch)
+        // 3. Phoneme Awareness: alignment + the step's painter edits
+        // (pitch bend, volume, elasticity, …) from the Phoneme Painter
         if (alignment) {
           voice.setAlignment(alignment);
-          voice.sendPhonemeDataToWorklet(targetDuration);
+          voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
         }
 
         // 4. Play
@@ -545,18 +569,23 @@ export function createPlaySamplerVoice(
     const playBufferSource = (startTime: number, duration: number, pitchSemitones: number) => {
       const source = context.createBufferSource();
 
-      const targetMidi = pitchSemitones;
+      // Harmony voices arrive as an integer pitchOffsetSemitones plus detune folded into
+      // fineTune. The pitchBank is Rubber Band output with formants preserved, so keying it on
+      // the offset note keeps harmonies natural; the resample fallback (no bank, out of range,
+      // still processing) chipmunks. formantShift has no stage in this chain.
+      const targetMidi = pitchSemitones + pitchOffsetSemitones;
+      const fineRatio = Math.pow(2, (noteParams?.fineTune ?? params.fineTune ?? 0) / 1200);
       let playbackBuffer: AudioBuffer;
       let pitchRatio = 1.0;
 
       if (multisampleBank?.pitchBank.has(targetMidi)) {
         playbackBuffer = multisampleBank.pitchBank.get(targetMidi)!;
-        pitchRatio = params.playbackSpeed;
+        pitchRatio = params.playbackSpeed * fineRatio;
       } else {
         playbackBuffer = multisampleBank?.baseBuffer || buffer;
         const rootMidi = multisampleBank?.rootNote ?? 60;
         const speed = params.playbackSpeed;
-        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12);
+        pitchRatio = speed * Math.pow(2, (targetMidi - rootMidi) / 12) * fineRatio;
       }
 
       if (noteParams?.reverse) {

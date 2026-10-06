@@ -47,6 +47,6 @@ export interface AISongModalProps {
   onClose: () => void;
   onImport: (song: SavedSongData, aiData: AISongData) => Promise<void> | void;
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
-  audioEngine?: any;
+  audioEngine?: unknown;
   isImporting?: boolean;
 }

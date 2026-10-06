@@ -82,6 +82,22 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-amber-300',
     badge: 'AS',
   },
+  rust: {
+    label: 'Rust',
+    accent: 'orange',
+    panelBg: 'bg-orange-950/20',
+    panelBorder: 'border-orange-500/30',
+    text: 'text-orange-200',
+    badge: 'RUST',
+  },
+  cpp: {
+    label: 'C++',
+    accent: 'blue',
+    panelBg: 'bg-blue-950/20',
+    panelBorder: 'border-blue-500/30',
+    text: 'text-blue-200',
+    badge: 'CPP',
+  },
 };
 
 /** Hardware panel artwork in public/osc/ — one WebP per oscillator family. */
@@ -94,6 +110,8 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   pyodide: '/osc/pyodide.webp',
   webgpu: '/osc/webgpu.webp',
   wam: '/osc/wam.webp',
+  rust: '/osc/rust.webp',
+  cpp: '/osc/cpp.webp',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */

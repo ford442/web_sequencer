@@ -4,6 +4,7 @@ import { SessionLauncher } from '../SessionLauncher';
 import { createDefaultSessionDocument } from '../../session/defaults';
 import { TRACK_KEYS } from '../../constants';
 import type { TrackKey } from '../../constants/appDefaults';
+import type { SessionDocument } from '../../session/types';
 
 const emptyPlaying = () => {
   const m = {} as Record<TrackKey, number | null>;
@@ -57,25 +58,14 @@ describe('SessionLauncher accessibility', () => {
   });
   it('renders an empty state when rowCount is 0', () => {
     // Empty document with no rows
-    const emptyDoc = {
-      ...props.document,
-      columns: {
-        partA: { clips: [] },
-        partB: { clips: [] },
-        drums: { clips: [] },
-        samplerA: { clips: [] },
-        samplerB: { clips: [] },
-        vocoder: { clips: [] },
-        bass303: { clips: [] },
-        lead303: { clips: [] },
-      },
-      scenes: [],
-    };
+    const columns = {} as SessionDocument['columns'];
+    for (const t of TRACK_KEYS) columns[t] = { track: t, clips: [] };
+    const emptyDoc: SessionDocument = { ...props.document, columns, scenes: [] };
 
     render(
       <SessionLauncher
         {...props}
-        document={emptyDoc as any}
+        document={emptyDoc}
       />
     );
     expect(screen.getByText('No clips in session')).toBeInTheDocument();

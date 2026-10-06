@@ -66,11 +66,12 @@ export function useSamplerPanelState({
       'playbackSpeed', 'volume', 'filterCutoff', 'drive',
       'timeRatio', 'pitchScale', 'formantShift', 'vibratoDepth',
       'tremoloRate', 'tremoloDepth', 'breathIntensity', 'freeze',
-      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainLfoRate', 'grainLfoDepth', 'grainPosLfoDepth', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
+      'freezeLfoSync', 'formantLfoSync', 'formantEnvSync', 'freezeLfoRate', 'freezeLfoDepth', 'freezeEnvDepth', 'timeStretchEnvDepth', 'grainLfoRate', 'grainLfoDepth', 'grainPosLfoDepth', 'timeSmear', 'grainEnvDepth', 'grainPitchEnvDepth', 'grainJitter', 'grainPitchQuantize', 'granularPitchShift', 'windowShape', 'customGrainEnvelope', 'formantEnvFollower', 'formantSidechainDepth',
       'consonantClarity', 'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
-      'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'vocalChorus', 'autoTune', 'transientExtraction', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',
+      'spatialRouting',
+      'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'vocalChorus', 'phonemeDelayAmount', 'phonemeDelayFeedback', 'autoTune', 'transientExtraction', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',
     ] as const;
     return Object.fromEntries(paramNames.map(p => [p, (v: unknown) => {
       if (onParamChange) onParamChange(activeBankIdx, p, v);

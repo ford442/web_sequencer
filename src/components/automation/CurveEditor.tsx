@@ -15,12 +15,13 @@
 import React, { memo, useCallback, useRef, useState, useMemo, useEffect } from 'react';
 import type { UnifiedAutomationLane, AutomationLanePoint, AutomationInterpolation } from '../../types';
 import { automationStore } from '../../stores/automationStore';
+import { useTransportMixStore } from '../../stores/transportMixStore';
 import { useWebGPUCurveEditor } from '../../hooks/automation/useWebGPUCurveEditor';
 
 export interface CurveEditorProps {
   /** The lane to display/edit */
   lane: UnifiedAutomationLane | null;
-  /** Total number of steps to display (default: 32) */
+  /** Total number of steps to display (default: the song pattern length) */
   totalSteps?: number;
   /** Current playback step position */
   playbackStep?: number;
@@ -80,12 +81,15 @@ function buildCurvePath(
 
 export const CurveEditor = memo(({
   lane,
-  totalSteps = 32,
+  totalSteps: totalStepsProp,
   playbackStep,
   width = 600,
   height = 150,
   readOnly = false,
 }: CurveEditorProps) => {
+  // Default to the song's pattern length so lanes span the steps that actually play.
+  const stepCount = useTransportMixStore((s) => s.stepCount);
+  const totalSteps = totalStepsProp ?? stepCount;
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [localPoints, setLocalPoints] = useState<AutomationLanePoint[]>([]);
@@ -373,7 +377,7 @@ export const CurveEditor = memo(({
       {/* ⚡ Bolt: Replaced Array.from().filter().map() with an IIFE and for loop to prevent array allocations on hot re-render path */}
       {(() => {
         const labels = [];
-        const maxStep = Math.min(totalSteps, 32);
+        const maxStep = totalSteps;
         for (let i = 0; i <= maxStep; i += 4) {
           labels.push(
             <text

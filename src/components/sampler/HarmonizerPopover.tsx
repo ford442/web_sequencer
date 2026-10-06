@@ -137,6 +137,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                     <button type="button"
                         onClick={() => setLocalActive(!localActive)}
                         aria-label={localActive ? 'Disable Harmonizer' : 'Enable Harmonizer'}
+                        title={localActive ? 'Disable Harmonizer' : 'Enable Harmonizer'}
                         className={`relative px-3 py-1 rounded-full text-[9px] font-bold transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
                             localActive
                                 ? 'bg-green-500/20 text-green-400 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
@@ -162,6 +163,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                     role="radio"
                                     onClick={() => handleVoiceCountChange(count as 2 | 3 | 4)}
                                     aria-label={`${count} Voices`}
+                                    title={`${count} Voices`}
                                     aria-checked={localConfig.voiceCount === count}
                                     className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500 ${
                                         localConfig.voiceCount === count
@@ -599,7 +601,7 @@ export const HarmonizerPopover: React.FC<HarmonizerPopoverProps> = React.memo(({
                                     key={key}
                                     onClick={() => setLocalConfig(HARMONIZE_PRESETS[key as keyof typeof HARMONIZE_PRESETS]())}
                                     className="flex-1 py-1.5 rounded-md text-[8px] font-bold bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border border-zinc-700 hover:text-zinc-200 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 focus-visible:ring-cyan-500"
-                                    title={desc}
+                                    title={`Apply ${desc} Preset`}
                                     aria-label={`Apply ${desc} Preset`}
                                 >
                                     {label}

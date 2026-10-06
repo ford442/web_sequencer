@@ -239,7 +239,8 @@ export class Harmonizer {
             playbackSpeed: baseParams.playbackSpeed * Math.pow(2, voice.pitchOffset / 12),
             // Apply fine detune
             fineTune: (baseParams.fineTune || 0) + voice.detuneCents,
-            // Apply formant shift
+            // Apply formant spread (width only). Stretch-mode pitch runs through Rubber Band with
+            // OptionFormantPreserved, so no -pitchOffset compensation belongs here (#1297).
             formantShift: (baseParams.formantShift || 0) + voice.formantShift,
             // Apply pan
             pan: voice.pan,

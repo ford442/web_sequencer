@@ -54,8 +54,8 @@ the tracking issue had already been removed.
 ## Size gate
 
 `scripts/check-module-size.mjs` fails CI when a `src/**/*.ts(x)` file exceeds
-the 700-line soft budget **and its path is not mentioned anywhere in this
-document**. It runs as part of `pnpm lint`. This means:
+the 700-line soft budget **and its path is not a row of the "Modules over
+budget" table below**. It runs as part of `pnpm lint`. This means:
 
 - Every file already over budget when the gate landed (2026-09-23) had to be
   listed once, below, with a reason — that's the "Modules over budget" table.
@@ -63,19 +63,26 @@ document**. It runs as part of `pnpm lint`. This means:
 - A file that grows past 700 lines without ever being added here fails CI
   immediately. Split it, or add a row with a one-line reason (a real
   exception, a tracked follow-up, or a split plan).
-- The check only looks for the path string in this file — it does not parse
-  the table format, so a mention anywhere (prose or table) satisfies it.
+- Only the backticked `src/…` path on a table row under the "Modules over
+  budget" heading counts. A mention in prose, or in any other section's table,
+  does **not** exempt a file. Until 2026-09-28 the gate was a plain substring
+  match over this whole document, so the sentence "`src/types.ts` is
+  **resolved**" below exempted `src/types.ts`, and #1303's 749-line
+  resurrection of it passed the gate. `src/__tests__/checkModuleSize.test.ts`
+  now plants a prose-only mention to prove it no longer counts.
 
 ## Modules over budget (2026-09-23 audit)
 
 | Lines | Module | Status |
 |-------|--------|--------|
 | 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
+| 756 | `src/engines/rubberband/ArtifactDetector.ts` | justified exception - complex analysis logic |
 | 991 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below |
 | 917 | `src/components/PhonemePainter.tsx` | un-triaged |
 | 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
 | 874 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |
-| 865 | `src/audio-worklets/rubberband-processor.ts` | already split once (09-07); further split not attempted here |
+| 865 | `src/audio-worklets/rubberband-processor.ts` | Adding PhonemeDelayEffect |
+| `src/components/note-selector/SynthGranularEffects.tsx` | Added phoneme delay UI | already split once (09-07); further split not attempted here |
 | 848 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
 | 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
 | 814 | `src/engines/Open303Manager.ts` | un-triaged |

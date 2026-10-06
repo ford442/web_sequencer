@@ -11,6 +11,7 @@ export interface SamplerVoiceParams {
   vibratoDepth: number;
   tremoloDepth: number;
   breathAmount: number;
+  consonantClarity?: number;
   stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
@@ -38,6 +39,7 @@ export interface SamplerBankParams {
   tremoloDepth?: number;
   tremoloRate?: number;
   breathIntensity?: number;
+  consonantClarity?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
   glitchChance?: number;
@@ -54,6 +56,7 @@ export interface SamplerBankParams {
   grainLfoRate?: number;
   grainLfoDepth?: number;
   grainPosLfoDepth?: number;
+  timeSmear?: number;
   grainPitchQuantize?: number;
   grainPanSpread?: number;
   granularPitchShift?: number;
@@ -71,6 +74,9 @@ export interface SamplerBankParams {
   spectralComp?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  spatialRouting?: number;
+  phonemeDelayAmount?: number;
+  phonemeDelayFeedback?: number;
   transientExtraction?: number;
   autoTune?: number;
   microtonalVariance?: number;
@@ -118,9 +124,7 @@ export interface SamplerBankParams {
     vibratoDepth?: number;
     tremoloDepth: number;
     breathAmount: number;
-
-  spatialRouting?: number;
-};
+  };
 }
 
 export type SamplerParams = SamplerBankParams[];
@@ -137,4 +141,10 @@ export interface PhonemeData {
   grainJitter?: number;
   formantShift?: number;
   grainSize?: number;
+  /**
+   * Phoneme elasticity 0.5–1.5 (default 1): this phoneme's share of the note
+   * relative to the others. The note length does not change — see
+   * src/engines/rubberband/phonemeElasticity.ts.
+   */
+  elasticity?: number;
 }

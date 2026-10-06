@@ -57,7 +57,7 @@ export const CloudStatus: React.FC = React.memo(() => {
 
     const handleWake = () => {
         setConnectionStatus('WAKING');
-        checkHealth();
+        void checkHealth();
     };
 
     // Determine what to show

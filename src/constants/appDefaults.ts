@@ -1,5 +1,6 @@
 import type { Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams, PartSequence, Bass2Params } from '../types';
 import type { ScaleDefinition } from '../utils/musicTheory';
+import type { SongMeter } from '../utils/songMeter';
 import { INITIAL_PATTERN, NUM_STEPS, MAX_TRACK_PATTERN_SLOTS } from '../constants';
 
 // --- CONSTANTS ---
@@ -18,6 +19,7 @@ export const DEFAULT_SAMPLER_BANK_PARAMS: SamplerBankParams = {
     freezeLfoDepth: 0,
     timeStretchEnvDepth: 0,
     grainPosLfoDepth: 0,
+    timeSmear: 0,
     granularPitchShift: 0,
     expressiveness: {
         vibratoRate: 5.5,
@@ -42,6 +44,8 @@ export type TrackKey = 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedH
 export type SongSnapshot = {
     pattern: Pattern;
     tempo: number;
+    /** Song meter at save time; absent on snapshots from before v4 (= 32 steps, 4/4). */
+    meter?: SongMeter;
     currentScale?: ScaleDefinition | null;
     ambianceUrl: string;
     backgroundImage: string;
@@ -78,7 +82,8 @@ export const COLOR_CH = [0.8, 0.8, 0.0] as [number, number, number];
 export const COLOR_OH = [0.9, 0.5, 0.0] as [number, number, number];
 export const COLOR_SAMPLER = [0.6, 0.4, 1.0] as [number, number, number];
 
-export const EMPTY_STEPS = Array(32).fill(null);
+/** Empty step row for unassigned slots; reads past the end (longer songs) are `undefined` → rest. */
+export const EMPTY_STEPS = Array(NUM_STEPS).fill(null);
 export const EMPTY_SEQ = { steps: EMPTY_STEPS };
 export const EMPTY_SAMPLER_SEQUENCE = Array.from({ length: 8 }, () => ({ steps: EMPTY_STEPS }));
 export const EMPTY_PATTERN: Pattern = {

@@ -1,9 +1,12 @@
 import { useCallback } from 'react'
-import { NUM_STEPS } from '../../constants'
-import { midiToNote, noteToMidi } from '../../utils/musicTheory'
-import type { Note, Pattern, PartSequence, PhonemeData } from '../../types'
-import type { TrackKey } from '../../constants/appDefaults'
-import type { useUndoRedo } from '../useUndoRedo'
+import { NUM_STEPS } from '@/constants'
+import { transportMixStore } from '@/stores/transportMixStore'
+import { gridColumns } from '@/utils/songMeter'
+import { midiToNote, noteToMidi } from '@/utils/musicTheory'
+import type { Note, Pattern, PartSequence, PhonemeData } from '@/types'
+import type { TrackKey } from '@/constants/appDefaults'
+import type { useUndoRedo } from '@/hooks/useUndoRedo'
+import type { PropertyChangeKey } from '@/components/note-selector/types'
 import { updateSamplerStep, updateTrackStep, updateSamplerRange, updateTrackRange } from './patternUpdates'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
@@ -199,19 +202,7 @@ export function usePatternHandlers(deps: {
     }, [contextMenu, updateStorageForTrackInner, patternRef, activeSamplerBankRef, setPattern, setContextMenu]);
 
     const handleNotePropertyChange = useCallback((
-        key: 'timbre' | 'velocity' | 'probability' | 'microtiming' | 'reverse' | 'retrigger' | 'freeze' | 'formantShift' | 'formantPitchLink' |
-             'filterCutoff' | 'filterResonance' | 'envMod' |
-             'formantLfoSync' | 'formantLfoRate' | 'formantLfoDepth' |
-             'freezeLfoSync' | 'freezeLfoRate' | 'freezeLfoDepth' |
-             'formantEnvAttack' | 'formantEnvDecay' | 'formantEnvAmount' | 'formantEnvFollower' | 'formantSidechainDepth' | 'formantEnvSync' |
-             'vibratoDepth' | 'drive' | 'characterMorph' |
-             'reverbSend' | 'reverbType' | 'reverbLfoRate' | 'reverbLfoDepth' |
-             'delayLfoRate' | 'delayLfoDepth' | 'delaySend' |
-             'freezeEnvDepth' | 'timeStretchEnvDepth' | 'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' | 'pan' | 'glitchChance' |
-             'grainLfoRate' | 'grainLfoDepth' | 'grainPosLfoDepth' | 'grainEnvDepth' | 'grainPitchEnvDepth' | 'grainJitter' | 'grainPitchQuantize' | 'granularPitchShift' | 'windowShape' | 'customGrainEnvelope' |
-             'choir' | 'gateDepth' | 'gateRate' | 'tranceGate' | 'bitcrush' | 'downsample' | 'spectralCompression' | 'drumDuckDepth' | 'volumeFilterMod' | 'vocoderMix' | 'vocoderFormantShift' | 'vocoderPreservation' | 'vocoderAttack' | 'vocoderRelease' | 'pitchAmount' |
-             'spectralPanRate' | 'spectralPanDepth' | 'slideFormant' | 'tremoloRate' | 'tremoloDepth' |
-             'vowel' | 'portamento' | 'slideFormant' | 'pitchAttack' | 'pitchDecay' | 'pitchAmount',
+        key: PropertyChangeKey,
         value: number | boolean | string | number[]
     ) => {
         if (!contextMenu) return;
@@ -260,15 +251,17 @@ export function usePatternHandlers(deps: {
 
     const handleClearPattern = useCallback(() => {
         if (window.confirm("Clear current pattern?")) {
+            const n = Math.max(NUM_STEPS, gridColumns(transportMixStore.meterRef.current));
+            const emptySteps = () => Array<Note | null>(n).fill(null);
             const emptyPattern: Pattern = {
-                partA: { steps: Array<Note | null>(32).fill(null) },
-                partB: { steps: Array<Note | null>(32).fill(null) },
-                bass2: { steps: Array<Note | null>(32).fill(null) },
-                kick: { steps: Array<Note | null>(32).fill(null) },
-                snare: { steps: Array<Note | null>(32).fill(null) },
-                closedHat: { steps: Array<Note | null>(32).fill(null) },
-                openHat: { steps: Array<Note | null>(32).fill(null) },
-                sampler: Array.from({ length: 8 }, () => ({ steps: Array<Note | null>(32).fill(null) })),
+                partA: { steps: emptySteps() },
+                partB: { steps: emptySteps() },
+                bass2: { steps: emptySteps() },
+                kick: { steps: emptySteps() },
+                snare: { steps: emptySteps() },
+                closedHat: { steps: emptySteps() },
+                openHat: { steps: emptySteps() },
+                sampler: Array.from({ length: 8 }, () => ({ steps: emptySteps() })),
             };
             setPattern(emptyPattern);
             setTrackStorage(prevStorage => {

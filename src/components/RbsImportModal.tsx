@@ -254,7 +254,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
     }
 
     setDroppedFile(file);
-    parseFile(file);
+    void parseFile(file);
   }, [parseFile, onShowToast]);
 
   // Handle file select
@@ -278,7 +278,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
     }
 
     setDroppedFile(file);
-    parseFile(file);
+    void parseFile(file);
   }, [parseFile, onShowToast]);
 
   // Cancel parsing
@@ -300,7 +300,7 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
   const handleLoadExample = useCallback(() => {
     const exampleFile = generateExampleRbsFile();
     setDroppedFile(exampleFile);
-    parseFile(exampleFile);
+    void parseFile(exampleFile);
     onShowToast('Loaded example RBS file', 'info');
   }, [parseFile, onShowToast]);
 

@@ -7,6 +7,7 @@ import { midiMapStore, useMidiMapStore } from '../stores/midiMapStore'
 import { useTransportSyncStore } from '../stores/transportSyncStore'
 import { HelpTip } from './help/HelpTip'
 import { TransportSyncControls } from './TransportSyncControls'
+import { MeterControls } from './transport/MeterControls'
 
 interface TransportToolbarProps {
     songStorage: (SongSnapshot | null)[]
@@ -112,8 +113,8 @@ export const TransportToolbar = memo(function TransportToolbar({
                             <button type="button"
                                 key={slot}
                                 data-song-slot={slot}
-                                onClick={() => { if (isSaved) loadSong(slot); else handleSaveSong(slot); }} 
-                                onContextMenu={(e) => { e.preventDefault(); handleSaveSong(slot); }}
+                                onClick={() => { if (isSaved) loadSong(slot); else void handleSaveSong(slot); }} 
+                                onContextMenu={(e) => { e.preventDefault(); void handleSaveSong(slot); }}
                                 onKeyDown={(e) => handleSongSlotKeyDown(e, slot, isSaved)}
                                 title={`Song Slot ${slot + 1}`}
                                 className={`w-7 h-6 text-xs font-mono transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95 ${isActive ? 'bg-cyan-500 text-black font-bold shadow-[0_0_10px_rgba(6,182,212,0.6)]' : (isSaved ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/50 hover:bg-cyan-800/50' : 'bg-zinc-900 text-zinc-600 border border-zinc-800 hover:border-zinc-700')}`}
@@ -180,7 +181,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                             title="Decrease Tempo"
                             aria-label="Decrease Tempo"
                         >
-                            −
+                            <span aria-hidden="true">−</span>
                         </button>
                         <span 
                             className="w-12 text-center font-mono text-cyan-300 text-sm font-semibold" 
@@ -200,10 +201,16 @@ export const TransportToolbar = memo(function TransportToolbar({
                             title="Increase Tempo"
                             aria-label="Increase Tempo"
                         >
-                            +
+                            <span aria-hidden="true">+</span>
                         </button>
                     </div>
                 </div>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                {/* Pattern length / time signature / swing */}
+                <MeterControls />
 
                 {/* Divider */}
                 <div className="w-px h-5 bg-gray-700 mx-1 hidden lg:block" />
@@ -315,9 +322,9 @@ export const TransportToolbar = memo(function TransportToolbar({
                     onClick={handlePanic} 
                     aria-label="Panic Stop All Notes" 
                     className="h-7 w-7 bg-red-950/50 hover:bg-red-900/70 text-red-500 border border-red-900/50 flex items-center justify-center font-bold text-xs transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded-md hover:scale-105 active:scale-95"
-                    title="Panic (!)"
+                    title="Panic Stop All Notes"
                 >
-                    !
+                    <span aria-hidden="true">!</span>
                 </button>
             </div>
         </header>

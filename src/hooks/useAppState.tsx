@@ -1,45 +1,32 @@
 /**
- * Composes the app's ~25 state/handler sub-hooks into one object, currently
- * handed to a single React context (`AppStateContext`) with no memo boundary
- * or selector. Every field returned here is folded into one flat object that
- * is a fresh reference on every render, so any state change anywhere — a
- * knob turn, a step toggle, a transport tick — re-renders every component
- * that reads *anything* off `useAppStateContext()`, regardless of which
- * field it actually needs. See docs/PERFORMANCE_BUDGET.md's "React render
- * budget" section for the measured cost of this.
+ * Composes the app's ~25 state/handler sub-hooks into one object. That object
+ * is a fresh reference on every render, so it must never be handed to
+ * consumers directly: `AppStateProvider` (src/contexts/AppStateContext.tsx)
+ * publishes it to an external store (src/stores/appStateStore.ts) and
+ * components read it through `useAppStateSlice(KEYS)` /
+ * `useAppStateSelector(fn)`, re-rendering only when the fields they selected
+ * change. Function fields are published as stable proxies to the latest
+ * closure, so selecting a handler never re-renders anything.
  *
- * Migration plan (mirrors the repo's existing `useSyncExternalStore` slice
- * stores under src/stores/, e.g. automationStore.ts, midiMapStore.ts,
- * transportSyncStore.ts — each lets a component subscribe to exactly the
- * slice it needs via `useXStore(selector)`, independent of everything else):
+ * Rules for consumers:
+ *   - Select the fields a component *renders*; do not destructure the whole
+ *     state (`useAppStateContext()` is deprecated and follows every change).
+ *   - A handler's identity no longer signals a changed closure. Derive values
+ *     by calling the function inside a selector
+ *     (`useAppStateSelector((s) => s.canUndoSong())`), not in a `useMemo`
+ *     keyed on the function.
+ *   - Values built here must be referentially stable when their contents are —
+ *     a fresh array/object each render invalidates every selector and
+ *     `useMemo` downstream (see `useStableFlags` in useHardwarePanels.tsx).
+ *   - `src/__tests__/appRenderBudget.test.tsx` gates this: a pattern edit may
+ *     re-render `SequencerGrid` only.
  *
- *   1. UI modals       → src/stores/uiModalsStore.ts (done, #1259)
- *   2. Transport/mix   → src/stores/transportMixStore.ts (done, #1284) —
- *      wrapped by src/hooks/appState/useTransportMixState.ts so this
- *      function keeps returning the same field names.
- *   3. Sampler banks   → active bank, track storage, TTS phrases. Currently
- *      src/hooks/appState/useSamplerBanksState.ts (plain useState); target
- *      src/stores/samplerBanksStore.ts.
- *   4. Pattern edit    → selection, clipboard, scale, zoom. Currently
- *      src/hooks/appState/usePatternEditState.ts (plain useState); target
- *      src/stores/patternEditStore.ts.
- *   5. Instrument state → synthA/B, bass2, kick/snare/hats, sampler params.
- *      Currently src/hooks/appState/useInstrumentState.ts (plain useState);
- *      target src/stores/instrumentStateStore.ts.
- *   6. Session/song    → song structure, session launcher state. Currently
- *      src/hooks/appState/useSongModeState.ts and
- *      src/hooks/appState/useSessionState.ts (plain useState); target
- *      src/stores/songModeStore.ts and src/stores/sessionStore.ts.
- *
- * Each phase lands as its own PR: extract the sub-hook's `useState` calls
- * into an external store class + `useXStore(selector)` hook, keep this
- * function returning the same field names so `AppStateContext` keeps working
- * as a compatibility shim, and move any component that can read the new
- * store directly off `useAppStateContext()` for that slice (see
- * `TransportHeader.tsx` / `RackNode.tsx` / `App.tsx`'s `is3DMode` reads for
- * the pattern to follow). Once every phase lands, stable `handle*` callbacks
- * should move to a separate, never-changing actions context, and
- * `AppStateContext` can be deleted once nothing destructures from it anymore.
+ * Some state also lives in `useSyncExternalStore` slice stores under
+ * src/stores/ (uiModalsStore, transportMixStore, samplerBanksStore,
+ * trackMuteSoloStore, ...). Those wrappers (`src/hooks/appState/use*State.ts`)
+ * keep this function returning the same field names; a component that needs
+ * only one flag can also subscribe to its store directly, which skips the
+ * provider entirely.
  */
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useAudioEngine } from './useAudioEngine'
@@ -65,9 +52,7 @@ import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngin
 import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
-import {
-    NUM_STEPS,
-} from '../constants'
+import { swingPercentToClock } from '../utils/musicTheory'
 import type { Pattern, ResolvedTrakEvent } from '../types'
 import {
     UPDATED_INITIAL_PATTERN,
@@ -126,6 +111,7 @@ export function useAppState() {
     const {
         tempo, setTempo, tempoRef,
         swing, setSwing,
+        stepCount,
         lastFreqRef,
         ambianceUrl, setAmbianceUrl,
         backgroundImage, setBackgroundImage,
@@ -439,7 +425,7 @@ export function useAppState() {
         onSessionTick: session.setPlayingSlots,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, audioEngine?.context ?? null, swing)
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, stepCount, onStep, isEngineReady, audioEngine?.context ?? null, swingPercentToClock(swing))
 
     useEffect(() => {
         session.sessionClockRef.current.tempo = tempo;

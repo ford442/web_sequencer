@@ -407,8 +407,8 @@ Nine high-value safety rules live in `gradualTypeRules` and are **off globally**
 
 1. `src/utils/**` + `src/engines/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 2. `src/hooks/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
-3. `src/stores/**`
-4. `src/components/**`
+3. `src/stores/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
+4. `src/components/**` — **done** (`no-floating-promises` + `no-unsafe-assignment`)
 
 **Commands:**
 
@@ -598,7 +598,15 @@ interface Pattern {
 }
 
 interface PartSequence {
-  steps: (Note | null)[];
+  steps: (Note | null)[];   // length is NOT assumed to be 32 — reads past the end are rests
+}
+
+// Song-wide meter (SavedSongData v4, lives in transportMixStore) — see docs/audio-engine/pattern-length-meter.md
+interface SongMeter {
+  stepCount: number;                              // 1–64 16th steps, default NUM_STEPS (32)
+  timeSignature: [number, number];                // bar = num * 16 / den steps
+  trackLengths: Partial<Record<TrackKey, number>>; // per-track loop (polyrhythm)
+  swing: number;                                  // MPC percent, 50 = straight
 }
 
 interface Note {

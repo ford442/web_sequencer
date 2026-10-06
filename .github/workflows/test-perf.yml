@@ -37,6 +37,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # src/wasm/ is gitignored build output. The perf tier does not stub WASM,
+      # it builds it: audioExport.perf.test.ts and useAudioEngine.perf.test.tsx
+      # import audioExport/trackFreezer .wasm?init and fail to resolve without
+      # it. AssemblyScript only — `build:wasm` would also pull in Rust and
+      # Emscripten, which no perf test touches.
+      - name: Build AssemblyScript WASM (perf tier needs the real modules)
+        run: |
+          pnpm run build:wasm:oscillators
+          pnpm run build:wasm:freezer
+          pnpm run build:wasm:fft
+          pnpm run build:wasm:audioexport
+          pnpm run build:wasm:xmexport
+
       - name: Run perf tier (isolated fork, warm-up + median policy)
         run: pnpm run test:perf
         env:

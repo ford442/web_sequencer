@@ -24,7 +24,14 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
-  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse';
+  | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
+  | 'rust-saw'
+  | 'rust-sqr'
+  | 'cpp-saw'
+  | 'cpp-sqr'
+  | 'cpp-tri'
+  | 'cpp-sin'
+  | 'cpp-rand';
 
 export interface SynthParams {
   waveform: Waveform;
@@ -87,7 +94,9 @@ export type OscillatorType =
   | 'pyodide'      // Python/Pyodide software oscillators
   | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
-;
+  | 'cpp'
+
+  | 'rust';
 
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';

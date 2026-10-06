@@ -174,7 +174,7 @@ export const SmfImportModal = React.memo(function SmfImportModal({ isOpen, onClo
                 <div>Channels used: {importReport.channelsUsed.map((c) => c + 1).join(', ') || 'none'}</div>
                 <div>Automation lanes: {importReport.automationLanesConverted}</div>
                 {importReport.drumGmMisses > 0 && <div className="text-amber-400">Unmapped GM drum notes: {importReport.drumGmMisses}</div>}
-                {importReport.timeSignatureMismatch && <div className="text-amber-400">Time signature is not 4/4</div>}
+                {importReport.timeSignatureMismatch && <div className="text-amber-400">Time signature can't be represented on the step grid (or changes mid-file)</div>}
               </div>
               {importReport.warnings.length > 0 && (
                 <details className="text-xs text-gray-400">

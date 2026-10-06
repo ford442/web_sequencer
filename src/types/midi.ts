@@ -31,6 +31,22 @@ export interface MidiBinding {
   deviceId?: string;
 }
 
+/** Shape check for bindings read back from untrusted storage (localStorage, song files). */
+export function isMidiBinding(value: unknown): value is MidiBinding {
+  if (typeof value !== 'object' || value === null) return false;
+  const { key, controlId, deviceId } = value as Record<string, unknown>;
+  if (typeof key !== 'object' || key === null) return false;
+  const { type, channel, number } = key as Record<string, unknown>;
+  return (
+    (type === 'cc' || type === 'note') &&
+    typeof channel === 'number' &&
+    typeof number === 'number' &&
+    typeof controlId === 'string' &&
+    controlId.includes(':') &&
+    (deviceId === undefined || typeof deviceId === 'string')
+  );
+}
+
 export function midiKeyToString(key: MidiMessageKey): string {
   return `${key.type}:${key.channel}:${key.number}`;
 }

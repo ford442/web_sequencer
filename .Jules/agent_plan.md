@@ -1,6 +1,8 @@
 # Web Sequencer Active Backlog & Innovation Lab
 
 ## Active Backlog
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
@@ -18,6 +20,8 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement Phoneme-driven auto-rhythm generation for TTS
 - [x] Add granular random jitter per phoneme
 - [x] Add multi-voice unison detune
@@ -31,7 +35,7 @@
 
 ## Innovation Lab
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
-- [ ] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
+- [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
 - [x] Implement reverse TTS sample per step
 - [x] Implement Phoneme Envelope shaping per step
@@ -86,6 +90,16 @@
 - What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
 
 ## Architecture Review
+
+- Completed "Implement dynamic spatialization routing per phoneme (e.g. delay sends driven by phoneme intensity)." Implemented a `PhonemeDelayEffect` delay line inside `RubberBandProcessor` that echoes the signal based on phoneme intensity and vowel status. Wired it up to the `phonemeDelayAmount` and `phonemeDelayFeedback` parameters in the UI (bank knobs in `SamplerKnobControls.tsx` and per-step sliders in `SynthGranularEffects.tsx`) and correctly routed through types and state.
+- Velocity Check: Hooking into the phoneme data for spatialization works very well and adds immediate rhythmic and musical interest to the TTS output, specifically by only repeating vowels and keeping the echo clean from consonants. The plumbing across `playSamplerVoice.ts` and `EffectsControlMixin` matches our established pattern, preventing any friction. Added real-time cross-synthesis task to the backlog.
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added a `bassSidechainSAB` to track synth bass triggers (velocity and duration) from the main thread. Processed these triggers inside `RubberBandProcessor` using a secondary `DrumDuckEnvelope` instance, yielding a `bassDuckingScalar`. Passed this scalar to the `GranularEngine` to modulate `grainSizeSamplesActive` dynamically. Added a new `bassGrainSizeMod` audio parameter to control the depth of this modulation.
+- Velocity Check: Expanding the sidechain SAB pattern to support sustained synth bass hits allows complex interplay between the rhythm section and the vocal granulator without introducing cross-worklet Web Audio graph complexities. This ensures the granulator stays on the audio fast path while responding dynamically to the groove.
+
+- Completed "Explore dynamic granular 'time-smearing' by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect." Added `timeSmear` property threaded from the sequencer properties directly into the Worklet. Implemented a `chaoticLfoPhase` inside the `GranularEngine` that increments non-linearly. Added chaotic `posMod` driven by this phase exclusively scaled inversely by `isVowel` to target consonants without destroying vowel pitch tracking.
+- Velocity Check: Expanding the Worklet's capabilities using native AudioParams rather than heavy SAB additions keeps overhead minimal while greatly enhancing the sound-design toolset for granular synthesis over TTS.
+- Completed "Explore dynamic granular 'time-smearing' by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect." Added `timeSmear` property threaded from the sequencer properties directly into the Worklet. Implemented a `chaoticLfoPhase` inside the `GranularEngine` that increments non-linearly. Added chaotic `posMod` driven by this phase exclusively scaled inversely by `isVowel` to target consonants without destroying vowel pitch tracking.
+- Velocity Check: Expanding the Worklet's capabilities using native AudioParams rather than heavy SAB additions keeps overhead minimal while greatly enhancing the sound-design toolset for granular synthesis over TTS.
 - Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?" by applying a 1-pole IIR lowpass filter to the combined grain output in the `RubberBandProcessor`. Muffled syllables (lower volume) exponentially map to a lower cutoff frequency, creating a dynamic dampening effect for speech.
 - Velocity Check: Moving the cutoff calculation outside the inner granular loop fixed the initial performance regression where filter state sharing and heavy Math operations were causing audio artifacts. The current approach is computationally cheap and correctly isolates states.
 - Completed the "Optimize Voice Manager state syncing" task by removing the redundant `activeVoices` map in `SingingVoiceManager` and relying entirely on the base `VoicePool` class implementation (`activeIndices`, `startTimes`). This reduces memory allocations and aligns with the generic pool structure constraint.
@@ -181,3 +195,5 @@
   - Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
   - Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
   - Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
+- Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.

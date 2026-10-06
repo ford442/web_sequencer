@@ -63,6 +63,18 @@ export const HelpTip = memo(({
     helpDiscoveryStore.openHelp({ tab: 'guides', topicId });
   }, [dismissFirstUse, topicId]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (!firstUsePinned) setOpen(false);
+        else dismissFirstUse();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, firstUsePinned, dismissFirstUse]);
+
   if (!topic) return children;
 
   const child = React.cloneElement(children, {
@@ -79,10 +91,9 @@ export const HelpTip = memo(({
       (children.props as { onMouseEnter?: (ev: React.MouseEvent) => void }).onMouseEnter?.(e);
       setOpen(true);
     },
-    onMouseLeave: (e: React.MouseEvent) => {
-      (children.props as { onMouseLeave?: (ev: React.MouseEvent) => void }).onMouseLeave?.(e);
-      if (!firstUsePinned) setOpen(false);
-    },
+    // We intentionally omit onMouseLeave from the child so that moving the pointer
+    // toward the tooltip content doesn't prematurely close it. The wrapper <span>
+    // handles onMouseLeave for the entire block.
   } as React.HTMLAttributes<HTMLElement>);
 
   return (
@@ -141,11 +152,11 @@ export const HelpIconButton = memo(({ topicId, label, className = '' }: HelpIcon
     <button
       type="button"
       onClick={() => helpDiscoveryStore.openHelp({ tab: 'guides', topicId })}
-      className={`inline-flex items-center justify-center w-4 h-4 rounded-full border border-cyan-800/60 bg-zinc-900/80 text-[9px] font-bold text-cyan-400/80 hover:text-cyan-300 hover:border-cyan-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${className}`}
+      className={`relative before:absolute before:-inset-3 before:content-[''] inline-flex items-center justify-center w-4 h-4 rounded-full border border-cyan-800/60 bg-zinc-900/80 text-[9px] font-bold text-cyan-400/80 hover:text-cyan-300 hover:border-cyan-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${className}`}
       aria-label={aria}
       title={aria}
     >
-      ?
+      <span aria-hidden="true">?</span>
     </button>
   );
 });

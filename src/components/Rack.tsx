@@ -15,7 +15,7 @@ export const Rack = memo(({ is3DMode, selectedTrack, onSelectTrack, modules }: R
             <div className="absolute inset-0 rounded-2xl border-2 border-cyan-900/10 pointer-events-none z-[1]" aria-hidden="true" />
             {is3DMode && (
                 <div className="flex items-center justify-center gap-2 p-2 bg-[#050709] border-b border-gray-800 shrink-0 z-50 relative pointer-events-auto">
-                    {ROWS.map((row: any) => (
+                    {ROWS.map((row) => (
                         <button type="button"
                             key={row.key}
                             onClick={() => onSelectTrack(row.key as TrackKey)}
