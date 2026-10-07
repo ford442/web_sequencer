@@ -37,3 +37,6 @@
 ## 2024-06-03 - Refactor role="status" empty states
 **Learning:** Putting action buttons inside a container with `role="status"` causes screen readers to read both the message and the button text together. When the button text is also an `aria-label` (or visible text), this creates redundant double-announcements.
 **Action:** Always move interactive buttons out of the `role="status"` region, leaving only the informative text inside the live region.
+## 2024-06-03 - Refactor role="status" empty states
+**Learning:** Putting action buttons inside a container with `role="status"` causes screen readers to read both the message and the button text together. When the button text is also an `aria-label` (or visible text), this creates redundant double-announcements. This was identified in components like `WaveformDisplay`, `PhonemePainter`, and `PreviewTabPanel`.
+**Action:** Always move interactive buttons out of the `role="status"` region, leaving only the informative text inside the live region.

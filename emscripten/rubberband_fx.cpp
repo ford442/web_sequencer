@@ -165,6 +165,11 @@ void phonemeToneFilter(RbFx& fx, float* out, int n) {
             const double fcEnd = fx.toneCutoffHz * rN + targetFc * (1.0 - rN);
 
             const double w = kTwoPi / fx.sampleRate;
+
+            const double r = 0.99;
+            const double rN = std::pow(r, static_cast<double>(n));
+            const double fcStart = fx.toneCutoffHz * r + targetFc * (1.0 - r);
+            const double fcEnd = fx.toneCutoffHz * rN + targetFc * (1.0 - rN);
             const double costhStart = 2.0 - std::cos(w * fcStart);
             const double b1Start = std::sqrt(costhStart * costhStart - 1.0) - costhStart;
             const double costhEnd = 2.0 - std::cos(w * fcEnd);
