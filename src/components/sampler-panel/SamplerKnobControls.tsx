@@ -41,6 +41,7 @@ interface SamplerKnobHandlers {
   transientExtraction: (v: number) => void;
   autoTune: (v: number) => void;
   microtonalVariance: (v: number) => void;
+  spatialRouting: (v: number) => void;
   drumDuckDepth: (v: number) => void;
   spectralCompression: (v: number) => void;
   windowShape: (v: number) => void;
@@ -197,6 +198,7 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Gran Pitch" value={currentParams.granularPitchShift || 0} onChange={handlers.granularPitchShift} min={-24} max={24} step={1} color="indigo" unit="st" />
           <Knob label="AutoTune" value={currentParams.autoTune || 0} onChange={handlers.autoTune} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Microtonal" value={currentParams.microtonalVariance || 0} onChange={handlers.microtonalVariance} min={0} max={100} step={1} color="indigo" unit="ct" />
+          <Knob label="Phoneme Pan" value={currentParams.spatialRouting || 0} onChange={handlers.spatialRouting} min={0} max={1.0} step={0.01} color="cyan" unit="%" />
           <Knob label="Phon Delay" value={currentParams.phonemeDelayAmount || 0} onChange={handlers.phonemeDelayAmount} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Phon F.Back" value={currentParams.phonemeDelayFeedback || 0} onChange={handlers.phonemeDelayFeedback} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Chorus" value={currentParams.vocalChorus || 0} onChange={handlers.vocalChorus} min={0} max={1.0} step={0.01} color="indigo" unit="%" />

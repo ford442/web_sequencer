@@ -134,6 +134,7 @@ export function createPlaySamplerVoice(
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
+    const pSpatialRouting = noteParams?.spatialRouting !== undefined ? noteParams.spatialRouting : (params.spatialRouting ?? 0);
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
     const pPhonemeDelayAmount = noteParams?.phonemeDelayAmount !== undefined ? noteParams.phonemeDelayAmount : params.phonemeDelayAmount;
     const pPhonemeDelayFeedback = noteParams?.phonemeDelayFeedback !== undefined ? noteParams.phonemeDelayFeedback : params.phonemeDelayFeedback;
@@ -382,6 +383,7 @@ export function createPlaySamplerVoice(
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
+        if (pSpatialRouting !== undefined && voice.setSpatialRouting) voice.setSpatialRouting(pSpatialRouting, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
         if (pPhonemeDelayAmount !== undefined && voice.setPhonemeDelayAmount) voice.setPhonemeDelayAmount(pPhonemeDelayAmount, triggerTime);
         if (pPhonemeDelayFeedback !== undefined && voice.setPhonemeDelayFeedback) voice.setPhonemeDelayFeedback(pPhonemeDelayFeedback, triggerTime);
