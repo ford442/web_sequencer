@@ -291,16 +291,16 @@ export class Open303EngineSession {
         }
 
         // 5. Initialize the synth with stack protection
+        const srValue = data.sampleRate ?? (globalThis as { sampleRate?: number }).sampleRate;
+        const resolvedRate = srValue !== undefined ? resolveWorkletSampleRate({ sampleRate: srValue }) : resolveWorkletSampleRate();
         return this.initializeSynth(
             exports,
-            resolveWorkletSampleRate({
-                sampleRate: data.sampleRate ?? (globalThis as { sampleRate?: number }).sampleRate,
-            }),
+            resolvedRate,
         );
     }
 
     private initializeSynth(exports: any, sampleRate: number): boolean {
-        this.rateHz = resolveWorkletSampleRate({ sampleRate });
+        this.rateHz = sampleRate; // already resolved above
         // Prefer the new multi-instance native API (hyphon_native with open303_wrapper.cpp).
         // Fall back to the single-instance jc303_* API (standalone jc303-single.wasm).
         if (typeof exports.open303_create === 'function' &&
