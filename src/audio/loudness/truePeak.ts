@@ -98,7 +98,7 @@ export class TruePeakDetector {
     constructor(sampleRate: number, factor = oversamplingFactorFor(sampleRate)) {
         this.factor = factor;
         this.phases = buildPolyphaseCoefficients(factor);
-        this.history = new Float32Array(TAPS_PER_PHASE);
+        this.history = new Float32Array(TAPS_PER_PHASE * 2);
     }
 
     reset(): void {
@@ -119,19 +119,26 @@ export class TruePeakDetector {
      */
     processSample(sample: number): number {
         const x = Number.isFinite(sample) ? sample : 0;
-        this.history[this.historyIndex] = x;
-        this.historyIndex = (this.historyIndex + 1) % TAPS_PER_PHASE;
+
+        const h = this.history;
+        const p = this.phases;
+        const f = this.factor;
+
+        const w = this.historyIndex;
+        h[w] = x;
+        h[w + TAPS_PER_PHASE] = x;
+
+        const startIdx = (w + 1) % TAPS_PER_PHASE;
+        this.historyIndex = startIdx;
 
         let localPeak = 0;
-        for (let phase = 0; phase < this.factor; phase += 1) {
-            const taps = this.phases[phase];
+        for (let phase = 0; phase < f; phase += 1) {
+            const taps = p[phase];
             let acc = 0;
-            // history[historyIndex] is now the oldest sample; walk forward.
-            let idx = this.historyIndex;
+            let idx = startIdx;
             for (let tap = TAPS_PER_PHASE - 1; tap >= 0; tap -= 1) {
-                acc += taps[tap] * this.history[idx];
+                acc += taps[tap] * h[idx];
                 idx += 1;
-                if (idx === TAPS_PER_PHASE) idx = 0;
             }
             const magnitude = acc < 0 ? -acc : acc;
             if (magnitude > localPeak) localPeak = magnitude;
