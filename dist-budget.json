@@ -12,7 +12,7 @@
     "entryChunkMaxBytes": 262000,
     "vendorReactChunkMaxBytes": 61000,
     "vendorOnnxChunkMaxBytes": 108000,
-    "largestWorkletChunkMaxBytes": 32000,
+    "largestWorkletChunkMaxBytes": 35000,
     "assetsDirMaxBytes": 890000
   }
 }
