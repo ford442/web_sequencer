@@ -25,7 +25,3 @@
 ## 2024-12-07 - Pre-compute window shapes in GranularEngine
 **Learning:** In `granularEngine.ts`, the DSP loop was calculating window shapes using expensive transcendental math (`Math.cos`, `Math.exp`, `Math.pow`, `Math.sin`) per sample and per active grain. This was happening up to 2 times per sample frame, degrading real-time performance on the audio thread.
 **Action:** Replace these expensive per-sample calculations with pre-computed `Float32Array` lookup tables and fast linear interpolation, hoisting the transcendental math out of the hot path to module-load time.
-
-## 2024-12-07 - Hoisting Math from Inner DSP Loops
-**Learning:** In `AudioWorklet` processors (like `Bitcrusher` and `SpectralBandProcessor`), mathematical operations like `Math.pow`, `Math.exp`, and `Math.sin` inside the inner per-sample loop significantly degrade performance. Since block parameters (like `bitcrushAmount` or `sampleRate`) rarely change mid-block, recomputing these inside the sample loop is redundant and expensive.
-**Action:** Always hoist transcendental math that depends only on block-rate or constant values out of per-sample `for` loops. Cache them as local variables (or instance properties if they depend on initialization parameters like `sampleRate`) and reuse them across the loop.
