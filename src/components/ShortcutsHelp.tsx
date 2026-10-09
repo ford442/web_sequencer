@@ -213,16 +213,16 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
           {tab === 'search' && (
             <div role="tabpanel" id="tabpanel-search" aria-labelledby="tab-search" className="space-y-4">
-              <label className="block">
+              <label htmlFor="help-search-input" className="block">
                 <span className="sr-only">Search help</span>
                 <input
+                  id="help-search-input"
                   ref={searchRef}
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder='Try "automate filter", "jc303", "tts"...'
                   className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-                  aria-label="Search help topics"
                 />
               </label>
               <ul className="space-y-2" role="list">

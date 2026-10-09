@@ -157,18 +157,28 @@ void phonemeToneFilter(RbFx& fx, float* out, int n) {
             const double minFc = 200, maxFc = 10000;
             const double brightness = std::pow(std::max(0.0, std::min(1.0, volume)), 0.7);
             const double targetFc = minFc + (maxFc - minFc) * (mod * brightness);
+
+            // Smooth fc over time to prevent zippering
             const double w = kTwoPi / fx.sampleRate;
+
+            const double r = 0.99;
+            const double rN = std::pow(r, static_cast<double>(n));
+            const double fcStart = fx.toneCutoffHz * r + targetFc * (1.0 - r);
+            const double fcEnd = fx.toneCutoffHz * rN + targetFc * (1.0 - rN);
+            const double costhStart = 2.0 - std::cos(w * fcStart);
+            const double b1Start = std::sqrt(costhStart * costhStart - 1.0) - costhStart;
+            const double costhEnd = 2.0 - std::cos(w * fcEnd);
+            const double b1End = std::sqrt(costhEnd * costhEnd - 1.0) - costhEnd;
+            const double b1Inc = n > 1 ? (b1End - b1Start) / (n - 1) : 0.0;
+
+            double b1 = b1Start;
             for (int i = 0; i < n; ++i) {
-                fx.toneCutoffHz = fx.toneCutoffHz * 0.99 + targetFc * 0.01;
-                if (fx.toneCutoffHz != fx.toneCoefHz) {
-                    const double costh = 2.0 - std::cos(w * fx.toneCutoffHz);
-                    fx.toneB1 = std::sqrt(costh * costh - 1.0) - costh;
-                    fx.toneA0 = 1.0 + fx.toneB1;
-                    fx.toneCoefHz = fx.toneCutoffHz;
-                }
-                fx.toneState = fx.toneA0 * out[i] - fx.toneB1 * fx.toneState;
+                const double a0 = 1.0 + b1;
+                fx.toneState = a0 * out[i] - b1 * fx.toneState;
                 out[i] = static_cast<float>(fx.toneState);
+                b1 += b1Inc;
             }
+            fx.toneCutoffHz = fcEnd;
         } else if (n > 0) {
             fx.toneState = out[n - 1];
         }

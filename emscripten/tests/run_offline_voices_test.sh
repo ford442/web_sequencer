@@ -56,3 +56,11 @@ else
     echo "  Run: git submodule update --init jc303_wasm"
     echo
 fi
+
+echo "Compiling rubberband_fx.cpp..."
+g++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter \
+    -I "$SCRIPT_DIR/emscripten_stub" \
+    -c "$SCRIPT_DIR/../rubberband_fx.cpp" \
+    -o "$TMP/rubberband_fx.o"
+echo "rubberband_fx.cpp compiles successfully."
+echo

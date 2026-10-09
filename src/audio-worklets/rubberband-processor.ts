@@ -6,6 +6,7 @@ import { RUBBERBAND_PARAMETER_DESCRIPTORS } from "./rubberband/parameterDescript
 import { getStretchProfileOptions, type StretchProfile } from "../engines/rubberband/stretchProfiles";
 import { getPhonemeDataAtSample } from "./rubberband/phonemeData";
 import { DrumDuckEnvelope } from "./rubberband/drumDuckEnvelope";
+import { SpatialRouter } from "./rubberband/spatialRouter";
 import { BassEnvelopeFollower } from "./rubberband/bassEnvelopeFollower";
 import { PitchController, type PitchContext } from "./rubberband/pitchControl";
 import { TsVocalFx, createVocalFxBlock, type VocalFxBackend, type VocalFxBlock, type VocalFxChain } from "./rubberband/vocalFx";
@@ -72,6 +73,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
   private readonly perf = new WorkletPerfReporter(this.port, 'rubberband');
 
   private readonly drumDuck = new DrumDuckEnvelope();
+  private readonly spatialRouter = new SpatialRouter();
   private readonly bassEnvelopeFollower = new BassEnvelopeFollower();
   private readonly pitch = new PitchController();
 
@@ -545,6 +547,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.fallBackToTsFx(`native FX threw in rb_fx_process: ${String(e)}`);
         }
 
+        // The fused FX backend supplies stereo; route either backend's output.
+        const spatialRoutingAmount = param(parameters, 'spatialRouting', 0.0);
+        if (block.hasPhonemeContext && outputs[0][1]) {
+          this.spatialRouter.process(outputs, spatialRoutingAmount, block.isVowel, block.phonemeIndex, block.phonemeVolume);
+        }
         // Check for completion when no output is available but we're still marked as playing
         if (this.isReverse) {
           if (this.currentSamplePtr < this.startSamplePtr) this.isPlaying = false;

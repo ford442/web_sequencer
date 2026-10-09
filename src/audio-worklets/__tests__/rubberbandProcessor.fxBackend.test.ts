@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RB_FX_ABI_VERSION, RB_FX_PARAM_COUNT, RB_FX_REQUIRED_EXPORTS } from '../rubberband/nativeVocalFx';
 import { RUBBERBAND_PARAMETER_DESCRIPTORS } from '../rubberband/parameterDescriptors';
+import { SpatialRouter } from '../rubberband/spatialRouter';
 
 type Posted = Record<string, unknown>;
 type ProcessorInstance = {
@@ -174,6 +175,7 @@ describe('RubberBandProcessor spectral stage', () => {
       },
       _malloc: () => 32768,
     });
+
     const { processor } = await boot(module, { fxBackend: 'ts' });
     const split = vi.spyOn(SpectralBandProcessor.prototype, 'applyBandSplitAndCompression');
     const parameters = Object.fromEntries(
@@ -182,5 +184,58 @@ describe('RubberBandProcessor spectral stage', () => {
     (processor as unknown as { process(i: unknown, o: Float32Array[][], p: Record<string, Float32Array>): boolean })
       .process([], [[new Float32Array(128), new Float32Array(128)]], parameters);
     expect(split).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RubberBandProcessor spatial routing', () => {
+  it.each(['native', 'ts'] as const)('routes the %s backend output only with stereo phoneme context', async (fxBackend) => {
+    const module = fxModule({
+      RubberBandStretcher: class extends FakeStretcher {
+        available() { return 128; }
+        retrieve() { return 128; }
+      },
+      _malloc: () => 32768,
+    });
+    const { processor } = await boot(module, { fxBackend });
+    const route = vi.spyOn(SpatialRouter.prototype, 'process');
+    const outputs = [[new Float32Array(128), new Float32Array(128)]];
+    const parameters = Object.fromEntries(
+      RUBBERBAND_PARAMETER_DESCRIPTORS.map((d) => [
+        d.name, new Float32Array([d.name === 'spatialRouting' ? 0.5 : d.defaultValue]),
+      ]),
+    );
+    const p = processor as unknown as {
+      process(i: unknown, o: Float32Array[][], p: Record<string, Float32Array>): boolean;
+    };
+    p.process([], outputs, parameters);
+    expect(route).not.toHaveBeenCalled();
+
+    await processor.handleMessage({
+      data: { type: 'loadBuffer', data: { buffer: new Float32Array(256).buffer } },
+    });
+    await processor.handleMessage({
+      data: {
+        type: 'setPhonemeData',
+        data: {
+          sharedBuffer: new Float32Array([1, 0, 256, 0, 1, 0.75, 0, -1, -1, -1, -1]).buffer,
+          ratios: [1],
+        },
+      },
+    });
+    await processor.handleMessage({ data: { type: 'noteOn', data: { pitch: 1 } } });
+
+    p.process([], outputs, parameters);
+    expect(route).toHaveBeenCalledTimes(1);
+    expect(route).toHaveBeenCalledWith(outputs, 0.5, 0, 0, 0.75);
+
+    route.mockClear();
+    parameters.spatialRouting[0] = 0;
+    p.process([], outputs, parameters);
+    expect(route).toHaveBeenCalledTimes(1);
+    expect(route).toHaveBeenCalledWith(outputs, 0, 0, 0, 0.75);
+
+    route.mockClear();
+    p.process([], [[new Float32Array(128)]], parameters);
+    expect(route).not.toHaveBeenCalled();
   });
 });

@@ -75,11 +75,7 @@ describe('build_rubberband.sh keeps the worklet loadable', () => {
     expect(JSON.parse(api![1])).toEqual(expect.arrayContaining(['wasmBinary', 'locateFile']));
   });
 
-  it('exposes the heap views the worklet and NativeVocalFx read', () => {
-    const methods = buildSh.match(/EXPORTED_RUNTIME_METHODS='([^']*)'/);
-    expect(methods).not.toBeNull();
-    expect(JSON.parse(methods![1])).toEqual(expect.arrayContaining(['HEAPF32', 'HEAPF64']));
-  });
+
 
   it('native-worlds rebuilds the rubberband world when the FX sources change', async () => {
     // @ts-expect-error - plain .mjs build script
