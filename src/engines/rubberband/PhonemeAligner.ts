@@ -497,7 +497,15 @@ export class PhonemeAligner {
         const elasticity = elasticityScales(
             phonemes,
             ratios,
-            phonemes.map((_, i) => clampElasticity(userPhonemes?.[i]?.elasticity)),
+            phonemes.map((_, i) => {
+                const userP = userPhonemes?.[i];
+                let elast = userP?.elasticity;
+                if (elast === undefined) {
+                    const vol = userP?.volume !== undefined ? userP.volume : 1.0;
+                    elast = Math.sqrt(vol);
+                }
+                return clampElasticity(elast);
+            }),
         );
 
         for (let i = 0; i < phonemes.length; i++) {

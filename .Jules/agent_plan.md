@@ -2,7 +2,7 @@
 
 ## Active Backlog
 - Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
-- Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
+- [x] Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
 - Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
 - [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
@@ -64,6 +64,7 @@
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [rejected] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect. - Violates CPU budget (heavy FFT processing).
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+- Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - Completed "Explore dynamic spatialization routing per phoneme" task from the Innovation Lab backlog.
 - Built `SpatialRouter` AudioWorklet processor that splits spatialization logic: consonants are hard-panned left or right deterministically based on their phoneme index hash, while vowels dynamically increase stereo width based on phoneme intensity/volume using mid-side processing. Added smooth interpolation to prevent clicking.
