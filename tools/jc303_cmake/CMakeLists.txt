@@ -63,7 +63,7 @@ if(ENABLE_WASM_DEBUG)
         -s MODULARIZE=1
         -s EXPORT_NAME=JC303Module
         -s "EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]"
-        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAPF32\"]"
+        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\"]"
         -s ALLOW_MEMORY_GROWTH=1
         -s INITIAL_MEMORY=${JC303_INITIAL_MEMORY}
         -s MAXIMUM_MEMORY=${JC303_MAXIMUM_MEMORY}
@@ -95,7 +95,7 @@ else()
         -s MODULARIZE=1
         -s EXPORT_NAME=JC303Module
         -s "EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]"
-        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAPF32\"]"
+        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\"]"
         -s ALLOW_MEMORY_GROWTH=1
         -s INITIAL_MEMORY=${JC303_INITIAL_MEMORY}
         -s MAXIMUM_MEMORY=${JC303_MAXIMUM_MEMORY}
@@ -135,7 +135,7 @@ if(ENABLE_WASM_DEBUG)
         -s MODULARIZE=1
         -s EXPORT_NAME=JC303WorkletModule
         -s "EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]"
-        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAPF32\"]"
+        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\"]"
         -s ALLOW_MEMORY_GROWTH=1
         -s INITIAL_MEMORY=${JC303_INITIAL_MEMORY}
         -s MAXIMUM_MEMORY=${JC303_MAXIMUM_MEMORY}
@@ -167,7 +167,7 @@ else()
         -s MODULARIZE=1
         -s EXPORT_NAME=JC303WorkletModule
         -s "EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"]"
-        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAPF32\"]"
+        -s "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\",\"getValue\",\"setValue\"]"
         -s ALLOW_MEMORY_GROWTH=1
         -s INITIAL_MEMORY=${JC303_INITIAL_MEMORY}
         -s MAXIMUM_MEMORY=${JC303_MAXIMUM_MEMORY}

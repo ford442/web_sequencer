@@ -15,12 +15,10 @@ export const EngineDegradationBanner = memo(function EngineDegradationBanner() {
     return (
         <div
             className="relative z-40 shrink-0 bg-amber-950/95 border-b border-amber-600/50 text-amber-100 px-3 py-2 text-xs"
-            role="status"
-            aria-live="polite"
             aria-label="Engine degradation warnings"
         >
             <div className="max-w-[1000px] mx-auto flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1" role="status" aria-live="polite">
                     {issues.map((issue) => (
                         <div key={issue.id} className="flex flex-wrap items-center gap-2">
                             <span className="font-bold uppercase tracking-wider text-amber-300">

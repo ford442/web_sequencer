@@ -74,6 +74,7 @@ export interface SamplerBankParams {
   spectralComp?: number;
   subHarmonics?: number;
   vocalChorus?: number;
+  spatialRouting?: number;
   phonemeDelayAmount?: number;
   phonemeDelayFeedback?: number;
   transientExtraction?: number;

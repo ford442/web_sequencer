@@ -1,27 +1,15 @@
-# Web Sequencer Active Backlog & Innovation Lab
+# Agent Plan
 
 ## Active Backlog
-- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+- Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
+- [x] Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
+- Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
 - [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
 - [x] Integrate reverse step playback support into the Lyric Track (`useLyricHandlers.ts`).
 - [x] Support dynamic mid-playback direction changes seamlessly as suggested in memory.
-
 - [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
-## Innovation Lab
-- [x] Explore randomizing granular jitter based on note velocity.
-- [x] Explore assigning microtonal pitch variations per phoneme step.
-- Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
-- What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
-- [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
-- Implement Lyric Track parsing.
-
-# Agent Plan
-
-## Active Backlog
-- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
-- [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement Phoneme-driven auto-rhythm generation for TTS
 - [x] Add granular random jitter per phoneme
 - [x] Add multi-voice unison detune
@@ -34,6 +22,12 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- [x] Explore randomizing granular jitter based on note velocity.
+- [x] Explore assigning microtonal pitch variations per phoneme step.
+- [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
+- What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
+- [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
+- Implement Lyric Track parsing.
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
 - [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
@@ -42,7 +36,6 @@
 - [x] Implement Expressive Note Transitions for Vowels
 - [x] Explore spectral panning per grain to create a wide stereo field for TTS voices.
 - [x] Explore multi-band spectral compression for the TTS output
-
 - [x] Optimize TTS memory footprint
 - [x] Implement Lyric Track parsing
 - [x] Implement Vowel-Preserving Time Stretch for TTS voices
@@ -52,20 +45,16 @@
 - [x] Optimize Voice Manager state syncing
 - [x] Add granular synthesis window shape control for TTS playback
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
-
 - [x] Explore overlapping stereo grains (true OLA instead of one looped grain)
 - [x] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
-
-## Innovation Lab
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
-- [ ] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope
+- [rejected] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope - Causes too much CPU strain and GC pressure in the hot path.
 - [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
 - [x] What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal to make it cut through mix buses better on smaller speakers?
 - [x] Explore a TTS vocal stack chorus effect using post-retrieve micro-delay taps.
 - [x] Investigate envelope follower ducking for sidechain effects (Needs cross-engine wiring, e.g. inputs[1] or SAB from drum path, do not use local vocal envelope).
-
 - [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
 - [x] Explore a 'breathing' noise gate for TTS that slightly increases noise floor gain during vowels and cuts it during silence for a vintage sampler feel.
 - [x] Investigate dynamic EQ ducking during vocal synthesis to prevent sub-harmonic and spectral comp masking from fighting against heavy basslines.
@@ -73,17 +62,64 @@
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
-- [ ] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
+- [rejected] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect. - Violates CPU budget (heavy FFT processing).
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+- Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
+- Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+- Completed "Explore dynamic spatialization routing per phoneme" task from the Innovation Lab backlog.
+- Built `SpatialRouter` AudioWorklet processor that splits spatialization logic: consonants are hard-panned left or right deterministically based on their phoneme index hash, while vowels dynamically increase stereo width based on phoneme intensity/volume using mid-side processing. Added smooth interpolation to prevent clicking.
+- Wired `spatialRouting` amount parameter through `RubberBandProcessor`, `SingingVoice`, types, and exposed via the UI sequencer overlays.
+- Velocity Check: Splitting spatialization strategies by phoneme type creates a deeply immersive vocal field where consonants jump around the stereo field while the vowels sustain in a wide image. No GC allocations occur in the hot path.
 
-
-
-## Refactoring Roadblocks
-- [x] Ensure all VoiceManagers (e.g., VoiceManager, SingingVoiceManager) use similar logic patterns for acquiring/releasing/stopping voices to prevent unexpected UI/Audio desync issues.
-- Now that VoicePool centralizes state syncing, consider abstracting fallback engine management from VoiceManager into a general sub-manager.
-- What if we explored a true zero-allocation path for TTS Voice scheduling using RingBuffers directly from the sequencer?
+## Roadmap
+- Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.
+- Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal...". I added an inexpensive soft-clipper to the sub-bass signal path inside the AudioWorklet before mixing it back with the dry signal.
+- Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.
+- Completed "Explore linking grain pan to phoneme voicing". Added dynamic reduction of `grainPanSpread` during consonants in `RubberBandProcessor` by passing `isVowel` from the phoneme SAB up to the spectral pan generator.
+- Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount. UI/state wiring landed; worklet existed earlier. Velocity check: thin vertical slice, same shape as `spectralComp`.
+- Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?". Added a new `phonemeFilterMod` parameter that applies a simple 1-pole Low-Pass Filter to the grain output path. The cutoff frequency scales dynamically with the phoneme volume `pVol`, making louder syllables sound brighter and softer syllables sound darker. The parameter is exposed via the UI for sequencing.
+- Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount.
+- Completed "What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?" by adding `grainPosLfoDepth` parameter. This introduces a position oscillation by calculating a bipolar `posMod` applied to the `grainCenterActive` during the freeze stream (`initGrain`).
+- Velocity Check: Utilizing the existing `grainLfoPhase` avoids creating new block-rate oscillators and keeps the plumbing clean. Modifying the grain center rather than drifting the RubberBand `timeRatio` prevents latency hunting and preserves audio fidelity. I added new ideas to the Innovation Lab.
+- Completed "Explore assigning microtonal pitch variations per phoneme step." by extending the `PhonemeSample` tuple size to 9 to include the phoneme index, and implementing a deterministic pseudo-random offset inside the worklet based on this index scaled by a new `microtonalVariance` parameter.
+- Velocity Check: Extending the SAB tuple read allows per-phoneme modulations without any main-thread sequencing overhead. The pseudo-random math (`fract(sin(x)*43758.5453)`) ensures perfectly stable and repeatable pitch offsets that don't drift, maintaining a consistent "character" variation.
+- [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
+- Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
+- Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
+- Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
+- [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+- Implemented a high-pass filtered transient extractor in the `RubberBandProcessor` AudioWorklet.
+- Fixed DSP bug related to channel-shared states.
+- Uses dual fast/slow envelope followers to detect transients and injects the high-passed signal back into the mix.
+- Fully bypasses processing for vowels using the `isVowel` SharedArrayBuffer flag.
+- Velocity Check: Utilizing a fast-decaying dual-envelope follower structure allowed for highly accurate transient detection in speech without allocating large delay buffers.
+- [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
+- [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
+- Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
+- This clears out the vocal fundamental dynamically specifically when the kick hits, reducing mud without fully gating the higher vocal harmonics.
+- Completed "Explore transient extraction filters for TTS consonants to enhance percussive speech clarity."
+- Implemented `TransientShaper` in `toneFilters.ts` that triggers an exponential decay envelope whenever the `phonemeIndex` changes and `isVowel === 0`.
+- Added `consonantClarity` parameter to `RubberBandProcessor` to allow real-time control over the transient boost multiplier.
+- Plumbed the parameter through the types, effects control, and UI to a new hardware slider in `SamplerVoicePanel`.
+- Velocity Check: Hooking into the existing `isVowel` flag from the `PhonemeData` buffer allowed for highly accurate transient detection without the CPU overhead of a traditional real-time transient detection algorithm.
+- Completed "Implement dynamic vocal chops by using the slice index and varying direction over time."
+- Added a `dynamicChops` boolean to `SamplerBankParams` and `Note` types.
+- Added a "CHOPS ON" toggle UI to `SamplerModeSelector` that appears when `sliceMode` is 'phoneme'.
+- Added logic in `playSamplerVoice.ts` to dynamically calculate `finalReverse` by alternating direction based on whether `sliceIndex` is even or odd when `dynamicChops` is true.
+- Velocity Check: Extending the `sliceMode` feature to allow for alternating sample reversing provides an instant "glitch/chop" vocal effect out of the box without requiring manual sequencer automation on every step.
+- Completed "Experiment with non-linear grain panning".
+- Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
+- Reduced redundant math by reusing `this.grainLfoPhase`.
+- Velocity Check: This architectural path was highly efficient because the `grainLfoPhase` state was already tracking per-block.
+- Completed "What if we link consonant boost directly to the velocity or stress parameter from the lyric track?".
+- Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
+- Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
+- Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
+- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
+- Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.
 
 ## Architecture Review
+- Check #1370 for parity (`SpatialRouter`): The `SpatialRouter` currently exists only in TypeScript (`src/audio-worklets/rubberband/spatialRouter.ts`) and is evaluated outside the `VocalFxChain` (in `RubberBandProcessor.process()`). It is bypassed in the golden tests (or simply not part of the `NativeVocalFx` pipeline that is tested via `rb_fx_process`). Thus, it is a TS-only processor applied after the main FX chain.
 
 - Completed "Implement dynamic spatialization routing per phoneme (e.g. delay sends driven by phoneme intensity)." Implemented a `PhonemeDelayEffect` delay line inside `RubberBandProcessor` that echoes the signal based on phoneme intensity and vowel status. Wired it up to the `phonemeDelayAmount` and `phonemeDelayFeedback` parameters in the UI (bank knobs in `SamplerKnobControls.tsx` and per-step sliders in `SynthGranularEffects.tsx`) and correctly routed through types and state.
 - Velocity Check: Hooking into the phoneme data for spatialization works very well and adds immediate rhythmic and musical interest to the TTS output, specifically by only repeating vowels and keeping the echo clean from consonants. The plumbing across `playSamplerVoice.ts` and `EffectsControlMixin` matches our established pattern, preventing any friction. Added real-time cross-synthesis task to the backlog.
@@ -114,7 +150,6 @@
 - Completed "Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field" by utilizing the existing `isVowel` flag from the `PhonemeData` buffer (already available at `baseIndex + 2`). This was threaded up to the spectral panning logic to dynamically reduce the pan spread by 70% during consonants, creating a much more natural stereo image for speech.
 - Velocity Check: Passing `isVowel` through the worklet's getter function avoided any new allocations or buffer expansions. Adding the 8th tuple item was clean and the performance impact is zero since it's only evaluated once per grain wrap.
 
-
 - Completed 'Implement phrase-based pitch transposition in Lyric Track.' by updating the Lyric Track parser to support comma-separated tags `(note, transpose, reverse)` and implementing a `transposeNote` utility function. This allows syntax like `(C4, +2, rev)` to smoothly adjust melodies over TTS alignments.
 - Completed the task: "What if we could apply an LFO to the TTS formant shift directly from the step sequencer?"
   - Built a robust FormantModulator topology directly inside `FormantShifter.ts`.
@@ -139,55 +174,6 @@
 - Completed "Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection." by moving it into the Active Backlog and implementing a simple zero-crossing pitch tracker inside `RubberBandProcessor` that dynamically feeds the previous block's detected pitch correction ratio into RubberBand's pitch scalar.
 - Velocity Check: Detecting zero crossings on the generated output to apply a pitch offset to RubberBand's input works nicely as a rapid feedback look, enabling a basic hard-tuning effect inside the time-stretcher without expensive STFT operations. Added "Explore real-time cross-modulation between two TTS engines to create a vocoder-like effect." to the Innovation Lab.
 
-
 - Completed "Optimize TTS memory footprint" by caching `resolveWorkletSampleRate` block-wide in `RubberBandProcessor` to remove redundant inline parameter object allocations in the hot audio processing loop, vastly reducing GC pressure. Also completed linking consonant boost to velocity by extracting `pVol` and scaling `consonantClarity` before passing it to the Transient Shaper. This makes loud syllables punchier while keeping quiet whispers soft.
 - Velocity Check: Identifying the massive GC pressure from repeated `{ sampleRate: ... }` allocations in `process()` was a huge win for audio stability. The consonant scaling was computationally nearly free since `pVol` is already mapped from the SharedArrayBuffer.
 
-## Roadmap
-- Completed "Explore a TTS vocal stack chorus effect using micro-delayed grains". Implemented as a post-retrieve stereo tap-delay chorus with `isVowel` dynamic wet balancing and strict 0-bypass, wired up to UI knobs and sequenced overlays via the `vocalChorus` parameter.
-- Completed "What if we added a subtle saturation stage exclusively to the generated sub-harmonic signal...". I added an inexpensive soft-clipper to the sub-bass signal path inside the AudioWorklet before mixing it back with the dry signal.
-- Completed "Explore multi-band spectral compression for the TTS output". I added `spectralComp` to `RubberBandProcessor` using a 3-band SVF filter structure (Chamberlin method) with envelope followers and custom gain reduction stages. Wired the parameter through state managers and hooks, and added a UI slider to the synth granular effects overlay for direct sequencing capability.
-- Completed "Explore linking grain pan to phoneme voicing". Added dynamic reduction of `grainPanSpread` during consonants in `RubberBandProcessor` by passing `isVowel` from the phoneme SAB up to the spectral pan generator.
-- Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount. UI/state wiring landed; worklet existed earlier. Velocity check: thin vertical slice, same shape as `spectralComp`.
-- Completed "What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?". Added a new `phonemeFilterMod` parameter that applies a simple 1-pole Low-Pass Filter to the grain output path. The cutoff frequency scales dynamically with the phoneme volume `pVol`, making louder syllables sound brighter and softer syllables sound darker. The parameter is exposed via the UI for sequencing.
-- Completed "Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech". Added a new zero-crossing sub-octave divider circuit directly in the `RubberBandProcessor` AudioWorklet hot path. The divider triggers exclusively when the `isVowel` flag from the `PhonemeData` shared array buffer is active, tracking zero crossings to synthesize a square wave one octave down. This is then smoothed by a 2-pole low pass filter (cutoff ~80Hz) to produce a clean, deep sine-like sub bass tone that follows the original vocal pitch perfectly. Added a "Sub Bass" UI slider to sequencer properties to control the blend amount.
-- Completed "What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?" by adding `grainPosLfoDepth` parameter. This introduces a position oscillation by calculating a bipolar `posMod` applied to the `grainCenterActive` during the freeze stream (`initGrain`).
-- Velocity Check: Utilizing the existing `grainLfoPhase` avoids creating new block-rate oscillators and keeps the plumbing clean. Modifying the grain center rather than drifting the RubberBand `timeRatio` prevents latency hunting and preserves audio fidelity. I added new ideas to the Innovation Lab.
-
-- Completed "Explore assigning microtonal pitch variations per phoneme step." by extending the `PhonemeSample` tuple size to 9 to include the phoneme index, and implementing a deterministic pseudo-random offset inside the worklet based on this index scaled by a new `microtonalVariance` parameter.
-- Velocity Check: Extending the SAB tuple read allows per-phoneme modulations without any main-thread sequencing overhead. The pseudo-random math (`fract(sin(x)*43758.5453)`) ensures perfectly stable and repeatable pitch offsets that don't drift, maintaining a consistent "character" variation.
-- [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
-  - Implemented `autoTune` parameter with UI wiring to allow sequence-level toggling.
-  - Implemented a zero-crossing fast F0 period detector specifically gated on vowels, bypassing consonants or scratchy audio signals to prevent frequency smearing/hunting.
-  - Added medium-fast 1-pole smoothing (alpha 0.2) to the F0 correction ratio.
-- [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
-  - Implemented a high-pass filtered transient extractor in the `RubberBandProcessor` AudioWorklet.
-  - Fixed DSP bug related to channel-shared states.
-  - Uses dual fast/slow envelope followers to detect transients and injects the high-passed signal back into the mix.
-  - Fully bypasses processing for vowels using the `isVowel` SharedArrayBuffer flag.
-- Velocity Check: Utilizing a fast-decaying dual-envelope follower structure allowed for highly accurate transient detection in speech without allocating large delay buffers.
-- [x] Non-linear mapping for the ducking follower (cheap: curve duckingScalar instead of env * depth * velocity).
-- [x] Dynamic EQ ducking during vocal synthesis (distinct masking problem, not another gain duck).
-  - Added a fast 350Hz bandpass cut using an SVF filter during drum hit ducking. The filter depth scales directly with the ducking envelope.
-  - This clears out the vocal fundamental dynamically specifically when the kick hits, reducing mud without fully gating the higher vocal harmonics.
-- Completed "Explore transient extraction filters for TTS consonants to enhance percussive speech clarity."
-  - Implemented `TransientShaper` in `toneFilters.ts` that triggers an exponential decay envelope whenever the `phonemeIndex` changes and `isVowel === 0`.
-  - Added `consonantClarity` parameter to `RubberBandProcessor` to allow real-time control over the transient boost multiplier.
-  - Plumbed the parameter through the types, effects control, and UI to a new hardware slider in `SamplerVoicePanel`.
-  - Velocity Check: Hooking into the existing `isVowel` flag from the `PhonemeData` buffer allowed for highly accurate transient detection without the CPU overhead of a traditional real-time transient detection algorithm.
-- Completed "Implement dynamic vocal chops by using the slice index and varying direction over time."
-  - Added a `dynamicChops` boolean to `SamplerBankParams` and `Note` types.
-  - Added a "CHOPS ON" toggle UI to `SamplerModeSelector` that appears when `sliceMode` is 'phoneme'.
-  - Added logic in `playSamplerVoice.ts` to dynamically calculate `finalReverse` by alternating direction based on whether `sliceIndex` is even or odd when `dynamicChops` is true.
-- Velocity Check: Extending the `sliceMode` feature to allow for alternating sample reversing provides an instant "glitch/chop" vocal effect out of the box without requiring manual sequencer automation on every step.
-- Completed "Experiment with non-linear grain panning".
-  - Implemented pseudo-spiral LFO paths for spectral bands in the granulator.
-  - Reduced redundant math by reusing `this.grainLfoPhase`.
-  - Velocity Check: This architectural path was highly efficient because the `grainLfoPhase` state was already tracking per-block.
-
-- Completed "What if we link consonant boost directly to the velocity or stress parameter from the lyric track?".
-  - Passed `phonemeVolume` down to the `TransientShaper.process()` within `RubberBandProcessor`.
-  - Scaled the `currentEnvelope` trigger by `phonemeVolume` in `toneFilters.ts` when a new consonant is detected.
-  - Velocity Check: This simple change organically couples musical intent (velocity/stress) to the clarity boost, making stressed syllables bite harder without modifying the core DSP graph.
-- Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
-- Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.
