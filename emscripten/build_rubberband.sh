@@ -157,7 +157,7 @@ em++ $OPT_FLAGS \
     -s MODULARIZE=1 \
     -s EXPORT_ES6=1 \
     -s EXPORT_NAME='createRubberBandModule' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue", "HEAPF32", "HEAPF64"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
     -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
     -s INCOMING_MODULE_JS_API='["wasmBinary", "locateFile", "print", "printErr", "onAbort"]' \
     -s ENVIRONMENT='web,worker' \

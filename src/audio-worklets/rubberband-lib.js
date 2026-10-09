@@ -208,8 +208,8 @@ function updateMemoryViews() {
   HEAPU16 = new Uint16Array(b);
   HEAP32 = new Int32Array(b);
   HEAPU32 = new Uint32Array(b);
-  Module['HEAPF32'] = HEAPF32 = new Float32Array(b);
-  Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
+  HEAPF32 = new Float32Array(b);
+  HEAPF64 = new Float64Array(b);
   HEAP64 = new BigInt64Array(b);
   HEAPU64 = new BigUint64Array(b);
 }
@@ -5401,8 +5401,6 @@ var FS_stdin_getChar_buffer = [];
       default: abort(`invalid type for setValue: ${type}`);
     }
   }
-
-
 init_ClassHandle();
 init_RegisteredPointer();
 
