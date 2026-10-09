@@ -44,4 +44,13 @@ describe('AISongModal A11y', () => {
         expect(pasteTab).toHaveAttribute('tabIndex', '0');
     });
   });
+
+  it('gives the paste-JSON textarea an accessible name via its visible label', () => {
+    render(
+      <AISongModal isOpen={true} onClose={vi.fn()} onImport={vi.fn()} onShowToast={vi.fn()} audioEngine={mockAudioEngine} />
+    );
+    const textarea = screen.getByLabelText(/Or paste JSON directly/i);
+    expect(textarea.tagName).toBe('TEXTAREA');
+    expect(screen.getByRole('textbox', { name: /Or paste JSON directly/i })).toBe(textarea);
+  });
 });

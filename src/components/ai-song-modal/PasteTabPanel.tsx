@@ -85,7 +85,7 @@ export const PasteTabPanel = React.memo(function PasteTabPanel({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs text-gray-500">Or paste JSON directly:</label>
+          <label htmlFor="ai-modal-json-input" className="text-xs text-gray-500">Or paste JSON directly:</label>
           <div className="flex items-center gap-2">
             {validationState.stage !== 'idle' && (
               <span className={`text-xs ${
@@ -102,6 +102,7 @@ export const PasteTabPanel = React.memo(function PasteTabPanel({
           </div>
         </div>
         <textarea
+          id="ai-modal-json-input"
           ref={textareaRef}
           value={jsonInput}
           onChange={(e) => onJsonChange(e.target.value)}
