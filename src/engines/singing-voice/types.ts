@@ -33,6 +33,7 @@ export interface SingingVoiceCoreMethods {
   setTransientExtraction(amount: number, time?: number): void;
   setPhonemeFilterMod(amount: number, time?: number): void;
   setDrumDuckDepth(amount: number, time?: number): void;
+  setAutoTune(amount: number, time?: number): void;
   setConsonantClarity(amount: number, time?: number): void;
   setReverse(reverse: boolean): void;
 }

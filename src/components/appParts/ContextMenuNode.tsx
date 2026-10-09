@@ -97,6 +97,7 @@ const OpenContextMenu = React.memo(() => {
           currentDownsample={stepData?.downsample}
           currentSpectralCompression={stepData?.spectralCompression}
           currentVolumeFilterMod={stepData?.volumeFilterMod}
+          currentAutoTune={stepData?.autoTune}
           isProphecy={isProphecy}
           currentVowel={stepData?.vowel ?? 0}
           currentPortamento={stepData?.portamento ?? 0}

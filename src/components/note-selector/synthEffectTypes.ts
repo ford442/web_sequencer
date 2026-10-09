@@ -63,6 +63,7 @@ export interface SynthEffectPropertiesProps {
   currentReverse?: boolean;
   currentCustomWindowShape?: number[];
   currentVolumeFilterMod?: number;
+  currentAutoTune?: number;
   currentPhonemeDelayAmount?: number;
   currentPhonemeDelayFeedback?: number;
 }
