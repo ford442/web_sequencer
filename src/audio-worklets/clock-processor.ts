@@ -9,8 +9,13 @@
 // Swing model (16th-note shuffle):
 //   Even steps (on-beat)  fire after  T * (1 + swing/2)  samples
 //   Odd steps  (off-beat) fire after  T * (1 - swing/2)  samples
-//   swing = 0 → straight, swing = 1 → maximum shuffle (~66/34 split, classic triplet feel)
+//   swing = 0 → straight, swing = 1 → maximum shuffle (75/25 split; ~0.667 ≈ triplet feel)
 //   The pair duration (even + odd) always equals 2T regardless of swing.
+//   Parity comes from the absolute step count, not the wrapped step, so swing
+//   keeps alternating across the wrap of an odd-length pattern.
+//
+// Every step message carries `step` (wraps at `numSteps`) and `absStep` (steps
+// since start, never wraps) — per-track loop lengths read the latter.
 
 import { WorkletPerfReporter } from './workletPerfReporter';
 
@@ -37,6 +42,8 @@ class ClockProcessor extends AudioWorkletProcessor {
     private running = false;
     private tempo = 120;
     private swing = 0;           // 0–1
+    // Placeholder until the adapter sends `setSteps` (always before `start`).
+    // Mirrors NUM_STEPS; not imported so the worklet bundle stays free of app constants.
     private numSteps = 32;
     private readonly perf = new WorkletPerfReporter(this.port, 'clock');
 
@@ -44,10 +51,12 @@ class ClockProcessor extends AudioWorkletProcessor {
     private sampleCursor = 0;
     // Sample index at which the *next* step fires (relative to playback start)
     private nextStepAtSample = 0;
-    // The step that will fire next (0-indexed)
+    // The step that will fire next (0-indexed, wraps at numSteps)
     private nextStep = 0;
+    // Steps fired since start (never wraps)
+    private absStep = 0;
 
-    private readonly stepMessage: { type: 'step'; step: number; audioTime: number } = { type: 'step', step: 0, audioTime: 0 };
+    private readonly stepMessage: { type: 'step'; step: number; audioTime: number; absStep: number } = { type: 'step', step: 0, audioTime: 0, absStep: 0 };
 
     constructor() {
         super();
@@ -58,6 +67,7 @@ class ClockProcessor extends AudioWorkletProcessor {
                     this.sampleCursor = 0;
                     this.nextStepAtSample = 0;
                     this.nextStep = 0;
+                    this.absStep = 0;
                     this.running = true;
                     break;
                 case 'stop':
@@ -74,8 +84,10 @@ class ClockProcessor extends AudioWorkletProcessor {
                     }
                     break;
                 case 'setSteps':
-                    if (steps != null && steps > 0) {
-                        this.numSteps = steps;
+                    if (steps != null && Number.isFinite(steps) && steps > 0) {
+                        this.numSteps = Math.floor(steps);
+                        // Shrinking mid-run must not emit a step past the new end.
+                        this.nextStep %= this.numSteps;
                     }
                     break;
             }
@@ -113,12 +125,14 @@ class ClockProcessor extends AudioWorkletProcessor {
 
                     this.stepMessage.step = this.nextStep;
                     this.stepMessage.audioTime = audioTime;
+                    this.stepMessage.absStep = this.absStep;
                     this.port.postMessage(this.stepMessage);
 
                     // Advance to the next step.
-                    const parity = (this.nextStep % 2) as 0 | 1;
+                    const parity = (this.absStep % 2) as 0 | 1;
                     this.nextStepAtSample += this.stepDurationSamples(parity);
                     this.nextStep = (this.nextStep + 1) % this.numSteps;
+                    this.absStep++;
                 }
                 this.sampleCursor++;
             }

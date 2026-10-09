@@ -6,6 +6,7 @@ import { isTrakPatternSelectEvent, resolveTrakEventKind } from '../trakControlle
 import type { RbsParserError, IffChunk } from '../parser-types';
 import { MAX_TRAK_EVENTS, SUPPORTED_VERSIONS } from '../parser-types';
 import { inferDevicesPresent } from '../deviceInference';
+import { rbsShuffleToSwingPercent } from '../shuffle';
 import {
   DEVL_CHUNK_IDS,
   parseTb303DeviceChunk,
@@ -364,7 +365,8 @@ export function parseIffSongData(ctx: ParserBinaryContext, topChunks: IffChunk[]
       tempo: glob.tempo || 120,
       timeSignatureNum: 4,
       timeSignatureDen: 4,
-      swing: glob.shuffle,
+      // GLOB shuffle is 0–127 (64 = none); project.swing is song percent.
+      swing: rbsShuffleToSwingPercent(glob.shuffle),
       patternLength: 16,
       createdAt: new Date(),
       sourceSoftware: 'ReBirth RB-338',

@@ -216,6 +216,8 @@ describe('RbsImporter TB-303 fidelity', () => {
     const imported = new RbsImporter().convertToHyphonSong(parsed.data);
     expect(imported.song.tempo).toBe(140);
     expect(imported.song.params.drumKit).toBe('909');
-    expect(imported.song.pattern.partA.steps).toHaveLength(32);
+    // 16-step ReBirth patterns stay 16 steps by default (no ×2 expansion).
+    expect(imported.song.pattern.partA.steps).toHaveLength(16);
+    expect(imported.song.stepCount).toBe(16);
   });
 });

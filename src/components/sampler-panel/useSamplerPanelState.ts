@@ -70,6 +70,7 @@ export function useSamplerPanelState({
       'consonantClarity', 'vocoderMix', 'vocoderFormantShift', 'vocoderPreservation', 'vocoderAttack', 'vocoderRelease',
       'formantLfoRate', 'formantLfoDepth', 'customLfoShape', 'characterMorph', 'attack', 'decay',
       'pitchAmount', 'pitchAttack', 'pitchDecay',
+      'spatialRouting',
       'sustain', 'release', 'choir', 'glitchChance', 'gateDepth', 'gateRate', 'reverbLfoRate', 'reverbLfoDepth', 'bitcrush', 'spectralComp', 'subHarmonics', 'vocalChorus', 'vocoder', 'phonemeDelayAmount', 'phonemeDelayFeedback', 'autoTune', 'transientExtraction', 'microtonalVariance', 'drumDuckDepth', 'downsample', 'spectralCompression', 'volumeFilterMod',
     ] as const;
     return Object.fromEntries(paramNames.map(p => [p, (v: unknown) => {

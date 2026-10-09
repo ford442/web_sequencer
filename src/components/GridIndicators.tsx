@@ -1,10 +1,21 @@
 import { memo } from 'react';
+import { NUM_STEPS } from '../constants';
+import { STEP_PITCH, STEP_VISUAL_WIDTH } from './sequencer/stepHitGeometry';
 
-export const GridIndicators = memo(() => {
+interface GridIndicatorsProps {
+    /** Columns drawn by the row (pattern length, or longer when a track loop exceeds it). */
+    columns?: number;
+    /** 16th-note steps per beat — a small tick. */
+    stepsPerBeat?: number;
+    /** 16th-note steps per bar — a tall cyan tick. */
+    stepsPerBar?: number;
+}
+
+export const GridIndicators = memo(({ columns = NUM_STEPS, stepsPerBeat = 4, stepsPerBar = 16 }: GridIndicatorsProps) => {
     const indicators = [];
-    for (let i = 0; i < 32; i += 4) { // Every 4 steps = 1 beat
-        const isMeasure = i % 16 === 0; // Every 16 steps = 1 bar/measure
-        const x = 220 + i * (18 + 4) + 9; // Centered on the step
+    for (let i = 0; i < columns; i += stepsPerBeat) {
+        const isMeasure = i % stepsPerBar === 0;
+        const x = 220 + i * STEP_PITCH + STEP_VISUAL_WIDTH / 2; // Centered on the step
 
         indicators.push(
             <g key={`grid-${i}`}>

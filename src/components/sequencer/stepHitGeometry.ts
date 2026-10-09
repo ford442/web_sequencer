@@ -36,3 +36,23 @@ export function getTrackSlotHitRect(rectW: number, rectH: number): StepHitRect {
         height,
     };
 }
+
+/** Horizontal distance between step origins in SVG units. */
+export const STEP_PITCH = STEP_VISUAL_WIDTH + STEP_GAP;
+
+/** Grid columns the stock 1050-unit sequencer layout was drawn for. */
+const BASE_COLUMNS = 32;
+const BASE_VIEWBOX_WIDTH = 1050;
+/** Pixel width the 32-step timeline gets per unit of zoom. */
+const BASE_TIMELINE_PX = 830;
+
+/** SVG viewBox width for `columns` steps (1050 at 32, the stock layout). */
+export function sequencerViewBoxWidth(columns: number): number {
+    return BASE_VIEWBOX_WIDTH + (columns - BASE_COLUMNS) * STEP_PITCH;
+}
+
+/** CSS width for the sequencer SVG; identical to the stock `220px + 830px * zoom` at 32 steps. */
+export function sequencerCssWidth(columns: number): string {
+    const timelinePx = (BASE_TIMELINE_PX * columns) / BASE_COLUMNS;
+    return `calc(220px + ${timelinePx}px * var(--zoom-level))`;
+}

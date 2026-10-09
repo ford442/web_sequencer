@@ -25,11 +25,9 @@ export const UpdateAvailableToast: React.FC = React.memo(() => {
     return (
         <div
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded shadow-lg border border-cyan-500 bg-cyan-950/95 text-cyan-100 flex items-center gap-3"
-            role="status"
-            aria-live="polite"
         >
             <span aria-hidden="true">⟳</span>
-            <span className="font-mono text-sm">New version available</span>
+            <span className="font-mono text-sm" role="status" aria-live="polite">New version available</span>
             <button
                 type="button"
                 onClick={applyUpdate}

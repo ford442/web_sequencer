@@ -1,3 +1,4 @@
+import { NUM_STEPS } from '../../constants';
 import { midiPortManager } from '../MidiPortManager';
 import { InternalClockAdapter } from './InternalClockAdapter';
 import { MasterClockAdapter } from './MasterClockAdapter';
@@ -15,7 +16,7 @@ export class TransportClockController {
   private mode: TransportSyncMode = 'internal';
   private tempo = 120;
   private swing = 0;
-  private steps = 32;
+  private steps = NUM_STEPS;
   private inputDeviceId: string | null = null;
   private outputDeviceId: string | null = null;
   private playing = false;
@@ -188,8 +189,8 @@ export class TransportClockController {
   private ensureAdapterSubscription(): void {
     if (!this.adapter) return;
     this.adapterUnsub?.();
-    this.adapterUnsub = this.adapter.onStep((step, audioTime) => {
-      for (const cb of this.stepListeners) cb(step, audioTime);
+    this.adapterUnsub = this.adapter.onStep((step, audioTime, absStep) => {
+      for (const cb of this.stepListeners) cb(step, audioTime, absStep);
     });
   }
 

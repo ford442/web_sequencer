@@ -52,9 +52,7 @@ import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngin
 import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
-import {
-    NUM_STEPS,
-} from '../constants'
+import { swingPercentToClock } from '../utils/musicTheory'
 import type { Pattern, ResolvedTrakEvent } from '../types'
 import {
     UPDATED_INITIAL_PATTERN,
@@ -113,6 +111,7 @@ export function useAppState() {
     const {
         tempo, setTempo, tempoRef,
         swing, setSwing,
+        stepCount,
         lastFreqRef,
         ambianceUrl, setAmbianceUrl,
         backgroundImage, setBackgroundImage,
@@ -426,7 +425,7 @@ export function useAppState() {
         onSessionTick: session.setPlayingSlots,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, NUM_STEPS, onStep, isEngineReady, audioEngine?.context ?? null, swing)
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, stepCount, onStep, isEngineReady, audioEngine?.context ?? null, swingPercentToClock(swing))
 
     useEffect(() => {
         session.sessionClockRef.current.tempo = tempo;

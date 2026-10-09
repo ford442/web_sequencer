@@ -218,14 +218,7 @@ function updateMemoryViews() {
 // end include: memoryprofiler.js
 // end include: runtime_common.js
 function preRun() {
-  var preRun = Module['preRun'];
-  if (preRun) {
-    if (typeof preRun == 'function') preRun = [preRun];
-    onPreRuns.push(...preRun);
-  }
-  // Begin ATPRERUNS hooks
-  callRuntimeCallbacks(onPreRuns);
-  // End ATPRERUNS hooks
+  // No ATPRERUNS hooks
 }
 
 function initRuntime() {
@@ -246,15 +239,7 @@ TTY.init();
 
 function postRun() {
 
-  var postRun = Module['postRun'];
-  if (postRun) {
-    if (typeof postRun == 'function') postRun = [postRun];
-    onPostRuns.push(...postRun);
-  }
-
-  // Begin ATPOSTRUNS hooks
-  callRuntimeCallbacks(onPostRuns);
-  // End ATPOSTRUNS hooks
+  // No ATPOSTRUNS hooks
 }
 
 /**
@@ -308,6 +293,9 @@ function findWasmBinary() {
 }
 
 function getBinarySync(file) {
+  if (file == wasmBinaryFile && wasmBinary) {
+    return new Uint8Array(wasmBinary);
+  }
   if (readBinary) {
     return readBinary(file);
   }
@@ -398,19 +386,6 @@ async function createWasm() {
 
   var info = getWasmImports();
 
-  // User shell pages can write their own Module.instantiateWasm = function(imports, successCallback) callback
-  // to manually instantiate the Wasm module themselves. This allows pages to
-  // run the instantiation parallel to any other async startup actions they are
-  // performing.
-  // Also pthreads and wasm workers initialize the wasm instance through this
-  // path.
-  var instantiateWasm = Module['instantiateWasm'];
-  if (instantiateWasm) {
-    return new Promise((resolve) => {
-        instantiateWasm(info, (inst) => resolve(receiveInstance(inst)));
-    });
-  }
-
   wasmBinaryFile ??= findWasmBinary();
   var result = await instantiateAsync(wasmBinary, wasmBinaryFile, info);
   var exports = receiveInstantiationResult(result);
@@ -439,14 +414,6 @@ async function createWasm() {
         callbacks.shift()(Module);
       }
     };
-  var onPostRuns = [];
-  var addOnPostRun = (cb) => onPostRuns.push(cb);
-
-  var onPreRuns = [];
-  var addOnPreRun = (cb) => onPreRuns.push(cb);
-
-
-  var noExitRuntime = true;
 
   var stackRestore = (val) => __emscripten_stack_restore(val);
 
@@ -617,7 +584,7 @@ async function createWasm() {
       return ___cxa_get_exception_ptr(ptr);
     };
 
-  
+
   
   
   var exceptionLast = null;
@@ -626,15 +593,15 @@ async function createWasm() {
       _setThrew(0, 0);
       // Call destructor if one is registered then clear it.
       var info = exceptionCaught.pop();
-  
+
       ___cxa_decrement_exception_refcount(info.excPtr);
       exceptionLast = null; // XXX in decRef?
     };
 
   var setTempRet0 = (val) => __emscripten_tempret_set(val);
-  
-  
-  
+
+
+
   var findMatchingCatch = (args) => {
       var thrown = exceptionLast?.excPtr;
       if (!thrown) {
@@ -1737,10 +1704,10 @@ async function createWasm() {
       }
       return false;
     }
-  
-  
-  
-  
+
+
+
+
   function createJsInvoker(argTypes, isClassMethodFunc, returns, isAsync) {
       var needsDestructorStack = usesDestructorStack(argTypes);
       var argsNeedStack = argsUseStackAlloc(argTypes);
@@ -1860,7 +1827,7 @@ async function createWasm() {
       if (argsNeedStack && !useStackFrame) {
         needsDestructorStack = true;
       }
-  
+
       var returns = !argTypes[0].isVoid;
   
       var expectedArgCount = argCount - 2;
@@ -3365,8 +3332,6 @@ var FS_stdin_getChar_buffer = [];
   var removeRunDependency = (id) => {
       runDependencies--;
   
-      Module['monitorRunDependencies']?.(runDependencies);
-  
       if (!runDependencies) {
         dependenciesPromiseResolve();
       }
@@ -3378,8 +3343,6 @@ var FS_stdin_getChar_buffer = [];
         dependenciesPromise = new Promise((resolve) => dependenciesPromiseResolve = resolve);
       }
       runDependencies++;
-  
-      Module['monitorRunDependencies']?.(runDependencies);
   
     };
   
@@ -4780,9 +4743,6 @@ var FS_stdin_getChar_buffer = [];
         FS.initialized = true;
   
         // Allow Module.stdin etc. to provide defaults, if none explicitly passed to us here
-        input ??= Module['stdin'];
-        output ??= Module['stdout'];
-        error ??= Module['stderr'];
   
         FS.createStandardStreams(input, output, error);
       },
@@ -5456,24 +5416,15 @@ init_RegisteredPointer();
 {
 
   // Begin ATMODULES hooks
-  if (Module['noExitRuntime']) noExitRuntime = Module['noExitRuntime'];
-
+  
 if (Module['print']) out = Module['print'];
 if (Module['printErr']) err = Module['printErr'];
+if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   // End ATMODULES hooks
 
-  if (Module['arguments']) programArgs = Module['arguments'];
-  if (Module['thisProgram']) thisProgram = Module['thisProgram'];
+  
+  
 
-  var preInit = Module['preInit'];
-  if (preInit) {
-    if (typeof preInit == 'function') Module['preInit'] = preInit = [preInit];
-    // Written as a loop so that preInit functions that themselves add more
-    // preInit functions.  Is this actually needed?
-    while (preInit.length > 0) {
-      preInit.shift()();
-    }
-  }
 }
 
 // Begin runtime exports
@@ -5489,7 +5440,21 @@ if (Module['printErr']) err = Module['printErr'];
 
 
 // Imports from the Wasm binary.
-var _free,
+var _rb_fx_abi_version,
+  _rb_fx_param_count,
+  _rb_fx_create,
+  _rb_fx_destroy,
+  _rb_fx_params,
+  _rb_fx_channel,
+  _rb_fx_seed,
+  _rb_fx_note_on,
+  _rb_fx_sample_alloc,
+  _rb_fx_window_alloc,
+  _rb_fx_advance_lfo,
+  _rb_fx_exit_freeze,
+  _rb_fx_render_grains,
+  _rb_fx_process,
+  _free,
   _malloc,
   ___getTypeName,
   _setThrew,
@@ -5508,6 +5473,20 @@ var _free,
 
 
 function assignWasmExports(wasmExports) {
+  _rb_fx_abi_version = Module['_rb_fx_abi_version'] = wasmExports['rb_fx_abi_version'];
+  _rb_fx_param_count = Module['_rb_fx_param_count'] = wasmExports['rb_fx_param_count'];
+  _rb_fx_create = Module['_rb_fx_create'] = wasmExports['rb_fx_create'];
+  _rb_fx_destroy = Module['_rb_fx_destroy'] = wasmExports['rb_fx_destroy'];
+  _rb_fx_params = Module['_rb_fx_params'] = wasmExports['rb_fx_params'];
+  _rb_fx_channel = Module['_rb_fx_channel'] = wasmExports['rb_fx_channel'];
+  _rb_fx_seed = Module['_rb_fx_seed'] = wasmExports['rb_fx_seed'];
+  _rb_fx_note_on = Module['_rb_fx_note_on'] = wasmExports['rb_fx_note_on'];
+  _rb_fx_sample_alloc = Module['_rb_fx_sample_alloc'] = wasmExports['rb_fx_sample_alloc'];
+  _rb_fx_window_alloc = Module['_rb_fx_window_alloc'] = wasmExports['rb_fx_window_alloc'];
+  _rb_fx_advance_lfo = Module['_rb_fx_advance_lfo'] = wasmExports['rb_fx_advance_lfo'];
+  _rb_fx_exit_freeze = Module['_rb_fx_exit_freeze'] = wasmExports['rb_fx_exit_freeze'];
+  _rb_fx_render_grains = Module['_rb_fx_render_grains'] = wasmExports['rb_fx_render_grains'];
+  _rb_fx_process = Module['_rb_fx_process'] = wasmExports['rb_fx_process'];
   _free = Module['_free'] = wasmExports['free'];
   _malloc = Module['_malloc'] = wasmExports['malloc'];
   ___getTypeName = wasmExports['__getTypeName'];
@@ -6164,20 +6143,9 @@ async function run() {
     await resolveRunDependencies();
   }
 
-  var setStatus = Module['setStatus'];
-  if (setStatus) {
-    setStatus('Running...');
-    // Yield to the event loop to allow the browser to paint "Running..."
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    // Then we want to clear the status text, but only after the rest of this function runs.
-    setTimeout(setStatus, 1, '');
-  }
-
   if (ABORT) return;
 
   initRuntime();
-
-  Module['onRuntimeInitialized']?.();
 
   postRun();
 }

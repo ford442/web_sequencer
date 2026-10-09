@@ -18,12 +18,16 @@ interface SvgStepProps {
     stepTabIndex?: number,
     onStepRef?: (el: SVGGElement | null) => void,
     onGridKeyDown?: (e: React.KeyboardEvent) => void,
+    /** Steps per shaded beat group (16/den, or 6 for compound meters). */
+    beatSize?: number,
+    /** Step sits past this track's own loop length — drawn dimmed, still editable. */
+    outOfLoop?: boolean,
 }
 
 export const SvgStep = memo(({
     stepIndex, active, note, refsArray, rowLabel, rowKey, onToggle, onRightMouseDown, onEditLength, length = 1, isSlide,
     onSelectionStart, onSelectionEnter, isRangeSelected, phonemeLabel, retrigger, reverse,
-    stepTabIndex = -1, onStepRef, onGridKeyDown,
+    stepTabIndex = -1, onStepRef, onGridKeyDown, beatSize = 4, outOfLoop = false,
 }: SvgStepProps) => {
     const baseWidth = 18;
     const gap = 4;
@@ -34,7 +38,7 @@ export const SvgStep = memo(({
     const retriggerCount = retrigger || 1;
     const color = note ? getNoteColor(note, rowKey) : '#06b6d4';
     const focusColor = TRACK_COLORS[rowKey] || '#22d3ee';
-    const groupIndex = Math.floor(stepIndex / 4);
+    const groupIndex = Math.floor(stepIndex / beatSize);
     const isAltGroup = groupIndex % 2 === 1;
     const baseFill = active ? '#0d1f15' : (isAltGroup ? '#1c2229' : '#14181c');
 
@@ -84,7 +88,7 @@ export const SvgStep = memo(({
 
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}`} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}${outOfLoop ? ", outside track loop" : ""}`} data-out-of-loop={outOfLoop || undefined} opacity={outOfLoop ? 0.35 : undefined} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
@@ -122,6 +126,8 @@ export const SvgStep = memo(({
         prev.phonemeLabel === next.phonemeLabel &&
         prev.retrigger === next.retrigger &&
         prev.reverse === next.reverse &&
-        prev.stepTabIndex === next.stepTabIndex
+        prev.stepTabIndex === next.stepTabIndex &&
+        prev.beatSize === next.beatSize &&
+        prev.outOfLoop === next.outOfLoop
     );
 });

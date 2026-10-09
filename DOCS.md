@@ -66,6 +66,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [offline-graph.md](docs/audio-engine/offline-graph.md) | Offline render of the live patch: freeze / stems / AI preview, export sample rate, WAM2 freeze contract |
 | [jc303-fix-plan.md](docs/audio-engine/jc303-fix-plan.md) | JC-303 WASM fix plan |
 | [jc303-technical-analysis.md](docs/audio-engine/jc303-technical-analysis.md) | JC-303 build/stack technical analysis |
+| [pattern-length-meter.md](docs/audio-engine/pattern-length-meter.md) | Pattern length, time signature, per-track loop lengths (polyrhythm) and swing: data model, clock, units |
 | [PLAYBACK_STABILITY.md](docs/audio-engine/PLAYBACK_STABILITY.md) | Song-mode playback jitter thresholds and stress tests |
 | [MULTISAMPLE_GENERATOR_DESIGN.md](docs/audio-engine/MULTISAMPLE_GENERATOR_DESIGN.md) | Multisample generator design |
 | [MULTISAMPLE_IMPLEMENTATION_SUMMARY.md](docs/audio-engine/MULTISAMPLE_IMPLEMENTATION_SUMMARY.md) | Multisample implementation summary |

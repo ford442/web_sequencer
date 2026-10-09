@@ -123,6 +123,21 @@ describe('ProjectStore', () => {
         expect(loaded!.embeddedSamples).toBeUndefined();
     });
 
+    it('round-trips Phoneme Painter edits on a sampler step, including elasticity (#1273)', async () => {
+        const phonemes = [
+            { id: 'eh', symbol: 'EH', start: 0.1, end: 0.5, pitchBend: 12, volume: 0.8, elasticity: 1.35 },
+            { id: 'ow', symbol: 'OW', start: 0.6, end: 1, pitchBend: 0, elasticity: 0.7 },
+        ];
+        const steps = Array(32).fill(null);
+        steps[4] = { note: 'C4', velocity: 1, length: 2, phonemes };
+        const song = makeSong();
+        song.pattern.sampler = [{ steps }, ...song.pattern.sampler.slice(1)];
+
+        await store.saveProject('vocal', song);
+        const loaded = await store.loadProject('vocal');
+        expect(loaded!.pattern.sampler[0].steps[4]?.phonemes).toEqual(phonemes);
+    });
+
     it('round-trips embedded samples byte-for-byte via content-addressed storage', async () => {
         const sampleBytes = [82, 73, 70, 70, 0, 1, 2, 3, 255, 254];
         const song = makeSong({

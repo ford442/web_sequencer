@@ -32,6 +32,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentSpectralComp = 0,
     currentSubHarmonics = 0,
     currentVocoder = 0,
+    currentSpatialRouting = 0,
     currentDrumDuckDepth = 0,
     currentDownsample = 1,
     currentSpectralCompression = 0,
@@ -657,6 +658,19 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
         }
         accentColor="accent-indigo-400 hover:accent-indigo-300"
         borderColor="border-indigo-900/30"
+      />
+
+      <PropertySlider
+        label="Phoneme Pan"
+        id="note-spatial-routing"
+        ariaLabel="Dynamic Spatial Routing Amount"
+        value={currentSpatialRouting ?? 0}
+        onChange={(v) => onPropertyChange?.("spatialRouting", v)}
+        valueFormatter={() =>
+          `${((currentSpatialRouting ?? 0) * 100).toFixed(0)}%`
+        }
+        accentColor="accent-cyan-400 hover:accent-cyan-300"
+        borderColor="border-cyan-900/30"
       />
       <PropertySlider
         label="Spectral Comp"

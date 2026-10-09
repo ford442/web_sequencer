@@ -10,7 +10,11 @@ export type TransportSyncState =
   | 'armed';
 
 export const MIDI_PPQN = 24;
-/** Hyphon sequencer steps are 16th notes → 6 MIDI clock ticks per step. */
+/**
+ * Hyphon sequencer steps are always 16th notes → 6 MIDI clock ticks per step,
+ * for every time signature (the meter changes steps-per-bar, not step size).
+ * A pattern spans `stepCount * 6` ticks: 16 steps = 96, 32 steps = 192.
+ */
 export const MIDI_TICKS_PER_STEP = 6;
 
 export interface TransportSyncTelemetry {
@@ -24,7 +28,11 @@ export interface TransportSyncTelemetry {
   isPlaying: boolean;
 }
 
-export type StepCallback = (step: number, audioTime: number) => void;
+/**
+ * `step` wraps at the pattern length; `absStep` counts every step since the
+ * transport started (never wraps) — per-track loops and swing parity use it.
+ */
+export type StepCallback = (step: number, audioTime: number, absStep: number) => void;
 
 export interface TransportClock {
   start(): void;

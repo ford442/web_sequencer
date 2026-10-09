@@ -8,6 +8,7 @@ import {
   convertTb303ToPartSequence,
   expandPattern16To32,
   convertDrumPattern,
+  rbsImportStepCount,
 } from './patternConversion';
 import { buildTrackParamSlots } from './synthParams';
 import type { ImporterContext } from './importerContext';
@@ -41,7 +42,7 @@ export function buildSongArrangement(
   warnings: string[],
 ): HyphonSong['songArrangement'] {
   const songData = raw.songData!;
-  const numSteps = ctx.options.expandTo32Steps ? 32 : raw.project.patternLength;
+  const numSteps = rbsImportStepCount(ctx, raw);
   const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
 
   const maxSlots = MAX_TRACK_PATTERN_SLOTS;

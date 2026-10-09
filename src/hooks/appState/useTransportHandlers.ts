@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { AudioEngine, Pattern } from '../../types'
 import type { useUndoRedo } from '../useUndoRedo'
+import { nudgePatternLength } from '../../utils/meterActions'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
 
@@ -82,6 +83,15 @@ export function useTransportHandlers(deps: {
                 if (inTextField) return;
                 e.preventDefault();
                 void handlePlayToggle();
+                return;
+            }
+
+            // Shift + [ / ] steps the pattern length (plain [ / ] shift the live keyboard octave).
+            if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey &&
+                (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+                if (inTextField) return;
+                e.preventDefault();
+                nudgePatternLength(e.code === 'BracketRight' ? 1 : -1);
                 return;
             }
 

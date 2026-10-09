@@ -75,6 +75,7 @@ export interface SamplerBankParams {
   subHarmonics?: number;
   vocalChorus?: number;
   vocoder?: number;
+  spatialRouting?: number;
   phonemeDelayAmount?: number;
   phonemeDelayFeedback?: number;
   transientExtraction?: number;
@@ -141,4 +142,10 @@ export interface PhonemeData {
   grainJitter?: number;
   formantShift?: number;
   grainSize?: number;
+  /**
+   * Phoneme elasticity 0.5–1.5 (default 1): this phoneme's share of the note
+   * relative to the others. The note length does not change — see
+   * src/engines/rubberband/phonemeElasticity.ts.
+   */
+  elasticity?: number;
 }

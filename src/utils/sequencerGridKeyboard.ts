@@ -1,3 +1,4 @@
+import { NUM_STEPS } from '../constants';
 import type { TrackKey } from '../types';
 
 export const SEQUENCER_ROW_KEYS: TrackKey[] = [
@@ -34,7 +35,7 @@ export function getAdjacentSequencerCell(
     rowKey: TrackKey,
     step: number,
     direction: GridDirection,
-    numSteps = 32,
+    numSteps = NUM_STEPS,
 ): SequencerCellCoord {
     const rowIndex = SEQUENCER_ROW_KEYS.indexOf(rowKey);
     if (direction === 'left') {
@@ -43,13 +44,15 @@ export function getAdjacentSequencerCell(
     if (direction === 'right') {
         return { rowKey, step: Math.min(numSteps - 1, step + 1) };
     }
+    // Keep the cursor on the grid when the pattern shrinks under it.
+    const clamped = Math.min(step, numSteps - 1);
     if (direction === 'up' && rowIndex > 0) {
-        return { rowKey: SEQUENCER_ROW_KEYS[rowIndex - 1], step };
+        return { rowKey: SEQUENCER_ROW_KEYS[rowIndex - 1], step: clamped };
     }
     if (direction === 'down' && rowIndex >= 0 && rowIndex < SEQUENCER_ROW_KEYS.length - 1) {
-        return { rowKey: SEQUENCER_ROW_KEYS[rowIndex + 1], step };
+        return { rowKey: SEQUENCER_ROW_KEYS[rowIndex + 1], step: clamped };
     }
-    return { rowKey, step };
+    return { rowKey, step: clamped };
 }
 
 export function sequencerCellKey(rowKey: TrackKey, step: number): string {

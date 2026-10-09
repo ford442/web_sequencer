@@ -1,3 +1,4 @@
+import { NUM_STEPS } from '../../constants';
 import { midiPortManager } from '../MidiPortManager';
 import { PLAYBACK_THRESHOLDS } from '../../audio/playback/PlaybackHealthMonitor';
 import { AudioTimeMap } from './audioTimeMap';
@@ -21,7 +22,7 @@ export class SlaveClockAdapter implements TransportClock {
   private context: AudioContext;
   private tempo = 120;
   private swing = 0;
-  private steps = 32;
+  private steps = NUM_STEPS;
   private inputDeviceId: string | null;
   private timeMap: AudioTimeMap;
   private estimator = new TempoEstimator();
@@ -94,7 +95,10 @@ export class SlaveClockAdapter implements TransportClock {
   }
 
   setSteps(steps: number): void {
+    if (!(steps > 0)) return;
     this.steps = steps;
+    // Shrinking mid-run must not emit a step past the new end.
+    this.currentStep %= steps;
   }
 
   resync(): void {
@@ -176,7 +180,7 @@ export class SlaveClockAdapter implements TransportClock {
     this.holdoverStartDom = null;
     this.clearHoldover();
     this.attachRealtime();
-    this.emitStep(0, domTime);
+    this.emitStep(0, domTime, 0);
   }
 
   private handleContinue(domTime: number): void {
@@ -231,11 +235,13 @@ export class SlaveClockAdapter implements TransportClock {
     // Start already emitted step 0; skip duplicate at first 16th boundary.
     if (this.totalTicks === MIDI_TICKS_PER_STEP && step === 0) return;
 
-    this.emitStep(step, domTime);
+    // Step k (k ≥ 1) lands on tick 6(k+1) — see the skip above — so the
+    // absolute count is ticks/6 − 1 (SPP jumps re-seed totalTicks too).
+    this.emitStep(step, domTime, this.totalTicks / MIDI_TICKS_PER_STEP - 1);
     this.startLossWatch();
   }
 
-  private emitStep(step: number, domTime: number): void {
+  private emitStep(step: number, domTime: number, absStep: number): void {
     const nowAudio = this.context.currentTime;
     let audioTime =
       this.timeMap.domToAudio(domTime) + AUDIO_SCHEDULE_LOOKAHEAD_MS / 1000;
@@ -252,7 +258,7 @@ export class SlaveClockAdapter implements TransportClock {
     this.lastEmittedStep = step;
     this.lastStepAudio = audioTime;
 
-    for (const cb of this.stepListeners) cb(step, audioTime);
+    for (const cb of this.stepListeners) cb(step, audioTime, absStep);
   }
 
   private startLossWatch(): void {

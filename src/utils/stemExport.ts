@@ -10,6 +10,7 @@ import type {
 import type { TrackKey } from '../constants/appDefaults';
 import { audioBufferToWav, type WavBitDepth } from './audioExport';
 import { resolveSongTimeline, timelineDurationSeconds } from './songTimeline';
+import { describeOfflineVocalSupport, type OfflineVocalBankReport } from '../audio/offline/vocalOfflineSupport';
 import {
     bass2ToSynthParams,
     renderDrumPattern,
@@ -106,6 +107,11 @@ export interface StemExportReport {
     routingNote: string;
     /** Null unless the master went through the offline patch-bay graph. */
     offlineGraph: OfflineGraphReport | null;
+    /**
+     * Sampler banks whose live vocal chain (Rubber Band, vocal FX, phoneme
+     * edits, HARM) the dry bank stems do not contain. Empty when none.
+     */
+    vocalOffline: OfflineVocalBankReport[];
 }
 
 /** Channel data of an AudioBuffer, mutable in place. */
@@ -142,9 +148,15 @@ export interface StemExportInput {
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
     currentPattern: Pattern;
     tempo: number;
+    /** Song pattern length (default 32) — sets each measure's length. */
+    stepCount?: number;
+    /** Per-track loop lengths, tiled into each measure like live playback. */
+    trackLengths?: import('./songMeter').TrackLengths;
     params: StemExportParams;
     engines?: PatternRenderEngines;
     sampleBuffers?: (AudioBuffer | null)[];
+    /** Live HARM state: harmony layers exist only in the realtime graph. */
+    harmonizerActive?: boolean;
 }
 
 export type StemId =
@@ -276,6 +288,7 @@ export async function exportStemsToZip(
         input.trackStorage,
         input.currentPattern,
         useSongMode,
+        { stepCount: input.stepCount, trackLengths: input.trackLengths },
     );
 
     const targetLength = Math.ceil(
@@ -452,6 +465,14 @@ export async function exportStemsToZip(
         zipEntries.push({ path: stemFileName(id), data: wavBytes });
     }
 
+    const vocalOffline = isAudible('sampler')
+        ? describeOfflineVocalSupport({
+              sampler: input.params.sampler,
+              sequences: timeline.sequences.sampler,
+              harmonizerActive: input.harmonizerActive,
+          })
+        : [];
+
     const metadata = {
         tempo: input.tempo,
         loudness: masterLoudness,
@@ -468,6 +489,8 @@ export async function exportStemsToZip(
          * Null for a dry-exclusive export, which never builds an offline graph.
          */
         offlineGraph,
+        /** Sampler banks rendered dry although the live vocal chain colours them (#1273). */
+        vocalOffline,
         stems: Array.from(stems.keys()),
         silencedTracks: (
             ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
@@ -486,6 +509,7 @@ export async function exportStemsToZip(
         routing,
         routingNote,
         offlineGraph,
+        vocalOffline,
     });
 
     throwIfAborted(signal);

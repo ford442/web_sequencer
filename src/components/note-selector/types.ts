@@ -29,6 +29,7 @@ export type PropertyChangeKey =
   | "subHarmonics"
   | "vocalChorus"
   | "vocoder"
+  | "spatialRouting"
   | "transientExtraction"
   | "autoTune"
   | "microtonalVariance"
@@ -114,6 +115,7 @@ export interface NoteSelectorProps {
   currentSpectralCompression?: number;
   currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
+  currentSpatialRouting?: number;
   currentVolumeFilterMod?: number;
   currentPhonemeDelayAmount?: number;
   currentPhonemeDelayFeedback?: number;

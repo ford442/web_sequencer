@@ -134,6 +134,7 @@ export function createPlaySamplerVoice(
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
     const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
+    const pSpatialRouting = noteParams?.spatialRouting !== undefined ? noteParams.spatialRouting : (params.spatialRouting ?? 0);
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
     const pVocoder = noteParams?.vocoder !== undefined ? noteParams.vocoder : params.vocoder;
     const pPhonemeDelayAmount = noteParams?.phonemeDelayAmount !== undefined ? noteParams.phonemeDelayAmount : params.phonemeDelayAmount;
@@ -383,6 +384,7 @@ export function createPlaySamplerVoice(
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
         if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
+        if (pSpatialRouting !== undefined && voice.setSpatialRouting) voice.setSpatialRouting(pSpatialRouting, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);
         if (pVocoder !== undefined && voice.setVocoder) voice.setVocoder(pVocoder, triggerTime);
         if (pPhonemeDelayAmount !== undefined && voice.setPhonemeDelayAmount) voice.setPhonemeDelayAmount(pPhonemeDelayAmount, triggerTime);
@@ -471,10 +473,11 @@ export function createPlaySamplerVoice(
           voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
         }
 
-        // 3. Phoneme Awareness (from Jules branch)
+        // 3. Phoneme Awareness: alignment + the step's painter edits
+        // (pitch bend, volume, elasticity, …) from the Phoneme Painter
         if (alignment) {
           voice.setAlignment(alignment);
-          voice.sendPhonemeDataToWorklet(targetDuration);
+          voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
         }
 
         // 4. Play

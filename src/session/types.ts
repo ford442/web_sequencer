@@ -12,7 +12,10 @@ export const SESSION_TRACKS: readonly TrackKey[] = TRACK_KEYS;
 /** Default live-set rows (legacy 8-slot songs map 1:1). */
 export const SESSION_DEFAULT_ROWS = 8;
 
-/** 16th-note step clock: 4 steps/beat, 16 steps/bar, 32-step pattern = 2 bars. */
+/**
+ * Defaults for a 4/4, 32-step song (4 steps/beat, 16 steps/bar). Live values
+ * come from the song meter via `transportGrid()` (src/utils/songMeter.ts).
+ */
 export const SESSION_STEPS_PER_BEAT = 4;
 export const SESSION_STEPS_PER_BAR = 16;
 
@@ -85,6 +88,8 @@ export interface TransportClockSnapshot {
   patternSteps: number;
   stepsPerBeat: number;
   stepsPerBar: number;
+  /** Clock swing 0–1 (see clock-processor); absent = straight. */
+  swing?: number;
   isPlaying: boolean;
   songModeActive: boolean;
 }
