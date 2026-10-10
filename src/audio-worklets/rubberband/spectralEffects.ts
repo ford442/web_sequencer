@@ -57,6 +57,7 @@ export class SpectralBandProcessor {
 
     const q = 0.5;
     const maxGR = 12.0 * spectralComp;
+    const maxGrFactor = Math.pow(10, -maxGR / 20);
     const threshold = 0.1;
     const ratio = 1.0 + 3.0 * spectralComp;
 
@@ -73,9 +74,9 @@ export class SpectralBandProcessor {
       let mid = this.lp2;
       let high = hp2;
       if (spectralComp > 0) {
-        low = this.compress(low, 0, this.attackCoef, this.releaseCoef, threshold, ratio, maxGR);
-        mid = this.compress(mid, 1, this.attackCoef, this.releaseCoef, threshold, ratio, maxGR);
-        high = this.compress(high, 2, this.attackCoef, this.releaseCoef, threshold, ratio, maxGR);
+        low = this.compress(low, 0, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
+        mid = this.compress(mid, 1, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
+        high = this.compress(high, 2, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
       }
 
       if (hasStereo && outR) {
@@ -89,7 +90,7 @@ export class SpectralBandProcessor {
 
   private compress(
     band: number, b: 0 | 1 | 2,
-    attackCoef: number, releaseCoef: number, threshold: number, ratio: number, maxGR: number,
+    attackCoef: number, releaseCoef: number, threshold: number, ratio: number, maxGrFactor: number,
   ): number {
     const env = this.env;
     const absIn = Math.abs(band);
@@ -99,8 +100,8 @@ export class SpectralBandProcessor {
       env[b] = releaseCoef * env[b] + (1 - releaseCoef) * absIn;
     }
     if (env[b] <= threshold) return band;
-    const over = 20 * Math.log10(env[b]) - 20 * Math.log10(threshold);
-    const grDb = Math.min(over * (1.0 - 1.0 / ratio), maxGR);
-    return band * Math.pow(10, -grDb / 20);
+    const env_ratio = env[b] / threshold;
+    const gainFactor = Math.pow(env_ratio, (1.0 / ratio) - 1.0);
+    return band * Math.max(gainFactor, maxGrFactor);
   }
 }
