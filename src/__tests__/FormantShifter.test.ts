@@ -34,11 +34,11 @@ class MockAudioContext {
     }
 
     createGain(): GainNode {
-        return new MockGainNode() as unknown as BiquadFilterNode;
+        return new MockGainNode() as unknown as GainNode;
     }
 
     createConstantSource(): ConstantSourceNode {
-        return new MockConstantSourceNode() as unknown as BiquadFilterNode;
+        return new MockConstantSourceNode() as unknown as ConstantSourceNode;
     }
 }
 
@@ -47,7 +47,7 @@ describe('FormantShifter', () => {
     let mockContext: AudioContext;
     
     beforeEach(() => {
-        mockContext = new MockAudioContext() as unknown as BiquadFilterNode;
+        mockContext = new MockAudioContext() as unknown as AudioContext;
         shifter = new FormantShifter({ audioContext: mockContext });
     });
     
