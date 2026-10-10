@@ -305,9 +305,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           this.heapSizeFrames = 0;
 
           const module = this.rubberBand.module;
+          this.rubberBand.delete();
           this.rubberBand = new module.RubberBandStretcher(
             // Unknown profile strings fall through to 'vocal' in the switch default.
-            this.sampleRate, 1, getStretchProfileOptions(data.profile as StretchProfile), 1.0, 1.0
+            Math.floor(this.sampleRate), 1, getStretchProfileOptions(data.profile as StretchProfile), 1.0, 1.0
           );
           this.rubberBand.module = module;
           this.rubberBand.setTimeRatio(timeRatio);
