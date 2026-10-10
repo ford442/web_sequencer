@@ -10,17 +10,15 @@
 ## 2024-12-05 - Avoid Redundant Linear Lookups in AudioWorklet Hot Paths
 **Learning:** In `RubberBandProcessor`, calling `this.getPhonemeDataAtSample()` multiple times per quantum for various DSP effects executed an O(N) array search every time, compounding GC pressure (from property access) and CPU budget overhead. Because `currentSamplePtr` is constant outside of the streaming phase, redundant evaluations for individual effects are completely unnecessary.
 **Action:** Evaluate `getPhonemeDataAtSample` once at the beginning of the `process()` function (for setup logic) and update it once immediately after `currentSamplePtr` advances. Cache this tuple in a local block-scoped variable and use it for all downstream DSP checks.
-## 2024-05-24 - [Avoid TypedArray.subarray() in high-frequency loops]
-**Learning:** In the `RingBuffer` (and other high-frequency audio/worker communication paths), using `TypedArray.prototype.subarray()` in combination with `.set()` allocates a new TypedArray view object on the heap for every block. In a real-time context (like `AudioWorklet`), this creates significant per-block garbage collection pressure that degrades the real-time audio budget and can lead to audio dropouts.
-**Action:** Replace `.subarray()` calls with explicit `for` loops for data copying in high-frequency, performance-critical paths (e.g., inside `push` and `pull` methods) to completely avoid TypedArray view allocation.
 
 ## 2024-12-07 - Optimize Math & Array Allocations in AudioWorklet Hot Paths
 **Learning:** Per-quantum allocations (`this.sampleRate` fallback) and block-level loops with expensive transcendental operations (`Math.pow`, `Math.log10`, `Math.sin`) degrade real-time performance. Additionally, multiple modules redundantly calling `getPhonemeDataAtSample` wastes CPU cycles via O(N) array lookups.
 **Action:**
 1. Cache per-quantum constants (like `this.sampleRate`) instead of re-evaluating inline.
-2. Hoist transcendental calculations out of the per-sample loop in `Bitcrusher`, `SpectralBandProcessor`, and `PhonemeToneFilter`.
-3. Introduce pre-computed `Float32Array` lookup tables with linear interpolation for window shapes in `GranularEngine`.
-4. Call `getPhonemeDataAtSample` only once per audio quantum block and pass the resulting tuple (`pData`) through `FrozenGrainParams` and to sub-processors to eliminate redundant scans.
+2. Hoist transcendental calculations out of the per-sample loop in `Bitcrusher`, `SpectralBandProcessor`, and `PhonemeToneFilter`. Algebraic simplification (combining logs) allows removing operations.
+3. Replace block loops simulating exponential curves with `Math.pow()` direct calculations.
+4. Introduce pre-computed `Float32Array` lookup tables with linear interpolation for window shapes in `GranularEngine`.
+5. Call `getPhonemeDataAtSample` only once per audio quantum block and pass the resulting tuple (`pData`) through `FrozenGrainParams` and to sub-processors to eliminate redundant scans.
 
 ## 2024-12-07 - Pre-compute window shapes in GranularEngine
 **Learning:** In `granularEngine.ts`, the DSP loop was calculating window shapes using expensive transcendental math (`Math.cos`, `Math.exp`, `Math.pow`, `Math.sin`) per sample and per active grain. This was happening up to 2 times per sample frame, degrading real-time performance on the audio thread.
