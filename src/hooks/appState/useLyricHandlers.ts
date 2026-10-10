@@ -148,8 +148,7 @@ export function useLyricHandlers(deps: {
             newSnare.steps = Array<Note | null>(stepCount).fill(null);
             newCH.steps = Array<Note | null>(stepCount).fill(null);
             newOH.steps = Array<Note | null>(stepCount).fill(null);
-            const stepTime = 60 / tempoRef.current / 4;
-            for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+                        for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, transportMixStore.getSnapshot().swing);
                 if (stepIdx >= 0 && stepIdx < stepCount) {
@@ -233,8 +232,7 @@ export function useLyricHandlers(deps: {
             const alignment = audioEngine?.getAlignment?.(bankIdx);
 
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
-                const stepTime = 60 / tempoRef.current / 4;
-                const stepCount = transportMixStore.getSnapshot().stepCount;
+                                const stepCount = transportMixStore.getSnapshot().stepCount;
                 const newSteps = new Array<Note | null>(stepCount).fill(null);
 
                 let currentPitchIdx = 0;
@@ -288,8 +286,7 @@ export function useLyricHandlers(deps: {
             if (noteIndex === 0) {
                 const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
                 if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
-                    const stepTime = 60 / tempoRef.current / 4;
-                    const newSamplerSequence = [...newPattern.sampler];
+                                        const newSamplerSequence = [...newPattern.sampler];
                     const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: padSteps([...newSamplerSequence[bankIdx].steps], transportMixStore.getSnapshot().stepCount) };
                     let currentPitchIdx = 0;
 
