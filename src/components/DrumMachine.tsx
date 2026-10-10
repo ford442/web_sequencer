@@ -17,6 +17,9 @@ interface DrumMachineProps {
 }
 
 export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsChange, drumKit, onDrumKitChange, onPlayDrum }) => {
+  const kit808Ref = useRef<HTMLButtonElement>(null);
+  const kit909Ref = useRef<HTMLButtonElement>(null);
+
   // Use a ref to access latest params inside callbacks without causing them to update
   const paramsRef = useRef(params);
   useEffect(() => {
@@ -64,6 +67,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
         {onDrumKitChange && (
           <div className="flex items-center gap-2" role="radiogroup" aria-label="Drum Kit Selection">
             <button
+              id="drumkit-808"
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '808'
@@ -71,8 +75,17 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('808')}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  onDrumKitChange('909');
+                  setTimeout(() => kit909Ref.current?.focus(), 0);
+                }
+              }}
+              ref={kit808Ref}
               role="radio"
               aria-checked={drumKit === '808'}
+              tabIndex={drumKit === '808' || !drumKit ? 0 : -1}
               aria-label="TR-808 Kit"
               title="Switch to TR-808 Kit"
             >
@@ -85,6 +98,7 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
               808
             </button>
             <button
+              id="drumkit-909"
               type="button"
               className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-colors ${
                 drumKit === '909'
@@ -92,8 +106,17 @@ export const DrumMachine: React.FC<DrumMachineProps> = memo(({ params, onParamsC
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900'
               }`}
               onClick={() => onDrumKitChange('909')}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  onDrumKitChange('808');
+                  setTimeout(() => kit808Ref.current?.focus(), 0);
+                }
+              }}
+              ref={kit909Ref}
               role="radio"
               aria-checked={drumKit === '909'}
+              tabIndex={drumKit === '909' ? 0 : -1}
               aria-label="TR-909 Kit"
               title="Switch to TR-909 Kit"
             >
