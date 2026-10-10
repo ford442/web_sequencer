@@ -7,6 +7,29 @@ import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/P
 import { updateSamplerRange } from './patternUpdates'
 import { transportMixStore } from '../../stores/transportMixStore'
 import { padSteps } from '../../utils/songMeter'
+import { swingPercentToClock } from '../../utils/musicTheory'
+
+
+const timeToStep = (time: number, tempo: number, swingPercent: number): number => {
+    const swing = swingPercentToClock(swingPercent);
+    const baseTime = 60 / tempo / 4;
+    const shift = swing * baseTime * 0.5;
+
+    const pairTime = 2 * baseTime;
+    const pairs = Math.floor(time / pairTime);
+    const remainder = time - pairs * pairTime;
+
+    const mid01 = (baseTime + shift) / 2;
+    const mid12 = (3 * baseTime + shift) / 2;
+
+    if (remainder < mid01) {
+        return pairs * 2;
+    } else if (remainder < mid12) {
+        return pairs * 2 + 1;
+    } else {
+        return pairs * 2 + 2;
+    }
+};
 
 const NOTE_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_TO_SHARP: Record<string, string> = {
@@ -125,10 +148,9 @@ export function useLyricHandlers(deps: {
             newSnare.steps = Array<Note | null>(stepCount).fill(null);
             newCH.steps = Array<Note | null>(stepCount).fill(null);
             newOH.steps = Array<Note | null>(stepCount).fill(null);
-            const stepTime = 60 / tempoRef.current / 4;
-            for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+                        for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
-                const stepIdx = Math.round(p.start / stepTime);
+                const stepIdx = timeToStep(p.start, tempoRef.current, transportMixStore.getSnapshot().swing);
                 if (stepIdx >= 0 && stepIdx < stepCount) {
                     const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
                     const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
@@ -210,8 +232,7 @@ export function useLyricHandlers(deps: {
             const alignment = audioEngine?.getAlignment?.(bankIdx);
 
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
-                const stepTime = 60 / tempoRef.current / 4;
-                const stepCount = transportMixStore.getSnapshot().stepCount;
+                                const stepCount = transportMixStore.getSnapshot().stepCount;
                 const newSteps = new Array<Note | null>(stepCount).fill(null);
 
                 let currentPitchIdx = 0;
@@ -219,7 +240,7 @@ export function useLyricHandlers(deps: {
 
                 for (let i = 0; i < alignment.phonemes.length; i++) {
                     const p: PhonemeSegment = alignment.phonemes[i];
-                    const startStep = Math.round(p.start / stepTime);
+                    const startStep = timeToStep(p.start, tempoRef.current, transportMixStore.getSnapshot().swing);
 
                     // Treat as new syllable if there's a gap or it's the first phoneme
                     if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
@@ -229,7 +250,8 @@ export function useLyricHandlers(deps: {
                     }
 
                     if (startStep >= 0 && startStep < stepCount) {
-                        const durationSteps = Math.max(1, Math.round((p.end - p.start) / stepTime));
+                        const endStep = timeToStep(p.end, tempoRef.current, transportMixStore.getSnapshot().swing);
+                        const durationSteps = Math.max(1, endStep - startStep);
                         newSteps[startStep] = {
                             note: pitches[currentPitchIdx] || 'C4',
                             velocity: 1,
@@ -264,8 +286,7 @@ export function useLyricHandlers(deps: {
             if (noteIndex === 0) {
                 const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
                 if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
-                    const stepTime = 60 / tempoRef.current / 4;
-                    const newSamplerSequence = [...newPattern.sampler];
+                                        const newSamplerSequence = [...newPattern.sampler];
                     const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: padSteps([...newSamplerSequence[bankIdx].steps], transportMixStore.getSnapshot().stepCount) };
                     let currentPitchIdx = 0;
 
@@ -275,7 +296,7 @@ export function useLyricHandlers(deps: {
 
                     for (let i = 0; i < alignment.phonemes.length; i++) {
                         const p: PhonemeSegment = alignment.phonemes[i];
-                        const stepIdx = Math.round(p.start / stepTime);
+                        const stepIdx = timeToStep(p.start, tempoRef.current, transportMixStore.getSnapshot().swing);
 
                         // Treat as new syllable if there's a gap or it's the first phoneme
                         if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
