@@ -389,7 +389,7 @@ export function createPlaySamplerVoice(
         if (pPhonemeDelayFeedback !== undefined && voice.setPhonemeDelayFeedback) voice.setPhonemeDelayFeedback(pPhonemeDelayFeedback, triggerTime);
 
         if (pTransientExtraction !== undefined && voice.setTransientExtraction) voice.setTransientExtraction(pTransientExtraction, triggerTime);
-        if (pAutoTune !== undefined && (voice as any).setAutoTune) (voice as any).setAutoTune(pAutoTune, triggerTime);
+        if (pAutoTune !== undefined) voice.setAutoTune(pAutoTune, triggerTime);
         if (pDrumDuckDepth !== undefined && (voice as any).setDrumDuckDepth) (voice as any).setDrumDuckDepth(pDrumDuckDepth, triggerTime);
         if (pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(pPhonemeFilterMod, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);

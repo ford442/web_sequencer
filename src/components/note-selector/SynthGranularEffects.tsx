@@ -54,6 +54,7 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
     currentDrive,
     currentVibratoDepth = 0,
     currentVolumeFilterMod = 0,
+    currentAutoTune = 0,
     currentPhonemeDelayAmount = 0,
     currentPhonemeDelayFeedback = 0,
     currentCustomWindowShape,
@@ -75,6 +76,14 @@ export const SynthGranularEffects: React.FC<SynthEffectPropertiesProps> = React.
   return (
     <>
       <div className="flex flex-col gap-1">
+        <PropertySlider
+          id="note-auto-tune"
+          label="AutoTune"
+          value={currentAutoTune}
+          onChange={(v: number) => onPropertyChange?.("autoTune", v)}
+          min={0} max={1} step={0.01}
+          valueFormatter={(v: number) => `${Math.round(v * 100)}%`}
+        />
         <PropertySlider
           id="note-phoneme-delay-amount"
           label="Phoneme Delay"

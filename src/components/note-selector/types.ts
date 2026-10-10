@@ -37,6 +37,7 @@ export type PropertyChangeKey =
   | "spectralCompression"
   | "tranceGate"
   | "volumeFilterMod"
+  | "autoTune"
   | "formantShift"
   | "formantPitchLink"
   | "filterCutoff"
@@ -116,6 +117,7 @@ export interface NoteSelectorProps {
   currentSubHarmonics?: number;
   currentSpatialRouting?: number;
   currentVolumeFilterMod?: number;
+  currentAutoTune?: number;
   currentPhonemeDelayAmount?: number;
   currentPhonemeDelayFeedback?: number;
   currentFormantShift?: number;
