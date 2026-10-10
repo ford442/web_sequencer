@@ -80,6 +80,20 @@ export function stepLengthPreset(current: number, direction: 1 | -1, ts: TimeSig
     return presets[0];
 }
 
+/** Next loop length in the cycle; `null` means "follow the pattern length". */
+export function cycleTrackLength(current: number | null, direction: 1 | -1, ts: TimeSignature): number | null {
+    const options: (number | null)[] = [null, ...lengthPresets(ts)];
+    let idx = options.indexOf(current);
+    if (idx === -1) {
+        // A loaded length outside the presets: step from its sorted position.
+        const above = options.findIndex((o) => o !== null && o > (current ?? 0));
+        idx = above === -1 ? options.length : above;
+        if (direction > 0) idx -= 1;
+    }
+    const n = options.length;
+    return options[(((idx + direction) % n) + n) % n];
+}
+
 /**
  * Validate the meter fields of a saved song. Songs saved before v4 (or with
  * garbage in these fields) resolve to 32 steps, 4/4, straight.

@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SequencerRow } from '../sequencer/SequencerRow';
 import { MainSequencer, type MainSequencerHandle } from '../MainSequencer';
 import { GridIndicators } from '../GridIndicators';
-import { TrackLoopLengthChip, cycleTrackLength } from '../sequencer/TrackLoopLengthChip';
+import { TrackLoopLengthChip } from '../sequencer/TrackLoopLengthChip';
+import { cycleTrackLength } from '../../utils/songMeter';
 import { sequencerCssWidth, sequencerViewBoxWidth } from '../sequencer/stepHitGeometry';
 import { transportMixStore } from '../../stores/transportMixStore';
 import { EMPTY_PATTERN, getInitialTrackStorage } from '../../constants/appDefaults';
@@ -72,7 +73,7 @@ describe('sequencer grid follows the pattern length', () => {
         expect(onToggle).toHaveBeenCalledWith('kick', 12, expect.anything());
     });
 
-    it('highlights the track step when a per-track resolver is passed', async () => {
+    it('highlights the track step when a per-track resolver is passed', () => {
         vi.useFakeTimers({ toFake: ['requestAnimationFrame'] });
         try {
             const ref = createRef<import('../sequencer/SequencerRow').SequencerRowHandle>();
