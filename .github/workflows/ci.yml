@@ -188,6 +188,11 @@ jobs:
         # refused by the installer at runtime; fail here instead.
         run: pnpm run check:wam
 
+      - name: Release dist gate (bundle budgets + worklet invariants)
+        # Same check build:release runs; without it here, dist regressions only
+        # ever turned the Playwright E2E badge red.
+        run: pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs
+
       - name: Test (integration tier)
         run: pnpm run test:integration
         env:

@@ -34,7 +34,7 @@ export async function loadRubberBandFxModule(): Promise<RubberBandFxModule & { _
   if (!probe.ok) {
     throw new Error(`${probe.reason} — rebuild with: pnpm run build:wasm:rubberband`);
   }
-  return module as RubberBandFxModule & { _malloc(n: number): number };
+  return probe.module as RubberBandFxModule & { _malloc(n: number): number };
 }
 
 /**

@@ -409,6 +409,15 @@ export const EffectsControlMixin = {
   setVocalChorus(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "vocalChorus", amount, time);
   },
+
+  /**
+   * Set synthetic vocoder cross-modulation amount.
+   * @param amount Vocoder amount (0-1)
+   * @param time Scheduled time in context seconds
+   */
+  setVocoder(this: SingingVoiceHost, amount: number, time?: number): void {
+    setWorkletParam(this, "vocoder", amount, time);
+  },
   setPhonemeDelayAmount(this: SingingVoiceHost, amount: number, time?: number): void {
     setWorkletParam(this, "phonemeDelayAmount", amount, time);
   },

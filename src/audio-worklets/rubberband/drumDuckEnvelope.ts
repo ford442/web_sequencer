@@ -7,6 +7,8 @@ export class DrumDuckEnvelope {
   private lastTrigger = 0.0;
   private readonly processResult = { duckingScalar: 0.0, isSnare: 0.0 };
   private eqState = { lp: [0,0], bp: [0,0] };
+  private cachedSampleRate = 0;
+  private cachedW = 0;
 
   process(
     sidechain: Float32Array | null,
@@ -58,8 +60,13 @@ export class DrumDuckEnvelope {
     const maxEqReduction = 1.0;
     const eqAmount = duckingScalar * maxEqReduction;
     const q = 0.5; // low q for wide cut
-    const centerFreq = 350.0; // standard kick drum fundamental & knock
-    const w = 2.0 * Math.sin(Math.PI * centerFreq / sampleRate);
+
+    if (sampleRate !== this.cachedSampleRate && sampleRate > 0) {
+      this.cachedSampleRate = sampleRate;
+      const centerFreq = 350.0; // standard kick drum fundamental & knock
+      this.cachedW = 2.0 * Math.sin(Math.PI * centerFreq / sampleRate);
+    }
+    const w = this.cachedW;
 
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];

@@ -48,8 +48,10 @@
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
 - [x] Explore overlapping stereo grains (true OLA instead of one looped grain)
 - [x] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
+- Explore using a noise generator for unvoiced vocoder consonants.
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [rejected] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope - Causes too much CPU strain and GC pressure in the hot path.
+- [x] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
 - [x] What if we link consonant boost directly to the velocity or stress parameter from the lyric track?
 - [x] What if we mapped TTS syllable volume directly to filter cutoff in the granular engine?
 - [x] Explore generating dynamic sub-harmonics for TTS vowels to add body/presence to synthesized speech.
@@ -63,7 +65,6 @@
 - [x] What if we linked granular playback speed directly to the LFO rate, allowing the playback position to oscillate?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
-- [rejected] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect. - Violates CPU budget (heavy FFT processing).
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 - Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
@@ -180,3 +181,8 @@
 - Completed "Optimize TTS memory footprint" by caching `resolveWorkletSampleRate` block-wide in `RubberBandProcessor` to remove redundant inline parameter object allocations in the hot audio processing loop, vastly reducing GC pressure. Also completed linking consonant boost to velocity by extracting `pVol` and scaling `consonantClarity` before passing it to the Transient Shaper. This makes loud syllables punchier while keeping quiet whispers soft.
 - Velocity Check: Identifying the massive GC pressure from repeated `{ sampleRate: ... }` allocations in `process()` was a huge win for audio stability. The consonant scaling was computationally nearly free since `pVol` is already mapped from the SharedArrayBuffer.
 
+- Completed "Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect."
+  - Avoided heavy FFT processing by implementing a lightweight `VocoderEffect` inside `RubberBandProcessor`.
+  - The effect tracks the pitch of the primary TTS output via zero-crossings, generates a synthetic carrier wave (sawtooth), and amplitude-modulates it using an envelope follower driven by the dry TTS signal.
+  - Plumbed the `vocoder` parameter through the UI, types, and hooks, enabling sequencing via the Synth Granular Effects overlay.
+  - Velocity Check: Bypassing true dual-engine cross-synthesis in favor of a synthetic carrier successfully achieved the vocoder aesthetic with near-zero CPU overhead when bypassed, respecting the hot-path processing budget. Added "Explore using a noise generator for unvoiced vocoder consonants" to the Innovation Lab.

@@ -57,9 +57,15 @@ export class SpectralBandProcessor {
 
     const q = 0.5;
     const maxGR = 12.0 * spectralComp;
-    const maxGrFactor = Math.pow(10, -maxGR / 20);
     const threshold = 0.1;
     const ratio = 1.0 + 3.0 * spectralComp;
+
+    // Mathematical simplification to avoid log10 per-sample:
+    // grDb = 20 * (1 - 1/ratio) * log10(env/threshold)
+    // gain = 10^(-grDb/20) = (env/threshold)^(-slope)
+    const slope = 1.0 - 1.0 / ratio;
+    const maxEnv = threshold * Math.pow(10, maxGR / (20 * slope));
+    const maxGRMultiplier = Math.pow(10, -maxGR / 20);
 
     for (let i = 0; i < outL.length; i++) {
       const x = outL[i];
@@ -74,9 +80,9 @@ export class SpectralBandProcessor {
       let mid = this.lp2;
       let high = hp2;
       if (spectralComp > 0) {
-        low = this.compress(low, 0, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
-        mid = this.compress(mid, 1, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
-        high = this.compress(high, 2, this.attackCoef, this.releaseCoef, threshold, ratio, maxGrFactor);
+        low = this.compress(low, 0, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
+        mid = this.compress(mid, 1, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
+        high = this.compress(high, 2, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
       }
 
       if (hasStereo && outR) {
@@ -90,7 +96,7 @@ export class SpectralBandProcessor {
 
   private compress(
     band: number, b: 0 | 1 | 2,
-    attackCoef: number, releaseCoef: number, threshold: number, ratio: number, maxGrFactor: number,
+    attackCoef: number, releaseCoef: number, threshold: number, slope: number, maxEnv: number, maxGRMultiplier: number,
   ): number {
     const env = this.env;
     const absIn = Math.abs(band);
@@ -100,8 +106,7 @@ export class SpectralBandProcessor {
       env[b] = releaseCoef * env[b] + (1 - releaseCoef) * absIn;
     }
     if (env[b] <= threshold) return band;
-    const env_ratio = env[b] / threshold;
-    const gainFactor = Math.pow(env_ratio, (1.0 / ratio) - 1.0);
-    return band * Math.max(gainFactor, maxGrFactor);
+    if (env[b] >= maxEnv) return band * maxGRMultiplier;
+    return band * Math.pow(env[b] / threshold, -slope);
   }
 }

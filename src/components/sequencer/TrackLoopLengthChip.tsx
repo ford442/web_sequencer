@@ -1,8 +1,7 @@
 import { memo, useCallback } from 'react';
 import type { TrackKey } from '../../types';
 import { transportMixStore, useTransportMixStore } from '../../stores/transportMixStore';
-import { lengthPresets } from '../../utils/songMeter';
-import type { TimeSignature } from '../../utils/musicTheory';
+import { cycleTrackLength } from '../../utils/songMeter';
 
 /**
  * Per-track loop length chip for a sequencer row header (polyrhythm).
@@ -18,20 +17,6 @@ const WIDTH = 28;
 const HEIGHT = 13;
 /** Engaged colour: amber-free cyan so it never reads as a mute. */
 const ENGAGED = '#06b6d4';
-
-/** Next loop length in the cycle; `null` means "follow the pattern length". */
-export function cycleTrackLength(current: number | null, direction: 1 | -1, ts: TimeSignature): number | null {
-    const options: (number | null)[] = [null, ...lengthPresets(ts)];
-    let idx = options.indexOf(current);
-    if (idx === -1) {
-        // A loaded length outside the presets: step from its sorted position.
-        const above = options.findIndex((o) => o !== null && o > (current ?? 0));
-        idx = above === -1 ? options.length : above;
-        if (direction > 0) idx -= 1;
-    }
-    const n = options.length;
-    return options[(((idx + direction) % n) + n) % n];
-}
 
 export interface TrackLoopLengthChipProps {
     trackKey: TrackKey;
