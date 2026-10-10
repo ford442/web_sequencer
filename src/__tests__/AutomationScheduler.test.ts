@@ -183,7 +183,7 @@ describe('AutomationScheduler — construction', () => {
     const ctx = makeAudioContext();
     const mgr = makeOpen303Manager();
     expect(() =>
-      new AutomationScheduler(ctx, mgr as any, { lookaheadSeconds: 0.2, rampDuration: 0.1, ppq: 24 })
+      new AutomationScheduler(ctx, mgr as unknown as Open303Manager, { lookaheadSeconds: 0.2, rampDuration: 0.1, ppq: 24 })
     ).not.toThrow();
   });
 
@@ -191,7 +191,7 @@ describe('AutomationScheduler — construction', () => {
     const ctx = makeAudioContext();
     const scheduler = new AutomationScheduler(ctx, null);
     const mgr = makeOpen303Manager();
-    expect(() => scheduler.setOpen303Manager(mgr as any)).not.toThrow();
+    expect(() => scheduler.setOpen303Manager(mgr as unknown as Open303Manager)).not.toThrow();
   });
 });
 
