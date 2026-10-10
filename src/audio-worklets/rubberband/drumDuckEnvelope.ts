@@ -41,9 +41,7 @@ export class DrumDuckEnvelope {
     const duckingScalar = Math.min(1.0, curvedEnv * drumDuckDepth * drumVelocity);
 
     // Fast attack (instant here since it's triggered per hit), exponential release
-    for (let i = 0; i < blockFrames; i++) {
-      this.env *= releaseMult;
-    }
+    this.env *= Math.pow(releaseMult, blockFrames);
 
     this.processResult.duckingScalar = duckingScalar;
     this.processResult.isSnare = isSnare;

@@ -205,10 +205,14 @@ export class NativeVocalFx implements VocalFxChain {
       return;
     }
     const frames = Math.min(n, right.length, this.maxFrames);
-    this.leftView.set(left.subarray(0, frames));
+    for (let i = 0; i < frames; i++) {
+      this.leftView[i] = left[i];
+    }
     this.m._rb_fx_process(this.handle, this.leftPtr, this.rightPtr, frames);
-    left.set(this.leftView.subarray(0, frames));
-    right.set(this.rightView.subarray(0, frames));
+    for (let i = 0; i < frames; i++) {
+      left[i] = this.leftView[i];
+      right[i] = this.rightView[i];
+    }
   }
 
   dispose(): void {
