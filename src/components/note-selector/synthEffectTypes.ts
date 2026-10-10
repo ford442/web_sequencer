@@ -20,6 +20,7 @@ export interface SynthEffectPropertiesProps {
   currentGranularPitchShift?: number;
   currentWindowShape?: number;
   currentCustomGrainEnvelope?: number[];
+  currentVocoder?: number;
   currentVocoderMix?: number;
   currentVocoderFormantShift?: number;
   currentVocoderPreservation?: number;

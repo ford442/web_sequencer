@@ -27,6 +27,7 @@ export interface SingingVoiceCoreMethods {
   setSubHarmonics(amount: number, time?: number): void;
   setSpatialRouting(amount: number, time?: number): void;
   setVocalChorus(amount: number, time?: number): void;
+  setVocoder(amount: number, time?: number): void;
   setPhonemeDelayAmount(amount: number, time?: number): void;
   setPhonemeDelayFeedback(amount: number, time?: number): void;
 

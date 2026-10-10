@@ -7,6 +7,7 @@ import { getStretchProfileOptions, type StretchProfile } from "../engines/rubber
 import { getPhonemeDataAtSample } from "./rubberband/phonemeData";
 import { DrumDuckEnvelope } from "./rubberband/drumDuckEnvelope";
 import { SpatialRouter } from "./rubberband/spatialRouter";
+import { VocoderEffect } from "./rubberband/vocoderEffect";
 import { BassEnvelopeFollower } from "./rubberband/bassEnvelopeFollower";
 import { PitchController, type PitchContext } from "./rubberband/pitchControl";
 import { TsVocalFx, createVocalFxBlock, type VocalFxBackend, type VocalFxBlock, type VocalFxChain } from "./rubberband/vocalFx";
@@ -47,6 +48,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
   private readonly drumDuck = new DrumDuckEnvelope();
   private readonly spatialRouter = new SpatialRouter();
+  private readonly vocoder = new VocoderEffect();
   private readonly bassEnvelopeFollower = new BassEnvelopeFollower();
   private readonly pitch = new PitchController();
 
@@ -520,6 +522,13 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         } catch (e) {
           if (this.fx.backend !== 'native') throw e;
           this.fallBackToTsFx(`native FX threw in rb_fx_process: ${String(e)}`);
+        }
+
+        // After either FX backend. Native rb_fx has no vocoder export, and the
+        // TS fallback would otherwise only run it when that backend is active.
+        const vocoderAmount = param(parameters, 'vocoder', 0);
+        if (vocoderAmount > 0) {
+          this.vocoder.process(outputs, vocoderAmount, pData[7], blockSampleRate);
         }
 
         // The fused FX backend supplies stereo; route either backend's output.
