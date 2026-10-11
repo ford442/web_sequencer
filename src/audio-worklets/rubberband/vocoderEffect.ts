@@ -12,8 +12,12 @@ export class VocoderEffect {
   // Smoothing for detected pitch
   private smoothedPeriod = [0, 0];
 
+  // Noise generator state for unvoiced consonants
+  private noiseSeed = [1, 2];
+  private noiseHp = [0, 0]; // High pass filter state
+
   process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number): void {
-    if (amount <= 0 || isVowel <= 0) return;
+    if (amount <= 0) return;
 
     // Fast envelope follower for the modulator (TTS dry signal)
     const envAttack = Math.exp(-1.0 / (sampleRate * 0.005));
@@ -74,11 +78,28 @@ export class VocoderEffect {
           carrier = (this.phase[channel] * 2.0) - 1.0;
         }
 
-        // 4. Amplitude Modulation (Vocoder effect)
+        // 4. Unvoiced Consonant Generation (Noise)
+        let noise = 0;
+        if (isVowel <= 0) {
+            // LCG Pseudo-random noise
+            this.noiseSeed[channel] = (this.noiseSeed[channel] * 1664525 + 1013904223) | 0;
+            const rawNoise = (this.noiseSeed[channel] / 2147483648.0);
+
+            // 1-pole high-pass filter (approx 2kHz cutoff)
+            // hp(t) = alpha * hp(t-1) + alpha * (x(t) - x(t-1)) => approx: y = rawNoise - lowpass
+            const alpha = 0.8; // Simple fast hp
+            this.noiseHp[channel] = alpha * this.noiseHp[channel] + (1 - alpha) * rawNoise;
+            noise = rawNoise - this.noiseHp[channel];
+
+            // For unvoiced, we rely entirely on noise, zero carrier
+            carrier = noise;
+        }
+
+        // 5. Amplitude Modulation (Vocoder effect)
         // Multiply the generated carrier by the modulator's envelope
         const vocoded = carrier * this.env[channel] * 2.0;
 
-        // 5. Mix with dry signal
+        // 6. Mix with dry signal
         outCh[i] = x * (1.0 - (amount * 0.5)) + (vocoded * amount);
       }
     }
