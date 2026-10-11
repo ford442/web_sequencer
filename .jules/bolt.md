@@ -23,3 +23,7 @@
 ## 2024-12-07 - Pre-compute window shapes in GranularEngine
 **Learning:** In `granularEngine.ts`, the DSP loop was calculating window shapes using expensive transcendental math (`Math.cos`, `Math.exp`, `Math.pow`, `Math.sin`) per sample and per active grain. This was happening up to 2 times per sample frame, degrading real-time performance on the audio thread.
 **Action:** Replace these expensive per-sample calculations with pre-computed `Float32Array` lookup tables and fast linear interpolation, hoisting the transcendental math out of the hot path to module-load time.
+
+## 2024-12-07 - Pre-allocate object pools for events in AudioWorklet hot paths
+**Learning:** Appending to an array (using `push()`) or creating object literals inside an AudioWorklet's `process()` path (e.g., when accumulating pending artifacts for batched reporting) allocates memory per quantum or per event on the hot path. This creates continuous GC pressure that can degrade real-time audio budget, especially if artifacts are detected frequently.
+**Action:** Replace `Array.push()` logic with a pre-allocated fixed-size object pool (e.g., `pendingArtifactsPool: Array.from({ length: 32 }, ...)`) tracked by a counter (`pendingArtifactsCount`). Mutate the primitive fields of the pre-allocated objects in place, and only slice the active elements when sending `postMessage` batch reports (which happens at a lower interval, not per quantum).

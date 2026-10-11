@@ -38,7 +38,6 @@ export type PropertyChangeKey =
   | "spectralCompression"
   | "tranceGate"
   | "volumeFilterMod"
-  | "autoTune"
   | "formantShift"
   | "formantPitchLink"
   | "filterCutoff"
