@@ -118,12 +118,6 @@ importers:
       '@react-three/fiber':
         specifier: ^9.5.0
         version: 9.5.0(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.182.0)
-      '@testing-library/dom':
-        specifier: ^10.4.1
-        version: 10.4.1
-      '@types/three':
-        specifier: ^0.182.0
-        version: 0.182.0
       onnxruntime-web:
         specifier: ^1.23.2
         version: 1.23.2
@@ -143,6 +137,9 @@ importers:
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.57.0
+      '@testing-library/dom':
+        specifier: ^10.4.1
+        version: 10.4.1
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -161,6 +158,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.3(@types/react@19.2.7)
+      '@types/three':
+        specifier: ^0.182.0
+        version: 0.182.0
       '@types/web':
         specifier: ^0.0.162
         version: 0.0.162
