@@ -191,7 +191,7 @@ describe('Open303 Oscillator', () => {
 
     it('should handle initialization failure gracefully', async () => {
         // Mock fetch failure — engine activates FallbackBassSynth and returns true
-        (global.fetch as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        vi.mocked(global.fetch).mockImplementationOnce(() =>
             Promise.resolve({ ok: false, status: 404 } as Response),
         );
 

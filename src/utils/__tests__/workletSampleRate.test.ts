@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { resolveWorkletSampleRate } from '../workletSampleRate';
 import {
   hasWorkletSampleRateFallback,
@@ -6,7 +6,7 @@ import {
 } from '../../audio-worklets/workletPerfReporter';
 
 describe('resolveWorkletSampleRate', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  let warn: MockInstance<typeof console.warn>;
 
   beforeEach(() => {
     resetWorkletSampleRateFallbackForTests();

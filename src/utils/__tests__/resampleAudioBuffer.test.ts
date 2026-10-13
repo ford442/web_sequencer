@@ -26,11 +26,10 @@ describe('ensureBufferMatchesContext', () => {
       start,
     });
 
-    globalThis.OfflineAudioContext = vi.fn().mockImplementation(() => ({
-      createBufferSource,
-      destination: {},
-      startRendering,
-    })) as unknown as typeof OfflineAudioContext;
+    // `new`-constructed: Vitest >= 4 needs a function expression, not an arrow.
+    globalThis.OfflineAudioContext = vi.fn().mockImplementation(function () {
+      return { createBufferSource, destination: {}, startRendering };
+    }) as unknown as typeof OfflineAudioContext;
 
     const buffer = { sampleRate: 44100, duration: 0.5, numberOfChannels: 1 } as AudioBuffer;
     const context = { sampleRate: 48000 } as BaseAudioContext;

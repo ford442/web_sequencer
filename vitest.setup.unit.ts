@@ -4,7 +4,7 @@
  */
 
 import './vitest.setup.ts';
-import { afterEach, beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi, type Mock } from 'vitest';
 
 type FetchMatcher = string | RegExp;
 
@@ -47,14 +47,14 @@ async function guardedFetchImpl(
   return originalFetch(input, init);
 }
 
-function ensureFetchMock(): ReturnType<typeof vi.fn> {
+function ensureFetchMock(): Mock<typeof guardedFetchImpl> {
   if (originalFetch === undefined && typeof globalThis.fetch === 'function') {
     originalFetch = globalThis.fetch.bind(globalThis);
   }
   if (!vi.isMockFunction(globalThis.fetch)) {
     vi.stubGlobal('fetch', vi.fn(guardedFetchImpl));
   }
-  return globalThis.fetch as ReturnType<typeof vi.fn>;
+  return globalThis.fetch as unknown as Mock<typeof guardedFetchImpl>;
 }
 
 beforeEach(() => {

@@ -167,7 +167,9 @@ describe('Open303Oscillator.init export map wiring', () => {
       audioWorklet: { addModule: vi.fn().mockResolvedValue(undefined) },
     } as unknown as AudioContext;
 
-    global.AudioWorkletNode = vi.fn(() => mockWorkletNode) as unknown as typeof AudioWorkletNode;
+    // `new AudioWorkletNode(...)`: Vitest >= 4 constructs mock implementations
+    // via Reflect.construct, so this must be a function expression.
+    global.AudioWorkletNode = vi.fn(function () { return mockWorkletNode; }) as unknown as typeof AudioWorkletNode;
 
     const osc = new Open303Oscillator();
     await osc.init(mockAudioContext, '/open303-processor.js', config);

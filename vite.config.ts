@@ -4,8 +4,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import type { Plugin, ResolvedConfig } from 'vite';
-import unitTestConfig from './vitest.unit.config';
-import { vitestSharedConfig } from './vitest.shared';
+import unitTestConfig from './vitest.unit.config.ts';
+import { vitestSharedConfig } from './vitest.shared.ts';
 
 /**
  * Emits dist/precache-manifest.json — the list of hashed shell files
