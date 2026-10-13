@@ -283,7 +283,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                         if (!pooled.metadata) pooled.metadata = {};
                         else {
                             for (const key in pooled.metadata) {
-                                delete (pooled.metadata as any)[key];
+                                delete pooled.metadata[key];
                             }
                         }
                         Object.assign(pooled.metadata, detection.metadata);
