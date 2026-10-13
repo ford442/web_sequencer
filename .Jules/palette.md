@@ -1,3 +1,3 @@
-## 2026-10-11 - Icon-Only Button Parity and Focus Rings
-**Learning:** Screen readers and keyboard navigation rely heavily on strict parity for icon-only buttons (matching `aria-label` and `title`, with hidden glyphs), and focus rings are easily missed on custom close buttons like the Phoneme Painter.
-**Action:** Always verify that `focus-visible` utility classes exist on all interactable elements, and test that icon-only buttons have matching ARIA labels and titles, along with `aria-hidden` on their graphical children.
+## 2026-10-12 - Inner wrappers for live regions
+**Learning:** When building empty state panels, banners, or toasts, ensure interactive elements like action buttons are placed outside the `role="status"` or `aria-live` region wrapper. If inside, screen readers read the button text redundantly on mount or update.
+**Action:** Move `role="status"` to an inner wrapper containing only the text/icon to prevent double-announcements while maintaining valid HTML structure.

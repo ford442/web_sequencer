@@ -16,9 +16,11 @@ export const Toast: React.FC<ToastProps> = React.memo(({ message, type, onClose 
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded shadow-lg border animate-in slide-in-from-top-2 fade-in duration-300 flex items-center gap-3 ${
       type === 'success' ? 'bg-green-900/90 border-green-500 text-green-100' : 'bg-red-900/90 border-red-500 text-red-100'
-    }`} role="alert" aria-live="polite">
-      <span aria-hidden="true">{type === 'success' ? '✓' : '⚠'}</span>
-      <span className="font-mono text-sm">{message}</span>
+    }`}>
+      <div role="alert" aria-live="polite" className="flex items-center gap-3">
+        <span aria-hidden="true">{type === 'success' ? '✓' : '⚠'}</span>
+        <span className="font-mono text-sm">{message}</span>
+      </div>
       <button
         type="button"
         onClick={onClose}
