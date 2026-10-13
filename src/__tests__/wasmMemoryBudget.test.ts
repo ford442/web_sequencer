@@ -11,7 +11,7 @@
  * These tests are the guard rail — see docs/wasm/BUILD_NOTES.md.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
     HYPHON_NATIVE_ARTIFACTS,
@@ -44,6 +44,10 @@ const budget = JSON.parse(
         maximumMemoryMb: number;
         stackSizeMb: number;
     };
+    mixBus: {
+        initialMemoryMb: number;
+        stackSizeMb: number;
+    };
     assemblyScript: Record<string, number | string[]>;
     standaloneJc303: {
         initialMemoryMb: number;
@@ -56,6 +60,7 @@ const budget = JSON.parse(
 
 const buildSh = readFileSync(join(REPO_ROOT, 'emscripten/build.sh'), 'utf8');
 const rubberbandSh = readFileSync(join(REPO_ROOT, 'emscripten/build_rubberband.sh'), 'utf8');
+const mixBusSh = readFileSync(join(REPO_ROOT, 'emscripten/build_mix_bus.sh'), 'utf8');
 const jc303BuildSh = readFileSync(join(REPO_ROOT, 'tools/build_jc303_omp.sh'), 'utf8');
 const jc303Cmake = readFileSync(join(REPO_ROOT, 'tools/jc303_cmake/CMakeLists.txt'), 'utf8');
 const packageJson = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
@@ -234,5 +239,36 @@ describe('Rubber Band module split', () => {
         // The two sed fixes are not idempotent against an already-patched tree.
         expect(rubberbandSh).toContain('temp_build_rubberband');
         expect(rubberbandSh).not.toMatch(/sed -i [^\n]*\$SOURCE_DIR/);
+    });
+});
+
+describe('offline mix bus memory (#1341)', () => {
+    it('build_mix_bus.sh reads the mixBus budget instead of literals', () => {
+        expect(mixBusSh).toContain('wasm_memory_budget.json');
+        expect(mixBusSh).toContain('mixBus.initialMemoryMb');
+        expect(mixBusSh).toContain('mixBus.stackSizeMb');
+        expect(mixBusSh).toContain('-s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb');
+        expect(mixBusSh).toContain('-s STACK_SIZE=${STACK_SIZE_MB}mb');
+        expect(mixBusSh).not.toMatch(/INITIAL_MEMORY=\d+/);
+    });
+
+    it('cannot grow, share, or thread — an offline mix never touches a SAB', () => {
+        expect(mixBusSh).toContain('-s ALLOW_MEMORY_GROWTH=0');
+        expect(mixBusSh).not.toMatch(/ALLOW_MEMORY_GROWTH=1/);
+        const flags = mixBusSh.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+        expect(flags).not.toMatch(/-pthread|USE_PTHREADS|SHARED_MEMORY|-fopenmp|libomp/);
+        expect(mixBusSh).toContain('-s STANDALONE_WASM=1');
+    });
+
+    it('fits the two scratch blocks and the stack in the fixed heap', () => {
+        const scratchMb = (2 * 65536 * 4) / (1024 * 1024);
+        expect(budget.mixBus.stackSizeMb + scratchMb).toBeLessThan(budget.mixBus.initialMemoryMb);
+        expect(budget.mixBus).not.toHaveProperty('maximumMemoryMb');
+    });
+
+    it('is not linked into either voice profile', () => {
+        expect(buildSh).not.toMatch(/(?:mix_bus|audio_dsp)\.cpp"/);
+        expect(buildSh).not.toMatch(/^[^#]*libomp\.a/m);
+        expect(existsSync(join(REPO_ROOT, 'emscripten/audio_dsp.cpp'))).toBe(false);
     });
 });

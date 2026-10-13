@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
 import { checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
+import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
@@ -586,6 +587,22 @@ function checkHyphonProfile(profile) {
 
 const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
 
+// The offline mix bus (#1341) ships next to the voice modules, fetched by
+// src/workers/mixBus.worker.ts from the deploy base. Without it stem export
+// still works (JS fallback) but says so, so a missing file is a release bug.
+{
+  const mixBusPath = path.join(distDir, 'mix_bus.wasm');
+  if (!fs.existsSync(mixBusPath)) {
+    console.error('[check-release-dist] dist/mix_bus.wasm is missing (pnpm run build:wasm:mixbus).');
+    process.exit(1);
+  }
+  const problems = checkMixBusModule(fs.readFileSync(mixBusPath));
+  if (problems.length) {
+    console.error(`[check-release-dist] dist/mix_bus.wasm is not a valid mix bus:\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+}
+
 const rawTsInDist = distJsFiles.filter((p) => /\.tsx?$/.test(p));
 if (rawTsInDist.length) {
   console.error('[check-release-dist] dist/ contains raw TypeScript assets:');
@@ -595,7 +612,7 @@ if (rawTsInDist.length) {
 
 // Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
 // dist/assets/ — the directory Vite's bundler actually controls. Vendored
-// native binaries (hyphon_native*, jc303*, rubberband.wasm) and the vendored
+// native binaries (hyphon_native*, jc303*, rubberband.wasm, mix_bus.wasm) and the vendored
 // Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
 // here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by

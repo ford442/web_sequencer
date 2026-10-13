@@ -92,6 +92,32 @@ describe('main-thread hyphon_native guard', () => {
     expect(importers).toEqual([]);
   });
 
+  it('mix_bus.wasm is instantiated only inside its worker (#1341)', () => {
+    // The offline mix bus is a separate module, but the same rule applies: no
+    // main-thread wasm DSP. Only the worker (and the kernel it calls) may bind it.
+    const allowed = new Set([
+      'src/workers/mixBus.worker.ts',
+      'src/audio/offline/mixBus/mixBusKernel.ts',
+    ]);
+    const violations: string[] = [];
+    for (const file of files) {
+      if (allowed.has(rel(file))) continue;
+      const content = fs.readFileSync(file, 'utf8');
+      if (/\bcreateNativeMixKernel\b|\bmix_bus_[a-z_]+\s*\(/.test(content)) {
+        violations.push(rel(file));
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('audio_dsp is gone from hyphon_native, not just uncalled (#1341)', () => {
+    expect(fs.existsSync(path.join(repoRoot, 'emscripten/audio_dsp.cpp'))).toBe(false);
+    const buildSh = fs.readFileSync(path.join(repoRoot, 'emscripten/build.sh'), 'utf8');
+    expect(buildSh).not.toMatch(/^[^#]*audio_dsp\.cpp/m);
+    const manifest = fs.readFileSync(path.join(repoRoot, 'emscripten/wasm_export_manifest.json'), 'utf8');
+    expect(manifest).not.toMatch(/applyGain|mixBuffers|mixVoiceBuffers|findPeak|applyStereoWidth/);
+  });
+
   it('the patterns catch the shapes the deleted bridge used', () => {
     const samples = [
       'const m = window.Module;',

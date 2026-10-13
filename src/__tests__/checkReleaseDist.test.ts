@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
 const SCRIPT = join(ROOT, 'scripts', 'check-release-dist.mjs');
@@ -95,9 +96,11 @@ interface DistOptions {
     exportMap?: Record<string, string>;
     /** Memory import of hyphon_native.st.wasm. A pthread-style shared one must fail. */
     stMemory?: 'plain' | 'shared';
+    /** dist/mix_bus.wasm (#1341); `null` leaves it out. */
+    mixBus?: MixBusFixtureVariant | null;
 }
 
-function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = {}): string {
+function makeDist({ wasmExports, exportMap, stMemory = 'plain', mixBus = 'valid' }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
 
@@ -142,6 +145,7 @@ function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = 
         required.map((n) => `Module['_${n}'] = wasmExports['${n}'];`).join('\n'),
     );
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
+    if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
     return dir;
 }
 
@@ -233,5 +237,20 @@ describe('check-release-dist WASM export gate', () => {
 
         expect(result.status).toBe(1);
         expect(result.output).toContain('hyphon_native.st.wasm is not a single-threaded build');
+    });
+
+    it('requires the offline mix bus to ship (#1341)', () => {
+        const result = runCheck(makeDist({ mixBus: null }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/mix_bus.wasm is missing');
+    });
+
+    it('rejects a mix bus whose memory could grow', () => {
+        const result = runCheck(makeDist({ mixBus: 'growable-memory' }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/mix_bus.wasm is not a valid mix bus');
+        expect(result.output).toContain('memory can grow');
     });
 });

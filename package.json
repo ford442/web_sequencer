@@ -21,6 +21,7 @@
     "build:emcc": "bash emscripten/build.sh",
     "build:emcc:debug": "bash emscripten/build.sh debug",
     "build:wasm:rubberband": "bash emscripten/build_rubberband.sh",
+    "build:wasm:mixbus": "bash emscripten/build_mix_bus.sh",
     "vendor:pyodide": "node scripts/fetch-pyodide.mjs",
     "check:exports": "node tools/check_wasm_export_map.mjs",
     "wam:integrity": "node scripts/wam-catalog-integrity.mjs",

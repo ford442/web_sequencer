@@ -30,6 +30,11 @@ import {
 } from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
 import {
+    createMixBus,
+    type MixBus,
+    type MixBusEngine,
+} from '../audio/offline/mixBus/mixBus';
+import {
     analyzeLoudness,
     normalizeToTarget,
     DEFAULT_LIMITER_SETTINGS,
@@ -84,6 +89,13 @@ export interface StemExportOptions {
     signal?: AbortSignal;
     onProgress?: (progress: number, label: string) => void;
     /**
+     * Mix bus for the drum and master sums (#1341). Defaults to a fresh
+     * `createMixBus()` — the C++ bus in a worker, or the JS path with a
+     * reason — which the export disposes. An injected bus is the caller's to
+     * dispose.
+     */
+    mixBus?: MixBus;
+    /**
      * Loudness handling for the master stem.
      *
      * The report is always computed (and written into metadata.json); passing
@@ -112,6 +124,17 @@ export interface StemExportReport {
      * edits, HARM) the dry bank stems do not contain. Empty when none.
      */
     vocalOffline: OfflineVocalBankReport[];
+    /** Which engine summed the stems, and why it fell back if it did. */
+    mixBus: StemMixBusReport;
+}
+
+export interface StemMixBusReport {
+    /** Engine that produced the master stem's dry sum. */
+    engine: MixBusEngine;
+    /** Why the native worker was not used; null when it was. */
+    reason: string | null;
+    /** Per-channel sample peak of the dry sum, before any master bounce. */
+    dryMasterPeaks: number[];
 }
 
 /** Channel data of an AudioBuffer, mutable in place. */
@@ -212,31 +235,15 @@ function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate
     return out;
 }
 
-function mixBuffers(buffers: AudioBuffer[], targetLength: number, sampleRate: number): AudioBuffer {
-    const channels = 2;
-    const mixed = new OfflineAudioContext(channels, targetLength, sampleRate);
-    const out = mixed.createBuffer(channels, targetLength, sampleRate);
-
-    for (const buffer of buffers) {
-        const aligned = alignBufferLength(buffer, targetLength, sampleRate);
-        for (let ch = 0; ch < channels; ch++) {
-            const srcCh = Math.min(ch, aligned.numberOfChannels - 1);
-            const src = aligned.getChannelData(srcCh);
-            const dst = out.getChannelData(ch);
-            for (let i = 0; i < targetLength; i++) {
-                dst[i] += src[i];
-            }
-        }
+/** Wrap mix-bus output channels in an AudioBuffer for the WAV encoder. */
+function channelsToBuffer(channels: Float32Array[], targetLength: number, sampleRate: number): AudioBuffer {
+    const count = channels.length;
+    const ctx = new OfflineAudioContext(count, Math.max(1, targetLength), sampleRate);
+    const out = ctx.createBuffer(count, Math.max(1, targetLength), sampleRate);
+    for (let ch = 0; ch < count; ch++) {
+        out.getChannelData(ch).set(channels[ch].subarray(0, out.length));
     }
-
     return out;
-}
-
-function sumStemBuffers(stems: Map<StemId, AudioBuffer>, targetLength: number, sampleRate: number): AudioBuffer {
-    const stemList = Array.from(stems.entries())
-        .filter(([id]) => id !== 'master')
-        .map(([, buffer]) => buffer);
-    return mixBuffers(stemList, targetLength, sampleRate);
 }
 
 function stemFileName(id: StemId): string {
@@ -311,92 +318,116 @@ export async function exportStemsToZip(
     const stems = new Map<StemId, AudioBuffer>();
     const totalStages = STEM_RENDER_ORDER.length;
 
-    for (let stage = 0; stage < STEM_RENDER_ORDER.length; stage++) {
-        throwIfAborted(signal);
-        const { id, label } = STEM_RENDER_ORDER[stage];
-        onProgress?.(stage / totalStages, label);
+    // The dry master is built as the stems arrive (#1341): each audible stem
+    // is streamed into the bus right after it renders, so the C++ sum runs in
+    // the worker while the next stem renders. Silenced stems add nothing —
+    // they are zeros, and x + 0 is x. Summation order is STEM_RENDER_ORDER,
+    // as before, so the JS path is bit-identical to the old main-thread loop.
+    const ownsBus = !options.mixBus;
+    const bus = options.mixBus ?? (await createMixBus());
+    const masterMix = bus.begin(targetLength, 2);
+    let dryMaster: { engine: MixBusEngine; peaks: number[] } | null = null;
 
-        let buffer: AudioBuffer;
+    try {
+        for (let stage = 0; stage < STEM_RENDER_ORDER.length; stage++) {
+            throwIfAborted(signal);
+            const { id, label } = STEM_RENDER_ORDER[stage];
+            onProgress?.(stage / totalStages, label);
 
-        switch (id) {
-            case 'partA':
-                buffer = isAudible('partA')
-                    ? await renderSynthPattern(input.params.synthA, {
-                          ...renderOpts,
-                          sequence: timeline.sequences.partA,
-                      })
-                    : silentBuffer(targetLength, sampleRate);
-                break;
-            case 'partB':
-                buffer = isAudible('partB')
-                    ? await renderSynthPattern(input.params.synthB, {
-                          ...renderOpts,
-                          sequence: timeline.sequences.partB,
-                      })
-                    : silentBuffer(targetLength, sampleRate);
-                break;
-            case 'bass2':
-                buffer = isAudible('bass2')
-                    ? await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
-                          ...renderOpts,
-                          sequence: timeline.sequences.bass2,
-                      })
-                    : silentBuffer(targetLength, sampleRate);
-                break;
-            case 'drums': {
-                // The drum stem mixes four tracks, so each is gated on its own.
-                const drumBuffers: AudioBuffer[] = [];
-                if (isAudible('kick')) {
-                    drumBuffers.push(await renderDrumPattern('kick', input.params.kick, {
-                        ...renderOpts,
-                        sequence: timeline.sequences.kick,
-                    }));
-                    throwIfAborted(signal);
-                }
-                if (isAudible('snare')) {
-                    drumBuffers.push(await renderDrumPattern('snare', input.params.snare, {
-                        ...renderOpts,
-                        sequence: timeline.sequences.snare,
-                    }));
-                    throwIfAborted(signal);
-                }
-                if (isAudible('closedHat')) {
-                    drumBuffers.push(await renderDrumPattern('closedHat', input.params.closedHat, {
-                        ...renderOpts,
-                        sequence: timeline.sequences.closedHat,
-                    }));
-                    throwIfAborted(signal);
-                }
-                if (isAudible('openHat')) {
-                    drumBuffers.push(await renderDrumPattern('openHat', input.params.openHat, {
-                        ...renderOpts,
-                        sequence: timeline.sequences.openHat,
-                    }));
-                }
-                buffer = mixBuffers(drumBuffers, targetLength, sampleRate);
-                break;
-            }
-            default:
-                if (id.startsWith('sampler-bank-')) {
-                    const bankIndex = Number(id.replace('sampler-bank-', '')) - 1;
-                    buffer = isAudible('sampler')
-                        ? await renderSamplerBankPattern(
-                              timeline.sequences.sampler[bankIndex],
-                              input.sampleBuffers?.[bankIndex] ?? null,
-                              input.params.sampler[bankIndex],
-                              input.tempo,
-                              sampleRate,
-                              signal,
-                          )
+            let buffer: AudioBuffer;
+            /** Rendered (not a silent placeholder) — only these feed the master. */
+            let audible = false;
+
+            switch (id) {
+                case 'partA':
+                    audible = isAudible('partA');
+                    buffer = audible
+                        ? await renderSynthPattern(input.params.synthA, {
+                              ...renderOpts,
+                              sequence: timeline.sequences.partA,
+                          })
                         : silentBuffer(targetLength, sampleRate);
-                } else {
-                    buffer = sumStemBuffers(stems, targetLength, sampleRate);
+                    break;
+                case 'partB':
+                    audible = isAudible('partB');
+                    buffer = audible
+                        ? await renderSynthPattern(input.params.synthB, {
+                              ...renderOpts,
+                              sequence: timeline.sequences.partB,
+                          })
+                        : silentBuffer(targetLength, sampleRate);
+                    break;
+                case 'bass2':
+                    audible = isAudible('bass2');
+                    buffer = audible
+                        ? await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
+                              ...renderOpts,
+                              sequence: timeline.sequences.bass2,
+                          })
+                        : silentBuffer(targetLength, sampleRate);
+                    break;
+                case 'drums': {
+                    // The drum stem mixes four tracks, so each is gated on its own.
+                    const drumMix = bus.begin(targetLength, 2);
+                    try {
+                        const drums = [
+                            ['kick', input.params.kick],
+                            ['snare', input.params.snare],
+                            ['closedHat', input.params.closedHat],
+                            ['openHat', input.params.openHat],
+                        ] as const;
+                        for (const [track, params] of drums) {
+                            if (!isAudible(track)) continue;
+                            const rendered = await renderDrumPattern(track, params, {
+                                ...renderOpts,
+                                sequence: timeline.sequences[track],
+                            });
+                            drumMix.add(bufferChannels(rendered));
+                            audible = true;
+                            throwIfAborted(signal);
+                        }
+                        buffer = channelsToBuffer((await drumMix.finish()).channels, targetLength, sampleRate);
+                    } finally {
+                        drumMix.discard();
+                    }
+                    break;
                 }
-                break;
-        }
+                default:
+                    if (id.startsWith('sampler-bank-')) {
+                        const bankIndex = Number(id.replace('sampler-bank-', '')) - 1;
+                        audible = isAudible('sampler');
+                        buffer = audible
+                            ? await renderSamplerBankPattern(
+                                  timeline.sequences.sampler[bankIndex],
+                                  input.sampleBuffers?.[bankIndex] ?? null,
+                                  input.params.sampler[bankIndex],
+                                  input.tempo,
+                                  sampleRate,
+                                  signal,
+                              )
+                            : silentBuffer(targetLength, sampleRate);
+                    } else {
+                        const mixed = await masterMix.finish();
+                        dryMaster = { engine: mixed.engine, peaks: mixed.peaks };
+                        buffer = channelsToBuffer(mixed.channels, targetLength, sampleRate);
+                    }
+                    break;
+            }
 
-        stems.set(id, alignBufferLength(buffer, targetLength, sampleRate));
+            const aligned = alignBufferLength(buffer, targetLength, sampleRate);
+            stems.set(id, aligned);
+            if (audible) masterMix.add(bufferChannels(aligned));
+        }
+    } finally {
+        masterMix.discard();
+        if (ownsBus) bus.dispose();
     }
+
+    const mixBusReport: StemMixBusReport = {
+        engine: dryMaster?.engine ?? bus.status().engine,
+        reason: bus.status().reason,
+        dryMasterPeaks: dryMaster?.peaks ?? [],
+    };
 
     throwIfAborted(signal);
 
@@ -491,6 +522,8 @@ export async function exportStemsToZip(
         offlineGraph,
         /** Sampler banks rendered dry although the live vocal chain colours them (#1273). */
         vocalOffline,
+        /** Engine that summed the dry stems (#1341) and the dry master's sample peaks. */
+        mixBus: mixBusReport,
         stems: Array.from(stems.keys()),
         silencedTracks: (
             ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
@@ -510,6 +543,7 @@ export async function exportStemsToZip(
         routingNote,
         offlineGraph,
         vocalOffline,
+        mixBus: mixBusReport,
     });
 
     throwIfAborted(signal);
