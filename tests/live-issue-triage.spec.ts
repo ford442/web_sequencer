@@ -288,16 +288,24 @@ test.describe('live-site issue triage — fresh dist boot', () => {
       if (idx >= 0) seen.add(idx);
       await page.waitForTimeout(40);
     }
-    const transportStep = await page.evaluate(
-      () => (window as unknown as { __HYPHON_E2E__?: { getAutomationPlaybackStep(): number } })
-        .__HYPHON_E2E__?.getAutomationPlaybackStep(),
-    );
+    const { transportStep, audioState } = await page.evaluate(() => {
+      const w = window as unknown as {
+        __HYPHON_E2E__?: { getAutomationPlaybackStep(): number };
+        audioContext?: { state: string };
+      };
+      return {
+        transportStep: w.__HYPHON_E2E__?.getAutomationPlaybackStep(),
+        audioState: w.audioContext?.state ?? 'unknown',
+      };
+    });
     await page.screenshot({ path: test.info().outputPath('1389-playing.png') });
     await page.getByRole('button', { name: 'Stop Playback', exact: true }).click();
 
     expect(
       seen.size,
-      `distinct highlighted steps in 2 s: [${[...seen].join(',')}], transport step=${transportStep}`,
+      `distinct highlighted steps in 2 s: [${[...seen].join(',')}], transport step=${transportStep}, ` +
+        `AudioContext.state=${audioState}. The clock follows the AudioContext: if it is not "running" ` +
+        `(headless Firefox on CI, see #1372) the sequencer cannot advance.`,
     ).toBeGreaterThanOrEqual(2);
   });
 
@@ -308,30 +316,33 @@ test.describe('live-site issue triage — fresh dist boot', () => {
       // The keys sit inside an aria-hidden <svg>, so role queries skip them.
       const key = page.locator(`g[role="button"][aria-label="Play ${note}"]`);
       await key.scrollIntoViewIfNeeded();
-      const box = await settledBox(key);
-      // Lower part of a white key — the black keys cover the upper part.
-      const at = { x: box.x + box.w / 2, y: box.y + box.h * 0.85 };
-      const clip = { x: box.x, y: box.y, width: box.w, height: box.h };
-
       await expect(key).toHaveAttribute('aria-pressed', 'false');
-      const before = await page.screenshot({ clip });
 
-      await page.mouse.move(at.x, at.y);
-      await page.mouse.down();
+      // mousedown/mouseup are dispatched on the key rather than driven through
+      // page.mouse: Firefox's SVG hit-testing releases a key held near its
+      // bottom edge (the pressed face shifts 3 px away from the pointer), which
+      // is unrelated to whether a held key shows feedback — the thing #1390
+      // reports. The handler under test is the same React onMouseDown/onMouseUp.
+      await key.dispatchEvent('mousedown', { button: 0, buttons: 1 });
+      await expect(key, `${note} aria-pressed while held`).toHaveAttribute('aria-pressed', 'true');
+
+      const box = await settledBox(key);
+      const clip = { x: box.x, y: box.y, width: box.w, height: box.h };
+      let held: Buffer;
       try {
-        await expect(key, `${note} aria-pressed while held`).toHaveAttribute('aria-pressed', 'true');
-        const during = await page.screenshot({
+        held = await page.screenshot({
           clip,
           path: test.info().outputPath(`1390-${note}-held.png`),
         });
-        expect(
-          during.equals(before),
-          `${note}: pixels must change while the key is held`,
-        ).toBe(false);
       } finally {
-        await page.mouse.up();
+        await key.dispatchEvent('mouseup', { button: 0 });
       }
       await expect(key).toHaveAttribute('aria-pressed', 'false');
+      const released = await page.screenshot({ clip });
+      expect(
+        held.equals(released),
+        `${note}: the key's pixels must differ between held and released`,
+      ).toBe(false);
     }
   });
 });
