@@ -10,14 +10,14 @@ This implementation adds comprehensive fallback modes for the Open303 engine (TB
 
 The build system now generates two WASM variants:
 
-- **Threaded variant** (`jc303-threaded.{js,wasm,worker.js}`)
-  - Built with OpenMP support
+- **Threaded variant** (`jc303-threaded.{js,wasm}` — pthread workers are inlined in the glue)
+  - Plain Emscripten pthreads (the OpenMP runtime was never used and is gone)
   - Requires COOP/COEP headers (SharedArrayBuffer)
   - Best performance with parallel processing
   - Ideal for production environments with proper CORS configuration
 
 - **Single-threaded variant** (`jc303-single.{js,wasm}`)
-  - No OpenMP dependencies
+  - No pthreads
   - Works without COOP/COEP headers
   - Broader browser compatibility
   - Slightly lower performance but still excellent
@@ -138,7 +138,6 @@ After building, the following files are generated:
 public/
 ├── jc303-threaded.js       # Threaded variant loader
 ├── jc303-threaded.wasm     # Threaded WASM binary
-├── jc303-threaded.worker.js # Thread pool worker
 ├── jc303-single.js         # Single-threaded loader
 ├── jc303-single.wasm       # Single-threaded WASM binary
 ├── jc303.js                # Symlink to single (compatibility)

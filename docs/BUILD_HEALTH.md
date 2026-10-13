@@ -92,3 +92,12 @@ Baseline: `main` `242750b`. `tsc -b` clean; `lint:ratchet` failed `no-explicit-a
 - **CI E2E on the PR (run 38359994310):** 85 passed / 5 failed. #1395 failed on all three browsers (expected). Headless **Firefox on CI also fails #1389** — transport step stays `-1` and no step highlight appears — which matches open issue #1372 (the AudioContext clock does not run in headless CI Firefox); Chromium and WebKit advance. Locally Firefox advanced. #1390 failed on Firefox only because of the harness (see next bullet) and was reworked.
 - **E2E harness notes:** Firefox's SVG hit-testing releases a live-keyboard key held near its bottom edge (the pressed face shifts 3 px away from the pointer; press at 85% height never holds, 70% holds, 50% flickers) — observed, not investigated, minor; the #1390 test dispatches mousedown/mouseup on the key instead of driving `page.mouse`.
 - **E2E harness notes (continued):** the live keyboard keys sit in an `aria-hidden` SVG (role queries can't see them); WebKit returns `""` for `innerText` on `role=status`; WebKit's boot is occasionally flaky on its first attempt (passes on the project's configured retry).
+
+## 2026-10-14 — native toolchain modernisation (Part A, branch `chore/toolchain-modernise`)
+
+Supersedes the toolchain notes above: the emsdk pin is **6.0.9**, in `emscripten/toolchain.json` only, and every em++ script fails on any other `emcc` (`emscripten/toolchain_env.sh`). `tools/optimize.sh` (and its `wasm-opt` / `wasmedge` requirement) is deleted — the `-O3 -flto` link runs the pinned emsdk's own `wasm-opt`. Details, sizes and the render-parity result: `docs/wasm/BUILD_NOTES.md#toolchain-pin`.
+
+- `pnpm run build:native` on 6.0.9: all 9 worlds rebuild. `test:native` passes; `test:unit` and `test:integration` (`HYPHON_REQUIRE_NATIVE=1`) pass against the 6.0.9 artifacts.
+- Rubber Band on 6.x needed `HEAPF32` / `HEAPF64` in `EXPORTED_RUNTIME_METHODS`; without them `nativeVocalFx` / `phonemeElasticity` fail ("Rubber Band glue does not expose HEAPF32").
+- Debug profile on 6.x: the glue wraps exports in `createExportWrapper(...)`; both export-map parsers now accept it (it extracted 0 exports before).
+
