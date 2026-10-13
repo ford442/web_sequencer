@@ -41,9 +41,7 @@ export class BassEnvelopeFollower {
     // If we are past the note duration, start decaying
     let currentBlockEnv = this.env;
     if (timeSinceTrigger > this.currentDuration) {
-       for (let i = 0; i < blockFrames; i++) {
-         this.env *= releaseMult;
-       }
+       this.env *= Math.pow(releaseMult, blockFrames);
        currentBlockEnv = this.env;
     }
 
