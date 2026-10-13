@@ -102,6 +102,12 @@ GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"
 # INCOMING_MODULE_JS_API, so without the explicit list below the glue silently
 # ignores Module.wasmBinary and aborts with "both async and sync fetching of the
 # wasm failed" inside the AudioWorklet.
+#
+# Likewise the HEAP views: since emcc 4 the glue keeps HEAPF32 / HEAPF64 as
+# module-local vars and only puts them on the Module object when they are named
+# in EXPORTED_RUNTIME_METHODS. The worklets (and the vocal-FX harness) read
+# module.HEAPF32 / HEAPF64 for every block, so without them stretch output is
+# written into `undefined`.
 
 # Native vocal FX chain (rubberband_fx.cpp). The worklet probes for these at
 # INIT_WASM and falls back to the TS modules — loudly — if any is missing, so
@@ -149,7 +155,7 @@ em++ $OPT_FLAGS \
     -s MODULARIZE=1 \
     -s EXPORT_ES6=1 \
     -s EXPORT_NAME='createRubberBandModule' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue", "HEAPF32", "HEAPF64"]' \
     -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
     -s INCOMING_MODULE_JS_API='["wasmBinary", "locateFile", "print", "printErr", "onAbort"]' \
     -s ENVIRONMENT='web,worker' \
