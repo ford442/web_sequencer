@@ -14,7 +14,7 @@
  * Also driven in real time by the `live-highfid` voice (Phase L1/L2/L3,
  * src/audio-worklets/liveHighFid303.ts) at oversample 1.
  *
- * C API (EMSCRIPTEN_KEEPALIVE + embind):
+ * C API (EMSCRIPTEN_KEEPALIVE):
  *   highfid303_create / destroy / init
  *   highfid303_note_on / note_off / all_notes_off
  *   highfid303_set_param / set_oversample / get_oversample
@@ -31,7 +31,6 @@
  */
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
 
 #include <algorithm>
 #include <cmath>
@@ -41,7 +40,6 @@
 #include <memory>
 #include <unordered_map>
 
-using namespace emscripten;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -617,16 +615,3 @@ const char* highfid303_engine_id()
 }
 
 } // extern "C"
-
-EMSCRIPTEN_BINDINGS(highfid303_module) {
-    function("highfid303_create",         &highfid303_create);
-    function("highfid303_destroy",        &highfid303_destroy);
-    function("highfid303_init",           &highfid303_init);
-    function("highfid303_note_on",        &highfid303_note_on);
-    function("highfid303_note_off",       &highfid303_note_off);
-    function("highfid303_all_notes_off",  &highfid303_all_notes_off);
-    function("highfid303_set_param",      &highfid303_set_param);
-    function("highfid303_set_oversample", &highfid303_set_oversample);
-    function("highfid303_get_oversample", &highfid303_get_oversample);
-    function("highfid303_process",        &highfid303_process);
-}

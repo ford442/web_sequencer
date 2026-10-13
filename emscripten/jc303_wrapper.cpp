@@ -17,7 +17,6 @@
  */
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
 
 #include <algorithm>
 #include <cmath>
@@ -30,7 +29,6 @@
 #include "rosic_Open303.h"
 
 using namespace rosic;
-using namespace emscripten;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parameter IDs (keep in sync with Open303Params.ts)
@@ -325,34 +323,3 @@ EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process(int numFrames)
 #endif // HYPHON_LEGACY_JC303
 
 } // extern "C"
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Embind
-// ─────────────────────────────────────────────────────────────────────────────
-
-EMSCRIPTEN_BINDINGS(jc303_module) {
-    emscripten::function("jc303_create",           &jc303_create);
-    emscripten::function("jc303_destroy",          &jc303_destroy);
-    emscripten::function("jc303_init_handle",      &jc303_init_handle);
-    emscripten::function("jc303_note_on",          &jc303_note_on);
-    emscripten::function("jc303_note_off",         &jc303_note_off);
-    emscripten::function("jc303_all_notes_off",    &jc303_all_notes_off);
-    emscripten::function("jc303_set_param",        &jc303_set_param);
-    emscripten::function("jc303_process_handle",   &jc303_process_handle);
-
-#if HYPHON_LEGACY_JC303
-    emscripten::function("jc303_init",             &jc303_init);
-    emscripten::function("jc303_noteOn",           &jc303_noteOn);
-    emscripten::function("jc303_noteOff",          &jc303_noteOff);
-    emscripten::function("jc303_allNotesOff",      &jc303_allNotesOff);
-    emscripten::function("jc303_setWaveform",      &jc303_setWaveform);
-    emscripten::function("jc303_setCutoff",        &jc303_setCutoff);
-    emscripten::function("jc303_setResonance",     &jc303_setResonance);
-    emscripten::function("jc303_setEnvMod",        &jc303_setEnvMod);
-    emscripten::function("jc303_setDecay",         &jc303_setDecay);
-    emscripten::function("jc303_setAccent",        &jc303_setAccent);
-    emscripten::function("jc303_setVolume",        &jc303_setVolume);
-    emscripten::function("jc303_setFilterMode",    &jc303_setFilterMode);
-    emscripten::function("jc303_process",          &jc303_process);
-#endif
-}

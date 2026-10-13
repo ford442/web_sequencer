@@ -25,8 +25,8 @@
  *        jc303_setDecay / setAccent / setVolume / setFilterMode (float value)
  *        jc303_process(numFrames) → uintptr_t pointer to output buffer
  *
- * Both APIs are also exposed via emscripten::bind so they are accessible
- * from the hyphon_native.js module wrapper on the main thread.
+ * There is no embind surface: the AudioWorklets instantiate hyphon_native.wasm
+ * by hand and call these extern "C" exports through the export-name map.
  *
  * Parameter IDs for open303_set_param() are defined by the Open303Param enum
  * below and match the constants in src/engines/Open303Params.ts.
@@ -35,7 +35,6 @@
  */
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
 
 #include <algorithm>
 #include <cmath>
@@ -43,10 +42,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <string>
 #include <unordered_map>
 
-using namespace emscripten;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -510,8 +507,8 @@ static Open303Instance* lookupInstance(uintptr_t handle)
 // Multi-instance C API
 //
 // Functions are marked EMSCRIPTEN_KEEPALIVE so they survive link-time
-// dead-code elimination even when --bind is active. They are also registered
-// via embind below for use from the hyphon_native.js main-thread wrapper.
+// dead-code elimination. The AudioWorklets call them through the export-name
+// map; there is no embind surface.
 // ─────────────────────────────────────────────────────────────────────────────
 
 extern "C" {
@@ -671,62 +668,3 @@ int open303_set_model_by_id(uintptr_t handle, const char* id)
 }
 
 } // extern "C"
-
-/** JSON list of all registered 303 models for dynamic UI population:
- *  [{"id":"stock-open303","label":"Stock Open303","engine":"open303"}, …] */
-static std::string getAvailable303Models()
-{
-    std::string json = "[";
-    for (int i = 0; i < k303ModelCount; ++i) {
-        const Open303ModelProfile& m = k303Models[i];
-        if (i > 0) json += ",";
-        json += "{\"id\":\"";
-        json += m.id;
-        json += "\",\"label\":\"";
-        json += m.label;
-        json += "\",\"engine\":\"";
-        json += (m.engine == ENGINE_JC303) ? "jc303" : "open303";
-        json += "\"}";
-    }
-    json += "]";
-    return json;
-}
-
-// Embind cannot bind raw pointers to primitives (const char*). These
-// std::string wrappers are the main-thread module surface; the extern "C"
-// EMSCRIPTEN_KEEPALIVE exports above remain the worklet/ccall path.
-static int open303_find_model_index_str(const std::string& id)
-{
-    return open303_find_model_index(id.c_str());
-}
-
-static int open303_set_model_by_id_str(uintptr_t handle, const std::string& id)
-{
-    return open303_set_model_by_id(handle, id.c_str());
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Embind bindings  (makes the same functions callable from the JS module
-// wrapper)
-// ─────────────────────────────────────────────────────────────────────────────
-
-EMSCRIPTEN_BINDINGS(open303_module) {
-    function("open303_create",        &open303_create);
-    function("open303_destroy",       &open303_destroy);
-    function("open303_init",          &open303_init);
-    function("open303_note_on",       &open303_note_on);
-    function("open303_note_off",      &open303_note_off);
-    function("open303_all_notes_off", &open303_all_notes_off);
-    function("open303_set_param",     &open303_set_param);
-    function("open303_set_oversample",&open303_set_oversample);
-    function("open303_get_oversample",&open303_get_oversample);
-    function("open303_process",       &open303_process);
-
-    function("open303_get_model_count",   &open303_get_model_count);
-    function("open303_get_model_engine",  &open303_get_model_engine);
-    function("open303_set_model",         &open303_set_model);
-    function("open303_get_model",         &open303_get_model);
-    function("open303_find_model_index",  &open303_find_model_index_str);
-    function("open303_set_model_by_id",   &open303_set_model_by_id_str);
-    function("getAvailable303Models",     &getAvailable303Models);
-}

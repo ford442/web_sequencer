@@ -14,7 +14,7 @@ import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
-import { checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
+import { checkForbiddenSymbols, checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
 import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -580,6 +580,13 @@ function checkHyphonProfile(profile) {
       );
       process.exit(1);
     }
+  } else {
+    // The ST check above already includes this scan.
+    const problems = checkForbiddenSymbols(fs.readFileSync(wasmPath));
+    if (problems.length) {
+      console.error(`[check-release-dist] dist/${profile.wasm} links a runtime it has no caller for:\n  ${problems.join('\n  ')}`);
+      process.exit(1);
+    }
   }
 
   return { mapKeys: mapKeys.length, required: requiredExports.length };
@@ -668,6 +675,20 @@ if (budget) {
       for (const f of assetSizes.sort((a, b) => b.size - a.size).slice(0, 10)) {
         console.error(`  ${f.size.toLocaleString()} B  ${path.relative(distDir, f.path)}`);
       }
+    }
+  }
+
+  // The voice module's binaries and glue are outside Vite's graph, so they get
+  // their own raw-byte rows (dist-budget.json#native). Set from the measured
+  // 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes) and ratcheted like
+  // the compressed rows: bank an improvement by lowering the number.
+  for (const [file, max] of Object.entries(budget.native ?? {})) {
+    if (file.startsWith('_')) continue;
+    const p = path.join(distDir, file);
+    if (!fs.existsSync(p)) continue; // presence is checked by the export gate above
+    const size = fs.statSync(p).size;
+    if (size > max) {
+      budgetFailures.push(`${file} is ${size.toLocaleString()} B, over budget of ${max.toLocaleString()} B`);
     }
   }
 

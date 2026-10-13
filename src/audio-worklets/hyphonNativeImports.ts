@@ -1,6 +1,8 @@
 // Shared Emscripten import wiring for hyphon_native.wasm inside AudioWorklets.
-// Open303, Prophecy, and the analog drumkit instantiate the same threaded WASM
-// module; memory imports use the minified namespace "a" / name "a", not env.memory.
+// Open303, Prophecy, and the analog drumkit instantiate the same WASM module.
+// emscripten/build.sh links with -lexports.js, so import/export names are not
+// minified (env.memory, emscripten_resize_heap, …); the single-letter aliases
+// below only matter for an old minified build still sitting in a cache.
 
 /** WebAssembly page size (64 KiB). */
 const WASM_PAGE_BYTES = 65536;
@@ -384,27 +386,14 @@ export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<stri
     _emscripten_get_now_is_monotonic: () => 1,
     __emscripten_init_main_thread_js: () => {},
     __emscripten_thread_cleanup: () => {},
-    _embind_register_function: () => {},
-    _embind_register_void: () => {},
-    _embind_register_bool: () => {},
-    _embind_register_std_string: () => {},
-    _embind_register_std_wstring: () => {},
-    _embind_register_emval: () => {},
-    _embind_register_integer: () => {},
-    _embind_register_bigint: () => {},
-    _embind_register_float: () => {},
-    _embind_register_memory_view: () => {},
-
-    // hyphon_native.wasm links emscripten/main.cpp (the Pyodide bootstrap
-    // orchestrator) alongside the DSP wrappers, so these come along even
-    // though no worklet code path calls them. Explicit implementations here
-    // are overrides on top of the derived import table; a *new* Emscripten
-    // symbol no longer requires a source edit (see installDerivedFunctionStubs).
-    //
-    // main() runs on the main thread through the Emscripten glue; in a worklet
-    // it must not run at all, hence the inert implementations.
-    emscripten_run_script: () => 0,
+    // hyphon_native has no main(), no embind and no emscripten_run_script any more
+    // (the Pyodide bootstrap left with emscripten/main.cpp). What remains below
+    // is the runtime the pthread profile still imports. Explicit implementations
+    // are overrides on top of the derived import table; a *new* Emscripten symbol
+    // no longer requires a source edit (see installDerivedFunctionStubs).
     exit: () => {},
+    // The voice TUs build with -fno-exceptions, so a current binary never imports
+    // this; a stale cached one must still fail loudly rather than run on a no-op.
     __cxa_throw: (ptr: number, type: number, destructor: number) => {
       throw new Error(
         `${logPrefix} C++ exception thrown in WASM ` +

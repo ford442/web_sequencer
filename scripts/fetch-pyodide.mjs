@@ -13,8 +13,9 @@
  *   pnpm run vendor:pyodide -- --force        # re-download over an existing copy
  *   PYODIDE_BASE_URL=https://mirror/... pnpm run vendor:pyodide
  *
- * The version comes from emscripten/toolchain.json#pyodide.version — the same
- * place emscripten/pyodide_bootstrap.js reads it from, so the two cannot drift.
+ * The version comes from emscripten/toolchain.json#pyodide.version.
+ * src/pyodide/bootstrap.ts loads whatever this vendors, so there is one version
+ * to bump.
  */
 import fs from 'node:fs';
 import path from 'node:path';

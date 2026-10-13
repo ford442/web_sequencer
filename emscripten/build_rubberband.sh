@@ -34,16 +34,8 @@ esac
 
 echo "🔨 Building Rubber Band (standalone module, profile=$BUILD_PROFILE)..."
 
-# Source Emscripten, same candidate list as build.sh.
-CANDIDATES=(
-    "/content/build_space/emsdk/emsdk_env.sh"
-    "$REPO_ROOT/emsdk/emsdk_env.sh"
-    "$HOME/emsdk/emsdk_env.sh"
-    "/usr/local/emsdk/emsdk_env.sh"
-)
-for f in "${CANDIDATES[@]}"; do
-    if [ -f "$f" ]; then source "$f"; break; fi
-done
+# The pinned Emscripten (emscripten/toolchain.json), or fail.
+source "$SCRIPT_DIR/toolchain_env.sh"
 
 SOURCE_DIR="$REPO_ROOT/rubberband"
 if [ ! -d "$SOURCE_DIR/src" ]; then

@@ -3,6 +3,7 @@ import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { Toast } from '../Toast'
 import { CrashRecoveryPrompt } from '@/components/CrashRecoveryPrompt'
 import { StartOverlay } from '../StartOverlay'
+import { useHyphonNativeReady } from '../../hooks/useHyphonNativeReady'
 import { LoadingOverlay } from '../LoadingOverlay'
 import { AISongImportOverlay } from '../AISongImportOverlay'
 
@@ -63,6 +64,7 @@ function useWebGpuAdapterAvailable(): boolean {
 export const StartOverlayNode = React.memo(() => {
     const { hasStarted, handleStart, isPyodideReady, pyodideStatus } = useAppStateSlice(START_KEYS)
     const hasWebGpu = useWebGpuAdapterAvailable()
+    const hasNativeModule = useHyphonNativeReady()
     if (hasStarted) return null
     return (
         <StartOverlay
@@ -70,11 +72,7 @@ export const StartOverlayNode = React.memo(() => {
             isPyodideReady={isPyodideReady}
             pyodideStatus={pyodideStatus}
             hasWebGpu={hasWebGpu}
-            hasNativeModule={
-                typeof globalThis !== 'undefined'
-                && !!(globalThis as { Module?: unknown }).Module
-                || !!(globalThis as { hyphonPyodideReady?: boolean }).hyphonPyodideReady
-            }
+            hasNativeModule={hasNativeModule}
         />
     )
 })

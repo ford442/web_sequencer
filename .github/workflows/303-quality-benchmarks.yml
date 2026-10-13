@@ -34,10 +34,15 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Read Emscripten pin
+        # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
+        id: emsdk-pin
+        run: echo "version=$(jq -r .emscripten.version emscripten/toolchain.json)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.51
+          version: ${{ steps.emsdk-pin.outputs.version }}
           no-cache: false
 
       - name: Install dependencies
@@ -53,21 +58,22 @@ jobs:
             src/wasm/
             public/hyphon_native.js
             public/hyphon_native.wasm
-            public/hyphon_native.worker.js
             public/hyphon_wasm_export_map.json
+            public/hyphon_native.st.js
+            public/hyphon_native.st.wasm
+            public/hyphon_wasm_export_map.st.json
             public/jc303-single.js
             public/jc303-single.wasm
             public/jc303-single-worklet.js
             public/jc303-threaded.js
             public/jc303-threaded.wasm
-            public/jc303-threaded.worker.js
             public/jc303-threaded-worklet.js
             public/rust-wasm/
             rust-audio/target
             jc303_wasm/wasm/build_threaded
             jc303_wasm/wasm/build_single
             .cache/native/
-          key: native-${{ runner.os }}-emcc3.1.51-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed
@@ -101,10 +107,15 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Read Emscripten pin
+        # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
+        id: emsdk-pin
+        run: echo "version=$(jq -r .emscripten.version emscripten/toolchain.json)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.51
+          version: ${{ steps.emsdk-pin.outputs.version }}
           no-cache: false
 
       - name: Install dependencies
@@ -120,21 +131,22 @@ jobs:
             src/wasm/
             public/hyphon_native.js
             public/hyphon_native.wasm
-            public/hyphon_native.worker.js
             public/hyphon_wasm_export_map.json
+            public/hyphon_native.st.js
+            public/hyphon_native.st.wasm
+            public/hyphon_wasm_export_map.st.json
             public/jc303-single.js
             public/jc303-single.wasm
             public/jc303-single-worklet.js
             public/jc303-threaded.js
             public/jc303-threaded.wasm
-            public/jc303-threaded.worker.js
             public/jc303-threaded-worklet.js
             public/rust-wasm/
             rust-audio/target
             jc303_wasm/wasm/build_threaded
             jc303_wasm/wasm/build_single
             .cache/native/
-          key: native-${{ runner.os }}-emcc3.1.51-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed

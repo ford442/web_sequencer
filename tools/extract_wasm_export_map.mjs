@@ -14,6 +14,14 @@ import path from 'node:path';
  * Exported so tools/check_wasm_export_map.mjs can re-derive the map from the
  * glue and diff it against the committed JSON.
  */
+/**
+ * `Module["_name"] = [createExportWrapper("name", ]wasmExports["minified"]`.
+ * Group 2 is the `_`-prefixed name, group 4 the wasm export.
+ * Kept in step with parseHyphonGlueExportMap in src/utils/engineTelemetry.ts.
+ */
+export const GLUE_EXPORT_ASSIGNMENT =
+  /Module\[(["'])(_[^"']+)\1\]\s*=\s*(?:createExportWrapper\(\s*["'][^"']+["']\s*,\s*)?wasmExports\[(["'])([^"']+)\3\]/g;
+
 export function parseExportMap(js) {
   const map = {};
 
@@ -24,15 +32,12 @@ export function parseExportMap(js) {
   //   _open303_create = Module["_open303_create"] = wasmExports["open303_create"];
   // The single-threaded glue (hyphon_native.st.js) emits single quotes instead:
   //   _open303_create = Module['_open303_create'] = wasmExports['open303_create'];
-  const patterns = [
-    /Module\[(["'])(_[^"']+)\1\]\s*=\s*wasmExports\[(["'])([^"']+)\3\]/g,
-  ];
-
-  for (const re of patterns) {
-    let match;
-    while ((match = re.exec(js)) !== null) {
-      map[match[2].slice(1)] = match[4];
-    }
+  // Debug (ASSERTIONS) glue on emcc 6.x wraps each export:
+  //   _open303_create = Module["_open303_create"] = createExportWrapper("open303_create", wasmExports["open303_create"], 0);
+  const re = GLUE_EXPORT_ASSIGNMENT;
+  let match;
+  while ((match = re.exec(js)) !== null) {
+    map[match[2].slice(1)] = match[4];
   }
 
   return map;
