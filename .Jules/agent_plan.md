@@ -3,7 +3,7 @@
 ## Active Backlog
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
 - [x] Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
-- Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
+- [x] Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
 - [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
@@ -189,3 +189,7 @@
   - The effect tracks the pitch of the primary TTS output via zero-crossings, generates a synthetic carrier wave (sawtooth), and amplitude-modulates it using an envelope follower driven by the dry TTS signal.
   - Plumbed the `vocoder` parameter through the UI, types, and hooks, enabling sequencing via the Synth Granular Effects overlay.
   - Velocity Check: Bypassing true dual-engine cross-synthesis in favor of a synthetic carrier successfully achieved the vocoder aesthetic with near-zero CPU overhead when bypassed, respecting the hot-path processing budget. Added "Explore using a noise generator for unvoiced vocoder consonants" to the Innovation Lab.
+- Completed "Per-track loop length for the lyric track" by correctly reading track loop lengths in `useLyricHandlers.ts` when automatically placing text/lyrics. Now, generating a phrase for a sampler bank with a custom loop length limits notes to that segment of the grid, honoring the existing boundaries instead of defaulting to the global measure stepCount.
+- Velocity Check: Resolving sequence bounds required referencing `trackLoopLength` rather than `transportMixStore.getSnapshot().stepCount`. Easy change utilizing existing utility functions.
+
+- Added "Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession" to the Innovation Lab.
