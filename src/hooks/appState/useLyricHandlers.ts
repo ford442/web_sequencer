@@ -144,25 +144,27 @@ export function useLyricHandlers(deps: {
             const newCH = { ...newPattern.closedHat, steps: [...newPattern.closedHat.steps] };
             const newOH = { ...newPattern.openHat, steps: [...newPattern.openHat.steps] };
             const meter = transportMixStore.getSnapshot();
-
-            newKick.steps = Array<Note | null>(trackLoopLength(meter, 'kick')).fill(null);
-            newSnare.steps = Array<Note | null>(trackLoopLength(meter, 'snare')).fill(null);
-            newCH.steps = Array<Note | null>(trackLoopLength(meter, 'closedHat')).fill(null);
-            newOH.steps = Array<Note | null>(trackLoopLength(meter, 'openHat')).fill(null);
-
+            const kickSteps = trackLoopLength(meter, 'kick');
+            const snareSteps = trackLoopLength(meter, 'snare');
+            const chSteps = trackLoopLength(meter, 'closedHat');
+            const ohSteps = trackLoopLength(meter, 'openHat');
+            newKick.steps = Array<Note | null>(kickSteps).fill(null);
+            newSnare.steps = Array<Note | null>(snareSteps).fill(null);
+            newCH.steps = Array<Note | null>(chSteps).fill(null);
+            newOH.steps = Array<Note | null>(ohSteps).fill(null);
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
-                const stepIdx = timeToStep(p.start, tempoRef.current, transportMixStore.getSnapshot().swing);
+                const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
                 const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
-                    const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
-                    const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
-                    const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
-                    const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
-                    if (isVowel) { if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                    else if (isSnare) { if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                    else if (isOpenHat) { if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                    else if (isHat) { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                    else { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 }; }
+                const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
+                const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
+                const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
+                const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
+                if (isVowel) { if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isSnare) { if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isOpenHat) { if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isHat) { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 }; }
             }
             newPattern.kick = newKick;
             newPattern.snare = newSnare;
