@@ -105,36 +105,40 @@ export default mergeConfig(
       },
     },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         external: ['loader.mjs'],
         output: {
           // react/react-dom change far less often than app code, so pin them to
           // their own chunk for long-term browser caching across deploys.
           // three.js, the RBS importer/exporter and XM export are reachable only
           // via dynamic import() — Studio3D and the route-split modals in
-          // App.tsx — so Rollup's default code-splitting already isolates them
-          // and they need no entry here. onnxruntime-web is equally async-only
-          // (src/services/ortRuntime.ts) but IS named, because a stable chunk
-          // name is what dist-budget.json needs to hold it to a size. Naming a
-          // chunk assigns it an identity; it does not make it eager.
-          // Vite 8 equivalent: build.rolldownOptions.output.codeSplitting.groups
-          //   [{ name: 'vendor-react', test: /node_modules\/(react|react-dom|scheduler)\// },
-          //    { name: 'vendor-onnx',  test: /node_modules\/onnxruntime-web\// }]
-          // Object-form manualChunks is removed in Vite 8 and function-form is
-          // deprecated there, so this is written in the shape that survives the
-          // migration. Keep the group set small: over-eager grouping makes caching
+          // App.tsx — so the bundler's default code-splitting already isolates
+          // them and they need no group here. onnxruntime-web is equally
+          // async-only (src/services/ortRuntime.ts) but IS named, because a
+          // stable chunk name is what dist-budget.json needs to hold it to a
+          // size. Naming a chunk assigns it an identity; it does not make it
+          // eager. Keep the group set small: over-eager grouping makes caching
           // worse, because one transitive patch invalidates a shared chunk.
-          manualChunks(id) {
-            if (/[/\\]node_modules[/\\](react|react-dom|scheduler)[/\\]/.test(id)) {
-              return 'vendor-react';
-            }
-            // Naming ORT's chunk does not make it eager — every consumer reaches
-            // it through a dynamic import() in src/services/ortRuntime.ts. The
-            // stable name is what lets dist-budget.json hold it to a size, and
-            // check-release-dist.mjs asserts it stays out of the entry graph.
-            if (/[/\\]node_modules[/\\]onnxruntime-web[/\\]/.test(id)) {
-              return 'vendor-onnx';
-            }
+          //
+          // These groups apply to the main build only. Workers and AudioWorklets
+          // (`?worker&url`) are separate builds configured by `worker` in
+          // vitest.shared.ts, and check-release-dist.mjs asserts each worklet
+          // still ships as one self-contained chunk.
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-react',
+                test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              },
+              // Naming ORT's chunk does not make it eager — every consumer
+              // reaches it through a dynamic import() in
+              // src/services/ortRuntime.ts. check-release-dist.mjs asserts it
+              // stays out of the entry graph.
+              {
+                name: 'vendor-onnx',
+                test: /[\\/]node_modules[\\/]onnxruntime-web[\\/]/,
+              },
+            ],
           },
         },
       },
