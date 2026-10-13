@@ -5,7 +5,7 @@
 // single AudioWorkletGlobalScope, on the one render thread. Open303 (bass1 /
 // bass2 / lead303, plus their lazily created live high-fid voices) and Prophecy
 // (part A / part B) used to instantiate the module once per processor, and each
-// instantiation imported its own 128 MB `shared: true` WebAssembly.Memory — five
+// instantiation imported its own `shared: true` WebAssembly.Memory — five
 // SharedArrayBuffers before a note played. The C wrappers already expose
 // multi-instance handles (open303_create / jc303_create / prophecy_create /
 // highfid303_create), so the processors now take handles on one instance instead.

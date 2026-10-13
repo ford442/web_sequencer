@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
+import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
 
 // Mock WebAssembly.compile and Module.imports to avoid needing a real WASM binary.
 // Re-stubbed per test because afterEach unstubs the environment globals below.
@@ -222,7 +223,7 @@ describe('Open303 Oscillator', () => {
             await engine.init(mockAudioContext, 'worklet-url.js');
 
             expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.wasm$/)]);
-            expect(initMessage().data).toMatchObject({ isThreaded: true, variant: 'pthread', memoryPages: 2048 });
+            expect(initMessage().data).toMatchObject({ isThreaded: true, variant: 'pthread', memoryPages: HYPHON_NATIVE_MIN_MEMORY_PAGES });
             expect(engine.isFallback).toBe(false);
         });
 

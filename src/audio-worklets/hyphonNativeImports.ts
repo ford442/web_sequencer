@@ -16,13 +16,14 @@ const WASM_PAGE_BYTES = 65536;
  * is below the module's declared minimum fails instantiation outright.
  * src/__tests__/wasmMemoryBudget.test.ts enforces the match in CI.
  *
- * 128 MB rather than the previous 512 MB — see
- * docs/wasm/BUILD_NOTES.md#four-worlds-memory-budget. A 512 MB `shared: true`
+ * 32 MB (was 128 MB, before that 512 MB) — measured: the full live voice set
+ * peaks at 8.5 MB, 8 MB of it stack (wasm_memory_budget.json#hyphonNative,
+ * docs/wasm/BUILD_NOTES.md#four-worlds-memory-budget). A large `shared: true`
  * allocation is a frequent SharedArrayBuffer failure on mobile Safari and low-RAM
  * Chromebooks even with correct COOP/COEP; the module grows on demand up to
  * HYPHON_NATIVE_MAX_MEMORY_PAGES.
  */
-export const HYPHON_NATIVE_MIN_MEMORY_PAGES = (128 * 1024 * 1024) / WASM_PAGE_BYTES; // 2048
+export const HYPHON_NATIVE_MIN_MEMORY_PAGES = (32 * 1024 * 1024) / WASM_PAGE_BYTES; // 512
 
 /** Growth ceiling, matching -s MAXIMUM_MEMORY in emscripten/build.sh (1 GB). */
 export const HYPHON_NATIVE_MAX_MEMORY_PAGES = (1024 * 1024 * 1024) / WASM_PAGE_BYTES; // 16384
