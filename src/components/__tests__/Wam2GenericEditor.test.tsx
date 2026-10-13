@@ -86,7 +86,7 @@ describe('Wam2GenericEditor', () => {
     await user.tab();
     expect(screen.getByRole('spinbutton', { name: 'Cutoff value' })).toHaveFocus();
     await user.tab();
-    expect(screen.getAllByRole('button', { name: 'Automate' })[0]).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Automate Cutoff' })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('slider', { name: 'Gain' })).toHaveFocus();
   });
@@ -129,7 +129,7 @@ describe('Wam2GenericEditor', () => {
   it('creates an automation lane on the existing wam target', async () => {
     const user = userEvent.setup();
     render(<Wam2GenericEditor host={makeHost()} slotId="slot-1" descriptor={descriptor} />);
-    await user.click(screen.getAllByRole('button', { name: 'Automate' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Automate Cutoff' }));
 
     const lanes = automationStore.getState().lanes;
     expect(lanes).toHaveLength(1);
@@ -144,7 +144,7 @@ describe('Wam2GenericEditor', () => {
   it('does not create a duplicate lane for the same param', async () => {
     const user = userEvent.setup();
     render(<Wam2GenericEditor host={makeHost()} slotId="slot-1" descriptor={descriptor} />);
-    const automate = screen.getAllByRole('button', { name: 'Automate' })[0];
+    const automate = screen.getByRole('button', { name: 'Automate Cutoff' });
     await user.click(automate);
     await user.click(automate);
     expect(automationStore.getState().lanes).toHaveLength(1);
