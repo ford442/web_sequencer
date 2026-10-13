@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { Toast } from '../Toast'
 import { CrashRecoveryPrompt } from '@/components/CrashRecoveryPrompt'
@@ -38,15 +38,38 @@ export const CrashRecoveryNode = React.memo(() => {
 
 const START_KEYS = ['hasStarted', 'handleStart', 'isPyodideReady', 'pyodideStatus'] as const
 
+/**
+ * True only when WebGPU can actually be used: `navigator.gpu` exists AND
+ * `requestAdapter()` resolves to an adapter. `'gpu' in navigator` alone is true
+ * on machines with no usable GPU, which made the splash claim WebGPU was ready
+ * right before the app fell back to JS (#1396).
+ */
+function useWebGpuAdapterAvailable(): boolean {
+    const [available, setAvailable] = useState(false)
+    useEffect(() => {
+        let cancelled = false
+        const gpu = typeof navigator !== 'undefined'
+            ? (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
+            : undefined
+        if (!gpu) return
+        gpu.requestAdapter()
+            .then((adapter) => { if (!cancelled) setAvailable(adapter != null) })
+            .catch(() => { if (!cancelled) setAvailable(false) })
+        return () => { cancelled = true }
+    }, [])
+    return available
+}
+
 export const StartOverlayNode = React.memo(() => {
     const { hasStarted, handleStart, isPyodideReady, pyodideStatus } = useAppStateSlice(START_KEYS)
+    const hasWebGpu = useWebGpuAdapterAvailable()
     if (hasStarted) return null
     return (
         <StartOverlay
             onStart={() => void handleStart()}
             isPyodideReady={isPyodideReady}
             pyodideStatus={pyodideStatus}
-            hasWebGpu={typeof navigator !== 'undefined' && 'gpu' in navigator}
+            hasWebGpu={hasWebGpu}
             hasNativeModule={
                 typeof globalThis !== 'undefined'
                 && !!(globalThis as { Module?: unknown }).Module
