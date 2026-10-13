@@ -70,7 +70,16 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
     private lastMetrics: QualityMetrics | null = null;
     
     // Statistics for throttled reporting
-    private pendingArtifacts: ArtifactDetection[] = [];
+    private readonly maxPendingArtifacts = 32;
+    private pendingArtifactsCount = 0;
+    private pendingArtifactsPool: ArtifactDetection[] = Array.from({ length: 32 }, () => ({
+        detected: false,
+        severity: 0,
+        type: 'none',
+        timestamp: 0,
+        frequencyRegion: undefined,
+        metadata: undefined
+    }));
     private qualitySum: number = 0;
     private qualityCount: number = 0;
 
@@ -92,7 +101,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
         quality: 1.0,
         artifactRate: 0,
         averageSeverity: 0,
-        pendingArtifacts: this.pendingArtifacts
+        pendingArtifacts: [] as ArtifactDetection[]
     };
 
     constructor() {
@@ -170,7 +179,7 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 }
                 this.dryBuffer = null;
                 this.dryBufferIndex = 0;
-                this.pendingArtifacts.length = 0;
+                this.pendingArtifactsCount = 0;
                 this.port.postMessage({ type: 'historyCleared' });
                 break;
 
@@ -262,15 +271,26 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
                 this.artifactDetectedMessage.detection.metadata = detection.metadata;
                 this.port.postMessage(this.artifactDetectedMessage);
             } else {
-                // Queue for batch reporting (clone to avoid reference issues)
-                this.pendingArtifacts.push({
-                    detected: detection.detected,
-                    severity: detection.severity,
-                    type: detection.type,
-                    timestamp: detection.timestamp,
-                    frequencyRegion: detection.frequencyRegion,
-                    metadata: detection.metadata ? { ...detection.metadata } : undefined
-                });
+                // Queue for batch reporting (avoid allocations)
+                if (this.pendingArtifactsCount < this.maxPendingArtifacts) {
+                    const pooled = this.pendingArtifactsPool[this.pendingArtifactsCount++];
+                    pooled.detected = detection.detected;
+                    pooled.severity = detection.severity;
+                    pooled.type = detection.type;
+                    pooled.timestamp = detection.timestamp;
+                    pooled.frequencyRegion = detection.frequencyRegion;
+                    if (detection.metadata) {
+                        if (!pooled.metadata) pooled.metadata = {};
+                        else {
+                            for (const key in pooled.metadata) {
+                                delete (pooled.metadata as any)[key];
+                            }
+                        }
+                        Object.assign(pooled.metadata, detection.metadata);
+                    } else {
+                        pooled.metadata = undefined;
+                    }
+                }
             }
         }
 
@@ -329,15 +349,19 @@ class ArtifactDetectorProcessor extends AudioWorkletProcessor {
             ? this.qualitySum / this.qualityCount 
             : 1.0;
 
-        // Update pre-allocated message. pendingArtifacts stays the same array
-        // reference; structured clone captures current contents before we clear.
+        // Update pre-allocated message.
+        // We slice the pool array so `postMessage` only sends the active elements.
+        // Array.prototype.slice does allocate a new array, but since this runs
+        // at the report interval (e.g., every 100ms) rather than per-quantum,
+        // it avoids degrading the real-time audio budget.
         this.reportMessage.quality = avgQuality;
         this.reportMessage.artifactRate = stats.artifactRate;
         this.reportMessage.averageSeverity = stats.averageSeverity;
+        this.reportMessage.pendingArtifacts = this.pendingArtifactsPool.slice(0, this.pendingArtifactsCount);
         this.port.postMessage(this.reportMessage);
 
         // Reset accumulators
-        this.pendingArtifacts.length = 0;
+        this.pendingArtifactsCount = 0;
         this.qualitySum = 0;
         this.qualityCount = 0;
     }

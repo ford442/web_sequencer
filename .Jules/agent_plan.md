@@ -3,7 +3,7 @@
 ## Active Backlog
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
 - [x] Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
-- Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
+- [x] Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
 - [x] Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - [x] Implement phrase-based pitch transposition in Lyric Track.
 - [x] Investigate and fix reverse playback in `rubberband-processor.ts` for TTS/sampling.
@@ -48,7 +48,7 @@
 - [x] What if we could apply an LFO to the TTS formant shift directly from the step sequencer?
 - [x] Explore overlapping stereo grains (true OLA instead of one looped grain)
 - [x] Explore linking grain pan to phoneme voicing (vowels wider than consonants) without a new SAB field
-- Explore using a noise generator for unvoiced vocoder consonants.
+- [x] Explore using a noise generator for unvoiced vocoder consonants.
 - [x] Experiment with non-linear grain panning (e.g. spiral LFO paths for spectral bands during freeze)
 - [rejected] Evaluate real-time cross-synthesis by injecting a secondary ringbuffer signal into the granulator envelope - Causes too much CPU strain and GC pressure in the hot path.
 - [x] Evaluate real-time cross-modulation between two TTS engines to create a vocoder-like effect.
@@ -66,8 +66,11 @@
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
+- Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
 - Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
+- Completed "Explore using a noise generator for unvoiced vocoder consonants." I modified the `VocoderEffect` class in the `RubberBandProcessor` to no longer skip unvoiced consonants (`isVowel <= 0`). Instead, it uses a lightweight LCG pseudo-random noise generator to produce white noise, which is then shaped by a simple 1-pole high-pass filter (to remove low-end rumble). This noise is amplitude-modulated by the original unvoiced consonant's envelope, allowing the vocoder effect to seamlessly articulate sibilants and plosives without requiring additional complex carrier waves. Added "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity." to the Innovation Lab.
+- Velocity Check: Expanding the vocoder to include unvoiced consonants using a simple LCG random number generator avoids the overhead of reading from a noise buffer or using `Math.random()`, keeping the hot path highly optimized.
 - Completed "Explore dynamic spatialization routing per phoneme" task from the Innovation Lab backlog.
 - Built `SpatialRouter` AudioWorklet processor that splits spatialization logic: consonants are hard-panned left or right deterministically based on their phoneme index hash, while vowels dynamically increase stereo width based on phoneme intensity/volume using mid-side processing. Added smooth interpolation to prevent clicking.
 - Wired `spatialRouting` amount parameter through `RubberBandProcessor`, `SingingVoice`, types, and exposed via the UI sequencer overlays.
@@ -186,3 +189,9 @@
   - The effect tracks the pitch of the primary TTS output via zero-crossings, generates a synthetic carrier wave (sawtooth), and amplitude-modulates it using an envelope follower driven by the dry TTS signal.
   - Plumbed the `vocoder` parameter through the UI, types, and hooks, enabling sequencing via the Synth Granular Effects overlay.
   - Velocity Check: Bypassing true dual-engine cross-synthesis in favor of a synthetic carrier successfully achieved the vocoder aesthetic with near-zero CPU overhead when bypassed, respecting the hot-path processing budget. Added "Explore using a noise generator for unvoiced vocoder consonants" to the Innovation Lab.
+- Added a new idea to the Innovation Lab: "Explore dynamically linking step lengths to phoneme duration".
+- Velocity Check: Applying `trackLoopLength` seamlessly integrated per-track constraints into the TTS text-to-drums and lyric mapper routines, preventing misalignment on polyrhythmic songs.
+- Completed "Per-track loop length for the lyric track" by correctly reading track loop lengths in `useLyricHandlers.ts` when automatically placing text/lyrics. Now, generating a phrase for a sampler bank with a custom loop length limits notes to that segment of the grid, honoring the existing boundaries instead of defaulting to the global measure stepCount.
+- Velocity Check: Resolving sequence bounds required referencing `trackLoopLength` rather than `transportMixStore.getSnapshot().stepCount`. Easy change utilizing existing utility functions.
+
+- Added "Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession" to the Innovation Lab.
