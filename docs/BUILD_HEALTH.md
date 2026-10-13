@@ -75,3 +75,20 @@ From `deploy.py`:
 - Real-browser boot: WebGPU knob render, AudioContext init, Pyodide load (headless container — needs Playwright/manual).
 - Live deploy (dry-run only; no upload performed).
 - Full WASM recompilation (emcc/binaryen/wasmedge absent; verified the committed artifacts bundle correctly instead).
+
+---
+
+## 2026-10-13 — CI green + live-issue triage (branch `fix/ci-green-2026-10-12`)
+
+Baseline: `main` `242750b`. `tsc -b` clean; `lint:ratchet` failed `no-explicit-any` 297→298 and `no-unsafe-member-access` 447→448 (both `artifact-detector-processor.ts:286`); `Test Performance` red 7/7 on a missing `public/rubberband.wasm`.
+
+- **Lint ratchet:** typed delete (`Record<string, number>`), ratchet OK, baseline unchanged. `test:unit` 245 files / 2128 tests pass.
+- **Perf tier:** `test-perf.yml` now installs emsdk 3.1.51 and builds `rubberband.wasm` (cached). Local run with emcc 3.1.51: `test:perf` 7 files / 38 tests pass, `perf-summary.json` written. The perf tier still builds real WASM — no stub (`docs/PERFORMANCE_BUDGET.md`).
+- **Fresh dist:** `vendor:pyodide` + `build:release:changed` (all 8 native worlds matched their stamps) → `check-release-dist` OK, entry JS 256,189 / 262,000 B brotli. A dist without `dist/pyodide/` only *warns* in the gate and boots to a disabled button — still the case.
+- **Toolchain note:** the dev VM's `/root/emsdk` has emcc 6.0.6, not the CI pin 3.1.51. The rubberband build was verified with a separate 3.1.51 install (build script sources `$HOME/emsdk`).
+- **Live site:** `test.1ink.us/hyphon` `Last-Modified` 2026-06-15; `go.1ink.us/hyphon` 2026-03-06. Nothing merged since June has been deployed.
+- **Triage (`tests/live-issue-triage.spec.ts`, Chromium/Firefox/WebKit):** #1389, #1390, #1391, #1392, #1393 do not reproduce. #1396 reproduced (splash gated on `'gpu' in navigator`, not on an adapter) and is fixed. #1395 reproduces in part (REC dots over the oscillator selector at 1280×720) and is left failing on purpose. #1394 is the cloud host's TLS (`https://storage.noahcohn.com:8000/` → `ERR_SSL_PROTOCOL_ERROR`); #1397 is a feature request.
+- **Seen in passing, not in the nine issues:** `Failed to load ./assets/saw.wav / square.wav EncodingError: Unable to decode audio data`, and `Supertonic Init Failed: Unexpected token '<'` (a model fetch is getting an HTML page) on the preview build.
+- **CI E2E on the PR (run 38359994310):** 85 passed / 5 failed. #1395 failed on all three browsers (expected). Headless **Firefox on CI also fails #1389** — transport step stays `-1` and no step highlight appears — which matches open issue #1372 (the AudioContext clock does not run in headless CI Firefox); Chromium and WebKit advance. Locally Firefox advanced. #1390 failed on Firefox only because of the harness (see next bullet) and was reworked.
+- **E2E harness notes:** Firefox's SVG hit-testing releases a live-keyboard key held near its bottom edge (the pressed face shifts 3 px away from the pointer; press at 85% height never holds, 70% holds, 50% flickers) — observed, not investigated, minor; the #1390 test dispatches mousedown/mouseup on the key instead of driving `page.mouse`.
+- **E2E harness notes (continued):** the live keyboard keys sit in an `aria-hidden` SVG (role queries can't see them); WebKit returns `""` for `innerText` on `role=status`; WebKit's boot is occasionally flaky on its first attempt (passes on the project's configured retry).
