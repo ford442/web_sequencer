@@ -152,21 +152,19 @@ export function useLyricHandlers(deps: {
             newSnare.steps = Array<Note | null>(snareSteps).fill(null);
             newCH.steps = Array<Note | null>(chSteps).fill(null);
             newOH.steps = Array<Note | null>(ohSteps).fill(null);
-                        for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+            for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
-                if (stepIdx >= 0) {
-                    const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
-                    const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
-                    const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
-                    const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
-                    const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
-                    if (isVowel && stepIdx < kickSteps) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
-                    else if (isSnare && stepIdx < snareSteps) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
-                    else if (isOpenHat && stepIdx < ohSteps) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
-                    else if (isHat && stepIdx < chSteps) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
-                    else if (stepIdx < chSteps) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
-                }
+                const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
+                const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
+                const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
+                const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
+                const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
+                if (isVowel) { if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isSnare) { if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isOpenHat) { if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else if (isHat) { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
+                else { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 }; }
             }
             newPattern.kick = newKick;
             newPattern.snare = newSnare;
@@ -235,9 +233,11 @@ export function useLyricHandlers(deps: {
             let newPattern: Pattern;
             const alignment = audioEngine?.getAlignment?.(bankIdx);
 
+            const meter = transportMixStore.getSnapshot();
+            const trackLength = trackLoopLength(meter, 'sampler');
+
             if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
-                                const stepCount = trackLoopLength(transportMixStore.getSnapshot(), 'sampler');
-                const newSteps = new Array<Note | null>(stepCount).fill(null);
+                const newSteps = new Array<Note | null>(trackLength).fill(null);
 
                 let currentPitchIdx = 0;
                 let lastPhonemeEnd = 0;
@@ -253,7 +253,7 @@ export function useLyricHandlers(deps: {
                         }
                     }
 
-                    if (startStep >= 0 && startStep < stepCount) {
+                    if (startStep >= 0 && startStep < trackLength) {
                         const endStep = timeToStep(p.end, tempoRef.current, transportMixStore.getSnapshot().swing);
                         const durationSteps = Math.max(1, endStep - startStep);
                         newSteps[startStep] = {
@@ -276,7 +276,7 @@ export function useLyricHandlers(deps: {
                     sampler: newSampler,
                 };
             } else {
-                newPattern = updateSamplerRange(prev, bankIdx, 0, trackLoopLength(transportMixStore.getSnapshot(), 'sampler') - 1, (stepData) => {
+                newPattern = updateSamplerRange(prev, bankIdx, 0, trackLength - 1, (stepData) => {
                     if (stepData && stepData.velocity > 0) {
                         const newStep = { ...stepData, sliceIndex: noteIndex };
                         noteIndex++;
@@ -291,7 +291,7 @@ export function useLyricHandlers(deps: {
                 const alignment = audioEngine?.getAlignment?.(activeSamplerBankRef.current);
                 if (alignment && alignment.phonemes && alignment.phonemes.length > 0) {
                                         const newSamplerSequence = [...newPattern.sampler];
-                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: padSteps([...newSamplerSequence[bankIdx].steps], trackLoopLength(transportMixStore.getSnapshot(), 'sampler')) };
+                    const currentBankSequence = { ...newSamplerSequence[bankIdx], steps: padSteps([...newSamplerSequence[bankIdx].steps], trackLength) };
                     let currentPitchIdx = 0;
 
                     // Group phonemes into words/syllables based on pauses (simple heuristic)
@@ -304,7 +304,7 @@ export function useLyricHandlers(deps: {
 
                         // Treat as new syllable if there's a gap or it's the first phoneme
                         if (i === 0 || p.start - lastPhonemeEnd > 0.05) {
-                            if (stepIdx >= 0 && stepIdx < trackLoopLength(transportMixStore.getSnapshot(), 'sampler') && !currentBankSequence.steps[stepIdx]) {
+                            if (stepIdx >= 0 && stepIdx < trackLength && !currentBankSequence.steps[stepIdx]) {
                                 currentBankSequence.steps[stepIdx] = {
                                     note: pitches[currentPitchIdx] || 'C4',
                                     velocity: 1,
