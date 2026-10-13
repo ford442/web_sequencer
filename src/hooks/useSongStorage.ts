@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { Open303Manager } from '../engines/Open303Manager';
-import type { AudioEngine, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
+import type { Arrangement, AudioEngine, Pattern, SynthParams, KickParams, SnareParams, HatParams, SamplerParams, SamplerBankParams, PartSequence, SavedSongData, Bass2Params, DrumKitType, UnifiedAutomationLane, ResolvedTrakEvent } from '../types';
 import {
   migrateTrackStorage,
   deriveActiveTrackSlotsFromStructure,
@@ -23,6 +23,7 @@ import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { applyPcfFilterToEffect, convert303Waveform } from '../importers/rbs/applyImportedEngineState';
 import type { RbsArrangementExtras } from './appState/useSongModeState';
 import { migrateSavedSongSession } from '../session/migrate';
+import { normalizeArrangement, projectArrangement, songStructureToArrangement } from '../arrangement/model';
 import { getWamHost } from '../audio/wam';
 import {
     DEFAULT_PRESET_ID,
@@ -50,6 +51,8 @@ export interface SongStorageDeps {
     trackStorageRef: MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     activeTrackSlotsRef: MutableRefObject<Record<TrackKey, number>>;
     songStructureRef: MutableRefObject<({ [key in TrackKey]: number | null })[]>;
+    /** Linear arrangement (#1342) — saved as-is; `songStructure` is written as its projection. */
+    arrangementRef: MutableRefObject<Arrangement>;
     sessionDocumentRef?: MutableRefObject<import('../session/types').SessionDocument>;
     setSessionDocument?: (doc: import('../session/types').SessionDocument, recordUndo?: boolean) => void;
 
@@ -78,7 +81,8 @@ export interface SongStorageDeps {
     setSampler: React.Dispatch<React.SetStateAction<SamplerParams>>;
     setTrackStorage: React.Dispatch<React.SetStateAction<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>>;
     setActiveTrackSlots: React.Dispatch<React.SetStateAction<Record<TrackKey, number>>>;
-    setSongStructure: React.Dispatch<React.SetStateAction<({ [key in TrackKey]: number | null })[]>>;
+    /** Replaces the song record on load (not an edit: no lift, no undo entry). */
+    setArrangement: React.Dispatch<React.SetStateAction<Arrangement>>;
     setSampleBuffers: React.Dispatch<React.SetStateAction<(AudioBuffer | null)[]>>;
     setTtsPhrases: React.Dispatch<React.SetStateAction<string[]>>;
     setSongStorage: React.Dispatch<React.SetStateAction<(SongSnapshot | null)[]>>;
@@ -145,13 +149,13 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     const {
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        trackStorageRef, activeTrackSlotsRef, arrangementRef,
         sessionDocumentRef, setSessionDocument,
         ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
         songStorage, pattern, tempo, trackStorage,
         setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
         setSynthA, setSynthB, setBass2, setKick, setSnare, setClosedHat, setOpenHat, setSampler,
-        setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
+        setTrackStorage, setActiveTrackSlots, setArrangement, setSampleBuffers, setTtsPhrases,
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
@@ -202,7 +206,9 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             },
             trackStorage: trackStorageRef.current,
             activeTrackSlots: activeTrackSlotsRef.current,
-            songStructure: songStructureRef.current,
+            arrangement: arrangementRef.current,
+            // Song Mode projection for readers that predate the arrangement.
+            songStructure: projectArrangement(arrangementRef.current, meter.stepCount),
             session: sessionDocumentRef?.current,
             embeddedSamples: encodedSamples,
             ttsPhrases,
@@ -234,7 +240,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 presetId: DEFAULT_PRESET_ID,
             },
         } as SavedSongData;
-    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases, activeTrackSlotsRef, bass2Ref, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, patternRef, samplerRef, sessionDocumentRef, snareRef, songStructureRef, synthARef, synthBRef, tempoRef, trackStorageRef]);
+    }, [ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases, activeTrackSlotsRef, bass2Ref, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, patternRef, samplerRef, sessionDocumentRef, snareRef, arrangementRef, synthARef, synthBRef, tempoRef, trackStorageRef]);
 
     const getBankData = useCallback(() => {
         return { type: 'bank', trackStorage };
@@ -253,7 +259,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             if (songData.pattern) setPattern(songData.pattern);
             if (songData.tempo) setTempo(songData.tempo);
             // v1–v3 songs (no meter fields) resolve to 32 steps, 4/4, straight.
-            transportMixStore.applyMeter(resolveSongMeter(songData));
+            const meter = resolveSongMeter(songData);
+            transportMixStore.applyMeter(meter);
             if (songData.ambianceUrl !== undefined) setAmbianceUrl(songData.ambianceUrl);
             if (songData.backgroundImage !== undefined) setBackgroundImage(songData.backgroundImage);
             if (songData.params) {
@@ -293,9 +300,17 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                     ),
                 );
             }
-            if (songData.songStructure) {
+            // v5 songs carry the arrangement; v1–v4 get one clip per Song Mode cell.
+            const arrangement = normalizeArrangement(songData.arrangement)
+                ?? (Array.isArray(songData.songStructure)
+                    ? songStructureToArrangement(
+                        songData.songStructure as Array<Partial<Record<TrackKey, unknown>>>,
+                        meter.stepCount,
+                    )
+                    : null);
+            if (arrangement) {
                 clearSongUndo?.();
-                setSongStructure(songData.songStructure as unknown as ({ [key in TrackKey]: number | null })[]);
+                setArrangement(arrangement);
             }
             if (setSessionDocument) {
                 const migrated = migrateTrackStorage(songData.trackStorage ?? {});
@@ -367,7 +382,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 showToast("Pattern loaded!", "success");
             }
         }
-    }, [audioEngine, showToast, bass2Ref, clearSongUndo, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, samplerRef, setActiveTrackSlots, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampleBuffers, setSampler, setSessionDocument, setSnare, setSongStructure, setSynthA, setSynthB, setTempo, setTrackStorage, setTtsPhrases, snareRef, synthARef, synthBRef]);
+    }, [audioEngine, showToast, bass2Ref, clearSongUndo, closedHatRef, deps.rbsArrangementExtrasRef, deps.trakEventsRef, kickRef, openHatRef, samplerRef, setActiveTrackSlots, setAmbianceUrl, setBackgroundImage, setBass2, setClosedHat, setKick, setOpenHat, setPattern, setSampleBuffers, setSampler, setSessionDocument, setSnare, setArrangement, setSynthA, setSynthB, setTempo, setTrackStorage, setTtsPhrases, snareRef, synthARef, synthBRef]);
 
     const handleSaveSong = useCallback(async (slot: number) => {
         const encodedSamples: { [k: number]: string } = {};

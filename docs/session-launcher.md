@@ -9,7 +9,7 @@ Hyphon’s session view is a **non-linear clip launcher**. It does not start a s
 | Clip content | Pattern data stays in `trackStorage` slots; clips only *reference* `slotIndex` | `src/session/types.ts` |
 | Launch state machine | Queue, quantize, apply start/replace/stop | `src/session/SessionLaunchEngine.ts` |
 | UI focus | Grid keyboard / gamepad navigation | `src/session/gridKeyboard.ts`, `SessionLauncher.tsx` |
-| Arrangement capture | Live events → Song Mode measures | `src/session/capture.ts` |
+| Arrangement capture | Live events → arrangement clips | `src/session/capture.ts` |
 
 Stable clip ids: `c:{track}:{slot}` (migration). Scene ids: `s:{row}`.
 
@@ -32,7 +32,7 @@ Follow actions (at loop end): `next`, `previous`, `random`, `stop`, `repeat` (N 
 
 ## Conflict rules
 
-1. **Song Mode vs Session** — Enabling Song Mode playback stops session clips. A live clip/scene/MIDI/gamepad launch preempts Song Mode at the quantized boundary.
+1. **Linear player vs Session** — Arming the linear player (`LOOP SONG`; it plays the [arrangement](arrangement.md)) stops session clips. A live clip/scene/MIDI/gamepad launch preempts it at the quantized boundary.
 2. **Scene vs manual** — Later `requestSeq` wins. Equal seq: manual/MIDI/gamepad beats scene. Stop beats start.
 3. **Tracks are independent** — Scene atomicity is a shared boundary, not a lock.
 
@@ -51,11 +51,11 @@ Right-click a clip or scene cell (with MIDI Learn) to bind:
 
 Gamepad (when Session is focused): D-pad moves the grid (same as arrows). Attack (`ControlLeft`) launches the focused clip; Jump (`AltLeft`) launches the scene. See `useGamepad.ts` mappings.
 
-## Capture → Song Mode
+## Capture → Arrangement
 
-**CAPTURE** records applied launches. Stopping capture compiles them into the linear arrangement (`captureEventsToSongStructure`) and opens Song Mode. Replay uses the existing song-mode scheduler.
+**CAPTURE** records applied launches. Stopping capture compiles them into arrangement clips (`captureEventsToArrangement`). Each launch becomes a clip with its real start and length, which keeps clip identity. Then ARR opens. Song Mode shows the projection, and replay uses the linear player. See [arrangement.md](arrangement.md).
 
-Undo/redo: session document edits use a dedicated history; capture writes go through song-structure undo.
+Undo/redo: session document edits use a dedicated history. Capture writes go through the song (arrangement) undo.
 
 ## Starter packs
 

@@ -145,6 +145,8 @@ export interface StemExportInput {
     /** Per-track audibility. Defaults to the live mute/solo store. */
     isTrackAudible?: StemExportMuteSolo;
     songStructure: { [key in TrackKey]: number | null }[];
+    /** Linear arrangement (#1342). When present, song-mode export walks its clips. */
+    arrangement?: import('../types').Arrangement;
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
     currentPattern: Pattern;
     tempo: number;
@@ -289,6 +291,7 @@ export async function exportStemsToZip(
         input.currentPattern,
         useSongMode,
         { stepCount: input.stepCount, trackLengths: input.trackLengths },
+        input.arrangement,
     );
 
     const targetLength = Math.ceil(

@@ -42,6 +42,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
 | [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0): required fields, ignored fields, examples |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
+| [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 | [docs/adr/0001-wam2-host.md](docs/adr/0001-wam2-host.md) | WAM2 host Phase A: SDK pin, allowlist, CSP, integrity, lifecycle |
 

@@ -3,6 +3,8 @@ import { resolveSongTimeline, timelineDurationSeconds } from '../utils/songTimel
 import { UPDATED_INITIAL_PATTERN } from '../constants/appDefaults';
 import { getInitialTrackStorage } from '../constants/appDefaults';
 import type { TrackKey } from '../constants/appDefaults';
+import { createArrangement, placeClip, songStructureToArrangement } from '../arrangement/model';
+import type { PartSequence } from '../types';
 
 describe('songTimeline', () => {
     const trackStorage = getInitialTrackStorage(UPDATED_INITIAL_PATTERN);
@@ -56,5 +58,58 @@ describe('songTimeline', () => {
 
     it('computes timeline duration from tempo', () => {
         expect(timelineDurationSeconds(32, 120)).toBeCloseTo(4, 5);
+    });
+
+    describe('arrangement clips', () => {
+        const hitsEvery4 = (): PartSequence => ({
+            steps: Array.from({ length: 16 }, (_, i) => (i % 4 === 0 ? { note: 'C4', velocity: 1 } : null)),
+        });
+        const hits = (seq: PartSequence) => seq.steps.map((s, i) => (s ? i : -1)).filter((i) => i >= 0);
+
+        it('trims a clip: export length follows the clips and no notes play past the trim', () => {
+            const storage = getInitialTrackStorage(UPDATED_INITIAL_PATTERN);
+            storage.kick[0] = hitsEvery4();
+            storage.snare[0] = hitsEvery4();
+            let arr = createArrangement(64);
+            arr = placeClip(arr, { id: 'k', track: 'kick', patternSlot: 0, startStep: 0, lengthSteps: 8, loop: true });
+            const kickOnly = resolveSongTimeline([], storage, UPDATED_INITIAL_PATTERN, true, { stepCount: 16 }, arr);
+            // The export stops at the last clip, not at the 64-step loop point.
+            expect(kickOnly.totalSteps).toBe(8);
+            expect(hits(kickOnly.sequences.kick)).toEqual([0, 4]);
+
+            arr = placeClip(arr, { id: 's', track: 'snare', patternSlot: 0, startStep: 0, lengthSteps: 32, loop: true });
+            const both = resolveSongTimeline([], storage, UPDATED_INITIAL_PATTERN, true, { stepCount: 16 }, arr);
+            expect(both.totalSteps).toBe(32);
+            expect(both.measureStepCounts).toEqual([16, 16]);
+            expect(hits(both.sequences.kick)).toEqual([0, 4]);
+            expect(hits(both.sequences.snare)).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
+        });
+
+        it('rests in gaps and after a one-shot clip, and keeps head-trim offsets', () => {
+            const storage = getInitialTrackStorage(UPDATED_INITIAL_PATTERN);
+            storage.kick[0] = hitsEvery4();
+            let arr = createArrangement(16);
+            arr = placeClip(arr, { id: 'a', track: 'kick', patternSlot: 0, startStep: 0, lengthSteps: 32, loop: false });
+            arr = placeClip(arr, { id: 'b', track: 'kick', patternSlot: 0, startStep: 40, lengthSteps: 8, loop: true, offsetSteps: 4 });
+            const t = resolveSongTimeline([], storage, UPDATED_INITIAL_PATTERN, true, { stepCount: 16 }, arr);
+            expect(t.totalSteps).toBe(48);
+            // One-shot: 0..15 only. Gap 32..39 silent. Offset 4: local 4 at song step 40.
+            expect(hits(t.sequences.kick)).toEqual([0, 4, 8, 12, 40, 44]);
+        });
+
+        it('matches the Song Mode walk for a migrated v4 song', () => {
+            const m = { partA: 0, partB: null, bass2: null, kick: 0, snare: null, closedHat: null, openHat: null, sampler: 0 };
+            const structure = [m, m, m];
+            const fromGrid = resolveSongTimeline(structure, trackStorage, UPDATED_INITIAL_PATTERN, true, { stepCount: 24 });
+            const fromClips = resolveSongTimeline([], trackStorage, UPDATED_INITIAL_PATTERN, true, { stepCount: 24 },
+                songStructureToArrangement(structure, 24));
+            expect(fromClips).toEqual(fromGrid);
+        });
+
+        it('falls back to one pattern loop when the arrangement has no clips', () => {
+            const t = resolveSongTimeline([], trackStorage, UPDATED_INITIAL_PATTERN, true, { stepCount: 16 }, createArrangement(128));
+            expect(t.totalSteps).toBe(16);
+            expect(t.measureCount).toBe(1);
+        });
     });
 });

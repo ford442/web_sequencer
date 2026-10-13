@@ -29,6 +29,8 @@ export interface ExportModalProps {
     onClose: () => void;
     onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     songStructure: { [key in TrackKey]: number | null }[];
+    /** Linear arrangement (#1342); song-mode export walks its clips. */
+    arrangement?: import('../types').Arrangement;
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
     currentPattern: Pattern;
     tempo: number;
@@ -82,6 +84,7 @@ export const ExportModal = React.memo(function ExportModal({
     onClose,
     onShowToast,
     songStructure,
+    arrangement,
     trackStorage,
     currentPattern,
     tempo,
@@ -110,13 +113,14 @@ export const ExportModal = React.memo(function ExportModal({
     // Sampler banks the bounce cannot render as heard (live vocal chain only).
     const vocalOffline = useMemo(() => {
         if (!isOpen) return [];
-        const timeline = resolveSongTimeline(songStructure, trackStorage, currentPattern, useSongMode);
+        const meter = transportMixStore.meterRef.current;
+        const timeline = resolveSongTimeline(songStructure, trackStorage, currentPattern, useSongMode, meter, arrangement);
         return describeOfflineVocalSupport({
             sampler: params.sampler,
             sequences: timeline.sequences.sampler,
             harmonizerActive,
         });
-    }, [isOpen, songStructure, trackStorage, currentPattern, useSongMode, params.sampler, harmonizerActive]);
+    }, [isOpen, songStructure, arrangement, trackStorage, currentPattern, useSongMode, params.sampler, harmonizerActive]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -166,6 +170,7 @@ export const ExportModal = React.memo(function ExportModal({
             await exportStemsDownload(
                 {
                     songStructure,
+                    arrangement,
                     trackStorage,
                     currentPattern,
                     tempo,
@@ -212,6 +217,7 @@ export const ExportModal = React.memo(function ExportModal({
         bitDepth,
         useSongMode,
         songStructure,
+        arrangement,
         trackStorage,
         currentPattern,
         tempo,

@@ -12,7 +12,7 @@ import KeyboardNode from '@/components/appParts/KeyboardNode';
 import { BottomBar } from '@/components/BottomBar';
 import ContextMenuNode from '@/components/appParts/ContextMenuNode';
 import { ToastNode } from '@/components/appParts/AppOverlays';
-import { LyricTrackNode, MobileTransportNode, SessionNode, SongModeNode } from '@/components/appParts/PanelNodes';
+import { ArrangementNode, LyricTrackNode, MobileTransportNode, SessionNode, SongModeNode } from '@/components/appParts/PanelNodes';
 
 vi.mock('@/services/AISongStorage', () => ({
     AISongStorage: {
@@ -84,6 +84,8 @@ const REGIONS: Array<{ name: string; component: unknown }> = [
     { name: 'ToastNode', component: ToastNode },
     { name: 'SongModeNode', component: SongModeNode },
     { name: 'SessionNode', component: SessionNode },
+    // Closed timeline: nothing of it mounts or re-renders on grid edits (#1342).
+    { name: 'ArrangementNode', component: ArrangementNode },
     { name: 'MobileTransportNode', component: MobileTransportNode },
     { name: 'LyricTrackNode', component: LyricTrackNode },
 ];
