@@ -31,7 +31,7 @@
 | React | ^19.2.0 | UI Framework |
 | React DOM | ^19.2.0 | Rendering |
 | TypeScript | ~5.9.3 | Language |
-| Vite | ^5.4.21 | Build Tool & Dev Server |
+| Vite | ^8.3.4 (Rolldown) | Build Tool & Dev Server |
 | Tailwind CSS | ^3.4.6 | Styling |
 | React Three Fiber | ^9.5.0 | 3D Graphics |
 | Three.js | ^0.182.0 | 3D Engine |
@@ -39,14 +39,13 @@
 
 ### Vite Plugins
 - `@vitejs/plugin-react` — React Fast Refresh
-- `vite-plugin-wasm` — WASM import support
-- `vite-plugin-top-level-await` — Top-level await in modules
+- WASM: Vite's native `*.wasm?init` / `?url` imports; top-level await is native at Vite 8's default build target (no wasm/TLA plugins)
 
 ### Audio Architecture (Multi-Engine "Four Worlds")
 | Engine | Language | Build Output | Purpose |
 |--------|----------|--------------|---------|
 | AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators (the one WASM wavetable engine — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`), track freezer, FFT, audio export, XM export |
-| Emscripten | C++ | `public/hyphon_native.js` (+ `.wasm`, `.worker.js`) | Rubberband, Open303 + JC303 dual-engine wrappers, Prophecy formant engine, Pyodide bootstrap |
+| Emscripten | C++ | `public/hyphon_native{,.st}.{js,wasm}` | Open303 + JC303 dual-engine wrappers, HighFid303, Prophecy formant engine, analog drum kit (pthread + single-threaded profiles) |
 | JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
@@ -158,14 +157,13 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── Cargo.toml                # Rust package config
 │   └── Cargo.lock
 ├── emscripten/                   # C++ Emscripten build
-│   ├── build.sh                  # Main Emscripten build script
+│   ├── build.sh                  # Voice module (hyphon_native), both threading profiles
 │   ├── build_rubberband.sh       # Rubberband-only build
+│   ├── build_mix_bus.sh          # Offline mix bus (#1341)
+│   ├── toolchain.json            # THE Emscripten pin (6.0.9) + Pyodide pin
+│   ├── toolchain_env.sh          # Sourced by every em++ script; refuses any other emcc
 │   ├── rubberband_wrapper.cpp    # Rubberband C++ interface
-│   ├── main.cpp                  # Emscripten entry point
-│   ├── pyodide_bootstrap.js      # Python initialization
-│   ├── pre.js / rubberband-pre.js
-│   ├── libomp.a                  # OpenMP runtime (required)
-│   └── omp.h
+│   └── pre.js / rubberband-pre.js
 ├── jc303_wasm/                   # TB-303 clone (git submodule)
 │   ├── CMakeLists.txt            # JUCE-based CMake project
 │   └── wasm/                     # CMake-based build
@@ -175,8 +173,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   └── helper.py                 # TTS model utilities
 ├── public/                       # Static assets + compiled WASM
 │   ├── audio-worklets/           # Copied worklet files
-│   ├── hyphon_native.js          # Emscripten output
-│   ├── hyphon_native.worker.js   # Emscripten pthread worker
+│   ├── hyphon_native{,.st}.{js,wasm}  # Emscripten output (pthread workers are inlined)
 │   ├── rubberband.wasm           # Rubberband binary
 │   ├── jc303_worklet.js          # JC-303 worklet
 │   ├── jc303-single.js           # JC-303 single-threaded loader
@@ -187,7 +184,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 ├── tests/                        # Playwright E2E tests (~2 spec files)
 ├── tools/                        # Build scripts
 │   ├── build_jc303_omp.sh        # JC-303 builder (threaded + single)
-│   └── optimize.sh               # Post-build wasm-opt optimizer
+│   └── render_hyphon_native_parity.mjs  # Render / heap gate for the built voice wasm
 ├── web/                          # Legacy/alternate web build (TTS ONNX demo)
 │   ├── package.json
 │   └── vite.config.js
@@ -320,22 +317,27 @@ This project has **four distinct build environments**. **Never mix their build s
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
-- **Output**: `public/hyphon_native.js` (+ `.wasm`, `.worker.js`)
-- **Requires**: `libomp.a` in `emscripten/` directory
-- **Requires**: Emscripten SDK activated
+- **Output**: `public/hyphon_native.{js,wasm}` (pthread) and `public/hyphon_native.st.{js,wasm}` (single-threaded); no `.worker.js` — the pinned emcc inlines pthread workers
+- **Requires**: Emscripten **6.0.9** (`emscripten/toolchain.json`); `emscripten/toolchain_env.sh` fails the build on any other version
+- **Release link**: `-O3 -flto`, no embind, no `main()`; `tools/render_hyphon_native_parity.mjs` is the gate for compiler / flag changes (`docs/wasm/BUILD_NOTES.md#render-parity`)
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
-- **Not** Rubber Band — it is its own module (below). `-ffast-math` is opt-in per file here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
+- **Not** Rubber Band or the offline mix bus — each is its own module (below). No `-ffast-math` here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
 
 ### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
 - **Build**: `pnpm run build:wasm:rubberband`
 - **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
 - **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
 
+### 3c. Mix Bus World (`emscripten/mix_bus.cpp` + `emscripten/build_mix_bus.sh`)
+- **Build**: `pnpm run build:wasm:mixbus`
+- **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
+- **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
+
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
 - **Output**: `public/jc303.*` and `public/jc303_worklet.js`
 - **Requires**: Git submodule initialized (`git submodule update --init jc303_wasm`)
-- Produces both **threaded** (OpenMP/pthreads) and **single-threaded** variants
+- Produces both **threaded** (plain pthreads — no OpenMP) and **single-threaded** variants
 
 ---
 
@@ -509,7 +511,7 @@ Located in `.github/workflows/`:
 1. **CI** (`ci.yml`)
    - Triggers on push/PR to `main`
    - Runs on `ubuntu-latest`
-   - Steps: checkout with submodules → setup pnpm 9 → setup Node 22 → setup Rust (wasm32 target) → setup Emscripten 3.1.51 → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`)
+   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Rust (wasm32 target) → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`)
 
 2. **Diagnostic Build & Test** (`debug_build.yml`)
    - Triggers on push/PR to `main`/`master` and `workflow_dispatch`
@@ -647,11 +649,11 @@ interface Note {
 
 3. **SharedArrayBuffer errors**: Server headers must include COOP/COEP. Check the browser console for specific errors. The single-threaded JC-303 variant does not require these headers.
 
-4. **Emscripten build failures**: Ensure `emscripten/libomp.a` exists and the Emscripten SDK is activated. The build script searches several common `emsdk_env.sh` locations.
+4. **Emscripten build failures**: The em++ scripts need exactly the version in `emscripten/toolchain.json` and say so (`❌ Emscripten X is required`) when they find another. They accept a matching `emcc` on `PATH`, then `$HYPHON_EMSDK`, then the usual `emsdk_env.sh` locations.
 
 5. **AudioWorklet not loading**: Worklets must be loaded from the same origin or with proper CORS. Vite dev server handles this; production servers must be configured accordingly.
 
-6. **Pyodide initialization**: The Emscripten module initializes Pyodide. Check `window.Module` is available before accessing Python APIs. Pyodide is loaded from CDN in `index.html`.
+6. **Pyodide initialization**: `usePyodideEngine` lazily imports `src/pyodide/bootstrap.ts`, which loads the vendored runtime from `public/pyodide/` (`pnpm run vendor:pyodide`; no CDN) and sets `globalThis.hyphonPyodide` / fires `hyphon-pyodide-ready`. It no longer has anything to do with `hyphon_native`.
 
 7. **JC-303 submodule not found**: Run `git submodule update --init jc303_wasm`
 
@@ -670,7 +672,7 @@ interface Note {
 
 WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
 
-1. **Emscripten 3.1.51** (matches CI): clone to `$HOME/emsdk`, run `./emsdk install 3.1.51 && ./emsdk activate 3.1.51`, then `source "$HOME/emsdk/emsdk_env.sh"` in each shell that builds WASM.
+1. **Emscripten 6.0.9** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.9 && ./emsdk activate 6.0.9`. The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
 2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
 3. **Git submodule**: `git submodule update --init --recursive` (required for `jc303_wasm`).
 

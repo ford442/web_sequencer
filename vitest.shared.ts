@@ -1,12 +1,10 @@
 import react from '@vitejs/plugin-react';
-import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import type { UserConfig } from 'vitest/config';
+import type { UserConfig } from 'vite';
 
 /** Shared Vite/Vitest plugins and resolve options for all test tiers. */
 export const vitestSharedConfig: UserConfig = {
   base: './',
-  plugins: [react(), wasm(), topLevelAwait()],
+  plugins: [react()],
   resolve: {
     alias: {
       '@': '/src',
@@ -15,9 +13,13 @@ export const vitestSharedConfig: UserConfig = {
   optimizeDeps: {
     exclude: ['onnxruntime-web', 'emsdk'],
   },
+  // Workers and AudioWorklets (`?worker&url`) are emitted as ES modules.
+  // vite-plugin-wasm / vite-plugin-top-level-await are gone since Vite 8: every
+  // .wasm the app loads goes through Vite's native `?init` / `?url` handling or
+  // a runtime fetch, and Vite 8's default build target
+  // ('baseline-widely-available') supports top-level await natively.
   worker: {
     format: 'es',
-    plugins: () => [wasm(), topLevelAwait()],
   },
 };
 

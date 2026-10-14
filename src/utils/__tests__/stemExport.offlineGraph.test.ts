@@ -47,6 +47,12 @@ vi.mock('../../audio/offline/compileOfflineGraph', () => ({
 
 const timelineSampler = vi.hoisted(() => ({ sequences: null as null | { steps: unknown[] }[] }));
 
+// The happy-dom Worker stub never answers; use the in-thread bus (#1341).
+vi.mock('../../audio/offline/mixBus/mixBus', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../audio/offline/mixBus/mixBus')>();
+    return { ...actual, createMixBus: () => Promise.resolve(actual.createJsMixBus()) };
+});
+
 vi.mock('../songTimeline', () => ({
     resolveSongTimeline: () => ({
         totalSteps: 32,
@@ -82,13 +88,15 @@ function fakeBuffer(length: number, sampleRate: number): AudioBuffer {
 const originalOfflineAudioContext = globalThis.OfflineAudioContext;
 
 function stubOfflineAudioContext(): void {
+    // Constructed with `new`, so the implementation must be a function
+    // expression: Vitest >= 4 invokes it via Reflect.construct.
     globalThis.OfflineAudioContext = vi.fn().mockImplementation(
-        (channels: number, length: number, sampleRate: number) => ({
+        function (channels: number, length: number, sampleRate: number) { return {
             createBuffer: (ch: number, len: number, rate: number) => fakeBuffer(len, rate),
             length,
             sampleRate,
             numberOfChannels: channels,
-        }),
+        }; },
     ) as unknown as typeof OfflineAudioContext;
 }
 

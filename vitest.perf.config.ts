@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { vitestCommonExclude, vitestSharedConfig } from './vitest.shared';
+import { vitestCommonExclude, vitestSharedConfig } from './vitest.shared.ts';
 
 export default mergeConfig(
   vitestSharedConfig,
@@ -13,11 +13,10 @@ export default mergeConfig(
       include: ['src/**/*.{bench,perf}.test.{ts,tsx}'],
       exclude: vitestCommonExclude,
       pool: 'forks',
-      poolOptions: {
-        forks: {
-          singleFork: true,
-        },
-      },
+      // Vitest 4 removed poolOptions.forks.singleFork. One worker, one file at
+      // a time keeps timings free of cross-file CPU contention; each file still
+      // gets a fresh fork (isolate defaults to true).
+      maxWorkers: 1,
       fileParallelism: false,
       testTimeout: 300_000,
       hookTimeout: 300_000,

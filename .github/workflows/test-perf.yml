@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 4 * * *'
+  # Runs when a PR is labeled `perf` (and on every push to a `perf`-labeled PR),
+  # and automatically on PRs that touch the perf tier itself (see `scope`
+  # below). The path filter lives in a job, not in `on.pull_request.paths`,
+  # because a trigger-level filter also gates the `labeled` event and would
+  # stop the `perf` label from working on PRs outside those paths.
   pull_request:
     branches: [main]
-    types: [labeled]
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
@@ -15,12 +20,46 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  scope:
+    name: Perf tier in scope?
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the perf tier
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if echo "$LABELS" | grep -q '"perf"'; then
+            echo "PR carries the perf label"
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Keep in sync with the files the perf tier reads.
+          PATTERN='\.perf\.test\.|\.bench\.test\.|^vitest\.perf\.config\.ts$|^vitest\.setup\.perf\.ts$|^src/test/helpers/|^scripts/collect-vitest-perf\.mjs$|^\.github/workflows/test-perf\.yml$'
+          HITS=$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep -E "$PATTERN" || true)
+          if [ -n "$HITS" ]; then
+            echo "PR touches the perf tier:"; echo "$HITS"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No perf-tier files changed and no perf label; skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   perf:
     name: Vitest perf tier
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'perf')
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +73,29 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      # Same pin as ci.yml. Needed only for rubberband.wasm below.
+      - name: Read Emscripten pin
+        # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
+        id: emsdk-pin
+        run: echo "version=$(jq -r .emscripten.version emscripten/toolchain.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ steps.emsdk-pin.outputs.version }}
+          no-cache: false
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache native artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            public/rubberband.wasm
+            src/audio-worklets/rubberband-lib.js
+            .cache/native/
+          key: perf-rubberband-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'package.json') }}
 
       # src/wasm/ is gitignored build output. The perf tier does not stub WASM,
       # it builds it: audioExport.perf.test.ts and useAudioEngine.perf.test.tsx
@@ -49,6 +109,14 @@ jobs:
           pnpm run build:wasm:fft
           pnpm run build:wasm:audioexport
           pnpm run build:wasm:xmexport
+
+      # vocalFx.perf.test.ts measures the real Rubber Band vocal-FX module via
+      # loadRubberBandFxModule(), which requires public/rubberband.wasm and
+      # src/audio-worklets/rubberband-lib.js. The perf tier does not stub WASM
+      # (docs/PERFORMANCE_BUDGET.md), so build it. Standalone module only —
+      # no Rust, no hyphon_native.
+      - name: Build Rubber Band WASM (vocalFx.perf.test.ts needs the real module)
+        run: pnpm run build:wasm:rubberband
 
       - name: Run perf tier (isolated fork, warm-up + median policy)
         run: pnpm run test:perf

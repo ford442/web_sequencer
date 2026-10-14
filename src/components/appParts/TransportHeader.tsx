@@ -7,6 +7,7 @@ import { EngineStatusPill } from '../EngineStatusPill'
 
 const TRANSPORT_KEYS = [
   'songStorage', 'activeSongSlot', 'tempo', 'isRecording', 'isPlaying', 'isSongModeOpen', 'isSessionOpen',
+  'isArrangementOpen', 'setIsArrangementOpen',
   'loadSong', 'handleSaveSong', 'handleClearPattern', 'handleTempoHoldStart', 'handleTempoHoldEnd',
   'handleTempoKeyDown', 'handlePanic', 'handlePlayToggle', 'setIsRecording', 'setIsSongModeOpen',
   'setIsSessionOpen', 'currentScale', 'setCurrentScale', 'tempoLocked', 'slavePlayLabel',
@@ -27,6 +28,8 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
     isPlaying,
     isSongModeOpen,
     isSessionOpen,
+    isArrangementOpen,
+    setIsArrangementOpen,
     loadSong,
     handleSaveSong,
     handleClearPattern,
@@ -71,6 +74,8 @@ export const TransportHeader = React.memo(({ onToggleCompact, isCompactLayout }:
       isPlaying={isPlaying}
       isSongModeOpen={isSongModeOpen}
       isSessionOpen={isSessionOpen}
+      isArrangementOpen={isArrangementOpen}
+      setIsArrangementOpen={setIsArrangementOpen}
       is3DMode={is3DMode}
       loadSong={loadSong}
       handleSaveSong={handleSaveSong}

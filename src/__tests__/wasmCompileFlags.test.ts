@@ -2,15 +2,16 @@
  * Compile-time contracts that no runtime test can catch, because the artifacts
  * they describe are gitignored and often absent in CI:
  *
- *   1. -ffast-math is opt-in per translation unit, not global.
+ *   1. -ffast-math stays out of the voice module; only the offline mix bus has it.
  *   2. The AssemblyScript modules stay inside the Safari feature intersection.
- *   3. The out-of-band wasm-opt is pinned, and never emsdk's bundled one.
+ *   3. One Emscripten pin, enforced by every em++ script and read by every CI job;
+ *      the voice module links at -O3 + LTO with no embind / main() / OpenMP.
  *   4. index.html boots with no remote script and no `unsafe-eval`.
  *
  * See docs/wasm/BUILD_NOTES.md.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const REPO_ROOT = join(__dirname, '../..');
@@ -30,12 +31,13 @@ const withoutJsLineComments = (src: string) =>
 
 const buildSh = read('emscripten/build.sh');
 const rubberbandSh = read('emscripten/build_rubberband.sh');
-const optimizeSh = read('tools/optimize.sh');
+const mixBusSh = read('emscripten/build_mix_bus.sh');
+const jc303Sh = read('tools/build_jc303_omp.sh');
+const toolchainEnvSh = read('emscripten/toolchain_env.sh');
 const indexHtml = read('index.html');
-const bootstrapJs = read('emscripten/pyodide_bootstrap.js');
+const bootstrapTs = read('src/pyodide/bootstrap.ts');
 const toolchain = JSON.parse(read('emscripten/toolchain.json')) as {
     emscripten: { version: string };
-    binaryen: { version: number; npmPackage: string; features: Record<string, string[]> };
     pyodide: { version: string; publicPath: string; files: string[]; packages: string[] };
 };
 const packageJson = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
@@ -58,12 +60,10 @@ describe('-ffast-math audit', () => {
         expect(buildSh).not.toMatch(/CXXFLAGS="[^"]*-ffast-math/);
     });
 
-    it('reaches only the opt-in helper', () => {
-        const fastMathLines = buildSh
-            .split('\n')
-            .filter((line) => line.includes('-ffast-math') && !line.trim().startsWith('#'));
-        expect(fastMathLines).toHaveLength(1);
-        expect(fastMathLines[0]).toContain('CXXFLAGS_FAST');
+    it('is not passed anywhere in the voice module (#1341)', () => {
+        // audio_dsp.cpp was its only fast-math TU; it left for build_mix_bus.sh.
+        expect(withoutShellComments(buildSh)).not.toContain('-ffast-math');
+        expect(buildSh).not.toContain('compile_cpp_fast');
     });
 
     it('compiles every voice wrapper IEEE-safe', () => {
@@ -76,12 +76,15 @@ describe('-ffast-math audit', () => {
         expect(buildSh).toMatch(/for f in \$REPO_ROOT\/jc303_wasm\/src\/dsp\/open303\/\*\.cpp; do\s*\n\s*compile_cpp "\$f"/);
     });
 
-    it('keeps audio_dsp.cpp as the single fast-math consumer', () => {
-        const fastCalls = buildSh
+    it('is scoped to the release mix bus — one TU, no recursive state (#1341)', () => {
+        const fastLines = withoutShellComments(mixBusSh)
             .split('\n')
-            .filter((line) => line.trim().startsWith('compile_cpp_fast "'));
-        expect(fastCalls).toHaveLength(1);
-        expect(fastCalls[0]).toContain('audio_dsp.cpp');
+            .filter((line) => line.includes('-ffast-math'));
+        expect(fastLines).toHaveLength(1);
+        expect(fastLines[0]).toMatch(/^\s*OPT_FLAGS="-O3 -ffast-math"$/);
+        // One source file, and the debug profile stays IEEE.
+        expect(mixBusSh.match(/em\+\+ "\$SCRIPT_DIR\/[^"]+"/g)).toEqual(['em++ "$SCRIPT_DIR/mix_bus.cpp"']);
+        expect(mixBusSh).toMatch(/OPT_FLAGS="-O1 -g3"/);
     });
 
     it('does not reintroduce fast-math in the Rubber Band module', () => {
@@ -139,53 +142,102 @@ describe('AssemblyScript browser matrix', () => {
     });
 });
 
-describe('pinned wasm-opt', () => {
-    it('records the binaryen pin next to the Emscripten pin', () => {
-        expect(toolchain.emscripten.version).toBe('3.1.51');
-        expect(toolchain.binaryen.version).toBeGreaterThan(0);
-        expect(toolchain.binaryen.npmPackage).toContain(String(toolchain.binaryen.version));
+describe('Emscripten pin (#toolchain-pin)', () => {
+    const emccScripts = {
+        'emscripten/build.sh': buildSh,
+        'emscripten/build_rubberband.sh': rubberbandSh,
+        'emscripten/build_mix_bus.sh': mixBusSh,
+        'tools/build_jc303_omp.sh': jc303Sh,
+    };
+    const workflowsWithEmsdk = readdirSync(join(REPO_ROOT, '.github/workflows'))
+        .filter((f) => f.endsWith('.yml'))
+        .map((f) => [f, read(`.github/workflows/${f}`)] as const)
+        .filter(([, yml]) => yml.includes('setup-emsdk'));
+
+    it('is a 6.x release, recorded once', () => {
+        expect(toolchain.emscripten.version).toMatch(/^6\.\d+\.\d+$/);
     });
 
-    it('never uses emsdk’s bundled wasm-opt', () => {
-        // That binary at -O2+ is exactly what fails this pthreads+SIMD+bigint link,
-        // which is why emscripten/build.sh pins the link at -O1.
-        expect(withoutShellComments(optimizeSh)).not.toContain('EMSDK/upstream/bin/wasm-opt');
-        expect(buildSh).toContain('LINK_PROFILE_FLAGS="-O1');
-    });
-
-    it('refuses a version that does not match the pin', () => {
-        expect(optimizeSh).toContain('wasm-opt version mismatch');
-        expect(optimizeSh).toContain('PINNED_VERSION');
-    });
-
-    it('does not enable a feature no module was built with', () => {
-        // Passing a feature the module lacks is not free: later passes may then emit
-        // instructions the target engine rejects.
-        for (const flags of Object.values(toolchain.binaryen.features)) {
-            expect(flags).not.toContain('--enable-relaxed-simd');
+    it('every em++ build script sources the version check instead of a bare emsdk_env.sh', () => {
+        for (const [name, src] of Object.entries(emccScripts)) {
+            expect(src, name).toMatch(/source "\$(?:SCRIPT_DIR|REPO_ROOT\/emscripten)\/toolchain_env\.sh"/);
+            expect(withoutShellComments(src), name).not.toContain('emsdk_env.sh');
         }
-        expect(toolchain.binaryen.features.hyphonNative).toEqual(
-            expect.arrayContaining(['--enable-simd', '--enable-threads', '--enable-bulk-memory']),
-        );
     });
 
-    it('re-checks the export contract against the rewritten binary', () => {
-        // The glue is untouched by an out-of-band pass, so --glue alone would still
-        // pass even if exports had been renamed.
-        expect(optimizeSh).toContain('check_wasm_export_map.mjs');
-        expect(optimizeSh).toContain('--wasm public/hyphon_native.wasm');
-        expect(read('tools/check_wasm_export_map.mjs')).toContain("'--wasm'");
+    it('toolchain_env.sh fails on any emcc other than the pin', () => {
+        expect(toolchainEnvSh).toContain("require('$_HYPHON_TOOLCHAIN_DIR/toolchain.json').emscripten.version");
+        expect(toolchainEnvSh).toContain('emcc -dumpversion');
+        expect(toolchainEnvSh).toMatch(/exit 1/);
+    });
+
+    it('every CI job that installs emsdk reads the pin from toolchain.json', () => {
+        expect(workflowsWithEmsdk.length).toBeGreaterThan(0);
+        for (const [file, yml] of workflowsWithEmsdk) {
+            expect(yml, file).toContain('emscripten/toolchain.json');
+            expect(yml, file).not.toMatch(/version:\s*['"]?\d+\.\d+\.\d+/);
+            expect(yml, file).not.toMatch(/emcc\d+\.\d+\.\d+/);
+        }
+    });
+});
+
+describe('voice module link (hyphon_native)', () => {
+    const code = withoutShellComments(buildSh);
+
+    it('links release at -O3 with LTO, in-band (no out-of-band optimizer)', () => {
+        expect(buildSh).toContain('OPT_FLAGS="-O3 -funroll-loops -flto"');
+        expect(buildSh).toContain('LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"');
+        expect(existsSync(join(REPO_ROOT, 'tools/optimize.sh'))).toBe(false);
+        expect(packageJson.scripts.optimize).toBeUndefined();
+    });
+
+    it('keeps wasm import/export names unminified for the hand-instantiating worklets', () => {
+        expect(code).toMatch(/BASE_LINK_FLAGS="[^"]*-lexports\.js/);
+    });
+
+    it('uses the -pthread spelling, no legacy USE_PTHREADS / WASM_BIGINT settings', () => {
+        expect(code).not.toContain('USE_PTHREADS');
+        expect(code).not.toContain('WASM_BIGINT');
+        expect(code).toMatch(/PTHREAD_LINK_FLAGS="[^"]*-pthread/);
+    });
+
+    it('has no embind, RTTI, exceptions, main() or OpenMP', () => {
+        expect(code).not.toContain('--bind');
+        expect(code).not.toContain('-frtti');
+        expect(code).toContain('-fno-exceptions');
+        expect(code).not.toMatch(/main\.cpp|pyodide_bootstrap|--post-js|libomp|-fopenmp/);
+        for (const f of ['main.cpp', 'pyodide_bootstrap.js', 'libomp.a', 'omp.h', 'openmp_patches.sh']) {
+            expect(existsSync(join(REPO_ROOT, 'emscripten', f)), f).toBe(false);
+        }
+        for (const w of ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit']) {
+            const src = read(`emscripten/${w}_wrapper.cpp`);
+            expect(src, w).not.toContain('EMSCRIPTEN_BINDINGS');
+            expect(src, w).not.toContain('emscripten/bind.h');
+        }
+    });
+
+    it('builds both threading profiles --no-entry, differing only in threads and memory', () => {
+        const link = /BASE_LINK_FLAGS="([^"]*)"/.exec(buildSh)?.[1] ?? '';
+        expect(link).toContain('--no-entry');
+        expect(buildSh).toContain('PTHREAD_EXPORTS="$VOICE_EXPORTS"');
+        expect(buildSh).toContain('ST_EXPORTS="$VOICE_EXPORTS"');
+    });
+
+    it('fails the build if libomp / embind / emscripten_run_script reach either wasm', () => {
+        expect(code).toContain('check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"');
+        expect(code).toContain('check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"');
+    });
+
+    it('emits no pthread *.worker.js shim (the pinned emcc inlines workers)', () => {
+        expect(existsSync(join(REPO_ROOT, 'scripts/ensure-pthread-worker-stamp.mjs'))).toBe(false);
+        expect(code).not.toContain('worker.js');
+        expect(withoutShellComments(jc303Sh)).not.toMatch(/worker\.js|libomp|-fopenmp/);
     });
 
     it('release and emcc builds re-check the linked wasm, not only glue', () => {
         expect(packageJson.scripts['build:release']).toContain('--wasm public/hyphon_native.wasm');
         expect(packageJson.scripts['build:release:changed']).toContain('--wasm public/hyphon_native.wasm');
-        expect(withoutShellComments(buildSh)).toContain('--wasm');
-    });
-
-    it('is opt-in, not part of build:release', () => {
-        expect(packageJson.scripts['build:release']).not.toContain('optimize');
-        expect(packageJson.scripts.optimize).toContain('tools/optimize.sh');
+        expect(code).toContain('--wasm');
     });
 });
 
@@ -202,25 +254,24 @@ describe('CSP-legal boot path', () => {
         const mainTsx = read('src/main.tsx');
         expect(withoutJsLineComments(indexHtml)).not.toMatch(/new\s+Function\s*\(/);
         expect(withoutJsLineComments(mainTsx)).not.toMatch(/new\s+Function\s*\(/);
-        expect(mainTsx).toContain('@vite-ignore');
-        expect(mainTsx).toContain('document.baseURI');
+        expect(withoutJsLineComments(bootstrapTs)).not.toMatch(/new\s+Function\s*\(|\beval\s*\(/);
     });
 
     it('points Pyodide at the vendored same-origin copy', () => {
-        expect(indexHtml).toContain('HYPHON_PYODIDE_BASE_URL');
-        expect(bootstrapJs).not.toContain('cdn.jsdelivr.net');
-        expect(bootstrapJs).toContain('HYPHON_PYODIDE_BASE_URL');
+        expect(bootstrapTs).not.toContain('cdn.jsdelivr.net');
+        // Base-path aware: the deploy base, not a hard-coded '/pyodide/'.
+        expect(bootstrapTs).toContain('`${import.meta.env.BASE_URL}pyodide/`');
         // indexURL matters as much as the script tag: without it Pyodide derives its
         // own asset base and can still leave the origin.
-        expect(bootstrapJs).toContain('indexURL: PYODIDE_BASE');
+        expect(bootstrapTs).toContain('indexURL: base');
     });
 
-    it('sets the Pyodide base before the module that boots it', () => {
-        // hyphon_native.js is loaded from main.tsx (not a top-level-await in
-        // index.html — Vite was rewriting that import to ./hyphon_native.js next
-        // to the assets chunk, which 404s and blocked first paint).
-        expect(indexHtml.indexOf('HYPHON_PYODIDE_BASE_URL'))
-            .toBeLessThan(indexHtml.indexOf('src="/src/main.tsx"'));
+    it('never instantiates the voice glue on the main thread', () => {
+        // main.tsx used to import() hyphon_native.js only to run main() → Pyodide.
+        // An index.html top-level-await of it also blocked first paint (#1229 era).
+        const mainTsx = read('src/main.tsx');
+        expect(withoutJsLineComments(mainTsx)).not.toMatch(/import\([^)]*hyphon_native/);
+        expect(withoutJsLineComments(mainTsx)).not.toContain("'hyphon_native.js'");
         expect(indexHtml).not.toMatch(/await import\(/);
     });
 
@@ -231,7 +282,7 @@ describe('CSP-legal boot path', () => {
         expect(toolchain.pyodide.files).toContain('pyodide-lock.json');
         // The bootstrap loads these; without the wheels, same-origin resolution 404s.
         expect(toolchain.pyodide.packages).toEqual(['numpy', 'scipy']);
-        expect(bootstrapJs).toContain("loadPackage(['numpy', 'scipy'])");
+        expect(bootstrapTs).toContain("loadPackage(['numpy', 'scipy'])");
     });
 
     it('keeps the vendored runtime out of git', () => {

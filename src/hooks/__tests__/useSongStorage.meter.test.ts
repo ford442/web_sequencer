@@ -5,6 +5,7 @@ import { transportMixStore } from '../../stores/transportMixStore';
 import { SAVED_SONG_DATA_VERSION } from '../../constants';
 import { UPDATED_INITIAL_PATTERN } from '../../constants/appDefaults';
 import type { SavedSongData } from '../../types';
+import { createArrangement } from '../../arrangement/model';
 
 /** Refs get `{ current }`, everything else a spy — enough for save/load of a bare song. */
 function makeDeps(): SongStorageDeps {
@@ -14,6 +15,7 @@ function makeDeps(): SongStorageDeps {
     trackStorageRef: { current: {} },
     activeTrackSlotsRef: { current: {} },
     songStructureRef: { current: [] },
+    arrangementRef: { current: createArrangement(32) },
     ambianceUrl: '',
     backgroundImage: '',
     sampleBuffers: [],
@@ -35,16 +37,16 @@ function makeDeps(): SongStorageDeps {
 describe('useSongStorage song meter', () => {
   afterEach(() => transportMixStore.reset());
 
-  it('writes the meter with version 4', async () => {
+  it('writes the meter with the current schema version (5)', async () => {
     transportMixStore.setStepCount(24);
     transportMixStore.setTimeSignature([3, 4]);
     transportMixStore.setTrackLength('closedHat', 12);
     transportMixStore.setSwing(62);
     const { result } = renderHook(() => useSongStorage(makeDeps()));
     const data = await result.current.getSongData();
-    expect(SAVED_SONG_DATA_VERSION).toBe(4);
+    expect(SAVED_SONG_DATA_VERSION).toBe(5);
     expect(data).toMatchObject({
-      version: 4,
+      version: 5,
       stepCount: 24,
       timeSignature: [3, 4],
       trackLengths: { closedHat: 12 },

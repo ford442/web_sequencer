@@ -83,6 +83,7 @@ import { useSongStructureEditor } from './useSongStructureEditor'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
+import { arrangementPlayhead } from '../arrangement/playhead'
 
 export function useAppState() {
 
@@ -206,7 +207,10 @@ export function useAppState() {
 
     const {
         isSongModeOpen, setIsSongModeOpen,
+        isArrangementOpen, setIsArrangementOpen,
         isSongModeActive, setIsSongModeActive,
+        arrangement, setArrangement,
+        arrangementRef,
         songStructure, setSongStructure,
         currentSongMeasure, setCurrentSongMeasure,
         songStructureRef,
@@ -220,12 +224,13 @@ export function useAppState() {
 
     const {
         editSongStructure: handleEditSongStructure,
+        editArrangement,
         undoSongStructure,
         redoSongStructure,
         canUndoSong,
         canRedoSong,
         clearSongUndo,
-    } = useSongStructureEditor(songStructureRef, setSongStructure);
+    } = useSongStructureEditor(songStructureRef, setSongStructure, arrangementRef, setArrangement);
 
     const {
         synthA, setSynthA, synthARef, updateSynthA,
@@ -407,7 +412,7 @@ export function useAppState() {
         activeSamplerBankRef,
         sliceHighlightRef,
         isSongModeActiveRef,
-        songStructureRef,
+        arrangementRef,
         currentScaleRef,
         songMeasureRef,
         isFirstStepRef,
@@ -437,6 +442,7 @@ export function useAppState() {
             songMeasureRef.current = 0;
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
+            arrangementPlayhead.publish(-1);
             if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
             session.sessionEngineRef.current?.resetTransport();
@@ -597,14 +603,14 @@ export function useAppState() {
     } = useSongStorage({
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        trackStorageRef, activeTrackSlotsRef, songStructureRef,
+        trackStorageRef, activeTrackSlotsRef, songStructureRef, arrangementRef,
         sessionDocumentRef: session.sessionDocumentRef,
         setSessionDocument: session.setSessionDocument,
         ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
         songStorage, pattern, tempo, trackStorage,
         setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
         setSynthA, setSynthB, setBass2, setKick, setSnare, setClosedHat, setOpenHat, setSampler,
-        setTrackStorage, setActiveTrackSlots, setSongStructure, setSampleBuffers, setTtsPhrases,
+        setTrackStorage, setActiveTrackSlots, setArrangement, setSampleBuffers, setTtsPhrases,
         setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
@@ -678,8 +684,10 @@ export function useAppState() {
         globalPan, setGlobalPan,
         reverbType, setReverbType,
         isSongModeOpen, setIsSongModeOpen,
+        isArrangementOpen, setIsArrangementOpen,
         isSongModeActive, setIsSongModeActive,
         songStructure, setSongStructure,
+        arrangement, editArrangement,
         currentSongMeasure, setCurrentSongMeasure,
         contextMenu, setContextMenu,
         isNoteDragging, setIsNoteDragging,

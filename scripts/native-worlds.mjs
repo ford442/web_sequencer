@@ -151,9 +151,19 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     'emscripten/rubberband_fx.h',
     'emscripten/rubberband-pre.js',
   ]);
+  // The offline mix bus (#1341) is its own module too: a mix-kernel edit must
+  // not rebuild the voices, and vice versa.
+  const MIX_BUS_OWNED = new Set([
+    'emscripten/build_mix_bus.sh',
+    'emscripten/mix_bus.cpp',
+  ]);
+  // The Emscripten pin and the script that enforces it: moving the pin must
+  // rebuild every em++ world, not only the voice module (whose emscripten/**
+  // walk below picks both up anyway).
+  const EMCC_PIN_INPUTS = ['emscripten/toolchain.json', 'emscripten/toolchain_env.sh'];
   const emccFiles = walkFiles(repoRoot, 'emscripten', {
     excludeDirNames: new Set(['temp_build', 'temp_build_rubberband', 'tests']),
-  }).filter((rel) => !RUBBERBAND_OWNED.has(rel));
+  }).filter((rel) => !RUBBERBAND_OWNED.has(rel) && !MIX_BUS_OWNED.has(rel));
   const rubberbandSrc = walkFiles(repoRoot, 'rubberband/src', {
     excludeDirNames: new Set(['.git']),
   });
@@ -171,7 +181,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...jc303WasmFiles.map(fileInput),
         ...jc303SrcFiles.map(fileInput),
         fileInput('tools/build_jc303_omp.sh'),
-        fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
+        ...EMCC_PIN_INPUTS.map(fileInput),
         fileInput('tools/jc303_cmake/CMakeLists.txt'),
         fileInput(budgetRel),
         textInput('jc303_wasm.submodule', readSubmoduleCommit(repoRoot)),
@@ -182,7 +192,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         'public/jc303-single-worklet.js',
         'public/jc303-threaded.js',
         'public/jc303-threaded.wasm',
-        'public/jc303-threaded.worker.js',
         'public/jc303-threaded-worklet.js',
       ],
       toolchain: 'emcc',
@@ -195,7 +204,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...emccFiles.map(fileInput),
         ...open303Dsp.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
-        fileInput('scripts/ensure-pthread-worker-stamp.mjs'),
         fileInput('tools/extract_wasm_export_map.mjs'),
         fileInput('tools/check_hyphon_st_module.mjs'),
         fileInput(budgetRel),
@@ -205,7 +213,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       outputs: [
         'public/hyphon_native.js',
         'public/hyphon_native.wasm',
-        'public/hyphon_native.worker.js',
         'public/hyphon_wasm_export_map.json',
         'public/hyphon_native.st.js',
         'public/hyphon_native.st.wasm',
@@ -220,12 +227,26 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       inputs: [
         ...rubberbandSrc.map(fileInput),
         ...[...RUBBERBAND_OWNED].sort().map(fileInput),
+        ...EMCC_PIN_INPUTS.map(fileInput),
         fileInput(budgetRel),
       ],
       outputs: [
         'public/rubberband.wasm',
         'src/audio-worklets/rubberband-lib.js',
       ],
+      toolchain: 'emcc',
+    },
+    {
+      id: 'mixbus',
+      world: 'mixbus',
+      rebuildCommand: 'pnpm run build:wasm:mixbus',
+      inputs: [
+        ...[...MIX_BUS_OWNED].sort().map(fileInput),
+        fileInput('tools/check_mix_bus_module.mjs'),
+        ...EMCC_PIN_INPUTS.map(fileInput),
+        fileInput(budgetRel),
+      ],
+      outputs: ['public/mix_bus.wasm'],
       toolchain: 'emcc',
     },
   ];

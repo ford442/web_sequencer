@@ -3,10 +3,10 @@ import type { TrackKey } from '../../constants/appDefaults';
 import { useUndoRedo } from '../useUndoRedo';
 import { SessionLaunchEngine } from '../../session/SessionLaunchEngine';
 import { createDefaultSessionDocument } from '../../session/defaults';
-import { captureEventsToSongStructure } from '../../session/capture';
+import { captureEventsToArrangement } from '../../session/capture';
 import { parseSessionMidiParam } from '../../session/midiMap';
 import type { LaunchQuantization, SessionDocument, TransportClockSnapshot } from '../../session/types';
-import type { SongStructure } from '../../types/songMode';
+import type { Arrangement } from '../../types/song';
 import { getSessionPack, mergePackStorage } from '../../session/packs';
 import type { TrackStorageMap } from '../../utils/trackStorageUtils';
 import { transportMixStore } from '../../stores/transportMixStore';
@@ -135,11 +135,15 @@ export function useSessionState() {
     setIsCapturing(true);
   }, []);
 
-  const finishCapture = useCallback((): SongStructure => {
-    const events = engineRef.current?.disarmCapture() ?? [];
+  const finishCapture = useCallback((): Arrangement => {
+    const engine = engineRef.current;
+    // Read before disarming: clips still playing run to the release point.
+    const endStep = engine?.timelineStep;
+    const events = engine?.disarmCapture() ?? [];
     setIsCapturing(false);
-    return captureEventsToSongStructure(events, {
+    return captureEventsToArrangement(events, {
       stepsPerMeasure: transportMixStore.meterRef.current.stepCount,
+      endStep,
     });
   }, []);
 

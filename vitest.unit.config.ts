@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { vitestCommonExclude, vitestSharedConfig } from './vitest.shared';
-import { INTEGRATION_TEST_GLOBS } from './vitest.integration.files';
+import { vitestCommonExclude, vitestSharedConfig } from './vitest.shared.ts';
+import { INTEGRATION_TEST_GLOBS } from './vitest.integration.files.ts';
 
 export default mergeConfig(
   vitestSharedConfig,

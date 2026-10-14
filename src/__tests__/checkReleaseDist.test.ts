@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
 const SCRIPT = join(ROOT, 'scripts', 'check-release-dist.mjs');
@@ -95,9 +96,27 @@ interface DistOptions {
     exportMap?: Record<string, string>;
     /** Memory import of hyphon_native.st.wasm. A pthread-style shared one must fail. */
     stMemory?: 'plain' | 'shared';
+    /** dist/mix_bus.wasm (#1341); `null` leaves it out. */
+    mixBus?: MixBusFixtureVariant | null;
+    /** Bytes appended to hyphon_native.wasm as a custom section (still a valid module). */
+    pthreadPadding?: number;
+    /** A string the pthread binary must not contain (libomp / embind / run_script). */
+    pthreadMarker?: string;
 }
 
-function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = {}): string {
+/** Custom section (id 0): ignored by engines, so the module stays valid. */
+function customSection(sectionName: string, payload: Buffer): Buffer {
+    return Buffer.from(section(0, [...name(sectionName), ...payload]));
+}
+
+function makeDist({
+    wasmExports,
+    exportMap,
+    stMemory = 'plain',
+    mixBus = 'valid',
+    pthreadPadding = 0,
+    pthreadMarker,
+}: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
 
@@ -132,7 +151,14 @@ function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = 
             .join('\n');
     writeFileSync(join(dir, 'hyphon_wasm_export_map.json'), JSON.stringify(map, null, 2));
     writeFileSync(join(dir, 'hyphon_native.js'), glue('"'));
-    writeFileSync(join(dir, 'hyphon_native.wasm'), wasmExporting(binaryExports, 'shared'));
+    writeFileSync(
+        join(dir, 'hyphon_native.wasm'),
+        Buffer.concat([
+            wasmExporting(binaryExports, 'shared'),
+            ...(pthreadPadding ? [customSection('pad', Buffer.alloc(pthreadPadding))] : []),
+            ...(pthreadMarker ? [customSection(pthreadMarker, Buffer.alloc(0))] : []),
+        ]),
+    );
     // The single-threaded profile carries the full contract, the same map, plain memory.
     const required = MANIFEST.required;
     const stMap = Object.fromEntries(required.map((n) => [n, n]));
@@ -142,6 +168,7 @@ function makeDist({ wasmExports, exportMap, stMemory = 'plain' }: DistOptions = 
         required.map((n) => `Module['_${n}'] = wasmExports['${n}'];`).join('\n'),
     );
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
+    if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
     return dir;
 }
 
@@ -233,5 +260,35 @@ describe('check-release-dist WASM export gate', () => {
 
         expect(result.status).toBe(1);
         expect(result.output).toContain('hyphon_native.st.wasm is not a single-threaded build');
+    });
+
+    it('requires the offline mix bus to ship (#1341)', () => {
+        const result = runCheck(makeDist({ mixBus: null }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/mix_bus.wasm is missing');
+    });
+
+    it('budgets the voice module binaries (dist-budget.json#native)', () => {
+        const result = runCheck(makeDist({ pthreadPadding: 200_000 }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toMatch(/hyphon_native\.wasm is [\d,]+ B, over budget/);
+    });
+
+    it('rejects a pthread binary that still links embind', () => {
+        const result = runCheck(makeDist({ pthreadMarker: '_embind_register_function' }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/hyphon_native.wasm links a runtime it has no caller for');
+        expect(result.output).toContain('embind is linked');
+    });
+
+    it('rejects a mix bus whose memory could grow', () => {
+        const result = runCheck(makeDist({ mixBus: 'growable-memory' }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/mix_bus.wasm is not a valid mix bus');
+        expect(result.output).toContain('memory can grow');
     });
 });

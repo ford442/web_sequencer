@@ -1,13 +1,19 @@
 #!/bin/bash
-# Build script for Hyphon Emscripten WASM module
-# Optimized for: Multithreading (Pthreads) + SIMD + Reliability
+# Build script for the Hyphon voice module (303 family, Prophecy, drum kit).
 #
 # Emits TWO voice modules from the same sources (see
 # docs/wasm/BUILD_NOTES.md#threading-profiles):
-#   public/hyphon_native.{js,wasm,worker.js}  — pthread build (USE_PTHREADS=1), shared memory
-#   public/hyphon_native.st.{js,wasm}         — single-threaded build (USE_PTHREADS=0),
-#       voices only, non-shared imported memory. Loaded by the worklets when the page is
-#       not crossOriginIsolated, on WebKit, or when Open303Config.forceSingleThreaded is set.
+#   public/hyphon_native.{js,wasm}     — pthread build (-pthread), shared imported memory
+#   public/hyphon_native.st.{js,wasm}  — single-threaded build, non-shared imported memory.
+#       Loaded by the worklets when the page is not crossOriginIsolated, on WebKit, or
+#       when Open303Config.forceSingleThreaded is set.
+# The two differ only in threading and memory: same sources, same exports, both
+# --no-entry. Pthread workers are inlined in the glue (no *.worker.js).
+#
+# Neither module has a caller on the main thread. The AudioWorklets instantiate
+# the .wasm by hand (src/audio-worklets/hyphonNativeSession.ts); the glue is read
+# only for its export-name map. The Pyodide bootstrap that used to ride along as
+# --post-js + main() is src/pyodide/bootstrap.ts.
 #
 # Usage:
 #   ./emscripten/build.sh [release|debug]
@@ -15,7 +21,8 @@
 #   HYPHON_LEGACY_JC303=1 ./emscripten/build.sh    # keep the single-instance jc303_* API
 #
 # Profiles (see docs/wasm/BUILD_NOTES.md):
-#   release (default) — -O3 compile, ASSERTIONS=0, no DWARF, legacy exports pruned
+#   release (default) — -O3 -flto compile and link, ASSERTIONS=0, no DWARF,
+#                       legacy exports pruned
 #   debug             — -O1 -g3 compile, ASSERTIONS=2, STACK_OVERFLOW_CHECK=2,
 #                       source maps, full export surface (legacy jc303_* kept)
 
@@ -35,16 +42,8 @@ esac
 
 echo "Building hyphon_native (pthread + single-threaded, profile=$BUILD_PROFILE)..."
 
-# Source Emscripten
-CANDIDATES=(
-    "/content/build_space/emsdk/emsdk_env.sh"
-    "$REPO_ROOT/emsdk/emsdk_env.sh"
-    "$HOME/emsdk/emsdk_env.sh"
-    "/usr/local/emsdk/emsdk_env.sh"
-)
-for f in "${CANDIDATES[@]}"; do
-    if [ -f "$f" ]; then source "$f"; break; fi
-done
+# The pinned Emscripten (emscripten/toolchain.json), or fail.
+source "$SCRIPT_DIR/toolchain_env.sh"
 
 OUTPUT_JS="$REPO_ROOT/public/hyphon_native.js"
 OUTPUT_ST_JS="$REPO_ROOT/public/hyphon_native.st.js"
@@ -81,12 +80,12 @@ echo "  ST memory budget: INITIAL=${ST_INITIAL_MEMORY_MB}mb MAXIMUM=${ST_MAXIMUM
 # FLAGS
 # ---------------------------------------------------------
 # Common flags
-# Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
-# Re-enabled : Emscripten 3.1.51 provides its own WASM-compatible OpenMP
-# runtime when linking with -s USE_PTHREADS=1. We do NOT use a host system libomp.
+# No -mrelaxed-simd: it is outside the Safari feature intersection.
+# No OpenMP: nothing here is compiled with -fopenmp (the threads are Emscripten
+# pthreads), and the committed libomp.a is gone.
 # -pthread is per profile (THREAD_FLAGS below): pthread objects are built with the
 # atomics feature and cannot be linked into the single-threaded module.
-ARCH_FLAGS="-msimd128 -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
+ARCH_FLAGS="-msimd128"
 
 # Legacy single-instance jc303_* API (jc303_init / jc303_setCutoff / ...).
 # Nothing in the shipped app calls it against hyphon_native.wasm: the worklet only
@@ -104,36 +103,50 @@ if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3 -fno-omit-frame-pointer"
     LINK_PROFILE_FLAGS="-O1 -g3 -gsource-map -s ASSERTIONS=2 -s STACK_OVERFLOW_CHECK=2"
 else
-    # No -ffast-math here. It is opt-in per translation unit via compile_cpp_fast
-    # (audio_dsp.cpp only). -ffast-math implies -ffinite-math-only and
+    # No -ffast-math anywhere in this module. Its one fast-math TU, the uncalled
+    # audio_dsp.cpp, moved out to the offline mix bus (build_mix_bus.sh, #1341).
+    # -ffast-math implies -ffinite-math-only and
     # -fno-signed-zeros, which lets the compiler assume no NaN/Inf ever reaches a
     # recursive filter: the diode-ladder and TB-303 IIR sections can then latch a
     # NaN instead of settling, and reassociated accumulations drift the 303
     # spectrogram baselines in scripts/generate_303_baselines.sh off their
     # reference. See docs/wasm/BUILD_NOTES.md#fast-math.
-    OPT_FLAGS="-O3 -funroll-loops"
-    # Link-time -O1 (not -O3) is deliberate: at -O2+ em++ 3.1.51 runs wasm-opt with a
-    # feature set that does not match the pthreads+SIMD module and the link fails.
-    # Revisit only with a pinned binaryen — see docs/wasm/BUILD_NOTES.md#wasm-opt.
-    LINK_PROFILE_FLAGS="-O1 -s ASSERTIONS=0"
+    #
+    # Full LTO: every wrapper is its own TU, so without it nothing inlines across
+    # open303_wrapper.cpp <-> the rosic DSP. -O3 at link runs the pinned emsdk's
+    # in-band wasm-opt (the 3.1.51 one failed this module at -O2+, which is what
+    # tools/optimize.sh used to work around). LTO must not move the IIR output:
+    # tools/render_hyphon_native_parity.mjs is the gate (BUILD_NOTES#render-parity).
+    OPT_FLAGS="-O3 -funroll-loops -flto"
+    LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"
 fi
 
 COMMON_FLAGS="$OPT_FLAGS $ARCH_FLAGS"
 
 # Per-profile threading flags.
-PTHREAD_THREAD_FLAGS="-pthread -DUSE_PTHREADS"
+PTHREAD_THREAD_FLAGS="-pthread"
 ST_THREAD_FLAGS=""
 
 # Linker Flags (shared by both profiles; threading + memory are appended per profile).
-BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s WASM=1 -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --bind"
+#
+# -lexports.js links no code (its one function is dead-stripped unless called), but
+# it is emcc's documented switch for keeping wasm import/export NAMES unminified at
+# -O2+ (tools/link.py). The worklets instantiate this wasm by hand: they satisfy
+# imports by name (hyphonNativeImports.ts#createEmscriptenEnv) and must find
+# __wasm_call_ctors, so minified names would turn emscripten_resize_heap / abort
+# into guessed letters. Stable names also keep the export maps identity maps,
+# byte-identical between CI and local builds.
+#
+# No --bind / -frtti: there are no EMSCRIPTEN_BINDINGS left; every caller goes
+# through the C exports. No WASM=1 / WASM_BIGINT=1: both are the 6.x defaults.
+BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s ALLOW_MEMORY_GROWTH=1 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --no-entry -lexports.js"
 
-# pthread: shared memory, worker pool, Pyodide bootstrap orchestrated from main().
-PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_MB}mb --post-js $SCRIPT_DIR/pyodide_bootstrap.js"
+# pthread: shared imported memory, worker pool.
+PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_MB}mb"
 
-# single-threaded: voices only. No main() (so no emscripten_run_script), no
-# audio_dsp.cpp (OpenMP, main-thread only), no worker. The memory is IMPORTED and
-# non-shared so the worklet can size it from the same budget key.
-ST_LINK_FLAGS="$BASE_LINK_FLAGS -s USE_PTHREADS=0 -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_MB}mb --no-entry"
+# single-threaded: the memory is IMPORTED and non-shared so the worklet can size
+# it from the same budget key.
+ST_LINK_FLAGS="$BASE_LINK_FLAGS -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_MB}mb"
 
 VOICE_EXPORTS="[ \
     '_malloc', \
@@ -211,8 +224,7 @@ if [ "$HYPHON_LEGACY_JC303" = "1" ]; then
     VOICE_EXPORTS="${VOICE_EXPORTS%]*}, $LEGACY_JC303_EXPORTS ]"
 fi
 
-# The pthread module additionally exports main() (Pyodide bootstrap).
-PTHREAD_EXPORTS="[ '_main', ${VOICE_EXPORTS#[ }"
+PTHREAD_EXPORTS="$VOICE_EXPORTS"
 ST_EXPORTS="$VOICE_EXPORTS"
 
 # ---------------------------------------------------------
@@ -229,25 +241,18 @@ build_profile() {
     local temp_dir="$TEMP_ROOT/$variant"
     mkdir -p "$temp_dir"
 
-    # Added -I $SCRIPT_DIR to find the local omp.h
     local includes="-I $SCRIPT_DIR \
           -I $temp_dir \
           -I $REPO_ROOT/jc303_wasm/src/dsp/open303 \
           -I $REPO_ROOT/jc303_wasm/src/dsp"
 
-    # C++ Flags. USE_KISSFFT / USE_SPEEX are gone with Rubber Band - nothing left in
-    # this module uses them.
-    local CXXFLAGS="$COMMON_FLAGS $thread_flags -frtti -std=c++17"
+    # C++ Flags. No exceptions and no RTTI: the voice code neither throws nor
+    # catches, and RTTI was only there for embind. (Rubber Band, a separate module,
+    # keeps -fexceptions.)
+    local CXXFLAGS="$COMMON_FLAGS $thread_flags -std=c++17 -fno-exceptions -fno-rtti"
 
-    # Fast-math variant, used only by compile_cpp_fast. In the debug profile this is
-    # identical to CXXFLAGS so debug builds stay bit-comparable with the reference.
-    local CXXFLAGS_FAST="$CXXFLAGS"
-    if [ "$BUILD_PROFILE" != "debug" ]; then
-        CXXFLAGS_FAST="$CXXFLAGS -ffast-math"
-    fi
-
-    # Helper to compile C++ files.
-    # Default: IEEE-safe math (see the -ffast-math note above CXXFLAGS_FAST).
+    # Helper to compile C++ files. IEEE-safe math only (see the -ffast-math note
+    # above OPT_FLAGS).
     compile_cpp() {
         local src=$1
         local obj="$temp_dir/$(basename "${src%.*}").o"
@@ -255,60 +260,36 @@ build_profile() {
         em++ -c "$src" -o "$obj" $includes $CXXFLAGS
     }
 
-    # Opt-in fast-math variant. Only for kernels with no recursive filter state and
-    # no baseline-comparison contract - currently just audio_dsp.cpp (mix/gain/pan).
-    compile_cpp_fast() {
-        local src=$1
-        local obj="$temp_dir/$(basename "${src%.*}").o"
-        echo "  [$variant C++/fast-math] $src -> $obj"
-        em++ -c "$src" -o "$obj" $includes $CXXFLAGS_FAST
-    }
-
     echo "Compiling Objects ($variant)..."
 
-    local extra_libs=""
-    if [ "$variant" = "pthread" ]; then
-        # 1. Compile Audio DSP.
-        # The one fast-math consumer: block mix / gain / pan over stateless float arrays,
-        # where reassociation is safe and vectorises well. Everything below is compiled
-        # IEEE-safe. pthread-only: it links libomp.
-        # No JS caller remains: the main-thread AudioDSP.ts bridge was deleted
-        # (it fought the worklet's imported heap, #1229). A future offline
-        # consumer must be a dedicated worker, never main-thread window.Module.
-        compile_cpp_fast "$SCRIPT_DIR/audio_dsp.cpp"
-        extra_libs="$SCRIPT_DIR/libomp.a"
-    fi
+    # The offline mix/gain/peak DSP (formerly audio_dsp.cpp + libomp.a, linked here
+    # with no caller) is its own module now: emscripten/build_mix_bus.sh. Nothing
+    # in this voice module uses OpenMP, so libomp.a is not linked.
 
-    # 2. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
+    # 1. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
     compile_cpp "$SCRIPT_DIR/highfid303_wrapper.cpp"
 
-    # 3. Compile custom Open303 TB-303 synthesizer engine
+    # 2. Compile custom Open303 TB-303 synthesizer engine
     compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
 
-    # 4. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
+    # 3. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
     for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
         compile_cpp "$f"
     done
     compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
 
-    # 5. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
+    # 4. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
     compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
 
-    # 6. Analog 808/909 drum kit (same module, new handles — one kit instance)
+    # 5. Analog 808/909 drum kit (same module, new handles — one kit instance)
     compile_cpp "$SCRIPT_DIR/drumkit_wrapper.cpp"
-
-    # 7. Compile Main (pthread only — it calls emscripten_run_script for the
-    #    Pyodide bootstrap, which is exactly what must not reach a worklet).
-    if [ "$variant" = "pthread" ]; then
-        compile_cpp "$SCRIPT_DIR/main.cpp"
-    fi
 
     echo "Linking ($variant)..."
 
     local objects
     objects=$(find "$temp_dir" -name "*.o")
 
-    em++ $objects $extra_libs -o "$output_js" \
+    em++ $objects -o "$output_js" \
       $link_flags \
       -s EXPORTED_FUNCTIONS="$exports"
 
@@ -324,19 +305,15 @@ build_profile() {
 build_profile pthread "$OUTPUT_JS" "$PTHREAD_THREAD_FLAGS" "$PTHREAD_LINK_FLAGS" \
     "$PTHREAD_EXPORTS" "$REPO_ROOT/public/hyphon_wasm_export_map.json"
 
-# Emscripten 3.1.51 emits hyphon_native.worker.js; 6.x inlines pthread workers.
-node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
-    --src-dir "$REPO_ROOT/public" \
-    --stem hyphon_native \
-    --dest "$REPO_ROOT/public/hyphon_native.worker.js"
-
 build_profile st "$OUTPUT_ST_JS" "$ST_THREAD_FLAGS" "$ST_LINK_FLAGS" \
     "$ST_EXPORTS" "$REPO_ROOT/public/hyphon_wasm_export_map.st.json"
 
-# A single-threaded module must not import shared memory or spawn workers.
+# A single-threaded module must not import shared memory or spawn workers, and
+# neither module may carry libomp, embind or emscripten_run_script.
 node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"
+node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"
 
 echo "Build successful! (profile=$BUILD_PROFILE, legacy_jc303=$HYPHON_LEGACY_JC303)"
-echo "Generated: public/hyphon_native.js (and .wasm/.worker.js)"
+echo "Generated: public/hyphon_native.js (and .wasm)"
 echo "Generated: public/hyphon_native.st.js (and .wasm)"
 rm -rf "$TEMP_ROOT"

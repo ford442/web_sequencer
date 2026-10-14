@@ -93,10 +93,7 @@ describe('hasDrumkitApi', () => {
 /**
  * Regression guards for the worklet-side instantiation of hyphon_native.wasm.
  *
- * `emscripten/main.cpp` (the Pyodide bootstrap orchestrator) is linked into the
- * same module as the Open303/JC303/Prophecy DSP wrappers, so the binary imports
- * symbols that only `main()` needs. The main thread gets those free from the
- * Emscripten glue (`hyphon_native.js`); the AudioWorklets cannot use the glue and
+ * The AudioWorklets cannot use the Emscripten glue (`hyphon_native.js`) and
  * derive the import object from `WebAssembly.Module.imports()` instead. Any
  * import that used to be missing made `WebAssembly.instantiate()` throw with
  * "function import requires a callable", which degrades every 303 voice to
@@ -164,22 +161,34 @@ function compileModuleImportingEnvFunction(symbol: string): WebAssembly.Module {
   return new WebAssembly.Module(bytes);
 }
 
-/** Function imports `main.cpp` + the C++ runtime pull into hyphon_native.wasm. */
-const MAIN_CPP_RUNTIME_IMPORTS = [
-  'emscripten_run_script', // emscripten_run_script("...initPyodideSystem()...")
-  '__cxa_throw',           // C++ exception ABI
-  'exit',                  // main() returning
-  'emscripten_date_now',
-  '_emscripten_get_now_is_monotonic',
-  '__emscripten_init_main_thread_js',
-  '__emscripten_thread_cleanup',
+/** Runtime function imports of the pthread / ST voice modules on the pinned emcc. */
+const RUNTIME_IMPORTS = [
+  'emscripten_resize_heap',
+  '_abort_js',
+  'exit',
+  'emscripten_get_now',
+  '_setitimer_js',
+  '_emscripten_runtime_keepalive_clear',
+  '_emscripten_init_main_thread_js',
+  '_emscripten_thread_cleanup',
+  '_emscripten_thread_mailbox_await',
+  '_emscripten_notify_mailbox_postmessage',
+  '__cxa_throw', // only a stale pre-(-fno-exceptions) binary imports it
 ] as const;
 
+/** Removed with emscripten/main.cpp and the EMSCRIPTEN_BINDINGS blocks. */
+const REMOVED_IMPORTS = ['emscripten_run_script', '_embind_register_function'] as const;
+
 describe('createEmscriptenEnv (worklet import table)', () => {
-  it('supplies the main.cpp/runtime imports the DSP wrappers are linked against', () => {
+  it('supplies the runtime imports the voice modules are linked against', () => {
     const env = createEmscriptenEnv(stubImportContext()) as Record<string, unknown>;
-    const missing = MAIN_CPP_RUNTIME_IMPORTS.filter((name) => typeof env[name] !== 'function');
+    const missing = RUNTIME_IMPORTS.filter((name) => typeof env[name] !== 'function');
     expect(missing).toEqual([]);
+  });
+
+  it('carries no explicit main()/embind entries', () => {
+    const env = createEmscriptenEnv(stubImportContext());
+    expect(REMOVED_IMPORTS.filter((name) => name in env)).toEqual([]);
   });
 
   it('implements emscripten_date_now as Date.now and monotonic as 1', () => {

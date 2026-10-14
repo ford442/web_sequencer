@@ -49,7 +49,7 @@ Key conventions (project-specific)
 
 - Central audio orchestration: `src/hooks/useAudioEngine.ts` — start here for backend resolution and fallback ladders.
 - Per-domain code lives under distinct folders: AssemblyScript in `assembly/`, Rust in `rust-audio/`, Emscripten/C++ in `emscripten/`, JC-303 under `jc303_wasm/` (submodule). The build scripts are intentionally separate.
-- Dynamic loading pattern: WASM and heavy modules are loaded with `import()` / top-level-await. Vite plugins (`vite-plugin-wasm`, `vite-plugin-top-level-await`) are enabled.
+- Dynamic loading pattern: WASM and heavy modules are loaded with `import()` / top-level-await. Vite 8 handles `*.wasm?init` / `?url` and top-level await natively (no wasm/TLA plugins).
 - Tests: Vitest config uses `happy-dom` and `vitest.setup.ts` to mock `AudioContext` / `AudioWorkletNode`. Expect tests to mock audio primitives.
 - ESLint: TypeScript + React hooks rules are enforced; `no-unused-vars` is adjusted (see `eslint.config.js`).
 - Alias `@` -> `/src` is configured in `vite.config.ts`.

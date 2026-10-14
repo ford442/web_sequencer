@@ -82,7 +82,7 @@ export const SmfImportModalHost = React.memo(() => {
 
 const closeExportModal = () => uiModalsStore.setIsExportModalOpen(false)
 const EXPORT_KEYS = [
-    'showToast', 'songStructure', 'trackStorage', 'pattern', 'tempo',
+    'showToast', 'songStructure', 'arrangement', 'trackStorage', 'pattern', 'tempo',
     'synthA', 'synthB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler',
     'audioEngine', 'pyodide', 'sampleBuffers', 'isHarmonizeActive',
 ] as const
@@ -96,6 +96,7 @@ const ExportModalBody = () => {
             onClose={closeExportModal}
             onShowToast={s.showToast}
             songStructure={s.songStructure}
+            arrangement={s.arrangement}
             trackStorage={s.trackStorage}
             currentPattern={s.pattern}
             tempo={s.tempo}

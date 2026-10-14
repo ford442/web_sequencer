@@ -12,7 +12,6 @@ const schemaPath = join(REPO_ROOT, 'docs/schemas/native-artifacts.schema.json');
 const REQUIRED_WHEN_PRESENT = [
   'hyphon_native.wasm',
   'hyphon_native.js',
-  'hyphon_native.worker.js',
   'hyphon_wasm_export_map.json',
   'oscillators.wasm',
   'fft.wasm',

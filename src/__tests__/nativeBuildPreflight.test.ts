@@ -90,13 +90,20 @@ describe('native preflight', () => {
     expect(byId.rust).toBeUndefined();
   });
 
-  it('jc303 world still stamps the historical pthread worker path', () => {
-    const worlds = defineWorlds(defaultRepoRoot());
-    const jc303 = worlds.find((w: { id: string }) => w.id === 'jc303');
-    expect(jc303).toBeDefined();
-    expect(jc303!.outputs).toContain('public/jc303-threaded.worker.js');
-    expect(jc303!.inputs.some((i: { name: string }) => i.name === 'scripts/ensure-pthread-worker-stamp.mjs')).toBe(
-      true,
-    );
+  type World = { id: string; outputs: string[]; inputs: { name: string }[] };
+
+  it('expects no *.worker.js: the pinned emcc inlines pthread workers', () => {
+    const worlds = defineWorlds(defaultRepoRoot()) as World[];
+    const outputs = worlds.flatMap((w) => w.outputs);
+    expect(outputs.filter((o) => o.endsWith('.worker.js'))).toEqual([]);
+  });
+
+  it('rebuilds every em++ world when the Emscripten pin moves', () => {
+    const worlds = defineWorlds(defaultRepoRoot()) as World[];
+    for (const id of ['emcc', 'jc303', 'rubberband', 'mixbus']) {
+      const world = worlds.find((w) => w.id === id);
+      expect(world, id).toBeDefined();
+      expect(world!.inputs.map((i) => i.name), id).toContain('emscripten/toolchain.json');
+    }
   });
 });

@@ -6,7 +6,7 @@
  * One handle owns kick + snare + closed/open hats so the live worklet can
  * instantiate the voice module once (no extra SharedArrayBuffer per pad).
  *
- * C API (EMSCRIPTEN_KEEPALIVE + embind):
+ * C API (EMSCRIPTEN_KEEPALIVE):
  *   drumkit_create()                                    → uintptr_t handle
  *   drumkit_destroy(handle)
  *   drumkit_init(handle, sampleRate, bufferSize)        → 1 on success
@@ -22,7 +22,6 @@
  */
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
 
 #include <algorithm>
 #include <cmath>
@@ -33,7 +32,6 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace emscripten;
 
 enum DrumkitVoice : int {
     DRUMKIT_KICK = 0,
@@ -444,13 +442,3 @@ uintptr_t drumkit_process(uintptr_t handle, int numFrames) {
 }
 
 }  // extern "C"
-
-EMSCRIPTEN_BINDINGS(drumkit_module) {
-    function("drumkit_create", &drumkit_create);
-    function("drumkit_destroy", &drumkit_destroy);
-    function("drumkit_init", &drumkit_init);
-    function("drumkit_set_kit", &drumkit_set_kit);
-    function("drumkit_trigger", &drumkit_trigger);
-    function("drumkit_choke_open_hat", &drumkit_choke_open_hat);
-    function("drumkit_process", &drumkit_process);
-}

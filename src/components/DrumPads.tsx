@@ -65,6 +65,7 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
               onTouchStart={(e) => { e.preventDefault(); handlePadDown(pad); }}
               onTouchEnd={(e) => { e.preventDefault(); handlePadUp(pad.id); }}
               onKeyDown={(e) => {
+                if (e.repeat) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   if (!activePads.has(pad.id)) {
@@ -73,6 +74,7 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
                 }
               }}
               onKeyUp={(e) => {
+                if (e.repeat) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   handlePadUp(pad.id);

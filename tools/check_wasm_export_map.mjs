@@ -10,11 +10,11 @@
  *      means the map is stale relative to the .wasm.
  *   4. With `--glue <hyphon_native.js>`: the committed map matches what the glue
  *      actually declares, so a rebuild that forgot to regenerate the map fails.
- *   5. With `--wasm <hyphon_native.wasm>`: every minified name in the map is a real
- *      export of the binary. The glue check alone cannot see this — an out-of-band
- *      `wasm-opt` run (tools/optimize.sh) rewrites the .wasm without touching the
- *      glue, so a pass that renamed exports would leave a map that still agrees
- *      with the glue and no longer resolves in the worklet.
+ *   5. With `--wasm <hyphon_native.wasm>`: every name in the map is a real export
+ *      of the binary. The glue check alone cannot see this — any pass that rewrites
+ *      the .wasm without touching the glue (a manual wasm-opt run) and renames
+ *      exports would leave a map that still agrees with the glue and no longer
+ *      resolves in the worklet.
  *
  * Usage:
  *   node tools/check_wasm_export_map.mjs [--map <file>] [--glue <hyphon_native.js>] [--wasm <file>]
@@ -141,9 +141,9 @@ if (args.wasm) {
         errors.push(
           `Export map names absent from ${path.relative(REPO_ROOT, args.wasm)} (${absent.length}):\n  ` +
           absent.join('\n  ') +
-          '\n  The binary was rewritten after the map was generated (usually an ' +
-          'out-of-band wasm-opt pass that renamed exports). Re-link, or re-run ' +
-          'tools/optimize.sh, which regenerates and re-checks the map.',
+          '\n  The binary was rewritten after the map was generated (usually a ' +
+          'manual wasm-opt pass that renamed exports). Re-link with ' +
+          'emscripten/build.sh, which regenerates and re-checks the map.',
         );
       }
     }

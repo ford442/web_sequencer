@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { useAppStateSelector, useAppStateSlice } from '../../contexts/AppStateContext'
+import { useTransportMixStore } from '../../stores/transportMixStore'
 import { SongMode } from '../SongMode'
 import { SessionLauncher } from '../SessionLauncher'
 import { MobileTransportDock } from '../MobileTransportDock'
@@ -45,7 +46,7 @@ const SESSION_KEYS = [
     'setIsSessionOpen', 'launchSessionClip', 'launchSessionScene', 'stopSessionTrack',
     'stopSessionAll', 'setSessionQuantization', 'beginSessionCapture', 'finishSessionCapture',
     'undoSession', 'redoSession', 'loadSessionPack', 'setSessionDocument',
-    'handleEditSongStructure', 'setIsSongModeOpen',
+    'editArrangement', 'setIsArrangementOpen',
 ] as const
 
 export const SessionNode = React.memo(() => {
@@ -71,9 +72,10 @@ export const SessionNode = React.memo(() => {
             onSetQuantization={s.setSessionQuantization}
             onBeginCapture={s.beginSessionCapture}
             onFinishCapture={() => {
+                // Launches become timeline clips (slot + start + length).
                 const captured = s.finishSessionCapture();
-                s.handleEditSongStructure(() => captured);
-                s.setIsSongModeOpen(true);
+                s.editArrangement(() => captured);
+                s.setIsArrangementOpen(true);
             }}
             onUndo={s.undoSession}
             onRedo={s.redoSession}
@@ -83,6 +85,48 @@ export const SessionNode = React.memo(() => {
             onUpdateDocument={(doc) => s.setSessionDocument(doc)}
         />
     )
+})
+
+// Lazy: the timeline's code loads on first open, and nothing of it mounts
+// (or re-renders on grid edits) while it is closed.
+const ArrangementView = lazy(() => import('../ArrangementView'))
+
+const ARRANGEMENT_KEYS = [
+    'isArrangementOpen', 'setIsArrangementOpen', 'arrangement', 'editArrangement',
+    'activeTrackSlots', 'isSongModeActive', 'setIsSongModeActive',
+    'undoSongStructure', 'redoSongStructure',
+] as const
+
+const ArrangementBody = React.memo(() => {
+    const s = useAppStateSlice(ARRANGEMENT_KEYS)
+    const canUndo = useAppStateSelector((state) => state.canUndoSong())
+    const canRedo = useAppStateSelector((state) => state.canRedoSong())
+    const stepCount = useTransportMixStore((m) => m.stepCount)
+    const timeSignature = useTransportMixStore((m) => m.timeSignature)
+    const trackLengths = useTransportMixStore((m) => m.trackLengths)
+    const meter = React.useMemo(() => ({ stepCount, timeSignature, trackLengths }), [stepCount, timeSignature, trackLengths])
+    return (
+        <Suspense fallback={null}>
+            <ArrangementView
+                arrangement={s.arrangement}
+                meter={meter}
+                activeTrackSlots={s.activeTrackSlots}
+                isSongModeActive={s.isSongModeActive}
+                onSetIsSongModeActive={s.setIsSongModeActive}
+                onEdit={s.editArrangement}
+                onUndo={s.undoSongStructure}
+                onRedo={s.redoSongStructure}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onClose={() => s.setIsArrangementOpen(false)}
+            />
+        </Suspense>
+    )
+})
+
+export const ArrangementNode = React.memo(() => {
+    const isOpen = useAppStateSelector((state) => state.isArrangementOpen)
+    return isOpen ? <ArrangementBody /> : null
 })
 
 const DOCK_KEYS = [

@@ -5,6 +5,7 @@ import type { Note, Pattern, PartSequence } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
 import { transportMixStore } from '../../stores/transportMixStore';
 import { resolveSongMeter } from '../../utils/songMeter';
+import { createArrangement, songStructureToArrangement } from '@/arrangement/model';
 
 /**
  * Trigger dispatch for the sequencer's eight tracks.
@@ -85,7 +86,7 @@ function makeOptions(engine: ReturnType<typeof makeEngine>, pattern: Pattern) {
     activeSamplerBankRef: ref(0),
     sliceHighlightRef: ref(null),
     isSongModeActiveRef: ref(false),
-    songStructureRef: ref([]),
+    arrangementRef: ref(createArrangement(32)),
     songMeasureRef: ref(0),
     isFirstStepRef: ref(true),
     trackStorageRef: ref(trackStorage),
@@ -186,7 +187,8 @@ describe('useStepHandler pattern length and per-track loops', () => {
     storage.sampler = [pattern.sampler];
     const slot0 = { partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0 };
     options.isSongModeActiveRef.current = true;
-    options.songStructureRef.current = [slot0, slot0];
+    // A v4 two-measure song, migrated: one clip per cell.
+    options.arrangementRef.current = songStructureToArrangement([slot0, slot0], 16);
     options.trackStorageRef.current = storage;
     const { result } = renderHook(() => useStepHandler(options as unknown as Parameters<typeof useStepHandler>[0]));
     const { hats } = drive(result.current.onStep, engine, 16, 32);

@@ -1,6 +1,14 @@
 # OpenMP Audio DSP Implementation
 
-> **Status: main-thread bridge removed.** `src/engines/AudioDSP.ts` (and its
+> **Status: historical — `audio_dsp.cpp` is deleted (#1341).** It was never
+> compiled with `-fopenmp`, so `_OPENMP` was undefined and none of the pragmas
+> described below ever ran. It sat in the pthread `hyphon_native` link line
+> with no caller. The offline mix/peak work it was meant for is now
+> `emscripten/mix_bus.cpp`, a separate worker-only module without OpenMP. See
+> [BUILD_NOTES#mix-bus](../wasm/BUILD_NOTES.md#mix-bus). The rest of this page
+> describes code that no longer exists.
+>
+> **Earlier: main-thread bridge removed.** `src/engines/AudioDSP.ts` (and its
 > `Open303Native` / `hasOpen303Native` exports) drove these helpers through
 > `window.Module` on the main thread — a second `hyphon_native` instance
 > fighting the AudioWorklet's imported heap (#1229), and absent entirely from

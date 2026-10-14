@@ -17,7 +17,7 @@ Hyphon is a sophisticated **web-based audio workstation** featuring:
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript 5.9
-- **Build:** Vite 5 + npm
+- **Build:** Vite 8 + npm
 - **Styling:** Tailwind CSS
 - **3D Graphics:** Three.js + React Three Fiber
 - **Audio Engines:**
@@ -78,9 +78,6 @@ pnpm run preview
 # Lint code
 pnpm run lint
 
-# Optional wasm-opt pass (not part of build:release)
-pnpm run optimize
-
 # Deploy
 pnpm run deploy
 ```
@@ -91,7 +88,8 @@ The project has multiple WASM builds with specific purposes:
 - `build:wasm:oscillators` - AssemblyScript oscillator engines
 - `build:wasm:freezer` - Track freezer/time-stretch prep
 - `bench:wasm:rust` - Rust bench crate only; not part of `build:native` (#1294)
-- `build:wasm:jc303` - JC303 synth (C++ via Emscripten + OpenMP)
+- `build:wasm:jc303` - Standalone JC303 synth (C++ via Emscripten pthreads)
+- `build:emcc` - Voice module `hyphon_native` (Emscripten 6.0.9, pinned in `emscripten/toolchain.json`; `-O3 -flto`)
 
 ⚠️ **Important:** Individual WASM rebuilds may be needed after changes. The main `dev` and `build` commands handle this, but specific engine changes may require targeted rebuilds.
 

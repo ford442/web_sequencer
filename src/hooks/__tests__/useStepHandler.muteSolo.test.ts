@@ -5,6 +5,7 @@ import { trackMuteSoloStore } from '../../stores/trackMuteSoloStore';
 import { TRACK_KEYS } from '../../constants';
 import type { Note, Pattern, PartSequence } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
+import { createArrangement } from '@/arrangement/model';
 
 /**
  * Mute / solo gating at the trigger point.
@@ -81,7 +82,7 @@ function makeOptions(engine: ReturnType<typeof makeEngine>, pattern: Pattern) {
     activeSamplerBankRef: ref(0),
     sliceHighlightRef: ref(null),
     isSongModeActiveRef: ref(false),
-    songStructureRef: ref([]),
+    arrangementRef: ref(createArrangement(32)),
     songMeasureRef: ref(0),
     isFirstStepRef: ref(true),
     trackStorageRef: ref(trackStorage),

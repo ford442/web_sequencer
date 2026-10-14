@@ -14,7 +14,8 @@ import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
-import { checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
+import { checkForbiddenSymbols, checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
+import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
@@ -284,7 +285,7 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
     for (const msg of leaky) console.error(`  ${msg}`);
     console.error(
       '  Keep `worker: { format: "es" }` emitting one self-contained chunk per worklet; ' +
-      'do not let manualChunks split a worklet across chunks.',
+      'do not let build.rolldownOptions codeSplitting groups split a worklet across chunks.',
     );
     process.exit(1);
   }
@@ -579,12 +580,35 @@ function checkHyphonProfile(profile) {
       );
       process.exit(1);
     }
+  } else {
+    // The ST check above already includes this scan.
+    const problems = checkForbiddenSymbols(fs.readFileSync(wasmPath));
+    if (problems.length) {
+      console.error(`[check-release-dist] dist/${profile.wasm} links a runtime it has no caller for:\n  ${problems.join('\n  ')}`);
+      process.exit(1);
+    }
   }
 
   return { mapKeys: mapKeys.length, required: requiredExports.length };
 }
 
 const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
+
+// The offline mix bus (#1341) ships next to the voice modules, fetched by
+// src/workers/mixBus.worker.ts from the deploy base. Without it stem export
+// still works (JS fallback) but says so, so a missing file is a release bug.
+{
+  const mixBusPath = path.join(distDir, 'mix_bus.wasm');
+  if (!fs.existsSync(mixBusPath)) {
+    console.error('[check-release-dist] dist/mix_bus.wasm is missing (pnpm run build:wasm:mixbus).');
+    process.exit(1);
+  }
+  const problems = checkMixBusModule(fs.readFileSync(mixBusPath));
+  if (problems.length) {
+    console.error(`[check-release-dist] dist/mix_bus.wasm is not a valid mix bus:\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+}
 
 const rawTsInDist = distJsFiles.filter((p) => /\.tsx?$/.test(p));
 if (rawTsInDist.length) {
@@ -595,7 +619,7 @@ if (rawTsInDist.length) {
 
 // Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
 // dist/assets/ — the directory Vite's bundler actually controls. Vendored
-// native binaries (hyphon_native*, jc303*, rubberband.wasm) and the vendored
+// native binaries (hyphon_native*, jc303*, rubberband.wasm, mix_bus.wasm) and the vendored
 // Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
 // here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by
@@ -651,6 +675,20 @@ if (budget) {
       for (const f of assetSizes.sort((a, b) => b.size - a.size).slice(0, 10)) {
         console.error(`  ${f.size.toLocaleString()} B  ${path.relative(distDir, f.path)}`);
       }
+    }
+  }
+
+  // The voice module's binaries and glue are outside Vite's graph, so they get
+  // their own raw-byte rows (dist-budget.json#native). Set from the measured
+  // 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes) and ratcheted like
+  // the compressed rows: bank an improvement by lowering the number.
+  for (const [file, max] of Object.entries(budget.native ?? {})) {
+    if (file.startsWith('_')) continue;
+    const p = path.join(distDir, file);
+    if (!fs.existsSync(p)) continue; // presence is checked by the export gate above
+    const size = fs.statSync(p).size;
+    if (size > max) {
+      budgetFailures.push(`${file} is ${size.toLocaleString()} B, over budget of ${max.toLocaleString()} B`);
     }
   }
 

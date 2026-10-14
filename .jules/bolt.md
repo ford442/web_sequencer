@@ -27,3 +27,7 @@
 ## 2024-12-07 - Pre-allocate object pools for events in AudioWorklet hot paths
 **Learning:** Appending to an array (using `push()`) or creating object literals inside an AudioWorklet's `process()` path (e.g., when accumulating pending artifacts for batched reporting) allocates memory per quantum or per event on the hot path. This creates continuous GC pressure that can degrade real-time audio budget, especially if artifacts are detected frequently.
 **Action:** Replace `Array.push()` logic with a pre-allocated fixed-size object pool (e.g., `pendingArtifactsPool: Array.from({ length: 32 }, ...)`) tracked by a counter (`pendingArtifactsCount`). Mutate the primitive fields of the pre-allocated objects in place, and only slice the active elements when sending `postMessage` batch reports (which happens at a lower interval, not per quantum).
+
+## 2024-12-10 - Optimize Exponential Decay Loops in AudioWorklets
+**Learning:** In AudioWorklets, block-level exponential decay loops (e.g., `for (let i = 0; i < blockFrames; i++) { this.env *= releaseMult; }`) that don't depend on per-sample signal data needlessly consume CPU cycles on the hot path (O(N) operation per quantum). These empty DSP loops can be mathematically simplified to O(1) using `Math.pow()`.
+**Action:** Replace O(N) exponential decay loops with an O(1) operation (e.g., `this.env *= Math.pow(releaseMult, blockFrames)`) to reduce unnecessary CPU overhead on the real-time audio thread.
