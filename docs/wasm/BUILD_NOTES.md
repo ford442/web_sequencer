@@ -58,15 +58,11 @@ Stamps live in `.cache/native/stamps.json` (gitignored). The generated inventory
 | Link | `-O1` | `-O1 -g3 -gsource-map` |
 | Assertions | `-s ASSERTIONS=0` | `-s ASSERTIONS=2` |
 | Stack checks | off | `-s STACK_OVERFLOW_CHECK=2` |
-| Legacy `jc303_*` single-instance API | compiled out | compiled in |
 
 Shared by both profiles: `-msimd128`, `-s WASM_BIGINT=1`,
 `-s ALLOW_MEMORY_GROWTH=1`, `-s EXPORT_ES6=1`, `--bind`. Threading is per
 *threading profile*, not per build profile — every `build.sh` run emits both, see
 [Threading profiles](#threading-profiles).
-
-`HYPHON_LEGACY_JC303=1` forces the legacy export surface back into a release
-build; `HYPHON_LEGACY_JC303=0` strips it from a debug build.
 
 ### Threading / OpenMP: the single source of truth
 
@@ -588,11 +584,21 @@ staying true is verified rather than assumed.)
 
 ## Export surface
 
-`emscripten/wasm_export_manifest.json` declares the module's contract:
+`emscripten/wasm_export_manifest.json` declares the module's contract, and is
+the **only** list of it: `build.sh` passes exactly `required` + `optional` to
+`EXPORTED_FUNCTIONS` via `tools/hyphon_native_exports.mjs` (#1344). Add an
+export to the manifest, never to `build.sh`.
 
 - **required** — called by shipped worklet/engine code. A build missing one is broken.
-- **optional** — may legitimately be absent (profile-gated or pruned).
+- **optional** — built, but not (yet) called by shipped code.
+- **runtime** — added by Emscripten itself (pthread internals, `main`); never requested.
 - anything else present is flagged as export bloat.
+
+Engines on the shared voice core get their generic exports from
+`HYPHON_EXPORT_VOICE(prefix, …)` — `prefix_create`, `_destroy`, `_init`,
+`_push_event`, `_render`, `_cancel_notes` — and
+`src/__tests__/wasmExportManifest.voices.test.ts` fails if any of them is
+missing from the manifest. See [VOICE_CORE.md](VOICE_CORE.md).
 
 ```bash
 pnpm run check:exports                                                # validate committed map
@@ -605,19 +611,21 @@ CI runs `check:exports` (see `.github/workflows/ci.yml`); `build.sh` runs it wit
 shipping a stale map to the worklets. When WASM artifacts are absent the check
 exits 0 with a warning, so source-only CI jobs stay green.
 
-### Pruned: legacy single-instance `jc303_*`
+### Removed: legacy single-instance `jc303_*`
 
-`jc303_init`, `jc303_noteOn/noteOff/allNotesOff`, `jc303_set{Waveform,Cutoff,
-Resonance,EnvMod,Decay,Accent,Volume,FilterMode}` and `jc303_process` are gone
-from release builds (`#if HYPHON_LEGACY_JC303` in `emscripten/jc303_wrapper.cpp`).
+`jc303_noteOn/noteOff/allNotesOff`, `jc303_set{Waveform,Cutoff,Resonance,EnvMod,
+Decay,Accent,Volume,FilterMode}`, `jc303_process` and the single-instance
+`jc303_init(sampleRate, bufferSize)` are gone from `emscripten/jc303_wrapper.cpp`,
+along with the `HYPHON_LEGACY_JC303` switch that kept them in debug builds (#1344).
+`jc303_init` is now the voice core's handle-based init,
+`jc303_init(handle, sampleRate, maxFrames)`.
 
 They were never reachable in hyphon_native: `open303-processor.ts` only falls back
 to that API when `open303_*` is missing, which describes the standalone
-`jc303-single.wasm` artifact (`tools/build_jc303_omp.sh`), not this module. The
-worklet's `JC303_PARAM_MAP` message names (`jc303_setCutoff`, …) are unaffected —
-those are *message* names translated into `open303_set_param` / `jc303_set_param`
-param IDs, not exports. The fallback code path is retained and still builds under
-the debug profile.
+`jc303-single.wasm` artifact (`tools/build_jc303_omp.sh`), not this module — that
+fallback path is unchanged. The worklet's `JC303_PARAM_MAP` message names
+(`jc303_setCutoff`, …) are unaffected too: they are *message* names translated
+into `open303_set_param` / `jc303_set_param` param IDs, not exports.
 
 `highfid303_*` is kept but marked optional: the shipped realtime path does not call
 it (`OfflineHighFid303Engine.ts` and the WGSL shader mirror it in TS/GPU instead).

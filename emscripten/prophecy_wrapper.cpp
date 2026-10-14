@@ -7,10 +7,16 @@
  * All modifications to the upstream DSP code are documented with "// [wrapper mod]"
  * comments so they can be diffed against the source repo.
  *
- * Exposes a multi-instance C API (EMSCRIPTEN_KEEPALIVE direct exports):
- *   prophecy_create()                              → uintptr_t handle
- *   prophecy_destroy(handle)
- *   prophecy_init(handle, sampleRate, bufferSize)  → 1 on success
+ * Built on the shared voice core (emscripten/core/voice.h, #1344). Generic
+ * exports from HYPHON_EXPORT_VOICE:
+ *   prophecy_create / _destroy / _init(handle, sampleRate, maxFrames)
+ *   prophecy_push_event(handle, frame, type, target, value, …)
+ *   prophecy_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate
+ *   prophecy_cancel_notes(handle)
+ * Events: hyphon::kNoteOn (target = note, value = MIDI velocity 0–127),
+ * kNoteOff, kAllNotesOff, kParam (target = ProphecyParam).
+ *
+ * Immediate API (what the worklet calls today; applies at the next block):
  *   prophecy_note_on(handle, midiNote, velocity)
  *   prophecy_note_off(handle, midiNote)
  *   prophecy_all_notes_off(handle)
@@ -34,8 +40,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
-#include <unordered_map>
+
+#include "core/voice.h"
+#include "core/voice_exports.h"
 
 using namespace emscripten;
 
@@ -583,13 +590,11 @@ private:
 } // namespace ProphecyDSP
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ProphecyInstance  – wraps the engine with a malloc'd output buffer
+// ProphecyEngine  – the DSP engine plus the parameter mapping, on the voice core
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct ProphecyInstance {
+struct ProphecyEngine {
     ProphecyDSP::ProphecyDSPEngine engine;
-    float* outBuf    = nullptr;
-    int    bufSize   = 128;
     float  sampleRate = 44100.0f;
 
     // ── ADSR parameters (stored for re-application after rebuild) ────────────
@@ -598,29 +603,12 @@ struct ProphecyInstance {
     float sustainLevel= 0.7f;
     float releaseTime = 0.5f;
 
-    ProphecyInstance() = default;
-
-    ~ProphecyInstance()
-    {
-        std::free(outBuf);
-        outBuf = nullptr;
-    }
-
-    int init(float sr, int bs)
+    bool init(float sr, int /*maxFrames*/)
     {
         sampleRate = (sr > 0.0f) ? sr : 44100.0f;
-        bufSize    = (bs > 0)    ? bs : 128;
-
-        std::free(outBuf);
-        outBuf = static_cast<float*>(
-            std::malloc(static_cast<std::size_t>(bufSize) * sizeof(float))
-        );
-        if (!outBuf) { bufSize = 0; return 0; }
-        std::memset(outBuf, 0, static_cast<std::size_t>(bufSize) * sizeof(float));
-
         engine.setSampleRate(sampleRate);
         engine.setADSRParams(attackTime, decayTime, sustainLevel, releaseTime);
-        return 1;
+        return true;
     }
 
     void setParam(int paramId, float value)
@@ -693,94 +681,79 @@ struct ProphecyInstance {
         engine.allNotesOff();
     }
 
-    /** Render into the internal buffer and return a raw pointer to it. */
-    float* processInternal(int numFrames)
+    void apply(const hyphon::Event& e)
     {
-        if (!outBuf) return nullptr;
-        const int frames = std::min(numFrames, bufSize);
-        engine.process(outBuf, frames);
-        return outBuf;
+        switch (e.type) {
+            case hyphon::kNoteOn:      noteOn(e.target, e.value); break;
+            case hyphon::kNoteOff:     noteOff(e.target);         break;
+            case hyphon::kAllNotesOff: allNotesOff();             break;
+            case hyphon::kParam:       setParam(e.target, e.value); break;
+            default: break;
+        }
+    }
+
+    void render(float* out, int frames)
+    {
+        engine.process(out, frames);
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Multi-instance registry
-// ─────────────────────────────────────────────────────────────────────────────
+using ProphecyNativeVoice = hyphon::NativeVoice<ProphecyEngine, 256>;
 
-static std::unordered_map<uintptr_t, std::unique_ptr<ProphecyInstance>> g_instances;
-static uintptr_t g_nextHandle = 1;
-
-static ProphecyInstance* lookupInstance(uintptr_t handle)
-{
-    auto it = g_instances.find(handle);
-    return (it != g_instances.end()) ? it->second.get() : nullptr;
-}
+// Part A + part B per audio session; the slack covers offline renders and tests.
+HYPHON_EXPORT_VOICE(prophecy, ProphecyNativeVoice, 8)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Multi-instance C API
+// Immediate C API
 // ─────────────────────────────────────────────────────────────────────────────
 
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
-uintptr_t prophecy_create()
-{
-    auto inst = std::make_unique<ProphecyInstance>();
-    uintptr_t h = g_nextHandle++;
-    g_instances[h] = std::move(inst);
-    return h;
-}
-
-EMSCRIPTEN_KEEPALIVE
-void prophecy_destroy(uintptr_t handle)
-{
-    g_instances.erase(handle);
-}
-
-EMSCRIPTEN_KEEPALIVE
-int prophecy_init(uintptr_t handle, float sampleRate, int bufferSize)
-{
-    ProphecyInstance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    return inst->init(sampleRate, bufferSize);
-}
-
-EMSCRIPTEN_KEEPALIVE
 void prophecy_note_on(uintptr_t handle, int midiNote, float velocity)
 {
-    if (auto* inst = lookupInstance(handle)) inst->noteOn(midiNote, velocity);
+    if (auto* v = prophecy_voice(handle)) v->engine.noteOn(midiNote, velocity);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void prophecy_note_off(uintptr_t handle, int midiNote)
 {
-    if (auto* inst = lookupInstance(handle)) inst->noteOff(midiNote);
+    if (auto* v = prophecy_voice(handle)) v->engine.noteOff(midiNote);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void prophecy_all_notes_off(uintptr_t handle)
 {
-    if (auto* inst = lookupInstance(handle)) inst->allNotesOff();
+    if (auto* v = prophecy_voice(handle)) v->engine.allNotesOff();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void prophecy_set_param(uintptr_t handle, int paramId, float value)
 {
-    if (auto* inst = lookupInstance(handle)) inst->setParam(paramId, value);
+    if (auto* v = prophecy_voice(handle)) v->engine.setParam(paramId, value);
 }
 
 /**
- * Render @p numFrames of audio into the instance's internal buffer.
- * Returns a pointer to that buffer (do NOT free it — it is owned by the instance).
- * Returns 0 on error.
+ * Render @p numFrames into the voice's buffer with no event timing and return
+ * a pointer to it (owned by the voice — do NOT free it). 0 on error.
+ *
+ * A block larger than init reserved grows the buffer (counted in
+ * stats.overruns). Before the port it rendered only the reserved frames and
+ * the worklet read the rest from past the end of the buffer.
  */
 EMSCRIPTEN_KEEPALIVE
 uintptr_t prophecy_process(uintptr_t handle, int numFrames)
 {
-    ProphecyInstance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    float* buf = inst->processInternal(numFrames);
-    return reinterpret_cast<uintptr_t>(buf);
+    ProphecyNativeVoice* v = prophecy_voice(handle);
+    if (!v || v->buffer.capacity() == 0) return 0;  // not initialised
+    if (numFrames <= 0) return reinterpret_cast<uintptr_t>(v->buffer.data());
+    if (numFrames > v->buffer.capacity()) {
+        ++v->stats.overruns;
+        if (!v->buffer.reserve(numFrames)) return 0;
+    }
+    float* out = v->buffer.acquire(numFrames);
+    v->engine.render(out, numFrames);
+    return reinterpret_cast<uintptr_t>(out);
 }
 
 } // extern "C"

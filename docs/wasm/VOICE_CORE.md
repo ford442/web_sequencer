@@ -4,8 +4,11 @@ Issue #1344. One header-only C++17 contract for the engines in `hyphon_native`
 (open303, jc303, highfid303, prophecy, drumkit), replacing the handle maps,
 output buffers and event timing each wrapper wrote by hand.
 
-**Status:** P2 — the header and its host tests. No wrapper uses it yet; P3 ports
-drumkit → prophecy → open303 / jc303 / highfid303 onto it.
+**Status:** all five engines are on it (P3). Each one renders bit-identical to
+its pre-port wrapper through the immediate API the worklets still call. The
+event API (`*_push_event` + `*_render`) is exported but not called yet: P4
+moves the worklets onto it together, so drums and 303s change timing grid at
+the same moment.
 
 ## Pieces
 
@@ -47,13 +50,38 @@ onset alignment (P5) also needs the clock to post ahead.
 ## Engine concept
 
 ```cpp
+#include "core/voice.h"
+#include "core/voice_exports.h"
+
 struct MyEngine {
     bool init(float sampleRate, int maxFrames);  // the only place that may allocate
     void render(float* out, int frames);         // mono, any frames >= 1
     void apply(const hyphon::Event& e);          // must not allocate
 };
-static hyphon::VoiceSlots<hyphon::NativeVoice<MyEngine>, 8> g_voices;
+using MyNativeVoice = hyphon::NativeVoice<MyEngine, 256>;
+HYPHON_EXPORT_VOICE(myengine, MyNativeVoice, 8)   // slots
 ```
+
+`HYPHON_EXPORT_VOICE` (`emscripten/core/voice_exports.h`) defines the slot table,
+a `myengine_voice(handle)` accessor for the engine's own exports, and the
+generic C API:
+
+| Export | |
+|---|---|
+| `myengine_create()` → handle | 0 when every slot is taken |
+| `myengine_destroy(h)` | |
+| `myengine_init(h, sampleRate, maxFrames)` → 1 / 0 | reserves the buffer, calls `Engine::init` |
+| `myengine_push_event(h, frame, type, target, value, a0..a3)` → 1 / 0 | frame as a double (no BigInt) |
+| `myengine_render(h, blockStartFrame, frames)` → `float*` / 0 | sample-accurate |
+| `myengine_cancel_notes(h)` | stop / mute |
+
+List those six names in `emscripten/wasm_export_manifest.json` — `build.sh`
+exports exactly what the manifest declares, and
+`src/__tests__/wasmExportManifest.voices.test.ts` fails if one is missing.
+
+An engine that is too big to live inline in a slot (rosic's `Open303` carries
+its wavetables) holds it by pointer and allocates it in `init`, as
+`Jc303Engine` does.
 
 `render` is called with arbitrary split sizes, so an engine that updates
 coefficients per block must do it per call, or use `Smoothed::advance(frames)`.
@@ -81,21 +109,45 @@ stale handle stops resolving even after its slot is reused. Capacity is a
 template argument (≤ 255) and the instances live inline: size it to the real
 number of voices.
 
-## Porting checklist (P3)
+## Porting an engine
 
 1. Move the engine's state into a type that satisfies the concept above. Its
-   `apply` handles the event types the old exports took.
-2. Replace the `g_instances` map with a `VoiceSlots<NativeVoice<Engine>, N>`.
-3. Replace `outBuf` + grow logic with `NativeVoice::buffer`.
-4. `*_process(handle, blockStartFrame /* double */, frames)` → `process`. Add a
-   `*_push_event` export and keep the immediate exports for setup-time config.
-5. Reproduce the engine's offline baseline (`pnpm run test:native`,
-   `scripts/generate_303_baselines.sh`) before switching the worklet over.
+   `apply` maps event types onto what the old exports did.
+2. Replace the `g_instances` map, `outBuf` and the hand-written
+   create / destroy / init with `HYPHON_EXPORT_VOICE`.
+3. Keep the old immediate exports as thin calls into `prefix_voice(h)->engine`
+   so the worklet keeps working unchanged. A legacy whole-block `*_process`
+   that returns the voice's buffer grows it for an oversize block (counted in
+   `stats.overruns`), as the old `outBuf` code did; `*_render` refuses instead.
+4. Prove the port is a refactor: add `emscripten/tests/port_baseline/<engine>_dump.cpp`
+   (a fixed pattern through the immediate API) and run
+   `bash emscripten/tests/check_port_baseline.sh <engine>` — it builds the dump
+   against `origin/main`'s wrapper and the working tree and requires
+   byte-identical renders.
+5. Add the event-API checks (`emscripten/tests/event_api_checks.h`, or the
+   engine's own test): block-aligned events must equal the immediate API, and
+   mid-block events must equal the immediate API with the block split by hand
+   at those frames.
+
+All five ports were verified this way: drumkit (783k samples), prophecy
+(1.29M), open303 (5.85M, every model at 1×/2×/4× oversample), jc303 (556k),
+highfid303 (1.69M, canonical and moved L3 coefficients) — bit-identical.
+
+Two behaviour changes came with the ports, both outside the bit-exact path:
+`prophecy_process` and `jc303_process_handle` used to render only the frames
+`init` reserved and leave the worklet reading the rest past the end of the
+buffer; they now grow it. And the debug-only single-instance `jc303_*` API is
+gone (`jc303_init` is now the generic handle init) — see
+[BUILD_NOTES.md](BUILD_NOTES.md).
 
 ## Tests
 
-`emscripten/tests/voice_core_test.cpp` runs in `pnpm run test:native` (host
-g++, no emsdk). It covers onsets at exact frames across block sizes 96, 128 and
+`pnpm run test:native` (host g++, no emsdk) runs the core test plus each
+engine's event-API checks: `drumkit_offline_test`, `prophecy_offline_test`,
+`tb303_voices_offline_test` (open303), `tb303_highfid_offline_test` and
+`tb303_jc303_event_test` (needs the `jc303_wasm` submodule).
+
+`emscripten/tests/voice_core_test.cpp` covers onsets at exact frames across block sizes 96, 128 and
 256; same-frame ordering; late events; a drum hit and a 303 note on one frame
 starting on the same sample; the ring under two real threads; stale handles;
 zero heap allocations over 10k `process` calls (glibc allocator interposed);

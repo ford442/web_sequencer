@@ -4,12 +4,24 @@
  * Authentic Roland TB-303 / Open303 (rosic) engine compiled into hyphon_native.wasm
  * alongside the custom open303 implementation in open303_wrapper.cpp.
  *
- * Phase 1 of the integration plan: The authentic rosic::Open303 now powers the
- * jc303_* single-instance legacy API (used by open303-processor.ts). Zero
- * TypeScript changes required.
+ * Built on the shared voice core (emscripten/core/voice.h, #1344). Generic
+ * exports from HYPHON_EXPORT_VOICE:
+ *   jc303_create / _destroy / _init(handle, sampleRate, maxFrames)
+ *   jc303_push_event(handle, frame, type, target, value, …)
+ *   jc303_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate
+ *   jc303_cancel_notes(handle)
+ * Events: hyphon::kNoteOn (target = note, value = MIDI velocity), kNoteOff,
+ * kAllNotesOff, kParam (target = Jc303Param).
  *
- * The custom tone remains fully available via the open303_* multi-instance API
- * for future per-voice engine selection (Phase 5).
+ * Immediate API (what open303-processor.ts calls today):
+ *   jc303_init_handle(handle, sampleRate, bufferSize)   = jc303_init
+ *   jc303_note_on / _note_off / _all_notes_off / _set_param
+ *   jc303_process_handle(handle, numFrames)            → float*
+ *
+ * The single-instance jc303_init(sampleRate, bufferSize) / jc303_noteOn / …
+ * surface that debug builds used to carry is gone: the generic jc303_init
+ * took its name, and it was never reachable in hyphon_native — the worklet
+ * only uses it against the standalone jc303-single.wasm.
  *
  * Uses the jc303_wasm submodule directly as the source of rosic_Open303.h + .cpp files.
  *
@@ -22,12 +34,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
-#include <unordered_map>
 
 #include "rosic_Open303.h"
+
+#include "core/voice.h"
+#include "core/voice_exports.h"
 
 using namespace rosic;
 using namespace emscripten;
@@ -85,40 +97,24 @@ enum Jc303Param : int {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Jc303Instance
+// Jc303Engine
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct Jc303Instance {
-    Open303* synth   = nullptr;
-    float*   outBuf  = nullptr;
-    int      bufSize = 128;
+struct Jc303Engine {
+    // rosic::Open303 carries its mip-mapped wavetables inline (hundreds of KB),
+    // so it lives on the heap — allocated in init(), never on the audio path.
+    std::unique_ptr<Open303> synth;
     float    sampleRate = 44100.0f;
-    // LEVEL as a linear 0-1 amplitude, applied in process(). Mirrors the
+    // LEVEL as a linear 0-1 amplitude, applied in render(). Mirrors the
     // `volume` member in open303_wrapper.cpp / highfid303_wrapper.cpp.
     float    volume  = 0.75f;
 
-    Jc303Instance() = default;
-
-    ~Jc303Instance()
-    {
-        delete synth;
-        std::free(outBuf);
-    }
-
-    void init(float sr, int bs)
+    bool init(float sr, int /*maxFrames*/)
     {
         sampleRate = sr;
-        bufSize = (bs > 0) ? bs : 128;
 
-        delete synth;
-        synth = new Open303();
+        synth.reset(new Open303());
         synth->setSampleRate(sampleRate);
-
-        std::free(outBuf);
-        outBuf = static_cast<float*>(std::malloc(static_cast<size_t>(bufSize) * sizeof(float)));
-        if (outBuf) {
-            std::memset(outBuf, 0, static_cast<size_t>(bufSize) * sizeof(float));
-        }
 
         // Devil Fish / extended defaults (from plan)
         synth->setNormalAttack(0.3);
@@ -130,8 +126,9 @@ struct Jc303Instance {
         synth->setTanhShaperDrive(0.0);
 
         // Pin rosic's dB master level to unity; LEVEL is applied linearly in
-        // process() so the law matches the other 303 engines and oscillators.
+        // render() so the law matches the other 303 engines and oscillators.
         synth->setVolume(0.0);
+        return true;
     }
 
     void setParam(int paramId, float value)
@@ -161,7 +158,7 @@ struct Jc303Instance {
                 synth->setAccent(value * 100.0);
                 break;
             case JC303_VOLUME:
-                // Linear amplitude control — applied in process(), not through
+                // Linear amplitude control — applied in render(), not through
                 // rosic's dB master level (which stays pinned at unity in init()).
                 volume = std::max(0.0f, std::min(1.0f, value));
                 break;
@@ -189,140 +186,83 @@ struct Jc303Instance {
         if (synth) synth->allNotesOff();
     }
 
-    void process(float* output, int numFrames)
+    void apply(const hyphon::Event& e)
     {
-        if (!synth || !output) return;
+        switch (e.type) {
+            case hyphon::kNoteOn:      noteOn(e.target, e.value);   break;
+            case hyphon::kNoteOff:     noteOff(e.target);           break;
+            case hyphon::kAllNotesOff: allNotesOff();               break;
+            case hyphon::kParam:       setParam(e.target, e.value); break;
+            default: break;
+        }
+    }
+
+    void render(float* output, int numFrames)
+    {
+        if (!synth) return;
         const float gain = volume * JC303_OUTPUT_NORMALIZE;
         for (int i = 0; i < numFrames; ++i) {
             output[i] = static_cast<float>(synth->getSample()) * gain;
         }
     }
-
-    float* processInternal(int numFrames)
-    {
-        if (!outBuf) return nullptr;
-        const int frames = std::min(numFrames, bufSize);
-        process(outBuf, frames);
-        return outBuf;
-    }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Multi-instance registry
-// ─────────────────────────────────────────────────────────────────────────────
+using Jc303NativeVoice = hyphon::NativeVoice<Jc303Engine, 256>;
 
-static std::unordered_map<uintptr_t, std::unique_ptr<Jc303Instance>> g_jcInstances;
-static uintptr_t g_jcNextHandle = 1;
-
-static Jc303Instance* lookupJc(uintptr_t h)
-{
-    auto it = g_jcInstances.find(h);
-    return (it != g_jcInstances.end()) ? it->second.get() : nullptr;
-}
+// One per 303 voice (bass1 / bass2 / lead303) in an audio session, plus slack.
+HYPHON_EXPORT_VOICE(jc303, Jc303NativeVoice, 16)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Multi-instance C API
+// Immediate C API
 // ─────────────────────────────────────────────────────────────────────────────
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE uintptr_t jc303_create()
-{
-    auto inst = std::make_unique<Jc303Instance>();
-    uintptr_t h = g_jcNextHandle++;
-    g_jcInstances[h] = std::move(inst);
-    return h;
-}
-
-EMSCRIPTEN_KEEPALIVE void jc303_destroy(uintptr_t handle)
-{
-    g_jcInstances.erase(handle);
-}
-
+/** The worklet's name for jc303_init. */
 EMSCRIPTEN_KEEPALIVE int jc303_init_handle(uintptr_t handle, float sr, int bs)
 {
-    Jc303Instance* inst = lookupJc(handle);
-    if (!inst) return 0;
-    inst->init(sr, bs);
-    return (inst->synth && inst->outBuf) ? 1 : 0;
+    return jc303_init(handle, sr, bs);
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_note_on(uintptr_t h, int note, float vel)
 {
-    if (auto* inst = lookupJc(h)) inst->noteOn(note, vel);
+    if (auto* v = jc303_voice(h)) v->engine.noteOn(note, vel);
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_note_off(uintptr_t h, int note)
 {
-    if (auto* inst = lookupJc(h)) inst->noteOff(note);
+    if (auto* v = jc303_voice(h)) v->engine.noteOff(note);
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_all_notes_off(uintptr_t h)
 {
-    if (auto* inst = lookupJc(h)) inst->allNotesOff();
+    if (auto* v = jc303_voice(h)) v->engine.allNotesOff();
 }
 
-EMSCRIPTEN_KEEPALIVE void jc303_set_param(uintptr_t h, int pid, float v)
+EMSCRIPTEN_KEEPALIVE void jc303_set_param(uintptr_t h, int pid, float val)
 {
-    if (auto* inst = lookupJc(h)) inst->setParam(pid, v);
+    if (auto* v = jc303_voice(h)) v->engine.setParam(pid, val);
 }
 
+/**
+ * Whole-block render with no event timing → the voice's buffer. A block larger
+ * than init reserved grows the buffer (counted in stats.overruns); before the
+ * port it rendered only the reserved frames and the worklet read the rest from
+ * past the end of the buffer.
+ */
 EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process_handle(uintptr_t handle, int numFrames)
 {
-    Jc303Instance* inst = lookupJc(handle);
-    if (!inst) return 0;
-    float* buf = inst->processInternal(numFrames);
-    return reinterpret_cast<uintptr_t>(buf);
+    Jc303NativeVoice* v = jc303_voice(handle);
+    if (!v || v->buffer.capacity() == 0) return 0;  // not initialised
+    if (numFrames <= 0) return reinterpret_cast<uintptr_t>(v->buffer.data());
+    if (numFrames > v->buffer.capacity()) {
+        ++v->stats.overruns;
+        if (!v->buffer.reserve(numFrames)) return 0;
+    }
+    float* out = v->buffer.acquire(numFrames);
+    v->engine.render(out, numFrames);
+    return reinterpret_cast<uintptr_t>(out);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Single-instance legacy API
-//
-// Only reachable from the standalone jc303-single.wasm code path in
-// open303-processor.ts (the fallback taken when open303_* is absent).
-// hyphon_native.wasm always exposes open303_*, so release builds compile this
-// block out — set HYPHON_LEGACY_JC303=1 (the default for the debug profile) to
-// keep it. See emscripten/build.sh and docs/wasm/BUILD_NOTES.md.
-// ─────────────────────────────────────────────────────────────────────────────
-#ifndef HYPHON_LEGACY_JC303
-#define HYPHON_LEGACY_JC303 0
-#endif
-
-#if HYPHON_LEGACY_JC303
-
-static Jc303Instance* g_jcDefault = nullptr;
-static int g_jcDefaultBufSz = 128;
-
-EMSCRIPTEN_KEEPALIVE int jc303_init(float sr, int bs)
-{
-    if (!g_jcDefault) g_jcDefault = new Jc303Instance();
-    if (bs <= 0) bs = 128;
-    g_jcDefaultBufSz = bs;
-    g_jcDefault->init(sr, bs);
-    return 1;
-}
-
-EMSCRIPTEN_KEEPALIVE void jc303_noteOn(int note, float vel)      { if (g_jcDefault) g_jcDefault->noteOn(note, vel); }
-EMSCRIPTEN_KEEPALIVE void jc303_noteOff(int note)                { if (g_jcDefault) g_jcDefault->noteOff(note); }
-EMSCRIPTEN_KEEPALIVE void jc303_allNotesOff()                    { if (g_jcDefault) g_jcDefault->allNotesOff(); }
-
-EMSCRIPTEN_KEEPALIVE void jc303_setWaveform(float v)  { if (g_jcDefault) g_jcDefault->setParam(JC303_WAVEFORM, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setCutoff(float v)    { if (g_jcDefault) g_jcDefault->setParam(JC303_CUTOFF, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setResonance(float v) { if (g_jcDefault) g_jcDefault->setParam(JC303_RESONANCE, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setEnvMod(float v)    { if (g_jcDefault) g_jcDefault->setParam(JC303_ENV_MOD, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setDecay(float v)     { if (g_jcDefault) g_jcDefault->setParam(JC303_DECAY, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setAccent(float v)    { if (g_jcDefault) g_jcDefault->setParam(JC303_ACCENT, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setVolume(float v)    { if (g_jcDefault) g_jcDefault->setParam(JC303_VOLUME, v); }
-EMSCRIPTEN_KEEPALIVE void jc303_setFilterMode(float v){ if (g_jcDefault) g_jcDefault->setParam(JC303_FILTER_MODE, v); }
-
-EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process(int numFrames)
-{
-    if (!g_jcDefault) return 0;
-    float* buf = g_jcDefault->processInternal(std::min(numFrames, g_jcDefaultBufSz));
-    return reinterpret_cast<uintptr_t>(buf);
-}
-
-#endif // HYPHON_LEGACY_JC303
 
 } // extern "C"
 
@@ -339,20 +279,4 @@ EMSCRIPTEN_BINDINGS(jc303_module) {
     emscripten::function("jc303_all_notes_off",    &jc303_all_notes_off);
     emscripten::function("jc303_set_param",        &jc303_set_param);
     emscripten::function("jc303_process_handle",   &jc303_process_handle);
-
-#if HYPHON_LEGACY_JC303
-    emscripten::function("jc303_init",             &jc303_init);
-    emscripten::function("jc303_noteOn",           &jc303_noteOn);
-    emscripten::function("jc303_noteOff",          &jc303_noteOff);
-    emscripten::function("jc303_allNotesOff",      &jc303_allNotesOff);
-    emscripten::function("jc303_setWaveform",      &jc303_setWaveform);
-    emscripten::function("jc303_setCutoff",        &jc303_setCutoff);
-    emscripten::function("jc303_setResonance",     &jc303_setResonance);
-    emscripten::function("jc303_setEnvMod",        &jc303_setEnvMod);
-    emscripten::function("jc303_setDecay",         &jc303_setDecay);
-    emscripten::function("jc303_setAccent",        &jc303_setAccent);
-    emscripten::function("jc303_setVolume",        &jc303_setVolume);
-    emscripten::function("jc303_setFilterMode",    &jc303_setFilterMode);
-    emscripten::function("jc303_process",          &jc303_process);
-#endif
 }
