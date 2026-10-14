@@ -11,8 +11,9 @@ import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
  * falls in the 128-frame block. Before the voice core, the 303 note played
  * whenever its message landed and drums waited for the next block boundary.
  *
- * Skips when the native build is absent (WASM artifacts are gitignored; the
- * integration tier builds them).
+ * Integration tier (vitest.integration.files.ts): CI builds the native module
+ * first and sets HYPHON_REQUIRE_NATIVE=1, which turns a missing build into a
+ * failure; elsewhere the suite skips without one.
  */
 
 const WASM = resolve(__dirname, '../../../public/hyphon_native.st.wasm');
@@ -47,6 +48,7 @@ const g = globalThis as {
 };
 
 const haveWasm = existsSync(WASM) && existsSync(MAP);
+const nativeRequired = process.env.HYPHON_REQUIRE_NATIVE === '1';
 
 beforeAll(async () => {
   g.AudioWorkletProcessor = class {
@@ -112,6 +114,10 @@ function renderAll(voices: Voice[], startFrame: number, blocks: number): Float32
 
 const firstNonZero = (a: Float32Array) => a.findIndex((s) => s !== 0);
 const firstDifference = (a: Float32Array, b: Float32Array) => a.findIndex((s, i) => s !== b[i]);
+
+it.skipIf(!nativeRequired)('has the native build when HYPHON_REQUIRE_NATIVE=1', () => {
+  expect(haveWasm, `${WASM} missing — build native for the integration tier`).toBe(true);
+});
 
 describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#1344)', () => {
   it('a kick, a 303 note and a Prophecy note on one audioTime start on the same sample', async () => {
