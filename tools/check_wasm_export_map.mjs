@@ -64,7 +64,9 @@ const manifest = JSON.parse(fs.readFileSync(args.manifest, 'utf8'));
 const map = JSON.parse(fs.readFileSync(args.map, 'utf8'));
 
 const required = new Set(manifest.required ?? []);
-const optional = new Set(manifest.optional ?? []);
+// Allowed but not required: built-but-uncalled C API and names Emscripten adds
+// on its own.
+const optional = new Set([...(manifest.optional ?? []), ...(manifest.runtime ?? [])]);
 const present = Object.keys(map);
 const errors = [];
 
@@ -72,8 +74,8 @@ const missing = [...required].filter((name) => !(name in map));
 if (missing.length) {
   errors.push(
     `Missing required exports (${missing.length}): ${missing.join(', ')}\n` +
-    '  The build dropped an export the worklets call. Check EXPORTED_FUNCTIONS in ' +
-    'emscripten/build.sh and the EMSCRIPTEN_KEEPALIVE wrappers.',
+    '  The build dropped an export the worklets call. Check the EMSCRIPTEN_KEEPALIVE ' +
+    'wrappers (build.sh exports what emscripten/wasm_export_manifest.json lists).',
   );
 }
 

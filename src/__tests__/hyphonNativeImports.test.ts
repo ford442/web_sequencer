@@ -467,3 +467,64 @@ describe('hyphon_native.st.wasm worklet handshake', () => {
     expect(peak).toBeGreaterThan(0.01);
   });
 });
+
+/**
+ * #1344: the voice core's event API in the real wasm32 module — the frame
+ * crosses the boundary as a double and becomes an int64 inside, so this is
+ * where a truncation or ABI slip would show. Skips when artifacts are not built.
+ */
+describe('hyphon_native.st.wasm event API (#1344)', () => {
+  it('lands a drum trigger and a prophecy note on their exact frames', async () => {
+    const wasmPath = resolve(__dirname, '../../public/hyphon_native.st.wasm');
+    if (!existsSync(wasmPath)) return;
+
+    const module = await WebAssembly.compile(readFileSync(wasmPath));
+    let instance: WebAssembly.Instance | null = null;
+    let importedMemory: WebAssembly.Memory | null = null;
+    const { imports, memory } = buildHyphonWasmImports(
+      module,
+      {
+        getWasmInstance: () => instance,
+        getImportedMemory: () => importedMemory,
+        setImportedMemory: (m) => { importedMemory = m; },
+        onHeapUpdate: () => {},
+        logPrefix: '[test]',
+      },
+      { isThreaded: false },
+    );
+    instance = await WebAssembly.instantiate(module, imports);
+    const x = instance.exports as Record<string, (...a: number[]) => number>;
+    x.__wasm_call_ctors();
+
+    const kTrigger = 5;
+    const kNoteOn = 1;
+    // An hour into the context: well past 2^31 / 48000, so int32 frames would wrap.
+    const start = 48000 * 3600 * 13;
+    const firstSound = (prefix: string, handle: number, blocks: number) => {
+      for (let b = 0; b < blocks; b++) {
+        const ptr = x[`${prefix}_render`](handle, start + b * 128, 128);
+        expect(ptr).toBeGreaterThan(0);
+        const block = new Float32Array(memory!.buffer, ptr, 128);
+        const i = block.findIndex((s) => s !== 0);
+        if (i >= 0) return b * 128 + i;
+      }
+      return -1;
+    };
+
+    const drum = x.drumkit_create();
+    expect(x.drumkit_init(drum, 48000, 128)).toBe(1);
+    expect(x.drumkit_push_event(drum, start + 128 + 37, kTrigger, 0, 1, 50, 0.6, 0.6, 1)).toBe(1);
+    expect(firstSound('drumkit', drum, 4)).toBe(128 + 37);
+
+    const lead = x.prophecy_create();
+    expect(x.prophecy_init(lead, 48000, 128)).toBe(1);
+    expect(x.prophecy_push_event(lead, start + 2 * 128 + 101, kNoteOn, 57, 100, 0, 0, 0, 0)).toBe(1);
+    expect(firstSound('prophecy', lead, 4)).toBe(2 * 128 + 101);
+
+    // A block larger than init reserved is refused, not grown, on this path.
+    expect(x.drumkit_render(drum, start, 1024)).toBe(0);
+    x.drumkit_destroy(drum);
+    x.prophecy_destroy(lead);
+    expect(x.drumkit_render(drum, start, 128)).toBe(0);
+  });
+});

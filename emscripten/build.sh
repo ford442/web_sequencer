@@ -18,13 +18,11 @@
 # Usage:
 #   ./emscripten/build.sh [release|debug]
 #   HYPHON_BUILD_PROFILE=debug ./emscripten/build.sh
-#   HYPHON_LEGACY_JC303=1 ./emscripten/build.sh    # keep the single-instance jc303_* API
 #
 # Profiles (see docs/wasm/BUILD_NOTES.md):
-#   release (default) — -O3 -flto compile and link, ASSERTIONS=0, no DWARF,
-#                       legacy exports pruned
+#   release (default) — -O3 -flto compile and link, ASSERTIONS=0, no DWARF
 #   debug             — -O1 -g3 compile, ASSERTIONS=2, STACK_OVERFLOW_CHECK=2,
-#                       source maps, full export surface (legacy jc303_* kept)
+#                       source maps
 
 set -euo pipefail
 
@@ -87,17 +85,6 @@ echo "  ST memory budget: INITIAL=${ST_INITIAL_MEMORY_MB}mb MAXIMUM=${ST_MAXIMUM
 # atomics feature and cannot be linked into the single-threaded module.
 ARCH_FLAGS="-msimd128"
 
-# Legacy single-instance jc303_* API (jc303_init / jc303_setCutoff / ...).
-# Nothing in the shipped app calls it against hyphon_native.wasm: the worklet only
-# reaches for it when open303_* is missing, which is the standalone jc303-single.wasm
-# path (tools/build_jc303_omp.sh). Compiled out of release builds; kept in debug so
-# the legacy path stays testable.
-HYPHON_LEGACY_JC303="${HYPHON_LEGACY_JC303:-}"
-if [ -z "$HYPHON_LEGACY_JC303" ]; then
-    if [ "$BUILD_PROFILE" = "debug" ]; then HYPHON_LEGACY_JC303=1; else HYPHON_LEGACY_JC303=0; fi
-fi
-ARCH_FLAGS="$ARCH_FLAGS -DHYPHON_LEGACY_JC303=$HYPHON_LEGACY_JC303"
-
 if [ "$BUILD_PROFILE" = "debug" ]; then
     # -O1 keeps the build debuggable while staying fast enough to run in real time.
     OPT_FLAGS="-O1 -g3 -fno-omit-frame-pointer"
@@ -148,82 +135,11 @@ PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s PTHREAD_POOL_SIZE=$PTHREAD_POOL
 # it from the same budget key.
 ST_LINK_FLAGS="$BASE_LINK_FLAGS -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_MB}mb"
 
-VOICE_EXPORTS="[ \
-    '_malloc', \
-    '_free', \
-    '_open303_create', \
-    '_open303_destroy', \
-    '_open303_init', \
-    '_open303_note_on', \
-    '_open303_note_off', \
-    '_open303_all_notes_off', \
-    '_open303_set_param', \
-    '_open303_set_oversample', \
-    '_open303_get_oversample', \
-    '_open303_process', \
-    '_open303_get_model_count', \
-    '_open303_get_model_id', \
-    '_open303_get_model_label', \
-    '_open303_get_model_engine', \
-    '_open303_set_model', \
-    '_open303_get_model', \
-    '_open303_find_model_index', \
-    '_open303_set_model_by_id', \
-    '_highfid303_create', \
-    '_highfid303_destroy', \
-    '_highfid303_init', \
-    '_highfid303_note_on', \
-    '_highfid303_note_off', \
-    '_highfid303_all_notes_off', \
-    '_highfid303_set_param', \
-    '_highfid303_set_oversample', \
-    '_highfid303_get_oversample', \
-    '_highfid303_process', \
-    '_highfid303_engine_id', \
-    '_jc303_create', \
-    '_jc303_destroy', \
-    '_jc303_init_handle', \
-    '_jc303_note_on', \
-    '_jc303_note_off', \
-    '_jc303_all_notes_off', \
-    '_jc303_set_param', \
-    '_jc303_process_handle', \
-    '_prophecy_create', \
-    '_prophecy_destroy', \
-    '_prophecy_init', \
-    '_prophecy_note_on', \
-    '_prophecy_note_off', \
-    '_prophecy_all_notes_off', \
-    '_prophecy_set_param', \
-    '_prophecy_process', \
-    '_drumkit_create', \
-    '_drumkit_destroy', \
-    '_drumkit_init', \
-    '_drumkit_set_kit', \
-    '_drumkit_trigger', \
-    '_drumkit_choke_open_hat', \
-    '_drumkit_process' \
-]"
-
-# Legacy single-instance jc303_* surface, appended only when compiled in.
-LEGACY_JC303_EXPORTS="'_jc303_init', \
-    '_jc303_noteOn', \
-    '_jc303_noteOff', \
-    '_jc303_allNotesOff', \
-    '_jc303_setWaveform', \
-    '_jc303_setCutoff', \
-    '_jc303_setResonance', \
-    '_jc303_setEnvMod', \
-    '_jc303_setDecay', \
-    '_jc303_setAccent', \
-    '_jc303_setVolume', \
-    '_jc303_setFilterMode', \
-    '_jc303_process'"
-
-if [ "$HYPHON_LEGACY_JC303" = "1" ]; then
-    VOICE_EXPORTS="${VOICE_EXPORTS%]*}, $LEGACY_JC303_EXPORTS ]"
-fi
-
+# EXPORTED_FUNCTIONS come from emscripten/wasm_export_manifest.json — the one
+# declared list of the C API (#1344). Add an export there, not here; the map
+# check after each link fails on any drift from it. Both profiles export the
+# same surface.
+VOICE_EXPORTS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs")"
 PTHREAD_EXPORTS="$VOICE_EXPORTS"
 ST_EXPORTS="$VOICE_EXPORTS"
 
@@ -313,7 +229,7 @@ build_profile st "$OUTPUT_ST_JS" "$ST_THREAD_FLAGS" "$ST_LINK_FLAGS" \
 node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"
 node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"
 
-echo "Build successful! (profile=$BUILD_PROFILE, legacy_jc303=$HYPHON_LEGACY_JC303)"
+echo "Build successful! (profile=$BUILD_PROFILE)"
 echo "Generated: public/hyphon_native.js (and .wasm)"
 echo "Generated: public/hyphon_native.st.js (and .wasm)"
 rm -rf "$TEMP_ROOT"

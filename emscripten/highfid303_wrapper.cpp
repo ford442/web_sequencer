@@ -14,11 +14,17 @@
  * Also driven in real time by the `live-highfid` voice (Phase L1/L2/L3,
  * src/audio-worklets/liveHighFid303.ts) at oversample 1.
  *
- * C API (EMSCRIPTEN_KEEPALIVE):
- *   highfid303_create / destroy / init
+ * Built on the shared voice core (emscripten/core/voice.h, #1344). Generic
+ * exports from HYPHON_EXPORT_VOICE:
+ *   highfid303_create / _destroy / _init(handle, sampleRate, maxFrames)
+ *   highfid303_push_event / _render (sample-accurate) / _cancel_notes
+ * Events: hyphon::kNoteOn (target = note, value = MIDI velocity), kNoteOff,
+ * kAllNotesOff, kParam (target = HighFidParam).
+ *
+ * Immediate API (EMSCRIPTEN_KEEPALIVE):
  *   highfid303_note_on / note_off / all_notes_off
  *   highfid303_set_param / set_oversample / get_oversample
- *   highfid303_process
+ *   highfid303_process(handle, outputPtr, numFrames)   — into a caller buffer
  *
  * Parameter IDs 0–13 match Open303Param (src/engines/Open303Params.ts).
  * Ids 14–17 are the editable diode-ladder coefficients (Phase L3) — see
@@ -35,11 +41,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
-#include <unordered_map>
 
+#include "core/voice.h"
+#include "core/voice_exports.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -236,10 +240,10 @@ struct DiodeLadderFilter {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HighFid303Instance — full offline voice
+// HighFid303Engine — full offline voice
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct HighFid303Instance {
+struct HighFid303Engine {
     float sampleRate = 44100.0f;
     int   oversampleFactor = 1;
 
@@ -279,36 +283,19 @@ struct HighFid303Instance {
 
     DiodeLadderFilter filter;
 
-    float* outBuf  = nullptr;
-    int    bufSize = 128;
-
-    HighFid303Instance() = default;
-    ~HighFid303Instance()
-    {
-        std::free(outBuf);
-        outBuf = nullptr;
-    }
-
     float effectiveSampleRate() const
     {
         return sampleRate * static_cast<float>(oversampleFactor > 0 ? oversampleFactor : 1);
     }
 
-    void init(float sr, int bs)
+    bool init(float sr, int /*maxFrames*/)
     {
         sampleRate = sr;
-        bufSize = (bs > 0) ? bs : 128;
-        std::free(outBuf);
-        outBuf = static_cast<float*>(std::malloc(static_cast<std::size_t>(bufSize) * sizeof(float)));
-        if (outBuf) {
-            std::memset(outBuf, 0, static_cast<std::size_t>(bufSize) * sizeof(float));
-        } else {
-            bufSize = 0;
-        }
         filter.setSampleRate(effectiveSampleRate());
         filter.reset();
         updateRates();
         updateFilterCoeffs();
+        return true;
     }
 
     void setOversample(int factor)
@@ -518,93 +505,72 @@ struct HighFid303Instance {
             output[i] = acc * invN;
         }
     }
+
+    void render(float* out, int numFrames) { process(out, numFrames); }
+
+    void apply(const hyphon::Event& e)
+    {
+        switch (e.type) {
+            case hyphon::kNoteOn:      noteOn(e.target, e.value);   break;
+            case hyphon::kNoteOff:     noteOff(e.target);           break;
+            case hyphon::kAllNotesOff: allNotesOff();               break;
+            case hyphon::kParam:       setParam(e.target, e.value); break;
+            default: break;
+        }
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-static std::unordered_map<uintptr_t, std::unique_ptr<HighFid303Instance>> g_hf;
-static uintptr_t g_hfNext = 1;
+using HighFid303NativeVoice = hyphon::NativeVoice<HighFid303Engine, 256>;
 
-static HighFid303Instance* lookupHf(uintptr_t handle)
-{
-    auto it = g_hf.find(handle);
-    return (it != g_hf.end()) ? it->second.get() : nullptr;
-}
+// The live high-fid voice per 303 voice, plus offline renders and slack.
+HYPHON_EXPORT_VOICE(highfid303, HighFid303NativeVoice, 16)
 
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
-uintptr_t highfid303_create()
-{
-    auto inst = std::make_unique<HighFid303Instance>();
-    uintptr_t h = g_hfNext++;
-    g_hf[h] = std::move(inst);
-    return h;
-}
-
-EMSCRIPTEN_KEEPALIVE
-void highfid303_destroy(uintptr_t handle)
-{
-    g_hf.erase(handle);
-}
-
-EMSCRIPTEN_KEEPALIVE
-int highfid303_init(uintptr_t handle, float sampleRate, int bufferSize)
-{
-    HighFid303Instance* inst = lookupHf(handle);
-    if (!inst) return 0;
-    inst->init(sampleRate, bufferSize);
-    return (inst->outBuf != nullptr) ? 1 : 0;
-}
-
-EMSCRIPTEN_KEEPALIVE
 void highfid303_note_on(uintptr_t handle, int midiNote, float velocity)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (inst) inst->noteOn(midiNote, velocity);
+    if (auto* v = highfid303_voice(handle)) v->engine.noteOn(midiNote, velocity);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_note_off(uintptr_t handle, int midiNote)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (inst) inst->noteOff(midiNote);
+    if (auto* v = highfid303_voice(handle)) v->engine.noteOff(midiNote);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_all_notes_off(uintptr_t handle)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (inst) inst->allNotesOff();
+    if (auto* v = highfid303_voice(handle)) v->engine.allNotesOff();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_set_param(uintptr_t handle, int paramId, float value)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (inst) inst->setParam(paramId, value);
+    if (auto* v = highfid303_voice(handle)) v->engine.setParam(paramId, value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_set_oversample(uintptr_t handle, int factor)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (inst) inst->setOversample(factor);
+    if (auto* v = highfid303_voice(handle)) v->engine.setOversample(factor);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int highfid303_get_oversample(uintptr_t handle)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    return inst ? inst->oversampleFactor : 1;
+    auto* v = highfid303_voice(handle);
+    return v ? v->engine.oversampleFactor : 1;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
 {
-    HighFid303Instance* inst = lookupHf(handle);
-    if (!inst) return;
-    float* out = reinterpret_cast<float*>(outputPtr);
-    inst->process(out, numFrames);
+    auto* v = highfid303_voice(handle);
+    if (!v) return;
+    v->engine.render(reinterpret_cast<float*>(outputPtr), numFrames);
 }
 
 /** Stable engine id string for registry / UI. */

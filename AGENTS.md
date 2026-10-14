@@ -52,6 +52,7 @@
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
 - **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp` (see `emscripten/build.sh`)
+- **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it). See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
 - **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
 - **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
 - **Current routing**:

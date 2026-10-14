@@ -1,11 +1,15 @@
 {
   "$comment": [
-    "Declared export surface of public/hyphon_native.wasm.",
+    "Declared export surface of public/hyphon_native.wasm — the one list of its C API.",
+    "emscripten/build.sh exports exactly this (tools/hyphon_native_exports.mjs), and",
+    "tools/check_wasm_export_map.mjs fails the build on any drift from it.",
     "`required` exports are called by shipped worklet / engine code — a build that",
-    "drops one of them is broken, and tools/check_wasm_export_map.mjs fails CI.",
-    "`optional` exports may be absent from a release build (pruned or profile-gated);",
-    "their presence is fine, their absence is not an error.",
-    "Anything present in the export map but listed in neither bucket is reported as",
+    "drops one of them is broken.",
+    "`optional` exports are always built but not (yet) called by shipped code.",
+    "`runtime` names are added by Emscripten itself (pthread internals); never requested.",
+    "Each HYPHON_EXPORT_VOICE(prefix, ...) engine contributes prefix_create/_destroy/_init/",
+    "_push_event/_render/_cancel_notes (src/__tests__/wasmExportManifest.voices.test.ts).",
+    "Anything present in the export map but listed in no bucket is reported as",
     "unexpected export bloat."
   ],
   "required": [
@@ -54,12 +58,6 @@
     "drumkit_process"
   ],
   "optional": [
-    "__set_stack_limits",
-    "pthread_self",
-    "_emscripten_tls_init",
-    "_emscripten_thread_init",
-    "_emscripten_thread_crashed",
-    "_emscripten_thread_exit",
     "highfid303_create",
     "highfid303_destroy",
     "highfid303_init",
@@ -71,23 +69,29 @@
     "highfid303_get_oversample",
     "highfid303_process",
     "highfid303_engine_id",
+    "drumkit_push_event",
+    "drumkit_render",
+    "drumkit_cancel_notes",
+    "prophecy_push_event",
+    "prophecy_render",
+    "prophecy_cancel_notes",
+    "open303_push_event",
+    "open303_render",
+    "open303_cancel_notes",
     "jc303_init",
-    "jc303_noteOn",
-    "jc303_noteOff",
-    "jc303_allNotesOff",
-    "jc303_setWaveform",
-    "jc303_setCutoff",
-    "jc303_setResonance",
-    "jc303_setEnvMod",
-    "jc303_setDecay",
-    "jc303_setAccent",
-    "jc303_setVolume",
-    "jc303_setFilterMode",
-    "jc303_process",
+    "jc303_push_event",
+    "jc303_render",
+    "jc303_cancel_notes",
+    "highfid303_push_event",
+    "highfid303_render",
+    "highfid303_cancel_notes"
+  ],
+  "runtime": [
     "pthread_self",
     "_emscripten_tls_init",
     "_emscripten_thread_init",
     "_emscripten_thread_crashed",
-    "_emscripten_thread_exit"
+    "_emscripten_thread_exit",
+    "__set_stack_limits"
   ]
 }
