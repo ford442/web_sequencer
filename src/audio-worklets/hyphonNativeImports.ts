@@ -44,6 +44,13 @@ export const HYPHON_NATIVE_ST_MAX_MEMORY_PAGES = (512 * 1024 * 1024) / WASM_PAGE
  */
 export type HyphonNativeThreading = 'pthread' | 'st';
 
+/**
+ * Frames each voice-core voice reserves at init (#1344). The core refuses a
+ * larger block rather than allocating on the audio thread, so this covers
+ * `renderSizeHint: 'hardware'` quanta, not just the default 128.
+ */
+export const NATIVE_VOICE_MAX_BLOCK_FRAMES = 4096;
+
 export interface HyphonNativeArtifact {
   threading: HyphonNativeThreading;
   /** File names under public/. */
@@ -132,31 +139,46 @@ export function formatMissingWasmExports(
   );
 }
 
-/** Bare export names the Open303 worklet must resolve via the export map. */
+/**
+ * Bare export names the Open303 worklet must resolve via the export map: the
+ * custom open303 voice on the voice core's event API (#1344). The authentic
+ * jc303 voice is optional — the worklet ignores a switch to it without them.
+ */
 export const OPEN303_REQUIRED_WASM_EXPORTS = [
   'open303_create',
   'open303_init',
-  // emscripten/jc303_wrapper.cpp exports the multi-instance *_handle ABI;
-  // bare jc303_init/jc303_process have never existed in hyphon_native.wasm.
-  'jc303_init_handle',
-  'jc303_process_handle',
+  'open303_push_event',
+  'open303_render',
+  'open303_cancel_notes',
+  'open303_flush',
+] as const;
+
+/** Exports that enable the authentic jc303 voice in the Open303 worklet. */
+export const JC303_WASM_EXPORTS = [
+  'jc303_create',
+  'jc303_init',
+  'jc303_push_event',
+  'jc303_render',
+  'jc303_cancel_notes',
+  'jc303_flush',
 ] as const;
 
 /** Bare export names the Prophecy worklet must resolve via the export map. */
 export const PROPHECY_REQUIRED_WASM_EXPORTS = [
   'prophecy_create',
   'prophecy_init',
-  'prophecy_process',
+  'prophecy_push_event',
+  'prophecy_render',
+  'prophecy_cancel_notes',
+  'prophecy_all_notes_off',
 ] as const;
 
 /** Bare export names the drumkit worklet must resolve via the export map. */
 export const DRUMKIT_REQUIRED_WASM_EXPORTS = [
   'drumkit_create',
   'drumkit_init',
-  'drumkit_set_kit',
-  'drumkit_trigger',
-  'drumkit_choke_open_hat',
-  'drumkit_process',
+  'drumkit_push_event',
+  'drumkit_render',
 ] as const;
 
 /**
@@ -178,22 +200,21 @@ export function wasmExportNameSnapshot(module: WebAssembly.Module): WebAssembly.
   return out as WebAssembly.Exports;
 }
 
-/**
- * True when the export map fails to surface either the native open303_* API or
- * the legacy jc303_* API against the compiled module's raw export table.
- */
+/** True when the export map fails to surface the open303 voice API against the compiled module. */
 export function open303ExportMapInsufficient(
   module: WebAssembly.Module,
   exportMap: WasmExportMap,
 ): boolean {
   const normalized = normalizeWasmExports(wasmExportNameSnapshot(module), exportMap);
-  const hasNative =
-    typeof normalized.open303_create === 'function' &&
-    typeof normalized.open303_init === 'function';
-  const hasLegacy =
-    typeof normalized.jc303_init_handle === 'function' &&
-    typeof normalized.jc303_process_handle === 'function';
-  return !hasNative && !hasLegacy;
+  return !hasOpen303Api(normalized);
+}
+
+export function hasOpen303Api(exports: Record<string, unknown>): boolean {
+  return OPEN303_REQUIRED_WASM_EXPORTS.every((name) => typeof exports[name] === 'function');
+}
+
+export function hasJc303Api(exports: Record<string, unknown>): boolean {
+  return JC303_WASM_EXPORTS.every((name) => typeof exports[name] === 'function');
 }
 
 /** True when prophecy_create/init cannot be resolved from the export map. */
@@ -206,13 +227,10 @@ export function prophecyExportMapInsufficient(
 }
 
 export function hasProphecyApi(exports: Record<string, unknown>): boolean {
-  return (
-    typeof exports.prophecy_create === 'function' &&
-    typeof exports.prophecy_init === 'function'
-  );
+  return PROPHECY_REQUIRED_WASM_EXPORTS.every((name) => typeof exports[name] === 'function');
 }
 
-/** True when drumkit_create/init/process cannot be resolved from the export map. */
+/** True when the drumkit voice API cannot be resolved from the export map. */
 export function drumkitExportMapInsufficient(
   module: WebAssembly.Module,
   exportMap: WasmExportMap,

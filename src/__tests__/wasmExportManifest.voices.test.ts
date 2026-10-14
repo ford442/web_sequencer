@@ -43,7 +43,7 @@ function exportedFunctions(...args: string[]): string[] {
 
 describe('hyphon_native export manifest (#1344)', () => {
     it('reads the macro\'s generic export set', () => {
-        expect(macroSuffixes()).toEqual(['create', 'destroy', 'init', 'push_event', 'render', 'cancel_notes']);
+        expect(macroSuffixes()).toEqual(['create', 'destroy', 'init', 'push_event', 'render', 'cancel_notes', 'flush']);
     });
 
     it('declares every export HYPHON_EXPORT_VOICE generates', () => {
@@ -62,5 +62,23 @@ describe('hyphon_native export manifest (#1344)', () => {
         const bare = (names: string[]) => names.map((n) => n.replace(/^_/, '')).sort();
         expect(bare(exportedFunctions())).toEqual([...built].sort());
         expect(read('emscripten/build.sh')).toMatch(/tools\/hyphon_native_exports\.mjs/);
+    });
+});
+
+describe('generated hyphonNativeExports.ts (#1344)', () => {
+    it('is up to date with the manifest, the C prototypes and the event enums', () => {
+        const out = execFileSync('node', ['tools/gen_hyphon_native_types.mjs', '--check'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+        });
+        expect(out).toContain('up to date');
+    });
+
+    it('types every export the manifest declares', () => {
+        const generated = read('src/audio-worklets/hyphonNativeExports.ts');
+        const missing = [...manifest.required, ...manifest.optional].filter(
+            (n) => !new RegExp(`^  ${n}\\??\\(`, 'm').test(generated),
+        );
+        expect(missing).toEqual([]);
     });
 });

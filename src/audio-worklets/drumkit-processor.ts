@@ -1,281 +1,173 @@
 // src/audio-worklets/drumkit-processor.ts
-// AudioWorklet for analog 808/909 drums. One hyphon_native instantiate per
-// kit (kick/snare/CH/OH share C handles on that instance).
+// AudioWorklet for analog 808/909 drums: one drumkit_* voice (kick / snare /
+// closed + open hat) on the audio session's shared hyphon_native instance.
+// Triggers are pushed into the voice's native event ring and start on their
+// own frame — the same clock the 303 and Prophecy voices use (#1344 P4).
 
-import {
-    DRUMKIT_REQUIRED_WASM_EXPORTS,
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
-    buildHyphonWasmImports,
-    formatMissingWasmExports,
-    hasDrumkitApi,
-    normalizeWasmExports,
-} from './hyphonNativeImports';
-import { DrumTriggerQueue } from './drumkit/triggerQueue';
+import { DRUMKIT_REQUIRED_WASM_EXPORTS, formatMissingWasmExports, hasDrumkitApi } from './hyphonNativeImports';
+import { DrumkitEvent, VoiceEvent } from './hyphonNativeExports';
+import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
 
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
+
+/** Fields the port messages carry; each message type reads a few of them. */
+interface DrumkitMessageData {
+    kit?: number;
+    voice?: number;
+    velocity?: number;
+    a?: number;
+    b?: number;
+    c?: number;
+    d?: number;
+    audioTime?: number;
 }
 
-declare const currentTime: number;
+interface DrumkitInitData {
+    wasmBytes: ArrayBuffer;
+    sampleRate: number;
+    isThreaded: boolean;
+    memoryPages?: number;
+    exportMap?: Record<string, string>;
+}
 
-declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
-
-const DrumkitState = {
-    UNINITIALIZED: 'uninitialized',
-    INITIALIZING: 'initializing',
-    READY: 'ready',
-    FAILED: 'failed',
-} as const;
-
-type DrumkitStateType = (typeof DrumkitState)[keyof typeof DrumkitState];
-
-class DrumkitProcessor extends AudioWorkletProcessor {
-    private wasmInstance: WebAssembly.Instance | null = null;
-    private normalizedExports: Record<string, unknown> | null = null;
-    private importedMemory: WebAssembly.Memory | null = null;
-    private heapFloat32: Float32Array | null = null;
-    private synthState: DrumkitStateType = DrumkitState.UNINITIALIZED;
-    private readonly readyMessage = { type: 'ready' as const, heapCount: 1 };
+class DrumkitProcessor extends NativeVoiceProcessor {
+    private voice: NativeVoiceRef | null = null;
+    private initializing = false;
+    private readonly readyMessage: { type: 'ready'; heap: unknown } = { type: 'ready', heap: undefined };
     private readonly errorMessage = { type: 'error' as const, error: '' };
-    private isThreaded = false;
-    private instanceHandle = 0;
-    private readonly bufFrames = 128;
-    private processErrorCount = 0;
-    private allocationErrorCount = 0;
-    private readonly triggers = new DrumTriggerQueue();
 
     constructor() {
-        super();
+        super('drumkit', '[Drumkit]');
         this.port.onmessage = this.handleMessage.bind(this);
     }
 
     private async handleMessage(event: MessageEvent): Promise<void> {
-        const { type, data } = event.data;
+        const { type, data } = event.data as { type: string; data?: unknown };
 
         if (type === 'init-wasm') {
-            await this.initializeWasm(data);
+            await this.initializeWasm(data as DrumkitInitData);
+            return;
+        }
+        if (type === 'dispose') {
+            this.dispose();
             return;
         }
 
-        if (this.synthState !== DrumkitState.READY || !this.wasmInstance) return;
-
-        const exports = this.getExports();
+        const voice = this.voice;
+        if (!voice) return;
+        const d = (data ?? {}) as DrumkitMessageData;
 
         switch (type) {
+            case 'trigger':
+                if (d.voice !== undefined) {
+                    this.pushEvent(
+                        voice,
+                        this.frameAt(d.audioTime),
+                        VoiceEvent.Trigger,
+                        d.voice,
+                        d.velocity ?? 1,
+                        d.a ?? 0,
+                        d.b ?? 0,
+                        d.c ?? 0,
+                        d.d ?? 0,
+                    );
+                }
+                break;
             case 'set-kit':
-                try {
-                    exports.drumkit_set_kit(this.instanceHandle, data.kit);
-                } catch (e) {
-                    console.error('[Drumkit] set-kit error:', e);
+                if (d.kit !== undefined) {
+                    this.pushEvent(voice, this.frameAt(d.audioTime), DrumkitEvent.SetKit, d.kit, 0);
                 }
                 break;
-            case 'trigger': {
-                const audioTime = typeof data.audioTime === 'number' ? data.audioTime : 0;
-                const entry = {
-                    audioTime,
-                    voice: data.voice,
-                    velocity: data.velocity ?? 1,
-                    a: data.a ?? 0,
-                    b: data.b ?? 0,
-                    c: data.c ?? 0,
-                    d: data.d ?? 0,
-                };
-                if (typeof currentTime !== 'undefined' && audioTime <= currentTime) {
-                    this.applyTrigger(exports, entry);
-                } else {
-                    this.triggers.schedule(entry);
-                }
-                break;
-            }
             case 'choke-open-hat':
-                try {
-                    exports.drumkit_choke_open_hat(this.instanceHandle);
-                } catch (e) {
-                    console.error('[Drumkit] choke error:', e);
-                }
+                this.pushEvent(voice, this.frameAt(d.audioTime), DrumkitEvent.ChokeOpenHat, 0, 0);
                 break;
             default:
                 break;
         }
     }
 
-    private applyTrigger(
-        exports: Record<string, any>,
-        entry: { voice: number; velocity: number; a: number; b: number; c: number; d: number },
-    ): void {
-        exports.drumkit_trigger(
-            this.instanceHandle,
-            entry.voice,
-            entry.velocity,
-            entry.a,
-            entry.b,
-            entry.c,
-            entry.d,
-        );
-    }
-
-    private async initializeWasm(data: {
-        wasmBytes: ArrayBuffer;
-        sampleRate: number;
-        isThreaded: boolean;
-        variant?: string;
-        memoryPages?: number;
-        exportMap?: Record<string, string>;
-    }): Promise<void> {
-        if (this.synthState === DrumkitState.INITIALIZING) return;
-        this.synthState = DrumkitState.INITIALIZING;
-
+    private async initializeWasm(data: DrumkitInitData): Promise<void> {
+        if (this.initializing || this.voice) return;
+        this.initializing = true;
+        let handle = 0;
         try {
-            const { wasmBytes, sampleRate, isThreaded, memoryPages, exportMap } = data;
-            this.isThreaded = !!isThreaded;
-
-            const module = await WebAssembly.compile(wasmBytes);
-            const importCtx = {
-                getWasmInstance: () => this.wasmInstance,
-                getImportedMemory: () => this.importedMemory,
-                setImportedMemory: (m: WebAssembly.Memory) => {
-                    this.importedMemory = m;
+            const native = await this.attachSession(
+                {
+                    wasmBytes: data.wasmBytes,
+                    isThreaded: !!data.isThreaded,
+                    memoryPages: data.memoryPages,
+                    exportMap: data.exportMap,
                 },
-                onHeapUpdate: () => this.updateHeap(),
-                logPrefix: '[Drumkit]',
-            };
+                data.sampleRate,
+            );
+            if (this.disposed) return;
+            if (!native.memory) throw new Error('[Drumkit] No memory export/import found');
 
-            const { imports, memory } = buildHyphonWasmImports(module, importCtx, {
-                memoryPages: memoryPages ?? HYPHON_NATIVE_MIN_MEMORY_PAGES,
-                isThreaded: this.isThreaded,
-            });
-
-            const instance = await WebAssembly.instantiate(module, imports);
-            this.wasmInstance = instance;
-            this.normalizedExports = normalizeWasmExports(instance.exports, exportMap ?? {});
-            this.configureWasmStack();
-
-            const exp = this.getExports();
-            const instanceExp = instance.exports as Record<string, any>;
-            const mem: WebAssembly.Memory =
-                memory ??
-                (instanceExp.memory as WebAssembly.Memory) ??
-                this.importedMemory;
-            if (!mem) throw new Error('[Drumkit] No memory export/import found');
-            this.importedMemory = mem;
-            this.heapFloat32 = new Float32Array(mem.buffer);
-
-            if (!hasDrumkitApi(exp)) {
+            if (!hasDrumkitApi(native.exports)) {
                 throw new Error(
                     '[Drumkit] drumkit_* API not found in WASM exports. ' +
-                    formatMissingWasmExports(instance.exports, [...DRUMKIT_REQUIRED_WASM_EXPORTS]),
+                    formatMissingWasmExports(native.instance.exports, [...DRUMKIT_REQUIRED_WASM_EXPORTS]),
                 );
             }
 
-            this.instanceHandle = exp.drumkit_create();
-            if (!this.instanceHandle) throw new Error('[Drumkit] drumkit_create() returned null handle');
-
-            const ok = exp.drumkit_init(this.instanceHandle, sampleRate, this.bufFrames);
+            handle = this.x.drumkit_create();
+            if (!handle) throw new Error('[Drumkit] drumkit_create() returned null handle');
+            const ok = this.x.drumkit_init(handle, this.rateHz, NativeVoiceProcessor.MAX_BLOCK_FRAMES);
             if (ok !== 1) throw new Error(`[Drumkit] drumkit_init() returned ${ok}`);
 
-            this.synthState = DrumkitState.READY;
+            this.voice = { prefix: 'drumkit', handle };
+            this.readyMessage.heap = native.stats;
             this.port.postMessage(this.readyMessage);
         } catch (e: unknown) {
-            this.synthState = DrumkitState.FAILED;
-            const message = e instanceof Error ? e.message : String(e);
+            if (handle) this.x.drumkit_destroy(handle);
+            this.releaseSession();
             console.error('[Drumkit] WASM init failed:', e);
-            this.errorMessage.error = message;
+            this.errorMessage.error = e instanceof Error ? e.message : String(e);
             this.port.postMessage(this.errorMessage);
+        } finally {
+            this.initializing = false;
         }
     }
 
-    private getExports(): Record<string, any> {
-        return (this.normalizedExports ?? {}) as Record<string, any>;
-    }
-
-    private updateHeap(): void {
-        const memory =
-            (this.wasmInstance?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory ??
-            this.importedMemory;
-        if (memory) {
-            this.heapFloat32 = new Float32Array(memory.buffer);
-        }
-    }
-
-    private configureWasmStack(): void {
-        const exports = this.getExports() as Record<string, (...args: number[]) => number>;
-        if (typeof exports.emscripten_stack_init === 'function') {
-            exports.emscripten_stack_init();
-        }
-        if (typeof exports.__wasm_call_ctors === 'function') {
-            exports.__wasm_call_ctors();
-        }
-        if (
-            typeof exports.__set_stack_limits === 'function' &&
-            typeof exports.emscripten_stack_get_base === 'function'
-        ) {
-            const stackBase = exports.emscripten_stack_get_base();
-            if (stackBase > 0) {
-                exports.__set_stack_limits(stackBase, 0);
+    /** Node teardown: the instance is shared, so hand the handle back explicitly. */
+    private dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        if (this.voice) {
+            try {
+                this.x.drumkit_destroy(this.voice.handle);
+            } catch (e) {
+                console.warn('[Drumkit] drumkit_destroy failed:', e);
             }
+            this.voice = null;
         }
+        this.releaseSession();
     }
 
     process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+        if (this.disposed) return false;
         const output = outputs[0];
         if (!output) return true;
 
-        const channelL = output[0];
-        const channelR = output[1] ?? null;
+        const left = output[0];
+        const right = output[1];
+        const frames = left?.length ?? 128;
+        this.beginBlock(frames);
 
-        if (this.synthState !== DrumkitState.READY || !this.wasmInstance || !this.heapFloat32) {
-            channelL?.fill(0);
-            channelR?.fill(0);
+        const voice = this.voice;
+        if (!voice) {
+            NativeVoiceProcessor.silence(left, right);
             return true;
         }
 
+        this.perf.beginProcess(frames);
         try {
-            const exports = this.getExports();
-            if (typeof currentTime !== 'undefined' && this.triggers.length > 0) {
-                this.triggers.drain(currentTime, (entry) => this.applyTrigger(exports, entry));
-            }
-
-            const numFrames = channelL?.length ?? this.bufFrames;
-
-            if (this.importedMemory && this.heapFloat32.buffer !== this.importedMemory.buffer) {
-                this.heapFloat32 = new Float32Array(this.importedMemory.buffer);
-            }
-
-            const ptr: number = exports.drumkit_process(this.instanceHandle, numFrames);
-            if (!ptr) {
-                if (this.allocationErrorCount++ < 5) {
-                    console.error('[Drumkit] drumkit_process returned null pointer');
-                }
-                channelL?.fill(0);
-                channelR?.fill(0);
-                return true;
-            }
-
-            const offset = ptr >>> 2;
-            const heap = this.heapFloat32;
-
-            if (offset >= 0 && offset + numFrames <= heap.length) {
-                for (let i = 0; i < numFrames; i++) {
-                    const s = heap[offset + i];
-                    if (channelL) channelL[i] = s;
-                    if (channelR) channelR[i] = s;
-                }
-            } else {
-                if (this.processErrorCount++ < 5) {
-                    console.error(`[Drumkit] Heap out-of-bounds: offset=${offset}, heapLen=${heap.length}`);
-                }
-                channelL?.fill(0);
-                channelR?.fill(0);
-            }
+            this.renderVoice(voice, frames, left, right);
         } catch (e) {
-            if (this.processErrorCount++ < 5) {
-                console.error('[Drumkit] process() error:', e);
-            }
-            channelL?.fill(0);
-            channelR?.fill(0);
+            this.processFailed(e, left, right);
+        } finally {
+            this.perf.endProcess();
         }
-
         return true;
     }
 }

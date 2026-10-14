@@ -281,6 +281,68 @@ void testCancelPendingNotes() {
           "the scheduled param still lands");
 }
 
+void testFlush() {
+    std::printf("NativeVoice: flush\n");
+    ProbeVoice v;
+    v.init(48000.0f, BLOCK);
+    v.engine.frame = 0;
+    v.push(param(1000, 0.25f));
+    v.push(noteOn(500));
+    v.push(param(2000, 0.75f));
+    v.flush();
+    const ProbeEngine& e = v.engine;
+    check(e.count == 3 && e.type[0] == kNoteOn && e.type[1] == kParam && e.type[2] == kParam,
+          "applies every pending event now, in frame order");
+    check(e.level == 0.75f && v.schedule.size() == 0, "leaves the latest value and an empty schedule");
+}
+
+void testMonoNoteEngine() {
+    std::printf("MonoNoteEngine\n");
+    using MonoVoice = NativeVoice<MonoNoteEngine<ProbeEngine>, 64>;
+    const float sr = 1000.0f;  // 8 s max hold = 8000 frames
+    MonoVoice v;
+    v.init(sr, BLOCK);
+    v.engine.inner.frame = 0;
+    const ProbeEngine& e = v.engine.inner;
+    auto render = [&](int blocks, int64_t start) {
+        for (int b = 0; b < blocks; ++b) v.process(start + int64_t{b} * BLOCK, BLOCK);
+    };
+
+    v.push(noteOn(10, 36));
+    v.push(noteOff(300, 36));   // superseded below
+    v.push(noteOn(200, 43));    // over the held 36
+    v.push(noteOff(400, 43));
+    render(4, 0);
+    bool ok = e.count == 4 &&
+              e.type[0] == kNoteOn && e.atFrame[0] == 10 &&
+              e.type[1] == kNoteOff && e.atFrame[1] == 200 &&  // 36 released on 43's frame
+              e.type[2] == kNoteOn && e.atFrame[2] == 200 &&
+              e.type[3] == kNoteOff && e.atFrame[3] == 400;    // 36's own noteOff at 300 dropped
+    check(ok, "a noteOn over a held note releases it first; the stale noteOff is dropped");
+
+    Event all;
+    all.type = kAllNotesOff;
+    all.frame = 600;
+    v.push(noteOn(520, 40));
+    v.push(all);
+    render(2, 512);
+    check(e.count == 6 && e.type[5] == kNoteOff && e.atFrame[5] == 600, "kAllNotesOff releases the held note on its frame");
+
+    v.push(noteOn(1000, 45));  // never released by the stream
+    render(80, 768);           // through frame 10'008
+    check(e.count == 8 && e.type[7] == kNoteOff && e.atFrame[7] == 1000 + 8000,
+          "a note held for 8 s is released on exactly that frame");
+
+    // Blocks above were contiguous from frame 0, so the probe's frame counter
+    // is the absolute frame; carry on from 11'008.
+    v.push(noteOn(11100, 47));
+    render(1, 11008);
+    v.engine.forget();  // what an immediate all-notes-off does to the wrapper
+    v.push(noteOff(11300, 47));
+    render(3, 11136);
+    check(e.count == 9, "after forget(), a late noteOff for the dropped note is ignored");
+}
+
 void testRing() {
     std::printf("EventRing\n");
     EventRing<8> ring;
@@ -453,6 +515,8 @@ int main() {
     testLateEvents();
     testDrumAnd303OnOneFrame();
     testCancelPendingNotes();
+    testFlush();
+    testMonoNoteEngine();
     testRing();
     testRingThreads();
     testSlots();

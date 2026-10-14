@@ -24,6 +24,7 @@
     "build:wasm:mixbus": "bash emscripten/build_mix_bus.sh",
     "vendor:pyodide": "node scripts/fetch-pyodide.mjs",
     "check:exports": "node tools/check_wasm_export_map.mjs",
+    "gen:native-types": "node tools/gen_hyphon_native_types.mjs",
     "wam:integrity": "node scripts/wam-catalog-integrity.mjs",
     "check:wam": "node scripts/wam-catalog-integrity.mjs --check",
     "check:native": "node scripts/native-preflight.mjs",

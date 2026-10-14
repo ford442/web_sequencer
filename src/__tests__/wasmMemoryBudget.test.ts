@@ -204,7 +204,7 @@ describe('hyphon_native drumkit compilation', () => {
             readFileSync(join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8'),
         ) as { required: string[] };
         expect(manifest.required).toEqual(
-            expect.arrayContaining(['drumkit_create', 'drumkit_trigger', 'drumkit_process']),
+            expect.arrayContaining(['drumkit_create', 'drumkit_push_event', 'drumkit_render']),
         );
     });
 });

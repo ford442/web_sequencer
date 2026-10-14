@@ -4,11 +4,11 @@ Issue #1344. One header-only C++17 contract for the engines in `hyphon_native`
 (open303, jc303, highfid303, prophecy, drumkit), replacing the handle maps,
 output buffers and event timing each wrapper wrote by hand.
 
-**Status:** all five engines are on it (P3). Each one renders bit-identical to
-its pre-port wrapper through the immediate API the worklets still call. The
-event API (`*_push_event` + `*_render`) is exported but not called yet: P4
-moves the worklets onto it together, so drums and 303s change timing grid at
-the same moment.
+**Status:** all five engines are on it, and since P4 every worklet drives them
+through the event API: notes, triggers and params land on their own sample, and
+drums and 303s share one timing grid. The immediate API (`*_note_on`,
+`*_trigger`, `*_process`, …) stays exported for tooling and the host tests,
+and still renders bit-identical to the pre-port wrappers.
 
 ## Pieces
 
@@ -21,6 +21,7 @@ the same moment.
 | `BlockBuffer` — one 16-byte-aligned buffer, sized at init | four `malloc`'d `outBuf`s that grow inside `*_process` |
 | `VoiceSlots<T, N>` — handle = slot index + generation | `std::unordered_map<uintptr_t, std::unique_ptr<T>>::find` per call |
 | `NativeVoice<Engine>` | everything one handle owns: engine + ring + schedule + buffer + stats |
+| `MonoNoteEngine<Engine>` | the TS rate limiter / stuck-note / portamento-fix logic in open303-processor |
 | `Smoothed` | nothing — no native parameter smoothing existed |
 | `flushDenormal` | nothing — no denormal policy existed |
 
@@ -74,8 +75,9 @@ generic C API:
 | `myengine_push_event(h, frame, type, target, value, a0..a3)` → 1 / 0 | frame as a double (no BigInt) |
 | `myengine_render(h, blockStartFrame, frames)` → `float*` / 0 | sample-accurate |
 | `myengine_cancel_notes(h)` | stop / mute |
+| `myengine_flush(h)` | apply everything pending now (a voice that stops rendering) |
 
-List those six names in `emscripten/wasm_export_manifest.json` — `build.sh`
+List those seven names in `emscripten/wasm_export_manifest.json` — `build.sh`
 exports exactly what the manifest declares, and
 `src/__tests__/wasmExportManifest.voices.test.ts` fails if one is missing.
 
@@ -85,6 +87,49 @@ its wavetables) holds it by pointer and allocates it in `init`, as
 
 `render` is called with arbitrary split sizes, so an engine that updates
 coefficients per block must do it per call, or use `Smoothed::advance(frames)`.
+
+## Mono note discipline (`MonoNoteEngine`)
+
+The three 303 engines are wrapped in `hyphon::MonoNoteEngine`, which applies
+on the event's frame the rules open303-processor used to run in TypeScript:
+
+- a noteOn while a note is held releases it first — retrigger, not slide (the
+  old "portamento fix")
+- a noteOff for any note but the held one is dropped: the note a later noteOn
+  replaced still has its own noteOff in flight, and open303 / high-fid ignore
+  note numbers
+- `kAllNotesOff` releases the held note (MIDI All Notes Off), it does not reset
+- a note held for 8 s is released on that frame (stuck-note guard)
+
+The TS rate limiter (50 notes/s, 5 ms minimum spacing) is gone: the native ring
+bounds the input, and fast retriggers now play instead of being dropped.
+
+Immediate exports call the wrapped engine (`v->engine.inner`) and bypass these
+rules; an immediate all-notes-off calls `forget()` so the wrapper does not
+release a note the engine already dropped.
+
+## Worklet side
+
+`src/audio-worklets/nativeVoiceProcessor.ts` is the base of
+`open303-processor`, `prophecy-processor` and `drumkit-processor`:
+
+- joins the audio session's one `hyphon_native` instance (the drum kit used to
+  instantiate its own; it now resolves the same pthread / ST profile as the
+  303s, so it also runs on WebKit)
+- `frameAt(audioTime)` → `Math.round(audioTime * sampleRate)`; missing / past →
+  frame 0, i.e. the next block
+- `beginBlock(frames)` takes the block's first frame from `currentFrame`
+- `pushEvent` / `cancelNotes` / `flushEvents` / `renderVoice` call the voice's
+  generic exports by prefix
+
+Engine switches in the 303 worklet quiesce the voices that stop rendering:
+`*_cancel_notes`, then `*_flush` (pending params land now instead of replaying
+stale when the engine comes back), then the immediate `*_all_notes_off`.
+
+`src/audio-worklets/hyphonNativeExports.ts` is **generated**
+(`pnpm run gen:native-types`, `tools/gen_hyphon_native_types.mjs`) from the
+manifest, the `EMSCRIPTEN_KEEPALIVE` prototypes, the macro and the event enums;
+`wasmExportManifest.voices.test.ts` fails when it is stale.
 
 ## Real-time rules
 

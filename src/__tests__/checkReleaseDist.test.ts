@@ -222,7 +222,7 @@ describe('check-release-dist WASM export gate', () => {
         const missingLine = result.output
             .split('\n')
             .find((line) => line.includes('required export(s):'));
-        expect(missingLine).toContain('prophecy_process');
+        expect(missingLine).toContain('prophecy_render');
         // Present exports belong in the "Actual exports" preview, not the missing list.
         expect(missingLine).not.toContain('open303_process');
     });

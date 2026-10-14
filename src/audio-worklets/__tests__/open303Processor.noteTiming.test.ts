@@ -2,19 +2,23 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } 
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
 
 /**
- * #1344 P1: the 303 worklet honours `audioTime` on noteOn / noteOff.
+ * #1344: the 303 worklet honours audioTime on noteOn / noteOff.
  *
- * It used to read `audioTime` only for params, so a note scheduled ahead fired
- * in whichever block its message landed in — and every note's scheduled
- * noteOff (posted together with its noteOn) closed the gate at once. Notes now
- * share the params' time-ordered queue and drain on the same block grid as the
- * drum worklet: the first block whose currentTime has reached the event.
+ * P1 did it with a TS queue drained once per block. Since P4 every note and
+ * param is a voice-core event: the worklet converts audioTime to an absolute
+ * frame and pushes it into the voice's native ring, and the engine applies it
+ * on that sample (emscripten/tests/event_api_checks.h, voice_core_test.cpp —
+ * including the mono rules: retrigger over a held note, stale noteOff dropped,
+ * 8 s stuck-note release). This test pins down the worklet's half: the frame
+ * math, which voice each event goes to, the stop / engine-switch hand-offs,
+ * and rendering with the block's start frame.
  */
 
 const SAMPLE_RATE = 48000;
 const BLOCK = 128;
-const QUANTUM = BLOCK / SAMPLE_RATE;
-const T0 = 1.0;
+const OPEN303 = 1;
+const JC303 = 2;
+const HIGHFID = 3;
 
 class FakePort {
   onmessage: ((e: MessageEvent) => unknown) | null = null;
@@ -36,11 +40,13 @@ type Voice = {
 type VoiceCtor = new () => Voice;
 const registered = new Map<string, VoiceCtor>();
 
-type Call = { fn: 'on' | 'off' | 'param' | 'allOff'; at: number; note?: number; value?: number };
+/** One recorded call into the fake hyphon_native. */
+type Call = { fn: string; h: number; args: number[] };
 
 /** The AudioWorkletGlobalScope members the processor reads, faked on globalThis. */
 const g = globalThis as {
-  currentTime?: number;
+  currentFrame?: number;
+  sampleRate?: number;
   AudioWorkletProcessor?: new () => { port: FakePort };
   registerProcessor?: (name: string, ctor: VoiceCtor) => void;
 };
@@ -50,70 +56,74 @@ beforeAll(async () => {
     readonly port = new FakePort();
   };
   g.registerProcessor = (name, ctor) => registered.set(name, ctor);
+  g.sampleRate = SAMPLE_RATE;
   await import('../open303-processor');
 });
 
 afterAll(() => {
-  delete g.currentTime;
+  delete g.currentFrame;
+  delete g.sampleRate;
 });
 
-describe('open303-processor note timing (#1344)', () => {
+describe('open303-processor on the voice-core event API (#1344)', () => {
   let calls: Call[];
   let voice: Voice;
+  let memory: WebAssembly.Memory;
 
-  const now = () => g.currentTime ?? NaN;
-  const ons = () => calls.filter((c) => c.fn === 'on');
-  const offs = () => calls.filter((c) => c.fn === 'off');
-
-  /** Render one block at the current audio time, then advance the clock. */
-  function renderBlock() {
-    voice.process([], [[new Float32Array(BLOCK), new Float32Array(BLOCK)]], {});
-    g.currentTime = now() + QUANTUM;
-  }
-
-  function renderUntil(t: number) {
-    while (now() <= t) renderBlock();
-  }
-
+  const named = (fn: string) => calls.filter((c) => c.fn === fn);
   const send = (type: string, data?: Record<string, unknown>) => voice.port.deliver({ type, data });
+
+  function render(frame: number) {
+    g.currentFrame = frame;
+    const out = [new Float32Array(BLOCK), new Float32Array(BLOCK)];
+    voice.process([], [out, [new Float32Array(BLOCK), new Float32Array(BLOCK)]], {});
+    return out;
+  }
 
   beforeEach(async () => {
     resetHyphonNativeSessionForTests();
     calls = [];
-    g.currentTime = T0;
 
     const RealMemory = WebAssembly.Memory;
-    // A function, not an arrow: the session constructs it with `new`, and
-    // Vitest 5 spies keep that call a construction.
+    // A function, not an arrow: the session constructs it with `new`.
     vi.spyOn(WebAssembly, 'Memory').mockImplementation(function (desc: WebAssembly.MemoryDescriptor) {
-      return new RealMemory({ initial: 1, maximum: 4, shared: desc.shared });
+      memory = new RealMemory({ initial: 1, maximum: 4, shared: desc.shared });
+      return memory;
     } as unknown as typeof WebAssembly.Memory);
     vi.spyOn(WebAssembly, 'compile').mockResolvedValue({} as WebAssembly.Module);
     vi.spyOn(WebAssembly.Module, 'imports').mockReturnValue([{ module: 'a', name: 'a', kind: 'memory' }]);
     vi.spyOn(WebAssembly, 'instantiate').mockImplementation(((_m: WebAssembly.Module, imports: WebAssembly.Imports) => {
-      let nextPtr = 1024;
-      let nextHandle = 1;
+      const record = (fn: string) => (h: number, ...args: number[]) => {
+        calls.push({ fn, h, args });
+        return 1;
+      };
+      const handles: Record<string, number> = { open303: OPEN303, jc303: JC303, highfid303: HIGHFID };
+      const voiceApi = (api: string) => ({
+        [`${api}_create`]: () => handles[api],
+        [`${api}_destroy`]: () => {},
+        [`${api}_init`]: () => 1,
+        [`${api}_push_event`]: record(`${api}_push_event`),
+        [`${api}_cancel_notes`]: record(`${api}_cancel_notes`),
+        [`${api}_flush`]: record(`${api}_flush`),
+        [`${api}_all_notes_off`]: record(`${api}_all_notes_off`),
+        [`${api}_set_param`]: record(`${api}_set_param`),
+        // Each voice renders a constant (handle / 10) into its buffer at 4096 + handle * 1024.
+        [`${api}_render`]: (h: number, blockStart: number, frames: number) => {
+          calls.push({ fn: `${api}_render`, h, args: [blockStart, frames] });
+          const ptr = 4096 + h * 1024;
+          new Float32Array(memory.buffer, ptr, frames).fill(h / 10);
+          return ptr;
+        },
+      });
       const exports = {
         memory: (imports as { a: { a: WebAssembly.Memory } }).a.a,
-        malloc: (bytes: number) => {
-          const p = nextPtr;
-          nextPtr += bytes;
-          return p;
-        },
+        malloc: () => 1024,
         free: () => {},
         __wasm_call_ctors: () => {},
-        open303_create: () => nextHandle++,
-        open303_destroy: () => {},
-        open303_init: () => 1,
-        open303_note_on: (_h: number, note: number) => calls.push({ fn: 'on', at: now(), note }),
-        open303_note_off: (_h: number, note: number) => calls.push({ fn: 'off', at: now(), note }),
-        open303_all_notes_off: () => calls.push({ fn: 'allOff', at: now() }),
-        open303_set_param: (_h: number, _id: number, value: number) => calls.push({ fn: 'param', at: now(), value }),
-        open303_process: () => {},
-        jc303_create: () => nextHandle++,
-        jc303_destroy: () => {},
-        jc303_init_handle: () => 1,
-        jc303_process_handle: () => 0,
+        ...voiceApi('open303'),
+        ...voiceApi('jc303'),
+        ...voiceApi('highfid303'),
+        highfid303_set_oversample: () => {},
       };
       return Promise.resolve({ exports } as unknown as WebAssembly.Instance);
     }) as unknown as typeof WebAssembly.instantiate);
@@ -129,6 +139,7 @@ describe('open303-processor note timing (#1344)', () => {
       exportMap: {},
     });
     expect(voice.port.posted.map((m) => m.type)).toContain('ready');
+    calls = [];
   });
 
   afterEach(() => {
@@ -136,107 +147,108 @@ describe('open303-processor note timing (#1344)', () => {
     resetHyphonNativeSessionForTests();
   });
 
-  it('a noteOn scheduled 50 ms ahead does not sound early', () => {
-    const at = T0 + 0.05;
-    send('noteOn', { note: 36, velocity: 100, audioTime: at });
-    expect(ons()).toHaveLength(0);
-
-    renderUntil(at + 0.05);
-
-    expect(ons()).toHaveLength(1);
-    // The first block whose start has reached the note — never before it.
-    expect(ons()[0].at).toBeGreaterThanOrEqual(at);
-    expect(ons()[0].at - at).toBeLessThan(QUANTUM);
+  it('pushes a noteOn scheduled 50 ms ahead for its own frame', () => {
+    send('noteOn', { note: 36, velocity: 100, audioTime: 1.05 });
+    expect(named('open303_push_event')).toEqual([
+      { fn: 'open303_push_event', h: OPEN303, args: [50400, 1, 36, 100, 0, 0, 0, 0] },
+    ]);
   });
 
-  it('holds a note for its gate length instead of releasing it on arrival', () => {
+  it('pushes the noteOff for the end of the gate, not for when it arrived', () => {
     // playSynth posts both at once: noteOn at the step, noteOff one step later.
-    const step = 0.125;
-    send('noteOn', { note: 36, velocity: 100, audioTime: T0 });
-    send('noteOff', { note: 36, audioTime: T0 + step });
-    expect(ons()).toHaveLength(1);
-    expect(offs()).toHaveLength(0);
-
-    renderUntil(T0 + 2 * step);
-
-    expect(offs()).toHaveLength(1);
-    expect(offs()[0].at).toBeGreaterThanOrEqual(T0 + step);
-    expect(offs()[0].at - (T0 + step)).toBeLessThan(QUANTUM);
+    send('noteOn', { note: 36, velocity: 100, audioTime: 1.0 });
+    send('noteOff', { note: 36, audioTime: 1.125 });
+    expect(named('open303_push_event').map((c) => c.args.slice(0, 3))).toEqual([
+      [48000, 1, 36],
+      [54000, 2, 36],
+    ]);
   });
 
-  it('still plays a noteOn without audioTime immediately (live keyboard)', () => {
+  it('pushes a noteOn without audioTime for frame 0 — the next block (live keyboard)', () => {
     send('noteOn', { note: 48, velocity: 100 });
-    expect(ons()).toEqual([{ fn: 'on', at: T0, note: 48 }]);
+    expect(named('open303_push_event')[0].args.slice(0, 3)).toEqual([0, 1, 48]);
   });
 
-  it('applies a param and a noteOn scheduled for the same time in posting order', () => {
-    const at = T0 + 0.02;
-    send('param', { func: 'jc303_setCutoff', value: 0.3, audioTime: at });
-    send('noteOn', { note: 36, velocity: 100, audioTime: at });
-
-    renderUntil(at + 0.01);
-
-    expect(calls.map((c) => c.fn)).toEqual(['param', 'on']);
-    expect(calls[0].at).toBe(calls[1].at);
+  it('keeps a param and a noteOn for the same time in posting order', () => {
+    send('param', { func: 'jc303_setCutoff', value: 0.3, audioTime: 1.02 });
+    send('noteOn', { note: 36, velocity: 100, audioTime: 1.02 });
+    expect(named('open303_push_event').map((c) => c.args.slice(0, 4))).toEqual([
+      [48960, 4, 2, 0.3], // kParam, OPEN303_CUTOFF
+      [48960, 1, 36, 100],
+    ]);
   });
 
-  it('applies an overdue queued param before a newer one that arrives late', () => {
-    send('param', { func: 'jc303_setCutoff', value: 0.2, audioTime: T0 + 0.01 });
-    // The clock passes it before the next drain, and a later value arrives.
-    g.currentTime = T0 + 0.02;
-    send('param', { func: 'jc303_setCutoff', value: 0.8, audioTime: T0 + 0.015 });
-    renderBlock();
-
-    expect(calls.filter((c) => c.fn === 'param').map((c) => c.value)).toEqual([0.2, 0.8]);
+  it('renders the voice for the block that starts at currentFrame, into both channels', () => {
+    const [left, right] = render(96000);
+    expect(named('open303_render')).toEqual([{ fn: 'open303_render', h: OPEN303, args: [96000, BLOCK] }]);
+    expect(left[0]).toBeCloseTo(0.1, 6);
+    expect(right[BLOCK - 1]).toBeCloseTo(0.1, 6);
   });
 
-  it('plays retriggers drained in back-to-back blocks (rate limit runs on the audio clock)', () => {
-    // A 4× retrigger at 120 BPM: notes 31.25 ms apart, scheduled in one burst.
-    // process() calls are microseconds apart in wall time here, as they are in
-    // a real render burst — a wall-clock "too soon" check would drop 3 of 4.
-    const sub = 0.125 / 4;
-    for (let i = 0; i < 4; i++) {
-      send('noteOn', { note: 36, velocity: 100, audioTime: T0 + 0.01 + i * sub });
-      send('noteOff', { note: 36, audioTime: T0 + 0.01 + (i + 1) * sub });
-    }
-    renderUntil(T0 + 0.2);
-
-    expect(ons()).toHaveLength(4);
-    ons().forEach((c, i) => {
-      expect(c.at).toBeGreaterThanOrEqual(T0 + 0.01 + i * sub);
-    });
-  });
-
-  it('ignores the stale noteOff of a note a later noteOn replaced', () => {
-    // A two-step note, then a note on the next step: the first note's noteOff
-    // now lands while the second is sounding and must not release it.
-    const step = 0.125;
-    send('noteOn', { note: 36, velocity: 100, audioTime: T0 });
-    send('noteOff', { note: 36, audioTime: T0 + 2 * step });
-    send('noteOn', { note: 43, velocity: 100, audioTime: T0 + step });
-    send('noteOff', { note: 43, audioTime: T0 + 3 * step });
-
-    renderUntil(T0 + 4 * step);
-
-    expect(ons().map((c) => c.note)).toEqual([36, 43]);
-    // 36 is released (not reset) when 43 takes over; its own late noteOff is dropped.
-    expect(offs().map((c) => c.note)).toEqual([36, 43]);
-    expect(offs()[0].at).toBeLessThan(T0 + 2 * step);
-    expect(offs()[1].at).toBeGreaterThanOrEqual(T0 + 3 * step);
-    expect(calls.some((c) => c.fn === 'allOff')).toBe(false);
-  });
-
-  it('allNotesOff releases the sounding note and cancels scheduled ones', () => {
-    send('noteOn', { note: 36, velocity: 100, audioTime: T0 });
-    send('noteOn', { note: 38, velocity: 100, audioTime: T0 + 0.05 });
-    send('param', { func: 'jc303_setCutoff', value: 0.5, audioTime: T0 + 0.05 });
-
+  it('allNotesOff cancels what is still scheduled, then releases on the next block', () => {
+    send('noteOn', { note: 38, velocity: 100, audioTime: 2.0 });
     send('allNotesOff');
-    expect(offs().map((c) => c.note)).toEqual([36]);
+    expect(calls.map((c) => c.fn)).toEqual([
+      'open303_push_event',
+      'open303_cancel_notes',
+      'open303_push_event',
+    ]);
+    expect(calls[2].args.slice(0, 2)).toEqual([0, 3]); // frame 0, kAllNotesOff
+  });
 
-    renderUntil(T0 + 0.2);
-    // The retrigger never sounds after the stop; the scheduled param still lands.
-    expect(ons().map((c) => c.note)).toEqual([36]);
-    expect(calls.filter((c) => c.fn === 'param')).toHaveLength(1);
+  it('an engine switch quiets the old voice and routes everything after it to the new one', () => {
+    send('noteOn', { note: 36, velocity: 100, audioTime: 1.0 });
+    send('set-engine', { engine: 'jc303' });
+    expect(calls.slice(1).map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `open303_cancel_notes:${OPEN303}`,
+      `open303_flush:${OPEN303}`,
+      `open303_all_notes_off:${OPEN303}`,
+    ]);
+
+    calls = [];
+    send('noteOn', { note: 40, velocity: 100, audioTime: 1.2 });
+    send('param', { func: 'jc303_setResonance', value: 0.5, audioTime: 1.2 });
+    render(57600);
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `jc303_push_event:${JC303}`,
+      `jc303_push_event:${JC303}`,
+      `jc303_render:${JC303}`,
+    ]);
+  });
+
+  it('an idle voice gets params immediately, the rendered one on their frame', () => {
+    send('set-303-model', { model: 'live-highfid' });
+    send('set-303-model', { model: 'stock-open303' });
+    calls = [];
+    // The live high-fid voice still exists but is idle; open303 renders.
+    send('param', { func: 'jc303_setDecay', value: 0.2, audioTime: 3.0 });
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `highfid303_set_param:${HIGHFID}`,
+      `open303_push_event:${OPEN303}`,
+    ]);
+    expect(calls[1].args.slice(0, 3)).toEqual([144000, 4, 5]);
+  });
+
+  it('live A/B pushes every note to both sides and renders stock then high-fid', () => {
+    send('set-303-model', { model: 'live-highfid' });
+    send('set-live-ab', { armed: true });
+    calls = [];
+    send('noteOn', { note: 45, velocity: 127, audioTime: 2.5 });
+    render(120000);
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `open303_push_event:${OPEN303}`,
+      `highfid303_push_event:${HIGHFID}`,
+      `open303_render:${OPEN303}`,
+      `highfid303_render:${HIGHFID}`,
+    ]);
+
+    calls = [];
+    send('set-live-ab', { armed: false });
+    // Side A stops rendering: its pending notes go, its params land, it resets.
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `open303_cancel_notes:${OPEN303}`,
+      `open303_flush:${OPEN303}`,
+      `open303_all_notes_off:${OPEN303}`,
+    ]);
   });
 });

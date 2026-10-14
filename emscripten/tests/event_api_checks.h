@@ -11,7 +11,10 @@
  *   - an oversize block and a destroyed handle are refused, not crashed on
  *
  * `Api` adapts one engine's C API (see the callers); `check` is the calling
- * test's reporter.
+ * test's reporter. An adapter with `static constexpr bool kMono = true` wraps
+ * a hyphon::MonoNoteEngine: the immediate-API reference then applies the same
+ * mono rules (release the held note before a new one, drop a noteOff for any
+ * other note), so the comparison still isolates timing.
  */
 #pragma once
 
@@ -31,11 +34,30 @@ struct Ev {
     float value;
 };
 
+template <class Api, class = void>
+struct IsMono {
+    static constexpr bool value = false;
+};
 template <class Api>
-void applyImmediate(Api& api, uintptr_t h, const Ev& e) {
-    if (e.type == hyphon::kNoteOn) api.noteOn(h, e.target, e.value);
-    else if (e.type == hyphon::kNoteOff) api.noteOff(h, e.target);
-    else if (e.type == hyphon::kParam) api.setParam(h, e.target, e.value);
+struct IsMono<Api, decltype(void(Api::kMono))> {
+    static constexpr bool value = Api::kMono;
+};
+
+/** `held`: the note a mono engine's gate holds, -1 for none (unused otherwise). */
+template <class Api>
+void applyImmediate(Api& api, uintptr_t h, const Ev& e, int& held) {
+    constexpr bool mono = IsMono<Api>::value;
+    if (e.type == hyphon::kNoteOn) {
+        if (mono && held >= 0) api.noteOff(h, held);
+        api.noteOn(h, e.target, e.value);
+        held = e.target;
+    } else if (e.type == hyphon::kNoteOff) {
+        if (mono && e.target != held) return;
+        api.noteOff(h, e.target);
+        held = -1;
+    } else if (e.type == hyphon::kParam) {
+        api.setParam(h, e.target, e.value);
+    }
 }
 
 /** Immediate API, block split by hand at each event's frame. */
@@ -45,6 +67,7 @@ std::vector<float> renderImmediate(Api& api, const std::vector<Ev>& evs, int tot
     api.init(h, block);
     std::vector<float> out;
     int64_t pos = 0;
+    int held = -1;
     auto renderTo = [&](int64_t end) {
         while (pos < end) {
             // Never cross a block boundary, so the split matches renderSplit's.
@@ -57,7 +80,7 @@ std::vector<float> renderImmediate(Api& api, const std::vector<Ev>& evs, int tot
     };
     for (const Ev& e : evs) {
         renderTo(e.at);
-        applyImmediate(api, h, e);
+        applyImmediate(api, h, e, held);
     }
     renderTo(total);
     api.destroy(h);

@@ -46,47 +46,31 @@ describe('formatMissingWasmExports', () => {
   });
 });
 
+/** Raw exports under minified names + the map that resolves them, for `names`. */
+function minified(names: readonly string[]) {
+  const raw = Object.fromEntries(names.map((_, i) => [`m${i}`, () => 1])) as unknown as WebAssembly.Exports;
+  const map = Object.fromEntries(names.map((n, i) => [n, `m${i}`]));
+  return { raw, map };
+}
+
 describe('hasProphecyApi', () => {
   it('accepts normalized exports, not raw minified names', () => {
-    const create = () => 1;
-    const init = () => 1;
-    const raw = { V: create, X: init } as unknown as WebAssembly.Exports;
+    const { raw, map } = minified(PROPHECY_REQUIRED_WASM_EXPORTS);
     expect(hasProphecyApi(raw as Record<string, unknown>)).toBe(false);
-    const normalized = normalizeWasmExports(raw, {
-      prophecy_create: 'V',
-      prophecy_init: 'X',
-    });
-    expect(hasProphecyApi(normalized)).toBe(true);
+    expect(hasProphecyApi(normalizeWasmExports(raw, map))).toBe(true);
   });
 });
 
 describe('hasDrumkitApi', () => {
   it('accepts normalized exports, not raw minified names', () => {
-    const fn = () => 1;
-    const raw = { V: fn, X: fn, Y: fn, S: fn, T: fn, C: fn } as unknown as WebAssembly.Exports;
+    const { raw, map } = minified(DRUMKIT_REQUIRED_WASM_EXPORTS);
     expect(hasDrumkitApi(raw as Record<string, unknown>)).toBe(false);
-    const normalized = normalizeWasmExports(raw, {
-      drumkit_create: 'V',
-      drumkit_init: 'X',
-      drumkit_set_kit: 'S',
-      drumkit_trigger: 'T',
-      drumkit_choke_open_hat: 'C',
-      drumkit_process: 'Y',
-    });
-    expect(hasDrumkitApi(normalized)).toBe(true);
+    expect(hasDrumkitApi(normalizeWasmExports(raw, map))).toBe(true);
   });
 
-  it('rejects a module missing trigger or choke', () => {
-    const fn = () => 1;
-    const normalized = normalizeWasmExports(
-      { V: fn, X: fn, Y: fn } as unknown as WebAssembly.Exports,
-      {
-        drumkit_create: 'V',
-        drumkit_init: 'X',
-        drumkit_process: 'Y',
-      },
-    );
-    expect(hasDrumkitApi(normalized)).toBe(false);
+  it('rejects a module without the voice-core event API (#1344)', () => {
+    const { raw, map } = minified(['drumkit_create', 'drumkit_init', 'drumkit_trigger', 'drumkit_process']);
+    expect(hasDrumkitApi(normalizeWasmExports(raw, map))).toBe(false);
   });
 });
 
@@ -276,7 +260,7 @@ describe('export-map sufficiency predicates', () => {
       prophecyExportMapInsufficient(module, identity(PROPHECY_REQUIRED_WASM_EXPORTS)),
     ).toBe(false);
     expect(
-      open303ExportMapInsufficient(module, identity(['open303_create', 'open303_init'])),
+      open303ExportMapInsufficient(module, identity(OPEN303_REQUIRED_WASM_EXPORTS)),
     ).toBe(false);
     const exported = new Set(WebAssembly.Module.exports(module).map((e) => e.name));
     if (DRUMKIT_REQUIRED_WASM_EXPORTS.every((n) => exported.has(n))) {
@@ -288,7 +272,7 @@ describe('export-map sufficiency predicates', () => {
 
 describe('OPEN303_REQUIRED_WASM_EXPORTS', () => {
   it.skipIf(skipIfNativeArtifactMissing(HYPHON_NATIVE_WASM))(
-    'names exports the binary actually has (jc303 uses the *_handle ABI)',
+    'names exports the binary actually has',
     async () => {
     expect(
       existsSync(HYPHON_NATIVE_WASM),

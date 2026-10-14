@@ -12,6 +12,7 @@
  *                                                                              1 = queued
  *   uintptr_t prefix_render(uintptr_t h, double blockStartFrame, int frames)  float*, 0 on error
  *   void      prefix_cancel_notes(uintptr_t h)
+ *   void      prefix_flush(uintptr_t h)                                       apply all pending now
  *
  * plus `prefix_voice(h)`, a static accessor the engine's own exports use.
  * Frames cross the JS boundary as doubles (exact to 2^53): an int64 would be a
@@ -65,5 +66,8 @@
     }                                                                                         \
     EMSCRIPTEN_KEEPALIVE void prefix##_cancel_notes(uintptr_t h) {                            \
         if (VoiceType* v = prefix##_voice(h)) v->cancelPendingNotes();                        \
+    }                                                                                         \
+    EMSCRIPTEN_KEEPALIVE void prefix##_flush(uintptr_t h) {                                   \
+        if (VoiceType* v = prefix##_voice(h)) v->flush();                                     \
     }                                                                                         \
     }  // extern "C"

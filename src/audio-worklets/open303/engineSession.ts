@@ -6,7 +6,13 @@
 // once at init or is called from the process() hot path — no allocation-adding
 // indirection.
 
-import { formatMissingWasmExports } from '../hyphonNativeImports';
+import {
+    formatMissingWasmExports,
+    hasJc303Api,
+    hasOpen303Api,
+    NATIVE_VOICE_MAX_BLOCK_FRAMES,
+    OPEN303_REQUIRED_WASM_EXPORTS,
+} from '../hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeSession } from '../hyphonNativeSession';
 import { resolveWorkletSampleRate } from '../../utils/workletSampleRate';
 import { SynthState, type SynthStateType, getTime } from './shared';
@@ -20,14 +26,11 @@ export class Open303EngineSession {
     private synthState: SynthStateType = SynthState.UNINITIALIZED;
     private isThreadedFlag: boolean = false;
 
-    // When true the WASM exposes the open303_* instance-based API
-    // (hyphon_native.wasm with open303_wrapper.cpp).  When false the legacy
-    // jc303_* single-instance API is used (standalone jc303-single.wasm).
+    // True once the open303_* voice exists on the shared instance.
     private nativeApi: boolean = false;
     private handle: number | bigint = 0;
-    // Caller-allocated output buffer pointer (malloc'd once, freed on cleanup)
-    private outputPtr: number | bigint = 0;
-    private readonly bufFrames: number = 128;
+    // Frames each voice reserves: the voice core refuses a larger block.
+    private readonly bufFrames: number = NATIVE_VOICE_MAX_BLOCK_FRAMES;
 
     // Authentic rosic::Open303 multi-instance API (jc303_wrapper.cpp).
     // Available alongside the custom open303_* API in hyphon_native.wasm.
@@ -90,10 +93,6 @@ export class Open303EngineSession {
         return this.jc303HandleValue;
     }
 
-    get nativeOutputPtr(): number | bigint {
-        return this.outputPtr;
-    }
-
     get nativeBufFrames(): number {
         return this.bufFrames;
     }
@@ -104,6 +103,11 @@ export class Open303EngineSession {
 
     get sampleRateHz(): number {
         return this.rateHz;
+    }
+
+    /** The shared instance this processor's handles live on (null until init). */
+    get nativeSession(): HyphonNativeSession | null {
+        return this.native;
     }
 
     getExports(): Record<string, any> {
@@ -128,43 +132,6 @@ export class Open303EngineSession {
         if (handle == null) return true;
         if (typeof handle === 'bigint') return handle <= 0n;
         return !Number.isFinite(handle) || handle <= 0;
-    }
-
-    /** Convert a WASM heap pointer (number or bigint) to a Float32Array index. */
-    wasmPtrToOffset(ptr: number | bigint | null | undefined): number {
-        if (ptr == null) return -1;
-        const n = typeof ptr === 'bigint' ? Number(ptr) : ptr;
-        if (!Number.isFinite(n) || n <= 0) return -1;
-        return n >>> 2;
-    }
-
-    /** Ensures the heap view is up to date and returns the Float32 offset, or -1 if invalid. */
-    getWasmSampleOffset(ptr: number | bigint, numFrames: number): number {
-        this.updateHeap();
-        if (!this.heap) return -1;
-
-        const byteOffset = typeof ptr === 'bigint' ? Number(ptr) : ptr;
-        if (!Number.isFinite(byteOffset) || byteOffset <= 0) return -1;
-        if (byteOffset + numFrames * 4 > this.heap.buffer.byteLength) return -1;
-
-        return byteOffset >>> 2;
-    }
-
-    writeOutputSamples(
-        floatOffset: number,
-        numFrames: number,
-        channelL: Float32Array | undefined,
-        channelR: Float32Array | undefined,
-        gain: number,
-    ): void {
-        const heap = this.heap;
-        if (!heap) return;
-
-        for (let i = 0; i < numFrames; i++) {
-            const sample = heap[floatOffset + i] * gain;
-            if (channelL) channelL[i] = sample;
-            if (channelR) channelR[i] = sample;
-        }
     }
 
     updateHeap(): void {
@@ -269,24 +236,12 @@ export class Open303EngineSession {
         const rawExports = this.native.instance.exports;
         this.updateHeap();
 
-        // 4. Verify exports — accept either the native multi-instance API
-        // (open303_create/open303_init, exported by hyphon_native.wasm) or the
-        // legacy single-instance jc303_init/jc303_process API.
+        // 4. Verify exports: the open303 voice on the voice core's event API.
         const exports = this.getExports();
-        const hasNative = typeof exports.open303_create === 'function'
-                       && typeof exports.open303_init === 'function';
-        const hasLegacy = typeof exports.jc303_init_handle === 'function'
-                       && typeof exports.jc303_process_handle === 'function';
-
-        if (!hasNative && !hasLegacy) {
+        if (!hasOpen303Api(exports)) {
             throw new Error(
-                `Missing required exports: neither open303_* (native) nor jc303_* (legacy) found. ` +
-                formatMissingWasmExports(rawExports, [
-                    'open303_create',
-                    'open303_init',
-                    'jc303_init_handle',
-                    'jc303_process_handle',
-                ]),
+                'Missing required open303_* exports. ' +
+                formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
             );
         }
 
@@ -301,13 +256,7 @@ export class Open303EngineSession {
 
     private initializeSynth(exports: any, sampleRate: number): boolean {
         this.rateHz = sampleRate; // already resolved above
-        // Prefer the new multi-instance native API (hyphon_native with open303_wrapper.cpp).
-        // Fall back to the single-instance jc303_* API (standalone jc303-single.wasm).
-        if (typeof exports.open303_create === 'function' &&
-            typeof exports.open303_init   === 'function') {
-            return this.initializeNativeApi(exports, sampleRate);
-        }
-        return this.initializeLegacyApi(exports, sampleRate);
+        return this.initializeNativeApi(exports, sampleRate);
     }
 
     private initializeNativeApi(exports: any, sampleRate: number): boolean {
@@ -326,16 +275,6 @@ export class Open303EngineSession {
             );
             if (result !== 1) {
                 throw new Error(`open303_init() returned ${result}`);
-            }
-
-            // Allocate the output buffer on the WASM heap (owned by the worklet)
-            const mallocFn = exports._malloc ?? exports.malloc;
-            if (mallocFn) {
-                // 4 bytes per sample (Float32)
-                this.outputPtr = mallocFn(this.bufFrames * 4);
-                if (this.isInvalidHandle(this.outputPtr)) {
-                    throw new Error('Failed to allocate native output buffer');
-                }
             }
 
             this.nativeApi = true;
@@ -364,8 +303,7 @@ export class Open303EngineSession {
      *  the custom open303 instance.  Failures are non-fatal — the custom engine
      *  remains the default and engine switching will simply be unavailable. */
     private initializeJc303MultiInstance(exports: any, sampleRate: number): void {
-        if (typeof exports.jc303_create !== 'function' ||
-            typeof exports.jc303_init_handle !== 'function') {
+        if (!hasJc303Api(exports)) {
             console.log('[Open303] jc303 multi-instance API not available in this WASM build');
             return;
         }
@@ -375,13 +313,13 @@ export class Open303EngineSession {
                 console.warn('[Open303] jc303_create() returned null handle');
                 return;
             }
-            const res = exports.jc303_init_handle(
+            const res = exports.jc303_init(
                 this.toWasmHandle(this.jc303HandleValue),
                 sampleRate,
                 this.bufFrames,
             );
             if (res !== 1) {
-                console.warn(`[Open303] jc303_init_handle() returned ${res}`);
+                console.warn(`[Open303] jc303_init() returned ${res}`);
                 if (exports.jc303_destroy) {
                     exports.jc303_destroy(this.toWasmHandle(this.jc303HandleValue));
                 }
@@ -428,29 +366,6 @@ export class Open303EngineSession {
         }
     }
 
-    private initializeLegacyApi(exports: any, sampleRate: number): boolean {
-        // Try with progressively smaller buffer sizes to reduce stack pressure
-        const bufferSizes = [128, 64, 32, 16];
-
-        for (const bufferSize of bufferSizes) {
-            try {
-                console.log(`[Open303] Attempting jc303_init with bufferSize=${bufferSize}...`);
-                const result = exports.jc303_init(sampleRate, bufferSize);
-
-                if (result === 1) {
-                    console.log(`[Open303] Legacy API initialized with sampleRate=${sampleRate}, bufferSize=${bufferSize}`);
-                    return true;
-                } else {
-                    console.warn(`[Open303] jc303_init returned ${result} with bufferSize=${bufferSize}`);
-                }
-            } catch (initError) {
-                console.warn(`[Open303] init failed with bufferSize=${bufferSize}:`, initError);
-            }
-        }
-
-        return false;
-    }
-
     /** Subscribe to heap growth so the HUD sees grow events from the shared heap. */
     private attachToSession(): void {
         if (!this.native || this.detachHeapListener) return;
@@ -474,13 +389,11 @@ export class Open303EngineSession {
         try {
             if (!this.isInvalidHandle(this.handle)) exports.open303_destroy?.(this.toWasmHandle(this.handle));
             if (!this.isInvalidHandle(this.jc303HandleValue)) exports.jc303_destroy?.(this.toWasmHandle(this.jc303HandleValue));
-            if (!this.isInvalidHandle(this.outputPtr)) (exports._free ?? exports.free)?.(this.outputPtr);
         } catch (e) {
             console.warn('[Open303] Handle teardown failed:', e);
         }
         this.handle = 0;
         this.jc303HandleValue = 0;
-        this.outputPtr = 0;
         this.nativeApi = false;
         this.jc303MultiApi = false;
     }
