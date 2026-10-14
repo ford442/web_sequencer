@@ -97,7 +97,7 @@ const ARRANGEMENT_KEYS = [
     'undoSongStructure', 'redoSongStructure',
 ] as const
 
-const ArrangementBody = () => {
+const ArrangementBody = React.memo(() => {
     const s = useAppStateSlice(ARRANGEMENT_KEYS)
     const canUndo = useAppStateSelector((state) => state.canUndoSong())
     const canRedo = useAppStateSelector((state) => state.canRedoSong())
@@ -122,7 +122,7 @@ const ArrangementBody = () => {
             />
         </Suspense>
     )
-}
+})
 
 export const ArrangementNode = React.memo(() => {
     const isOpen = useAppStateSelector((state) => state.isArrangementOpen)

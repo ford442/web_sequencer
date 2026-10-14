@@ -45,6 +45,18 @@ interface LiveHighFidMessageData {
     buffer?: unknown;
 }
 
+/** Fields the port messages carry; each message type reads a few of them. */
+interface Open303MessageData extends LiveHighFidMessageData {
+    note?: number;
+    velocity?: number;
+    func?: string;
+    value?: number;
+    audioTime?: number;
+    engine?: EngineFamily;
+    model?: string;
+    oversample?: number;
+}
+
 class Open303Processor extends AudioWorkletProcessor {
     private readonly session = new Open303EngineSession(this.port);
     private readonly engineSelection = new Open303EngineSelection(this.session, this.port, () => this.clearAllNotes());
@@ -80,7 +92,7 @@ class Open303Processor extends AudioWorkletProcessor {
     private disposed = false;
 
     /** Params/engine messages received before the worklet reaches READY. */
-    private pendingMessages: Array<{ type: string; data: any }> = [];
+    private pendingMessages: Array<{ type: string; data: Open303MessageData | undefined }> = [];
 
     constructor() {
         super();
@@ -88,7 +100,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private async handleMessage(event: MessageEvent) {
-        const { type, data } = event.data;
+        const { type, data } = event.data as { type: string; data?: Open303MessageData };
 
         if (type === 'init-wasm') {
             await this.session.initialize(data, () => this.flushPendingMessages());
@@ -127,25 +139,21 @@ class Open303Processor extends AudioWorkletProcessor {
         'attach-highfid-coeff-table',
     ]);
 
-    private dispatchMessage(type: string, data: any): void {
-        if (type === 'noteOn') {
-            this.scheduleOrApply({ kind: 'noteOn', note: data.note, velocity: data.velocity, audioTime: data.audioTime ?? 0 });
-        } else if (type === 'noteOff') {
+    private dispatchMessage(type: string, data: Open303MessageData | undefined): void {
+        if (type === 'noteOn' && data?.note !== undefined) {
+            this.scheduleOrApply({ kind: 'noteOn', note: data.note, velocity: data.velocity ?? 0, audioTime: data.audioTime ?? 0 });
+        } else if (type === 'noteOff' && data?.note !== undefined) {
             this.scheduleOrApply({ kind: 'noteOff', note: data.note, audioTime: data.audioTime ?? 0 });
         } else if (type === 'allNotesOff') {
             this.releaseAllNotes();
-        } else if (type === 'set-engine') {
-            this.engineSelection.setEngine(data.engine as EngineFamily);
-        } else if (type === 'set-303-model') {
-            this.engineSelection.setModel(
-                data.model as string,
-                data.engine as EngineFamily | undefined,
-                data.oversample as number | undefined,
-            );
-        } else if (type === 'param') {
+        } else if (type === 'set-engine' && data?.engine !== undefined) {
+            this.engineSelection.setEngine(data.engine);
+        } else if (type === 'set-303-model' && data?.model !== undefined) {
+            this.engineSelection.setModel(data.model, data.engine, data.oversample);
+        } else if (type === 'param' && data?.func !== undefined && data.value !== undefined) {
             this.scheduleOrApply({ kind: 'param', func: data.func, value: data.value, audioTime: data.audioTime ?? 0 });
         } else if (type === 'set-live-ab' || type === 'set-highfid-coeffs' || type === 'attach-highfid-coeff-table') {
-            this.handleLiveHighFidMessage(type, data as LiveHighFidMessageData | undefined);
+            this.handleLiveHighFidMessage(type, data);
         }
     }
 

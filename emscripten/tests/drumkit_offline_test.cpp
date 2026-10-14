@@ -81,6 +81,115 @@ std::vector<float> renderVoice(int kit, int voice, float a, float b, float c, fl
     return out;
 }
 
+// ── Event API (#1344): push_event + render on the AudioContext frame clock ──
+
+int pushTrigger(uintptr_t h, int64_t frame, int voice, float a, float b, float c, float d) {
+    return drumkit_push_event(h, static_cast<double>(frame), hyphon::kTrigger, voice, 1.0f, a, b, c, d);
+}
+
+/** Index of the first non-zero sample, or -1. */
+long firstSound(const std::vector<float>& buf) {
+    for (size_t i = 0; i < buf.size(); ++i) {
+        if (buf[i] != 0.0f) return static_cast<long>(i);
+    }
+    return -1;
+}
+
+std::vector<float> renderEvents(uintptr_t h, int64_t start, int blocks) {
+    std::vector<float> out;
+    for (int b = 0; b < blocks; ++b) {
+        const uintptr_t ptr = drumkit_render(h, static_cast<double>(start + int64_t{b} * BLOCK), BLOCK);
+        if (!ptr) {
+            check(false, "drumkit_render non-null");
+            return out;
+        }
+        const float* buf = reinterpret_cast<const float*>(ptr);
+        out.insert(out.end(), buf, buf + BLOCK);
+    }
+    return out;
+}
+
+void testEventApi() {
+    std::printf("event API\n");
+    const int64_t start = 44100;  // one second into the context
+
+    // Block-aligned events reproduce the immediate API exactly.
+    {
+        uintptr_t immediate = drumkit_create();
+        uintptr_t events = drumkit_create();
+        drumkit_init(immediate, SAMPLE_RATE, BLOCK);
+        drumkit_init(events, SAMPLE_RATE, BLOCK);
+        std::vector<float> a, b;
+        for (int blk = 0; blk < 64; ++blk) {
+            if (blk % 8 == 0) {
+                drumkit_trigger(immediate, 0, 1.0f, 50.0f, 0.6f, 0.6f, 1.0f);
+                pushTrigger(events, start + int64_t{blk} * BLOCK, 0, 50.0f, 0.6f, 0.6f, 1.0f);
+            }
+            if (blk % 8 == 4) {
+                drumkit_trigger(immediate, 2, 1.0f, 8000.0f, 0.05f, 0.7f, 0.0f);
+                pushTrigger(events, start + int64_t{blk} * BLOCK, 2, 8000.0f, 0.05f, 0.7f, 0.0f);
+            }
+            const float* x = reinterpret_cast<const float*>(drumkit_process(immediate, BLOCK));
+            const float* y = reinterpret_cast<const float*>(
+                drumkit_render(events, static_cast<double>(start + int64_t{blk} * BLOCK), BLOCK));
+            a.insert(a.end(), x, x + BLOCK);
+            b.insert(b.end(), y, y + BLOCK);
+        }
+        check(a == b && rms(a, 0, a.size()) > 0.01f, "block-aligned events render bit-identical to trigger + process");
+        drumkit_destroy(immediate);
+        drumkit_destroy(events);
+    }
+
+    // A mid-block trigger starts on its own frame, not the block's.
+    {
+        bool exact = true;
+        for (int offset : {1, 37, 64, 127}) {
+            uintptr_t h = drumkit_create();
+            drumkit_init(h, SAMPLE_RATE, BLOCK);
+            pushTrigger(h, start + BLOCK + offset, 0, 50.0f, 0.6f, 0.6f, 1.0f);
+            const auto out = renderEvents(h, start, 4);
+            exact = exact && firstSound(out) == BLOCK + offset;
+            drumkit_destroy(h);
+        }
+        check(exact, "a trigger pushed for a mid-block frame sounds on exactly that frame");
+    }
+
+    // Choke and kit switch are events too.
+    {
+        uintptr_t h = drumkit_create();
+        drumkit_init(h, SAMPLE_RATE, BLOCK);
+        pushTrigger(h, start, 3, 6500.0f, 0.5f, 0.7f, 0.0f);
+        drumkit_push_event(h, static_cast<double>(start + 40 * BLOCK + 17), kDrumkitChokeOpenHat, 0, 0, 0, 0, 0, 0);
+        const auto out = renderEvents(h, start, 80);
+        const size_t choke = 40 * BLOCK + 17 + static_cast<size_t>(0.003f * SAMPLE_RATE);
+        check(rms(out, 0, 40 * BLOCK) > 0.001f && rms(out, choke, out.size()) == 0.0f,
+              "a choke event silences the open hat 2 ms after its frame");
+        drumkit_destroy(h);
+    }
+
+    // Stop: pending triggers are dropped.
+    {
+        uintptr_t h = drumkit_create();
+        drumkit_init(h, SAMPLE_RATE, BLOCK);
+        pushTrigger(h, start + 300, 0, 50.0f, 0.6f, 0.6f, 1.0f);
+        drumkit_cancel_notes(h);
+        check(firstSound(renderEvents(h, start, 8)) == -1, "drumkit_cancel_notes drops a pending trigger");
+        drumkit_destroy(h);
+    }
+
+    // The strict path refuses an oversize block; stale handles resolve to nothing.
+    {
+        uintptr_t h = drumkit_create();
+        drumkit_init(h, SAMPLE_RATE, BLOCK);
+        check(drumkit_render(h, 0.0, BLOCK * 4) == 0, "drumkit_render refuses a block larger than init reserved");
+        check(drumkit_process(h, BLOCK * 4) != 0, "drumkit_process still grows for one, as before the port");
+        drumkit_destroy(h);
+        check(drumkit_render(h, 0.0, BLOCK) == 0 && drumkit_push_event(h, 0.0, hyphon::kTrigger, 0, 1, 0, 0, 0, 0) == 0,
+              "a destroyed handle resolves to nothing");
+        drumkit_trigger(h, 0, 1.0f, 50.0f, 0.6f, 0.6f, 1.0f);  // must not crash
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -174,6 +283,8 @@ int main() {
         check(chokedTail < freeOhTail * 0.35f, "closed hat chokes open hat on the audio clock");
         drumkit_destroy(h);
     }
+
+    testEventApi();
 
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);

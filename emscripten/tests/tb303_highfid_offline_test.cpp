@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "../highfid303_wrapper.cpp"
+#include "event_api_checks.h"
 
 namespace {
 
@@ -107,6 +108,28 @@ void check(bool cond, const char* msg)
 
 }  // namespace
 
+/** highfid303's C API for event_api_checks.h. */
+struct EventApi {
+    std::vector<float> scratch = std::vector<float>(512);
+    uintptr_t create() { return highfid303_create(); }
+    void init(uintptr_t h, int block) { highfid303_init(h, 48000.0f, block); }
+    void destroy(uintptr_t h) { highfid303_destroy(h); }
+    void noteOn(uintptr_t h, int note, float vel) { highfid303_note_on(h, note, vel); }
+    void noteOff(uintptr_t h, int note) { highfid303_note_off(h, note); }
+    void setParam(uintptr_t h, int id, float v) { highfid303_set_param(h, id, v); }
+    const float* process(uintptr_t h, int n) {
+        highfid303_process(h, reinterpret_cast<uintptr_t>(scratch.data()), n);
+        return scratch.data();
+    }
+    int push(uintptr_t h, int64_t frame, uint16_t type, int target, float value) {
+        return highfid303_push_event(h, static_cast<double>(frame), type, target, value, 0, 0, 0, 0);
+    }
+    const float* render(uintptr_t h, int64_t blockStart, int n) {
+        return reinterpret_cast<const float*>(highfid303_render(h, static_cast<double>(blockStart), n));
+    }
+    void cancelNotes(uintptr_t h) { highfid303_cancel_notes(h); }
+};
+
 int main()
 {
     std::printf("TB-303 highfid-cpu offline test (Phase-2)\n");
@@ -176,6 +199,11 @@ int main()
         }
         highfid303_destroy(h);
         check(finite, "extreme resonance self-osc stays finite");
+    }
+
+    {
+        EventApi api;
+        event_api_checks::checkEventApi("highfid303", api, &check);
     }
 
     std::printf("\n%s (%d failure%s)\n",

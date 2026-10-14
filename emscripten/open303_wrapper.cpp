@@ -3,30 +3,24 @@
  *
  * TB-303 style synthesizer engine compiled into hyphon_native.wasm.
  *
- * Exposes two complementary APIs:
+ * Built on the shared voice core (emscripten/core/voice.h, #1344). Generic
+ * exports from HYPHON_EXPORT_VOICE:
+ *   open303_create / _destroy / _init(handle, sampleRate, maxFrames)
+ *   open303_push_event(handle, frame, type, target, value, …)
+ *   open303_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate
+ *   open303_cancel_notes(handle)
+ * Events: hyphon::kNoteOn (target = note, value = MIDI velocity), kNoteOff,
+ * kAllNotesOff, kParam (target = Open303Param).
  *
- *   1. Multi-instance C API (EMSCRIPTEN_KEEPALIVE direct exports):
- *        open303_create()          → uintptr_t handle
- *        open303_destroy(handle)
- *        open303_init(handle, sampleRate, bufferSize) → 1 on success
- *        open303_note_on(handle, midiNote, velocity)
- *        open303_note_off(handle, midiNote)
- *        open303_all_notes_off(handle)
- *        open303_set_param(handle, paramId, value)
- *        open303_process(handle, outputPtr, numFrames)
+ * Immediate API (what open303-processor.ts calls today):
+ *   open303_note_on / _note_off / _all_notes_off / _set_param
+ *   open303_set_oversample / _get_oversample
+ *   open303_process(handle, outputPtr, numFrames)   — into a caller buffer
+ *   303 model registry: open303_get_model_count / _id / _label / _engine,
+ *   open303_set_model / _get_model / _find_model_index / _set_model_by_id
  *
- *   2. Single-instance backward-compat API (mirrors the jc303_* names
- *      used by the existing open303-processor.ts AudioWorklet):
- *        jc303_init(sampleRate, bufferSize) → 1 on success
- *        jc303_noteOn(midiNote, velocity)
- *        jc303_noteOff(midiNote)
- *        jc303_allNotesOff()
- *        jc303_setWaveform / setCutoff / setResonance / setEnvMod /
- *        jc303_setDecay / setAccent / setVolume / setFilterMode (float value)
- *        jc303_process(numFrames) → uintptr_t pointer to output buffer
- *
- * Both APIs are also exposed via emscripten::bind so they are accessible
- * from the hyphon_native.js module wrapper on the main thread.
+ * The extern "C" exports are also bound via emscripten::bind for the
+ * hyphon_native.js main-thread module.
  *
  * Parameter IDs for open303_set_param() are defined by the Open303Param enum
  * below and match the constants in src/engines/Open303Params.ts.
@@ -40,11 +34,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
 #include <string>
-#include <unordered_map>
+
+#include "core/voice.h"
+#include "core/voice_exports.h"
 
 using namespace emscripten;
 
@@ -98,7 +91,7 @@ static constexpr float ACCENT_VELOCITY_THRESHOLD = 100.0f;
 // 303 model registry ("303 Voices")
 //
 // A model is a named sound character. Models in the ENGINE_OPEN303 family are
-// coefficient profiles applied to the Open303Instance DSP below; models in the
+// coefficient profiles applied to the Open303Engine DSP below; models in the
 // ENGINE_JC303 family run on the rosic::Open303 engine (jc303_wrapper.cpp) and
 // are selected by the AudioWorklet via the jc303_* multi-instance API.
 //
@@ -212,10 +205,10 @@ struct MoogFilter {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Open303Instance  – single TB-303 voice
+// Open303Engine  – single TB-303 voice
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct Open303Instance {
+struct Open303Engine {
     // ── Sample rate ──────────────────────────────────────────────────────────
     float sampleRate  = 44100.0f;
     /** Offline / freeze quality knob. Real-time path keeps 1 (bit-identical).
@@ -259,34 +252,14 @@ struct Open303Instance {
     int modelIndex = 0;
     Open303ModelProfile profile = k303Models[0];
 
-    // ── Output buffer (owned, allocated once in init) ────────────────────────
-    float* outBuf  = nullptr;
-    int    bufSize = 128;
-
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
-    Open303Instance() = default;
-
-    ~Open303Instance()
-    {
-        std::free(outBuf);
-        outBuf = nullptr;
-    }
-
-    void init(float sr, int bs)
+    bool init(float sr, int /*maxFrames*/)
     {
         sampleRate = sr;
-        bufSize    = (bs > 0) ? bs : 128;
-        std::free(outBuf);
-        outBuf = static_cast<float*>(std::malloc(static_cast<std::size_t>(bufSize) * sizeof(float)));
-        if (outBuf) {
-            std::memset(outBuf, 0, static_cast<std::size_t>(bufSize) * sizeof(float));
-        } else {
-            // Allocation failed: mark bufSize as 0 so processInternal returns nullptr
-            bufSize = 0;
-        }
         filter.reset();
         updateDecayRate();
+        return true;
     }
 
     /** Effective sample rate including oversampling (offline quality path). */
@@ -483,31 +456,27 @@ struct Open303Instance {
         }
     }
 
-    /** Process into the internal buffer and return a raw pointer. */
-    float* processInternal(int numFrames)
+    void render(float* out, int numFrames) { process(out, numFrames); }
+
+    void apply(const hyphon::Event& e)
     {
-        if (!outBuf) return nullptr;
-        const int frames = std::min(numFrames, bufSize);
-        process(outBuf, frames);
-        return outBuf;
+        switch (e.type) {
+            case hyphon::kNoteOn:      noteOn(e.target, e.value);   break;
+            case hyphon::kNoteOff:     noteOff(e.target);           break;
+            case hyphon::kAllNotesOff: allNotesOff();               break;
+            case hyphon::kParam:       setParam(e.target, e.value); break;
+            default: break;
+        }
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Instance registry
-// ─────────────────────────────────────────────────────────────────────────────
+using Open303NativeVoice = hyphon::NativeVoice<Open303Engine, 256>;
 
-static std::unordered_map<uintptr_t, std::unique_ptr<Open303Instance>> g_instances;
-static uintptr_t g_nextHandle = 1;
-
-static Open303Instance* lookupInstance(uintptr_t handle)
-{
-    auto it = g_instances.find(handle);
-    return (it != g_instances.end()) ? it->second.get() : nullptr;
-}
+// One per 303 voice (bass1 / bass2 / lead303) in an audio session, plus slack.
+HYPHON_EXPORT_VOICE(open303, Open303NativeVoice, 16)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Multi-instance C API
+// Immediate C API
 //
 // Functions are marked EMSCRIPTEN_KEEPALIVE so they survive link-time
 // dead-code elimination even when --bind is active. They are also registered
@@ -517,56 +486,27 @@ static Open303Instance* lookupInstance(uintptr_t handle)
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
-uintptr_t open303_create()
-{
-    auto inst   = std::make_unique<Open303Instance>();
-    uintptr_t h = g_nextHandle++;
-    g_instances[h] = std::move(inst);
-    return h;
-}
-
-EMSCRIPTEN_KEEPALIVE
-void open303_destroy(uintptr_t handle)
-{
-    g_instances.erase(handle);
-}
-
-EMSCRIPTEN_KEEPALIVE
-int open303_init(uintptr_t handle, float sampleRate, int bufferSize)
-{
-    Open303Instance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    inst->init(sampleRate, bufferSize);
-    // Report failure if the output buffer could not be allocated
-    return (inst->outBuf != nullptr) ? 1 : 0;
-}
-
-EMSCRIPTEN_KEEPALIVE
 void open303_note_on(uintptr_t handle, int midiNote, float velocity)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (inst) inst->noteOn(midiNote, velocity);
+    if (auto* v = open303_voice(handle)) v->engine.noteOn(midiNote, velocity);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_note_off(uintptr_t handle, int midiNote)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (inst) inst->noteOff(midiNote);
+    if (auto* v = open303_voice(handle)) v->engine.noteOff(midiNote);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_all_notes_off(uintptr_t handle)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (inst) inst->allNotesOff();
+    if (auto* v = open303_voice(handle)) v->engine.allNotesOff();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_set_param(uintptr_t handle, int paramId, float value)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (inst) inst->setParam(paramId, value);
+    if (auto* v = open303_voice(handle)) v->engine.setParam(paramId, value);
 }
 
 /**
@@ -576,16 +516,15 @@ void open303_set_param(uintptr_t handle, int paramId, float value)
 EMSCRIPTEN_KEEPALIVE
 void open303_set_oversample(uintptr_t handle, int factor)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (inst) inst->setOversample(factor);
+    if (auto* v = open303_voice(handle)) v->engine.setOversample(factor);
 }
 
 /** Current oversampling factor for @p handle (1 if unknown). */
 EMSCRIPTEN_KEEPALIVE
 int open303_get_oversample(uintptr_t handle)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    return inst ? inst->oversampleFactor : 1;
+    auto* v = open303_voice(handle);
+    return v ? v->engine.oversampleFactor : 1;
 }
 
 /**
@@ -595,10 +534,9 @@ int open303_get_oversample(uintptr_t handle)
 EMSCRIPTEN_KEEPALIVE
 void open303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (!inst) return;
-    float* out = reinterpret_cast<float*>(outputPtr);
-    inst->process(out, numFrames);
+    auto* v = open303_voice(handle);
+    if (!v) return;
+    v->engine.render(reinterpret_cast<float*>(outputPtr), numFrames);
 }
 
 // ── 303 model registry API ("303 Voices") ───────────────────────────────────
@@ -639,16 +577,16 @@ int open303_get_model_engine(int index)
 EMSCRIPTEN_KEEPALIVE
 int open303_set_model(uintptr_t handle, int index)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    return inst ? inst->setModel(index) : 0;
+    auto* v = open303_voice(handle);
+    return v ? v->engine.setModel(index) : 0;
 }
 
 /** Currently applied model index for an open303 instance (default 0 = stock). */
 EMSCRIPTEN_KEEPALIVE
 int open303_get_model(uintptr_t handle)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    return inst ? inst->modelIndex : -1;
+    auto* v = open303_voice(handle);
+    return v ? v->engine.modelIndex : -1;
 }
 
 /** Registry index of the model with stable string id @p id, or -1. Lets
@@ -665,9 +603,9 @@ int open303_find_model_index(const char* id)
 EMSCRIPTEN_KEEPALIVE
 int open303_set_model_by_id(uintptr_t handle, const char* id)
 {
-    Open303Instance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    return inst->setModel(find303ModelIndexById(id));
+    auto* v = open303_voice(handle);
+    if (!v) return 0;
+    return v->engine.setModel(find303ModelIndexById(id));
 }
 
 } // extern "C"
