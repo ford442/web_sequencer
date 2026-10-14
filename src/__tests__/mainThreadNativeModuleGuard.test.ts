@@ -110,6 +110,21 @@ describe('main-thread hyphon_native guard', () => {
     expect(violations).toEqual([]);
   });
 
+  it('no main-thread code instantiates the voice glue or reads a global Module', () => {
+    // main.tsx used to import() hyphon_native.js and keep window.Module only so
+    // main() could start Pyodide. Pyodide is src/pyodide/bootstrap.ts now and the
+    // StartOverlay asks src/engines/hyphonNativeProbe.ts, which never instantiates.
+    const violations: string[] = [];
+    for (const file of files) {
+      if (isWorkletSession(file)) continue;
+      const content = fs.readFileSync(file, 'utf8');
+      if (/import\([^)]*hyphon_native/.test(content) || GLOBAL_MODULE_ACCESS.some((re) => re.test(content))) {
+        violations.push(rel(file));
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
   it('audio_dsp is gone from hyphon_native, not just uncalled (#1341)', () => {
     expect(fs.existsSync(path.join(repoRoot, 'emscripten/audio_dsp.cpp'))).toBe(false);
     const buildSh = fs.readFileSync(path.join(repoRoot, 'emscripten/build.sh'), 'utf8');

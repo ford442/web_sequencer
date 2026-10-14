@@ -5,7 +5,7 @@ import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
  * Guard: one hyphon_native heap per audio session.
  *
  * bass1 / bass2 / lead303 (Open303) and part A / part B (Prophecy) each used to
- * instantiate hyphon_native.wasm and import their own 128 MB `shared: true`
+ * instantiate hyphon_native.wasm and import their own `shared: true`
  * WebAssembly.Memory — five SharedArrayBuffers before a note played, which is
  * what fails on mobile Safari and low-RAM Chromebooks. All AudioWorkletNodes of
  * one context share an AudioWorkletGlobalScope, so the voices now take handles

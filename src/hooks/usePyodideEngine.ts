@@ -12,11 +12,21 @@ export const usePyodideEngine = () => {
     );
     const [isPyodideReady, setIsPyodideReady] = useState(!!globalThis.hyphonPyodideReady);
     const [pyodideStatus, setPyodideStatus] = useState(
-        globalThis.hyphonPyodideReady ? 'Python Engine Ready!' : 'Waiting for C++ Orchestrator...'
+        globalThis.hyphonPyodideReady ? 'Python Engine Ready!' : 'Loading Python engine...'
     );
 
     useEffect(() => {
         if (isPyodideReady) return;
+
+        // Its own lazy chunk: the loader plus ~700 lines of Python source.
+        // initPyodideSystem() is idempotent, so StrictMode's double effect and
+        // a remount cannot start a second runtime.
+        void import('../pyodide/bootstrap')
+            .then(({ initPyodideSystem }) => initPyodideSystem())
+            .catch((err: unknown) => {
+                logEngineFallback('pyodide', 'pyodide', 'bootstrap module failed to load', err);
+                setPyodideStatus('Python engine failed: bootstrap module failed to load');
+            });
 
         const handleReady = () => {
             setPyodide(globalThis.hyphonPyodide as PyodideLike);
@@ -38,9 +48,9 @@ export const usePyodideEngine = () => {
                 logEngineFallback(
                     'pyodide',
                     'pyodide',
-                    `bootstrap timeout (${PYODIDE_BOOTSTRAP_TIMEOUT_MS}ms) — hyphon_native.js may not have loaded`,
+                    `bootstrap timeout (${PYODIDE_BOOTSTRAP_TIMEOUT_MS}ms) — is public/pyodide/ vendored?`,
                 );
-                setPyodideStatus('Python engine timed out (check hyphon_native.js + CDN)');
+                setPyodideStatus('Python engine timed out (check public/pyodide/ — pnpm run vendor:pyodide)');
             }
         }, PYODIDE_BOOTSTRAP_TIMEOUT_MS);
 

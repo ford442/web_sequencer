@@ -74,8 +74,12 @@ describe('open303-processor note timing (#1344)', () => {
     g.currentTime = T0;
 
     const RealMemory = WebAssembly.Memory;
+    // A function expression, not an arrow: Vitest >= 4 calls a mocked
+    // constructor through Reflect.construct (#1422).
     vi.spyOn(WebAssembly, 'Memory').mockImplementation(
-      ((desc: WebAssembly.MemoryDescriptor) => new RealMemory({ initial: 1, maximum: 4, shared: desc.shared })) as any,
+      function (desc: WebAssembly.MemoryDescriptor) {
+        return new RealMemory({ initial: 1, maximum: 4, shared: desc.shared });
+      } as any,
     );
     vi.spyOn(WebAssembly, 'compile').mockResolvedValue({} as WebAssembly.Module);
     vi.spyOn(WebAssembly.Module, 'imports').mockReturnValue([{ module: 'a', name: 'a', kind: 'memory' }]);

@@ -74,10 +74,15 @@ jobs:
           cache: 'pnpm'
 
       # Same pin as ci.yml. Needed only for rubberband.wasm below.
+      - name: Read Emscripten pin
+        # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
+        id: emsdk-pin
+        run: echo "version=$(jq -r .emscripten.version emscripten/toolchain.json)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.51
+          version: ${{ steps.emsdk-pin.outputs.version }}
           no-cache: false
 
       - name: Install dependencies
@@ -90,7 +95,7 @@ jobs:
             public/rubberband.wasm
             src/audio-worklets/rubberband-lib.js
             .cache/native/
-          key: perf-rubberband-${{ runner.os }}-emcc3.1.51-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'package.json') }}
+          key: perf-rubberband-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'package.json') }}
 
       # src/wasm/ is gitignored build output. The perf tier does not stub WASM,
       # it builds it: audioExport.perf.test.ts and useAudioEngine.perf.test.tsx

@@ -25,7 +25,6 @@
  */
 
 #include <emscripten.h>
-#include <emscripten/bind.h>
 
 #include <algorithm>
 #include <array>
@@ -37,7 +36,6 @@
 #include <memory>
 #include <unordered_map>
 
-using namespace emscripten;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parameter IDs  (keep in sync with ProphecyParams.ts)
@@ -784,19 +782,3 @@ uintptr_t prophecy_process(uintptr_t handle, int numFrames)
 }
 
 } // extern "C"
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Embind bindings  (makes the same functions callable from the JS module
-// wrapper)
-// ─────────────────────────────────────────────────────────────────────────────
-
-EMSCRIPTEN_BINDINGS(prophecy_module) {
-    function("prophecy_create",        &prophecy_create);
-    function("prophecy_destroy",       &prophecy_destroy);
-    function("prophecy_init",          &prophecy_init);
-    function("prophecy_note_on",       &prophecy_note_on);
-    function("prophecy_note_off",      &prophecy_note_off);
-    function("prophecy_all_notes_off", &prophecy_all_notes_off);
-    function("prophecy_set_param",     &prophecy_set_param);
-    function("prophecy_process",       &prophecy_process);
-}

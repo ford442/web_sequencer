@@ -40,8 +40,8 @@
 #include <string>
 #include <vector>
 
-// Pull in the DSP under test. The emscripten stubs (bind.h / emscripten.h)
-// neutralise the WASM-only bits so the extern "C" API links natively.
+// Pull in the DSP under test. The emscripten.h stub neutralises
+// the WASM-only bits so the extern "C" API links natively.
 #include "../open303_wrapper.cpp"
 
 namespace {

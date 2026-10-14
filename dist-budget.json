@@ -1,5 +1,5 @@
 {
-  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Scoped to dist/assets/ (the Vite-built JS/CSS/image graph) \u2014 vendored native binaries (hyphon_native*, jc303*, rubberband.wasm), sample .wav files, and the vendored Pyodide runtime (dist/pyodide/) live outside Vite's bundler and are not part of this budget. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
+  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Mostly scoped to dist/assets/ (the Vite-built JS/CSS/image graph). Of the native binaries outside Vite's bundler only the voice module has rows (`native`, below); jc303*, rubberband.wasm, sample .wav files and the vendored Pyodide runtime (dist/pyodide/) are not budgeted. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
   "entryChunkMaxBytes": 1650000,
   "imageAssetMaxBytes": 524288,
   "assetsDirMaxBytes": 4500000,
@@ -14,5 +14,12 @@
     "vendorOnnxChunkMaxBytes": 108000,
     "largestWorkletChunkMaxBytes": 36000,
     "assetsDirMaxBytes": 890000
+  },
+  "native": {
+    "_comment": "Raw bytes of the hyphon_native voice module in dist/. Measured on the emcc 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes: 137,625 / 124,088 / 27,010 / 14,509) and set ~5% above, ratcheting like the compressed rows. Under emcc 3.1.51 -O1 these were 215,818 / 195,208 / 99,498 / 84,924.",
+    "hyphon_native.wasm": 145000,
+    "hyphon_native.st.wasm": 131000,
+    "hyphon_native.js": 29000,
+    "hyphon_native.st.js": 16000
   }
 }

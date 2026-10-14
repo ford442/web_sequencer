@@ -260,7 +260,11 @@ export async function select303Voice(module: Locator, voiceName: RegExp): Promis
   await expect(btn).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
 }
 
-/** EngineStatusPill group in the transport header. */
+/**
+ * EngineStatusPill group in the transport header. Since #1412 the labelled
+ * wrapper is a plain group and `role="status"` sits on an inner sr-only live
+ * region, so match the label, not the role (its text still contains the pills).
+ */
 export function engineStatusIndicators(page: Page) {
-  return page.getByRole('status', { name: 'Active engine indicators' });
+  return page.getByLabel('Active engine indicators', { exact: true });
 }
