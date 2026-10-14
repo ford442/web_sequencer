@@ -66,11 +66,13 @@
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves)
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
-- Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
+- [x] Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
 - Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - Completed "Explore using a noise generator for unvoiced vocoder consonants." I modified the `VocoderEffect` class in the `RubberBandProcessor` to no longer skip unvoiced consonants (`isVowel <= 0`). Instead, it uses a lightweight LCG pseudo-random noise generator to produce white noise, which is then shaped by a simple 1-pole high-pass filter (to remove low-end rumble). This noise is amplitude-modulated by the original unvoiced consonant's envelope, allowing the vocoder effect to seamlessly articulate sibilants and plosives without requiring additional complex carrier waves. Added "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity." to the Innovation Lab.
 - Velocity Check: Expanding the vocoder to include unvoiced consonants using a simple LCG random number generator avoids the overhead of reading from a noise buffer or using `Math.random()`, keeping the hot path highly optimized.
+- Completed "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity."
+- Velocity Check: Mapping `pData[1]` (phoneme intensity/volume) into the `VocoderEffect` allowed us to dynamically gate the synthesized consonant noise. The noise gate's threshold scales inversely with intensity to prevent gating hiss on quieter phonemes, working smoothly without creating any new buffers or complex analysis logic.
 - Completed "Explore dynamic spatialization routing per phoneme" task from the Innovation Lab backlog.
 - Built `SpatialRouter` AudioWorklet processor that splits spatialization logic: consonants are hard-panned left or right deterministically based on their phoneme index hash, while vowels dynamically increase stereo width based on phoneme intensity/volume using mid-side processing. Added smooth interpolation to prevent clicking.
 - Wired `spatialRouting` amount parameter through `RubberBandProcessor`, `SingingVoice`, types, and exposed via the UI sequencer overlays.
@@ -195,3 +197,4 @@
 - Velocity Check: Resolving sequence bounds required referencing `trackLoopLength` rather than `transportMixStore.getSnapshot().stepCount`. Easy change utilizing existing utility functions.
 
 - Added "Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession" to the Innovation Lab.
+- Added "Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track" to the Innovation Lab.
