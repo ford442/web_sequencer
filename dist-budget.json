@@ -16,7 +16,7 @@
     "assetsDirMaxBytes": 890000
   },
   "native": {
-    "_comment": "Raw bytes of the hyphon_native voice module in dist/. Measured on the emcc 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes: 137,625 / 124,088 / 27,011 / 14,509) and set ~5% above, ratcheting like the compressed rows. Under emcc 3.1.51 -O1 these were 215,818 / 195,208 / 99,498 / 84,924.",
+    "_comment": "Raw bytes of the hyphon_native voice module in dist/. Measured on the emcc 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes: 137,625 / 124,088 / 27,010 / 14,509) and set ~5% above, ratcheting like the compressed rows. Under emcc 3.1.51 -O1 these were 215,818 / 195,208 / 99,498 / 84,924.",
     "hyphon_native.wasm": 145000,
     "hyphon_native.st.wasm": 131000,
     "hyphon_native.js": 29000,

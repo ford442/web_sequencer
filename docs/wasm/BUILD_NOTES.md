@@ -134,7 +134,7 @@ both columns), bytes:
 |---|---:|---:|---:|
 | `hyphon_native.wasm` (pthread) | 215,818 | 137,625 | −36.2 % |
 | `hyphon_native.st.wasm` | 195,208 | 124,088 | −36.4 % |
-| `hyphon_native.js` (glue) | 99,498 | 27,011 | −72.9 % |
+| `hyphon_native.js` (glue) | 99,498 | 27,010 | −72.9 % |
 | `hyphon_native.st.js` (glue) | 84,924 | 14,509 | −82.9 % |
 | `hyphon_native.worker.js` | 5,195 | — (inlined) | |
 
