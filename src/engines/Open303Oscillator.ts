@@ -356,6 +356,20 @@ export class Open303Oscillator {
         }
     }
 
+    /**
+     * Transport stop / track mute: release what is sounding and cancel the
+     * notes the worklet is still holding for their audioTime — a retrigger or
+     * slide note scheduled before the stop would otherwise sound after it.
+     */
+    allNotesOff(): void {
+        this.pendingTriggers = [];
+        if (this.isFallback && this.fallbackSynth) {
+            this.fallbackSynth.allNotesOff();
+        } else if (this.workletNode) {
+            this.workletNode.port.postMessage({ type: 'allNotesOff' });
+        }
+    }
+
     /** Hold a trigger that arrived before the engine was up, or refuse it visibly. */
     private queueTrigger(
         trigger: { kind: 'on'; note: number; velocity: number } | { kind: 'off'; note: number },

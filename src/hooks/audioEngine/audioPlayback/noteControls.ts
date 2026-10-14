@@ -239,18 +239,18 @@ export function createStopTrackNotes(
   return (track) => {
     if (track === "partA") {
       refs.voiceManagerARef.current?.stopAll(0);
-      refs.open303ManagerRef.current?.noteOffLead303(0);
+      refs.open303ManagerRef.current?.allNotesOffLead303();
       refs.prophecyManagerRef.current?.allNotesOffPartA();
       return;
     }
     if (track === "partB") {
       refs.voiceManagerBRef.current?.stopAll(0);
-      refs.open303ManagerRef.current?.noteOffBass1(0);
+      refs.open303ManagerRef.current?.allNotesOffBass1();
       refs.prophecyManagerRef.current?.allNotesOffPartB();
       return;
     }
     if (track === "bass2") {
-      refs.open303ManagerRef.current?.noteOffBass2(0);
+      refs.open303ManagerRef.current?.allNotesOffBass2();
       return;
     }
     if (track === "sampler") {
@@ -296,8 +296,8 @@ export function createStopAllNotes(
     refs.voiceManagerARef.current?.stopAll(0);
     refs.voiceManagerBRef.current?.stopAll(0);
     refs.singingVoiceManagerRef.current?.stopAll();
-    refs.open303ManagerRef.current?.noteOffBass1(0);
-    refs.open303ManagerRef.current?.noteOffBass2(0);
-    refs.open303ManagerRef.current?.noteOffLead303(0);
+    refs.open303ManagerRef.current?.allNotesOffBass1();
+    refs.open303ManagerRef.current?.allNotesOffBass2();
+    refs.open303ManagerRef.current?.allNotesOffLead303();
   };
 }
