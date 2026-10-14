@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "jc303_wrapper.cpp"
@@ -28,6 +29,10 @@ int main(int argc, char** argv) {
             [&](int id, float v) { jc303_set_param(h, id, pass ? v * 0.9f : v); },
             [&](int n) {
                 const float* buf = reinterpret_cast<const float*>(jc303_process_handle(h, n));
+                if (!buf) {
+                    std::fprintf(stderr, "jc303_process_handle returned 0\n");
+                    std::exit(2);
+                }
                 out.insert(out.end(), buf, buf + n);
             });
         jc303_destroy(h);

@@ -132,6 +132,7 @@ void checkEventApi(const char* engine, Api& api, void (*check)(bool, const char*
         std::vector<float> cancelled;
         for (int b = 0; b < 8; ++b) {
             const float* buf = api.render(h, start + int64_t{b} * kBlock, kBlock);
+            if (!buf) break;  // the comparison below then fails on length
             cancelled.insert(cancelled.end(), buf, buf + kBlock);
         }
         api.destroy(h);
