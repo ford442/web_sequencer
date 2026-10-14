@@ -16,6 +16,12 @@
 //
 // Every step message carries `step` (wraps at `numSteps`) and `absStep` (steps
 // since start, never wraps) — per-track loop lengths read the latter.
+//
+// Lookahead (#1344 P5): with `setLookahead`, a step is posted up to that many
+// seconds before it falls, still stamped with its exact `audioTime`. The main
+// thread then schedules notes for a frame that has not been rendered yet, and
+// the voice worklets apply them on that sample instead of at the next block
+// boundary after the message round trip. Default 0 — post when the step falls.
 
 import { WorkletPerfReporter } from './workletPerfReporter';
 
@@ -32,11 +38,16 @@ declare const sampleRate: number;
 declare const currentTime: number;   // AudioWorkletGlobalScope: time of current block
 
 interface ClockMessage {
-    type: 'start' | 'stop' | 'setTempo' | 'setSwing' | 'setSteps';
+    type: 'start' | 'stop' | 'setTempo' | 'setSwing' | 'setSteps' | 'setLookahead';
     tempo?: number;
     swing?: number;
     steps?: number;
+    /** Seconds. */
+    lookahead?: number;
 }
+
+/** Upper bound on the lookahead a caller may ask for (seconds). */
+const MAX_LOOKAHEAD_SEC = 0.5;
 
 class ClockProcessor extends AudioWorkletProcessor {
     private running = false;
@@ -55,13 +66,15 @@ class ClockProcessor extends AudioWorkletProcessor {
     private nextStep = 0;
     // Steps fired since start (never wraps)
     private absStep = 0;
+    // How far ahead of a step's sample its message is posted.
+    private lookaheadSamples = 0;
 
     private readonly stepMessage: { type: 'step'; step: number; audioTime: number; absStep: number } = { type: 'step', step: 0, audioTime: 0, absStep: 0 };
 
     constructor() {
         super();
         this.port.onmessage = (e: MessageEvent<ClockMessage>) => {
-            const { type, tempo, swing, steps } = e.data;
+            const { type, tempo, swing, steps, lookahead } = e.data;
             switch (type) {
                 case 'start':
                     this.sampleCursor = 0;
@@ -81,6 +94,11 @@ class ClockProcessor extends AudioWorkletProcessor {
                 case 'setSwing':
                     if (swing != null && Number.isFinite(swing)) {
                         this.swing = Math.max(0, Math.min(1, swing));
+                    }
+                    break;
+                case 'setLookahead':
+                    if (lookahead != null && Number.isFinite(lookahead) && lookahead >= 0) {
+                        this.lookaheadSamples = Math.round(Math.min(lookahead, MAX_LOOKAHEAD_SEC) * sampleRate);
                     }
                     break;
                 case 'setSteps':
@@ -117,25 +135,26 @@ class ClockProcessor extends AudioWorkletProcessor {
 
             if (!this.running) return true;
 
-            for (let i = 0; i < blockSize; i++) {
-                if (this.sampleCursor >= this.nextStepAtSample) {
-                    // Exact AudioContext time for this sample (currentTime is the time of
-                    // the first sample in the current block).
-                    const audioTime = currentTime + i / sampleRate;
+            // A step falls on the first whole sample at or after nextStepAtSample.
+            // Post every step that falls before this block ends — plus the
+            // lookahead — stamped with that sample's exact AudioContext time
+            // (currentTime is the time of the block's first sample).
+            const blockStart = this.sampleCursor;
+            const horizon = blockStart + blockSize + this.lookaheadSamples;
+            for (let stepSample = Math.ceil(this.nextStepAtSample); stepSample < horizon;
+                stepSample = Math.ceil(this.nextStepAtSample)) {
+                this.stepMessage.step = this.nextStep;
+                this.stepMessage.audioTime = currentTime + (stepSample - blockStart) / sampleRate;
+                this.stepMessage.absStep = this.absStep;
+                this.port.postMessage(this.stepMessage);
 
-                    this.stepMessage.step = this.nextStep;
-                    this.stepMessage.audioTime = audioTime;
-                    this.stepMessage.absStep = this.absStep;
-                    this.port.postMessage(this.stepMessage);
-
-                    // Advance to the next step.
-                    const parity = (this.absStep % 2) as 0 | 1;
-                    this.nextStepAtSample += this.stepDurationSamples(parity);
-                    this.nextStep = (this.nextStep + 1) % this.numSteps;
-                    this.absStep++;
-                }
-                this.sampleCursor++;
+                // Advance to the next step.
+                const parity = (this.absStep % 2) as 0 | 1;
+                this.nextStepAtSample += this.stepDurationSamples(parity);
+                this.nextStep = (this.nextStep + 1) % this.numSteps;
+                this.absStep++;
             }
+            this.sampleCursor += blockSize;
 
             return true; // keep processor alive
         } finally {

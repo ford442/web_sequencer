@@ -25,7 +25,8 @@ class FakePort {
   onmessage: ((e: MessageEvent) => unknown) | null = null;
   readonly posted: Array<{ type: string; error?: string }> = [];
   postMessage(msg: { type: string }) {
-    this.posted.push(msg);
+    // The clock reuses one message object — keep a copy.
+    this.posted.push({ ...msg });
   }
   addEventListener() {}
   removeEventListener() {}
@@ -42,6 +43,7 @@ type VoiceCtor = new () => Voice;
 const registered = new Map<string, VoiceCtor>();
 const g = globalThis as {
   currentFrame?: number;
+  currentTime?: number;
   sampleRate?: number;
   AudioWorkletProcessor?: new () => { port: FakePort };
   registerProcessor?: (name: string, ctor: VoiceCtor) => void;
@@ -59,10 +61,12 @@ beforeAll(async () => {
   await import('../drumkit-processor');
   await import('../open303-processor');
   await import('../prophecy-processor');
+  await import('../clock-processor');
 });
 
 afterAll(() => {
   delete g.currentFrame;
+  delete g.currentTime;
   delete g.sampleRate;
 });
 
@@ -170,5 +174,87 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
     const short = await run(600);
     // Identical until the shorter gate closes, then they part.
     expect(firstDifference(long, short)).toBe(64 + 600);
+  });
+
+  /**
+   * The whole chain (#1344 P5): the real clock worklet posts the steps, a
+   * stand-in for the step handler schedules a kick, a jc303 note and a
+   * Prophecy note on step 4 at the step's audioTime — exactly what playDrum /
+   * playSynth post — and the voices render. Main-thread latency is modelled
+   * as a ~2.7 ms round trip: what the clock posts while rendering block N is
+   * handled after block N+1 has rendered. (Measured: with the 40 ms lookahead
+   * all three start on frame 24616, the step; without, all on 24832.)
+   */
+  async function playStep4(lookaheadSec: number) {
+    const ref = await bootVoices();
+    const refRender = { lead: new Float32Array(0) };
+    const { drums, bass, lead } = await bootVoices();
+    await bass.port.deliver({ type: 'set-engine', data: { engine: 'jc303' } });
+
+    const clock = new (registered.get('clock-processor')!)();
+    // 117 BPM: a sixteenth is 6153.8 frames, so steps fall mid-block.
+    await clock.port.deliver({ type: 'setTempo', tempo: 117 });
+    await clock.port.deliver({ type: 'setSteps', steps: 16 });
+    await clock.port.deliver({ type: 'setLookahead', lookahead: lookaheadSec });
+    await clock.port.deliver({ type: 'start' });
+
+    const start = SAMPLE_RATE * 2;
+    const blocks = 220;
+    const kick = new Float32Array(blocks * BLOCK);
+    const bassOut = new Float32Array(blocks * BLOCK);
+    const leadOut = new Float32Array(blocks * BLOCK);
+    refRender.lead = new Float32Array(blocks * BLOCK);
+    let stepFrame = -1;
+    let inFlight: Array<{ step: number; audioTime: number }> = [];
+
+    for (let b = 0; b < blocks; b++) {
+      const frame = start + b * BLOCK;
+      g.currentFrame = frame;
+      g.currentTime = frame / SAMPLE_RATE;
+      clock.port.posted.length = 0;
+      clock.process([], [[new Float32Array(BLOCK)]], {});
+      const posted = clock.port.posted as unknown as Array<{ type: string; step: number; audioTime: number }>;
+
+      const out = (v: Voice, into: Float32Array) => {
+        const left = new Float32Array(BLOCK);
+        v.process([], [[left, new Float32Array(BLOCK)], [new Float32Array(BLOCK), new Float32Array(BLOCK)]], {});
+        into.set(left, b * BLOCK);
+      };
+      out(drums, kick);
+      out(bass, bassOut);
+      out(lead, leadOut);
+      out(ref.lead, refRender.lead);
+
+      // The step handler runs now, on what the clock posted one block ago.
+      for (const { step, audioTime } of inFlight) {
+        if (step !== 4) continue;
+        stepFrame = Math.round(audioTime * SAMPLE_RATE) - start;
+        await drums.port.deliver({ type: 'trigger', data: { voice: 0, velocity: 1, a: 50, b: 0.6, c: 0.6, d: 1, audioTime } });
+        await bass.port.deliver({ type: 'noteOn', data: { note: 36, velocity: 100, audioTime } });
+        await lead.port.deliver({ type: 'noteOn', data: { note: 57, velocity: 100, audioTime } });
+      }
+      inFlight = posted.filter((m) => m.type === 'step').map((m) => ({ step: m.step, audioTime: m.audioTime }));
+    }
+    resetHyphonNativeSessionForTests();
+    return {
+      stepFrame,
+      kick: firstNonZero(kick),
+      bass: firstNonZero(bassOut),
+      lead: firstDifference(leadOut, refRender.lead),
+    };
+  }
+
+  it('with the clock lookahead, drums, 303 and Prophecy start on the step\'s own sample', async () => {
+    const r = await playStep4(0.04);
+    expect(r.stepFrame).toBeGreaterThan(0);
+    expect(r.stepFrame % BLOCK).not.toBe(0); // a mid-block step
+    expect({ kick: r.kick, bass: r.bass, lead: r.lead }).toEqual({ kick: r.stepFrame, bass: r.stepFrame, lead: r.stepFrame });
+  });
+
+  it('(control) without it, the same step lands late: the clock posts it as it falls', async () => {
+    const r = await playStep4(0);
+    expect(r.kick).toBeGreaterThan(r.stepFrame);
+    expect(r.kick).toBe(r.bass);
+    expect(r.kick).toBe(r.lead);
   });
 });

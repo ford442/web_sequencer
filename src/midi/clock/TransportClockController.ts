@@ -20,6 +20,7 @@ export class TransportClockController {
   private inputDeviceId: string | null = null;
   private outputDeviceId: string | null = null;
   private playing = false;
+  private run = 0;
   private slaveArmed = false;
   private stepListeners = new Set<StepCallback>();
   private adapterUnsub: (() => void) | null = null;
@@ -75,6 +76,7 @@ export class TransportClockController {
   start(): void {
     if (!this.context) return;
     this.playing = true;
+    this.run++;
 
     if (this.mode === 'slave') {
       this.slaveArmed = true;
@@ -89,6 +91,7 @@ export class TransportClockController {
 
   stop(): void {
     this.playing = false;
+    this.run++;
     this.slaveArmed = false;
     this.adapter?.stop();
     if (this.mode !== 'slave') {
@@ -126,6 +129,15 @@ export class TransportClockController {
 
   isPlaying(): boolean {
     return this.playing;
+  }
+
+  /**
+   * Changes on every start and stop. Steps arrive up to STEP_LOOKAHEAD_MS
+   * early; UI work deferred to a step's time checks this so it never paints
+   * after the transport stopped (or into the next run).
+   */
+  get runId(): number {
+    return this.run;
   }
 
   isSlaveMode(): boolean {
@@ -171,6 +183,7 @@ export class TransportClockController {
         );
         slave.setOnStopExternal(() => {
           this.playing = false;
+          this.run++;
           this.slaveArmed = false;
           this.onExternalStop?.();
         });

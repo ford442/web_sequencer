@@ -43,10 +43,21 @@ and still renders bit-identical to the pre-port wrappers.
   noteOn, before the next step's noteOn. A FIFO alone would hold the earlier
   event behind the later one.
 
-Sample accuracy here is about when an event lands *once it has arrived*. The
-step clock (`clock-processor`) posts each step in the block it falls in, so
-on-step notes still reach the worklets after their frame and land late. Live
-onset alignment (P5) also needs the clock to post ahead.
+An event lands on its sample only if it arrives before that frame renders.
+The step clock therefore posts each step `STEP_LOOKAHEAD_MS` (40 ms,
+`src/midi/clock/types.ts`) before it falls, stamped with its exact
+`audioTime` (#1344 P5): the main thread schedules the step's notes ahead of
+their frame instead of after it. `useStepHandler` defers what the user sees —
+playhead, the step edits record into — to the step's time
+(`scheduleAtAudioTime`), and transport stop cancels the notes and hits already
+queued in the voices. A step the main thread still handles late (jank longer
+than the lookahead) plays at the start of the next block, as before.
+
+`src/audio-worklets/__tests__/voiceTiming.realWasm.test.ts` checks the whole
+chain on the real wasm: the clock worklet posts the steps, a kick, a jc303 note
+and a Prophecy note go out for step 4 with a ~2.7 ms main-thread round trip, and
+all three start on the step's sample (frame 24616, mid-block). Without the
+lookahead the same step lands on 24832 — 216 frames late.
 
 ## Engine concept
 

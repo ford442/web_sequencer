@@ -276,6 +276,8 @@ export function createStopAllNotes(
     | "voiceManagerBRef"
     | "singingVoiceManagerRef"
     | "open303ManagerRef"
+    | "prophecyManagerRef"
+    | "drumKitEngineRef"
   >,
 ): NonNullable<AudioEngine["stopAllNotes"]> {
   return () => {
@@ -299,5 +301,9 @@ export function createStopAllNotes(
     refs.open303ManagerRef.current?.allNotesOffBass1();
     refs.open303ManagerRef.current?.allNotesOffBass2();
     refs.open303ManagerRef.current?.allNotesOffLead303();
+    // Steps are posted ahead of time (#1344 P5): notes and hits due after
+    // STOP are already queued in the voice worklets — cancel them too.
+    refs.prophecyManagerRef?.current?.allNotesOff();
+    refs.drumKitEngineRef?.current?.cancelPending();
   };
 }

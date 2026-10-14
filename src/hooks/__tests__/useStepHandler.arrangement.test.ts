@@ -95,7 +95,10 @@ function drive(
   for (let abs = 0; abs < count; abs++) {
     onTick?.(abs);
     const before = engine.playDrum.mock.calls.length;
-    onStep(abs % stepCount, 1 + abs * secondsPerStep(120), abs);
+    // Each step is "now" here — the playhead paints at once (no lookahead).
+    const time = 1 + abs * secondsPerStep(120);
+    engine.context.currentTime = time;
+    onStep(abs % stepCount, time, abs);
     if (engine.playDrum.mock.calls.slice(before).some((c) => c[0] === 'kick')) kicks.push(abs);
   }
   return kicks;

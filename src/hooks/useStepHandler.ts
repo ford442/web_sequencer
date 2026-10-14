@@ -42,6 +42,7 @@ const getAutomationValue = (target: AutomationTarget, param: string, step: numbe
 
 
 import { isE2eMode, recordE2eDrumHit, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
+import { scheduleAtAudioTime } from '../midi/clock/scheduleAtAudioTime';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 import {
@@ -223,19 +224,30 @@ export const useStepHandler = ({
         // without a clock (tests, legacy) get the wrapped step.
         const absStep = absStepArg ?? step;
         const meter = transportMixStore.meterRef.current;
-        currentStepRef.current = step;
-        automationStore.setPlaybackStep(step);
         const e2e = isE2eMode();
-        if (e2e) setE2eTransportStep(step);
-        if (sequencerRef.current) {
-            // Rows with their own loop length light their own step.
-            if (Object.keys(meter.trackLengths).length > 0) {
-                const loopsAnchored = isSongModeActiveRef.current && !sessionEngineRef?.current?.hasPlaying();
-                sequencerRef.current.setHighlight(step, (key: TrackKey) => trackStepFor(meter, key, step, absStep, loopsAnchored));
-            } else {
-                sequencerRef.current.setHighlight(step);
+
+        // The clock posts each step STEP_LOOKAHEAD_MS before it sounds (#1344
+        // P5) so its notes reach the voice worklets ahead of their frame. What
+        // the user sees — playhead, the step edits record into — waits for the
+        // step's own time.
+        const atStepTime = (fn: () => void) => {
+            if (audioEngine && audioTime !== undefined) scheduleAtAudioTime(audioEngine.context, audioTime, fn);
+            else fn();
+        };
+        atStepTime(() => {
+            currentStepRef.current = step;
+            automationStore.setPlaybackStep(step);
+            if (e2e) setE2eTransportStep(step);
+            if (sequencerRef.current) {
+                // Rows with their own loop length light their own step.
+                if (Object.keys(meter.trackLengths).length > 0) {
+                    const loopsAnchored = isSongModeActiveRef.current && !sessionEngineRef?.current?.hasPlaying();
+                    sequencerRef.current.setHighlight(step, (key: TrackKey) => trackStepFor(meter, key, step, absStep, loopsAnchored));
+                } else {
+                    sequencerRef.current.setHighlight(step);
+                }
             }
-        }
+        });
         if (!audioEngine) return;
 
         // Use the sample-accurate audioTime from the AudioWorklet clock when available.
@@ -287,19 +299,21 @@ export const useStepHandler = ({
                 audioEngine.stopTrackNotes?.(track);
                 lastFreqRef.current[track] = 0;
             }
-            onSessionTick?.(sessionEngine.playingSlots());
-            if (isE2eMode()) {
+            const slots = sessionEngine.playingSlots();
+            if (onSessionTick) atStepTime(() => onSessionTick(slots));
+            if (e2e) {
                 let pCount = 0;
                 for (let i = 0; i < TRACK_KEYS.length; i++) {
-                    if (sessionEngine.playingSlot(TRACK_KEYS[i]) != null) {
+                    if (slots[TRACK_KEYS[i]] != null) {
                         pCount++;
                     }
                 }
-                setE2eSessionState({
+                const sessionState = {
                     playingCount: pCount,
                     lastApplyStep: tick.applied[0]?.step ?? (typeof window !== 'undefined' ? window.__HYPHON_E2E_SESSION__?.lastApplyStep ?? -1 : -1),
                     captureCount: sessionEngine.captureEvents.length,
-                });
+                };
+                atStepTime(() => setE2eSessionState(sessionState));
             }
         }
 
@@ -347,12 +361,12 @@ export const useStepHandler = ({
             if (pos >= length) pos %= length;
             songPosRef.current = pos;
             songPosAbsRef.current = absStep;
-            arrangementPlayhead.publish(pos);
+            atStepTime(() => arrangementPlayhead.publish(pos));
 
             const measure = Math.floor(pos / spm);
             if (measure !== songMeasureRef.current) {
                 songMeasureRef.current = measure;
-                requestAnimationFrame(() => setCurrentSongMeasure(songMeasureRef.current));
+                atStepTime(() => requestAnimationFrame(() => setCurrentSongMeasure(measure)));
             }
 
             // Schedule sub-step trakEvents for the current bar (RBS imported songs).
@@ -430,7 +444,7 @@ export const useStepHandler = ({
         }
 
         // Off the linear player (pattern / session): the timeline playhead hides.
-        if (!arrangementSteps && arrangementPlayhead.get() >= 0) arrangementPlayhead.publish(-1);
+        if (!arrangementSteps && arrangementPlayhead.get() >= 0) atStepTime(() => arrangementPlayhead.publish(-1));
 
         const p = activePattern;
         const stepTime = 60 / tempo / 4;

@@ -171,6 +171,10 @@ describe('voice processors on the event API', () => {
     ]);
     render(voice, 44032);
     expect(calls.at(-1)).toEqual({ fn: 'drumkit_render', h, args: [44032, BLOCK] });
+
+    // Transport stop (#1344 P5): hits posted ahead of their frame are dropped.
+    await voice.port.deliver({ type: 'allNotesOff', data: {} });
+    expect(calls.at(-1)).toEqual({ fn: 'drumkit_cancel_notes', h, args: [] });
   });
 
   it('the drum kit joins the shared instance and hands its handle back on dispose', async () => {
