@@ -50,20 +50,6 @@ describe('hyphon_native export map (Open303 / JC303 / Prophecy)', () => {
     expect(typeof normalized.jc303_init_handle).toBe('function');
     expect(typeof normalized.jc303_process_handle).toBe('function');
   });
-
-  it('debug build exposes legacy single-instance jc303_init when present', () => {
-    if (!map.jc303_init) {
-      return; // release build — legacy API pruned (HYPHON_LEGACY_JC303=0)
-    }
-    expect(map.jc303_init).toBeTruthy();
-
-    const fakeExports = {
-      [map.jc303_init!]: () => 1,
-    } as unknown as WebAssembly.Exports;
-
-    const normalized = normalizeWasmExports(fakeExports, map);
-    expect(typeof normalized.jc303_init).toBe('function');
-  });
 });
 
 describe('WebGpuOscillator.init', () => {

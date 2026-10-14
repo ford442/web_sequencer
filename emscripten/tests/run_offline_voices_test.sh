@@ -33,6 +33,7 @@ build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
 build_and_run tb303_highfid_offline_test
 build_and_run drumkit_offline_test
+build_and_run prophecy_offline_test
 
 # #1344 shared voice core (emscripten/core/voice.h): sample-accurate event
 # splitting, O(1) handles, no allocation in process. Built with the flags the
@@ -57,8 +58,22 @@ if compgen -G "$OPEN303_DSP/*.cpp" > /dev/null; then
     echo "Running tb303_level_alignment_test…"
     "$TMP/tb303_level_alignment_test"
     echo
+
+    # #1344: jc303 on the shared voice core — event path vs immediate API.
+    echo "Compiling tb303_jc303_event_test…"
+    g++ -std=c++17 -O2 -Wall -Wextra \
+        -Wno-strict-aliasing -Wno-unused-parameter -Wno-aggressive-loop-optimizations \
+        -I "$SCRIPT_DIR/emscripten_stub" \
+        -I "$OPEN303_DSP" \
+        -I "$SCRIPT_DIR/../../jc303_wasm/src/dsp" \
+        "$SCRIPT_DIR/tb303_jc303_event_test.cpp" \
+        "$OPEN303_DSP"/*.cpp \
+        -o "$TMP/tb303_jc303_event_test"
+    echo "Running tb303_jc303_event_test…"
+    "$TMP/tb303_jc303_event_test"
+    echo
 else
-    echo "Skipping tb303_level_alignment_test (jc303_wasm submodule not checked out)."
+    echo "Skipping tb303_level_alignment_test + tb303_jc303_event_test (jc303_wasm submodule not checked out)."
     echo "  Run: git submodule update --init jc303_wasm"
     echo
 fi

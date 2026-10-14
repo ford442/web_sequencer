@@ -43,6 +43,7 @@
 // Pull in the DSP under test. The emscripten.h stub neutralises
 // the WASM-only bits so the extern "C" API links natively.
 #include "../open303_wrapper.cpp"
+#include "event_api_checks.h"
 
 namespace {
 
@@ -148,6 +149,28 @@ void check(bool cond, const char* msg) {
 }
 
 }  // namespace
+
+/** open303's C API for event_api_checks.h. */
+struct EventApi {
+    std::vector<float> scratch = std::vector<float>(512);
+    uintptr_t create() { return open303_create(); }
+    void init(uintptr_t h, int block) { open303_init(h, 48000.0f, block); }
+    void destroy(uintptr_t h) { open303_destroy(h); }
+    void noteOn(uintptr_t h, int note, float vel) { open303_note_on(h, note, vel); }
+    void noteOff(uintptr_t h, int note) { open303_note_off(h, note); }
+    void setParam(uintptr_t h, int id, float v) { open303_set_param(h, id, v); }
+    const float* process(uintptr_t h, int n) {
+        open303_process(h, reinterpret_cast<uintptr_t>(scratch.data()), n);
+        return scratch.data();
+    }
+    int push(uintptr_t h, int64_t frame, uint16_t type, int target, float value) {
+        return open303_push_event(h, static_cast<double>(frame), type, target, value, 0, 0, 0, 0);
+    }
+    const float* render(uintptr_t h, int64_t blockStart, int n) {
+        return reinterpret_cast<const float*>(open303_render(h, static_cast<double>(blockStart), n));
+    }
+    void cancelNotes(uintptr_t h) { open303_cancel_notes(h); }
+};
 
 int main() {
     std::printf("TB-303 voices offline buffer test\n");
@@ -339,6 +362,11 @@ int main() {
         }
         for (int v = 0; v < 3; ++v) open303_destroy(voices[v]);
         check(finite, "parallel lead+bass1+bass2 2× oversample mix stays finite");
+    }
+
+    {
+        EventApi api;
+        event_api_checks::checkEventApi("open303", api, &check);
     }
 
     std::printf("\n%s (%d failure%s)\n",

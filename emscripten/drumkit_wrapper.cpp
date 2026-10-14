@@ -6,10 +6,16 @@
  * One handle owns kick + snare + closed/open hats so the live worklet can
  * instantiate the voice module once (no extra SharedArrayBuffer per pad).
  *
- * C API (EMSCRIPTEN_KEEPALIVE):
- *   drumkit_create()                                    → uintptr_t handle
- *   drumkit_destroy(handle)
- *   drumkit_init(handle, sampleRate, bufferSize)        → 1 on success
+ * Built on the shared voice core (emscripten/core/voice.h, #1344): the
+ * generic exports come from HYPHON_EXPORT_VOICE —
+ *   drumkit_create / _destroy / _init(handle, sampleRate, maxFrames)
+ *   drumkit_push_event(handle, frame, type, target, value, a, b, c, d)
+ *   drumkit_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate
+ *   drumkit_cancel_notes(handle)
+ * Events: hyphon::kTrigger (target = voice, value = velocity, args = a..d),
+ * kDrumkitChokeOpenHat, kDrumkitSetKit (target = kit).
+ *
+ * Immediate API (what the worklet calls today; applies at the next block):
  *   drumkit_set_kit(handle, kit)                        // 0 = 808, 1 = 909
  *   drumkit_trigger(handle, voice, velocity, a, b, c, d)
  *   drumkit_choke_open_hat(handle)
@@ -26,12 +32,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
-#include <unordered_map>
-#include <vector>
 
+#include "core/voice.h"
+#include "core/voice_exports.h"
 
 enum DrumkitVoice : int {
     DRUMKIT_KICK = 0,
@@ -308,11 +311,14 @@ struct HatVoice {
     }
 };
 
-struct DrumkitInstance {
+/** Engine-private event types (hyphon::kEngine and up). */
+enum DrumkitEvent : uint16_t {
+    kDrumkitChokeOpenHat = hyphon::kEngine,
+    kDrumkitSetKit       = hyphon::kEngine + 1,  // target = kit
+};
+
+struct DrumkitEngine {
     float sampleRate = 44100.0f;
-    int bufferSize = 128;
-    float* outBuf = nullptr;
-    int outCap = 0;
     int kit = DRUMKIT_KIT_808;
     KickVoice kick;
     SnareVoice snare;
@@ -323,20 +329,9 @@ struct DrumkitInstance {
         return kit == DRUMKIT_KIT_909 ? kKit909 : kKit808;
     }
 
-    int init(float sr, int buf) {
+    bool init(float sr, int /*maxFrames*/) {
         sampleRate = sr > 0.0f ? sr : 44100.0f;
-        bufferSize = buf > 0 ? buf : 128;
-        if (outBuf) {
-            std::free(outBuf);
-            outBuf = nullptr;
-        }
-        outCap = bufferSize;
-        outBuf = static_cast<float*>(std::malloc(static_cast<size_t>(outCap) * sizeof(float)));
-        return outBuf ? 1 : 0;
-    }
-
-    ~DrumkitInstance() {
-        if (outBuf) std::free(outBuf);
+        return true;
     }
 
     void setKit(int k) {
@@ -367,14 +362,23 @@ struct DrumkitInstance {
 
     void chokeOpenHat() { openHat.choke(); }
 
-    float* processInternal(int numFrames) {
-        if (!outBuf) return nullptr;
-        if (numFrames > outCap) {
-            std::free(outBuf);
-            outCap = numFrames;
-            outBuf = static_cast<float*>(std::malloc(static_cast<size_t>(outCap) * sizeof(float)));
-            if (!outBuf) return nullptr;
+    void apply(const hyphon::Event& e) {
+        switch (e.type) {
+            case hyphon::kTrigger:
+                trigger(e.target, e.value, e.args[0], e.args[1], e.args[2], e.args[3]);
+                break;
+            case kDrumkitChokeOpenHat:
+                chokeOpenHat();
+                break;
+            case kDrumkitSetKit:
+                setKit(e.target);
+                break;
+            default:
+                break;
         }
+    }
+
+    void render(float* out, int numFrames) {
         const float dt = 1.0f / sampleRate;
         for (int i = 0; i < numFrames; ++i) {
             float s = kick.tick(dt, sampleRate);
@@ -382,63 +386,51 @@ struct DrumkitInstance {
             s += closedHat.tick(dt, sampleRate);
             s += openHat.tick(dt, sampleRate);
             if (!std::isfinite(s)) s = 0.0f;
-            outBuf[i] = std::clamp(s, -1.5f, 1.5f);
+            out[i] = std::clamp(s, -1.5f, 1.5f);
         }
-        return outBuf;
     }
 };
 
-static std::unordered_map<uintptr_t, std::unique_ptr<DrumkitInstance>> g_instances;
-static uintptr_t g_nextHandle = 1;
+using DrumkitNativeVoice = hyphon::NativeVoice<DrumkitEngine, 128>;
 
-static DrumkitInstance* lookupInstance(uintptr_t handle) {
-    auto it = g_instances.find(handle);
-    return (it != g_instances.end()) ? it->second.get() : nullptr;
-}
+// One kit per worklet today; the slack covers offline renders and tests.
+HYPHON_EXPORT_VOICE(drumkit, DrumkitNativeVoice, 8)
 
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
-uintptr_t drumkit_create() {
-    auto inst = std::make_unique<DrumkitInstance>();
-    uintptr_t h = g_nextHandle++;
-    g_instances[h] = std::move(inst);
-    return h;
-}
-
-EMSCRIPTEN_KEEPALIVE
-void drumkit_destroy(uintptr_t handle) {
-    g_instances.erase(handle);
-}
-
-EMSCRIPTEN_KEEPALIVE
-int drumkit_init(uintptr_t handle, float sampleRate, int bufferSize) {
-    DrumkitInstance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    return inst->init(sampleRate, bufferSize);
-}
-
-EMSCRIPTEN_KEEPALIVE
 void drumkit_set_kit(uintptr_t handle, int kit) {
-    if (auto* inst = lookupInstance(handle)) inst->setKit(kit);
+    if (auto* v = drumkit_voice(handle)) v->engine.setKit(kit);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void drumkit_trigger(uintptr_t handle, int voice, float velocity, float a, float b, float c, float d) {
-    if (auto* inst = lookupInstance(handle)) inst->trigger(voice, velocity, a, b, c, d);
+    if (auto* v = drumkit_voice(handle)) v->engine.trigger(voice, velocity, a, b, c, d);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void drumkit_choke_open_hat(uintptr_t handle) {
-    if (auto* inst = lookupInstance(handle)) inst->chokeOpenHat();
+    if (auto* v = drumkit_voice(handle)) v->engine.chokeOpenHat();
 }
 
+/**
+ * Whole-block render with no event timing — the immediate calls above land on
+ * the block's first frame. Kept for the current worklet: unlike
+ * drumkit_render it grows the buffer for a block larger than init reserved
+ * (counted in stats.overruns), as the hand-rolled outBuf did.
+ */
 EMSCRIPTEN_KEEPALIVE
 uintptr_t drumkit_process(uintptr_t handle, int numFrames) {
-    DrumkitInstance* inst = lookupInstance(handle);
-    if (!inst) return 0;
-    float* buf = inst->processInternal(numFrames);
-    return reinterpret_cast<uintptr_t>(buf);
+    DrumkitNativeVoice* v = drumkit_voice(handle);
+    if (!v || v->buffer.capacity() == 0) return 0;  // not initialised
+    if (numFrames <= 0) return reinterpret_cast<uintptr_t>(v->buffer.data());
+    if (numFrames > v->buffer.capacity()) {
+        ++v->stats.overruns;
+        if (!v->buffer.reserve(numFrames)) return 0;
+    }
+    float* out = v->buffer.acquire(numFrames);
+    v->engine.render(out, numFrames);
+    return reinterpret_cast<uintptr_t>(out);
 }
 
 }  // extern "C"

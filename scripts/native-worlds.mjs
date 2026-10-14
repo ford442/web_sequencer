@@ -204,6 +204,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...emccFiles.map(fileInput),
         ...open303Dsp.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
+        fileInput('tools/hyphon_native_exports.mjs'),
         fileInput('tools/extract_wasm_export_map.mjs'),
         fileInput('tools/check_hyphon_st_module.mjs'),
         fileInput(budgetRel),

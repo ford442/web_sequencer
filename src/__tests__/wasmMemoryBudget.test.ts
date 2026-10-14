@@ -198,10 +198,14 @@ describe('standalone JC-303 memory budget', () => {
 describe('hyphon_native drumkit compilation', () => {
     it('compiles analog drums into hyphon_native (same module, new handles)', () => {
         expect(buildSh).toContain('drumkit_wrapper.cpp');
-        expect(buildSh).toContain('_drumkit_create');
-        expect(buildSh).toContain('_drumkit_trigger');
-        expect(buildSh).toContain('_drumkit_process');
         expect(buildSh).toContain('prophecy_wrapper.cpp');
+        // build.sh exports what the manifest declares (#1344).
+        const manifest = JSON.parse(
+            readFileSync(join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8'),
+        ) as { required: string[] };
+        expect(manifest.required).toEqual(
+            expect.arrayContaining(['drumkit_create', 'drumkit_trigger', 'drumkit_process']),
+        );
     });
 });
 
