@@ -17,8 +17,9 @@ TMP="$(mktemp -d)"
 
 build_and_run() {
     local name="$1"
+    shift  # anything after the name is extra compiler flags
     echo "Compiling $name…"
-    g++ -std=c++17 -O2 -Wall -Wextra \
+    g++ -std=c++17 -O2 -Wall -Wextra "$@" \
         -I "$SCRIPT_DIR/emscripten_stub" \
         "$SCRIPT_DIR/$name.cpp" \
         -o "$TMP/$name"
@@ -32,6 +33,11 @@ build_and_run tb303_factory_smoke_test
 build_and_run tb303_voices_offline_test
 build_and_run tb303_highfid_offline_test
 build_and_run drumkit_offline_test
+
+# #1344 shared voice core (emscripten/core/voice.h): sample-accurate event
+# splitting, O(1) handles, no allocation in process. Built with the flags the
+# core promises to accept; -pthread for the two-thread ring test.
+build_and_run voice_core_test -fno-exceptions -fno-rtti -pthread
 
 # Output-level alignment across the realtime 303 voices. Needs the rosic sources
 # from the jc303_wasm submodule, so it is skipped when that is not checked out.
