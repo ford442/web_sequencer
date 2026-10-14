@@ -29,18 +29,27 @@ class FakePort {
   }
 }
 
-type Voice = { port: FakePort; process: (...a: any[]) => boolean };
-const registered = new Map<string, new () => Voice>();
+type Voice = {
+  port: FakePort;
+  process: (inputs: Float32Array[][], outputs: Float32Array[][], params: Record<string, Float32Array>) => boolean;
+};
+type VoiceCtor = new () => Voice;
+const registered = new Map<string, VoiceCtor>();
 
 type Call = { fn: 'on' | 'off' | 'param' | 'allOff'; at: number; note?: number; value?: number };
 
-const g = globalThis as { currentTime?: number };
+/** The AudioWorkletGlobalScope members the processor reads, faked on globalThis. */
+const g = globalThis as {
+  currentTime?: number;
+  AudioWorkletProcessor?: new () => { port: FakePort };
+  registerProcessor?: (name: string, ctor: VoiceCtor) => void;
+};
 
 beforeAll(async () => {
-  (globalThis as any).AudioWorkletProcessor = class {
+  g.AudioWorkletProcessor = class {
     readonly port = new FakePort();
   };
-  (globalThis as any).registerProcessor = (name: string, ctor: any) => registered.set(name, ctor);
+  g.registerProcessor = (name, ctor) => registered.set(name, ctor);
   await import('../open303-processor');
 });
 
@@ -74,16 +83,18 @@ describe('open303-processor note timing (#1344)', () => {
     g.currentTime = T0;
 
     const RealMemory = WebAssembly.Memory;
-    vi.spyOn(WebAssembly, 'Memory').mockImplementation(
-      ((desc: WebAssembly.MemoryDescriptor) => new RealMemory({ initial: 1, maximum: 4, shared: desc.shared })) as any,
-    );
+    // A function, not an arrow: the session constructs it with `new`, and
+    // Vitest 5 spies keep that call a construction.
+    vi.spyOn(WebAssembly, 'Memory').mockImplementation(function (desc: WebAssembly.MemoryDescriptor) {
+      return new RealMemory({ initial: 1, maximum: 4, shared: desc.shared });
+    } as unknown as typeof WebAssembly.Memory);
     vi.spyOn(WebAssembly, 'compile').mockResolvedValue({} as WebAssembly.Module);
     vi.spyOn(WebAssembly.Module, 'imports').mockReturnValue([{ module: 'a', name: 'a', kind: 'memory' }]);
-    vi.spyOn(WebAssembly, 'instantiate').mockImplementation((async (_m: WebAssembly.Module, imports: WebAssembly.Imports) => {
+    vi.spyOn(WebAssembly, 'instantiate').mockImplementation(((_m: WebAssembly.Module, imports: WebAssembly.Imports) => {
       let nextPtr = 1024;
       let nextHandle = 1;
       const exports = {
-        memory: (imports as any).a.a as WebAssembly.Memory,
+        memory: (imports as { a: { a: WebAssembly.Memory } }).a.a,
         malloc: (bytes: number) => {
           const p = nextPtr;
           nextPtr += bytes;
@@ -104,8 +115,8 @@ describe('open303-processor note timing (#1344)', () => {
         jc303_init_handle: () => 1,
         jc303_process_handle: () => 0,
       };
-      return { exports } as unknown as WebAssembly.Instance;
-    }) as any);
+      return Promise.resolve({ exports } as unknown as WebAssembly.Instance);
+    }) as unknown as typeof WebAssembly.instantiate);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     voice = new (registered.get('open303-processor')!)();
