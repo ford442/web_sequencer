@@ -12,4 +12,5 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/__tests__/trackFreezer.integration.test.ts',
   'src/__tests__/nativeVocalFx.integration.test.ts',
   'src/__tests__/phonemeElasticity.integration.test.ts',
+  'src/__tests__/mixBus.integration.test.ts',
 ] as const;

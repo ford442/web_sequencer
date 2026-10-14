@@ -14,8 +14,9 @@
   "hyphonNative": {
     "$comment": [
       "Voices only, as of the Rubber Band split: Open303 / JC303 / Prophecy /",
-      "HighFid303 / analog drumkit / audio_dsp. Rubber Band moved to its own module (see `rubberband`",
-      "below), which removed the ~40 MB stretch transient from this heap. 128 MB is",
+      "HighFid303 / analog drumkit. Rubber Band moved to its own module (see `rubberband`",
+      "below), which removed the ~40 MB stretch transient from this heap; the uncalled",
+      "audio_dsp.cpp left for the offline `mixBus` module (#1341). 128 MB is",
       "kept rather than tightened because the previous figure was an analytic budget,",
       "not a device capture — lower it only with a measurement."
     ],
@@ -27,8 +28,8 @@
   "hyphonNativeSt": {
     "$comment": [
       "Single-threaded voice module public/hyphon_native.st.{js,wasm} (USE_PTHREADS=0,",
-      "IMPORTED_MEMORY=1, non-shared). Same voices as hyphonNative minus audio_dsp.cpp",
-      "and main(). Loaded when the page is not crossOriginIsolated, on WebKit, or when",
+      "IMPORTED_MEMORY=1, non-shared). Same voices as hyphonNative minus",
+      "main(). Loaded when the page is not crossOriginIsolated, on WebKit, or when",
       "Open303Config.forceSingleThreaded is set. Consumed by emscripten/build.sh and by",
       "src/audio-worklets/hyphonNativeImports.ts (HYPHON_NATIVE_ST_* pages).",
       "Measured (2026-09-14, release ST build, node): the full voice set — 3x Open303 at",
@@ -53,6 +54,20 @@
     "initialMemoryMb": 64,
     "maximumMemoryMb": 256,
     "stackSizeMb": 4
+  },
+  "mixBus": {
+    "$comment": [
+      "Standalone public/mix_bus.wasm, built by emscripten/build_mix_bus.sh and",
+      "instantiated only inside src/workers/mixBus.worker.ts (offline stem mix, #1341).",
+      "The module owns a fixed, non-shared memory that never grows: two static",
+      "64k-frame scratch blocks (512 KiB) plus the stack. Stems stream through",
+      "the scratch a block at a time, so song length never changes this number.",
+      "There is deliberately no maximumMemoryMb — the build passes",
+      "ALLOW_MEMORY_GROWTH=0 and tools/check_mix_bus_module.mjs rejects a module",
+      "whose maximum differs from its initial size."
+    ],
+    "initialMemoryMb": 2,
+    "stackSizeMb": 1
   },
   "assemblyScript": {
     "$comment": "--initialMemory is in 64 KiB pages, not MB.",

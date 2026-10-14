@@ -33,6 +33,12 @@ vi.mock('../../audio/loudness', () => ({
     DEFAULT_LIMITER_SETTINGS: { ceilingDbtp: -1 },
 }));
 
+// The happy-dom Worker stub never answers; use the in-thread bus (#1341).
+vi.mock('../../audio/offline/mixBus/mixBus', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../audio/offline/mixBus/mixBus')>();
+    return { ...actual, createMixBus: () => Promise.resolve(actual.createJsMixBus()) };
+});
+
 vi.mock('../songTimeline', () => ({
     resolveSongTimeline: () => ({
         totalSteps: 32,
@@ -213,5 +219,61 @@ describe('exportStemsToZip mute/solo', () => {
 
         // Sanity check on the fixture: the mocked renderer really does return signal.
         expect(peak(await renderSynthPattern.mock.results[0].value as AudioBuffer)).toBeGreaterThan(0);
+    });
+});
+
+describe('exportStemsToZip mix bus (#1341)', () => {
+    beforeEach(() => {
+        trackMuteSoloStore.reset();
+        stubOfflineAudioContext();
+        renderSynthPattern.mockReset().mockResolvedValue(fakeBuffer(0.5));
+        renderDrumPattern.mockReset().mockResolvedValue(fakeBuffer(0.5));
+        renderSamplerBankPattern.mockReset().mockResolvedValue(fakeBuffer(0.5));
+    });
+
+    afterEach(() => {
+        globalThis.OfflineAudioContext = originalOfflineAudioContext;
+        trackMuteSoloStore.reset();
+    });
+
+    it('builds the dry master from exactly the audible stems and reports the engine', async () => {
+        const { audioBufferToWav } = await import('../audioExport');
+        vi.mocked(audioBufferToWav).mockClear();
+        trackMuteSoloStore.toggleMute('partA');
+        trackMuteSoloStore.toggleMute('kick');
+        const onReport = vi.fn();
+
+        await exportStemsToZip(makeInput(), { sampleRate: SAMPLE_RATE, onReport });
+
+        // partB + bass2 + drums (snare, closedHat, openHat) + 8 banks, all at 0.5.
+        const expected = 0.5 * (2 + 3 + 8);
+        const master = vi.mocked(audioBufferToWav).mock.calls.at(-1)![0];
+        expect(master.getChannelData(0)[0]).toBeCloseTo(expected, 6);
+        expect(master.getChannelData(1)[LENGTH - 1]).toBeCloseTo(expected, 6);
+
+        const report = onReport.mock.calls[0][0] as import('../stemExport').StemExportReport;
+        expect(report.mixBus.engine).toBe('js');
+        expect(report.mixBus.dryMasterPeaks.map((p) => +p.toFixed(5))).toEqual([expected, expected]);
+    });
+
+    it('uses an injected bus and leaves it to the caller to dispose', async () => {
+        const { createJsMixBus } = await import('../../audio/offline/mixBus/mixBus');
+        const inner = createJsMixBus('forced for test');
+        const bus = {
+            ...inner,
+            begin: vi.fn((frames: number, channelCount?: number) => inner.begin(frames, channelCount)),
+            dispose: vi.fn(),
+        };
+        const { createZipBlob } = await import('../zipStore');
+
+        await exportStemsToZip(makeInput(), { sampleRate: SAMPLE_RATE, mixBus: bus });
+
+        expect(bus.begin).toHaveBeenCalledTimes(2); // master + drum stem
+        expect(bus.dispose).not.toHaveBeenCalled();
+        const entries = vi.mocked(createZipBlob).mock.calls.at(-1)?.[0] as { path: string; data: Uint8Array }[];
+        const metadata = JSON.parse(
+            new TextDecoder().decode(entries.find((e) => e.path === 'metadata.json')!.data),
+        ) as { mixBus: { engine: string; reason: string | null } };
+        expect(metadata.mixBus).toMatchObject({ engine: 'js', reason: 'forced for test' });
     });
 });

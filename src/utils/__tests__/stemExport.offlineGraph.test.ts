@@ -47,6 +47,12 @@ vi.mock('../../audio/offline/compileOfflineGraph', () => ({
 
 const timelineSampler = vi.hoisted(() => ({ sequences: null as null | { steps: unknown[] }[] }));
 
+// The happy-dom Worker stub never answers; use the in-thread bus (#1341).
+vi.mock('../../audio/offline/mixBus/mixBus', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../audio/offline/mixBus/mixBus')>();
+    return { ...actual, createMixBus: () => Promise.resolve(actual.createJsMixBus()) };
+});
+
 vi.mock('../songTimeline', () => ({
     resolveSongTimeline: () => ({
         totalSteps: 32,

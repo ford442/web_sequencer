@@ -2,7 +2,7 @@
  * Compile-time contracts that no runtime test can catch, because the artifacts
  * they describe are gitignored and often absent in CI:
  *
- *   1. -ffast-math is opt-in per translation unit, not global.
+ *   1. -ffast-math stays out of the voice module; only the offline mix bus has it.
  *   2. The AssemblyScript modules stay inside the Safari feature intersection.
  *   3. The out-of-band wasm-opt is pinned, and never emsdk's bundled one.
  *   4. index.html boots with no remote script and no `unsafe-eval`.
@@ -30,6 +30,7 @@ const withoutJsLineComments = (src: string) =>
 
 const buildSh = read('emscripten/build.sh');
 const rubberbandSh = read('emscripten/build_rubberband.sh');
+const mixBusSh = read('emscripten/build_mix_bus.sh');
 const optimizeSh = read('tools/optimize.sh');
 const indexHtml = read('index.html');
 const bootstrapJs = read('emscripten/pyodide_bootstrap.js');
@@ -58,12 +59,10 @@ describe('-ffast-math audit', () => {
         expect(buildSh).not.toMatch(/CXXFLAGS="[^"]*-ffast-math/);
     });
 
-    it('reaches only the opt-in helper', () => {
-        const fastMathLines = buildSh
-            .split('\n')
-            .filter((line) => line.includes('-ffast-math') && !line.trim().startsWith('#'));
-        expect(fastMathLines).toHaveLength(1);
-        expect(fastMathLines[0]).toContain('CXXFLAGS_FAST');
+    it('is not passed anywhere in the voice module (#1341)', () => {
+        // audio_dsp.cpp was its only fast-math TU; it left for build_mix_bus.sh.
+        expect(withoutShellComments(buildSh)).not.toContain('-ffast-math');
+        expect(buildSh).not.toContain('compile_cpp_fast');
     });
 
     it('compiles every voice wrapper IEEE-safe', () => {
@@ -76,12 +75,15 @@ describe('-ffast-math audit', () => {
         expect(buildSh).toMatch(/for f in \$REPO_ROOT\/jc303_wasm\/src\/dsp\/open303\/\*\.cpp; do\s*\n\s*compile_cpp "\$f"/);
     });
 
-    it('keeps audio_dsp.cpp as the single fast-math consumer', () => {
-        const fastCalls = buildSh
+    it('is scoped to the release mix bus — one TU, no recursive state (#1341)', () => {
+        const fastLines = withoutShellComments(mixBusSh)
             .split('\n')
-            .filter((line) => line.trim().startsWith('compile_cpp_fast "'));
-        expect(fastCalls).toHaveLength(1);
-        expect(fastCalls[0]).toContain('audio_dsp.cpp');
+            .filter((line) => line.includes('-ffast-math'));
+        expect(fastLines).toHaveLength(1);
+        expect(fastLines[0]).toMatch(/^\s*OPT_FLAGS="-O3 -ffast-math"$/);
+        // One source file, and the debug profile stays IEEE.
+        expect(mixBusSh.match(/em\+\+ "\$SCRIPT_DIR\/[^"]+"/g)).toEqual(['em++ "$SCRIPT_DIR/mix_bus.cpp"']);
+        expect(mixBusSh).toMatch(/OPT_FLAGS="-O1 -g3"/);
     });
 
     it('does not reintroduce fast-math in the Rubber Band module', () => {

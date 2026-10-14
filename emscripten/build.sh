@@ -82,8 +82,8 @@ echo "  ST memory budget: INITIAL=${ST_INITIAL_MEMORY_MB}mb MAXIMUM=${ST_MAXIMUM
 # ---------------------------------------------------------
 # Common flags
 # Removed -mrelaxed-simd and -flto/-flto=thin for CI compatibility (Emscripten 3.1.51)
-# Re-enabled : Emscripten 3.1.51 provides its own WASM-compatible OpenMP
-# runtime when linking with -s USE_PTHREADS=1. We do NOT use a host system libomp.
+# No OpenMP: nothing here is compiled with -fopenmp and libomp.a is not linked
+# (the threads are Emscripten pthreads). JC-303's standalone build still uses it.
 # -pthread is per profile (THREAD_FLAGS below): pthread objects are built with the
 # atomics feature and cannot be linked into the single-threaded module.
 ARCH_FLAGS="-msimd128 -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -DPROCESS_CMAKE_PROJECT"
@@ -104,8 +104,9 @@ if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3 -fno-omit-frame-pointer"
     LINK_PROFILE_FLAGS="-O1 -g3 -gsource-map -s ASSERTIONS=2 -s STACK_OVERFLOW_CHECK=2"
 else
-    # No -ffast-math here. It is opt-in per translation unit via compile_cpp_fast
-    # (audio_dsp.cpp only). -ffast-math implies -ffinite-math-only and
+    # No -ffast-math anywhere in this module. Its one fast-math TU, the uncalled
+    # audio_dsp.cpp, moved out to the offline mix bus (build_mix_bus.sh, #1341).
+    # -ffast-math implies -ffinite-math-only and
     # -fno-signed-zeros, which lets the compiler assume no NaN/Inf ever reaches a
     # recursive filter: the diode-ladder and TB-303 IIR sections can then latch a
     # NaN instead of settling, and reassociated accumulations drift the 303
@@ -131,7 +132,7 @@ BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s WASM=1 -s WASM_BIGINT=1 -s A
 PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_MB}mb --post-js $SCRIPT_DIR/pyodide_bootstrap.js"
 
 # single-threaded: voices only. No main() (so no emscripten_run_script), no
-# audio_dsp.cpp (OpenMP, main-thread only), no worker. The memory is IMPORTED and
+# worker. The memory is IMPORTED and
 # non-shared so the worklet can size it from the same budget key.
 ST_LINK_FLAGS="$BASE_LINK_FLAGS -s USE_PTHREADS=0 -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_MB}mb --no-entry"
 
@@ -229,7 +230,6 @@ build_profile() {
     local temp_dir="$TEMP_ROOT/$variant"
     mkdir -p "$temp_dir"
 
-    # Added -I $SCRIPT_DIR to find the local omp.h
     local includes="-I $SCRIPT_DIR \
           -I $temp_dir \
           -I $REPO_ROOT/jc303_wasm/src/dsp/open303 \
@@ -239,15 +239,8 @@ build_profile() {
     # this module uses them.
     local CXXFLAGS="$COMMON_FLAGS $thread_flags -frtti -std=c++17"
 
-    # Fast-math variant, used only by compile_cpp_fast. In the debug profile this is
-    # identical to CXXFLAGS so debug builds stay bit-comparable with the reference.
-    local CXXFLAGS_FAST="$CXXFLAGS"
-    if [ "$BUILD_PROFILE" != "debug" ]; then
-        CXXFLAGS_FAST="$CXXFLAGS -ffast-math"
-    fi
-
-    # Helper to compile C++ files.
-    # Default: IEEE-safe math (see the -ffast-math note above CXXFLAGS_FAST).
+    # Helper to compile C++ files. IEEE-safe math only (see the -ffast-math note
+    # above OPT_FLAGS).
     compile_cpp() {
         local src=$1
         local obj="$temp_dir/$(basename "${src%.*}").o"
@@ -255,49 +248,31 @@ build_profile() {
         em++ -c "$src" -o "$obj" $includes $CXXFLAGS
     }
 
-    # Opt-in fast-math variant. Only for kernels with no recursive filter state and
-    # no baseline-comparison contract - currently just audio_dsp.cpp (mix/gain/pan).
-    compile_cpp_fast() {
-        local src=$1
-        local obj="$temp_dir/$(basename "${src%.*}").o"
-        echo "  [$variant C++/fast-math] $src -> $obj"
-        em++ -c "$src" -o "$obj" $includes $CXXFLAGS_FAST
-    }
-
     echo "Compiling Objects ($variant)..."
 
-    local extra_libs=""
-    if [ "$variant" = "pthread" ]; then
-        # 1. Compile Audio DSP.
-        # The one fast-math consumer: block mix / gain / pan over stateless float arrays,
-        # where reassociation is safe and vectorises well. Everything below is compiled
-        # IEEE-safe. pthread-only: it links libomp.
-        # No JS caller remains: the main-thread AudioDSP.ts bridge was deleted
-        # (it fought the worklet's imported heap, #1229). A future offline
-        # consumer must be a dedicated worker, never main-thread window.Module.
-        compile_cpp_fast "$SCRIPT_DIR/audio_dsp.cpp"
-        extra_libs="$SCRIPT_DIR/libomp.a"
-    fi
+    # The offline mix/gain/peak DSP (formerly audio_dsp.cpp + libomp.a, linked here
+    # with no caller) is its own module now: emscripten/build_mix_bus.sh. Nothing
+    # in this voice module uses OpenMP, so libomp.a is not linked.
 
-    # 2. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
+    # 1. Phase-2 high-fidelity diode-ladder offline reference (highfid-cpu)
     compile_cpp "$SCRIPT_DIR/highfid303_wrapper.cpp"
 
-    # 3. Compile custom Open303 TB-303 synthesizer engine
+    # 2. Compile custom Open303 TB-303 synthesizer engine
     compile_cpp "$SCRIPT_DIR/open303_wrapper.cpp"
 
-    # 4. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
+    # 3. Compile authentic rosic Open303 DSP (from jc303_wasm submodule)
     for f in $REPO_ROOT/jc303_wasm/src/dsp/open303/*.cpp; do
         compile_cpp "$f"
     done
     compile_cpp "$SCRIPT_DIR/jc303_wrapper.cpp"
 
-    # 5. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
+    # 4. Compile Korg Prophecy formant synthesis engine (self-contained wrapper)
     compile_cpp "$SCRIPT_DIR/prophecy_wrapper.cpp"
 
-    # 6. Analog 808/909 drum kit (same module, new handles — one kit instance)
+    # 5. Analog 808/909 drum kit (same module, new handles — one kit instance)
     compile_cpp "$SCRIPT_DIR/drumkit_wrapper.cpp"
 
-    # 7. Compile Main (pthread only — it calls emscripten_run_script for the
+    # 6. Compile Main (pthread only — it calls emscripten_run_script for the
     #    Pyodide bootstrap, which is exactly what must not reach a worklet).
     if [ "$variant" = "pthread" ]; then
         compile_cpp "$SCRIPT_DIR/main.cpp"
@@ -308,7 +283,7 @@ build_profile() {
     local objects
     objects=$(find "$temp_dir" -name "*.o")
 
-    em++ $objects $extra_libs -o "$output_js" \
+    em++ $objects -o "$output_js" \
       $link_flags \
       -s EXPORTED_FUNCTIONS="$exports"
 

@@ -164,7 +164,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── main.cpp                  # Emscripten entry point
 │   ├── pyodide_bootstrap.js      # Python initialization
 │   ├── pre.js / rubberband-pre.js
-│   ├── libomp.a                  # OpenMP runtime (required)
+│   ├── libomp.a                  # OpenMP runtime (standalone JC-303 threaded build only)
 │   └── omp.h
 ├── jc303_wasm/                   # TB-303 clone (git submodule)
 │   ├── CMakeLists.txt            # JUCE-based CMake project
@@ -321,15 +321,19 @@ This project has **four distinct build environments**. **Never mix their build s
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
 - **Output**: `public/hyphon_native.js` (+ `.wasm`, `.worker.js`)
-- **Requires**: `libomp.a` in `emscripten/` directory
-- **Requires**: Emscripten SDK activated
+- **Requires**: Emscripten SDK activated (no OpenMP: `libomp.a` is not linked here)
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
-- **Not** Rubber Band — it is its own module (below). `-ffast-math` is opt-in per file here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
+- **Not** Rubber Band or the offline mix bus — each is its own module (below). No `-ffast-math` here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
 
 ### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
 - **Build**: `pnpm run build:wasm:rubberband`
 - **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
 - **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
+
+### 3c. Mix Bus World (`emscripten/mix_bus.cpp` + `emscripten/build_mix_bus.sh`)
+- **Build**: `pnpm run build:wasm:mixbus`
+- **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
+- **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
 
 ### 4. JC-303 World (`/jc303_wasm`)
 - **Build**: `bash tools/build_jc303_omp.sh debug both`
@@ -647,7 +651,7 @@ interface Note {
 
 3. **SharedArrayBuffer errors**: Server headers must include COOP/COEP. Check the browser console for specific errors. The single-threaded JC-303 variant does not require these headers.
 
-4. **Emscripten build failures**: Ensure `emscripten/libomp.a` exists and the Emscripten SDK is activated. The build script searches several common `emsdk_env.sh` locations.
+4. **Emscripten build failures**: Ensure the Emscripten SDK is activated (and, for the threaded JC-303 build only, that `emscripten/libomp.a` exists). The build script searches several common `emsdk_env.sh` locations.
 
 5. **AudioWorklet not loading**: Worklets must be loaded from the same origin or with proper CORS. Vite dev server handles this; production servers must be configured accordingly.
 

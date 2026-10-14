@@ -23,7 +23,12 @@ rendering — **without touching** the real-time AudioWorklet path.
   `open303_process` on the same handle from two threads concurrently.
 - Independent instances (lead / bass1 / bass2) **are** safe to process in parallel.
 
-### OpenMP helpers (`emscripten/audio_dsp.cpp`)
+### OpenMP helpers (`emscripten/audio_dsp.cpp`) — removed
+
+`audio_dsp.cpp` was deleted in #1341. These helpers had no caller, and because
+`-fopenmp` was never passed they never ran in parallel. The offline mix bus
+(`emscripten/mix_bus.cpp`, [BUILD_NOTES#mix-bus](../wasm/BUILD_NOTES.md#mix-bus))
+replaces the mixing role. The table is kept for history.
 
 | Function | Role |
 |----------|------|

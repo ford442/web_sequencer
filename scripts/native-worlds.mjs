@@ -151,9 +151,15 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     'emscripten/rubberband_fx.h',
     'emscripten/rubberband-pre.js',
   ]);
+  // The offline mix bus (#1341) is its own module too: a mix-kernel edit must
+  // not rebuild the voices, and vice versa.
+  const MIX_BUS_OWNED = new Set([
+    'emscripten/build_mix_bus.sh',
+    'emscripten/mix_bus.cpp',
+  ]);
   const emccFiles = walkFiles(repoRoot, 'emscripten', {
     excludeDirNames: new Set(['temp_build', 'temp_build_rubberband', 'tests']),
-  }).filter((rel) => !RUBBERBAND_OWNED.has(rel));
+  }).filter((rel) => !RUBBERBAND_OWNED.has(rel) && !MIX_BUS_OWNED.has(rel));
   const rubberbandSrc = walkFiles(repoRoot, 'rubberband/src', {
     excludeDirNames: new Set(['.git']),
   });
@@ -226,6 +232,18 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         'public/rubberband.wasm',
         'src/audio-worklets/rubberband-lib.js',
       ],
+      toolchain: 'emcc',
+    },
+    {
+      id: 'mixbus',
+      world: 'mixbus',
+      rebuildCommand: 'pnpm run build:wasm:mixbus',
+      inputs: [
+        ...[...MIX_BUS_OWNED].sort().map(fileInput),
+        fileInput('tools/check_mix_bus_module.mjs'),
+        fileInput(budgetRel),
+      ],
+      outputs: ['public/mix_bus.wasm'],
       toolchain: 'emcc',
     },
   ];
