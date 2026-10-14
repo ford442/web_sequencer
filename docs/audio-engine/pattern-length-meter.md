@@ -16,8 +16,8 @@ that drive the existing clock. There is still one sequencer and one clock.
   steps. Song Mode and Session build the playing pattern from per-track slots,
   so the meter can't live on `Pattern`. It lives in `transportMixStore` next to
   tempo, and `resolveSongMeter()` (`src/utils/songMeter.ts`) validates it on
-  load. Per-measure overrides belong to the arrangement epic: the hook point is
-  `measureStepCount()` in `src/utils/songTimeline.ts`.
+  load. Clip lengths live on the [arrangement](../arrangement.md) (#1342), not
+  on measures; inside a clip, track loops re-anchor at the clip start.
 - **Step arrays.** `PartSequence.steps` length is no longer assumed. Shortening
   the pattern never truncates data. Edits past the end pad with `null`, and
   reads past the end are rests.
@@ -60,14 +60,14 @@ swung boundary.
 |---|---|
 | No override | the clock `step` |
 | Pattern / Session | `absStep % trackLength`: free-running. A 12-step hat against a 16-step bass phases and lines up again every 48 steps. |
-| Song Mode | `step % trackLength`: re-anchored at every measure, because the measure may swap slots |
+| Linear player (Song Mode / ARR) | clip-local step `% trackLength`: re-anchored at every clip start. Migrated songs have one clip per measure, so this is per measure, as before. |
 
 The per-step `PartSequence.automation` arrays follow the track loop. Unified
 automation lanes follow the master pattern step.
 
-Offline paths (song timeline, SMF/stem export, XM) tile each track to the
-measure length with `tilePartSequence()`, so exports match what plays live in
-Song Mode.
+Offline paths match live playback: the song timeline (SMF/stem export) walks
+arrangement clips with the same clip-local step, and XM tiles each measure of
+the Song Mode projection with `tilePartSequence()`.
 
 ## Interchange
 

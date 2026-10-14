@@ -305,7 +305,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     summary: 'CLIP opens a scene grid. Launch clips per track or whole scenes, quantized to the audio clock.',
     body:
       'Session is a live clip launcher. It uses the same transport as the sequencer — launches wait for the selected quantization (step, beat, bar, 2/4 bars) on the audio timeline.\n\n' +
-      'CAPTURE records your launches into Song Mode. Right-click a cell to MIDI-learn. Gamepad D-pad navigates; Attack launches a clip, Jump launches a scene.\n\n' +
+      'CAPTURE records your launches as clips on the arrangement timeline (ARR). Right-click a cell to MIDI-learn. Gamepad D-pad navigates; Attack launches a clip, Jump launches a scene.\n\n' +
       'See docs/session-launcher.md for conflict rules and control ids.',
     keywords: ['session', 'clip', 'launcher', 'scene', 'live', 'quantize', 'capture'],
     category: 'song',

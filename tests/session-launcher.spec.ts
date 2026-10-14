@@ -3,7 +3,7 @@ import { initializeHyphonAudio } from './helpers/boot';
 import { startPlaybackAndAwaitClock } from './helpers/rbs-e2e';
 
 test.describe('Session clip launcher', () => {
-  test('boot → load pack → launch scene → quantized play → capture → song mode', async ({ page }) => {
+  test('boot → load pack → launch scene → quantized play → capture → arrangement', async ({ page }) => {
     await initializeHyphonAudio(page);
 
     await page.getByRole('button', { name: 'Toggle Session Launcher' }).click();
@@ -30,10 +30,10 @@ test.describe('Session clip launcher', () => {
       .toBeGreaterThan(0);
     }
 
-    await page.getByRole('button', { name: 'Capture launches into Song Mode' }).click();
-    await page.getByRole('button', { name: 'Stop capturing launches into Song Mode' }).click();
+    await page.getByRole('button', { name: 'Capture launches into the arrangement' }).click();
+    await page.getByRole('button', { name: 'Stop capturing launches into the arrangement' }).click();
 
-    await expect(page.getByText('SONG ARRANGER')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId('cell-kick-0')).toBeVisible();
+    // Capture writes timeline clips and opens the Arrangement view (#1342).
+    await expect(page.getByRole('region', { name: 'Arrangement timeline' })).toBeVisible({ timeout: 10_000 });
   });
 });

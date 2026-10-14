@@ -150,7 +150,7 @@ export const SessionLauncher = memo(function SessionLauncher({
             type="button"
             className={`h-7 px-2 text-[10px] font-orbitron border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isCapturing ? 'bg-red-700 text-white border-red-400' : 'border-zinc-700 text-gray-300 hover:bg-zinc-800'}`}
             aria-pressed={isCapturing}
-            aria-label={isCapturing ? 'Stop capturing launches into Song Mode' : 'Capture launches into Song Mode'}
+            aria-label={isCapturing ? 'Stop capturing launches into the arrangement' : 'Capture launches into the arrangement'}
             onClick={() => (isCapturing ? onFinishCapture() : onBeginCapture())}
           >
             {isCapturing ? 'CAPTURING' : 'CAPTURE'}

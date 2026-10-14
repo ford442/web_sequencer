@@ -41,7 +41,7 @@ const getAutomationValue = (target: AutomationTarget, param: string, step: numbe
 
 
 
-import { isE2eMode, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
+import { isE2eMode, recordE2eDrumHit, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 import {
@@ -51,6 +51,10 @@ import {
 import { Open303Manager } from '../engines/Open303Manager';
 import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
 import { getWamHost } from '../audio/wam';
+import type { Arrangement } from '../types';
+import { arrangementEnd } from '../arrangement/model';
+import { createArrangementFrame, resolveArrangementFrame, type ArrangementFrame } from '../arrangement/playback';
+import { arrangementPlayhead } from '../arrangement/playhead';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -139,7 +143,8 @@ export interface UseStepHandlerOptions {
     activeSamplerBankRef: React.MutableRefObject<number>;
     sliceHighlightRef: React.MutableRefObject<((slice: number) => void) | null>;
     isSongModeActiveRef: React.MutableRefObject<boolean>;
-    songStructureRef: React.MutableRefObject<({ [key in TrackKey]: number | null })[]>;
+    /** Linear arrangement (#1342) — the song the linear player reads. */
+    arrangementRef: React.MutableRefObject<Arrangement>;
     songMeasureRef: React.MutableRefObject<number>;
     isFirstStepRef: React.MutableRefObject<boolean>;
     trackStorageRef: React.MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
@@ -181,7 +186,7 @@ export const useStepHandler = ({
     activeSamplerBankRef,
     sliceHighlightRef,
     isSongModeActiveRef,
-    songStructureRef,
+    arrangementRef,
     songMeasureRef,
     isFirstStepRef,
     trackStorageRef,
@@ -199,6 +204,10 @@ export const useStepHandler = ({
 }: UseStepHandlerOptions) => {
     const lastHandledStepRef = useRef({ step: -1, audioTime: 0 });
     const lastTrakBarRef = useRef(-1);
+    // Linear player position: song step last played, and the clock's absStep then.
+    const songPosRef = useRef(0);
+    const songPosAbsRef = useRef(-1);
+    const arrangementFrameRef = useRef<ArrangementFrame>(createArrangementFrame());
     const lastParamSlotsRef = useRef<{ partA: number | null; partB: number | null; bass2: number | null }>({
         partA: null, partB: null, bass2: null,
     });
@@ -216,7 +225,8 @@ export const useStepHandler = ({
         const meter = transportMixStore.meterRef.current;
         currentStepRef.current = step;
         automationStore.setPlaybackStep(step);
-        if (isE2eMode()) setE2eTransportStep(step);
+        const e2e = isE2eMode();
+        if (e2e) setE2eTransportStep(step);
         if (sequencerRef.current) {
             // Rows with their own loop length light their own step.
             if (Object.keys(meter.trackLengths).length > 0) {
@@ -293,9 +303,9 @@ export const useStepHandler = ({
             }
         }
 
-        // Song Mode re-anchors per-track loops at each measure; pattern and
-        // session playback let them run free from PLAY.
-        let songModeLoops = false;
+        // The linear player hands each track its clip-local step (loops
+        // re-anchor at each clip); pattern and session playback run free from PLAY.
+        let arrangementSteps: ArrangementFrame | null = null;
 
         // Session clip playback overlays the live pattern (stopped tracks are silent).
         if (sessionEngine?.hasPlaying()) {
@@ -317,104 +327,117 @@ export const useStepHandler = ({
                 sampler: getSessionSeq('sampler'),
             } as Pattern;
         } else if (isSongModeActiveRef.current) {
-            songModeLoops = true;
-            // One measure = one master loop (`meter.stepCount`); the clock wraps there.
-            if (step === 0) {
-                if (isFirstStepRef.current) {
-                    isFirstStepRef.current = false;
-                    lastTrakBarRef.current = -1;
-                } else {
-                    const nextM = songMeasureRef.current + 1;
-                    songMeasureRef.current = nextM < songStructureRef.current.length ? nextM : 0;
-                    requestAnimationFrame(() => setCurrentSongMeasure(songMeasureRef.current));
-                }
+            // Linear player (#1342): the arrangement says which slot and which
+            // step of it each track plays at this song step. One clock — the
+            // song position advances one step per worklet step.
+            const arrangement = arrangementRef.current;
+            const spm = Math.max(1, meter.stepCount);
+            const length = arrangementEnd(arrangement);
+            let pos: number;
+            if (isFirstStepRef.current) {
+                isFirstStepRef.current = false;
+                lastTrakBarRef.current = -1;
+                pos = step;
+            } else if (absStepArg === undefined || absStep === songPosAbsRef.current + 1) {
+                pos = songPosRef.current + 1;
+            } else {
+                // Re-armed mid-play: resume the current measure at the clock's phase.
+                pos = songMeasureRef.current * spm + step;
+            }
+            if (pos >= length) pos %= length;
+            songPosRef.current = pos;
+            songPosAbsRef.current = absStep;
+            arrangementPlayhead.publish(pos);
 
-                // Schedule sub-step trakEvents for the current bar (RBS imported songs).
-                // One song measure is one RBS bar (TICKS_PER_BAR) whether the
-                // import kept 16 steps or expanded to 32.
-                if (trakEventsRef?.current?.length && automationSchedulerRef?.current) {
-                    const mIdx = songMeasureRef.current;
-                    if (lastTrakBarRef.current !== mIdx) {
-                        lastTrakBarRef.current = mIdx;
-                        const fromTick = mIdx * TICKS_PER_BAR;
-                        const toTick = fromTick + TICKS_PER_BAR;
-                        automationSchedulerRef.current.scheduleFromTrakEvents(
-                            trakEventsRef.current,
-                            tempo,
-                            time,
-                            fromTick,
-                            toTick,
-                        );
-                    }
+            const measure = Math.floor(pos / spm);
+            if (measure !== songMeasureRef.current) {
+                songMeasureRef.current = measure;
+                requestAnimationFrame(() => setCurrentSongMeasure(songMeasureRef.current));
+            }
+
+            // Schedule sub-step trakEvents for the current bar (RBS imported songs).
+            // One song measure is one RBS bar (TICKS_PER_BAR) whether the
+            // import kept 16 steps or expanded to 32.
+            if (pos % spm === 0 && trakEventsRef?.current?.length && automationSchedulerRef?.current) {
+                if (lastTrakBarRef.current !== measure) {
+                    lastTrakBarRef.current = measure;
+                    const fromTick = measure * TICKS_PER_BAR;
+                    automationSchedulerRef.current.scheduleFromTrakEvents(
+                        trakEventsRef.current,
+                        tempo,
+                        time,
+                        fromTick,
+                        fromTick + TICKS_PER_BAR,
+                    );
                 }
             }
 
-            const currentMeasureIdx = songMeasureRef.current;
-            const measureData = songStructureRef.current[currentMeasureIdx];
+            const frame = resolveArrangementFrame(arrangementFrameRef.current, arrangement, pos, meter);
+            arrangementSteps = frame;
+            const getSeq = (key: TrackKey) => {
+                const slot = frame[key].slot;
+                const stored = slot === null ? null : trackStorageRef.current[key][slot];
+                return stored ?? (key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ);
+            };
+            activePattern = {
+                partA: getSeq('partA'),
+                partB: getSeq('partB'),
+                bass2: getSeq('bass2'),
+                kick: getSeq('kick'),
+                snare: getSeq('snare'),
+                closedHat: getSeq('closedHat'),
+                openHat: getSeq('openHat'),
+                sampler: getSeq('sampler'),
+            } as Pattern;
 
-            if (measureData) {
-                const getSeq = (key: TrackKey) => {
-                    const slot = measureData[key];
-                    if (slot === null) return key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ;
-                    const stored = trackStorageRef.current[key][slot];
-                    return stored ?? (key === 'sampler' ? EMPTY_SAMPLER_SEQUENCE : EMPTY_SEQ);
+            const storage = rbsArrangementExtrasRef?.current?.trackParamStorage;
+            if (storage) {
+                const open303 = audioEngine.open303Engine instanceof Open303Manager
+                    ? audioEngine.open303Engine
+                    : null;
+                const last = lastParamSlotsRef.current;
+                const recall = (track: 'partA' | 'partB' | 'bass2', slot: number | null) => {
+                    if (slot === null || slot === last[track]) return;
+                    last[track] = slot;
+                    const applied = applyTrackParamSlotToEngine(
+                        storage,
+                        track,
+                        slot,
+                        open303,
+                        {
+                            synthA: synthARef.current,
+                            synthB: synthBRef.current,
+                            bass2: bass2Ref.current,
+                        },
+                    );
+                    if (applied.synthA) {
+                        synthARef.current = applied.synthA;
+                        setSynthA?.(applied.synthA);
+                    }
+                    if (applied.synthB) {
+                        synthBRef.current = applied.synthB;
+                        setSynthB?.(applied.synthB);
+                    }
+                    if (applied.bass2) {
+                        bass2Ref.current = applied.bass2;
+                        setBass2?.(applied.bass2);
+                    }
                 };
-
-                activePattern = {
-                    partA: getSeq('partA'),
-                    partB: getSeq('partB'),
-                    bass2: getSeq('bass2'),
-                    kick: getSeq('kick'),
-                    snare: getSeq('snare'),
-                    closedHat: getSeq('closedHat'),
-                    openHat: getSeq('openHat'),
-                    sampler: getSeq('sampler'),
-                } as Pattern;
-
-                const storage = rbsArrangementExtrasRef?.current?.trackParamStorage;
-                if (storage) {
-                    const open303 = audioEngine.open303Engine instanceof Open303Manager
-                        ? audioEngine.open303Engine
-                        : null;
-                    const last = lastParamSlotsRef.current;
-                    const recall = (track: 'partA' | 'partB' | 'bass2', slot: number | null) => {
-                        if (slot === null || slot === last[track]) return;
-                        last[track] = slot;
-                        const applied = applyTrackParamSlotToEngine(
-                            storage,
-                            track,
-                            slot,
-                            open303,
-                            {
-                                synthA: synthARef.current,
-                                synthB: synthBRef.current,
-                                bass2: bass2Ref.current,
-                            },
-                        );
-                        if (applied.synthA) {
-                            synthARef.current = applied.synthA;
-                            setSynthA?.(applied.synthA);
-                        }
-                        if (applied.synthB) {
-                            synthBRef.current = applied.synthB;
-                            setSynthB?.(applied.synthB);
-                        }
-                        if (applied.bass2) {
-                            bass2Ref.current = applied.bass2;
-                            setBass2?.(applied.bass2);
-                        }
-                    };
-                    recall('partA', measureData.partA ?? null);
-                    recall('partB', measureData.partB ?? null);
-                    recall('bass2', measureData.bass2 ?? null);
-                }
+                recall('partA', frame.partA.slot);
+                recall('partB', frame.partB.slot);
+                recall('bass2', frame.bass2.slot);
             }
         }
+
+        // Off the linear player (pattern / session): the timeline playhead hides.
+        if (!arrangementSteps && arrangementPlayhead.get() >= 0) arrangementPlayhead.publish(-1);
 
         const p = activePattern;
         const stepTime = 60 / tempo / 4;
         // Step each track reads: its own loop when it has a length override.
-        const trackStep = (key: TrackKey): number => trackStepFor(meter, key, step, absStep, songModeLoops);
+        // -1 (no clip / past a one-shot clip) reads as a rest.
+        const trackStep = (key: TrackKey): number =>
+            arrangementSteps ? arrangementSteps[key].step : trackStepFor(meter, key, step, absStep, false);
         const currentScale = currentScaleRef.current;
 
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
@@ -562,6 +585,7 @@ export const useStepHandler = ({
             const stepData = p[trackKey].steps[trackStep(trackKey)];
             if (stepData && !(stepData.probability !== undefined && Math.random() > stepData.probability)) {
                 audioEngine.playDrum(sound, params, time, currentScale, stepTime, stepData.note);
+                if (e2e) recordE2eDrumHit(trackKey, arrangementSteps ? songPosRef.current : -1, step);
             }
         };
 
@@ -766,7 +790,7 @@ export const useStepHandler = ({
                 automationStore.setLiveValues(liveValues);
             }
         }
-    }, [audioEngine, tempo, onParamChange, currentScaleRef, automationSchedulerRef, activeSamplerBankRef, bass2Ref, closedHatRef, currentStepRef, isFirstStepRef, isSongModeActiveRef, kickRef, lastFreqRef, lastSamplerFormantRef, lastSamplerMidiRef, onSessionTick, openHatRef, patternRef, rbsArrangementExtrasRef, samplerRef, samplerVoiceParamsRef, sequencerRef, sessionClockRef, sessionEngineRef, setBass2, setCurrentSongMeasure, setIsSongModeActive, setSynthA, setSynthB, sliceHighlightRef, snareRef, songMeasureRef, songStructureRef, synthARef, synthBRef, trackStorageRef, trakEventsRef]);
+    }, [audioEngine, tempo, onParamChange, currentScaleRef, automationSchedulerRef, activeSamplerBankRef, bass2Ref, closedHatRef, currentStepRef, isFirstStepRef, isSongModeActiveRef, kickRef, lastFreqRef, lastSamplerFormantRef, lastSamplerMidiRef, onSessionTick, openHatRef, patternRef, rbsArrangementExtrasRef, samplerRef, samplerVoiceParamsRef, sequencerRef, sessionClockRef, sessionEngineRef, setBass2, setCurrentSongMeasure, setIsSongModeActive, setSynthA, setSynthB, sliceHighlightRef, snareRef, songMeasureRef, arrangementRef, synthARef, synthBRef, trackStorageRef, trakEventsRef]);
 
     return { onStep };
 };

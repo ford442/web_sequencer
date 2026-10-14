@@ -10,6 +10,6 @@ export {
 export { SessionLaunchEngine } from './SessionLaunchEngine';
 export { createDefaultSessionDocument } from './defaults';
 export { migrateSavedSongSession, parseSessionDocument, sessionFromTrackStorage } from './migrate';
-export { captureEventsToSongStructure } from './capture';
+export { captureEventsToSongStructure, captureEventsToArrangement } from './capture';
 export { quantizeLaunch, secondsPerStep } from './quantize';
 export { resolveTrackConflicts } from './conflict';

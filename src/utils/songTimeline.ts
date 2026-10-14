@@ -1,7 +1,10 @@
 import { NUM_STEPS } from '@/constants';
 import type { Pattern, PartSequence } from '@/types';
 import type { TrackKey } from '@/constants/appDefaults';
-import { tilePartSequence, type TrackLengths } from '@/utils/songMeter';
+import { tilePartSequence, trackLoopLength, type TrackLengths } from '@/utils/songMeter';
+import type { Arrangement, ArrangementClip } from '@/types/song';
+import { lastClipEnd, songStructureToArrangement } from '@/arrangement/model';
+import { clipLocalStep } from '@/arrangement/playback';
 
 /** Song meter fields the timeline needs; absent = 32 steps, no per-track loops. */
 export interface TimelineMeter {
@@ -22,154 +25,104 @@ export interface ResolvedTimeline {
     };
 }
 
-function emptyPartSequence(): PartSequence {
-    return { steps: [] };
-}
-
 /**
- * Steps in measure `m`. The meter is song-wide today, so every measure has the
- * song `stepCount`; per-measure lengths (arrangement epic) plug in here.
+ * Steps in measure `m`. The meter is song-wide, so every measure has the song
+ * `stepCount`; clip lengths live on the arrangement, not on measures.
  */
 export function measureStepCount(meter: TimelineMeter | undefined, _m: number): number {
     return meter?.stepCount ?? NUM_STEPS;
 }
 
+type TimelineSequences = ResolvedTimeline['sequences'];
+type StoredSequences = Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
+const SYNTH_TRACKS = ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat'] as const;
+
+/** Copy one clip's pattern into `out` over `[start, end)`, looping like live playback. */
+function writeClip(
+    out: PartSequence,
+    seq: PartSequence | null | undefined,
+    clip: ArrangementClip,
+    loopLength: number,
+    totalSteps: number,
+): void {
+    const end = Math.min(totalSteps, clip.startStep + clip.lengthSteps);
+    for (let pos = clip.startStep; pos < end; pos++) {
+        const local = clipLocalStep(clip, pos, loopLength);
+        out.steps[pos] = local >= 0 ? seq?.steps[local] ?? null : null;
+        if (!seq?.automation) continue;
+        for (const [param, values] of Object.entries(seq.automation)) {
+            const lane = (out.automation ??= {})[param] ??= new Array<number | null>(totalSteps).fill(null);
+            lane[pos] = local >= 0 ? values[local] ?? null : null;
+        }
+    }
+}
+
 /**
- * Join one track's per-measure sequences, tiling each to its measure length by
- * the track's loop length (re-anchored per measure, like live Song Mode).
+ * Walk the arrangement's clips into flat per-track sequences. The export ends
+ * at the last clip's end (trailing silence before the loop point is dropped);
+ * gaps between clips are rests, exactly as the live player leaves them.
  */
-function concatPartSequences(
-    parts: PartSequence[],
-    measureSteps: readonly number[],
-    loopLength: (measureLength: number) => number,
-): PartSequence {
-    const steps: PartSequence['steps'] = [];
-    const automation: Record<string, (number | null)[]> = {};
-    let hasAutomation = false;
-    let offset = 0;
-    for (let m = 0; m < parts.length; m++) {
-        const length = measureSteps[m];
-        const tiled = tilePartSequence(parts[m], length, loopLength(length));
-        for (let i = 0; i < length; i++) steps.push(tiled.steps[i]);
-        if (tiled.automation) {
-            for (const [param, values] of Object.entries(tiled.automation)) {
-                if (!automation[param]) {
-                    automation[param] = new Array<number | null>(offset).fill(null);
-                    hasAutomation = true;
-                }
-                automation[param].push(...values);
-            }
-        }
-        offset += length;
-        // Keep lanes absent in this measure aligned with the step array.
-        for (const values of Object.values(automation)) {
-            while (values.length < offset) values.push(null);
+export function resolveArrangementTimeline(
+    arrangement: Arrangement,
+    trackStorage: StoredSequences,
+    meter?: TimelineMeter,
+): ResolvedTimeline {
+    const stepCount = meter?.stepCount ?? NUM_STEPS;
+    const loopMeter = { stepCount, trackLengths: meter?.trackLengths ?? {} };
+    const totalSteps = Math.max(1, lastClipEnd(arrangement));
+    const blank = (): PartSequence => ({ steps: new Array<PartSequence['steps'][number]>(totalSteps).fill(null) });
+    const sequences: TimelineSequences = {
+        partA: blank(), partB: blank(), bass2: blank(), kick: blank(),
+        snare: blank(), closedHat: blank(), openHat: blank(),
+        sampler: Array.from({ length: 8 }, blank),
+    };
+
+    for (const clip of arrangement.clips) {
+        const loopLength = trackLoopLength(loopMeter, clip.track);
+        const stored = trackStorage[clip.track]?.[clip.patternSlot] ?? null;
+        if (clip.track === 'sampler') {
+            const banks = Array.isArray(stored) ? stored : [];
+            for (let b = 0; b < 8; b++) writeClip(sequences.sampler[b], banks[b], clip, loopLength, totalSteps);
+        } else {
+            writeClip(sequences[clip.track], Array.isArray(stored) ? null : stored, clip, loopLength, totalSteps);
         }
     }
-    return hasAutomation ? { steps, automation } : { steps };
+
+    const measureStepCounts: number[] = [];
+    for (let left = totalSteps; left > 0; left -= stepCount) measureStepCounts.push(Math.min(stepCount, left));
+    return { measureCount: measureStepCounts.length, measureStepCounts, totalSteps, sequences };
 }
 
-function resolveMeasureSequence(
-    trackKey: TrackKey,
-    measure: { [key in TrackKey]: number | null },
-    trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
-    fallbackPattern: Pattern,
-): PartSequence | PartSequence[] | null {
-    const slotIndex = measure[trackKey];
-    if (slotIndex !== null) {
-        const stored = trackStorage[trackKey]?.[slotIndex];
-        if (stored) return stored;
-    }
-    return fallbackPattern[trackKey] ?? null;
+/** One pattern loop of the current pattern (pattern mode, or an empty song). */
+function resolvePatternTimeline(currentPattern: Pattern, meter?: TimelineMeter): ResolvedTimeline {
+    const length = measureStepCount(meter, 0);
+    const tile = (key: TrackKey, seq: PartSequence | undefined) =>
+        tilePartSequence(seq, length, meter?.trackLengths?.[key] ?? length);
+    const sequences = {} as TimelineSequences;
+    for (const key of SYNTH_TRACKS) sequences[key] = tile(key, currentPattern[key]);
+    sequences.sampler = Array.from({ length: 8 }, (_, b) => tile('sampler', currentPattern.sampler[b]));
+    return { measureCount: 1, measureStepCounts: [length], totalSteps: length, sequences };
 }
 
 /**
- * Resolves the full timeline for stem export from song arrangement or current pattern.
+ * Resolves the full timeline for export. Song mode walks the arrangement's
+ * clips (the linear player); callers that only hold the Song Mode grid get it
+ * migrated one clip per cell. Pattern mode — or a song with no clips — is one
+ * loop of the current pattern.
  */
 export function resolveSongTimeline(
     songStructure: { [key in TrackKey]: number | null }[],
-    trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
+    trackStorage: StoredSequences,
     currentPattern: Pattern,
     useSongMode: boolean,
     meter?: TimelineMeter,
+    arrangement?: Arrangement,
 ): ResolvedTimeline {
-    const synthTracks = ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat'] as const;
-
-    let lastActiveMeasure = -1;
     if (useSongMode) {
-        for (let i = songStructure.length - 1; i >= 0; i--) {
-            const measure = songStructure[i];
-            if (Object.values(measure).some((slot) => slot !== null)) {
-                lastActiveMeasure = i;
-                break;
-            }
-        }
+        const arr = arrangement ?? songStructureToArrangement(songStructure, measureStepCount(meter, 0));
+        if (arr.clips.length > 0) return resolveArrangementTimeline(arr, trackStorage, meter);
     }
-
-    const useFallbackPattern = !useSongMode || lastActiveMeasure === -1;
-    const measureCount = useFallbackPattern ? 1 : Math.max(1, lastActiveMeasure + 1);
-    const measureStepCounts = Array.from({ length: measureCount }, (_, m) => measureStepCount(meter, m));
-    const totalSteps = measureStepCounts.reduce((sum, n) => sum + n, 0);
-    const loopFor = (key: TrackKey) => (measureLength: number) =>
-        meter?.trackLengths?.[key] ?? measureLength;
-
-    const sequences = {
-        partA: [] as PartSequence[],
-        partB: [] as PartSequence[],
-        bass2: [] as PartSequence[],
-        kick: [] as PartSequence[],
-        snare: [] as PartSequence[],
-        closedHat: [] as PartSequence[],
-        openHat: [] as PartSequence[],
-        sampler: Array.from({ length: 8 }, () => [] as PartSequence[]),
-    };
-
-    for (let m = 0; m < measureCount; m++) {
-        const measure = useFallbackPattern
-            ? ({} as { [key in TrackKey]: number | null })
-            : songStructure[m];
-
-        for (const trackKey of synthTracks) {
-            const resolved = resolveMeasureSequence(trackKey, measure, trackStorage, currentPattern);
-            if (resolved) {
-                sequences[trackKey].push(resolved as PartSequence);
-            } else {
-                sequences[trackKey].push(emptyPartSequence());
-            }
-        }
-
-        const samplerResolved = resolveMeasureSequence('sampler', measure, trackStorage, currentPattern);
-        if (samplerResolved && Array.isArray(samplerResolved)) {
-            const banks = samplerResolved as PartSequence[];
-            for (let b = 0; b < 8; b++) {
-                sequences.sampler[b].push(banks[b] ?? emptyPartSequence());
-            }
-        } else {
-            const banks = currentPattern.sampler;
-            for (let b = 0; b < 8; b++) {
-                sequences.sampler[b].push(banks[b] ?? emptyPartSequence());
-            }
-        }
-    }
-
-    const concat = (key: TrackKey, parts: PartSequence[]) =>
-        concatPartSequences(parts, measureStepCounts, loopFor(key));
-
-    return {
-        measureCount,
-        measureStepCounts,
-        totalSteps,
-        sequences: {
-            partA: concat('partA', sequences.partA),
-            partB: concat('partB', sequences.partB),
-            bass2: concat('bass2', sequences.bass2),
-            kick: concat('kick', sequences.kick),
-            snare: concat('snare', sequences.snare),
-            closedHat: concat('closedHat', sequences.closedHat),
-            openHat: concat('openHat', sequences.openHat),
-            sampler: sequences.sampler.map((bankParts) => concat('sampler', bankParts)),
-        },
-    };
+    return resolvePatternTimeline(currentPattern, meter);
 }
 
 export function stepDurationSeconds(tempo: number): number {

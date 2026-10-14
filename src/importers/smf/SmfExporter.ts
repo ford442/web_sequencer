@@ -10,9 +10,10 @@
  * `SongStructure` order, not just the currently-active pattern.
  */
 
-import type { Pattern, PartSequence, Note } from '../../types';
+import type { Arrangement, Pattern, PartSequence, Note } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
 import { resolveSongTimeline } from '../../utils/songTimeline';
+import { normalizeArrangement } from '../../arrangement/model';
 import { noteToMidi, ticksPerStep, DEFAULT_TIME_SIGNATURE, type TimeSignature } from '../../utils/musicTheory';
 import { resolveSongMeter, type TrackLengths } from '../../utils/songMeter';
 import { DEFAULT_PPQ } from './SmfParser';
@@ -45,6 +46,8 @@ function samplerChannel(bank: number): number {
 
 export interface SmfExportInput {
   songStructure: Array<Record<TrackKey, number | null>>;
+  /** Linear arrangement (#1342). When present, song-mode export walks its clips. */
+  arrangement?: Arrangement;
   trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
   currentPattern: Pattern;
   tempo: number;
@@ -191,6 +194,7 @@ export class SmfExporter {
             input.currentPattern,
             true,
             meter,
+            input.arrangement,
           )
         : resolveSongTimeline([], input.trackStorage, input.currentPattern, false, meter);
 
@@ -256,6 +260,7 @@ export function exportSmfFile(input: SmfExportInput, options: SmfExportOptions):
 /** Thin field-pluck so callers don't need to know SmfExportInput's shape (mirrors RBS's hyphonSongFromSavedData). */
 export function hyphonSongFromSavedDataForSmf(songData: {
   songStructure: unknown;
+  arrangement?: unknown;
   trackStorage: unknown;
   pattern: Pattern;
   tempo: number;
@@ -266,6 +271,7 @@ export function hyphonSongFromSavedDataForSmf(songData: {
   const meter = resolveSongMeter(songData);
   return {
     songStructure: songData.songStructure as Array<Record<TrackKey, number | null>>,
+    arrangement: normalizeArrangement(songData.arrangement) ?? undefined,
     trackStorage: songData.trackStorage as Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
     currentPattern: songData.pattern,
     tempo: songData.tempo,
