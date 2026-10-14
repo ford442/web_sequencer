@@ -8,7 +8,7 @@
  * degradation store that feeds the HUD and banner.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type MockInstance } from 'vitest';
 import { BackendRegistry, OSCILLATOR_SUBSYSTEM } from '../BackendRegistry';
 import {
     JsOscillatorBackend,
@@ -113,7 +113,7 @@ const REQ: GenerateRequest = {
 };
 
 describe('oscillator backend fallback (integration)', () => {
-    let warn: ReturnType<typeof vi.spyOn>;
+    let warn: MockInstance<typeof console.warn>;
 
     beforeEach(() => {
         engineDegradationStore.clear('oscillator-backend');

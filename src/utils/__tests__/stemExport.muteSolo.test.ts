@@ -78,13 +78,15 @@ function fakeBuffer(value: number, length = LENGTH, channels = 2): AudioBuffer {
 const originalOfflineAudioContext = globalThis.OfflineAudioContext;
 
 function stubOfflineAudioContext(): void {
+    // Constructed with `new`, so the implementation must be a function
+    // expression: Vitest >= 4 invokes it via Reflect.construct.
     globalThis.OfflineAudioContext = vi.fn().mockImplementation(
-        (channels: number, length: number, sampleRate: number) => ({
+        function (channels: number, length: number, sampleRate: number) { return {
             createBuffer: (ch: number, len: number, rate: number) => fakeBuffer(0, len, ch),
             length,
             sampleRate,
             numberOfChannels: channels,
-        }),
+        }; },
     ) as unknown as typeof OfflineAudioContext;
 }
 

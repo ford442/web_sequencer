@@ -285,7 +285,7 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
     for (const msg of leaky) console.error(`  ${msg}`);
     console.error(
       '  Keep `worker: { format: "es" }` emitting one self-contained chunk per worklet; ' +
-      'do not let manualChunks split a worklet across chunks.',
+      'do not let build.rolldownOptions codeSplitting groups split a worklet across chunks.',
     );
     process.exit(1);
   }

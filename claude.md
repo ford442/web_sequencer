@@ -17,7 +17,7 @@ Hyphon is a sophisticated **web-based audio workstation** featuring:
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript 5.9
-- **Build:** Vite 5 + npm
+- **Build:** Vite 8 + npm
 - **Styling:** Tailwind CSS
 - **3D Graphics:** Three.js + React Three Fiber
 - **Audio Engines:**

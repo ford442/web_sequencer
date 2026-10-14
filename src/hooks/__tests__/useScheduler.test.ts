@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { useScheduler } from '../useScheduler';
 
 // vitest.setup.ts installs a plain (non-spy) AudioContext / AudioWorkletNode mock
@@ -34,7 +34,7 @@ describe('useScheduler', () => {
     // would also wipe the shared `window.AudioContext` mock from
     // vitest.setup.ts — it's a plain `vi.fn()`, not a spy, so "restoring" it
     // clears its implementation and breaks every later test in this file.
-    let warnSpy: ReturnType<typeof vi.spyOn> | null = null;
+    let warnSpy: MockInstance<typeof console.warn> | null = null;
 
     beforeEach(() => {
         vi.clearAllMocks();

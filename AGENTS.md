@@ -31,7 +31,7 @@
 | React | ^19.2.0 | UI Framework |
 | React DOM | ^19.2.0 | Rendering |
 | TypeScript | ~5.9.3 | Language |
-| Vite | ^5.4.21 | Build Tool & Dev Server |
+| Vite | ^8.3.4 (Rolldown) | Build Tool & Dev Server |
 | Tailwind CSS | ^3.4.6 | Styling |
 | React Three Fiber | ^9.5.0 | 3D Graphics |
 | Three.js | ^0.182.0 | 3D Engine |
@@ -39,8 +39,7 @@
 
 ### Vite Plugins
 - `@vitejs/plugin-react` — React Fast Refresh
-- `vite-plugin-wasm` — WASM import support
-- `vite-plugin-top-level-await` — Top-level await in modules
+- WASM: Vite's native `*.wasm?init` / `?url` imports; top-level await is native at Vite 8's default build target (no wasm/TLA plugins)
 
 ### Audio Architecture (Multi-Engine "Four Worlds")
 | Engine | Language | Build Output | Purpose |
