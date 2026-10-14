@@ -2,15 +2,15 @@
  * Drum Kit Engine
  *
  * Message façade for analog 808/909 drums. Live hits go to `drumkit-processor`
- * (hyphon_native `drumkit_*` handles). If the worklet/WASM path fails, the
- * existing Web Audio oscillator kit remains the fallback (HUD reason, non-silent).
+ * (one `drumkit_*` voice on the audio session's shared hyphon_native instance).
+ * If the worklet/WASM path fails, the existing Web Audio oscillator kit remains
+ * the fallback (HUD reason, non-silent).
  */
 
 import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '@/types';
 import { KIT_CHARACTER, kitToNativeId, DRUMKIT_VOICE, type KitSynthCharacter } from './DrumKitCharacter';
 import {
     engineTelemetry,
-    isAppleWebKit,
     loadHyphonWasmExportMap,
     logEngineFallback,
     resolvePublicAsset,
@@ -19,11 +19,11 @@ import {
     DRUMKIT_REQUIRED_WASM_EXPORTS,
     drumkitExportMapInsufficient,
     formatMissingWasmExports,
-    HYPHON_NATIVE_MIN_MEMORY_PAGES,
     wasmExportNameSnapshot,
+    type HyphonNativeArtifact,
 } from '@/audio-worklets/hyphonNativeImports';
+import { resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 
-const HYPHON_NATIVE_WASM_URL = resolvePublicAsset('hyphon_native.wasm');
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
 
 export class DrumKitEngine {
@@ -61,7 +61,9 @@ export class DrumKitEngine {
   }
 
   /**
-   * Load drumkit-processor and instantiate hyphon_native once for the whole kit.
+   * Load drumkit-processor; the kit takes one voice on the audio session's
+   * hyphon_native instance (the profile the context is bound to — single-threaded
+   * on WebKit and on pages that are not crossOriginIsolated).
    * Returns false when the Web Audio fallback should handle hits.
    */
   async init(
@@ -71,11 +73,6 @@ export class DrumKitEngine {
   ): Promise<boolean> {
     this.audioContext = audioContext;
 
-    if (isAppleWebKit()) {
-      this.useFallback('threaded hyphon_native.wasm is unsafe in WebKit AudioWorklet');
-      return false;
-    }
-
     if (!audioContext.audioWorklet || !workletUrl) {
       this.useFallback(
         !audioContext.audioWorklet ? 'AudioWorklet unavailable' : 'worklet URL missing',
@@ -83,29 +80,31 @@ export class DrumKitEngine {
       return false;
     }
 
+    const { artifact } = resolveHyphonNativeArtifact(audioContext);
+    const wasmUrl = resolvePublicAsset(artifact.wasm);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), DRUMKIT_INIT_TIMEOUT_MS);
       let response: Response;
       try {
-        response = await fetch(HYPHON_NATIVE_WASM_URL, { signal: controller.signal });
+        response = await fetch(wasmUrl, { signal: controller.signal });
       } finally {
         clearTimeout(timeoutId);
       }
       if (!response.ok) {
-        this.useFallback(`hyphon_native.wasm fetch HTTP ${response.status} (${HYPHON_NATIVE_WASM_URL})`);
+        this.useFallback(`${artifact.wasm} fetch HTTP ${response.status} (${wasmUrl})`);
         return false;
       }
       const wasmBytes = await response.arrayBuffer();
-      const exportMap = await this.fetchExportMap(wasmBytes);
-      return this.initWithWasmBytes(audioContext, workletUrl, destination, wasmBytes, exportMap);
+      const exportMap = await this.fetchExportMap(wasmBytes, artifact);
+      return this.initWithWasmBytes(audioContext, workletUrl, destination, wasmBytes, exportMap, artifact);
     } catch (e) {
       const aborted =
         (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError') ||
         (e instanceof Error && e.name === 'AbortError');
       this.useFallback(
         aborted
-          ? `hyphon_native.wasm fetch timeout (${DRUMKIT_INIT_TIMEOUT_MS}ms)`
+          ? `${artifact.wasm} fetch timeout (${DRUMKIT_INIT_TIMEOUT_MS}ms)`
           : 'init exception before worklet load',
         aborted ? undefined : e,
       );
@@ -113,10 +112,13 @@ export class DrumKitEngine {
     }
   }
 
-  private async fetchExportMap(wasmBytes: ArrayBuffer): Promise<Record<string, string>> {
-    const map = await loadHyphonWasmExportMap();
-    const mapUrl = resolvePublicAsset('hyphon_wasm_export_map.json');
-    const glueUrl = resolvePublicAsset('hyphon_native.js');
+  private async fetchExportMap(
+    wasmBytes: ArrayBuffer,
+    artifact: HyphonNativeArtifact,
+  ): Promise<Record<string, string>> {
+    const map = await loadHyphonWasmExportMap(artifact.threading);
+    const mapUrl = resolvePublicAsset(artifact.exportMap);
+    const glueUrl = resolvePublicAsset(artifact.glue);
     const wasmModule = await WebAssembly.compile(wasmBytes);
     const rawExports = wasmExportNameSnapshot(wasmModule);
 
@@ -149,6 +151,7 @@ export class DrumKitEngine {
     destination: AudioNode,
     wasmBytes: ArrayBuffer,
     exportMap: Record<string, string> = {},
+    artifact: HyphonNativeArtifact = resolveHyphonNativeArtifact(audioContext).artifact,
   ): Promise<boolean> {
     try {
       await audioContext.audioWorklet.addModule(workletUrl);
@@ -158,19 +161,15 @@ export class DrumKitEngine {
       });
       this.workletNodesCreated += 1;
 
-      const module = await WebAssembly.compile(wasmBytes);
-      const imports = WebAssembly.Module.imports(module);
-      const isThreaded = imports.some((i) => i.kind === 'memory');
-      const memoryPages = isThreaded ? HYPHON_NATIVE_MIN_MEMORY_PAGES : undefined;
-
+      // Same profile as every other voice on this context: they share one instance.
       this.workletNode.port.postMessage({
         type: 'init-wasm',
         data: {
           wasmBytes,
           sampleRate: audioContext.sampleRate,
-          isThreaded,
-          variant: isThreaded ? 'threaded' : 'single',
-          memoryPages,
+          isThreaded: artifact.sharedMemory,
+          variant: artifact.threading,
+          memoryPages: artifact.minMemoryPages,
           exportMap,
         },
       });
@@ -299,6 +298,8 @@ export class DrumKitEngine {
 
   private cleanupWorklet(): void {
     if (this.workletNode) {
+      // The kit's voice lives on the shared instance: hand the handle back.
+      this.workletNode.port.postMessage({ type: 'dispose' });
       this.workletNode.disconnect();
       this.workletNode.port.close();
       this.workletNode = null;

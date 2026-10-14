@@ -205,7 +205,7 @@ struct Jc303Engine {
     }
 };
 
-using Jc303NativeVoice = hyphon::NativeVoice<Jc303Engine, 256>;
+using Jc303NativeVoice = hyphon::NativeVoice<hyphon::MonoNoteEngine<Jc303Engine>, 256>;
 
 // One per 303 voice (bass1 / bass2 / lead303) in an audio session, plus slack.
 HYPHON_EXPORT_VOICE(jc303, Jc303NativeVoice, 16)
@@ -224,22 +224,22 @@ EMSCRIPTEN_KEEPALIVE int jc303_init_handle(uintptr_t handle, float sr, int bs)
 
 EMSCRIPTEN_KEEPALIVE void jc303_note_on(uintptr_t h, int note, float vel)
 {
-    if (auto* v = jc303_voice(h)) v->engine.noteOn(note, vel);
+    if (auto* v = jc303_voice(h)) v->engine.inner.noteOn(note, vel);
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_note_off(uintptr_t h, int note)
 {
-    if (auto* v = jc303_voice(h)) v->engine.noteOff(note);
+    if (auto* v = jc303_voice(h)) v->engine.inner.noteOff(note);
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_all_notes_off(uintptr_t h)
 {
-    if (auto* v = jc303_voice(h)) v->engine.allNotesOff();
+    if (auto* v = jc303_voice(h)) { v->engine.inner.allNotesOff(); v->engine.forget(); }
 }
 
 EMSCRIPTEN_KEEPALIVE void jc303_set_param(uintptr_t h, int pid, float val)
 {
-    if (auto* v = jc303_voice(h)) v->engine.setParam(pid, val);
+    if (auto* v = jc303_voice(h)) v->engine.inner.setParam(pid, val);
 }
 
 /**
@@ -258,7 +258,7 @@ EMSCRIPTEN_KEEPALIVE uintptr_t jc303_process_handle(uintptr_t handle, int numFra
         if (!v->buffer.reserve(numFrames)) return 0;
     }
     float* out = v->buffer.acquire(numFrames);
-    v->engine.render(out, numFrames);
+    v->engine.inner.render(out, numFrames);
     return reinterpret_cast<uintptr_t>(out);
 }
 

@@ -23,6 +23,7 @@ void check(bool cond, const char* msg) {
 
 /** jc303's C API for event_api_checks.h. */
 struct EventApi {
+    static constexpr bool kMono = true;  // MonoNoteEngine-wrapped
     uintptr_t create() { return jc303_create(); }
     void init(uintptr_t h, int block) { jc303_init_handle(h, 48000.0f, block); }
     void destroy(uintptr_t h) { jc303_destroy(h); }

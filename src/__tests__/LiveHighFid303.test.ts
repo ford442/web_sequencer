@@ -173,7 +173,8 @@ function fakeExports(overrides: Partial<LiveHighFidExports> = {}): LiveHighFidEx
     highfid303_all_notes_off: vi.fn(),
     highfid303_set_param: vi.fn(),
     highfid303_set_oversample: vi.fn(),
-    highfid303_process: vi.fn(),
+    highfid303_push_event: vi.fn(() => 1),
+    highfid303_render: vi.fn(() => 4096),
     ...overrides,
   };
 }
@@ -184,28 +185,28 @@ describe('LiveHighFid303Voice', () => {
   it('reports unsupported when the build pruned the optional exports', () => {
     expect(supportsLiveHighFid(null)).toBe(false);
     expect(supportsLiveHighFid({})).toBe(false);
-    expect(supportsLiveHighFid(fakeExports({ highfid303_process: undefined }))).toBe(false);
+    expect(supportsLiveHighFid(fakeExports({ highfid303_render: undefined }))).toBe(false);
+    expect(supportsLiveHighFid(fakeExports({ highfid303_push_event: undefined }))).toBe(false);
     expect(supportsLiveHighFid(fakeExports())).toBe(true);
   });
 
-  it('creates, inits and renders through the C API', () => {
+  it('creates and inits through the C API, and exposes its handle to the processor', () => {
     const exports = fakeExports();
     const voice = new LiveHighFid303Voice(exports, identity);
 
     expect(voice.init(48000, 128, 1)).toBe(true);
     expect(voice.isReady).toBe(true);
+    expect(voice.voiceHandle).toBe(7);
     expect(exports.highfid303_init).toHaveBeenCalledWith(7, 48000, 128);
     expect(exports.highfid303_set_oversample).toHaveBeenCalledWith(7, 1);
 
     voice.noteOn(45, 120);
     voice.setParam(2, 0.4);
-    voice.process(4096, 128);
     voice.noteOff(45);
     voice.allNotesOff();
 
     expect(exports.highfid303_note_on).toHaveBeenCalledWith(7, 45, 120);
     expect(exports.highfid303_set_param).toHaveBeenCalledWith(7, 2, 0.4);
-    expect(exports.highfid303_process).toHaveBeenCalledWith(7, 4096, 128);
     expect(exports.highfid303_note_off).toHaveBeenCalledWith(7, 45);
     expect(exports.highfid303_all_notes_off).toHaveBeenCalledWith(7);
 
@@ -220,9 +221,8 @@ describe('LiveHighFid303Voice', () => {
     expect(voice.init(48000, 128)).toBe(false);
     expect(voice.isReady).toBe(false);
     voice.noteOn(45, 120);
-    voice.process(4096, 128);
+    expect(voice.voiceHandle).toBe(0);
     expect(exports.highfid303_note_on).not.toHaveBeenCalled();
-    expect(exports.highfid303_process).not.toHaveBeenCalled();
     expect(exports.highfid303_destroy).toHaveBeenCalledWith(7);
   });
 

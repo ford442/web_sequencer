@@ -56,6 +56,22 @@ function makeFakeExports(memory: WebAssembly.Memory) {
   const destroy = (h: number) => {
     live.delete(h);
   };
+  // Voice-core event API (#1344): a noteOn is a pushed event of type 1.
+  const pushEvent = (api: string) => (handle: number, _frame: number, type: number, target: number) => {
+    if (type === 1) noteOns.push({ api, handle, note: target });
+    return 1;
+  };
+  const voiceApi = (api: string) => ({
+    [`${api}_create`]: create,
+    [`${api}_destroy`]: destroy,
+    [`${api}_init`]: () => 1,
+    [`${api}_push_event`]: pushEvent(api),
+    [`${api}_render`]: () => 0,
+    [`${api}_cancel_notes`]: () => {},
+    [`${api}_flush`]: () => {},
+    [`${api}_set_param`]: () => {},
+    [`${api}_all_notes_off`]: () => {},
+  });
   const exports = {
     memory,
     malloc: (bytes: number) => {
@@ -65,21 +81,9 @@ function makeFakeExports(memory: WebAssembly.Memory) {
     },
     free: () => {},
     __wasm_call_ctors: vi.fn(),
-    open303_create: create,
-    open303_destroy: destroy,
-    open303_init: () => 1,
-    open303_note_on: (handle: number, note: number) => noteOns.push({ api: 'open303', handle, note }),
-    open303_set_param: () => {},
-    jc303_create: create,
-    jc303_destroy: destroy,
-    jc303_init_handle: () => 1,
-    jc303_process_handle: () => 0,
-    prophecy_create: create,
-    prophecy_destroy: destroy,
-    prophecy_init: () => 1,
-    prophecy_note_on: (handle: number, note: number) => noteOns.push({ api: 'prophecy', handle, note }),
-    prophecy_set_param: () => {},
-    prophecy_process: () => 0,
+    ...voiceApi('open303'),
+    ...voiceApi('jc303'),
+    ...voiceApi('prophecy'),
   };
   return { exports, live, noteOns };
 }

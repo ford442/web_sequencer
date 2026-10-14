@@ -152,6 +152,7 @@ void check(bool cond, const char* msg) {
 
 /** open303's C API for event_api_checks.h. */
 struct EventApi {
+    static constexpr bool kMono = true;  // MonoNoteEngine-wrapped
     std::vector<float> scratch = std::vector<float>(512);
     uintptr_t create() { return open303_create(); }
     void init(uintptr_t h, int block) { open303_init(h, 48000.0f, block); }

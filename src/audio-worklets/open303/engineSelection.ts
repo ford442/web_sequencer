@@ -189,7 +189,7 @@ export class Open303EngineSelection {
     private ensureLiveHighFid(): boolean {
         if (this.highFid?.isReady) return true;
         if (this.highFidDegraded) return false;
-        if (!this.session.isNativeApi || this.session.isInvalidHandle(this.session.nativeOutputPtr)) return false;
+        if (!this.session.isNativeApi) return false;
 
         const exports = this.session.getExports();
         if (!supportsLiveHighFid(exports)) {

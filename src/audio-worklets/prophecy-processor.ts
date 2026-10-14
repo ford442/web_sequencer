@@ -1,113 +1,86 @@
 // src/audio-worklets/prophecy-processor.ts
 // AudioWorklet processor for the Korg Prophecy formant synthesis engine.
-// Uses the prophecy_* multi-instance C API exposed by prophecy_wrapper.cpp
-// inside hyphon_native.wasm, on the audio session's shared instance
-// (see hyphonNativeSession.ts) — this processor owns only its handle.
+// Drives one prophecy_* voice (prophecy_wrapper.cpp) on the audio session's
+// shared hyphon_native instance (see hyphonNativeSession.ts). Notes and params
+// are pushed into the voice's native event ring and land on their own frame
+// (#1344 P4 — they used to apply whenever the message arrived).
 
-import {
-    formatMissingWasmExports,
-    hasProphecyApi,
-} from './hyphonNativeImports';
-import { acquireHyphonNativeSession, type HyphonNativeSession } from './hyphonNativeSession';
+import { formatMissingWasmExports, hasProphecyApi } from './hyphonNativeImports';
+import { VoiceEvent } from './hyphonNativeExports';
+import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
 
-// Definitions for the AudioWorklet scope
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
+declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
+
+/** Fields the port messages carry; each message type reads a few of them. */
+interface ProphecyMessageData {
+    note?: number;
+    velocity?: number;
+    audioTime?: number;
+    paramId?: number;
+    value?: number;
 }
 
-declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
+interface ProphecyInitData {
+    wasmBytes: ArrayBuffer;
+    sampleRate: number;
+    isThreaded: boolean;
+    variant?: string;
+    memoryPages?: number;
+    exportMap?: Record<string, string>;
+}
 
-// Synth state (const object for erasableSyntaxOnly compatibility)
-const ProphecyState = {
-    UNINITIALIZED: 'uninitialized',
-    INITIALIZING:  'initializing',
-    READY:         'ready',
-    FAILED:        'failed',
-} as const;
+class ProphecyProcessor extends NativeVoiceProcessor {
+    private voice: NativeVoiceRef | null = null;
+    private initializing = false;
 
-type ProphecyStateType = typeof ProphecyState[keyof typeof ProphecyState];
-
-class ProphecyProcessor extends AudioWorkletProcessor {
-    /** Shared per-audio-session hyphon_native instance. */
-    private native:         HyphonNativeSession | null = null;
-    private heapFloat32:    Float32Array        | null = null;
-    private detachHeapListener: (() => void) | null = null;
-    private disposed = false;
-
-    private synthState: ProphecyStateType = ProphecyState.UNINITIALIZED;
-
-    /** Handle returned by prophecy_create(). */
-    private instanceHandle: number = 0;
-
-    /** Number of frames per process() quantum. */
-    private readonly bufFrames: number = 128;
-
-    // Error rate-limiting
-    private processErrorCount    = 0;
-    private allocationErrorCount = 0;
-
-    private readonly readyMessage = { type: 'ready' as const, heap: undefined as any };
+    private readonly readyMessage: { type: 'ready'; heap: unknown } = { type: 'ready', heap: undefined };
     private readonly errorMessage = { type: 'error' as const, error: '' };
-    private readonly heapMessage = { type: 'hyphon-heap' as const, data: undefined as any };
 
     constructor() {
-        super();
+        super('prophecy', '[Prophecy]');
         this.port.onmessage = this.handleMessage.bind(this);
     }
 
     // ── Message handler ───────────────────────────────────────────────────────
 
     private async handleMessage(event: MessageEvent): Promise<void> {
-        const { type, data } = event.data;
+        const { type, data } = event.data as { type: string; data?: unknown };
 
         if (type === 'init-wasm') {
-            await this.initializeWasm(data);
+            await this.initializeWasm(data as ProphecyInitData);
             return;
         }
-
         if (type === 'dispose') {
             this.dispose();
             return;
         }
 
-        if (this.synthState !== ProphecyState.READY || !this.native) return;
-
-        const exports = this.getExports();
+        const voice = this.voice;
+        if (!voice) return;
+        const d = (data ?? {}) as ProphecyMessageData;
 
         switch (type) {
             case 'noteOn':
-                try {
-                    exports.prophecy_note_on(this.instanceHandle, data.note, data.velocity);
-                } catch (e) {
-                    console.error('[Prophecy] noteOn error:', e);
+                if (d.note !== undefined) {
+                    this.pushEvent(voice, this.frameAt(d.audioTime), VoiceEvent.NoteOn, d.note, d.velocity ?? 0);
                 }
                 break;
-
             case 'noteOff':
-                try {
-                    exports.prophecy_note_off(this.instanceHandle, data.note);
-                } catch (e) {
-                    console.error('[Prophecy] noteOff error:', e);
+                if (d.note !== undefined) {
+                    this.pushEvent(voice, this.frameAt(d.audioTime), VoiceEvent.NoteOff, d.note, 0);
                 }
                 break;
-
             case 'allNotesOff':
-                try {
-                    exports.prophecy_all_notes_off(this.instanceHandle);
-                } catch (e) {
-                    console.error('[Prophecy] allNotesOff error:', e);
-                }
+                // Stop: drop what is still scheduled, then silence what sounds —
+                // the hard reset the part has always had.
+                this.cancelNotes(voice);
+                this.x.prophecy_all_notes_off(voice.handle);
                 break;
-
             case 'set-param':
-                try {
-                    exports.prophecy_set_param(this.instanceHandle, data.paramId, data.value);
-                } catch (e) {
-                    console.error('[Prophecy] set-param error:', e);
+                if (d.paramId !== undefined && d.value !== undefined) {
+                    this.pushEvent(voice, this.frameAt(d.audioTime), VoiceEvent.Param, d.paramId, d.value);
                 }
                 break;
-
             default:
                 break;
         }
@@ -115,112 +88,67 @@ class ProphecyProcessor extends AudioWorkletProcessor {
 
     // ── WASM initialization ───────────────────────────────────────────────────
 
-    private async initializeWasm(data: {
-        wasmBytes:   ArrayBuffer;
-        sampleRate:  number;
-        isThreaded:  boolean;
-        variant?:    string;
-        memoryPages?: number;
-        exportMap?:  Record<string, string>;
-    }): Promise<void> {
-        if (this.synthState === ProphecyState.INITIALIZING) return;
-        this.synthState = ProphecyState.INITIALIZING;
-
+    private async initializeWasm(data: ProphecyInitData): Promise<void> {
+        if (this.initializing || this.voice) return;
+        this.initializing = true;
+        let handle = 0;
         try {
-            const { wasmBytes, sampleRate, isThreaded, memoryPages, exportMap } = data;
-
             // Compile/allocate/instantiate happens once per audio session; the
-            // second Prophecy part and every 303 voice reuse the same instance.
-            const native = await acquireHyphonNativeSession(
+            // second Prophecy part, the drums and every 303 voice reuse it.
+            const native = await this.attachSession(
                 {
-                    wasmBytes,
-                    isThreaded: !!isThreaded,
+                    wasmBytes: data.wasmBytes,
+                    isThreaded: !!data.isThreaded,
                     // createHyphonMemory floors this per profile (pthread / st).
-                    memoryPages,
-                    exportMap,
+                    memoryPages: data.memoryPages,
+                    exportMap: data.exportMap,
                 },
-                '[Prophecy]',
+                data.sampleRate,
             );
             if (this.disposed) return;
-            this.native = native;
-            this.updateHeap();
             if (!native.memory) throw new Error('[Prophecy] No memory export/import found');
-            const exp = native.exports;
 
-            // Verify the Prophecy API on *normalized* exports — release builds
-            // minify the raw names (prophecy_create → V, etc.).
-            if (!hasProphecyApi(exp)) {
+            // Verify on *normalized* exports — the map resolves any renamed export.
+            if (!hasProphecyApi(native.exports)) {
                 throw new Error(
                     '[Prophecy] prophecy_* API not found in WASM exports. ' +
-                    formatMissingWasmExports(native.instance.exports, [
-                        'prophecy_create',
-                        'prophecy_init',
-                    ]),
+                    formatMissingWasmExports(native.instance.exports, ['prophecy_create', 'prophecy_render']),
                 );
             }
 
-            // Create and initialise an engine instance
-            this.instanceHandle = exp.prophecy_create();
-            if (!this.instanceHandle) throw new Error('[Prophecy] prophecy_create() returned null handle');
-
-            const ok = exp.prophecy_init(this.instanceHandle, sampleRate, this.bufFrames);
+            handle = this.x.prophecy_create();
+            if (!handle) throw new Error('[Prophecy] prophecy_create() returned null handle');
+            const ok = this.x.prophecy_init(handle, this.rateHz, NativeVoiceProcessor.MAX_BLOCK_FRAMES);
             if (ok !== 1) throw new Error(`[Prophecy] prophecy_init() returned ${ok}`);
 
-            native.retain();
-            const unsubscribe = native.onHeapGrow((stats) => {
-                this.updateHeap();
-                this.heapMessage.data = stats;
-                this.port.postMessage(this.heapMessage);
-            });
-            this.detachHeapListener = () => {
-                unsubscribe();
-                native.release();
-            };
-
-            this.synthState = ProphecyState.READY;
-            console.log(`[Prophecy] Engine ready: handle=${this.instanceHandle}, sr=${sampleRate}`);
+            this.voice = { prefix: 'prophecy', handle };
+            console.log(`[Prophecy] Engine ready: handle=${handle}, sr=${this.rateHz}`);
             this.readyMessage.heap = native.stats;
             this.port.postMessage(this.readyMessage);
-
-        } catch (e: any) {
-            this.destroyHandle();
-            this.synthState = ProphecyState.FAILED;
+        } catch (e: unknown) {
+            if (handle) this.x.prophecy_destroy(handle);
+            this.releaseSession();
             console.error('[Prophecy] WASM init failed:', e);
-            this.errorMessage.error = String(e?.message ?? e);
+            this.errorMessage.error = e instanceof Error ? e.message : String(e);
             this.port.postMessage(this.errorMessage);
+        } finally {
+            this.initializing = false;
         }
-    }
-
-    private getExports(): Record<string, any> {
-        return this.native?.exports ?? {};
-    }
-
-    private updateHeap(): void {
-        const memory = this.native?.memory;
-        if (memory && this.heapFloat32?.buffer !== memory.buffer) {
-            this.heapFloat32 = new Float32Array(memory.buffer);
-        }
-    }
-
-    private destroyHandle(): void {
-        if (!this.instanceHandle) return;
-        try {
-            this.getExports().prophecy_destroy?.(this.instanceHandle);
-        } catch (e) {
-            console.warn('[Prophecy] prophecy_destroy failed:', e);
-        }
-        this.instanceHandle = 0;
     }
 
     /** Node teardown: the instance is shared, so hand the handle back explicitly. */
     private dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
-        this.destroyHandle();
-        this.detachHeapListener?.();
-        this.detachHeapListener = null;
-        this.synthState = ProphecyState.FAILED;
-        this.heapFloat32 = null;
+        if (this.voice) {
+            try {
+                this.x.prophecy_destroy(this.voice.handle);
+            } catch (e) {
+                console.warn('[Prophecy] prophecy_destroy failed:', e);
+            }
+            this.voice = null;
+        }
+        this.releaseSession();
     }
 
     // ── Audio render ──────────────────────────────────────────────────────────
@@ -230,56 +158,25 @@ class ProphecyProcessor extends AudioWorkletProcessor {
         const output = outputs[0];
         if (!output) return true;
 
-        const channelL = output[0];
-        const channelR = output[1] ?? null;
+        const left = output[0];
+        const right = output[1];
+        const frames = left?.length ?? 128;
+        this.beginBlock(frames);
 
-        if (this.synthState !== ProphecyState.READY || !this.native || !this.heapFloat32) {
-            channelL?.fill(0);
-            channelR?.fill(0);
+        const voice = this.voice;
+        if (!voice) {
+            NativeVoiceProcessor.silence(left, right);
             return true;
         }
 
+        this.perf.beginProcess(frames);
         try {
-            const exports = this.getExports();
-            const numFrames = channelL?.length ?? this.bufFrames;
-
-            // Refresh heap view when memory grows (SharedArrayBuffer may be detached)
-            this.updateHeap();
-
-            // prophecy_process returns a pointer to the internal float buffer
-            const ptr: number = exports.prophecy_process(this.instanceHandle, numFrames);
-
-            if (!ptr) {
-                if (this.allocationErrorCount++ < 5)
-                    console.error('[Prophecy] prophecy_process returned null pointer');
-                channelL?.fill(0);
-                channelR?.fill(0);
-                return true;
-            }
-
-            const offset = ptr >>> 2;  // Convert byte pointer to Float32Array index (divide by 4 bytes per float)
-            const heap   = this.heapFloat32!;
-
-            if (offset >= 0 && offset + numFrames <= heap.length) {
-                for (let i = 0; i < numFrames; i++) {
-                    const s = heap[offset + i];
-                    if (channelL) channelL[i] = s;
-                    if (channelR) channelR[i] = s;
-                }
-            } else {
-                if (this.processErrorCount++ < 5)
-                    console.error(`[Prophecy] Heap out-of-bounds: offset=${offset}, heapLen=${heap.length}`);
-                channelL?.fill(0);
-                channelR?.fill(0);
-            }
-
-        } catch (e: any) {
-            if (this.processErrorCount++ < 5)
-                console.error('[Prophecy] process() error:', e);
-            channelL?.fill(0);
-            channelR?.fill(0);
+            this.renderVoice(voice, frames, left, right);
+        } catch (e) {
+            this.processFailed(e, left, right);
+        } finally {
+            this.perf.endProcess();
         }
-
         return true;
     }
 }

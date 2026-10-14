@@ -395,6 +395,97 @@ struct NativeVoice {
         schedule.absorb(ring);
         schedule.removeIf(isNoteEvent);
     }
+
+    /**
+     * Apply every pending event now, in schedule order, whatever its frame
+     * (consumer side). For a voice that stops being rendered — an engine
+     * switch — so its future params land instead of waiting to replay, stale,
+     * on the first block after it is selected again.
+     */
+    void flush() {
+        schedule.absorb(ring);
+        const uint32_t pending = schedule.size();
+        for (uint32_t i = 0; i < pending; ++i) engine.apply(schedule[i]);
+        stats.applied += pending;
+        schedule.clear();
+    }
+};
+
+// ── MonoNoteEngine: mono-synth note discipline ──────────────────────────────
+
+/**
+ * Wraps a monophonic engine so the event stream follows the rules the 303
+ * worklet used to enforce in TypeScript (#1344 P1), now on the exact frame:
+ *
+ *   - a noteOn while a note is held releases it first — retrigger, not slide
+ *   - a noteOff for any note but the held one is dropped: a note that a later
+ *     noteOn replaced still has its own noteOff on the way, and engines that
+ *     ignore note numbers would close the new note's gate with it
+ *   - kAllNotesOff releases the held note (MIDI All Notes Off — not a reset)
+ *   - a note held for maxHoldSeconds is released on that frame (stuck notes)
+ *
+ * The wrapped engine stays reachable as `inner`; immediate exports call it
+ * directly and bypass these rules. After an immediate all-notes-off, call
+ * forget() so the wrapper does not release a note the engine already dropped.
+ */
+template <class Inner>
+struct MonoNoteEngine {
+    static constexpr float kMaxHoldSeconds = 8.0f;
+
+    Inner inner;
+    int held = -1;            // MIDI note whose gate is open, -1 = none
+    int64_t heldFrames = 0;   // frames rendered since it opened
+    int64_t maxHoldFrames = 0;
+
+    bool init(float sampleRate, int maxFrames) {
+        held = -1;
+        heldFrames = 0;
+        maxHoldFrames = static_cast<int64_t>(sampleRate * kMaxHoldSeconds);
+        return inner.init(sampleRate, maxFrames);
+    }
+
+    void apply(const Event& e) {
+        switch (e.type) {
+            case kNoteOn:
+                if (held >= 0) release();
+                inner.apply(e);
+                held = e.target;
+                heldFrames = 0;
+                break;
+            case kNoteOff:
+                if (static_cast<int>(e.target) == held) release();
+                break;
+            case kAllNotesOff:
+                if (held >= 0) release();
+                break;
+            default:
+                inner.apply(e);
+                break;
+        }
+    }
+
+    void render(float* out, int frames) {
+        if (held >= 0 && maxHoldFrames > 0 && heldFrames + frames > maxHoldFrames) {
+            const int before = static_cast<int>(maxHoldFrames - heldFrames);
+            if (before > 0) inner.render(out, before);
+            release();
+            inner.render(out + before, frames - before);
+            return;
+        }
+        inner.render(out, frames);
+        if (held >= 0) heldFrames += frames;
+    }
+
+    void forget() { held = -1; }
+
+private:
+    void release() {
+        Event off;
+        off.type = kNoteOff;
+        off.target = static_cast<uint16_t>(held);
+        inner.apply(off);
+        held = -1;
+    }
 };
 
 // ── Smoothed: one-pole parameter smoothing ──────────────────────────────────

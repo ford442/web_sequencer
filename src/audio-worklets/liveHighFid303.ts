@@ -38,7 +38,10 @@ export interface LiveHighFidExports {
   highfid303_all_notes_off?: (h: number | bigint) => void;
   highfid303_set_param?: (h: number | bigint, paramId: number, value: number) => void;
   highfid303_set_oversample?: (h: number | bigint, factor: number) => void;
-  highfid303_process?: (h: number | bigint, outPtr: number | bigint, numFrames: number) => void;
+  /** Voice-core event API (#1344): the processor pushes notes and renders through these. */
+  highfid303_push_event?: (h: number | bigint, frame: number, type: number, target: number, value: number,
+    a0: number, a1: number, a2: number, a3: number) => number;
+  highfid303_render?: (h: number | bigint, blockStartFrame: number, numFrames: number) => number;
 }
 
 /** Oversample factors the C wrapper accepts. Live default is 1. */
@@ -54,15 +57,17 @@ export function supportsLiveHighFid(exports: LiveHighFidExports | null | undefin
   return (
     typeof exports.highfid303_create === 'function' &&
     typeof exports.highfid303_init === 'function' &&
-    typeof exports.highfid303_process === 'function' &&
-    typeof exports.highfid303_note_on === 'function' &&
+    typeof exports.highfid303_push_event === 'function' &&
+    typeof exports.highfid303_render === 'function' &&
     typeof exports.highfid303_set_param === 'function'
   );
 }
 
 /**
- * One live diode-ladder voice. Owns only the WASM instance handle — the output
- * buffer stays owned by the processor and is shared with the other engines.
+ * One live diode-ladder voice: owns its WASM handle. Notes reach it as voice-core
+ * events pushed by open303-processor, which also renders it (`handle` is what
+ * the processor addresses it by); the immediate calls here are for setup,
+ * coefficient pushes and teardown.
  */
 export class LiveHighFid303Voice {
   private handle: number | bigint = 0;
@@ -77,6 +82,11 @@ export class LiveHighFid303Voice {
 
   get isReady(): boolean {
     return !this.isInvalid(this.handle);
+  }
+
+  /** The highfid303_* handle, 0 when not initialised. */
+  get voiceHandle(): number {
+    return this.isReady ? Number(this.handle) : 0;
   }
 
   get activeOversample(): LiveHighFidOversample {
@@ -136,12 +146,6 @@ export class LiveHighFid303Voice {
   allNotesOff(): void {
     if (!this.isReady) return;
     this.exports.highfid303_all_notes_off?.(this.toHandle(this.handle));
-  }
-
-  /** Render `numFrames` into the processor-owned heap buffer at `outPtr`. */
-  process(outPtr: number | bigint, numFrames: number): void {
-    if (!this.isReady) return;
-    this.exports.highfid303_process?.(this.toHandle(this.handle), this.toHandle(outPtr), numFrames);
   }
 
   destroy(): void {

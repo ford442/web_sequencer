@@ -521,7 +521,7 @@ struct HighFid303Engine {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-using HighFid303NativeVoice = hyphon::NativeVoice<HighFid303Engine, 256>;
+using HighFid303NativeVoice = hyphon::NativeVoice<hyphon::MonoNoteEngine<HighFid303Engine>, 256>;
 
 // The live high-fid voice per 303 voice, plus offline renders and slack.
 HYPHON_EXPORT_VOICE(highfid303, HighFid303NativeVoice, 16)
@@ -531,38 +531,38 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void highfid303_note_on(uintptr_t handle, int midiNote, float velocity)
 {
-    if (auto* v = highfid303_voice(handle)) v->engine.noteOn(midiNote, velocity);
+    if (auto* v = highfid303_voice(handle)) v->engine.inner.noteOn(midiNote, velocity);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_note_off(uintptr_t handle, int midiNote)
 {
-    if (auto* v = highfid303_voice(handle)) v->engine.noteOff(midiNote);
+    if (auto* v = highfid303_voice(handle)) v->engine.inner.noteOff(midiNote);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_all_notes_off(uintptr_t handle)
 {
-    if (auto* v = highfid303_voice(handle)) v->engine.allNotesOff();
+    if (auto* v = highfid303_voice(handle)) { v->engine.inner.allNotesOff(); v->engine.forget(); }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_set_param(uintptr_t handle, int paramId, float value)
 {
-    if (auto* v = highfid303_voice(handle)) v->engine.setParam(paramId, value);
+    if (auto* v = highfid303_voice(handle)) v->engine.inner.setParam(paramId, value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void highfid303_set_oversample(uintptr_t handle, int factor)
 {
-    if (auto* v = highfid303_voice(handle)) v->engine.setOversample(factor);
+    if (auto* v = highfid303_voice(handle)) v->engine.inner.setOversample(factor);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int highfid303_get_oversample(uintptr_t handle)
 {
     auto* v = highfid303_voice(handle);
-    return v ? v->engine.oversampleFactor : 1;
+    return v ? v->engine.inner.oversampleFactor : 1;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -570,7 +570,7 @@ void highfid303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
 {
     auto* v = highfid303_voice(handle);
     if (!v) return;
-    v->engine.render(reinterpret_cast<float*>(outputPtr), numFrames);
+    v->engine.inner.render(reinterpret_cast<float*>(outputPtr), numFrames);
 }
 
 /** Stable engine id string for registry / UI. */

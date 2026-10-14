@@ -467,7 +467,7 @@ struct Open303Engine {
     }
 };
 
-using Open303NativeVoice = hyphon::NativeVoice<Open303Engine, 256>;
+using Open303NativeVoice = hyphon::NativeVoice<hyphon::MonoNoteEngine<Open303Engine>, 256>;
 
 // One per 303 voice (bass1 / bass2 / lead303) in an audio session, plus slack.
 HYPHON_EXPORT_VOICE(open303, Open303NativeVoice, 16)
@@ -485,25 +485,25 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void open303_note_on(uintptr_t handle, int midiNote, float velocity)
 {
-    if (auto* v = open303_voice(handle)) v->engine.noteOn(midiNote, velocity);
+    if (auto* v = open303_voice(handle)) v->engine.inner.noteOn(midiNote, velocity);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_note_off(uintptr_t handle, int midiNote)
 {
-    if (auto* v = open303_voice(handle)) v->engine.noteOff(midiNote);
+    if (auto* v = open303_voice(handle)) v->engine.inner.noteOff(midiNote);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_all_notes_off(uintptr_t handle)
 {
-    if (auto* v = open303_voice(handle)) v->engine.allNotesOff();
+    if (auto* v = open303_voice(handle)) { v->engine.inner.allNotesOff(); v->engine.forget(); }
 }
 
 EMSCRIPTEN_KEEPALIVE
 void open303_set_param(uintptr_t handle, int paramId, float value)
 {
-    if (auto* v = open303_voice(handle)) v->engine.setParam(paramId, value);
+    if (auto* v = open303_voice(handle)) v->engine.inner.setParam(paramId, value);
 }
 
 /**
@@ -513,7 +513,7 @@ void open303_set_param(uintptr_t handle, int paramId, float value)
 EMSCRIPTEN_KEEPALIVE
 void open303_set_oversample(uintptr_t handle, int factor)
 {
-    if (auto* v = open303_voice(handle)) v->engine.setOversample(factor);
+    if (auto* v = open303_voice(handle)) v->engine.inner.setOversample(factor);
 }
 
 /** Current oversampling factor for @p handle (1 if unknown). */
@@ -521,7 +521,7 @@ EMSCRIPTEN_KEEPALIVE
 int open303_get_oversample(uintptr_t handle)
 {
     auto* v = open303_voice(handle);
-    return v ? v->engine.oversampleFactor : 1;
+    return v ? v->engine.inner.oversampleFactor : 1;
 }
 
 /**
@@ -533,7 +533,7 @@ void open303_process(uintptr_t handle, uintptr_t outputPtr, int numFrames)
 {
     auto* v = open303_voice(handle);
     if (!v) return;
-    v->engine.render(reinterpret_cast<float*>(outputPtr), numFrames);
+    v->engine.inner.render(reinterpret_cast<float*>(outputPtr), numFrames);
 }
 
 // ── 303 model registry API ("303 Voices") ───────────────────────────────────
@@ -575,7 +575,7 @@ EMSCRIPTEN_KEEPALIVE
 int open303_set_model(uintptr_t handle, int index)
 {
     auto* v = open303_voice(handle);
-    return v ? v->engine.setModel(index) : 0;
+    return v ? v->engine.inner.setModel(index) : 0;
 }
 
 /** Currently applied model index for an open303 instance (default 0 = stock). */
@@ -583,7 +583,7 @@ EMSCRIPTEN_KEEPALIVE
 int open303_get_model(uintptr_t handle)
 {
     auto* v = open303_voice(handle);
-    return v ? v->engine.modelIndex : -1;
+    return v ? v->engine.inner.modelIndex : -1;
 }
 
 /** Registry index of the model with stable string id @p id, or -1. Lets
@@ -602,7 +602,7 @@ int open303_set_model_by_id(uintptr_t handle, const char* id)
 {
     auto* v = open303_voice(handle);
     if (!v) return 0;
-    return v->engine.setModel(find303ModelIndexById(id));
+    return v->engine.inner.setModel(find303ModelIndexById(id));
 }
 
 } // extern "C"

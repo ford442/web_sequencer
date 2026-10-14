@@ -1,23 +1,26 @@
 // src/audio-worklets/open303-processor.ts
-// Hardened version with stack overflow protection and graceful degradation
+// One TB-303 voice (bass1 / bass2 / lead303) on the audio session's shared
+// hyphon_native instance: the custom open303 engine, the authentic jc303
+// engine, or the live diode-ladder high-fid voice — and, for live A/B, stock
+// open303 and high-fid side by side.
+//
+// Notes and params are voice-core events (#1344 P4): each message becomes an
+// event on the frame of its audioTime, pushed into the native ring of every
+// voice being rendered, and the engine applies it on that exact sample. The
+// mono-synth rules this worklet used to enforce in TypeScript — retrigger
+// instead of slide, ignore a stale noteOff, release a stuck note after 8 s —
+// run natively on the event frame (hyphon::MonoNoteEngine).
 
-import { WorkletPerfReporter } from './workletPerfReporter';
+import { VoiceEvent } from './hyphonNativeExports';
+import { NativeVoiceProcessor, type NativeVoiceRef, type NativeVoicePrefix } from './nativeVoiceProcessor';
 import { Open303EngineSession } from './open303/engineSession';
 import { Open303EngineSelection } from './open303/engineSelection';
-import { ScheduledEventQueue, type ScheduledEvent } from './open303/eventQueue';
-import { SynthState, getTime, type EngineFamily } from './open303/shared';
+import { getTime, type EngineFamily } from './open303/shared';
 
-// Definitions for the AudioWorklet scope
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-declare const currentTime: number;
+declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
 
-declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
-
-// Map from jc303_set* function name → open303 paramId
-// (keeps the existing message protocol while supporting the new native API)
+// Map from jc303_set* message name → Open303Param id. The message protocol
+// predates the native API; every engine shares these ids.
 const JC303_PARAM_MAP: Record<string, number> = {
     jc303_setWaveform:   0,  // OPEN303_WAVEFORM
     jc303_setTuning:     1,  // OPEN303_TUNING
@@ -29,14 +32,6 @@ const JC303_PARAM_MAP: Record<string, number> = {
     jc303_setVolume:     7,  // OPEN303_VOLUME
     jc303_setFilterMode: 8,  // OPEN303_FILTER_MODE
 };
-
-/** open303_* entry points the live A/B stock side (Phase L2) drives. */
-interface StockSideExports {
-    open303_note_on(handle: number | bigint, note: number, velocity: number): void;
-    open303_note_off(handle: number | bigint, note: number): void;
-    open303_all_notes_off(handle: number | bigint): void;
-    open303_process(handle: number | bigint, outPtr: number | bigint, numFrames: number): void;
-}
 
 /** Payloads of the L2/L3 configuration messages. */
 interface LiveHighFidMessageData {
@@ -57,45 +52,22 @@ interface Open303MessageData extends LiveHighFidMessageData {
     oversample?: number;
 }
 
-class Open303Processor extends AudioWorkletProcessor {
+class Open303Processor extends NativeVoiceProcessor {
     private readonly session = new Open303EngineSession(this.port);
     private readonly engineSelection = new Open303EngineSelection(this.session, this.port, () => this.clearAllNotes());
-    private readonly scheduled = new ScheduledEventQueue(this.applyEvent.bind(this));
-    private readonly perf = new WorkletPerfReporter(this.port, 'open303');
 
     // Mild makeup gain — hyphon_native 303 engines already run near full scale.
     private static readonly OUTPUT_GAIN = 1.0;
 
-    // Note bookkeeping below runs on the audio clock (see audioNowMs).
-
-    // Stuck note protection
-    private activeNotes = new Float64Array(128); // note (0-127) -> startTime (ms). 0 means inactive.
-    private activeNoteCount = 0;
-    private static readonly MAX_NOTE_DURATION_MS = 8000;
-    private stuckNoteWarnings = 0;
-
-    // Rate limiting
-    private lastNoteOnTime = -Infinity;
-    private static readonly MIN_NOTE_INTERVAL_MS = 5;
-    private static readonly MAX_NOTES_PER_SECOND = 50;
-    private noteOnTimes: number[] = [];
-
-    // Portamento/slide fix
-    private pendingNote: { note: number; velocity: number } | null = null;
-    private noteOffJustSent = false;
-
-    // Error tracking (process() hot path)
-    private processErrorCount = 0;
-    private allocationErrorCount = 0;
-
-    /** Set by 'dispose': handles are gone, process() lets the node be collected. */
-    private disposed = false;
-
     /** Params/engine messages received before the worklet reaches READY. */
     private pendingMessages: Array<{ type: string; data: Open303MessageData | undefined }> = [];
 
+    /** Voices rendered this block / param targets (reused, no per-message allocation). */
+    private readonly rendered: NativeVoiceRef[] = [];
+    private readonly paramTargets: NativeVoiceRef[] = [];
+
     constructor() {
-        super();
+        super('open303', '[Open303]');
         this.port.onmessage = this.handleMessage.bind(this);
     }
 
@@ -103,7 +75,11 @@ class Open303Processor extends AudioWorkletProcessor {
         const { type, data } = event.data as { type: string; data?: Open303MessageData };
 
         if (type === 'init-wasm') {
-            await this.session.initialize(data, () => this.flushPendingMessages());
+            await this.session.initialize(data, () => {
+                const native = this.session.nativeSession;
+                if (native) this.adoptSession(native, this.session.sampleRateHz);
+                this.flushPendingMessages();
+            });
             return;
         }
 
@@ -113,14 +89,13 @@ class Open303Processor extends AudioWorkletProcessor {
             // they are no longer freed with a per-processor heap.
             this.disposed = true;
             this.pendingMessages = [];
-            this.scheduled.clear();
             this.engineSelection.dispose();
             this.session.dispose();
             return;
         }
 
         if (!this.session.isReady) {
-            if (typeof type === 'string' && Open303Processor.QUEUED_BEFORE_READY.has(type)) {
+            if (Open303Processor.QUEUED_BEFORE_READY.has(type)) {
                 this.pendingMessages.push({ type, data });
             }
             return;
@@ -141,9 +116,9 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private dispatchMessage(type: string, data: Open303MessageData | undefined): void {
         if (type === 'noteOn' && data?.note !== undefined) {
-            this.scheduleOrApply({ kind: 'noteOn', note: data.note, velocity: data.velocity ?? 0, audioTime: data.audioTime ?? 0 });
+            this.pushNote(VoiceEvent.NoteOn, data.note, data.velocity ?? 0, data.audioTime);
         } else if (type === 'noteOff' && data?.note !== undefined) {
-            this.scheduleOrApply({ kind: 'noteOff', note: data.note, audioTime: data.audioTime ?? 0 });
+            this.pushNote(VoiceEvent.NoteOff, data.note, 0, data.audioTime);
         } else if (type === 'allNotesOff') {
             this.releaseAllNotes();
         } else if (type === 'set-engine' && data?.engine !== undefined) {
@@ -151,9 +126,116 @@ class Open303Processor extends AudioWorkletProcessor {
         } else if (type === 'set-303-model' && data?.model !== undefined) {
             this.engineSelection.setModel(data.model, data.engine, data.oversample);
         } else if (type === 'param' && data?.func !== undefined && data.value !== undefined) {
-            this.scheduleOrApply({ kind: 'param', func: data.func, value: data.value, audioTime: data.audioTime ?? 0 });
+            this.handleParam(data.func, data.value, data.audioTime);
         } else if (type === 'set-live-ab' || type === 'set-highfid-coeffs' || type === 'attach-highfid-coeff-table') {
             this.handleLiveHighFidMessage(type, data);
+        }
+    }
+
+    private flushPendingMessages(): void {
+        const queue = this.pendingMessages;
+        this.pendingMessages = [];
+        for (const msg of queue) this.dispatchMessage(msg.type, msg.data);
+    }
+
+    // ── Routing ──────────────────────────────────────────────────────────────
+
+    private ref(prefix: NativeVoicePrefix, handle: number | bigint): NativeVoiceRef {
+        return { prefix, handle: Number(handle) };
+    }
+
+    /**
+     * The voices process() renders, in output order: the active engine, with
+     * stock open303 first while live A/B shadows the high-fid voice note for note.
+     */
+    private renderedVoices(): NativeVoiceRef[] {
+        const out = this.rendered;
+        out.length = 0;
+        const highFid = this.engineSelection.liveHighFid;
+        const engine = this.engineSelection.activeEngine;
+        if (engine === 'highfid' && highFid?.isReady) {
+            if (this.engineSelection.abActive) out.push(this.ref('open303', this.session.instanceHandle));
+            out.push(this.ref('highfid303', highFid.voiceHandle));
+        } else if (engine === 'jc303' && this.session.hasJc303MultiApi) {
+            out.push(this.ref('jc303', this.session.jc303Handle));
+        } else if (this.session.isNativeApi) {
+            out.push(this.ref('open303', this.session.instanceHandle));
+        }
+        return out;
+    }
+
+    private pushNote(type: number, note: number, velocity: number, audioTime: number | undefined): void {
+        const frame = this.frameAt(audioTime);
+        for (const voice of this.renderedVoices()) this.pushEvent(voice, frame, type, note, velocity);
+    }
+
+    /**
+     * Params reach the high-fid voice whenever it exists, and jc303 when it is
+     * the engine or open303 otherwise — so a CPU-gate step-down or an engine
+     * switch lands on a voice already in sync. Voices being rendered get the
+     * param on its frame; idle ones get it now (they are not sounding).
+     */
+    private handleParam(func: string, value: number, audioTime: number | undefined): void {
+        const paramId = JC303_PARAM_MAP[func];
+        if (paramId === undefined || !this.session.isNativeApi) return;
+
+        const targets = this.paramTargets;
+        targets.length = 0;
+        const highFid = this.engineSelection.liveHighFid;
+        if (highFid?.isReady) targets.push(this.ref('highfid303', highFid.voiceHandle));
+        if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
+            targets.push(this.ref('jc303', this.session.jc303Handle));
+        } else {
+            targets.push(this.ref('open303', this.session.instanceHandle));
+        }
+
+        const frame = this.frameAt(audioTime);
+        const rendered = this.renderedVoices();
+        for (const target of targets) {
+            if (rendered.some((v) => v.prefix === target.prefix)) {
+                this.pushEvent(target, frame, VoiceEvent.Param, paramId, value);
+            } else {
+                this.setParamNow(target, paramId, value);
+            }
+        }
+    }
+
+    private setParamNow(voice: NativeVoiceRef, paramId: number, value: number): void {
+        if (voice.prefix === 'highfid303') this.engineSelection.liveHighFid?.setParam(paramId, value);
+        else if (voice.prefix === 'jc303') this.x.jc303_set_param(voice.handle, paramId, value);
+        else this.x.open303_set_param(voice.handle, paramId, value);
+    }
+
+    /**
+     * Stop / mute: cancel the notes still scheduled and release what sounds.
+     * A release, not a reset — the 303 tail decays.
+     */
+    private releaseAllNotes(): void {
+        for (const voice of this.renderedVoices()) {
+            this.cancelNotes(voice);
+            this.pushEvent(voice, 0, VoiceEvent.AllNotesOff, 0, 0);
+        }
+    }
+
+    /**
+     * Engine / model switch or CPU-gate step-down (called before the switch):
+     * the voices about to go quiet drop their pending notes, apply their pending
+     * params, and reset — nothing left to replay the next time they play.
+     */
+    private clearAllNotes(): void {
+        if (!this.session.isInstantiated) return;
+        for (const voice of this.renderedVoices()) this.quiesce(voice);
+    }
+
+    private quiesce(voice: NativeVoiceRef): void {
+        try {
+            this.cancelNotes(voice);
+            this.flushEvents(voice);
+            if (voice.prefix === 'highfid303') this.engineSelection.liveHighFid?.allNotesOff();
+            else if (voice.prefix === 'jc303') this.x.jc303_all_notes_off(voice.handle);
+            else this.x.open303_all_notes_off(voice.handle);
+        } catch (e) {
+            console.error('[Open303] clearAllNotes failed:', e);
         }
     }
 
@@ -162,7 +244,9 @@ class Open303Processor extends AudioWorkletProcessor {
             const wasShadowing = this.engineSelection.abActive;
             this.engineSelection.setLiveAb(data?.armed === true);
             // Side A stops rendering: don't leave its notes hanging for the next arm.
-            if (wasShadowing && !this.engineSelection.abActive) this.stockAllNotesOff();
+            if (wasShadowing && !this.engineSelection.abActive && this.session.isNativeApi) {
+                this.quiesce(this.ref('open303', this.session.instanceHandle));
+            }
         } else if (type === 'set-highfid-coeffs') {
             this.engineSelection.setHighFidCoefficients(data?.coefficients ?? null);
         } else {
@@ -170,463 +254,80 @@ class Open303Processor extends AudioWorkletProcessor {
         }
     }
 
-    // ── Live A/B stock side (Phase L2) ────────────────────────────────────────
-    // While A/B is active the custom open303 instance shadows the live high-fid
-    // voice note for note, so both sides hear one MIDI stream.
-
-    private get stockExports(): StockSideExports {
-        return this.session.getExports() as StockSideExports;
-    }
-
-    private get stockHandle(): number | bigint {
-        return this.session.toWasmHandle(this.session.instanceHandle);
-    }
-
-    private stockNoteOn(note: number, velocity: number): void {
-        if (!this.engineSelection.abActive || !this.session.isNativeApi) return;
-        this.stockExports.open303_note_on(this.stockHandle, note, velocity);
-    }
-
-    private stockNoteOff(note: number): void {
-        if (!this.engineSelection.abActive || !this.session.isNativeApi) return;
-        this.stockExports.open303_note_off(this.stockHandle, note);
-    }
-
-    private stockAllNotesOff(): void {
-        if (!this.session.isInstantiated || !this.session.isNativeApi) return;
-        try {
-            this.stockExports.open303_all_notes_off(this.stockHandle);
-        } catch (e) {
-            console.error('[Open303] A/B stock all-notes-off failed:', e);
-        }
-    }
-
-    /**
-     * Apply a note/param event now, or hold it until the audio clock reaches its
-     * audioTime. Held events drain at the start of the first block whose
-     * currentTime has passed them — the same block grid the drum worklet uses,
-     * so a 303 note and a drum hit on one step land in the same quantum.
-     */
-    private scheduleOrApply(event: ScheduledEvent): void {
-        if (typeof currentTime !== 'undefined' && event.audioTime > currentTime) {
-            this.scheduled.schedule(event);
-            return;
-        }
-        // Anything queued at or before this event's time goes first, so an
-        // overdue event still waiting for the next drain can't land after this
-        // one and overwrite it (a stale automation value winning).
-        if (this.scheduled.length > 0) this.scheduled.drain(event.audioTime);
-        this.applyEvent(event);
-    }
-
-    private applyEvent(event: ScheduledEvent): void {
-        if (event.kind === 'noteOn') {
-            this.handleNoteOn(event.note, event.velocity);
-        } else if (event.kind === 'noteOff') {
-            this.handleNoteOff(event.note);
-        } else {
-            this.applyParamMessage(this.session.getExports(), event);
-        }
-    }
-
-    /**
-     * Stop / mute: cancel the notes still waiting in the queue and release what
-     * is sounding. A release, not a reset — the tail decays as it did when stop
-     * sent a bare noteOff(0) — but per active note, so jc303 (which matches note
-     * numbers) lets go too.
-     */
-    private releaseAllNotes(): void {
-        this.scheduled.dropNotes();
-        this.pendingNote = null;
-        this.releaseActiveNotes();
-    }
-
-    /** Engine noteOff for every sounding note. */
-    private releaseActiveNotes(): void {
-        if (this.activeNoteCount === 0) return;
-        for (let note = 0; note < 128; note++) {
-            if (this.activeNotes[note] !== 0) this.handleNoteOff(note);
-        }
-    }
-
-    /**
-     * Note timestamps (rate limit, stuck-note age) in audio-clock ms. Scheduled
-     * events drain inside process(), and the audio thread renders quanta in
-     * bursts, so wall-clock gaps between two drained notes say nothing about
-     * how far apart they sound.
-     */
-    private audioNowMs(): number {
-        return typeof currentTime !== 'undefined' ? currentTime * 1000 : getTime();
-    }
-
-    private applyParamMessage(exports: Record<string, any>, data: { func: string; value: number }): void {
-        if (this.session.isNativeApi) {
-            const paramId = JC303_PARAM_MAP[data.func as string];
-            if (paramId !== undefined) {
-                // The live high-fid voice mirrors Open303Param ids, so the same
-                // message keeps working. Params go to it whenever it exists,
-                // and the custom open303 instance keeps receiving them too, so
-                // a CPU-gate step-down lands on an already-in-sync stock voice.
-                this.engineSelection.liveHighFid?.setParam(paramId, data.value);
-                if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi && exports.jc303_set_param) {
-                    exports.jc303_set_param(this.session.toWasmHandle(this.session.jc303Handle), paramId, data.value);
-                } else if (exports.open303_set_param) {
-                    exports.open303_set_param(this.session.toWasmHandle(this.session.instanceHandle), paramId, data.value);
-                }
-            }
-        } else if (exports[data.func]) {
-            exports[data.func](data.value);
-        }
-    }
-
-    private flushPendingMessages(): void {
-        const queue = this.pendingMessages;
-        this.pendingMessages = [];
-        for (const msg of queue) {
-            this.dispatchMessage(msg.type, msg.data);
-        }
-    }
-
-    private handleNoteOn(note: number, velocity: number): void {
-        const now = this.audioNowMs();
-
-        // Rate limit check
-        let keepCount = 0;
-        for (let i = 0; i < this.noteOnTimes.length; i++) {
-            if (now - this.noteOnTimes[i] < 1000) {
-                this.noteOnTimes[keepCount++] = this.noteOnTimes[i];
-            }
-        }
-        this.noteOnTimes.length = keepCount;
-        if (this.noteOnTimes.length >= Open303Processor.MAX_NOTES_PER_SECOND) {
-            console.warn(`[Open303] Rate limit exceeded, dropping note ${note}`);
-            return;
-        }
-
-        const timeSinceLastNote = now - this.lastNoteOnTime;
-        if (timeSinceLastNote < Open303Processor.MIN_NOTE_INTERVAL_MS) {
-            console.warn(`[Open303] Note ${note} too soon (${timeSinceLastNote.toFixed(1)}ms), dropping`);
-            return;
-        }
-
-        // Portamento fix: a noteOn over a held note retriggers rather than
-        // slides. Release the held note, don't reset the engine — now that a
-        // long note's noteOff lands on time (after the next step's noteOn), a
-        // filter reset here would click on every overlap.
-        if (this.noteOffJustSent || this.activeNoteCount > 0) {
-            this.releaseActiveNotes();
-            this.pendingNote = { note, velocity };
-            this.noteOffJustSent = true;
-            return;
-        }
-
-        this.triggerNoteOn(note, velocity);
-    }
-
-    private handleNoteOff(note: number): void {
-        if (!this.session.isInstantiated) return;
-        // Mono-synth rule: only a sounding note can be released. A note that a
-        // later noteOn replaced still has its own noteOff in the queue, and the
-        // open303 / high-fid engines ignore note numbers — let it through and
-        // it closes the gate on the note that replaced it.
-        if (note < 0 || note >= 128 || this.activeNotes[note] === 0) return;
-        const exports = this.session.getExports();
-
-        try {
-            if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
-                this.stockNoteOff(note);
-                this.engineSelection.liveHighFid.noteOff(note);
-            } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                exports.jc303_note_off(this.session.toWasmHandle(this.session.jc303Handle), note);
-            } else if (this.session.isNativeApi) {
-                exports.open303_note_off(this.session.toWasmHandle(this.session.instanceHandle), note);
-            } else {
-                exports.jc303_noteOff(note);
-            }
-            this.activeNotes[note] = 0;
-            this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
-            this.noteOffJustSent = true;
-        } catch (e) {
-            console.error('[Open303] noteOff failed:', e);
-        }
-    }
-
-    private clearAllNotes(): void {
-        if (!this.session.isInstantiated) return;
-        const exports = this.session.getExports();
-
-        try {
-            if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
-                if (this.engineSelection.abActive) this.stockAllNotesOff();
-                this.engineSelection.liveHighFid.allNotesOff();
-            } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                exports.jc303_all_notes_off(this.session.toWasmHandle(this.session.jc303Handle));
-            } else if (this.session.isNativeApi) {
-                exports.open303_all_notes_off(this.session.toWasmHandle(this.session.instanceHandle));
-            } else if (exports.jc303_allNotesOff) {
-                exports.jc303_allNotesOff();
-            } else {
-                for (let note = 0; note < 128; note++) {
-                    if (this.activeNotes[note] !== 0) {
-                        exports.jc303_noteOff(note);
-                    }
-                }
-            }
-        } catch (e) {
-            console.error('[Open303] clearAllNotes failed:', e);
-        }
-        this.activeNotes.fill(0);
-        this.activeNoteCount = 0;
-    }
-
-    private triggerNoteOn(note: number, velocity: number): void {
-        if (!this.session.isInstantiated) return;
-        const exports = this.session.getExports();
-
-        try {
-            if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
-                this.stockNoteOn(note, velocity);
-                this.engineSelection.liveHighFid.noteOn(note, velocity);
-            } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                exports.jc303_note_on(this.session.toWasmHandle(this.session.jc303Handle), note, velocity);
-            } else if (this.session.isNativeApi) {
-                exports.open303_note_on(this.session.toWasmHandle(this.session.instanceHandle), note, velocity);
-            } else {
-                exports.jc303_noteOn(note, velocity);
-            }
-            const now = this.audioNowMs();
-            this.lastNoteOnTime = now;
-            this.noteOnTimes.push(now);
-            if (note >= 0 && note < 128 && this.activeNotes[note] === 0) {
-                this.activeNotes[note] = now || 0.1; // Ensure non-zero
-                this.activeNoteCount++;
-            } else if (note >= 0 && note < 128) {
-                this.activeNotes[note] = now || 0.1;
-            }
-        } catch (e: any) {
-            console.error(`[Open303] noteOn failed:`, e);
-        }
-    }
+    // ── Render ───────────────────────────────────────────────────────────────
 
     process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
         if (this.disposed) return false;
         const output = outputs[0];
         if (!output) return true;
 
-        const channelL = output[0];
-        const blockFrames = channelL ? channelL.length : 128;
-        this.perf.beginProcess(blockFrames);
+        const left = output[0];
+        const right = output[1];
+        const frames = left?.length ?? 128;
+        this.beginBlock(frames);
+        this.perf.beginProcess(frames);
         try {
-        const channelR = output[1];
-
-        // Apply the notes and params whose audioTime this block has reached.
-        if (this.scheduled.length > 0 && typeof currentTime !== 'undefined') {
-            this.scheduled.drain(currentTime);
-        }
-
-        // Handle pending note (portamento fix) — after the drain, so a note
-        // deferred by it still sounds in the block its audioTime fell due.
-        if (this.pendingNote && this.session.state === SynthState.READY) {
-            this.triggerNoteOn(this.pendingNote.note, this.pendingNote.velocity);
-            this.pendingNote = null;
-            this.noteOffJustSent = false;
-        }
-
-        // Output silence if not ready
-        if (!this.session.isReady || !this.session.heapFloat32) {
-            if (channelL) channelL.fill(0);
-            if (channelR) channelR.fill(0);
-            return true;
-        }
-
-        try {
-            const exports = this.session.getExports();
-            const numFrames = channelL ? channelL.length : 128;
-            const gain = Open303Processor.OUTPUT_GAIN;
-
-            if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid?.isReady) {
-                // ── Live diode-ladder high-fid voice (Phase L1) ──────────────
-                if (this.session.isInvalidHandle(this.session.nativeOutputPtr)) {
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-
-                // L3: pick up knob moves from the shared coefficient table.
-                this.engineSelection.pollCoefficientTable();
-
-                const quantumUs = (numFrames / this.session.sampleRateHz) * 1_000_000;
-                const busB = outputs[1];
-                if (this.engineSelection.abActive && busB) {
-                    // ── Live A/B (Phase L2): stock → output 0, high-fid → output 1 ──
-                    // One scratch buffer, rendered and copied out twice.
-                    const tStock = getTime();
-                    this.stockExports.open303_process(
-                        this.stockHandle,
-                        this.session.toWasmHandle(this.session.nativeOutputPtr),
-                        numFrames,
-                    );
-                    const stockUs = (getTime() - tStock) * 1000;
-                    if (!this.copyNativeOutput(numFrames, channelL, channelR, gain)) return true;
-
-                    const tHigh = getTime();
-                    this.engineSelection.liveHighFid.process(this.session.nativeOutputPtr, numFrames);
-                    const renderUs = (getTime() - tHigh) * 1000;
-                    if (!this.copyNativeOutput(numFrames, busB[0], busB[1], gain)) return true;
-
-                    // Only the high-fid time feeds the gate — it can only trip side B.
-                    this.engineSelection.recordAbTiming(stockUs, renderUs, quantumUs);
-                } else {
-                    const t0 = getTime();
-                    this.engineSelection.liveHighFid.process(this.session.nativeOutputPtr, numFrames);
-                    const renderUs = (getTime() - t0) * 1000;
-                    if (!this.copyNativeOutput(numFrames, channelL, channelR, gain)) return true;
-
-                    // CPU meter / glitch gate — degrade to stock rather than glitch.
-                    this.engineSelection.recordHighFidTiming(renderUs, quantumUs);
-                }
-            } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                // ── Authentic rosic::Open303 multi-instance API ───────────────
-                const ptr = exports.jc303_process_handle(
-                    this.session.toWasmHandle(this.session.jc303Handle),
-                    numFrames,
-                );
-                const floatOffset = this.session.getWasmSampleOffset(ptr, numFrames);
-                if (floatOffset < 0) {
-                    if (this.allocationErrorCount++ < 5) {
-                        console.error('[Open303] jc303_process_handle returned invalid pointer');
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-                this.session.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
-            } else if (this.session.isNativeApi) {
-                // ── Custom open303 multi-instance API ────────────────────────
-                if (this.session.isInvalidHandle(this.session.nativeOutputPtr)) {
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-
-                exports.open303_process(
-                    this.session.toWasmHandle(this.session.instanceHandle),
-                    this.session.toWasmHandle(this.session.nativeOutputPtr),
-                    numFrames,
-                );
-
-                const floatOffset = this.session.getWasmSampleOffset(this.session.nativeOutputPtr, numFrames);
-                if (floatOffset < 0) {
-                    if (this.processErrorCount++ < 5) {
-                        console.error('[Open303] open303_process output buffer unreadable');
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-                this.session.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
+            if (!this.session.isReady || !this.native) {
+                NativeVoiceProcessor.silence(left, right);
             } else {
-                // ── Legacy jc303_* API ───────────────────────────────────────
-                const ptr = exports.jc303_process(numFrames);
-
-                if (this.session.wasmPtrToOffset(ptr) < 0) {
-                    if (this.allocationErrorCount++ < 5) {
-                        console.error('[Open303] jc303_process returned invalid pointer');
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-
-                const floatOffset = this.session.getWasmSampleOffset(ptr, numFrames);
-                if (floatOffset < 0) {
-                    if (this.processErrorCount++ < 5) {
-                        console.error('[Open303] jc303_process buffer unreadable');
-                    }
-                    if (channelL) channelL.fill(0);
-                    if (channelR) channelR.fill(0);
-                    return true;
-                }
-                this.session.writeOutputSamples(floatOffset, numFrames, channelL, channelR, gain);
-
-                if (exports.free) {
-                    exports.free(ptr);
-                }
+                this.renderBlock(outputs, frames, left, right);
             }
-
-            // A/B still armed but side B is gone (CPU gate): mirror stock onto
-            // bus B until the main thread collapses the blend to side A, so a
-            // blend parked at high-fid never drops to silence.
-            const busB = outputs[1];
-            if (busB && this.engineSelection.isAbArmed && !this.engineSelection.abActive) {
-                if (busB[0] && channelL) busB[0].set(channelL);
-                if (busB[1] && channelR) busB[1].set(channelR);
-            }
-
-            // Stuck note detection (common to both APIs)
-            this.checkStuckNotes(exports);
-
-        } catch (e: any) {
-            if (this.processErrorCount++ < 5) {
-                console.error('[Open303] Process error:', e);
-            }
-            if (channelL) channelL.fill(0);
-            if (channelR) channelR.fill(0);
-        }
-
-        return true;
+        } catch (e) {
+            this.processFailed(e, left, right);
         } finally {
             this.perf.endProcess();
         }
-    }
-
-    /** Copy the shared native scratch buffer to a stereo pair; false (and silence) if unreadable. */
-    private copyNativeOutput(
-        numFrames: number,
-        left: Float32Array | undefined,
-        right: Float32Array | undefined,
-        gain: number,
-    ): boolean {
-        const floatOffset = this.session.getWasmSampleOffset(this.session.nativeOutputPtr, numFrames);
-        if (floatOffset < 0) {
-            if (this.processErrorCount++ < 5) {
-                console.error('[Open303] live high-fid output buffer unreadable');
-            }
-            if (left) left.fill(0);
-            if (right) right.fill(0);
-            return false;
-        }
-        this.session.writeOutputSamples(floatOffset, numFrames, left, right, gain);
         return true;
     }
 
-    private checkStuckNotes(exports: any): void {
-        if (this.activeNoteCount === 0) return;
-        const now = this.audioNowMs();
-        for (let note = 0; note < 128; note++) {
-            const startTime = this.activeNotes[note];
-            if (startTime !== 0) {
-                const duration = now - startTime;
-                if (duration > Open303Processor.MAX_NOTE_DURATION_MS) {
-                    if (this.stuckNoteWarnings++ < 5) {
-                        console.warn(`[Open303] Stuck note detected: ${note} held for ${duration.toFixed(0)}ms, auto-releasing`);
-                    }
-                    try {
-                        if (this.engineSelection.activeEngine === 'highfid' && this.engineSelection.liveHighFid) {
-                            this.stockNoteOff(note);
-                            this.engineSelection.liveHighFid.noteOff(note);
-                        } else if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-                            exports.jc303_note_off(this.session.jc303Handle, note);
-                        } else if (this.session.isNativeApi) {
-                            exports.open303_note_off(this.session.instanceHandle, note);
-                        } else {
-                            exports.jc303_noteOff(note);
-                        }
-                    } catch { }
-                    this.activeNotes[note] = 0;
-                    this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
-                }
+    private renderBlock(
+        outputs: Float32Array[][],
+        frames: number,
+        left: Float32Array | undefined,
+        right: Float32Array | undefined,
+    ): void {
+        const gain = Open303Processor.OUTPUT_GAIN;
+        const busB = outputs[1];
+        const voices = this.renderedVoices();
+        const highFid = voices.find((v) => v.prefix === 'highfid303');
+
+        if (highFid) {
+            // L3: pick up knob moves from the shared coefficient table.
+            this.engineSelection.pollCoefficientTable();
+            const quantumUs = (frames / this.rateHz) * 1_000_000;
+            if (voices.length === 2 && busB) {
+                // ── Live A/B (Phase L2): stock → output 0, high-fid → output 1 ──
+                const tStock = getTime();
+                this.renderVoice(voices[0], frames, left, right, gain);
+                const stockUs = (getTime() - tStock) * 1000;
+                const tHigh = getTime();
+                this.renderVoice(highFid, frames, busB[0], busB[1], gain);
+                const highUs = (getTime() - tHigh) * 1000;
+                // Only the high-fid time feeds the gate — it can only trip side B.
+                this.engineSelection.recordAbTiming(stockUs, highUs, quantumUs);
+            } else {
+                // A/B without a second bus: the stock side still drains its events.
+                if (voices.length === 2) this.renderVoice(voices[0], frames, undefined, undefined);
+                const t0 = getTime();
+                this.renderVoice(highFid, frames, left, right, gain);
+                // CPU meter / glitch gate — degrade to stock rather than glitch.
+                this.engineSelection.recordHighFidTiming((getTime() - t0) * 1000, quantumUs);
             }
+            return;
+        }
+
+        if (voices.length === 0) {
+            NativeVoiceProcessor.silence(left, right);
+            return;
+        }
+        this.renderVoice(voices[0], frames, left, right, gain);
+
+        // A/B still armed but side B is gone (CPU gate): mirror stock onto bus B
+        // until the main thread collapses the blend to side A, so a blend parked
+        // at high-fid never drops to silence.
+        if (busB && this.engineSelection.isAbArmed && !this.engineSelection.abActive) {
+            if (busB[0] && left) busB[0].set(left);
+            if (busB[1] && right) busB[1].set(right);
         }
     }
 }
