@@ -356,6 +356,22 @@ export class Open303Manager {
     }
 
     /**
+     * Release every note on a voice and cancel the ones still scheduled
+     * (transport stop, mute, session flush).
+     */
+    allNotesOffBass1(): void {
+        this.bass1?.allNotesOff();
+    }
+
+    allNotesOffBass2(): void {
+        this.bass2?.allNotesOff();
+    }
+
+    allNotesOffLead303(): void {
+        this.lead303?.allNotesOff();
+    }
+
+    /**
      * Set bass1 volume (mixer)
      */
     setBass1Volume(volume: number): void {

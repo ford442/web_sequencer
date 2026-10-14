@@ -4,7 +4,7 @@
 import { WorkletPerfReporter } from './workletPerfReporter';
 import { Open303EngineSession } from './open303/engineSession';
 import { Open303EngineSelection } from './open303/engineSelection';
-import { ParameterQueue } from './open303/parameterQueue';
+import { ScheduledEventQueue, type ScheduledEvent } from './open303/eventQueue';
 import { SynthState, getTime, type EngineFamily } from './open303/shared';
 
 // Definitions for the AudioWorklet scope
@@ -48,11 +48,13 @@ interface LiveHighFidMessageData {
 class Open303Processor extends AudioWorkletProcessor {
     private readonly session = new Open303EngineSession(this.port);
     private readonly engineSelection = new Open303EngineSelection(this.session, this.port, () => this.clearAllNotes());
-    private readonly parameterQueue = new ParameterQueue(this.applyParamMessage.bind(this));
+    private readonly scheduled = new ScheduledEventQueue(this.applyEvent.bind(this));
     private readonly perf = new WorkletPerfReporter(this.port, 'open303');
 
     // Mild makeup gain — hyphon_native 303 engines already run near full scale.
     private static readonly OUTPUT_GAIN = 1.0;
+
+    // Note bookkeeping below runs on the audio clock (see audioNowMs).
 
     // Stuck note protection
     private activeNotes = new Float64Array(128); // note (0-127) -> startTime (ms). 0 means inactive.
@@ -61,7 +63,7 @@ class Open303Processor extends AudioWorkletProcessor {
     private stuckNoteWarnings = 0;
 
     // Rate limiting
-    private lastNoteOnTime = 0;
+    private lastNoteOnTime = -Infinity;
     private static readonly MIN_NOTE_INTERVAL_MS = 5;
     private static readonly MAX_NOTES_PER_SECOND = 50;
     private noteOnTimes: number[] = [];
@@ -99,6 +101,7 @@ class Open303Processor extends AudioWorkletProcessor {
             // they are no longer freed with a per-processor heap.
             this.disposed = true;
             this.pendingMessages = [];
+            this.scheduled.clear();
             this.engineSelection.dispose();
             this.session.dispose();
             return;
@@ -126,9 +129,11 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private dispatchMessage(type: string, data: any): void {
         if (type === 'noteOn') {
-            this.handleNoteOn(data.note, data.velocity);
+            this.scheduleOrApply({ kind: 'noteOn', note: data.note, velocity: data.velocity, audioTime: data.audioTime ?? 0 });
         } else if (type === 'noteOff') {
-            this.handleNoteOff(data.note);
+            this.scheduleOrApply({ kind: 'noteOff', note: data.note, audioTime: data.audioTime ?? 0 });
+        } else if (type === 'allNotesOff') {
+            this.releaseAllNotes();
         } else if (type === 'set-engine') {
             this.engineSelection.setEngine(data.engine as EngineFamily);
         } else if (type === 'set-303-model') {
@@ -138,7 +143,7 @@ class Open303Processor extends AudioWorkletProcessor {
                 data.oversample as number | undefined,
             );
         } else if (type === 'param') {
-            this.handleParam(data);
+            this.scheduleOrApply({ kind: 'param', func: data.func, value: data.value, audioTime: data.audioTime ?? 0 });
         } else if (type === 'set-live-ab' || type === 'set-highfid-coeffs' || type === 'attach-highfid-coeff-table') {
             this.handleLiveHighFidMessage(type, data as LiveHighFidMessageData | undefined);
         }
@@ -188,17 +193,62 @@ class Open303Processor extends AudioWorkletProcessor {
         }
     }
 
-    private handleParam(data: { func: string; value: number; audioTime?: number }): void {
-        const audioTime = data.audioTime ?? 0;
-
-        // Immediate? (currentTime must be accessed on global scope in audio worklets, but TS types define it via currentTime. Actually, AudioWorkletGlobalScope exposes currentTime directly.)
-        if (typeof currentTime !== 'undefined' && audioTime <= currentTime) {
-            this.applyParamMessage(this.session.getExports(), data);
+    /**
+     * Apply a note/param event now, or hold it until the audio clock reaches its
+     * audioTime. Held events drain at the start of the first block whose
+     * currentTime has passed them — the same block grid the drum worklet uses,
+     * so a 303 note and a drum hit on one step land in the same quantum.
+     */
+    private scheduleOrApply(event: ScheduledEvent): void {
+        if (typeof currentTime !== 'undefined' && event.audioTime > currentTime) {
+            this.scheduled.schedule(event);
             return;
         }
+        // Anything queued at or before this event's time goes first, so an
+        // overdue event still waiting for the next drain can't land after this
+        // one and overwrite it (a stale automation value winning).
+        if (this.scheduled.length > 0) this.scheduled.drain(event.audioTime);
+        this.applyEvent(event);
+    }
 
-        // Schedule
-        this.parameterQueue.schedule({ func: data.func, value: data.value, audioTime });
+    private applyEvent(event: ScheduledEvent): void {
+        if (event.kind === 'noteOn') {
+            this.handleNoteOn(event.note, event.velocity);
+        } else if (event.kind === 'noteOff') {
+            this.handleNoteOff(event.note);
+        } else {
+            this.applyParamMessage(this.session.getExports(), event);
+        }
+    }
+
+    /**
+     * Stop / mute: cancel the notes still waiting in the queue and release what
+     * is sounding. A release, not a reset — the tail decays as it did when stop
+     * sent a bare noteOff(0) — but per active note, so jc303 (which matches note
+     * numbers) lets go too.
+     */
+    private releaseAllNotes(): void {
+        this.scheduled.dropNotes();
+        this.pendingNote = null;
+        this.releaseActiveNotes();
+    }
+
+    /** Engine noteOff for every sounding note. */
+    private releaseActiveNotes(): void {
+        if (this.activeNoteCount === 0) return;
+        for (let note = 0; note < 128; note++) {
+            if (this.activeNotes[note] !== 0) this.handleNoteOff(note);
+        }
+    }
+
+    /**
+     * Note timestamps (rate limit, stuck-note age) in audio-clock ms. Scheduled
+     * events drain inside process(), and the audio thread renders quanta in
+     * bursts, so wall-clock gaps between two drained notes say nothing about
+     * how far apart they sound.
+     */
+    private audioNowMs(): number {
+        return typeof currentTime !== 'undefined' ? currentTime * 1000 : getTime();
     }
 
     private applyParamMessage(exports: Record<string, any>, data: { func: string; value: number }): void {
@@ -230,7 +280,7 @@ class Open303Processor extends AudioWorkletProcessor {
     }
 
     private handleNoteOn(note: number, velocity: number): void {
-        const now = getTime();
+        const now = this.audioNowMs();
 
         // Rate limit check
         let keepCount = 0;
@@ -251,11 +301,12 @@ class Open303Processor extends AudioWorkletProcessor {
             return;
         }
 
-        // Portamento fix
+        // Portamento fix: a noteOn over a held note retriggers rather than
+        // slides. Release the held note, don't reset the engine — now that a
+        // long note's noteOff lands on time (after the next step's noteOn), a
+        // filter reset here would click on every overlap.
         if (this.noteOffJustSent || this.activeNoteCount > 0) {
-            if (this.activeNoteCount > 0) {
-                this.clearAllNotes();
-            }
+            this.releaseActiveNotes();
             this.pendingNote = { note, velocity };
             this.noteOffJustSent = true;
             return;
@@ -266,6 +317,11 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private handleNoteOff(note: number): void {
         if (!this.session.isInstantiated) return;
+        // Mono-synth rule: only a sounding note can be released. A note that a
+        // later noteOn replaced still has its own noteOff in the queue, and the
+        // open303 / high-fid engines ignore note numbers — let it through and
+        // it closes the gate on the note that replaced it.
+        if (note < 0 || note >= 128 || this.activeNotes[note] === 0) return;
         const exports = this.session.getExports();
 
         try {
@@ -279,10 +335,8 @@ class Open303Processor extends AudioWorkletProcessor {
             } else {
                 exports.jc303_noteOff(note);
             }
-            if (note >= 0 && note < 128 && this.activeNotes[note] !== 0) {
-                this.activeNotes[note] = 0;
-                this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
-            }
+            this.activeNotes[note] = 0;
+            this.activeNoteCount = Math.max(0, this.activeNoteCount - 1);
             this.noteOffJustSent = true;
         } catch (e) {
             console.error('[Open303] noteOff failed:', e);
@@ -332,7 +386,7 @@ class Open303Processor extends AudioWorkletProcessor {
             } else {
                 exports.jc303_noteOn(note, velocity);
             }
-            const now = getTime();
+            const now = this.audioNowMs();
             this.lastNoteOnTime = now;
             this.noteOnTimes.push(now);
             if (note >= 0 && note < 128 && this.activeNotes[note] === 0) {
@@ -357,12 +411,13 @@ class Open303Processor extends AudioWorkletProcessor {
         try {
         const channelR = output[1];
 
-        // Drain pending parameters
-        if (this.parameterQueue.length > 0 && typeof currentTime !== 'undefined') {
-            this.parameterQueue.drain(currentTime, this.session.getExports());
+        // Apply the notes and params whose audioTime this block has reached.
+        if (this.scheduled.length > 0 && typeof currentTime !== 'undefined') {
+            this.scheduled.drain(currentTime);
         }
 
-        // Handle pending note (portamento fix)
+        // Handle pending note (portamento fix) — after the drain, so a note
+        // deferred by it still sounds in the block its audioTime fell due.
         if (this.pendingNote && this.session.state === SynthState.READY) {
             this.triggerNoteOn(this.pendingNote.note, this.pendingNote.velocity);
             this.pendingNote = null;
@@ -539,7 +594,7 @@ class Open303Processor extends AudioWorkletProcessor {
 
     private checkStuckNotes(exports: any): void {
         if (this.activeNoteCount === 0) return;
-        const now = getTime();
+        const now = this.audioNowMs();
         for (let note = 0; note < 128; note++) {
             const startTime = this.activeNotes[note];
             if (startTime !== 0) {
