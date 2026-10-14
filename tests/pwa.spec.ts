@@ -50,8 +50,8 @@ test.describe('PWA service worker', () => {
   // three browsers with the same worker active.
   test.skip('second load boots the app shell and plays a pattern fully offline', async ({ page, context }) => {
     // First load: online, so the service worker can install and precache the
-    // shell, and runtime-cache the audio engine assets loadHyphonNative()
-    // fetches during a normal boot (hyphon_native.js/.wasm, default
+    // shell, and runtime-cache the audio engine assets fetched during a
+    // normal boot (the hyphon_native wasm probeHyphonNative() validates, default
     // oscillator samples) — see RUNTIME_CACHE_PATTERNS in sw.js.
     await initializeHyphonAudio(page, { query: 'e2e=1&pwa=1' });
 

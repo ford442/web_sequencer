@@ -848,7 +848,10 @@ const activeFallbacks = new Map<string, { requestedBackend: string; reason: stri
  */
 export function parseHyphonGlueExportMap(glueSource: string): Record<string, string> {
   const map: Record<string, string> = {};
-  const re = /Module\[(["'])(_[^"']+)\1\]\s*=\s*wasmExports\[(["'])([^"']+)\3\]/g;
+  // Release: `Module["_x"] = wasmExports["y"]`. Debug (ASSERTIONS) glue on emcc 6.x:
+  // `Module["_x"] = createExportWrapper("x", wasmExports["y"], n)`.
+  const re =
+    /Module\[(["'])(_[^"']+)\1\]\s*=\s*(?:createExportWrapper\(\s*["'][^"']+["']\s*,\s*)?wasmExports\[(["'])([^"']+)\3\]/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(glueSource)) !== null) {
     map[match[2].slice(1)] = match[4];

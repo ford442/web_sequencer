@@ -54,13 +54,12 @@
     "drumkit_process"
   ],
   "optional": [
+    "__set_stack_limits",
     "pthread_self",
     "_emscripten_tls_init",
-    "_embind_initialize_bindings",
     "_emscripten_thread_init",
     "_emscripten_thread_crashed",
     "_emscripten_thread_exit",
-    "main",
     "highfid303_create",
     "highfid303_destroy",
     "highfid303_init",
@@ -87,7 +86,6 @@
     "jc303_process",
     "pthread_self",
     "_emscripten_tls_init",
-    "_embind_initialize_bindings",
     "_emscripten_thread_init",
     "_emscripten_thread_crashed",
     "_emscripten_thread_exit"

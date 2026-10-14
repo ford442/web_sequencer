@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePyodideEngine } from '../usePyodideEngine';
+
+const initPyodideSystem = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock('../../pyodide/bootstrap', () => ({ initPyodideSystem }));
 
 describe('usePyodideEngine init path', () => {
   beforeEach(() => {
@@ -14,6 +17,22 @@ describe('usePyodideEngine init path', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('starts the bootstrap module itself (no hyphon_native main() any more)', async () => {
+    vi.useRealTimers();
+    initPyodideSystem.mockClear();
+    renderHook(() => usePyodideEngine());
+    await waitFor(() => expect(initPyodideSystem).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not start the bootstrap when Pyodide is already up', async () => {
+    vi.useRealTimers();
+    initPyodideSystem.mockClear();
+    globalThis.hyphonPyodideReady = true;
+    renderHook(() => usePyodideEngine());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(initPyodideSystem).not.toHaveBeenCalled();
   });
 
   it('logs classified fallback on bootstrap timeout', () => {

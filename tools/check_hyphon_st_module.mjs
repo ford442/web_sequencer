@@ -3,16 +3,46 @@
  * Assert that public/hyphon_native.st.wasm is really single-threaded:
  *   - imports exactly one memory, and it is NOT shared
  *   - no pthread / worker / emscripten_run_script imports
+ * and that neither voice module (ST or pthread) carries a runtime it has no
+ * caller for: libomp, embind, or emscripten_run_script (FORBIDDEN_SYMBOLS).
  *
  * WebAssembly.Module.imports() does not report `shared`, so the import section is
- * parsed directly. Exported for src/__tests__/hyphonNativeStModule.test.ts.
+ * parsed directly. The symbol scan is over the raw bytes rather than a
+ * `wasm-objdump -x` listing: it sees the same import / export / name-section
+ * strings that listing prints, plus the runtimes' own data strings (libomp's
+ * KMP_* environment names), and it needs no wabt install on the CI runner.
  *
- * Usage: node tools/check_hyphon_st_module.mjs public/hyphon_native.st.wasm
+ * Usage:
+ *   node tools/check_hyphon_st_module.mjs public/hyphon_native.st.wasm
+ *   node tools/check_hyphon_st_module.mjs --symbols-only public/hyphon_native.wasm
  */
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const FORBIDDEN_IMPORT = /pthread|emscripten_run_script|_emscripten_thread|mailbox|wasm_worker/;
+
+/**
+ * Byte strings that only appear in a module that links the runtime they name.
+ * libomp: the __kmpc_* entry points and its KMP_* / OMP_* environment names.
+ * embind: the _embind_register_* imports and the emval bridge.
+ * emscripten_run_script: main()'s Pyodide hop, gone with emscripten/main.cpp.
+ */
+export const FORBIDDEN_SYMBOLS = [
+  { runtime: 'libomp', marker: '__kmpc_' },
+  { runtime: 'libomp', marker: 'KMP_AFFINITY' },
+  { runtime: 'libomp', marker: 'OMP_NUM_THREADS' },
+  { runtime: 'embind', marker: '_embind_' },
+  { runtime: 'embind', marker: '_emval_' },
+  { runtime: 'emscripten_run_script', marker: 'emscripten_run_script' },
+];
+
+/** @returns {string[]} problems; empty when no forbidden runtime is linked. */
+export function checkForbiddenSymbols(buf) {
+  const bytes = Buffer.from(buf);
+  return FORBIDDEN_SYMBOLS.filter(({ marker }) => bytes.includes(marker)).map(
+    ({ runtime, marker }) => `${runtime} is linked (found "${marker}")`,
+  );
+}
 
 function readLeb(bytes, pos) {
   let result = 0;
@@ -98,14 +128,25 @@ export function checkSingleThreadedModule(buf) {
   for (const i of imports) {
     if (FORBIDDEN_IMPORT.test(i.name)) problems.push(`forbidden import ${i.module}.${i.name}`);
   }
+  problems.push(...checkForbiddenSymbols(buf));
   return problems;
 }
 
 function main() {
-  const file = process.argv[2];
+  const symbolsOnly = process.argv[2] === '--symbols-only';
+  const file = process.argv[symbolsOnly ? 3 : 2];
   if (!file) {
-    console.error('Usage: node tools/check_hyphon_st_module.mjs <hyphon_native.st.wasm>');
+    console.error('Usage: node tools/check_hyphon_st_module.mjs [--symbols-only] <hyphon_native[.st].wasm>');
     process.exit(2);
+  }
+  if (symbolsOnly) {
+    const problems = checkForbiddenSymbols(fs.readFileSync(file));
+    if (problems.length) {
+      console.error(`[native-symbols] FAILED ${file}\n  - ${problems.join('\n  - ')}`);
+      process.exit(1);
+    }
+    console.log(`[native-symbols] OK — no libomp, embind or emscripten_run_script in ${file}`);
+    return;
   }
   const problems = checkSingleThreadedModule(fs.readFileSync(file));
   if (problems.length) {

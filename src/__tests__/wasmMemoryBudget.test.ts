@@ -158,9 +158,8 @@ describe('hyphon_native single-threaded (st) memory budget', () => {
         expect(buildSh).toContain('-s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb');
         expect(buildSh).toContain('-s STACK_SIZE=${ST_STACK_SIZE_MB}mb');
         const stLink = /ST_LINK_FLAGS="([^"]*)"/.exec(buildSh)?.[1] ?? '';
-        expect(stLink).toContain('-s USE_PTHREADS=0');
         expect(stLink).toContain('-s IMPORTED_MEMORY=1');
-        expect(stLink).not.toMatch(/-pthread\b|PTHREAD_POOL_SIZE|pyodide_bootstrap/);
+        expect(stLink).not.toMatch(/-pthread\b|USE_PTHREADS|PTHREAD_POOL_SIZE|pyodide_bootstrap/);
         expect(buildSh).toContain('hyphon_native.st.js');
         expect(buildSh).toContain('hyphon_wasm_export_map.st.json');
     });

@@ -4,8 +4,9 @@
 #
 # This script builds the JC-303 synthesizer for WebAssembly using Emscripten
 # with dual variants:
-#   1. Threaded version (with OpenMP) - for high-performance environments
-#   2. Single-threaded version (no OpenMP) - for broad compatibility
+#   1. Threaded version (Emscripten pthreads; pthread workers are inlined in the
+#      glue — there is no separate *.worker.js)
+#   2. Single-threaded version - for broad compatibility
 #
 # Memory / stack / pthread sizes come from
 # emscripten/wasm_memory_budget.json#standaloneJc303 — do not hardcode them here.
@@ -77,31 +78,8 @@ if [ ! -d "$JC303_DIR" ]; then
     exit 1
 fi
 
-# Source Emscripten if available
-EMSDK_CANDIDATES=(
-    "/content/build_space/emsdk/emsdk_env.sh"
-    "$REPO_ROOT/emsdk/emsdk_env.sh"
-    "$HOME/emsdk/emsdk_env.sh"
-    "/usr/local/emsdk/emsdk_env.sh"
-    "/opt/emsdk/emsdk_env.sh"
-)
-for f in "${EMSDK_CANDIDATES[@]}"; do
-    if [ -f "$f" ]; then 
-        echo -e "${GREEN}Sourcing Emscripten from: $f${NC}"
-        source "$f"
-        break
-    fi
-done
-
-# Check for Emscripten
-if ! command -v emcc &> /dev/null; then
-    echo -e "${RED}Error: Emscripten (emcc) not found!${NC}"
-    echo "Please install and activate the Emscripten SDK:"
-    echo "  https://emscripten.org/docs/getting_started/downloads.html"
-    exit 1
-fi
-
-echo -e "${GREEN}Using Emscripten:${NC} $(emcc --version | head -n1)"
+# The pinned Emscripten (emscripten/toolchain.json), or fail.
+source "$REPO_ROOT/emscripten/toolchain_env.sh"
 
 # Create distribution directory
 echo -e "${YELLOW}Creating distribution directory...${NC}"
@@ -133,26 +111,16 @@ build_variant() {
     mkdir -p "${BUILD_DIR}"
     cd "${BUILD_DIR}"
     
-    # Set up flags based on variant
+    # Set up flags based on variant. The threaded variant is plain Emscripten
+    # pthreads: nothing in jc303_wasm/src has an OpenMP pragma, so it no longer
+    # compiles with -fopenmp or links the committed libomp.a (both deleted).
     if [ "$ENABLE_THREADING" = "true" ]; then
-        # Threaded variant - requires libomp.a
-        LIBOMP_PATH="$REPO_ROOT/emscripten/libomp.a"
-        if [ ! -f "$LIBOMP_PATH" ]; then
-            echo -e "${YELLOW}Warning: libomp.a not found at $LIBOMP_PATH. Falling back to Emscripten built-in OpenMP.${NC}"
-            OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
-            OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=${JC303_PTHREAD_POOL_SIZE} -s PROXY_TO_PTHREAD=0"
-        else
-            echo -e "${GREEN}Found libomp.a: $LIBOMP_PATH${NC}"
-            OMP_INCLUDE_DIR="${REPO_ROOT}/emscripten"
-            OMP_FLAGS="-pthread -fopenmp -I${OMP_INCLUDE_DIR}"
-            LINK_OMP_FLAGS="-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=${JC303_PTHREAD_POOL_SIZE} -s PROXY_TO_PTHREAD=0 ${LIBOMP_PATH}"
-        fi
+        THREAD_FLAGS="-pthread"
+        LINK_THREAD_FLAGS="-pthread -s PTHREAD_POOL_SIZE=${JC303_PTHREAD_POOL_SIZE} -s PROXY_TO_PTHREAD=0"
     else
-        # Single-threaded variant - no OpenMP
-        echo -e "${YELLOW}Building single-threaded variant (no OpenMP)${NC}"
-        OMP_FLAGS=""
-        LINK_OMP_FLAGS=""
+        echo -e "${YELLOW}Building single-threaded variant${NC}"
+        THREAD_FLAGS=""
+        LINK_THREAD_FLAGS=""
     fi
     
     CMAKE_BUILD_TYPE="$([ "$BUILD_TYPE" = "debug" ] && echo "Debug" || echo "Release")"
@@ -160,9 +128,9 @@ build_variant() {
     echo -e "${YELLOW}Running CMake (Hyphon overlay ${JC303_CMAKE_DIR})...${NC}"
     emcmake cmake "$JC303_CMAKE_DIR" \
         -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
-        -DCMAKE_C_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
-        -DCMAKE_CXX_FLAGS="${OMP_FLAGS} ${EMSCRIPTEN_FLAGS}" \
-        -DCMAKE_EXE_LINKER_FLAGS="${LINK_OMP_FLAGS}" \
+        -DCMAKE_C_FLAGS="${THREAD_FLAGS} ${EMSCRIPTEN_FLAGS}" \
+        -DCMAKE_CXX_FLAGS="${THREAD_FLAGS} ${EMSCRIPTEN_FLAGS}" \
+        -DCMAKE_EXE_LINKER_FLAGS="${LINK_THREAD_FLAGS}" \
         -DJC303_WASM_DIR="${WASM_DIR}" \
         -DJC303_INITIAL_MEMORY="${JC303_INITIAL_MEMORY}" \
         -DJC303_MAXIMUM_MEMORY="${JC303_MAXIMUM_MEMORY}" \
@@ -181,16 +149,6 @@ build_variant() {
     cp -f jc303.wasm "${DIST_DIR}/jc303-${VARIANT_NAME}.wasm"
     cp -f jc303_worklet.js "${DIST_DIR}/jc303-${VARIANT_NAME}-worklet.js"
 
-    # Threaded variant: Emscripten 3.1.51 emits jc303.worker.js; 6.x inlines it.
-    # ensure-pthread-worker-stamp.mjs copies the real worker or writes a stamp stub
-    # so public/jc303-threaded.worker.js exists for check:native.
-    if [ "$ENABLE_THREADING" = "true" ]; then
-        node "$REPO_ROOT/scripts/ensure-pthread-worker-stamp.mjs" \
-            --src-dir "$(pwd)" \
-            --stem jc303 \
-            --dest "${DIST_DIR}/jc303-${VARIANT_NAME}.worker.js"
-    fi
-    
     echo -e "${GREEN}${VARIANT_NAME} variant build complete!${NC}"
 }
 
@@ -234,7 +192,6 @@ if [ -d "$PUBLIC_DIR" ]; then
         cp -f "${DIST_DIR}/jc303-threaded.js" "$PUBLIC_DIR/jc303.js"
         cp -f "${DIST_DIR}/jc303-threaded.wasm" "$PUBLIC_DIR/jc303.wasm"
         cp -f "${DIST_DIR}/jc303-threaded-worklet.js" "$PUBLIC_DIR/jc303_worklet.js"
-        cp -f "${DIST_DIR}/jc303-threaded.worker.js" "$PUBLIC_DIR/jc303.worker.js"
     fi
 fi
 
@@ -249,9 +206,8 @@ echo ""
 echo "Output files in: ${DIST_DIR}/"
 echo ""
 if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "threaded" ]; then
-    echo "Threaded variant files: jc303-threaded.{js,wasm,worker.js}"
+    echo "Threaded variant files: jc303-threaded.{js,wasm} (pthread workers are inlined in the glue)"
     echo "  Note: Requires COOP/COEP headers on web server"
-    echo "  Note: On Emscripten 6.x the .worker.js path is a stamp stub (workers are inlined)"
 fi
 if [ "$BUILD_VARIANT" = "both" ] || [ "$BUILD_VARIANT" = "single" ]; then
     echo "Single-threaded variant files: jc303-single.{js,wasm}"

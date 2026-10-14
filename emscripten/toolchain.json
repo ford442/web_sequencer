@@ -1,26 +1,23 @@
 {
   "$comment": [
-    "Pinned toolchain versions for the native build. Read by tools/optimize.sh and",
-    "src/__tests__/wasmToolchain.test.ts; mirrored by .github/workflows/ci.yml and",
-    "AGENTS.md. Record a version here rather than in a script banner.",
+    "Pinned toolchain versions for the native build. Read by emscripten/toolchain_env.sh,",
+    "every .github/workflows/*.yml that installs emsdk, scripts/fetch-pyodide.mjs and",
+    "src/__tests__/wasmCompileFlags.test.ts. Record a version here rather than in a",
+    "script banner.",
     "",
-    "emscripten: what CI installs and what emscripten/build.sh is validated against.",
-    "  3.1.51 still emits a separate *.worker.js for pthreads (see BUILD_NOTES).",
-    "",
-    "binaryen: the OUT-OF-BAND wasm-opt used by tools/optimize.sh. It is deliberately",
-    "  NOT emsdk 3.1.51's bundled wasm-opt: that one is what fails the link at -O2+",
-    "  on this pthreads+SIMD+bigint module, which is why emscripten/build.sh pins the",
-    "  link at -O1. optimize.sh refuses any wasm-opt whose reported version does not",
-    "  match `binaryen.version`, so a stray emsdk binary on PATH cannot silently",
-    "  re-introduce that failure. See BUILD_NOTES.md#wasm-opt."
+    "emscripten: THE pin. Every em++ build script sources emscripten/toolchain_env.sh,",
+    "  which refuses any other emcc; every CI workflow reads this field for setup-emsdk",
+    "  and its cache keys. Bump it here and nowhere else (BUILD_NOTES#toolchain-pin).",
+    "  Its bundled wasm-opt runs in-band at the -O3 link; there is no separate binaryen",
+    "  pin any more (BUILD_NOTES#wasm-opt)."
   ],
   "emscripten": {
-    "version": "3.1.51"
+    "version": "6.0.9"
   },
   "pyodide": {
     "$comment": [
       "Vendored to public/pyodide/ by scripts/fetch-pyodide.mjs (pnpm run vendor:pyodide)",
-      "and loaded same-origin by index.html + emscripten/pyodide_bootstrap.js. Nothing",
+      "and loaded same-origin by src/pyodide/bootstrap.ts. Nothing",
       "reaches a CDN at runtime — see docs/adr/0001-wam2-host.md.",
       "public/pyodide/ is gitignored; the fetch is a setup step, not a build step."
     ],
@@ -34,31 +31,10 @@
       "python_stdlib.zip"
     ],
     "$packagesComment": [
-      "Loaded by emscripten/pyodide_bootstrap.js via loadPyodide().loadPackage().",
+      "Loaded by src/pyodide/bootstrap.ts via loadPyodide().loadPackage().",
       "Their transitive closure is resolved from the vendored pyodide-lock.json,",
       "so this list stays the two names the bootstrap actually asks for."
     ],
     "packages": ["numpy", "scipy"]
-  },
-  "binaryen": {
-    "version": 119,
-    "npmPackage": "binaryen@119.0.0",
-    "versionString": "wasm-opt version 119",
-    "features": {
-      "hyphonNative": [
-        "--enable-simd",
-        "--enable-threads",
-        "--enable-bulk-memory",
-        "--enable-sign-ext",
-        "--enable-nontrapping-float-to-int"
-      ],
-      "assemblyScriptBaseline": [
-        "--enable-simd",
-        "--enable-threads",
-        "--enable-bulk-memory",
-        "--enable-sign-ext",
-        "--enable-nontrapping-float-to-int"
-      ]
-    }
   }
 }

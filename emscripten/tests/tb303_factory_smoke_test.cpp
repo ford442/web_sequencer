@@ -5,9 +5,8 @@
  * Exercises the exported WASM API offline (host g++, no emsdk) to cover the
  * acceptance criteria:
  *
- *   - getAvailable303Models() returns valid JSON containing at least
- *     stock-open303 and jc303, each with the right engine family.
- *   - open303_get_model_count / _id / _engine agree with the JSON.
+ *   - The registry lists at least stock-open303 and jc303, each with the
+ *     right engine family (open303_find_model_index / _get_model_engine).
  *   - Every open303-family model can be created, selected (by index AND by
  *     string id — the two are equivalent) and renders finite, non-silent audio.
  *   - open303_find_model_index / open303_set_model_by_id resolve stable ids;
@@ -81,14 +80,10 @@ bool finiteNonSilent(const std::vector<float>& v) {
     return peak > 1.0e-4;   // clearly audible, not silence
 }
 
-bool jsonHas(const std::string& json, const std::string& id, const std::string& engine) {
-    const std::string needleId = "\"id\":\"" + id + "\"";
-    const size_t p = json.find(needleId);
-    if (p == std::string::npos) return false;
-    // The engine tag should appear in the same object (before the next '}').
-    const size_t end = json.find('}', p);
-    const std::string obj = json.substr(p, end - p);
-    return obj.find("\"engine\":\"" + engine + "\"") != std::string::npos;
+/** Registry lookup through the exported C API (the only discovery surface). */
+bool registryHas(const char* id, int engine) {
+    const int idx = open303_find_model_index(id);
+    return idx >= 0 && open303_get_model_engine(idx) == engine;
 }
 
 }  // namespace
@@ -100,18 +95,9 @@ int main() {
     const int count = open303_get_model_count();
     check(count >= 2, "registry has at least 2 models");
 
-    // getAvailable303Models() JSON — the dynamic UI discovery surface.
-    const std::string json = getAvailable303Models();
-    std::printf("getAvailable303Models() = %s\n", json.c_str());
-    check(jsonHas(json, "stock-open303", "open303"), "JSON lists stock-open303 (open303)");
-    check(jsonHas(json, "jc303", "jc303"),           "JSON lists jc303 (jc303)");
-
-    // JSON count matches the exported count (one object per model).
-    size_t objCount = 0;
-    for (size_t p = json.find("\"id\":"); p != std::string::npos; p = json.find("\"id\":", p + 1)) {
-        ++objCount;
-    }
-    check(static_cast<int>(objCount) == count, "JSON object count matches open303_get_model_count()");
+    // The registry, as the worklets see it (open303_get_model_* exports).
+    check(registryHas("stock-open303", ENGINE_OPEN303), "registry lists stock-open303 (open303)");
+    check(registryHas("jc303", ENGINE_JC303),           "registry lists jc303 (jc303)");
 
     // Per-model: id/engine round-trip + open303-family models render audio.
     for (int i = 0; i < count; ++i) {

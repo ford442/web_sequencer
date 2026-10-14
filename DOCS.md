@@ -124,6 +124,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | File | Description |
 |------|-------------|
 | [BUILD_NOTES.md](docs/wasm/BUILD_NOTES.md) | WASM build configuration, command layers, memory budgets |
+| [VOICE_CORE.md](docs/wasm/VOICE_CORE.md) | Shared native voice core: sample-accurate events, O(1) handles, real-time rules, porting checklist (#1344) |
 | [native-artifacts.schema.json](docs/schemas/native-artifacts.schema.json) | Schema for generated `dist/native-artifacts.json` |
 
 ---
