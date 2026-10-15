@@ -16,7 +16,7 @@ export class VocoderEffect {
   private noiseSeed = [1, 2];
   private noiseHp = [0, 0]; // High pass filter state
 
-  process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number): void {
+  process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number, phonemeIntensity: number): void {
     if (amount <= 0) return;
 
     // Fast envelope follower for the modulator (TTS dry signal)
@@ -81,15 +81,26 @@ export class VocoderEffect {
         // 4. Unvoiced Consonant Generation (Noise)
         let noise = 0;
         if (isVowel <= 0) {
-            // LCG Pseudo-random noise
-            this.noiseSeed[channel] = (this.noiseSeed[channel] * 1664525 + 1013904223) | 0;
-            const rawNoise = (this.noiseSeed[channel] / 2147483648.0);
+            // Dynamic threshold: scale inversely with phonemeIntensity.
+            // A base threshold ensures absolute silence gating, but we increase it for quieter phonemes.
+            // Clamp intensity to 0.01 to prevent division by zero or massive thresholds.
+            const safeIntensity = Math.max(0.01, phonemeIntensity);
+            const noiseThreshold = 0.005 / safeIntensity;
 
-            // 1-pole high-pass filter (approx 2kHz cutoff)
-            // hp(t) = alpha * hp(t-1) + alpha * (x(t) - x(t-1)) => approx: y = rawNoise - lowpass
-            const alpha = 0.8; // Simple fast hp
-            this.noiseHp[channel] = alpha * this.noiseHp[channel] + (1 - alpha) * rawNoise;
-            noise = rawNoise - this.noiseHp[channel];
+            if (this.env[channel] > noiseThreshold) {
+                // LCG Pseudo-random noise
+                this.noiseSeed[channel] = (this.noiseSeed[channel] * 1664525 + 1013904223) | 0;
+                const rawNoise = (this.noiseSeed[channel] / 2147483648.0);
+
+                // 1-pole high-pass filter (approx 2kHz cutoff)
+                // hp(t) = alpha * hp(t-1) + alpha * (x(t) - x(t-1)) => approx: y = rawNoise - lowpass
+                const alpha = 0.8; // Simple fast hp
+                this.noiseHp[channel] = alpha * this.noiseHp[channel] + (1 - alpha) * rawNoise;
+                noise = rawNoise - this.noiseHp[channel];
+            } else {
+                // Fade out HP state to prevent click when threshold is crossed again
+                this.noiseHp[channel] *= 0.9;
+            }
 
             // For unvoiced, we rely entirely on noise, zero carrier
             carrier = noise;

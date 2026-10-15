@@ -528,7 +528,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // TS fallback would otherwise only run it when that backend is active.
         const vocoderAmount = param(parameters, 'vocoder', 0);
         if (vocoderAmount > 0) {
-          this.vocoder.process(outputs, vocoderAmount, pData[7], blockSampleRate);
+          this.vocoder.process(outputs, vocoderAmount, pData[7], blockSampleRate, pData[1]);
         }
 
         // The fused FX backend supplies stereo; route either backend's output.
