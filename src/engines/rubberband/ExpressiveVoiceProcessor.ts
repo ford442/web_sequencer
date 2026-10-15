@@ -90,6 +90,27 @@ export interface ExpressiveConfig {
     sampleRate: number;
 }
 
+/** Pre-computed sine table for fast oscillation */
+const SINE_TABLE_SIZE = 4096;
+const SINE_TABLE = new Float32Array(SINE_TABLE_SIZE);
+for (let i = 0; i < SINE_TABLE_SIZE; i++) {
+    SINE_TABLE[i] = Math.sin((i / SINE_TABLE_SIZE) * Math.PI * 2);
+}
+
+function fastSin(phase: number): number {
+    // phase is expected to be 0 to 2PI
+    let normalized = (phase * (1.0 / (Math.PI * 2))) * SINE_TABLE_SIZE;
+    if (normalized < 0) normalized += SINE_TABLE_SIZE;
+
+    const idx = normalized | 0;
+    const frac = normalized - idx;
+
+    const idx1 = idx % SINE_TABLE_SIZE;
+    const idx2 = (idx1 + 1) % SINE_TABLE_SIZE;
+
+    return SINE_TABLE[idx1] * (1 - frac) + SINE_TABLE[idx2] * frac;
+}
+
 /** Default expressive configuration for natural singing */
 export const DEFAULT_EXPRESSIVE_CONFIG: ExpressiveConfig = {
     vibrato: {
@@ -147,12 +168,12 @@ class DelayLine {
     
     write(sample: number): void {
         this.buffer[this.writeIndex] = sample;
-        this.writeIndex = (this.writeIndex + 1) % this.size;
+        if (++this.writeIndex >= this.size) this.writeIndex = 0;
     }
     
     read(delaySamples: number): number {
         // Linear interpolation for fractional delays
-        const intDelay = Math.floor(delaySamples);
+        const intDelay = delaySamples | 0;
         const frac = delaySamples - intDelay;
         
         // Calculate read index: writeIndex - delay - 1
@@ -289,7 +310,7 @@ export class ExpressiveVoiceProcessor {
                 }
 
                 // LFO (-1 to 1)
-                const lfo = Math.sin(this.vibratoPhase);
+                const lfo = fastSin(this.vibratoPhase);
 
                 // Modulate Delay
                 // Base delay is needed so we can modulate +/-
@@ -315,7 +336,7 @@ export class ExpressiveVoiceProcessor {
                 this.tremoloPhase += tremIncrement;
                 if (this.tremoloPhase > 2 * Math.PI) this.tremoloPhase -= 2 * Math.PI;
 
-                const tremLfo = Math.sin(this.tremoloPhase);
+                const tremLfo = fastSin(this.tremoloPhase);
                 // standard tremolo: 1 - depth/2 * (1 + sin)
                 const mod = 1.0 - (trem.depth * 0.5 * (1.0 + tremLfo));
                 sample *= mod;
@@ -329,7 +350,7 @@ export class ExpressiveVoiceProcessor {
                 // Create a smooth square wave (or pulse) using sin as base to avoid aliasing clicks
                 // if sin > 0 -> 1, else 0. To prevent hard clicks, we can use a smoothed step.
                 // A fast sigmoid or simply clamping a scaled sine works well.
-                const sinVal = Math.sin(this.gatePhase);
+                const sinVal = fastSin(this.gatePhase);
                 const smoothedSquare = Math.max(0, Math.min(1, sinVal * 10.0 + 0.5));
 
                 // When smoothedSquare is 0, we duck the signal by gate.depth.
@@ -340,7 +361,7 @@ export class ExpressiveVoiceProcessor {
             // 3. Breath Noise
             if (breath.enabled && breath.amount > 0) {
                 const noiseSample = this.noiseBuffer[this.noiseIndex];
-                this.noiseIndex = (this.noiseIndex + 1) % this.noiseBuffer.length;
+                if (++this.noiseIndex >= this.noiseBuffer.length) this.noiseIndex = 0;
 
                 // vowels: 1.0, consonants/gaps: 0.3
                 const target = 0.3 + 0.7 * isVowel;
