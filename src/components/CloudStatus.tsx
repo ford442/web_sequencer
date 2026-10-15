@@ -63,29 +63,34 @@ export const CloudStatus: React.FC = React.memo(() => {
     // Determine what to show
     // Priority: Uploading/Complete > Waking > Error > Sleeping > Online (Passive)
     let content: React.ReactNode = null;
+    let statusText = '';
 
     if (uploadStatus === 'uploading') {
+        statusText = 'UPLOADING...';
         content = (
             <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-900/20 border border-blue-800 rounded text-[10px] font-mono text-blue-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce"></div>
-                UPLOADING...
+                {statusText}
             </div>
         );
     } else if (uploadStatus === 'complete') {
+        statusText = 'UPLOAD COMPLETE';
         content = (
             <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                UPLOAD COMPLETE
+                {statusText}
             </div>
         );
     } else if (connectionStatus === 'WAKING') {
+        statusText = 'WAKING UP...';
         content = (
              <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-900/20 border border-cyan-800 rounded text-[10px] font-mono text-cyan-400">
                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping"></div>
-                 WAKING UP...
+                 {statusText}
              </div>
          );
     } else if (connectionStatus === 'SLEEPING' || connectionStatus === 'ERROR') {
+        statusText = connectionStatus === 'SLEEPING' ? 'CLOUD ASLEEP' : 'CLOUD OFFLINE';
         content = (
             <button type="button"
                 onClick={handleWake}
@@ -94,20 +99,24 @@ export const CloudStatus: React.FC = React.memo(() => {
                 title="Click to wake up cloud storage"
             >
                 <div className="w-1.5 h-1.5 rounded-full bg-yellow-600"></div>
-                {connectionStatus === 'SLEEPING' ? 'CLOUD ASLEEP' : 'CLOUD OFFLINE'}
+                {statusText}
             </button>
         );
     } else if (connectionStatus === 'ONLINE') {
+        statusText = 'CLOUD READY';
         content = (
             <div className="flex items-center gap-1.5 px-2 py-1 bg-green-900/20 border border-green-800 rounded text-[10px] font-mono text-green-400">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                CLOUD READY
+                {statusText}
             </div>
         );
     }
 
     return (
-        <div role="status" aria-live="polite" aria-atomic="true" className="mr-2 min-h-[24px]">
+        <div className="mr-2 min-h-[24px]">
+            <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+                {statusText}
+            </div>
             {content}
         </div>
     );

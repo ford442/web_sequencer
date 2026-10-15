@@ -495,7 +495,10 @@ export const RbsImportModal = React.memo(function RbsImportModal({ isOpen, onClo
 
           {/* Parse Progress */}
           {isParsing && (
-            <div aria-live="polite" className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+              <div role="status" aria-live="polite" className="sr-only">
+                {parseState.stageLabel}
+              </div>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-amber-400">
                   <span className="animate-spin" aria-hidden="true">⏳</span>

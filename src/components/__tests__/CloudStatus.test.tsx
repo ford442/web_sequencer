@@ -16,7 +16,7 @@ describe('CloudStatus', () => {
         render(<CloudStatus />);
 
         await waitFor(() => {
-            expect(screen.getByText(/CLOUD READY/i)).toBeDefined();
+            expect(screen.getAllByText(/CLOUD READY/i).length).toBeGreaterThan(0);
         }, { timeout: 2000 });
 
         const statusRegion = screen.getByRole('status');
