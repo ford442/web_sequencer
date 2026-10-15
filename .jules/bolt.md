@@ -31,3 +31,7 @@
 ## 2024-12-10 - Optimize Exponential Decay Loops in AudioWorklets
 **Learning:** In AudioWorklets, block-level exponential decay loops (e.g., `for (let i = 0; i < blockFrames; i++) { this.env *= releaseMult; }`) that don't depend on per-sample signal data needlessly consume CPU cycles on the hot path (O(N) operation per quantum). These empty DSP loops can be mathematically simplified to O(1) using `Math.pow()`.
 **Action:** Replace O(N) exponential decay loops with an O(1) operation (e.g., `this.env *= Math.pow(releaseMult, blockFrames)`) to reduce unnecessary CPU overhead on the real-time audio thread.
+
+## 2024-12-10 - Optimize Modulo, Math.floor, and Transcendentals in AudioWorklet Loops
+**Learning:** Inside per-sample DSP loops (like `ExpressiveVoiceProcessor.ts`), modulo operators (`%`), `Math.floor`, and transcendental functions (`Math.sin`) consume a measurable amount of the CPU budget. The overhead compounds quickly at 44.1kHz when multiple modulations (vibrato, tremolo, gate, delay buffers) are active simultaneously.
+**Action:** Replace modulo operators with explicit bounds checks (`if (++idx >= length) idx = 0`). Replace `Math.floor` with bitwise OR (`value | 0`). Replace `Math.sin` with a module-level pre-computed lookup table (e.g. `Float32Array`) and linear interpolation (`fastSin`).
