@@ -1,6 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
+- Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
 - [x] Stress-driven elasticity: Map lyric stress or velocity onto `PhonemeData.elasticity`.
 - [x] Per-track loop length for the lyric track: Let a lyric phrase loop at its own length.
@@ -22,6 +24,7 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
@@ -126,6 +129,7 @@
 - Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.
 
 ## Architecture Review
+- Velocity Check: Modifying `handleTextToDrums` in `useLyricHandlers.ts` to implement gap fills was straightforward, as it just involves maintaining loop state (tracking consecutive consonants and last step index) and filling gaps in step sequences without requiring complex audio graph additions.
 - Completed "Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.". Implemented `timeToStep` utilizing the `swingPercentToClock` util, ensuring that syllable mapping correctly snaps to the swung grid instead of the straight grid.
 - Velocity Check: Utilizing standard arithmetic to implement swing logic rather than relying on complex clock-processor polling enabled instant mapping directly in the UI handler.
 - Check #1370 for parity (`SpatialRouter`): The `SpatialRouter` currently exists only in TypeScript (`src/audio-worklets/rubberband/spatialRouter.ts`) and is evaluated outside the `VocalFxChain` (in `RubberBandProcessor.process()`). It is bypassed in the golden tests (or simply not part of the `NativeVocalFx` pipeline that is tested via `rb_fx_process`). Thus, it is a TS-only processor applied after the main FX chain.
