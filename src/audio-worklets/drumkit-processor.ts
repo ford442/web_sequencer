@@ -78,6 +78,10 @@ class DrumkitProcessor extends NativeVoiceProcessor {
                     this.pushEvent(voice, this.frameAt(d.audioTime), DrumkitEvent.SetKit, d.kit, 0);
                 }
                 break;
+            case 'allNotesOff':
+                // Transport stop: drop pending hits; ringing ones decay.
+                this.cancelNotes(voice);
+                break;
             case 'choke-open-hat':
                 this.pushEvent(voice, this.frameAt(d.audioTime), DrumkitEvent.ChokeOpenHat, 0, 0);
                 break;

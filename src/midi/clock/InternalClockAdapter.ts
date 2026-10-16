@@ -1,6 +1,6 @@
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
 import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
-import type { StepCallback, TransportClock, TransportSyncTelemetry } from './types';
+import { STEP_LOOKAHEAD_MS, type StepCallback, type TransportClock, type TransportSyncTelemetry } from './types';
 
 let clockModulePromise: Promise<void> | null = null;
 
@@ -90,6 +90,7 @@ export class InternalClockAdapter implements TransportClock {
       node.port.postMessage({ type: 'setTempo', tempo: this.tempo });
       node.port.postMessage({ type: 'setSwing', swing: this.swing });
       node.port.postMessage({ type: 'setSteps', steps: this.steps });
+      node.port.postMessage({ type: 'setLookahead', lookahead: STEP_LOOKAHEAD_MS / 1000 });
       node.port.postMessage({ type: 'start' });
 
       node.connect(this.context.destination);
@@ -146,7 +147,8 @@ export class InternalClockAdapter implements TransportClock {
   private tickMainThreadClock(): void {
     if (!this.running) return;
     const now = this.context.currentTime;
-    while (this.mainThreadNextAt <= now + 0.002) {
+    // Same lookahead as the worklet clock: post each step early, stamped with its time.
+    while (this.mainThreadNextAt <= now + STEP_LOOKAHEAD_MS / 1000) {
       const audioTime = this.mainThreadNextAt;
       const step = this.mainThreadNextStep;
       const absStep = this.mainThreadAbsStep;

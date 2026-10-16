@@ -244,6 +244,17 @@ export class DrumKitEngine {
     this.playFallback(context, masterGain, noiseBuffer, sound, params, time);
   }
 
+  /**
+   * Transport stop: drop the hits the worklet still holds for later frames —
+   * the clock posts steps up to STEP_LOOKAHEAD_MS early, so a hit due just
+   * after STOP is already queued. Hits already sounding ring out.
+   */
+  cancelPending(): void {
+    if (this.wasmReady && this.workletNode) {
+      this.workletNode.port.postMessage({ type: 'allNotesOff' });
+    }
+  }
+
   /** Tests: how many AudioWorkletNodes this engine constructed. */
   get workletInstanceCount(): number {
     return this.workletNodesCreated;

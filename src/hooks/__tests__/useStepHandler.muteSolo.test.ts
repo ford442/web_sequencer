@@ -6,6 +6,7 @@ import { TRACK_KEYS } from '../../constants';
 import type { Note, Pattern, PartSequence } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
 import { createArrangement } from '@/arrangement/model';
+import { transportClockController } from '@/midi/clock/TransportClockController';
 
 /**
  * Mute / solo gating at the trigger point.
@@ -173,6 +174,7 @@ describe('useStepHandler mute/solo gating', () => {
     const { engine, options, onStep } = setup();
     for (const key of TRACK_KEYS) trackMuteSoloStore.toggleMute(key);
 
+    engine.context.currentTime = 1.0;
     onStep(7, 1.0);
 
     // Playhead advanced: step ref and the sequencer highlight both moved.
@@ -184,6 +186,7 @@ describe('useStepHandler mute/solo gating', () => {
     expect(engine.playDrum).not.toHaveBeenCalled();
     expect(engine.playSampler).not.toHaveBeenCalled();
 
+    engine.context.currentTime = 1.5;
     onStep(8, 1.5);
     expect(options.currentStepRef.current).toBe(8);
     expect(options.sequencerRef.current!.setHighlight).toHaveBeenCalledWith(8);
@@ -215,5 +218,46 @@ describe('useStepHandler mute/solo gating', () => {
     const stopped = engine.stopTrackNotes.mock.calls.map((c) => c[0]);
     expect(stopped).toEqual(expect.arrayContaining(['partA', 'partB', 'kick', 'sampler']));
     expect(stopped).not.toContain('bass2');
+  });
+});
+
+describe('useStepHandler with the clock lookahead (#1344 P5)', () => {
+  beforeEach(() => {
+    trackMuteSoloStore.reset();
+  });
+
+  it('schedules a step\'s audio at once and paints its playhead at the step\'s time', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, options, onStep } = setup();
+      // The clock posts step 0 40 ms before it falls.
+      engine.context.currentTime = 1.0;
+      onStep(0, 1.04);
+      expect(engine.playDrum).toHaveBeenCalled();
+      expect(engine.playDrum.mock.calls[0][2]).toBe(1.04); // (sound, params, time, …)
+      expect(options.sequencerRef.current!.setHighlight).not.toHaveBeenCalled();
+      expect(options.currentStepRef.current).toBe(-1);
+
+      vi.advanceTimersByTime(40);
+      expect(options.sequencerRef.current!.setHighlight).toHaveBeenCalledWith(0);
+      expect(options.currentStepRef.current).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops a playhead update still pending when the transport stops', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, options, onStep } = setup();
+      engine.context.currentTime = 2.0;
+      onStep(5, 2.04);
+      transportClockController.stop();
+      vi.advanceTimersByTime(100);
+      expect(options.sequencerRef.current!.setHighlight).not.toHaveBeenCalled();
+      expect(options.currentStepRef.current).toBe(-1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

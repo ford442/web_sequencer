@@ -23,6 +23,15 @@ MidiPortManager (single requestMIDIAccess, sysex disabled)
 
 All note and automation scheduling uses `audioTime` from the active clock adapter, never raw message receipt time ([PLAYBACK_STABILITY.md](./PLAYBACK_STABILITY.md)).
 
+**Lookahead (internal / master).** `clock-processor` and the WebKit main-thread
+clock post each step `STEP_LOOKAHEAD_MS` (40 ms) before it falls, still stamped
+with its exact `audioTime`, so its notes reach the voice worklets before their
+frame and land on that sample (#1344 P5, [VOICE_CORE.md](../wasm/VOICE_CORE.md)).
+UI work in the step callback is deferred to the step's time with
+`scheduleAtAudioTime`, which drops it if the transport stopped or restarted
+meanwhile (`TransportClockController.runId`). Slave mode follows incoming MIDI
+clock and keeps its own `AUDIO_SCHEDULE_LOOKAHEAD_MS`.
+
 ## PPQN mapping
 
 Hyphon’s grid is 16th notes. A step is a 16th in **every** time signature —

@@ -98,3 +98,50 @@ describe('clock-processor pattern length', () => {
     }
   });
 });
+
+describe('clock-processor lookahead (#1344 P5)', () => {
+  /** Steps with the block-start time they were posted in. */
+  function runPosted(lookahead: number, swing: number, count: number) {
+    const clock = makeClock(16, swing);
+    if (lookahead > 0) clock.port.send({ type: 'setLookahead', lookahead });
+    const g = globalThis as Record<string, unknown>;
+    const out = [[new Float32Array(128)]];
+    const posted: Array<{ audioTime: number; postedAt: number; absStep: number }> = [];
+    let frame = 0;
+    while (posted.length < count) {
+      g.currentTime = frame / SAMPLE_RATE;
+      const before = clock.port.sent.length;
+      clock.process([], out, {});
+      for (const m of clock.port.sent.slice(before)) {
+        posted.push({ audioTime: m.audioTime, postedAt: frame / SAMPLE_RATE, absStep: m.absStep });
+      }
+      frame += 128;
+    }
+    return posted.slice(0, count);
+  }
+
+  it('posts each step early but stamps it with the same time, swing included', () => {
+    for (const swing of [0, 0.4]) {
+      const plain = runPosted(0, swing, 24);
+      const ahead = runPosted(0.25, swing, 24);
+      // Same frame (audioTime differs only in the last float bits: blockStart +
+      // offset is split differently when the step goes out from an earlier block).
+      const frameOf = (t: number) => Math.round(t * SAMPLE_RATE);
+      expect(ahead.map((m) => frameOf(m.audioTime))).toEqual(plain.map((m) => frameOf(m.audioTime)));
+      expect(ahead.map((m) => m.absStep)).toEqual(plain.map((m) => m.absStep));
+      for (const m of ahead) {
+        // Each block posts the steps up to its end + the lookahead, so a step
+        // goes out 0.25 s to 0.25 s + one block early — or, inside the first
+        // window, on the first block after START.
+        const lead = m.audioTime - m.postedAt;
+        expect(lead).toBeGreaterThanOrEqual(Math.min(0.25, m.audioTime) - 1e-9);
+        expect(lead).toBeLessThan(0.25 + 128 / SAMPLE_RATE);
+      }
+      // Without lookahead a step is posted in the block it falls in.
+      for (const m of plain) {
+        expect(m.audioTime - m.postedAt).toBeGreaterThanOrEqual(0);
+        expect(m.audioTime - m.postedAt).toBeLessThan(128 / SAMPLE_RATE);
+      }
+    }
+  });
+});
