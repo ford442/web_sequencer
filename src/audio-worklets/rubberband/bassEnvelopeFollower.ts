@@ -8,6 +8,9 @@ export class BassEnvelopeFollower {
   private currentDuration = 0.0;
   private currentVelocity = 0.0;
 
+  private cachedSampleRate = 0;
+  private cachedReleaseMultPow = 0;
+
   process(
     sidechain: Float32Array | null,
     currentTime: number,
@@ -35,13 +38,18 @@ export class BassEnvelopeFollower {
 
     // Fixed release time of 100ms
     const releaseSeconds = 0.1;
-    const releaseFrames = Math.max(1, sampleRate * releaseSeconds);
-    const releaseMult = Math.exp(-1.0 / releaseFrames);
+
+    if (sampleRate !== this.cachedSampleRate) {
+      this.cachedSampleRate = sampleRate;
+      const releaseFrames = Math.max(1, sampleRate * releaseSeconds);
+      const releaseMult = Math.exp(-1.0 / releaseFrames);
+      this.cachedReleaseMultPow = Math.pow(releaseMult, blockFrames);
+    }
 
     // If we are past the note duration, start decaying
     let currentBlockEnv = this.env;
     if (timeSinceTrigger > this.currentDuration) {
-       this.env *= Math.pow(releaseMult, blockFrames);
+       this.env *= this.cachedReleaseMultPow;
        currentBlockEnv = this.env;
     }
 

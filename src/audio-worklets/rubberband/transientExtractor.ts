@@ -4,6 +4,11 @@ export class TransientExtractor {
   private hpState1 = [0, 0];
   private hpState2 = [0, 0];
 
+  private cachedSampleRate = 0;
+  private fastAlpha = 0;
+  private slowAlpha = 0;
+  private hpAlpha = 0;
+
   process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number): void {
     if (amount <= 0 || isVowel > 0) {
       // Fast decay when not active to prevent stuck envelopes
@@ -14,16 +19,22 @@ export class TransientExtractor {
       return;
     }
 
-    const fs = sampleRate;
-    const fastAlpha = Math.exp(-1.0 / (0.001 * fs)); // 1ms
-    const slowAlpha = Math.exp(-1.0 / (0.015 * fs)); // 15ms
+    if (sampleRate !== this.cachedSampleRate) {
+      this.cachedSampleRate = sampleRate;
+      this.fastAlpha = Math.exp(-1.0 / (0.001 * sampleRate)); // 1ms
+      this.slowAlpha = Math.exp(-1.0 / (0.015 * sampleRate)); // 15ms
 
-    // High-pass filter coefficients for extracting the "click" / "sibilance"
-    // ~3kHz cutoff
-    const hpCutoff = 3000;
-    const dt = 1.0 / fs;
-    const rc = 1.0 / (2 * Math.PI * hpCutoff);
-    const hpAlpha = rc / (rc + dt);
+      // High-pass filter coefficients for extracting the "click" / "sibilance"
+      // ~3kHz cutoff
+      const hpCutoff = 3000;
+      const dt = 1.0 / sampleRate;
+      const rc = 1.0 / (2 * Math.PI * hpCutoff);
+      this.hpAlpha = rc / (rc + dt);
+    }
+
+    const fastAlpha = this.fastAlpha;
+    const slowAlpha = this.slowAlpha;
+    const hpAlpha = this.hpAlpha;
 
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];
