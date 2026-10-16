@@ -152,6 +152,10 @@ export function useLyricHandlers(deps: {
             newSnare.steps = Array<Note | null>(snareSteps).fill(null);
             newCH.steps = Array<Note | null>(chSteps).fill(null);
             newOH.steps = Array<Note | null>(ohSteps).fill(null);
+
+            let consecutiveConsonants = 0;
+            let lastConsonantStep = -1;
+
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
@@ -160,11 +164,43 @@ export function useLyricHandlers(deps: {
                 const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
                 const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
                 const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
-                if (isVowel) { if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                else if (isSnare) { if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                else if (isOpenHat) { if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                else if (isHat) { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 }; }
-                else { if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 }; }
+
+                if (isVowel) {
+                    consecutiveConsonants = 0;
+                    lastConsonantStep = -1;
+                    if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                } else {
+                    consecutiveConsonants++;
+
+                    if (consecutiveConsonants >= 2 && lastConsonantStep !== -1 && stepIdx > lastConsonantStep + 1) {
+                        // Fill the gap with closed hi-hat rolls
+                        const gapSize = stepIdx - lastConsonantStep - 1;
+                        for (let j = 1; j <= gapSize; j++) {
+                            const fillStep = lastConsonantStep + j;
+                            if (fillStep >= 0 && fillStep < newCH.steps.length) {
+                                // Escalating velocity for the roll
+                                const vel = 0.3 + (0.7 * (j / gapSize));
+                                newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                            }
+                        }
+                    }
+
+                    if (isSnare) {
+                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        // Inject a ghost snare on the preceding step for a more organic feel
+                        if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
+                            newSnare.steps[stepIdx - 1] = { note: 'C4', velocity: 0.4, length: 1 };
+                        }
+                    } else if (isOpenHat) {
+                        if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    } else if (isHat) {
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    } else {
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
+                    }
+
+                    lastConsonantStep = stepIdx;
+                }
             }
             newPattern.kick = newKick;
             newPattern.snare = newSnare;
