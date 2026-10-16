@@ -35,3 +35,7 @@
 ## 2024-12-10 - Optimize Modulo, Math.floor, and Transcendentals in AudioWorklet Loops
 **Learning:** Inside per-sample DSP loops (like `ExpressiveVoiceProcessor.ts`), modulo operators (`%`), `Math.floor`, and transcendental functions (`Math.sin`) consume a measurable amount of the CPU budget. The overhead compounds quickly at 44.1kHz when multiple modulations (vibrato, tremolo, gate, delay buffers) are active simultaneously.
 **Action:** Replace modulo operators with explicit bounds checks (`if (++idx >= length) idx = 0`). Replace `Math.floor` with bitwise OR (`value | 0`). Replace `Math.sin` with a module-level pre-computed lookup table (e.g. `Float32Array`) and linear interpolation (`fastSin`).
+
+## 2024-12-11 - Cache Invariant Transcendental Math in AudioWorklets
+**Learning:** In AudioWorklet DSP modules (e.g., `TransientShaper`, `DrumDuckEnvelope`, `VocoderEffect`), variables like envelope release multipliers are often calculated using `Math.exp()` and `Math.pow()` inside the `process()` hot path every quantum (128 samples). Since these values often only depend on `sampleRate` or a static parameter, recomputing them every block wastes CPU cycles.
+**Action:** Cache these invariant values as class properties. Use a check like `if (sampleRate !== this.cachedSampleRate)` to only recalculate them on instantiation or when the underlying constants actually change, completely eliminating `Math.exp` and `Math.pow` from the continuous hot path.

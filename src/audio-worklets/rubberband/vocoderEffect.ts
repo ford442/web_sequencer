@@ -16,16 +16,29 @@ export class VocoderEffect {
   private noiseSeed = [1, 2];
   private noiseHp = [0, 0]; // High pass filter state
 
+  private cachedSampleRate = 0;
+  private envAttack = 0;
+  private envRelease = 0;
+  private minPeriod = 0;
+  private maxPeriod = 0;
+
   process(outputs: Float32Array[][], amount: number, isVowel: number, sampleRate: number, phonemeIntensity: number): void {
     if (amount <= 0) return;
 
-    // Fast envelope follower for the modulator (TTS dry signal)
-    const envAttack = Math.exp(-1.0 / (sampleRate * 0.005));
-    const envRelease = Math.exp(-1.0 / (sampleRate * 0.05));
+    if (sampleRate !== this.cachedSampleRate) {
+      this.cachedSampleRate = sampleRate;
+      // Fast envelope follower for the modulator (TTS dry signal)
+      this.envAttack = Math.exp(-1.0 / (sampleRate * 0.005));
+      this.envRelease = Math.exp(-1.0 / (sampleRate * 0.05));
+      // Pitch tracker constraints
+      this.minPeriod = Math.floor(sampleRate / 800); // Max 800Hz
+      this.maxPeriod = Math.floor(sampleRate / 60);  // Min 60Hz
+    }
 
-    // Pitch tracker constraints
-    const minPeriod = Math.floor(sampleRate / 800); // Max 800Hz
-    const maxPeriod = Math.floor(sampleRate / 60);  // Min 60Hz
+    const envAttack = this.envAttack;
+    const envRelease = this.envRelease;
+    const minPeriod = this.minPeriod;
+    const maxPeriod = this.maxPeriod;
 
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];

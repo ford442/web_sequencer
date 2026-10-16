@@ -58,6 +58,8 @@ export class PhonemeToneFilter {
 export class TransientShaper {
   private currentEnvelope = 0.0;
   private lastPhonemeIndex = -1;
+  private cachedSampleRate = 0;
+  private decayFactor = 0;
 
   process(outputChannel: Float32Array, consonantClarity: number, isVowel: number | null, phonemeIndex: number | null, phonemeVolume: number | null, sampleRate: number): void {
     if (consonantClarity <= 0.0) return;
@@ -77,8 +79,13 @@ export class TransientShaper {
       return;
     }
 
-    // Fast decay: e.g., ~30ms release
-    const decayFactor = Math.exp(-1.0 / (0.03 * sampleRate));
+    if (sampleRate !== this.cachedSampleRate) {
+      this.cachedSampleRate = sampleRate;
+      // Fast decay: e.g., ~30ms release
+      this.decayFactor = Math.exp(-1.0 / (0.03 * sampleRate));
+    }
+
+    const decayFactor = this.decayFactor;
 
     for (let i = 0; i < outputChannel.length; i++) {
       const boostMultiplier = 1.0 + consonantClarity * this.currentEnvelope;

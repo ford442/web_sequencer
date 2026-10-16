@@ -9,6 +9,8 @@ export class DrumDuckEnvelope {
   private eqState = { lp: [0,0], bp: [0,0] };
   private cachedSampleRate = 0;
   private cachedW = 0;
+  private cachedDecay = -1;
+  private cachedReleaseMultPow = 0;
 
   process(
     sidechain: Float32Array | null,
@@ -33,15 +35,21 @@ export class DrumDuckEnvelope {
       this.lastTrigger = triggerTime;
     }
 
-    const releaseFrames = Math.max(1, sampleRate * drumDecay);
-    const releaseMult = Math.exp(-1.0 / releaseFrames);
+    if (drumDecay !== this.cachedDecay || sampleRate !== this.cachedSampleRate) {
+      this.cachedDecay = drumDecay;
+      // Note: we can't update cachedSampleRate here because applyMasterDuck relies on it changing.
+      // applyMasterDuck handles its own caching check for sampleRate vs this.cachedSampleRate.
+      const releaseFrames = Math.max(1, sampleRate * drumDecay);
+      const releaseMult = Math.exp(-1.0 / releaseFrames);
+      this.cachedReleaseMultPow = Math.pow(releaseMult, blockFrames);
+    }
 
     // Apply a non-linear convex curve to the envelope to hold the peak ducking slightly longer
     const curvedEnv = this.env * (2.0 - this.env);
     const duckingScalar = Math.min(1.0, curvedEnv * drumDuckDepth * drumVelocity);
 
     // Fast attack (instant here since it's triggered per hit), exponential release
-    this.env *= Math.pow(releaseMult, blockFrames);
+    this.env *= this.cachedReleaseMultPow;
 
     this.processResult.duckingScalar = duckingScalar;
     this.processResult.isSnare = isSnare;
