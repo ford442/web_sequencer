@@ -267,13 +267,14 @@ export const ExportModal = React.memo(function ExportModal({
                             : ' Master is the sum of dry stems without master FX.'}
                     </p>
 
-                    <label className="flex items-center gap-2 text-xs text-gray-300">
+                    <label htmlFor="export-use-song-mode" className="flex items-center gap-2 text-xs text-gray-300">
                         <input
+                            id="export-use-song-mode"
                             type="checkbox"
                             checked={useSongMode}
                             onChange={(e) => setUseSongMode(e.target.checked)}
                             disabled={isExporting}
-                            className="accent-cyan-500"
+                            className="accent-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-sm"
                         />
                         Use song arrangement (uncheck for current pattern only)
                     </label>
@@ -320,15 +321,16 @@ export const ExportModal = React.memo(function ExportModal({
                         </label>
                     </div>
 
-                    <label className="flex items-center gap-2 text-xs text-gray-300">
+                    <label htmlFor="export-bounce-master" className="flex items-center gap-2 text-xs text-gray-300">
                         <input
+                            id="export-bounce-master"
                             type="checkbox"
                             checked={masterChain === 'live-patch'}
                             onChange={(e) =>
                                 setMasterChain(e.target.checked ? 'live-patch' : 'dry-exclusive')
                             }
                             disabled={isExporting}
-                            className="accent-cyan-500"
+                            className="accent-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-sm"
                         />
                         Bounce master through the live patch (what you hear)
                     </label>

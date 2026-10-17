@@ -429,9 +429,10 @@ export const ArrangementView = memo(function ArrangementView({
                                 ))}
                             </select>
                         </label>
-                        <label className="flex items-center gap-1">
+                        <label htmlFor="arr-clip-length" className="flex items-center gap-1">
                             LENGTH
                             <input
+                                id="arr-clip-length"
                                 type="number"
                                 min={1}
                                 value={selected.lengthSteps}
@@ -439,15 +440,17 @@ export const ArrangementView = memo(function ArrangementView({
                                     const n = Number(e.target.value);
                                     if (Number.isFinite(n) && n >= 1) commit(selected.id, { lengthSteps: n });
                                 }}
-                                className="w-14 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-cyan-300"
+                                className="w-14 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
                             />
                             steps
                         </label>
-                        <label className="flex items-center gap-1">
+                        <label htmlFor="arr-clip-loop" className="flex items-center gap-1">
                             <input
+                                id="arr-clip-loop"
                                 type="checkbox"
                                 checked={selected.loop}
                                 onChange={(e) => commit(selected.id, { loop: e.target.checked })}
+                                className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-sm"
                             />
                             LOOP
                         </label>

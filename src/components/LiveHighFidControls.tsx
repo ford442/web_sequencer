@@ -65,18 +65,18 @@ export const LiveAbControls: React.FC<LiveAbControlsProps> = memo(({ ab, onChang
                             B · Hi-Fi
                         </button>
                     </div>
-                    <label className="flex items-center gap-1 text-[8px] font-mono text-amber-300/90">
+                    <label htmlFor="hifi-blend" className="flex items-center gap-1 text-[8px] font-mono text-amber-300/90">
                         <span className="shrink-0">Blend</span>
                         <input
+                            id="hifi-blend"
                             type="range"
                             min={0}
                             max={100}
                             step={1}
                             value={blendPct}
                             onChange={(e) => onChange({ ...ab, mix: Number(e.target.value) / 100 })}
-                            aria-label="A/B blend, stock to high-fidelity"
                             aria-valuetext={`${blendPct}% high-fidelity`}
-                            className="flex-1 accent-amber-500"
+                            className="flex-1 accent-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-sm"
                         />
                         <span className="w-7 text-right">{blendPct}%</span>
                     </label>
@@ -109,18 +109,19 @@ export const HighFidCoefficientControls: React.FC<HighFidCoefficientControlsProp
             <div className="flex flex-col gap-0.5 mt-1" role="group" aria-label="Diode-ladder coefficients">
                 {HIGHFID_COEFFICIENT_KEYS.map((key) => {
                     const pct = Math.round(current[key] * 100);
+                    const inputId = `hifi-coef-${key}`;
                     return (
-                        <label key={key} className="flex items-center gap-1" title={COEFFICIENT_LABELS[key].hint}>
+                        <label key={key} htmlFor={inputId} className="flex items-center gap-1" title={COEFFICIENT_LABELS[key].hint}>
                             <span className="w-12 shrink-0">{COEFFICIENT_LABELS[key].label}</span>
                             <input
+                                id={inputId}
                                 type="range"
                                 min={0}
                                 max={100}
                                 step={1}
                                 value={pct}
                                 onChange={(e) => onChange({ ...current, [key]: Number(e.target.value) / 100 })}
-                                aria-label={COEFFICIENT_LABELS[key].hint}
-                                className="flex-1 accent-amber-500"
+                                className="flex-1 accent-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-sm"
                             />
                             <span className="w-6 text-right">{pct}</span>
                         </label>
