@@ -39,3 +39,7 @@
 ## 2024-12-11 - Cache Invariant Transcendental Math in AudioWorklets
 **Learning:** In AudioWorklet DSP modules (e.g., `TransientShaper`, `DrumDuckEnvelope`, `VocoderEffect`), variables like envelope release multipliers are often calculated using `Math.exp()` and `Math.pow()` inside the `process()` hot path every quantum (128 samples). Since these values often only depend on `sampleRate` or a static parameter, recomputing them every block wastes CPU cycles.
 **Action:** Cache these invariant values as class properties. Use a check like `if (sampleRate !== this.cachedSampleRate)` to only recalculate them on instantiation or when the underlying constants actually change, completely eliminating `Math.exp` and `Math.pow` from the continuous hot path.
+
+## 2025-01-20 - Extract Array Property Accesses from DSP Inner Loops
+**Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), repeatedly accessing object properties that are arrays (e.g., `this.eqState.lp[channel]`) incurs significant overhead. For instance, in `DrumDuckEnvelope`, these lookups slowed down the `applyMasterDuck` process substantially because V8 could not easily hoist the array index lookup out of the loop.
+**Action:** Extract such properties into block-scoped local variables (e.g., `let lp = this.eqState.lp[channel];`) before entering the per-sample inner loop. Update the local variable inside the loop, and save its final value back to the array property after the loop finishes. This optimizes memory access and drastically improves execution speed.
