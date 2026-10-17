@@ -12,6 +12,9 @@ export class VocoderEffect {
   // Smoothing for detected pitch
   private smoothedPeriod = [0, 0];
 
+  // Smoothing for dynamic stress mix
+  private smoothedIntensity = [0, 0];
+
   // Noise generator state for unvoiced consonants
   private noiseSeed = [1, 2];
   private noiseHp = [0, 0]; // High pass filter state
@@ -19,6 +22,7 @@ export class VocoderEffect {
   private cachedSampleRate = 0;
   private envAttack = 0;
   private envRelease = 0;
+  private intensityAlpha = 0;
   private minPeriod = 0;
   private maxPeriod = 0;
 
@@ -30,13 +34,18 @@ export class VocoderEffect {
       // Fast envelope follower for the modulator (TTS dry signal)
       this.envAttack = Math.exp(-1.0 / (sampleRate * 0.005));
       this.envRelease = Math.exp(-1.0 / (sampleRate * 0.05));
+      // Fast 5ms smoother for the dynamic stress intensity
+      this.intensityAlpha = Math.exp(-1.0 / (sampleRate * 0.005));
       // Pitch tracker constraints
       this.minPeriod = Math.floor(sampleRate / 800); // Max 800Hz
       this.maxPeriod = Math.floor(sampleRate / 60);  // Min 60Hz
+
+      this.smoothedIntensity = [phonemeIntensity, phonemeIntensity];
     }
 
     const envAttack = this.envAttack;
     const envRelease = this.envRelease;
+    const intensityAlpha = this.intensityAlpha;
     const minPeriod = this.minPeriod;
     const maxPeriod = this.maxPeriod;
 
@@ -123,8 +132,14 @@ export class VocoderEffect {
         // Multiply the generated carrier by the modulator's envelope
         const vocoded = carrier * this.env[channel] * 2.0;
 
-        // 6. Mix with dry signal
-        outCh[i] = x * (1.0 - (amount * 0.5)) + (vocoded * amount);
+        // 6. Dynamic Mix with dry signal
+        // Smooth the phoneme intensity to prevent mix clicks at phoneme boundaries
+        this.smoothedIntensity[channel] = intensityAlpha * this.smoothedIntensity[channel] + (1 - intensityAlpha) * phonemeIntensity;
+
+        // Map the dry/wet mix dynamically to lyric stress via smoothed intensity
+        const dynamicAmount = Math.min(1.0, amount * this.smoothedIntensity[channel]);
+
+        outCh[i] = x * (1.0 - (dynamicAmount * 0.5)) + (vocoded * dynamicAmount);
       }
     }
   }
