@@ -13,7 +13,6 @@ export interface SamplerVoiceParams {
   breathAmount: number;
   consonantClarity?: number;
   consonantSaturation?: number;
-  consonantSaturation?: number;
   stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
@@ -42,6 +41,7 @@ export interface SamplerBankParams {
   tremoloRate?: number;
   breathIntensity?: number;
   consonantClarity?: number;
+  consonantSaturation?: number;
   sliceMode?: 'off' | 'phoneme';
   choir?: number;
   glitchChance?: number;
