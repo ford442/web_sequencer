@@ -39,9 +39,9 @@ function pattern(): Pattern {
 function engine() {
     return {
         context: { currentTime: 0, sampleRate: 48000 },
-        playSynth: vi.fn(),
+        playSynth: vi.fn<(...args: unknown[]) => void>(),
         playDrum: vi.fn(),
-        playSampler: vi.fn(),
+        playSampler: vi.fn<(...args: unknown[]) => void>(),
         stopTrackNotes: vi.fn(),
         open303Engine: null,
         updateSamplerVoiceParams: vi.fn(),

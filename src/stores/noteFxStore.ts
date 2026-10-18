@@ -33,7 +33,8 @@ export const noteFxStore = {
     getSnapshot(): SongNoteFx {
         return chains;
     },
-    subscribe(fn: Listener): () => void {
+    // An arrow, so it can be passed bare to useSyncExternalStore.
+    subscribe: (fn: Listener): (() => void) => {
         listeners.add(fn);
         return () => {
             listeners.delete(fn);

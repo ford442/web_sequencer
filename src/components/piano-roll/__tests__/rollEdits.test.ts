@@ -69,7 +69,7 @@ describe('deleteNotes', () => {
         const r = deleteNotes(base, [{ step: 0, voice: 0 }, { step: 1, voice: 0 }]);
         expect(r.steps[0]).toEqual({ ...n('E4'), chord: ['G4'] });
         expect(r.steps[1]).toBeNull();
-        expect(base[0]!.note).toBe('C4');
+        expect(base[0].note).toBe('C4');
     });
 });
 

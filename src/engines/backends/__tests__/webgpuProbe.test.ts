@@ -115,10 +115,11 @@ function makeDevice(label = SHARED_DEVICE_LABEL): MockDevice {
 
 function stubGpu(devices: MockDevice[], adapterExtras: Record<string, unknown> = {}) {
     let next = 0;
-    const requestDevice = vi.fn(async (_descriptor?: GPUDeviceDescriptor) => {
+    // Typed with the descriptor so tests can read what the probe asked for.
+    const requestDevice = vi.fn<(descriptor?: GPUDeviceDescriptor) => Promise<MockDevice>>(() => {
         const device = devices[Math.min(next, devices.length - 1)];
         next += 1;
-        return device;
+        return Promise.resolve(device);
     });
     const adapter = {
         requestDevice,

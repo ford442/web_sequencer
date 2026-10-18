@@ -14,7 +14,7 @@ import { clearLiveNoteFxCache } from '@/sequencer/noteFx/runtime';
 import { defaultNoteFxChain, type NoteFxChain } from '@/sequencer/noteFx/types';
 
 vi.mock('@/utils/renderAudio', () => ({
-    renderSynthToBuffer: vi.fn(async (_params: unknown, note: string, seconds: number) => ({ note, seconds })),
+    renderSynthToBuffer: vi.fn((_params: unknown, note: string, seconds: number) => Promise.resolve({ note, seconds })),
     renderDrumToBuffer: vi.fn(),
 }));
 
@@ -86,7 +86,7 @@ async function offlinePlay(steps: (Note | null)[], chain: NoteFxChain): Promise<
             };
             return src;
         };
-        this.startRendering = async () => ({});
+        this.startRendering = () => Promise.resolve({});
     }) as unknown as typeof OfflineAudioContext;
     try {
         await renderSynthPattern({ waveform: 'sawtooth' } as never, {

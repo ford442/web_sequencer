@@ -44,7 +44,8 @@ export const pianoRollStore = {
     getSnapshot(): PianoRollState {
         return state;
     },
-    subscribe(fn: Listener): () => void {
+    // An arrow, so it can be passed bare to useSyncExternalStore.
+    subscribe: (fn: Listener): (() => void) => {
         listeners.add(fn);
         return () => {
             listeners.delete(fn);

@@ -151,7 +151,7 @@ export function createGpuRollRenderer(device: GPUDevice, surface: ConfiguredCanv
             pass.setPipeline(pipeline);
             pass.setBindGroup(0, bindGroup);
             if (scene.count > 0) {
-                pass.setVertexBuffer(0, instanceBuffer!);
+                pass.setVertexBuffer(0, instanceBuffer);
                 pass.draw(6, scene.count);
             }
             if (playhead) {

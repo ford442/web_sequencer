@@ -80,7 +80,7 @@ const props = (): PianoRollViewProps => ({
 
 describe('piano roll on WebGPU', () => {
     let devices: ReturnType<typeof makeDevice>[];
-    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext');
     const originalBox = {
         clientWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth'),
         clientHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight'),
@@ -106,7 +106,7 @@ describe('piano roll on WebGPU', () => {
             ...navigator,
             gpu: {
                 requestAdapter: vi.fn().mockResolvedValue({
-                    requestDevice: vi.fn(async () => devices[Math.min(next++, devices.length - 1)]),
+                    requestDevice: vi.fn(() => Promise.resolve(devices[Math.min(next++, devices.length - 1)])),
                 }),
                 getPreferredCanvasFormat: () => 'bgra8unorm',
             },
@@ -122,7 +122,7 @@ describe('piano roll on WebGPU', () => {
     afterEach(() => {
         box('clientWidth', null);
         box('clientHeight', null);
-        HTMLCanvasElement.prototype.getContext = originalGetContext;
+        if (originalGetContext) Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', originalGetContext);
         resetWebGpuProbe();
         vi.unstubAllGlobals();
     });

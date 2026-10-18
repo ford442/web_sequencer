@@ -169,7 +169,7 @@ export async function restartWebGpuDevice(reason = 'restart requested'): Promise
         restartWaiters.set(device, waiters);
     });
     device.destroy();
-    if (!device.lost) {
+    if (!lostPromise(device)) {
         // No lost promise to drive recovery (old implementation / mock).
         void handleDeviceLost(device, { reason: 'destroyed', message: reason });
     }
@@ -301,15 +301,20 @@ async function runProbe(): Promise<WebGpuProbe> {
     }
 }
 
+/** `device.lost`, which older implementations and test mocks lack. */
+function lostPromise(device: GPUDevice): Promise<GPUDeviceLostInfo> | null {
+    const lost = (device as { lost?: Partial<Promise<GPUDeviceLostInfo>> }).lost;
+    return typeof lost?.then === 'function' ? (lost as Promise<GPUDeviceLostInfo>) : null;
+}
+
 function watchDevice(device: GPUDevice): void {
     if (typeof device.addEventListener === 'function') {
         device.addEventListener('uncapturederror', (event) => {
-            onUncapturedError(device, event as GPUUncapturedErrorEvent);
+            onUncapturedError(device, event);
         });
     }
-    if (device.lost && typeof device.lost.then === 'function') {
-        void device.lost.then((info) => handleDeviceLost(device, info));
-    }
+    const lost = lostPromise(device);
+    if (lost) void lost.then((info) => handleDeviceLost(device, info));
 }
 
 function onUncapturedError(device: GPUDevice, event: GPUUncapturedErrorEvent): void {

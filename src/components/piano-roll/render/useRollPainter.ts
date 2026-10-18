@@ -74,6 +74,11 @@ export class RollPainter {
         this.dirty = true;
     }
 
+    setPlayheadTrack(track: TrackKey | null): void {
+        this.playheadTrack = track;
+        this.dirty = true;
+    }
+
     /** Draw if anything changed since the last frame. Returns true when it drew. */
     tick(now: number): boolean {
         if (!this.renderer || !this.input) return false;

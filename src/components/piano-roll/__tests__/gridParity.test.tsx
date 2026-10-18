@@ -39,12 +39,18 @@ function useHarness() {
     const undoRedo = useUndoRedo<Pattern>(50);
     const activeSamplerBankRef = useRef(0);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackKey; step: number } | null>(null);
-    const [storage, setTrackStorage] = useState<TrackStorage>(() => ({
+    const [storage, setStorageState] = useState<TrackStorage>(() => ({
         partA: [null], partB: [null], bass2: [null], kick: [null], snare: [null],
         closedHat: [null], openHat: [null], sampler: [null],
     }));
     const trackStorageRef = useRef(storage);
-    trackStorageRef.current = storage;
+    const setTrackStorage: React.Dispatch<React.SetStateAction<TrackStorage>> = (action) => {
+        setStorageState((prev) => {
+            const next = typeof action === 'function' ? action(prev) : action;
+            trackStorageRef.current = next;
+            return next;
+        });
+    };
     const activeTrackSlotsRef = useRef<Record<TrackKey, number>>({
         partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0,
     });

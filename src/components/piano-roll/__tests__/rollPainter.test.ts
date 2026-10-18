@@ -46,7 +46,7 @@ describe('RollPainter', () => {
         const { renderer, frames } = fakeRenderer();
         painter.setRenderer(renderer);
         painter.setInput(input);
-        painter.playheadTrack = 'partA';
+        painter.setPlayheadTrack('partA');
         painter.tick(0);
         const builds = painter.sceneBuilds;
 

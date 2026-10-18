@@ -162,8 +162,7 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
     }, [painter, editor.notes, editor.selectedIds, editor.cursor, ghosts, color, columns, props.loopLength, props.stepsPerBeat, props.stepsPerBar, scale, laneProperty, focused, grid, fxActive, props.fxPreview]);
 
     useEffect(() => {
-        painter.playheadTrack = target.track;
-        painter.invalidate();
+        painter.setPlayheadTrack(target.track);
     }, [painter, target.track]);
 
     useEffect(() => {

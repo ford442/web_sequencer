@@ -33,7 +33,7 @@ describe('WebGpu303Engine on the shared device', () => {
         vi.stubGlobal('navigator', {
             gpu: {
                 requestAdapter: vi.fn().mockResolvedValue({
-                    requestDevice: vi.fn(async () => devices[Math.min(i++, devices.length - 1)]),
+                    requestDevice: vi.fn(() => Promise.resolve(devices[Math.min(i++, devices.length - 1)])),
                 }),
             },
         });

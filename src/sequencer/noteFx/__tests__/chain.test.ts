@@ -133,7 +133,7 @@ describe('freezeEventsToSteps', () => {
             x.chord = { enabled: true, intervals: [7] };
             x.ratchet = { enabled: true, count: 2, decay: 1, gate: 1 };
         });
-        const events = renderNoteFx([{ ...s[0]!, probability: undefined }], c, { loopLength: 16 });
+        const events = renderNoteFx([{ ...s[0], probability: undefined }], c, { loopLength: 16 });
         const { steps, dropped } = freezeEventsToSteps(events, s, 16);
         expect(dropped).toBe(0);
         expect(steps[0]).toEqual({ note: 'C4', chord: ['G4'], velocity: 1, length: 1, slide: false, timbre: 0.3, retrigger: 2 });

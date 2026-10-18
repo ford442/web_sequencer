@@ -6,9 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultNoteFxChain } from '../../sequencer/noteFx/types';
 
-const renderSynthPattern = vi.fn();
-const renderDrumPattern = vi.fn();
-const renderSamplerBankPattern = vi.fn();
+type RenderFn = (...args: unknown[]) => Promise<unknown>;
+const renderSynthPattern = vi.fn<RenderFn>();
+const renderDrumPattern = vi.fn<RenderFn>();
+const renderSamplerBankPattern = vi.fn<RenderFn>();
 
 vi.mock('../patternRenderer', () => ({
     bass2ToSynthParams: (b: unknown) => b,
@@ -17,7 +18,7 @@ vi.mock('../patternRenderer', () => ({
     renderSamplerBankPattern: (...args: unknown[]) => renderSamplerBankPattern(...args),
 }));
 vi.mock('../audioExport', () => ({
-    audioBufferToWav: vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(0) })),
+    audioBufferToWav: vi.fn(() => Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) })),
 }));
 vi.mock('../zipStore', () => ({ createZipBlob: vi.fn((entries: unknown) => entries) }));
 vi.mock('../../audio/loudness', () => ({

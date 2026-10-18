@@ -613,6 +613,10 @@ export const useStepHandler = ({
             return bass2NoteParams;
         };
 
+        // Only Open303Manager takes BASS 2 params; the other 303 engines skip them.
+        const applyBass2Params = () =>
+            (audioEngine.open303Engine as { applyBass2Params?: (p: Bass2Params) => void } | null | undefined)?.applyBass2Params?.(bass2Ref.current);
+
         const playBass2Notes = (notes: string | string[], at: number, lengthSteps: number | undefined, velocity: number, noteParams: SynthNoteParams) => {
             const wamBass = getWamHost();
             if (wamBass?.takesOverTrack('bass2')) {
@@ -630,9 +634,7 @@ export const useStepHandler = ({
 
             const fx = fxBucket('bass2', 'bass2', p.bass2, tStep, 0);
             if (fx) {
-                if (fx.length > 0 && audioEngine.open303Engine) {
-                    (audioEngine.open303Engine as any).applyBass2Params?.(bass2Ref.current);
-                }
+                if (fx.length > 0) applyBass2Params();
                 for (const group of groupSimultaneous(fx)) {
                     const head = group[0];
                     const source = p.bass2.steps[head.sourceStep];
@@ -662,9 +664,7 @@ export const useStepHandler = ({
             const invVal = activePattern.bass2.automation?.['chordInversion']?.[tStep] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
-            if (audioEngine.open303Engine) {
-                (audioEngine.open303Engine as any).applyBass2Params?.(bass2Ref.current);
-            }
+            applyBass2Params();
 
             playBass2Notes(notes, time, stepData.length, stepData.velocity ?? 1, bass2NoteParamsFor(stepData));
         };

@@ -7,7 +7,7 @@
  * painter. Release commits once through `editor.apply`, so one gesture is one
  * undo entry, exactly like a single grid edit.
  */
-import { useCallback, useRef, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { ScaleDefinition } from '@/utils/musicTheory';
 import { notesInRect, parseRollNoteId, pitchName, rollNoteId, stepsToRollNotes, type NoteRef, type Steps } from './model/rollModel';
 import {
@@ -55,8 +55,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export function usePianoRollPointer(o: RollPointerOptions) {
     const dragRef = useRef<Drag | null>(null);
+    // Handlers run after commit, so the options of the last render are current.
     const optsRef = useRef(o);
-    optsRef.current = o;
+    useLayoutEffect(() => {
+        optsRef.current = o;
+    });
 
     const local = (e: React.PointerEvent): { x: number; y: number } => {
         const el = optsRef.current.overlayRef.current;
