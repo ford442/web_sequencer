@@ -169,6 +169,24 @@ export {
     NODE_HEIGHT,
 } from './layout';
 export type { GraphLayout, NodeLayout } from './layout';
+export {
+    ENGINE_VOICE_FACTORIES,
+    EngineVoiceSocket,
+    defaultEngineVoiceProvider,
+    findEngineVoice,
+    isEngineVoiceFactory,
+    listEngineVoices,
+} from './engineVoices';
+export type {
+    EngineOutput,
+    EngineVoiceFactory,
+    EngineVoiceProvider,
+    EngineVoiceRequest,
+} from './engineVoices';
+export { OPEN303_VOICES, open303StripIds, withEngineVoices } from './engineStrips';
+export type { Open303StripIds, Open303VoiceId, ProphecyVoiceId, SamplerVoiceId } from './engineStrips';
+export { NODE_PALETTE, createPaletteNode, paletteDefaults } from './nodePalette';
+export type { PaletteEntry, PaletteParam } from './nodePalette';
 export type { GraphPreset } from './presets';
 export { restorePatchFromSong } from './patchSession';
 export type { PatchRestoreResult } from './patchSession';

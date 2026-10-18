@@ -127,4 +127,42 @@ describe('PatchBay', () => {
         });
         expect(screen.getByText(/next engine restart/i)).toBeInTheDocument();
     });
+
+    it('adds a node from the palette with its parameters, then removes it', () => {
+        const controller = mountWithController();
+        const { container } = render(<PatchBay />);
+
+        fireEvent.change(screen.getByLabelText('Node type'), { target: { value: '2' } }); // Low-pass
+        fireEvent.change(screen.getByLabelText('Low-pass Cutoff'), { target: { value: '800' } });
+        fireEvent.click(screen.getByText('Add Low-pass 1'));
+
+        const added = controller.getConfig().nodes.find((node) => node.id === 'biquadFilter-1');
+        expect(added).toMatchObject({
+            factory: 'biquadFilter',
+            label: 'Low-pass 1',
+            config: { type: 'lowpass', frequency: 800 },
+        });
+        expect(added?.fixed).toBeUndefined();
+        // A new node changes the node set, which only a rebuild can apply.
+        expect(screen.getByText(/next engine restart/i)).toBeInTheDocument();
+
+        // Selecting a user node offers removal; preset nodes never do.
+        const nodeRect = [...container.querySelectorAll('rect')].find(
+            (rect) => rect.nextElementSibling?.textContent === 'Low-pass 1',
+        );
+        fireEvent.mouseDown(nodeRect!);
+        fireEvent.click(screen.getByText('Remove node'));
+        expect(controller.getConfig().nodes.some((node) => node.id === 'biquadFilter-1')).toBe(false);
+    });
+
+    it('never offers to remove a preset node', () => {
+        mountWithController();
+        const { container } = render(<PatchBay />);
+        const engineRect = [...container.querySelectorAll('rect')].find(
+            (rect) => rect.nextElementSibling?.textContent === '303 Bass',
+        );
+        expect(engineRect).toBeDefined();
+        fireEvent.mouseDown(engineRect!);
+        expect(screen.queryByText('Remove node')).not.toBeInTheDocument();
+    });
 });

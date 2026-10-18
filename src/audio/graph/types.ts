@@ -36,7 +36,15 @@ export type GraphNodeFactory =
     | 'wamInstrumentSlot'
     | 'wamTrackInsert'
     | 'wamMasterInsert'
-    | 'wamSendReturn';
+    | 'wamSendReturn'
+    // First-party engines (Phase C). Each compiles to an `EngineVoiceSocket`:
+    // a port pair the engine's worklet output attaches to once it has booted,
+    // so the engine is a node in the patch rather than hard-wired lifecycle code.
+    | 'open303Voice'
+    | 'prophecyVoice'
+    | 'drumkitVoice'
+    | 'samplerVoice'
+    | 'harmonizerBus';
 
 export interface BiquadFilterConfig {
     type: BiquadFilterType;
@@ -87,6 +95,14 @@ export interface TrackMonitorConfig {
     analyserSmoothing?: number;
 }
 
+/**
+ * Which instance of an engine a voice node stands for. The engine attaches
+ * itself to the node whose factory + `voice` match (see `engineVoices.ts`).
+ */
+export interface EngineVoiceConfig {
+    voice?: string;
+}
+
 export type GraphNodeConfig =
     | BiquadFilterConfig
     | DynamicsCompressorConfig
@@ -97,6 +113,7 @@ export type GraphNodeConfig =
     | ConvolverConfig
     | DelayConfig
     | TrackMonitorConfig
+    | EngineVoiceConfig
     | Record<string, never>;
 
 export interface GraphNodeSpec {
@@ -156,6 +173,8 @@ export interface GraphPortPair {
     input: AudioNode;
     output: AudioNode;
     wamSlot?: import('../wam/WamSlotPorts').WamSlotPorts;
+    /** Present on first-party engine nodes (`open303Voice`, `drumkitVoice`, …). */
+    engineSocket?: import('./engineVoices').EngineVoiceSocket;
 }
 
 export interface CompiledAudioGraph {

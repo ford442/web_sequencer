@@ -18,10 +18,22 @@
  *   mounted into the offline context. Everything else is `offline:
  *   'unsupported'` per ADR 0001: the slot is bypassed, the mix continues, and
  *   the reason is reported. No first-party engine is ever substituted.
+ * - **Engine nodes.** `open303Voice`, `drumkitVoice`, … compile to the same
+ *   sockets they do live. Nothing boots an engine offline: a renderer feeds a
+ *   track's rendered audio into its engine node (`voiceBuffers`, or
+ *   `engineVoice()` from a `schedule` callback), so the strip and every cable
+ *   after it — inserts, sends — are the live ones. A socket nobody fed renders
+ *   silence and is reported as `silent`, never stood in for.
  */
 
 import { compileAudioGraph, type CompileGraphOptions } from '../graph/compileGraph';
 import { CLASSIC_ELECTRIBE_GRAPH } from '../graph/defaultElectribeGraph';
+import {
+    findEngineVoice,
+    listEngineVoices,
+    type EngineVoiceFactory,
+    type EngineVoiceSocket,
+} from '../graph/engineVoices';
 import { getActivePatchController } from '../graph/patchRegistry';
 import type { AudioGraphConfig, CompiledAudioGraph, GraphNodeId } from '../graph/types';
 import { applyMasterLoudnessOffline, type MasterLoudnessRenderResult } from '../loudness/offline';
@@ -74,6 +86,18 @@ export interface OfflineGraphSlotReport {
     detail?: string;
 }
 
+export interface OfflineEngineVoiceReport {
+    nodeId: GraphNodeId;
+    factory: EngineVoiceFactory;
+    voice: string | null;
+    /**
+     * `fed` — a renderer attached audio to the socket. `silent` — nothing did,
+     * so the node rendered nothing (no engine is booted offline, and none is
+     * substituted).
+     */
+    status: 'fed' | 'silent';
+}
+
 export interface OfflineGraphReport {
     /** Rate the render actually runs at. */
     sampleRate: number;
@@ -84,6 +108,8 @@ export interface OfflineGraphReport {
     patchName: string;
     /** Every WAM2 slot in the patch, rendered or bypassed. */
     slots: OfflineGraphSlotReport[];
+    /** Every first-party engine node in the patch, filled in by `render()`. */
+    engineVoices: OfflineEngineVoiceReport[];
     /** Loudness readings, filled in by `render()`. */
     loudness: MasterLoudnessRenderResult | null;
 }
@@ -98,6 +124,11 @@ export interface CompiledOfflineGraph {
     dryInput: AudioNode;
     /** WAM2 plugins actually mounted offline, so a caller can schedule notes. */
     slotPlugins: ReadonlyMap<GraphNodeId, Wam2Plugin>;
+    /**
+     * The socket a track's rendered audio enters through — the engine node the
+     * live engine attaches to. Undefined when the patch has no such node.
+     */
+    engineVoice: (factory: EngineVoiceFactory, voice?: string | null) => EngineVoiceSocket | undefined;
     /** Render, then run the master loudness stage. Fills `report.loudness`. */
     render: () => Promise<AudioBuffer>;
 }
@@ -131,7 +162,10 @@ export interface CompileOfflineGraphOptions {
     wam2?: Wam2SongPayload | null;
     loudness?: OfflineGraphLoudnessOptions;
     /** Passed through to the shared compiler (reverb impulses, validation). */
-    compile?: Pick<CompileGraphOptions, 'createReverbImpulse' | 'validate' | 'useStereoPanner'>;
+    compile?: Pick<
+        CompileGraphOptions,
+        'createReverbImpulse' | 'validate' | 'useStereoPanner' | 'createEngineVoice'
+    >;
     /** Injected by tests; production constructs a real `OfflineAudioContext`. */
     contextFactory?: (
         channels: number,
@@ -404,6 +438,7 @@ export async function compileOfflineGraph(
         patchId: patch.id,
         patchName: patch.name,
         slots: reports,
+        engineVoices: [],
         loudness: null,
     };
 
@@ -416,6 +451,12 @@ export async function compileOfflineGraph(
     const dryInput = graph.getRoleNode('masterDryInput') ?? input;
 
     const render = async (): Promise<AudioBuffer> => {
+        report.engineVoices = listEngineVoices(graph).map((socket) => ({
+            nodeId: socket.nodeId,
+            factory: socket.factory,
+            voice: socket.voice,
+            status: socket.isAttached ? 'fed' : 'silent',
+        }));
         const rendered = await context.startRendering();
         if (options.loudness?.enabled === false) return rendered;
         report.loudness = applyMasterLoudnessOffline(
@@ -426,7 +467,10 @@ export async function compileOfflineGraph(
         return rendered;
     };
 
-    return { context, graph, report, input, dryInput, slotPlugins: plugins, render };
+    const engineVoice = (factory: EngineVoiceFactory, voice: string | null = null) =>
+        findEngineVoice(graph, factory, voice);
+
+    return { context, graph, report, input, dryInput, slotPlugins: plugins, engineVoice, render };
 }
 
 export interface OfflineGraphRenderResult {
@@ -453,9 +497,23 @@ export async function renderThroughOfflineGraph(
     return { buffer, report: compiled.report };
 }
 
+/** A rendered track that enters the patch at its engine node. */
+export interface OfflineVoiceBuffer {
+    buffer: AudioBuffer;
+    factory: EngineVoiceFactory;
+    voice?: string | null;
+}
+
 export interface BounceBuffersOptions extends CompileOfflineGraphOptions {
     /** Source buffers, all started at time 0 on the master FX input. */
     buffers: readonly AudioBuffer[];
+    /**
+     * Rendered tracks fed into their engine nodes instead, so the strip and any
+     * insert or send cabled after that engine shape them as they do live. A
+     * patch without the node takes the buffer on the master FX input, and the
+     * report shows the socket as `silent`.
+     */
+    voiceBuffers?: readonly OfflineVoiceBuffer[];
     /** Start each source at this offset instead of 0. */
     startTime?: number;
 }
@@ -468,14 +526,22 @@ export interface BounceBuffersOptions extends CompileOfflineGraphOptions {
 export async function bounceBuffersThroughOfflineGraph(
     options: BounceBuffersOptions,
 ): Promise<OfflineGraphRenderResult> {
-    const { buffers, startTime = 0, ...rest } = options;
+    const { buffers, voiceBuffers = [], startTime = 0, ...rest } = options;
     return renderThroughOfflineGraph({
         ...rest,
-        schedule: ({ context, input }) => {
+        schedule: ({ context, input, engineVoice }) => {
             for (const buffer of buffers) {
                 const source = context.createBufferSource();
                 source.buffer = buffer;
                 source.connect(input);
+                source.start(startTime);
+            }
+            for (const entry of voiceBuffers) {
+                const source = context.createBufferSource();
+                source.buffer = entry.buffer;
+                const socket = engineVoice(entry.factory, entry.voice ?? null);
+                if (socket) socket.attach(source);
+                else source.connect(input);
                 source.start(startTime);
             }
         },

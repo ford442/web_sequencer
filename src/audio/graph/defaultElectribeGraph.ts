@@ -1,3 +1,4 @@
+import { engineLayerEdges, engineLayerNodes } from './engineStrips';
 import type { AudioGraphConfig } from './types';
 
 /**
@@ -6,6 +7,10 @@ import type { AudioGraphConfig } from './types';
  * Two intentional entry points:
  * - masterFxInput (saturation): synths, sampler, Open303, reverb/delay returns
  * - masterDryInput (master gain): drums, ambiance, sustain, choir — bypasses FX chain
+ *
+ * The first-party engines (303 voices and their strips, Prophecy, drum kit,
+ * sampler worklets, choir sum) are nodes of this patch too — see
+ * `engineStrips.ts`, appended at the end of the node and edge lists.
  */
 export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
     id: 'classic-electribe',
@@ -176,6 +181,9 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
             factory: 'stereoPanner',
             config: { pan: 0.6 },
         },
+
+        // --- First-party engines (Phase C) ---
+        ...engineLayerNodes(),
     ],
     edges: [
         // Master FX chain (in-series)
@@ -206,11 +214,13 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
         { from: 'delayFeedback', to: 'delay', feedback: true },
         { from: 'delay', to: 'masterSaturation' },
 
-        // Choir buses → master dry input (post-compressor)
+        // Choir buses → choir sum → master dry input (post-compressor); the
+        // panner → sum and sum → masterGain edges are in the engine layer.
         { from: 'choirLeftGain', to: 'choirLeftPanner' },
-        { from: 'choirLeftPanner', to: 'masterGain' },
         { from: 'choirRightGain', to: 'choirRightPanner' },
-        { from: 'choirRightPanner', to: 'masterGain' },
+
+        // --- First-party engines (Phase C) ---
+        ...engineLayerEdges(),
     ],
 };
 

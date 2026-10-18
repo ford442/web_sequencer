@@ -9,7 +9,7 @@
  */
 
 import { CLASSIC_ELECTRIBE_GRAPH } from './defaultElectribeGraph';
-import { addConnection, setConnectionGain } from './graphOps';
+import { addConnection, addNode, removeConnection, setConnectionGain } from './graphOps';
 import type { AudioGraphConfig } from './types';
 
 export interface GraphPreset {
@@ -51,6 +51,38 @@ function buildDual303(): AudioGraphConfig {
     return config;
 }
 
+/** Apply an edit that the preset author knows is valid; a refusal is a bug in the preset. */
+function must(result: { config: AudioGraphConfig; rejected?: { message: string } }): AudioGraphConfig {
+    if (result.rejected) throw new Error(`Preset edit refused: ${result.rejected.message}`);
+    return result.config;
+}
+
+/**
+ * Vocal Workstation: the sampler (Rubber Band voices + sustain) gets its own
+ * vocal compressor before the master FX chain, and both the sampler bus and the
+ * choir sum feed the plate and the delay. Only meaningful now that the sampler
+ * voices and the choir sum are graph nodes (Phase C).
+ */
+function buildVocalWorkstation(): AudioGraphConfig {
+    let config = clone(CLASSIC_ELECTRIBE_GRAPH, 'vocal-workstation', 'Vocal Workstation');
+    config = must(
+        addNode(config, {
+            id: 'vocalCompressor',
+            label: 'Vocal Comp',
+            fixed: true,
+            factory: 'dynamicsCompressor',
+            config: { threshold: -22, knee: 12, ratio: 3, attack: 0.008, release: 0.18 },
+        }),
+    );
+    config = removeConnection(config, 'samplerBus', 'masterSaturation');
+    config = must(addConnection(config, 'samplerBus', 'vocalCompressor'));
+    config = must(addConnection(config, 'vocalCompressor', 'masterSaturation'));
+    config = must(addConnection(config, 'vocalCompressor', 'reverbPlate', { gain: 0.3 }));
+    config = must(addConnection(config, 'vocalCompressor', 'delay', { gain: 0.15 }));
+    config = must(addConnection(config, 'choirSum', 'reverbPlate', { gain: 0.35 }));
+    return config;
+}
+
 export const GRAPH_PRESETS: readonly GraphPreset[] = [
     {
         id: 'classic-electribe',
@@ -63,6 +95,12 @@ export const GRAPH_PRESETS: readonly GraphPreset[] = [
         name: 'Dual 303 + Sidechain',
         description: 'Both 303 buses sent to plate and delay, sidechain shelf armed.',
         build: buildDual303,
+    },
+    {
+        id: 'vocal-workstation',
+        name: 'Vocal Workstation',
+        description: 'Sampler voices through a vocal compressor; sampler and choir sent to plate and delay.',
+        build: buildVocalWorkstation,
     },
 ];
 

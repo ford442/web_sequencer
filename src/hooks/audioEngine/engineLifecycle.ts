@@ -21,6 +21,7 @@ import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/e
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor, stopGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
+import { findEngineVoice } from '../../audio/graph/engineVoices';
 import {
     PatchController,
     buildPreset,
@@ -210,7 +211,9 @@ export async function initializeAudioContextAndEngines(
         open303Ready = await open303Manager.init(context, urls.open303ProcessorUrl);
 
         if (open303Ready) {
-            open303Manager.connect(masterBusInput);
+            // The voices plug into their `open303Voice` nodes; volume, drive and
+            // pan are the patch's strip nodes, not a mixer of the manager's.
+            open303Manager.attachToGraph(graph, masterBusInput);
             refs.open303ManagerRef.current = open303Manager;
             console.log('[useAudioEngine] Open303Manager Ready');
             try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
@@ -238,7 +241,7 @@ export async function initializeAudioContextAndEngines(
         if (prophecyReady) {
             const partADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
             const partBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
-            prophecyManager.connectBuses(partADest, partBDest);
+            prophecyManager.attachToGraph(graph, { partA: partADest, partB: partBDest });
             refs.prophecyManagerRef.current = prophecyManager;
             console.log('[useAudioEngine] ProphecyManager Ready');
             try { engineTelemetry.registerResolution('prophecy', 'wasm-worklet', 'ready'); } catch (e) { /* noop */ }
@@ -288,7 +291,11 @@ export async function initializeAudioContextAndEngines(
     if (isAppleWebKit()) {
         logEngineFallback('sustain', 'wasm-worklet', 'AudioWorklet addModule skipped on WebKit');
     } else {
-        await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, refs.masterGainRef);
+        const sustainSocket = findEngineVoice(graph, 'samplerVoice', 'sustain');
+        await initializeSustainProcessor(context, urls.sustainProcessorUrl, refs.sustainNodeRef, (node) => {
+            if (sustainSocket) sustainSocket.attach(node);
+            else node.connect(refs.masterGainRef.current!);
+        });
     }
 
     // --- Singing Voice Manager Init ---
@@ -325,11 +332,15 @@ export async function initializeAudioContextAndEngines(
         refs.singingVoiceManagerRef.current = manager;
         try { engineTelemetry.registerResolution('singingVoice','wasm','loaded'); } catch (e) { /* noop */ }
 
+        // Rubber Band voices enter the patch at the `samplerVoice` stretch node.
+        const stretchSocket = findEngineVoice(graph, 'samplerVoice', 'stretch');
         const samplerDest = refs.samplerBusRef.current ?? refs.masterSaturationRef.current!;
         const voices = manager.getAllVoices();
         // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
         for (let i = 0; i < voices.length; i++) {
-            voices[i].connectOutput(samplerDest);
+            const voice = voices[i];
+            if (stretchSocket) stretchSocket.attach({ connect: (dest) => voice.connectOutput(dest) });
+            else voice.connectOutput(samplerDest);
         }
 
         // Initialise the phoneme buffer pool and wire it to every voice
@@ -359,7 +370,7 @@ export async function initializeAudioContextAndEngines(
     refs.noiseBufferRef.current = createNoiseBuffer(context);
     refs.multisampleGeneratorRef.current = new MultisampleGenerator(context);
     refs.drumKitEngineRef.current = new DrumKitEngine(DEFAULT_DRUM_KIT);
-    const drumDest = refs.masterGainRef.current;
+    const drumDest = findEngineVoice(graph, 'drumkitVoice')?.output ?? refs.masterGainRef.current;
     if (drumDest && urls.drumkitProcessorUrl) {
         const drumReady = await refs.drumKitEngineRef.current.init(
             context,

@@ -13,6 +13,8 @@ import { ProphecyOscillator } from './ProphecyOscillator';
 import { logEngineFallback } from '../utils/engineTelemetry';
 import type { SynthParams } from '../types';
 import { PROPHECY_WAVEFORM_ID } from './ProphecyParams';
+import { findEngineVoice } from '../audio/graph/engineVoices';
+import type { CompiledAudioGraph } from '../audio/graph/types';
 
 export type ProphecyAutomationParam = 'vowel' | 'portamento' | 'formantShift';
 
@@ -59,6 +61,32 @@ export class ProphecyManager {
     connectBuses(partADest: AudioNode, partBDest: AudioNode): void {
         this.partA?.connect(partADest);
         this.partB?.connect(partBDest);
+    }
+
+    /**
+     * Plug partA / partB into their `prophecyVoice` nodes in the compiled
+     * patch. A part the patch has no node for falls back to its track bus
+     * (when given), so it is never silent; returns the parts that fell back.
+     */
+    attachToGraph(
+        graph: CompiledAudioGraph,
+        fallback: { partA?: AudioNode; partB?: AudioNode } = {},
+    ): Array<'partA' | 'partB'> {
+        const missing: Array<'partA' | 'partB'> = [];
+        for (const part of ['partA', 'partB'] as const) {
+            const osc = part === 'partA' ? this.partA : this.partB;
+            if (!osc) continue;
+            const socket = findEngineVoice(graph, 'prophecyVoice', part);
+            if (socket) {
+                socket.attach(osc);
+                continue;
+            }
+            missing.push(part);
+            const dest = fallback[part];
+            if (dest) osc.connect(dest);
+            console.warn(`[ProphecyManager] patch has no ${part} voice node; routed to its track bus`);
+        }
+        return missing;
     }
 
     /** Disconnect both instances. */

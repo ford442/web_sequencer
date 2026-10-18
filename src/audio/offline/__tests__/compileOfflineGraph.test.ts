@@ -413,4 +413,86 @@ describe('compileOfflineGraph', () => {
         expect(mocks[0].raw.createBufferSource).toHaveBeenCalledTimes(1);
         expect(mocks[0].raw.startRendering).toHaveBeenCalledTimes(1);
     });
+
+    describe('first-party engine nodes (Phase C)', () => {
+        const rendered303 = {
+            numberOfChannels: 2,
+            length: 4410,
+            sampleRate: 44100,
+            duration: 0.1,
+            getChannelData: () => new Float32Array(4410),
+        } as unknown as AudioBuffer;
+
+        // The user cabled an insert after the SYNTH B 303's strip, live.
+        const patchWithInsert = applyWamSlotsToGraph(CLASSIC_ELECTRIBE_GRAPH, [
+            {
+                slotId: 'wam2-bass1-insert',
+                packageId: 'hyphon.gain',
+                version: '1.0.0',
+                integrity: { alg: 'fnv1a32', value: 'test' },
+                placement: 'trackInsert',
+                attachToNodeId: 'masterSaturation',
+                interceptFromNodeId: 'bass1Pan',
+                paramState: {},
+            },
+        ]);
+
+        it('feeds a frozen 303 track in at its engine node, so the user cable is in the bounce', async () => {
+            const { mocks, factory } = trackContexts();
+            const compiled = await compileOfflineGraph({
+                durationSeconds: 0.1,
+                patch: patchWithInsert,
+                wam2: null,
+                sampleRatePref: 44100,
+                contextFactory: factory,
+                loudness: { enabled: false },
+            });
+
+            const socket = compiled.engineVoice('open303Voice', 'bass1');
+            expect(socket).toBeDefined();
+            const source = compiled.context.createBufferSource();
+            source.buffer = rendered303;
+            socket!.attach(source);
+
+            // Same compiled routing as live: voice → strip → insert → master FX.
+            const pairs = compiled.graph.connectionLog.map((c) => `${c.from}->${c.to}`);
+            expect(pairs).toContain('bass1Voice->bass1DriveDry');
+            expect(pairs).toContain('bass1Pan->wam2-bass1-insert');
+            expect(pairs).toContain('wam2-bass1-insert->masterSaturation');
+            const sourceId = (source as unknown as { id: string }).id;
+            const socketId = (socket!.output as unknown as { id: string }).id;
+            expect(mocks[0].connections).toContainEqual({ from: sourceId, to: socketId });
+
+            await compiled.render();
+            const voices = compiled.report.engineVoices;
+            expect(voices.find((v) => v.voice === 'bass1')?.status).toBe('fed');
+            // Nothing boots an engine offline, and nothing stands in for one.
+            expect(voices.filter((v) => v.status === 'silent')).toHaveLength(voices.length - 1);
+        });
+
+        it('bounces voiceBuffers at their engine node and reports which sockets were fed', async () => {
+            const { factory } = trackContexts();
+            const result = await bounceBuffersThroughOfflineGraph({
+                buffers: [],
+                voiceBuffers: [{ buffer: rendered303, factory: 'open303Voice', voice: 'bass1' }],
+                durationSeconds: 0.1,
+                patch: patchWithInsert,
+                wam2: null,
+                sampleRatePref: 44100,
+                contextFactory: factory,
+                loudness: { enabled: false },
+            });
+
+            const bass1 = result.report.engineVoices.find(
+                (v) => v.factory === 'open303Voice' && v.voice === 'bass1',
+            );
+            expect(bass1).toEqual({
+                nodeId: 'bass1Voice',
+                factory: 'open303Voice',
+                voice: 'bass1',
+                status: 'fed',
+            });
+            expect(result.report.slots.map((slot) => slot.nodeId)).toContain('wam2-bass1-insert');
+        });
+    });
 });

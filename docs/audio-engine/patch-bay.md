@@ -1,6 +1,6 @@
 # Patch Bay — User-Editable Audio Routing
 
-Design note for the modular routing epic (Phases A + B). The declarative graph
+Design note for the modular routing epic (Phases A–C). The declarative graph
 compiler already existed; this adds the data model, persistence, live editing and
 the node/cable editor on top of it, **without a second graph system**.
 
@@ -39,7 +39,11 @@ classic graph is acyclic with the flag and cyclic without it.
 | `patchSession.ts` | Song load glue, order-independent w.r.t. engine start. |
 | `presets.ts` | Preset registry; Classic is the literal stock graph. |
 | `layout.ts` | Depth-based auto-layout and cable geometry. |
+| `engineVoices.ts` | Engine factories, `EngineVoiceSocket`, `findEngineVoice` (Phase C). |
+| `engineStrips.ts` | Engine layer of the stock patch (303 strips etc.) + `withEngineVoices` upgrade. |
+| `nodePalette.ts` | What the editor can add, with default parameters. |
 | `components/PatchBay.tsx` | SVG node/cable editor. |
+| `components/PatchBayPalette.tsx` | Add-node strip under the canvas. |
 | `hooks/usePatchBay.ts` | React binding. |
 
 Every edit operation returns a **new** config rather than mutating, which is what
@@ -87,15 +91,80 @@ and the AI song preview — see [offline-graph.md](offline-graph.md). There is n
 second compiler: `compileAudioGraph` takes a `BaseAudioContext`, and the offline
 path passes the live patch straight through it.
 
+## Phase C — engines are nodes
+
+Open303, Prophecy, the analog drum kit, the sampler worklets and the choir sum
+are graph nodes with ports. Five factories, all in `engineVoices.ts`:
+
+| Factory | Voice (`config.voice`) | Engine that attaches | Stock patch node → |
+|---------|------------------------|----------------------|--------------------|
+| `open303Voice` | `lead303` / `bass1` / `bass2` | `Open303Manager` (Open303, JC303, live-highfid) | its 303 strip → `masterSaturation` |
+| `prophecyVoice` | `partA` / `partB` | `ProphecyManager` | `synthABus` / `synthBBus` |
+| `drumkitVoice` | — | `DrumKitEngine` (worklet *and* Web Audio fallback hits) | `masterGain` |
+| `samplerVoice` | `sustain` / `stretch` | sustain worklet / Rubber Band singing voices | `masterGain` / `samplerBus` |
+| `harmonizerBus` | — | choir L/R panners (cables) | `masterGain` |
+
+Each compiles to an `EngineVoiceSocket`: a dual port pair like a WAM2 slot
+(`input → output` is unity, the engine attaches to `output`). The graph is
+compiled before any worklet loads, so the socket exists first and the engine
+plugs in when it has booted; an engine that fails to boot leaves a silent socket,
+not a dangling edge. Engines find their socket by **factory + voice**
+(`findEngineVoice`), never through a hard-coded bus. `CompileGraphOptions.createEngineVoice`
+injects the socket factory (tests stub it; returning `null` omits the node and
+bridges its edges like an absent limiter).
+
+### No second mixer
+
+`Open303Manager` used to build a private gain / drive `WaveShaper` / panner chain
+per voice. That chain is now patch nodes (`engineStrips.ts`: `<voice>Voice →
+<voice>DriveDry | <voice>DriveWet → <voice>Drive → <voice>Gain → <voice>Pan`),
+topology and defaults unchanged. The manager is a handle registry + message
+façade: `attachToGraph(graph)` plugs each voice into its socket and keeps
+handles to its strip nodes, which volume / mute / pan / drive (and their
+automation) ride. The dead hand-built master / choir / harmony-bus helpers in
+`hooks/audioEngine/initialization.ts` are gone — the patch builds all of them.
+
+A WAM2 track insert therefore goes on a 303 or sampler track like anywhere
+else: `{ placement: 'trackInsert', interceptFromNodeId: 'bass1Pan',
+attachToNodeId: 'masterSaturation' }` (or `samplerStretch` → `samplerBus`).
+Playback (`useStepHandler`, `playSynth`) does not know the insert exists.
+
+### Older patches
+
+A patch saved before Phase C has no engine nodes. `withEngineVoices` adds the
+missing ones on load (`deserializeAudioGraph`) and again at compile
+(`PatchController.compile`), retiring the direct `choir*Panner → masterGain`
+edges it supersedes so the choir is not summed twice. It never touches an edge
+between nodes the patch already had. The upgrade is additive, so
+`GRAPH_SCHEMA_VERSION` stays 1. A song with no `audioGraph` loads Classic
+Electribe, engines included.
+
+### Node palette
+
+The editor can add nodes now (`nodePalette.ts` + `PatchBayPalette.tsx`): gain,
+pan, low/high-pass, drive, compressor, delay, each with its one or two
+parameters set before placing. Engine nodes and WAM2 slots are not in the
+palette — an engine voice exists exactly once, and slots belong to the WAM2
+host. Selecting a user node offers removal; preset nodes never do. Adding or
+removing a node is staged for the next engine rebuild, as before.
+
+### Presets
+
+| Preset | What it is |
+|--------|-----------|
+| Classic Electribe | Stock routing, engines included |
+| Dual 303 + Sidechain | Synth buses to plate + delay |
+| Vocal Workstation | `samplerBus → vocalCompressor → masterSaturation`; vocal comp and choir sum sent to plate and delay |
+
 ## Not in this phase
 
-- **Phase C — engine ports.** Open303, Prophecy, sustain/rubberband and the
-  harmonizer choir bus still enter the graph through hard-wired lifecycle code.
-  They need to become nodes with declared ports before a WAM host has anywhere
-  to plug in.
-- **Phase D — more presets.** The registry ships Classic Electribe and Dual 303 +
-  Sidechain; "Vocal Workstation" and "Export Dry Stems" want Phase C's ports to
-  be meaningful.
-- **Node creation from the UI.** The controller supports `addNode` and it is
-  tested, but the editor exposes only cable editing so far — a node palette needs
-  a per-factory parameter UI to be worth shipping.
+- **Export Dry Stems preset** — per-track taps before master FX. Deferred to the
+  follow-up PR: a preset alone would be inert until stem export feeds stems in
+  at their engine nodes and the strip values travel with the patch (see
+  [offline-graph.md](offline-graph.md#first-party-engine-nodes-patch-bay-phase-c)).
+- **Live parameter editing of placed nodes.** The palette sets parameters at
+  creation; changing them afterwards is remove + re-add.
+- **Patch-bay UI for placing WAM2 inserts.** The graph accepts them on engine
+  tracks; the picker is the WAM2 product epic.
+- **Debug poison-after-destroy on native handle maps.** Optional in the epic;
+  untouched here, no C++ changed.

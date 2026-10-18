@@ -85,7 +85,6 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | `src/components/note-selector/SynthGranularEffects.tsx` | Added phoneme delay UI | already split once (09-07); further split not attempted here |
 | 848 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
 | 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
-| 814 | `src/engines/Open303Manager.ts` | un-triaged |
 | 811 | `src/utils/xmExport.ts` | un-triaged |
 | 794 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
 | 792 | `src/engines/rubberband/performance/PerformanceOptimizer.ts` | un-triaged |
@@ -96,6 +95,11 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
 | 721 | `src/components/WaveformDisplay.tsx` | un-triaged |
 | 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |
+
+`Open303Manager.ts` is **resolved** (patch bay Phase C): 873 → 685 lines.
+Its private per-voice mixer (gain / drive `WaveShaper` / panner) moved into
+the patch as graph nodes (`audio/graph/engineStrips.ts`), leaving the manager
+a handle registry + message façade.
 
 `src/types.ts` is **resolved**: it was 990 lines and is now a 17-line
 re-export barrel (`export * from './types/synth'` etc. — see below). It no

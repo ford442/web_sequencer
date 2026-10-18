@@ -14,6 +14,7 @@
  */
 
 import { compileAudioGraph } from './compileGraph';
+import { withEngineVoices } from './engineStrips';
 import {
     addConnection,
     addNode,
@@ -104,9 +105,15 @@ export class PatchController {
         for (const listener of this.listeners) listener(config);
     }
 
-    private liveNode(id: GraphNodeId): AudioNode | undefined {
+    /**
+     * The live node a cable leaves from (`output`) or lands on (`input`). Dual-
+     * port nodes — WAM2 slots, engine sockets — differ between the two.
+     */
+    private liveNode(id: GraphNodeId, side: 'input' | 'output'): AudioNode | undefined {
         if (!this.compiled) return undefined;
         if (id === 'destination') return this.context?.destination;
+        const port = this.compiled.ports.get(id);
+        if (port) return port[side];
         return this.compiled.nodes.get(id);
     }
 
@@ -122,8 +129,8 @@ export class PatchController {
         const result = addConnection(this.config, from, to, gain === undefined ? {} : { gain });
         if (result.rejected) return { ok: false, rejected: result.rejected };
 
-        const source = this.liveNode(from);
-        const target = this.liveNode(to);
+        const source = this.liveNode(from, 'output');
+        const target = this.liveNode(to, 'input');
         // Flags are set before commit(): subscribers read `needsRebuild()` in
         // their callback, so it has to be final by the time they run.
         if (!source || !target) {
@@ -160,8 +167,8 @@ export class PatchController {
         }
         this.commit(removeConnection(this.config, from, to));
 
-        const source = this.liveNode(from);
-        const target = this.liveNode(to);
+        const source = this.liveNode(from, 'output');
+        const target = this.liveNode(to, 'input');
         const key = edgeKey(from, to);
         const send = this.liveSends.get(key);
 
@@ -259,6 +266,10 @@ export class PatchController {
      * Attaches the result so subsequent edits patch the new graph.
      */
     compile(context: AudioContext, options?: Parameters<typeof compileAudioGraph>[2]): CompiledAudioGraph {
+        // Whatever put this config here (a preset switch, an older song), the
+        // engines need their nodes before they can attach.
+        const upgraded = withEngineVoices(this.config);
+        if (upgraded !== this.config) this.commit(upgraded);
         const compiled = compileAudioGraph(context, this.config, options);
         this.attach(context, compiled);
         return compiled;

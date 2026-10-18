@@ -115,7 +115,10 @@ describe('CLASSIC_ELECTRIBE_GRAPH config', () => {
         const fxInputEdges = CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.to === 'masterSaturation');
         const sources = fxInputEdges.map((e) => e.from).sort();
         expect(sources).toEqual([
+            'bass1Pan',
+            'bass2Pan',
             'delay',
+            'lead303Pan',
             'reverbHall',
             'reverbPlate',
             'reverbRoom',
@@ -125,10 +128,12 @@ describe('CLASSIC_ELECTRIBE_GRAPH config', () => {
         ]);
     });
 
-    it('routes choir buses to masterDryInput (masterGain)', () => {
+    it('routes drums, sustain and the choir sum to masterDryInput (masterGain)', () => {
         const dryEdges = CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.to === 'masterGain');
         const sources = dryEdges.map((e) => e.from).sort();
-        expect(sources).toEqual(['choirLeftPanner', 'choirRightPanner', 'masterCompressor']);
+        expect(sources).toEqual(['choirSum', 'drumkit', 'masterCompressor', 'samplerSustain']);
+        const intoChoir = CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.to === 'choirSum');
+        expect(intoChoir.map((e) => e.from).sort()).toEqual(['choirLeftPanner', 'choirRightPanner']);
     });
 });
 
