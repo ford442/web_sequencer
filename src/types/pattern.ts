@@ -74,6 +74,7 @@ export interface Note {
   phonemeDelayFeedback?: number;
   transientExtraction?: number;
   consonantClarity?: number;
+  consonantSaturation?: number;
   autoTune?: number;
   microtonalVariance?: number;
   drumDuckDepth?: number;

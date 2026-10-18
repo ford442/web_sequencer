@@ -82,6 +82,7 @@ const POST_RETRIEVE_CASES: FxCase[] = [
     block: { consonantClarity: 0.9, hasPhonemeContext: true, isVowel: 0, phonemeIndex: 2, phonemeVolume: 0.7 },
   },
   { name: 'consonant clarity without phoneme context', block: { consonantClarity: 0.9, isVowel: 0, phonemeIndex: 2 } },
+  { name: 'consonant saturation', block: { consonantSaturation: 0.9, hasPhonemeContext: true, isVowel: 0 } },
 ];
 
 /** Walks a vowel/consonant phoneme sequence, 20 quanta per phoneme. */
@@ -119,6 +120,7 @@ describe('native vocal FX vs TS oracle — consonant transients (#1303/#1314)', 
 
   it.each([
     ['consonantClarity', { consonantClarity: 0.8 }],
+    ['consonantSaturation', { consonantSaturation: 0.8 }],
     ['transientExtraction', { transientExtraction: 0.8 }],
   ] as const)('%s changes the native output', (_name, overrides) => {
     const { native: plain } = pair();

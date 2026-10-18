@@ -128,7 +128,7 @@ describe('Voice303Selector — live A/B + diode-ladder coefficients (L2/L3)', ()
         expect(screen.getByRole('button', { name: 'Flip to B (live high-fidelity)' })).toHaveAttribute('aria-pressed', 'true');
         fireEvent.click(screen.getByRole('button', { name: 'Flip to A (Stock Open303)' }));
         expect(onLiveAbChange).toHaveBeenLastCalledWith({ armed: true, mix: 0 });
-        fireEvent.change(screen.getByRole('slider', { name: 'A/B blend, stock to high-fidelity' }), {
+        fireEvent.change(screen.getByRole('slider', { name: /^Blend/ }), {
             target: { value: '30' },
         });
         expect(onLiveAbChange).toHaveBeenLastCalledWith({ armed: true, mix: 0.3 });
@@ -146,7 +146,7 @@ describe('Voice303Selector — live A/B + diode-ladder coefficients (L2/L3)', ()
         expect(screen.getByText(/Diode ladder · canonical/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Canonical' })).toBeDisabled();
         fireEvent.change(
-            screen.getByRole('slider', { name: 'Transistor mismatch — spreads the four ladder poles' }),
+            screen.getByRole('slider', { name: /^Mismatch/ }),
             { target: { value: '40' } },
         );
         expect(onCoeffs).toHaveBeenLastCalledWith({
