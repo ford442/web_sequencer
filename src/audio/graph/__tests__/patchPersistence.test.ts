@@ -183,8 +183,18 @@ function fakeCompiled() {
         destination: make('destination'),
     } as unknown as AudioContext;
 
+    // Simple nodes have input === output, as `compileAudioGraph` records them.
+    const ports = new Map<string, { input: unknown; output: unknown }>();
+    for (const [id, node] of nodes) ports.set(id, { input: node, output: node });
+    // Dual-port engine node (`harmonizerBus`): cables land on input, leave from output.
+    const choirIn = make('choirSum.in');
+    const choirOut = make('choirSum.out');
+    nodes.set('choirSum', choirOut);
+    ports.set('choirSum', { input: choirIn, output: choirOut });
+
     const compiled = {
         nodes: nodes as unknown as ReadonlyMap<string, AudioNode>,
+        ports,
         sendGains: new Map<string, GainNode>(),
     } as never;
 
@@ -207,6 +217,17 @@ describe('PatchController live editing', () => {
         expect(connections).toContain('synthABus->send0');
         expect(connections).toContain('send0->reverbPlate');
         expect(controller.isModified()).toBe(true);
+    });
+
+    it('cables into a dual-port engine node at its input and out of it at its output', () => {
+        const preset = buildPreset('classic-electribe');
+        const controller = new PatchController(preset, preset);
+        const { context, compiled, connections } = fakeCompiled();
+        controller.attach(context, compiled);
+
+        expect(controller.connect('synthABus', 'choirSum').ok).toBe(true);
+        expect(controller.connect('choirSum', 'reverbPlate').ok).toBe(true);
+        expect(connections).toEqual(['synthABus->choirSum.in', 'choirSum.out->reverbPlate']);
     });
 
     it('refuses a cycle and leaves the live graph alone', () => {

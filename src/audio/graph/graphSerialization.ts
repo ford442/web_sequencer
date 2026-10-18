@@ -19,6 +19,7 @@ import type {
     GraphNodeRole,
     GraphNodeSpec,
 } from './types';
+import { withEngineVoices } from './engineStrips';
 import { validateGraph } from './graphOps';
 
 export const GRAPH_SCHEMA_VERSION = 1;
@@ -47,6 +48,11 @@ const KNOWN_FACTORIES: ReadonlySet<string> = new Set<GraphNodeFactory>([
     'trackMonitor',
     'masterLimiter',
     'destination',
+    'open303Voice',
+    'prophecyVoice',
+    'drumkitVoice',
+    'samplerVoice',
+    'harmonizerBus',
 ]);
 
 const KNOWN_ROLES: ReadonlySet<string> = new Set<GraphNodeRole>([
@@ -59,6 +65,7 @@ const KNOWN_ROLES: ReadonlySet<string> = new Set<GraphNodeRole>([
     'auxReturn',
     'choirBus',
     'internal',
+    'instrumentSource',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,7 +180,10 @@ export function deserializeAudioGraph(
     }
     if (raw.graph === undefined) return { presetId, graph: null };
 
-    return { presetId, graph: parseAudioGraphConfig(raw.graph) };
+    // A patch saved before the engines were graph nodes (Phase C) has nowhere
+    // for them to attach; the upgrade is additive, so the schema stays at 1.
+    const graph = parseAudioGraphConfig(raw.graph);
+    return { presetId, graph: graph ? withEngineVoices(graph) : null };
 }
 
 /** Structural equality — used to decide whether a patch needs storing. */

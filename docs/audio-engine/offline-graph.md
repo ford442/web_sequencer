@@ -75,6 +75,29 @@ Mounting checks `descriptor.offline === 'native' && descriptor.origin === 'bundl
 package; the second check means a regression there still cannot put a
 non-replayable plugin into a bounce.
 
+## First-party engine nodes (patch bay Phase C)
+
+`open303Voice`, `prophecyVoice`, `drumkitVoice`, `samplerVoice` and
+`harmonizerBus` compile to the same `EngineVoiceSocket`s offline as live, along
+with the strip nodes after them and any insert or send the user cabled there.
+Nothing boots an engine in the offline context (no worklet, no second
+hyphon_native heap); a renderer feeds a track's rendered audio in at its
+engine node instead:
+
+- `bounceBuffersThroughOfflineGraph({ voiceBuffers: [{ buffer, factory, voice }] })`, or
+- `compiled.engineVoice(factory, voice)?.attach(source)` from a `schedule`
+  callback (`freezeThroughPatch` passes the compiled graph through).
+
+`OfflineGraphReport.engineVoices` lists every engine node with `fed` or
+`silent`. A silent socket rendered nothing; it is never stood in for. A patch
+without the requested node takes the buffer on `masterFxInput` instead.
+
+One thing the patch does **not** carry: panel moves of a strip's level, drive
+and pan are AudioParam automation on the live nodes, not config. Offline, the
+strip compiles at its patch values (unity level, no drive, preset pan), so a
+renderer whose buffer already has the track's volume and pan baked in should
+keep entering at `masterFxInput` — which is what stem export still does.
+
 ## Consumers
 
 ### Stem export
@@ -116,4 +139,6 @@ shows the skip rows plus any unsupported WAM2 insert.
 - **MP3 / other download formats.** WAV only; `lamejs` stays out until a format
   is explicitly requested.
 - **Per-stem patch routing.** Stems are dry by design; only the master stem goes
-  through the patch.
+  through the patch. Feeding each stem in at its engine node (above) is the
+  mechanism; it waits on the strip values travelling with the patch, and on the
+  "Export Dry Stems" preset (per-track taps before master FX).

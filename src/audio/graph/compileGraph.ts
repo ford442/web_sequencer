@@ -2,6 +2,12 @@ import { makeDistortionCurve } from '../../hooks/audioEngine/distortion';
 import { createReverbImpulseResponse } from '../impulseResponses';
 import { WamSlotPorts } from '../wam/WamSlotPorts';
 import { assertSafeGraphCycles } from './cycleCheck';
+import {
+    defaultEngineVoiceProvider,
+    engineVoiceOf,
+    isEngineVoiceFactory,
+    type EngineVoiceProvider,
+} from './engineVoices';
 import { edgeKey, validateGraph } from './graphOps';
 import type {
     AnalyserConfig,
@@ -38,6 +44,13 @@ export interface CompileGraphOptions {
      */
     createMasterLimiterNode?: (context: BaseAudioContext) => AudioNode | null;
     /**
+     * Builds the socket a first-party engine (`open303Voice`, `drumkitVoice`,
+     * …) attaches to. The default makes a plain port pair; the engine plugs its
+     * worklet output in after it boots. Returning `null` omits the node and its
+     * edges are bridged, like an absent limiter.
+     */
+    createEngineVoice?: EngineVoiceProvider;
+    /**
      * Reject configs that fail `validateGraph` (cycles, dangling edges,
      * duplicate ids) instead of compiling them. On by default: a user-authored
      * patch must not be able to wire a runaway loop into the audio thread.
@@ -49,6 +62,7 @@ export interface CompileGraphOptions {
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
+    createEngineVoice: defaultEngineVoiceProvider,
     validate: true,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
@@ -74,6 +88,17 @@ function createNode(
     ports: Map<GraphNodeId, GraphPortPair>,
 ): AudioNode | null {
     const { factory, id, config } = spec;
+
+    if (isEngineVoiceFactory(factory)) {
+        const socket = options.createEngineVoice(context, {
+            nodeId: id,
+            factory,
+            voice: engineVoiceOf(spec),
+        });
+        if (!socket) return null;
+        ports.set(id, { input: socket.input, output: socket.output, engineSocket: socket });
+        return socket.output;
+    }
 
     switch (factory as GraphNodeFactory) {
         case 'waveShaper': {
@@ -178,23 +203,31 @@ function createNode(
 
 /**
  * Remove edges through nodes that were not compiled, splicing predecessor to
- * successor so the chain stays connected (used for the optional master limiter).
- * Edge order is preserved: the bridged edge takes the slot of the incoming one.
+ * successor so the chain stays connected — the optional master limiter, stereo
+ * panners on a context without `createStereoPanner`, and engine nodes whose
+ * provider declined. Edge order is preserved: the bridged edge takes the slot
+ * of the incoming one, and keeps its send level.
  */
 function bridgeAbsentNodes(
     edges: readonly GraphEdgeSpec[],
-    present: ReadonlySet<GraphNodeId>,
-    optionalIds: readonly GraphNodeId[],
+    absentIds: readonly GraphNodeId[],
 ): GraphEdgeSpec[] {
     let result = [...edges];
-    for (const id of optionalIds) {
-        if (present.has(id)) continue;
+    for (const id of absentIds) {
         const successors = result.filter((edge) => edge.from === id).map((edge) => edge.to);
         const bridged: GraphEdgeSpec[] = [];
         for (const edge of result) {
             if (edge.from === id) continue;
             if (edge.to === id) {
-                for (const to of successors) bridged.push({ from: edge.from, to });
+                for (const to of successors) {
+                    // A loop that only closed through the absent node is gone.
+                    if (to === edge.from) continue;
+                    bridged.push(
+                        edge.gain === undefined
+                            ? { from: edge.from, to }
+                            : { from: edge.from, to, gain: edge.gain },
+                    );
+                }
                 continue;
             }
             bridged.push(edge);
@@ -266,29 +299,13 @@ export function compileAudioGraph(
         }
     }
 
-    // When stereo panner node was not created, reroute masterGain → destination
-    const hasStereoPanner = nodes.has('masterPanner');
-    const optionalEdges = bridgeAbsentNodes(config.edges, new Set(nodes.keys()), ['masterLimiter']);
-
-    const edges = optionalEdges.filter((edge) => {
-        if (hasStereoPanner) return true;
-        if (edge.from === 'masterGain' && edge.to === 'masterPanner') return false;
-        if (edge.from === 'masterPanner') return false;
-        return true;
-    });
-
-    if (!hasStereoPanner) {
-        const masterGain = nodes.get('masterGain');
-        const limiter = nodes.get('masterLimiter');
-        if (masterGain) {
-            masterGain.connect(limiter ?? context.destination);
-            connectionLog.push({
-                from: 'masterGain',
-                to: limiter ? 'masterLimiter' : 'destination',
-                order: connectionLog.length,
-            });
-        }
-    }
+    const present = new Set(nodes.keys());
+    const absent = config.nodes
+        .map((spec) => spec.id)
+        .filter((id) => !present.has(id) && id !== 'destination');
+    // The limiter's edges may outlive its spec in a hand-cut subgraph.
+    if (!present.has('masterLimiter') && !absent.includes('masterLimiter')) absent.push('masterLimiter');
+    const edges = bridgeAbsentNodes(config.edges, absent);
 
     for (const edge of edges) {
         const fromPort = ports.get(edge.from);
@@ -299,9 +316,6 @@ export function compileAudioGraph(
             nodes.get(edge.to) ??
             (edge.to === 'destination' ? context.destination : undefined);
         if (!fromNode || !toNode) {
-            if (!hasStereoPanner && (edge.to === 'masterPanner' || edge.from === 'masterPanner')) {
-                continue;
-            }
             throw new Error(
                 `AudioGraph compile failed: missing node for edge ${edge.from} → ${edge.to}`,
             );

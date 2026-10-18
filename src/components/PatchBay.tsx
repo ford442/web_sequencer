@@ -11,6 +11,7 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { usePatchBay } from '../hooks/usePatchBay';
+import { PatchBayPalette } from './PatchBayPalette';
 import { performanceBudget, BUDGET_OVERLOAD_THRESHOLD } from '../utils/performanceBudget';
 import {
     cablePath,
@@ -55,6 +56,8 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
         connect,
         disconnect,
         setSendLevel,
+        addNode,
+        removeNode,
         moveNode,
         clearRejection,
     } = usePatchBay();
@@ -62,6 +65,7 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
     const svgRef = useRef<SVGSVGElement>(null);
     const [drag, setDrag] = useState<DragState | null>(null);
     const [selected, setSelected] = useState<SelectedCable | null>(null);
+    const [selectedNode, setSelectedNode] = useState<string | null>(null);
     const [movingNode, setMovingNode] = useState<string | null>(null);
 
     const layout = useMemo(() => (config ? layoutGraph(config) : null), [config]);
@@ -142,6 +146,10 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
 
     const selectedEdge = selected
         ? config.edges.find((edge) => edge.from === selected.from && edge.to === selected.to)
+        : undefined;
+    // Only user nodes can be removed; preset nodes are the skeleton playback resolves.
+    const removableNode = selectedNode
+        ? config.nodes.find((node) => node.id === selectedNode && !node.fixed)
         : undefined;
 
     return (
@@ -264,7 +272,10 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
                                     stroke={node.fixed ? '#22d3ee33' : '#a855f766'}
                                     strokeWidth={1}
                                     style={{ cursor: 'grab' }}
-                                    onMouseDown={() => setMovingNode(node.id)}
+                                    onMouseDown={() => {
+                                        setMovingNode(node.id);
+                                        setSelectedNode(node.id);
+                                    }}
                                 />
                                 <text
                                     x={place.x + NODE_WIDTH / 2}
@@ -352,6 +363,26 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
                 <p className="font-mono text-[9px] uppercase tracking-wide text-gray-500">
                     Drag an output port onto an input port to patch a send
                 </p>
+            )}
+
+            <PatchBayPalette config={config} onAdd={addNode} />
+
+            {removableNode && (
+                <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-gray-300">
+                        {removableNode.label ?? removableNode.id}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            removeNode(removableNode.id);
+                            setSelectedNode(null);
+                        }}
+                        className="ml-auto rounded border border-red-500/40 px-1.5 py-0.5 font-mono text-[9px] uppercase text-red-300 hover:bg-red-900/40"
+                    >
+                        Remove node
+                    </button>
+                </div>
             )}
         </section>
     );

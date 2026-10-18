@@ -31,6 +31,11 @@ export class DrumKitEngine {
   private _character: KitSynthCharacter;
   private workletNode: AudioWorkletNode | null = null;
   private audioContext: AudioContext | null = null;
+  /**
+   * Where the kit sounds: the patch's `drumkitVoice` node. The Web Audio
+   * fallback hits land here too, so an insert on the kit hears both paths.
+   */
+  private output: AudioNode | null = null;
   private wasmReady = false;
   private workletNodesCreated = 0;
   fallbackReason: string | null = null;
@@ -72,6 +77,7 @@ export class DrumKitEngine {
     destination: AudioNode,
   ): Promise<boolean> {
     this.audioContext = audioContext;
+    this.output = destination;
 
     if (!audioContext.audioWorklet || !workletUrl) {
       this.useFallback(
@@ -241,7 +247,7 @@ export class DrumKitEngine {
       this.triggerWorklet(sound, params, time);
       return;
     }
-    this.playFallback(context, masterGain, noiseBuffer, sound, params, time);
+    this.playFallback(context, this.output ?? masterGain, noiseBuffer, sound, params, time);
   }
 
   /**
@@ -305,6 +311,7 @@ export class DrumKitEngine {
   dispose(): void {
     this.cleanupWorklet();
     this.wasmReady = false;
+    this.output = null;
   }
 
   private cleanupWorklet(): void {
@@ -319,7 +326,7 @@ export class DrumKitEngine {
 
   private playFallback(
     context: AudioContext,
-    masterGain: GainNode,
+    masterGain: AudioNode,
     noiseBuffer: AudioBuffer | null,
     sound: DrumSound,
     params: KickParams | SnareParams | HatParams,
@@ -339,7 +346,7 @@ export class DrumKitEngine {
     }
   }
 
-  private playKick(context: AudioContext, masterGain: GainNode, params: KickParams, time: number): void {
+  private playKick(context: AudioContext, masterGain: AudioNode, params: KickParams, time: number): void {
     const c = this._character;
     const osc = context.createOscillator();
     const gain = context.createGain();
@@ -367,7 +374,7 @@ export class DrumKitEngine {
 
   private playSnare(
     context: AudioContext,
-    masterGain: GainNode,
+    masterGain: AudioNode,
     noiseBuffer: AudioBuffer | null,
     params: SnareParams,
     time: number,
@@ -413,7 +420,7 @@ export class DrumKitEngine {
 
   private playHat(
     context: AudioContext,
-    masterGain: GainNode,
+    masterGain: AudioNode,
     noiseBuffer: AudioBuffer | null,
     params: HatParams,
     time: number,
