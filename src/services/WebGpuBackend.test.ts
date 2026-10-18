@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebGpuBackend } from './WebGpuBackend';
-import { resetWebGpuProbeForTests } from '../engines/backends/webgpuProbe';
+import { resetWebGpuProbe, restartWebGpuDevice } from '../engines/backends/webgpuProbe';
 
 // Minimal WebGPU mock that records how buffers are wired through a chain.
 function installGpuMock() {
@@ -48,7 +48,7 @@ function installGpuMock() {
 
   // @ts-ignore
   global.navigator.gpu = {
-    requestAdapter: vi.fn().mockResolvedValue({ requestDevice: vi.fn().mockResolvedValue(mockDevice) }),
+    requestAdapter: vi.fn().mockResolvedValue({ requestDevice: vi.fn(async () => mockDevice) }),
   };
   // @ts-ignore
   global.GPUBufferUsage = { STORAGE: 1, COPY_SRC: 2, MAP_READ: 4, COPY_DST: 8, UNIFORM: 16 };
@@ -64,7 +64,7 @@ describe('WebGpuBackend.runChain', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    resetWebGpuProbeForTests();
+    resetWebGpuProbe();
     mocks = installGpuMock();
     backend = new WebGpuBackend();
     await backend.init();
@@ -124,5 +124,43 @@ describe('WebGpuBackend.runChain', () => {
     // Second call should only allocate the per-op uniform buffer; the 2 storage
     // buffers + 1 readback buffer come back from the pool.
     expect(afterSecond - afterFirst).toBeLessThan(afterFirst);
+  });
+});
+
+describe('WebGpuBackend on the shared device', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetWebGpuProbe();
+  });
+
+  it('refuses a chain one 1-D dispatch cannot cover instead of submitting an invalid dispatch', async () => {
+    const mocks = installGpuMock();
+    mocks.mockDevice.limits = { maxStorageBufferBindingSize: 128 * 1024 * 1024, maxComputeWorkgroupsPerDimension: 4 };
+    const backend = new WebGpuBackend();
+    await backend.init();
+    // 4 workgroups × 64 = 256 elements max; 16 × 32 = 512.
+    const r = await backend.runChain(['multiply'], new Float32Array(512), [1, 16, 32]);
+    expect(r).toBeNull();
+    expect(mocks.mockQueue.submit).not.toHaveBeenCalled();
+    expect(await backend.runChain(['multiply'], new Float32Array(256), [1, 16, 16])).not.toBeNull();
+  });
+
+  it('drops pipelines on device loss and rebuilds them on the restored device', async () => {
+    const mocks = installGpuMock();
+    mocks.mockDevice.destroy = vi.fn();
+    const backend = new WebGpuBackend();
+    await backend.init();
+    const firstDevice = backend.device;
+    expect(backend.ready).toBe(true);
+
+    const replacement = { ...mocks.mockDevice, createComputePipeline: vi.fn(() => ({ getBindGroupLayout: vi.fn() })) };
+    // @ts-ignore
+    global.navigator.gpu.requestAdapter = vi.fn().mockResolvedValue({ requestDevice: vi.fn(async () => replacement) });
+    await restartWebGpuDevice('test');
+    await vi.waitFor(() => expect(backend.device).toBe(replacement));
+    expect(backend.device).not.toBe(firstDevice);
+    expect(backend.ready).toBe(true);
+    expect(replacement.createComputePipeline).toHaveBeenCalled();
+    backend.destroy();
   });
 });

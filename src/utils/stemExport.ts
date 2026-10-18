@@ -29,6 +29,7 @@ import {
     type SampleRatePref,
 } from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
+import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
 import {
     createMixBus,
     type MixBus,
@@ -210,8 +211,7 @@ const STEM_RENDER_ORDER: Array<{ id: StemId; label: string }> = [
 
 /** An all-zero stem, used in place of rendering a track the mix has silenced. */
 function silentBuffer(targetLength: number, sampleRate: number): AudioBuffer {
-    const ctx = new OfflineAudioContext(2, Math.max(1, targetLength), sampleRate);
-    return ctx.createBuffer(2, Math.max(1, targetLength), sampleRate);
+    return createOfflineBuffer({ channels: 2, length: targetLength, sampleRate });
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -224,8 +224,7 @@ function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate
     if (buffer.length === targetLength) return buffer;
 
     const channels = buffer.numberOfChannels;
-    const aligned = new OfflineAudioContext(channels, targetLength, sampleRate);
-    const out = aligned.createBuffer(channels, targetLength, sampleRate);
+    const out = createOfflineBuffer({ channels, length: targetLength, sampleRate });
 
     for (let ch = 0; ch < channels; ch++) {
         const src = buffer.getChannelData(ch);
@@ -240,8 +239,7 @@ function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate
 /** Wrap mix-bus output channels in an AudioBuffer for the WAV encoder. */
 function channelsToBuffer(channels: Float32Array[], targetLength: number, sampleRate: number): AudioBuffer {
     const count = channels.length;
-    const ctx = new OfflineAudioContext(count, Math.max(1, targetLength), sampleRate);
-    const out = ctx.createBuffer(count, Math.max(1, targetLength), sampleRate);
+    const out = createOfflineBuffer({ channels: count, length: targetLength, sampleRate });
     for (let ch = 0; ch < count; ch++) {
         out.getChannelData(ch).set(channels[ch].subarray(0, out.length));
     }

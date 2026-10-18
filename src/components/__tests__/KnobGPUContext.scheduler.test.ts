@@ -3,7 +3,7 @@ import { KnobGPUContext } from '../KnobGPUContext';
 import { KNOB_STATIC_TIME } from '../knobMaterial';
 import { resolveKnobTimeUniform } from '../knobMotion';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
-import { resetWebGpuProbeForTests } from '../../engines/backends/webgpuProbe';
+import { resetWebGpuProbe } from '../../engines/backends/webgpuProbe';
 
 describe('KnobGPUContext idle-static scheduler', () => {
     let mockWriteBuffer: ReturnType<typeof vi.fn>;
@@ -20,9 +20,10 @@ describe('KnobGPUContext idle-static scheduler', () => {
     };
     let frameCallbacks: FrameRequestCallback[];
     let lostResolve: ((info: GPUDeviceLostInfo) => void) | null;
+    let devicesCreated: number;
 
     beforeEach(() => {
-        resetWebGpuProbeForTests();
+        resetWebGpuProbe();
         (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         engineDegradationStore.clear('gpu-knobs');
         frameCallbacks = [];
@@ -37,7 +38,10 @@ describe('KnobGPUContext idle-static scheduler', () => {
 
         mockWriteBuffer = vi.fn();
         mockSubmit = vi.fn();
-        mockDevice = {
+        devicesCreated = 0;
+        // Every requestDevice() hands out a fresh device, like a real adapter;
+        // `mockDevice` / `lostResolve` always point at the latest one.
+        const makeDevice = () => ({
             lost: new Promise<GPUDeviceLostInfo>((resolve) => {
                 lostResolve = resolve;
             }),
@@ -61,7 +65,7 @@ describe('KnobGPUContext idle-static scheduler', () => {
                 submit: mockSubmit,
             },
             destroy: vi.fn(),
-        };
+        });
 
         const mockContext = {
             configure: vi.fn(),
@@ -73,7 +77,11 @@ describe('KnobGPUContext idle-static scheduler', () => {
         vi.stubGlobal('navigator', {
             gpu: {
                 requestAdapter: vi.fn().mockResolvedValue({
-                    requestDevice: vi.fn().mockResolvedValue(mockDevice),
+                    requestDevice: vi.fn(() => {
+                        devicesCreated++;
+                        mockDevice = makeDevice();
+                        return Promise.resolve(mockDevice);
+                    }),
                 }),
                 getPreferredCanvasFormat: vi.fn().mockReturnValue('bgra8unorm'),
             },
@@ -219,14 +227,33 @@ describe('KnobGPUContext idle-static scheduler', () => {
         expect(KnobGPUContext.getDebugStats().submitCount).toBeGreaterThan(0);
     });
 
-    it('device loss schedules recovery', async () => {
+    it('device loss re-attaches every knob to the device the probe restores', async () => {
         await registerKnobs(2);
+        const lostDevice = mockDevice;
         expect(lostResolve).toBeTypeOf('function');
-        lostResolve!({ reason: 'unknown', message: 'simulated loss' } as GPUDeviceLostInfo);
+        lostResolve!({ reason: 'unknown', message: 'simulated loss' } as unknown as GPUDeviceLostInfo);
+
+        await vi.waitFor(() => {
+            expect(devicesCreated).toBe(2);
+            expect(KnobGPUContext.getStatus()).toBe('active');
+        });
+        expect(mockDevice).not.toBe(lostDevice);
+        const ctx = KnobGPUContext as unknown as { device: unknown; slots: Map<number, unknown> };
+        expect(ctx.device).toBe(mockDevice);
+        expect(ctx.slots.size).toBe(2);
+        // Pipelines and uniform buffers were rebuilt on the new device.
+        expect(mockDevice.createRenderPipeline).toHaveBeenCalled();
+        expect(mockDevice.createBuffer).toHaveBeenCalledTimes(2);
+    });
+
+    it('an ordinary destroy() leaves the knobs on the 2D fallback', async () => {
+        await registerKnobs(2);
+        lostResolve!({ reason: 'destroyed', message: 'app teardown' } as GPUDeviceLostInfo);
 
         await vi.waitFor(() => {
             expect(KnobGPUContext.getStatus()).toBe('degraded');
         });
+        expect(devicesCreated).toBe(1);
     });
 
     it('prefers-reduced-motion locks time uniform to static', () => {

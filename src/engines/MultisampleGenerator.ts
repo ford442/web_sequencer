@@ -17,6 +17,7 @@ import {
   type WebGpu303RenderOptions,
 } from './WebGpu303Engine';
 import type { Offline303Params } from '@/audio/offline/OfflineOpen303Engine';
+import { createOfflineContext } from '@/audio/offline/createOfflineContext';
 import { DEFAULT_OFFLINE_303_PARAMS } from '@/audio/offline/OfflineOpen303Engine';
 
 export interface MultisampleBank {
@@ -73,11 +74,11 @@ async function resampleWithPlaybackRate(
     const pitchRatio = Math.pow(2, semitones / 12);
     const newLength = Math.floor(sourceBuffer.length / pitchRatio);
     
-    const offlineCtx = new OfflineAudioContext(
-        sourceBuffer.numberOfChannels,
-        newLength,
-        sourceBuffer.sampleRate
-    );
+    const offlineCtx = createOfflineContext({
+        channels: sourceBuffer.numberOfChannels,
+        length: newLength,
+        sampleRate: sourceBuffer.sampleRate,
+    });
     
     const source = offlineCtx.createBufferSource();
     source.buffer = sourceBuffer;
@@ -204,11 +205,11 @@ export class MultisampleGenerator {
         // Calculate output length (preserve duration)
         const outputLength = sourceBuffer.length;
         
-        const offlineCtx = new OfflineAudioContext(
-            sourceBuffer.numberOfChannels,
-            outputLength,
-            sourceBuffer.sampleRate
-        );
+        const offlineCtx = createOfflineContext({
+            channels: sourceBuffer.numberOfChannels,
+            length: outputLength,
+            sampleRate: sourceBuffer.sampleRate,
+        });
 
         // Create quality config
         const qualityConfig: { useHighQuality: boolean; preserveFormants: boolean } = {

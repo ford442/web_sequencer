@@ -11,6 +11,7 @@ import { freezeSynthTrack, freezeDrumTrack } from './trackFreezer';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
 import { getTunedFrequency } from './musicTheory';
 import { stepDurationSeconds } from './songTimeline';
+import { createOfflineBuffer, createOfflineContext } from '../audio/offline/createOfflineContext';
 
 export type PatternRenderEngines = RenderSynthEngines;
 
@@ -66,8 +67,7 @@ async function renderWithOfflineSteps(
     throwIfAborted(signal);
     const stepDur = stepDurationSeconds(tempo);
     const totalDuration = sequence.steps.length * stepDur;
-    const totalSamples = Math.ceil(totalDuration * sampleRate);
-    const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
+    const offlineCtx = createOfflineContext({ channels: 2, durationSeconds: totalDuration, sampleRate });
 
     for (let step = 0; step < sequence.steps.length; step++) {
         throwIfAborted(signal);
@@ -93,8 +93,7 @@ async function renderWithOfflineSteps(
 
 function monoToStereo(buffer: AudioBuffer, sampleRate: number): AudioBuffer {
     if (buffer.numberOfChannels >= 2) return buffer;
-    const stereo = new OfflineAudioContext(2, buffer.length, sampleRate);
-    const out = stereo.createBuffer(2, buffer.length, sampleRate);
+    const out = createOfflineBuffer({ channels: 2, length: buffer.length, sampleRate });
     const mono = buffer.getChannelData(0);
     out.copyToChannel(mono, 0);
     out.copyToChannel(mono, 1);
@@ -184,8 +183,7 @@ export async function renderSamplerBankPattern(
     throwIfAborted(signal);
     const stepDur = stepDurationSeconds(tempo);
     const totalDuration = sequence.steps.length * stepDur;
-    const totalSamples = Math.ceil(totalDuration * sampleRate);
-    const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
+    const offlineCtx = createOfflineContext({ channels: 2, durationSeconds: totalDuration, sampleRate });
 
     if (!sampleBuffer) {
         return offlineCtx.startRendering();

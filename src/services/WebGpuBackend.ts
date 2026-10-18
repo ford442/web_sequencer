@@ -1,6 +1,7 @@
 /// <reference types="@webgpu/types" />
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
-import { probeWebGPU } from '../engines/backends/webgpuProbe';
+import { onWebGpuDeviceChange, probeWebGPU } from '../engines/backends/webgpuProbe';
+import { COMPUTE_CHAIN_MAX_BYTES, maxComputeElements } from '../webgpu/deviceRequirements';
 
 export class WebGpuBackend {
     device: GPUDevice | null = null;
@@ -18,9 +19,47 @@ export class WebGpuBackend {
     private readPool: Map<number, GPUBuffer[]> = new Map();
     private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
     private readonly SIZE_BUCKET_BYTES = 4096; // Quantize to 4KB buckets
-    private readonly MAX_BUFFER_SIZE = 64 * 1024 * 1024; // 64MB guard against OOM
+    private readonly MAX_BUFFER_SIZE = COMPUTE_CHAIN_MAX_BYTES; // 64MB guard against OOM
+    private unsubscribeDevice: (() => void) | null = null;
+    /** Set once init succeeds, so a restored device re-initialises this backend. */
+    private wantsDevice = false;
+
+    /**
+     * Pipelines, the uniform buffer and every pooled buffer belong to the
+     * device that made them. When the shared device is lost they are dead;
+     * when the probe restores a device, build them again on the new one.
+     */
+    private watchDevice(): void {
+        if (this.unsubscribeDevice) return;
+        this.unsubscribeDevice = onWebGpuDeviceChange((change) => {
+            if (change.type === 'lost') {
+                if (change.device === this.device) this.dropDevice();
+            } else if (change.type === 'restored') {
+                if (this.wantsDevice && !this.ready) void this.init();
+            } else {
+                this.dropDevice();
+            }
+        });
+    }
+
+    private dropDevice(): void {
+        this.ready = false;
+        this.device = null;
+        this.adapter = null;
+        this.pipelines = {};
+        this.uniformBuffer = null;
+        // Buffers of a lost device need no destroy(); just forget them.
+        this.storagePool.clear();
+        this.readPool.clear();
+    }
+
+    /** Largest `rows * cols` one dispatch covers on this device. */
+    private fitsDevice(size: number): boolean {
+        return size <= maxComputeElements(this.device);
+    }
 
     async init(): Promise<boolean> {
+        this.watchDevice();
         const probe = await probeWebGPU();
         if (!probe.ok || !probe.device || !probe.adapterHandle) {
             console.warn("WebGPU not supported on this browser.");
@@ -42,6 +81,7 @@ export class WebGpuBackend {
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
             });
             this.ready = true;
+            this.wantsDevice = true;
             console.log("WebGPU Backend Initialized 🚀");
             try { engineTelemetry.registerResolution('webgpu-compute', 'webgpu', 'device-ready'); } catch (_) {}
             return true;
@@ -187,6 +227,10 @@ export class WebGpuBackend {
         const cols = dims[2];
         const size = rows * cols;
         const bufferSize = size * 4;
+        if (!this.fitsDevice(size)) {
+            logEngineFallback('webgpu-compute', 'webgpu', `op ${opName}: ${size} elements exceed one dispatch on this device`);
+            return null;
+        }
 
         // 1. Buffers
         const inputBuffer = this.device.createBuffer({
@@ -316,6 +360,17 @@ export class WebGpuBackend {
             );
             return null;
         }
+        if (!this.fitsDevice(size)) {
+            // A 1-D dispatch of ceil(size / 64) workgroups must stay within
+            // maxComputeWorkgroupsPerDimension; past it the submit fails
+            // validation instead of computing.
+            logEngineFallback(
+                'webgpu-compute',
+                'webgpu',
+                `chain of ${size} elements exceeds one dispatch (max ${maxComputeElements(this.device)})`,
+            );
+            return null;
+        }
 
         const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         const bucket = this.getSizeBucket(bufferSize);
@@ -414,5 +469,8 @@ export class WebGpuBackend {
         for (const free of this.readPool.values()) free.forEach(b => b.destroy());
         this.storagePool.clear();
         this.readPool.clear();
+        this.unsubscribeDevice?.();
+        this.unsubscribeDevice = null;
+        this.wantsDevice = false;
     }
 }

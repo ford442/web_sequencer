@@ -16,6 +16,7 @@ const initTrackFreezer = async () => {
 import { engineTelemetry } from '@/utils/engineTelemetry';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
 import { resolveExportSampleRate, type SampleRatePref } from '@/utils/audioContextPolicy';
+import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/createOfflineContext';
 import {
     renderThroughOfflineGraph,
     type CompiledOfflineGraph,
@@ -129,8 +130,7 @@ export const freezeSynthTrack = async (
     );
 
     // Create AudioBuffer from result
-    const audioContext = new OfflineAudioContext(1, audioData.length, sampleRate);
-    const buffer = audioContext.createBuffer(1, audioData.length, sampleRate);
+    const buffer = createOfflineBuffer({ channels: 1, length: audioData.length, sampleRate });
     buffer.getChannelData(0).set(audioData);
 
     return buffer;
@@ -170,8 +170,7 @@ export const freezeDrumTrack = async (
     );
 
     // Create AudioBuffer from result
-    const audioContext = new OfflineAudioContext(1, audioData.length, sampleRate);
-    const buffer = audioContext.createBuffer(1, audioData.length, sampleRate);
+    const buffer = createOfflineBuffer({ channels: 1, length: audioData.length, sampleRate });
     buffer.getChannelData(0).set(audioData);
 
     return buffer;
@@ -189,8 +188,7 @@ export const freezeWithOfflineContext = async (
     durationSeconds: number,
     sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> => {
-    const lengthSamples = Math.ceil(durationSeconds * sampleRate);
-    const offlineCtx = new OfflineAudioContext(2, lengthSamples, sampleRate);
+    const offlineCtx = createOfflineContext({ channels: 2, durationSeconds, sampleRate });
 
     // Let user build their audio graph
     setupCallback(offlineCtx);

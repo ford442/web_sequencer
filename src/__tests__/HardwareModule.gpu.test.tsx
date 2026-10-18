@@ -3,7 +3,7 @@ import { render, act, waitFor } from '@testing-library/react';
 import { HardwareModule } from '../components/HardwareModule';
 import type { KnobConfig } from '../components/HardwareModule';
 import { KnobGPUContext } from '../components/KnobGPUContext';
-import { resetWebGpuProbeForTests } from '../engines/backends/webgpuProbe';
+import { resetWebGpuProbe } from '../engines/backends/webgpuProbe';
 
 describe('HardwareModule - WebGPU Optimization', () => {
     const mockControls: KnobConfig[] = [
@@ -19,7 +19,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
     let frameCallbacks: FrameRequestCallback[] = [];
 
     beforeEach(() => {
-        resetWebGpuProbeForTests();
+        resetWebGpuProbe();
         // Reset the singleton
         (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         // Mock RequestAnimationFrame

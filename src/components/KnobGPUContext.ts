@@ -20,12 +20,11 @@ export interface SlotHandle {
 
 interface Slot {
     canvas: HTMLCanvasElement;
-    context: GPUCanvasContext;
+    /** Swapchain + its configured size (shared `configureCanvas` helper). */
+    surface: ConfiguredCanvas;
     getValue: () => number;
     uniformBuffer: GPUBuffer;
     bindGroup: GPUBindGroup;
-    width: number;
-    height: number;
     dirty: boolean;
     /** Drag / hover / keyboard-focus — only this knob advances the time uniform. */
     animated: boolean;
@@ -62,7 +61,8 @@ import type { KnobMaterial } from './knobMaterial';
 import { getPrefersReducedMotion, resolveKnobTimeUniform, shouldAnimateKnob, subscribeReducedMotion } from './knobMotion';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
-import { probeWebGPU } from '../engines/backends/webgpuProbe';
+import { onWebGpuDeviceChange, probeWebGPU, type WebGpuDeviceChange } from '../engines/backends/webgpuProbe';
+import { configureCanvas, preferredCanvasFormat, syncCanvasSize, unconfigureCanvas, type ConfiguredCanvas } from '../webgpu/configureCanvas';
 
 type StatusListener = (status: KnobGpuStatus) => void;
 type SnapshotListener = () => void;
@@ -294,8 +294,7 @@ class KnobGPUContextClass {
     };
     private consecutiveRenderFailures = 0;
     private recoverScheduled = false;
-    private deviceLostHandled = false;
-    private consecutiveLosses = 0;
+    private consecutiveRecoveries = 0;
     private visibilityListening = false;
     private dprListening = false;
     private reducedMotionUnsub: (() => void) | null = null;
@@ -315,8 +314,7 @@ class KnobGPUContextClass {
         this.status = 'unavailable';
         this.consecutiveRenderFailures = 0;
         this.recoverScheduled = false;
-        this.deviceLostHandled = false;
-        this.consecutiveLosses = 0;
+        this.consecutiveRecoveries = 0;
         this.submitCount = 0;
         this.frameCount = 0;
         this.snapshot = {
@@ -329,6 +327,37 @@ class KnobGPUContextClass {
 
     constructor() {
         this.ensureEnvironmentListeners();
+        // Device loss is recovered by the shared probe (one re-probe for the
+        // whole session); the knobs only tear down and re-attach.
+        onWebGpuDeviceChange((change) => this.onDeviceChange(change));
+    }
+
+    private onDeviceChange(change: WebGpuDeviceChange): void {
+        switch (change.type) {
+            case 'lost':
+                if (this.device !== change.device) return;
+                this.teardownDevice();
+                this.initPromise = null;
+                if (change.willRecover) {
+                    this.setStatus('recovering');
+                    this.reportDegradation(change.message, true);
+                } else {
+                    this.setStatus('degraded');
+                    this.reportDegradation(change.message);
+                }
+                return;
+            case 'restored':
+                if (this.registrations.size === 0) return;
+                void this.reattach('device restored');
+                return;
+            case 'unavailable':
+                if (this.registrations.size === 0) return;
+                this.teardownDevice();
+                this.initPromise = null;
+                this.setStatus('degraded');
+                this.reportDegradation(change.probe.reason ?? 'WebGPU unavailable');
+                return;
+        }
     }
 
     getStatus(): KnobGpuStatus {
@@ -533,56 +562,15 @@ class KnobGPUContextClass {
         slot.inViewport = true;
     }
 
-    /**
-     * Keep the WebGPU swapchain size in lockstep with the canvas CSS box.
-     * Changing `canvas.width` after the first configure() without reconfigure
-     * leaves the presented texture at the old size, which Chromium composites
-     * 1:1 from the bottom-left — the knob image sits up/right of the hit box.
-     */
-    private canvasBufferSize(canvas: HTMLCanvasElement): { w: number; h: number } {
-        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
-        const cssW = canvas.clientWidth > 0 ? canvas.clientWidth : canvas.width;
-        const cssH = canvas.clientHeight > 0 ? canvas.clientHeight : canvas.height;
-        return {
-            w: Math.max(1, Math.floor(cssW * dpr)),
-            h: Math.max(1, Math.floor(cssH * dpr)),
-        };
-    }
-
-    private configureCanvasContext(context: GPUCanvasContext, canvas: HTMLCanvasElement): void {
-        const { w, h } = this.canvasBufferSize(canvas);
-        if (canvas.width !== w) canvas.width = w;
-        if (canvas.height !== h) canvas.height = h;
-        context.configure({
-            device: this.device!,
-            format: this.format!,
-            alphaMode: 'premultiplied',
-        });
-    }
-
-    private syncSlotBuffer(slot: Slot): void {
-        if (!this.device || !this.format) return;
-        const { w, h } = this.canvasBufferSize(slot.canvas);
-        if (slot.canvas.width !== w || slot.canvas.height !== h || slot.width !== w || slot.height !== h) {
-            if (slot.canvas.width !== w) slot.canvas.width = w;
-            if (slot.canvas.height !== h) slot.canvas.height = h;
-            slot.width = w;
-            slot.height = h;
-            slot.context.configure({
+    private attachSlot(id: number, canvas: HTMLCanvasElement, getValue: () => number): boolean {
+        if (!this.device || !this.pipeline || !this.format) return false;
+        try {
+            const surface = configureCanvas(canvas, {
                 device: this.device,
                 format: this.format,
                 alphaMode: 'premultiplied',
             });
-        }
-    }
-
-    private attachSlot(id: number, canvas: HTMLCanvasElement, getValue: () => number): boolean {
-        if (!this.device || !this.pipeline || !this.format) return false;
-        try {
-            const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
-            if (!context) return false;
-
-            this.configureCanvasContext(context, canvas);
+            if (!surface) return false;
 
             const uniformBuffer = this.device.createBuffer({
                 size: 32,
@@ -597,12 +585,10 @@ class KnobGPUContextClass {
             const reg = this.registrations.get(id);
             const slot: Slot = {
                 canvas,
-                context,
+                surface,
                 getValue,
                 uniformBuffer,
                 bindGroup,
-                width: canvas.width,
-                height: canvas.height,
                 dirty: true,
                 animated: reg?.animated ?? false,
                 inViewport: true,
@@ -713,12 +699,16 @@ class KnobGPUContextClass {
     }
 
     async retryInit(): Promise<boolean> {
+        return this.reattach('manual retry requested');
+    }
+
+    /** Drop every slot and attach them again on the (possibly new) shared device. */
+    private async reattach(reason: string): Promise<boolean> {
         this.setStatus('recovering');
-        this.reportDegradation('manual retry requested', true);
+        this.reportDegradation(reason, true);
         this.teardownDevice();
         this.consecutiveRenderFailures = 0;
         this.recoverScheduled = false;
-        this.deviceLostHandled = false;
         this.initPromise = null;
 
         const ok = await this.ensureInit();
@@ -736,7 +726,7 @@ class KnobGPUContextClass {
         if (attached > 0) {
             this.setStatus('active');
             this.resolveDegradation();
-            this.consecutiveLosses = 0;
+            this.consecutiveRecoveries = 0;
             this.markAllDirty();
             return true;
         }
@@ -751,6 +741,7 @@ class KnobGPUContextClass {
             try {
                 slot.observer?.disconnect();
                 slot.uniformBuffer?.destroy?.();
+                unconfigureCanvas(slot.surface);
             } catch { /* noop */ }
         }
         this.slots.clear();
@@ -764,16 +755,17 @@ class KnobGPUContextClass {
     private scheduleRecovery(reason: string): void {
         if (this.recoverScheduled) return;
         this.recoverScheduled = true;
-        this.consecutiveLosses++;
+        this.consecutiveRecoveries++;
         this.setStatus('degraded');
         this.reportDegradation(reason);
-        // After repeated losses, stay on Canvas2D fallback (status degraded).
-        if (this.consecutiveLosses >= 3) {
+        // Render failures on a device the probe still considers live. After
+        // repeated attempts, stay on the Canvas2D fallback (status degraded).
+        if (this.consecutiveRecoveries >= 3) {
             this.recoverScheduled = false;
-            this.reportDegradation(`${reason} (giving up after ${this.consecutiveLosses} losses)`);
+            this.reportDegradation(`${reason} (giving up after ${this.consecutiveRecoveries} attempts)`);
             return;
         }
-        const backoff = 400 * this.consecutiveLosses;
+        const backoff = 400 * this.consecutiveRecoveries;
         window.setTimeout(() => {
             this.recoverScheduled = false;
             void this.retryInit();
@@ -796,20 +788,8 @@ class KnobGPUContextClass {
             return false;
         }
         try {
-            const device = probe.device;
-            this.device = device;
-            this.format = navigator.gpu?.getPreferredCanvasFormat() ?? 'bgra8unorm';
-
-            if (!this.deviceLostHandled) {
-                this.deviceLostHandled = true;
-                void device.lost.then((info) => {
-                    const reason = info.message || 'GPU device lost';
-                    this.teardownDevice();
-                    this.initPromise = null;
-                    this.deviceLostHandled = false;
-                    this.scheduleRecovery(reason);
-                });
-            }
+            this.device = probe.device;
+            this.format = preferredCanvasFormat();
 
             const shaderModule = this.device.createShaderModule({ code: SHADER_CODE });
             this.pipeline = this.device.createRenderPipeline({
@@ -937,19 +917,19 @@ class KnobGPUContextClass {
             const slot = this.slots.get(id);
             if (!slot || !slot.inViewport) continue;
             try {
-                this.syncSlotBuffer(slot);
+                syncCanvasSize(slot.surface);
 
                 const value = slot.getValue();
                 const time = resolveKnobTimeUniform(nowSeconds, slot.animated, reduced);
                 this.scratchUniforms[0] = time;
                 this.scratchUniforms[1] = value;
-                this.scratchUniforms[2] = slot.width;
-                this.scratchUniforms[3] = slot.height;
+                this.scratchUniforms[2] = slot.surface.width;
+                this.scratchUniforms[3] = slot.surface.height;
                 this.device.queue.writeBuffer(slot.uniformBuffer, 0, this.scratchUniforms);
 
                 const pass = encoder.beginRenderPass({
                     colorAttachments: [{
-                        view: slot.context.getCurrentTexture().createView(),
+                        view: slot.surface.context.getCurrentTexture().createView(),
                         loadOp: 'clear',
                         clearValue: { r: 0, g: 0, b: 0, a: 0 },
                         storeOp: 'store',

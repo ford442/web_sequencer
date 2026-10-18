@@ -53,10 +53,10 @@ import type {
 } from '../wam/types';
 import type { Wam2SongPayload } from '../wam/persist';
 import {
-    resolveExportSampleRate,
     getStoredSampleRatePref,
     type SampleRatePref,
 } from '../../utils/audioContextPolicy';
+import { createOfflineContext, resolveOfflineSpec } from './createOfflineContext';
 
 /** Graph node factories that carry a WAM2 plugin. */
 const WAM_FACTORIES = new Set([
@@ -181,10 +181,7 @@ function defaultContextFactory(
     length: number,
     sampleRate: number,
 ): OfflineAudioContext {
-    if (typeof OfflineAudioContext === 'undefined') {
-        throw new Error('OfflineAudioContext is not available in this environment');
-    }
-    return new OfflineAudioContext(channels, length, sampleRate);
+    return createOfflineContext({ channels, length, sampleRate });
 }
 
 function channelsOf(buffer: AudioBuffer): Float32Array[] {
@@ -401,10 +398,13 @@ export async function compileOfflineGraph(
 ): Promise<CompiledOfflineGraph> {
     const sampleRatePref = options.sampleRatePref ?? getStoredSampleRatePref();
     const liveSampleRate = options.liveSampleRate ?? null;
-    const sampleRate =
-        options.sampleRate ?? resolveExportSampleRate(sampleRatePref, liveSampleRate);
-    const channels = options.channels ?? 2;
-    const length = Math.max(1, Math.ceil(options.durationSeconds * sampleRate));
+    const { sampleRate, channels, length } = resolveOfflineSpec({
+        sampleRate: options.sampleRate,
+        sampleRatePref,
+        liveSampleRate,
+        channels: options.channels,
+        durationSeconds: options.durationSeconds,
+    });
 
     const basePatch = options.patch ?? resolveLivePatch();
     const wam2 = options.wam2 !== undefined ? options.wam2 : resolveLiveWam2State();

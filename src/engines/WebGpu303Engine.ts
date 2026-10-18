@@ -27,7 +27,8 @@ import {
   NOTE_EVENT_BYTES,
 } from '@/webgpu/shaders/303Voice.wgsl';
 import { engineTelemetry, logEngineFallback } from '@/utils/engineTelemetry';
-import { probeWebGPU } from '@/engines/backends/webgpuProbe';
+import { onWebGpuDeviceChange, probeWebGPU } from '@/engines/backends/webgpuProbe';
+import { GPU_303_MAX_BYTES } from '@/webgpu/deviceRequirements';
 
 export const GPU_HIGHFID_MODEL_ID = 'gpu-highfid' as const;
 
@@ -77,14 +78,41 @@ export class WebGpu303Engine {
   private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
   private readonly SIZE_BUCKET_BYTES = 4096;
   /** ~30 s @ 48 kHz mono — guard against OOM on huge freeze bounces. */
-  private readonly MAX_BUFFER_SIZE = 48_000 * 30 * 4;
+  private readonly MAX_BUFFER_SIZE = GPU_303_MAX_BYTES;
 
   private lastFallbackReason: string | null = null;
+  private unsubscribeDevice: (() => void) | null = null;
 
   async init(): Promise<boolean> {
     if (this.initPromise) return this.initPromise;
+    this.watchDevice();
     this.initPromise = this.doInit();
     return this.initPromise;
+  }
+
+  /**
+   * The pipeline and pooled buffers die with the shared device. On loss,
+   * forget them and clear `initPromise`, so the next render re-initialises
+   * on whatever device the probe restored (or falls back to highfid-cpu).
+   */
+  private watchDevice(): void {
+    if (this.unsubscribeDevice) return;
+    this.unsubscribeDevice = onWebGpuDeviceChange((change) => {
+      if (change.type === 'lost' && change.device !== this.device) return;
+      if (change.type === 'restored' && change.probe.device === this.device) return;
+      this.releaseDevice();
+    });
+  }
+
+  /** Drop everything built on the current device. Never destroys the shared device. */
+  private releaseDevice(): void {
+    this.bufferPool.clear();
+    this.device = null;
+    this.adapter = null;
+    this.pipeline = null;
+    this.bindGroupLayout = null;
+    this.isSupported = false;
+    this.initPromise = null;
   }
 
   private async doInit(): Promise<boolean> {
@@ -232,17 +260,11 @@ export class WebGpu303Engine {
         b.read.destroy();
       }
     }
-    this.bufferPool.clear();
-    try {
-      this.device?.destroy?.();
-    } catch {
-      /* ignore */
-    }
-    this.device = null;
-    this.pipeline = null;
-    this.bindGroupLayout = null;
-    this.isSupported = false;
-    this.initPromise = null;
+    // The device is the session's shared one (knobs, scope, piano roll draw on
+    // it too) — release this engine's hold on it, never destroy it.
+    this.releaseDevice();
+    this.unsubscribeDevice?.();
+    this.unsubscribeDevice = null;
   }
 
   private packUniforms(
