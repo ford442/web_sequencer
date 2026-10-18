@@ -236,6 +236,19 @@ void tranceGate(RbFx& fx, float* out, int n) {
 // Without phoneme context no onset can be seen; an envelope already running
 // still decays.
 // ---------------------------------------------------------------------------
+
+void consonantSaturator(RbFx& fx, float* out, int n) {
+    if (fx.param(RB_FX_CONSONANT_SATURATION) > 0.0 && fx.param(RB_FX_HAS_PHONEME_CONTEXT) > 0.0 && fx.param(RB_FX_IS_VOWEL) == 0.0) {
+        const float sat = static_cast<float>(fx.param(RB_FX_CONSONANT_SATURATION));
+        for (int i = 0; i < n; ++i) {
+            float x = out[i];
+            float over = x * (1.0f + sat * 4.0f);
+            float wet = over / (1.0f + std::abs(over));
+            out[i] = x + sat * (wet - x);
+        }
+    }
+}
+
 void transientShaper(RbFx& fx, float* out, int n) {
     const double clarity = fx.param(RB_FX_CONSONANT_CLARITY);
     if (clarity <= 0.0) return;
@@ -797,6 +810,7 @@ EMSCRIPTEN_KEEPALIVE void rb_fx_process(RbFx* fx, float* ioL, float* ioR, int fr
     syllableVolumeFilter(*fx, ioL, frames);
     tranceGate(*fx, ioL, frames);
     transientShaper(*fx, ioL, frames);
+    consonantSaturator(*fx, ioL, frames);
     updateGrainPan(*fx);
     spectralBands(*fx, ioL, ioR, frames);
     float* ch[2] = {ioL, ioR};

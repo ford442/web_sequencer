@@ -33,7 +33,7 @@
 - [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
 - Explore generating dynamic complementary snare/kick fills for syncopated rhythm patterns in handleTextToDrums
-- What if we could apply subtle saturation exclusively to unvoiced consonants to make whispering more gritty?
+- [x] What if we could apply subtle saturation exclusively to unvoiced consonants to make whispering more gritty?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
 - [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
 - [x] What if we could link voice affinity directly to WebGPU/WASM buffers, preventing redundant host-to-device memory copies on voice steal?
@@ -206,3 +206,6 @@
 - Added "Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track" to the Innovation Lab.
 - Completed "Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track". I added a fast 5ms 1-pole smoother to `VocoderEffect` to track `phonemeIntensity` smoothly, and scaled the vocoder mix amount by this smoothed intensity. This makes stressed syllables pop and heavily vocoded, while unstressed syllables stay more natural.
 - Velocity Check: Utilizing a fast envelope follower instead of jumping directly on phoneme boundaries successfully avoided audio clicks while keeping the vocoder mathematically bound to lyric intent. Added new ideas to the Innovation Lab.
+
+- Completed "What if we could apply subtle saturation exclusively to unvoiced consonants to make whispering more gritty?". Implemented a soft clipper (wave shaper) in `vocalFx.ts` and `rubberband_fx.cpp` exclusively applied when `isVowel === 0`. Wired it to the UI in `SamplerVoicePanel.tsx` via a new "CONS. SATURATE" slider, which passes `consonantSaturation` down through the AudioWorklet block logic.
+- Velocity Check: Mapping a mathematical waveshaper specifically gated on the `isVowel` flag creates the grit effectively without affecting the rest of the vocal signal. Maintaining TS/C++ dual implementation kept golden tests intact.

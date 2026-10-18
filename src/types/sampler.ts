@@ -12,6 +12,8 @@ export interface SamplerVoiceParams {
   tremoloDepth: number;
   breathAmount: number;
   consonantClarity?: number;
+  consonantSaturation?: number;
+  consonantSaturation?: number;
   stretchProfile: 'vocal' | 'harmonic' | 'fast';
   stretchMode: 'Time' | 'Pitch' | 'Formant';
   lockToSequencer: boolean;
