@@ -18,7 +18,7 @@
 
 #include <cstdint>
 
-#define RB_FX_ABI_VERSION 4
+#define RB_FX_ABI_VERSION 5
 
 enum RbFxParam {
     // --- phoneme context for the current block ------------------------------
@@ -55,6 +55,7 @@ enum RbFxParam {
     // --- ABI 3: consonant transients + time smear (#1303/#1314/#1336) ------
     RB_FX_PHONEME_INDEX,           // tuple[8], -1 = none; a change is a new phoneme
     RB_FX_CONSONANT_CLARITY,       // transient shaper amount (post-gate, mono)
+    RB_FX_CONSONANT_SATURATION,    // soft clipping amount for unvoiced consonants
     RB_FX_TRANSIENT_EXTRACTION,    // high-passed transient emphasis (post-sub)
     RB_FX_TIME_SMEAR,              // chaotic grain-position smear on consonants
     RB_FX_BASS_ENVELOPE_VALUE,     // bass sidechain envelope [0..1]

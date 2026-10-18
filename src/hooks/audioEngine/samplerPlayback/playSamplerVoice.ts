@@ -48,6 +48,7 @@ export function createPlaySamplerVoice(
 
     // --- HOISTED PARAMETERS START ---
     const pConsonantClarity = noteParams?.consonantClarity ?? params.consonantClarity ?? 0;
+    const pConsonantSaturation = noteParams?.consonantSaturation ?? params.consonantSaturation ?? 0;
     // Vocoder Mix
     const vocoderMix = noteParams?.vocoderMix ?? params.vocoderMix ?? 0;
     const pVocoderFormantShift = noteParams?.vocoderFormantShift ?? params.formantShift ?? 0;
@@ -396,7 +397,8 @@ export function createPlaySamplerVoice(
         if (pPhonemeFilterMod !== undefined) voice.setPhonemeFilterMod(pPhonemeFilterMod, triggerTime);
         if (pTranceGate !== undefined) voice.setTranceGate(pTranceGate, triggerTime);
         if (pVolumeFilterMod !== undefined && (voice as any).setVolumeFilterMod) (voice as any).setVolumeFilterMod(pVolumeFilterMod, triggerTime);
-        if (pConsonantClarity !== undefined && (voice as any).setConsonantClarity) (voice as any).setConsonantClarity(pConsonantClarity, triggerTime);
+        if (pConsonantClarity !== undefined && ('setConsonantClarity' in voice)) (voice as unknown as { setConsonantClarity: (v: number, t: number) => void }).setConsonantClarity(pConsonantClarity, triggerTime);
+        if (pConsonantSaturation !== undefined && ('setConsonantSaturation' in voice)) (voice as unknown as { setConsonantSaturation: (v: number, t: number) => void }).setConsonantSaturation(pConsonantSaturation, triggerTime);
 
         voice.setCustomWindowShape(pCustomWindowShape, triggerTime);
 

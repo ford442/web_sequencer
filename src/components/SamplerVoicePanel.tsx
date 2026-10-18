@@ -38,6 +38,7 @@ interface SamplerVoicePanelProps {
     tremoloDepth?: number; // 0-1
     breathAmount?: number; // 0-1
     consonantClarity?: number; // 0-1
+    consonantSaturation?: number; // 0-1
     vocoderMix?: number; // 0-1
     quality?: 'preview' | 'good' | 'better' | 'best';
     vocoderFormantShift?: number;
@@ -371,6 +372,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     tremoloDepth = 0,
     breathAmount = 0,
     consonantClarity = 0,
+    consonantSaturation = 0,
     vocoderMix = 0,
     quality = 'good',
     vocoderFormantShift = 0,
@@ -396,6 +398,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
     const [localTremoloDepth, setLocalTremoloDepth] = useState(tremoloDepth);
     const [localBreathAmount, setLocalBreathAmount] = useState(breathAmount);
     const [localConsonantClarity, setLocalConsonantClarity] = useState(consonantClarity);
+    const [localConsonantSaturation, setLocalConsonantSaturation] = useState(consonantSaturation);
     const [localVocoderMix, setLocalVocoderMix] = useState(vocoderMix);
     const [localVocoderFormantShift, setLocalVocoderFormantShift] = useState(vocoderFormantShift);
     const [localVocoderPreservation, setLocalVocoderPreservation] = useState(vocoderPreservation);
@@ -431,6 +434,7 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
             case 'tremoloDepth': setLocalTremoloDepth(value as number); break;
             case 'breathAmount': setLocalBreathAmount(value as number); break;
             case 'consonantClarity': setLocalConsonantClarity(value as number); break;
+            case 'consonantSaturation': setLocalConsonantSaturation(value as number); break;
             case 'vocoderMix': setLocalVocoderMix(value as number); break;
             case 'vocoderFormantShift': setLocalVocoderFormantShift(value as number); break;
             case 'vocoderPreservation': setLocalVocoderPreservation(value as number); break;
@@ -694,6 +698,13 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
                             value={localConsonantClarity * 2 - 1}
                             displayValue={localConsonantClarity.toFixed(2)}
                             onChange={(v) => handleParamChange('consonantClarity', Math.max(0, Math.min(1, (v + 1) / 2)))}
+                            colorHex={colorHex}
+                        />
+                        <HSlider
+                            label="CONS. SATURATE"
+                            value={localConsonantSaturation * 2 - 1}
+                            displayValue={localConsonantSaturation.toFixed(2)}
+                            onChange={(v) => handleParamChange('consonantSaturation', Math.max(0, Math.min(1, (v + 1) / 2)))}
                             colorHex={colorHex}
                         />
                         <HSlider

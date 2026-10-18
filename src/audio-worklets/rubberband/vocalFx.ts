@@ -31,6 +31,7 @@ export interface VocalFxBlock {
   gateRate: number;
   /** Consonant onset boost (TransientShaper), scaled by the phoneme volume. */
   consonantClarity: number;
+  consonantSaturation: number;
   /** High-passed transient emphasis on consonants (TransientExtractor). */
   transientExtraction: number;
   spectralComp: number;
@@ -70,6 +71,7 @@ export function createVocalFxBlock(): VocalFxBlock {
     gateDepth: 0,
     gateRate: 4,
     consonantClarity: 0,
+    consonantSaturation: 0,
     transientExtraction: 0,
     spectralComp: 0,
     grainPanSpread: 0,
@@ -267,6 +269,16 @@ export class TsVocalFx implements VocalFxChain {
       this.transientShaper.process(
         left, block.consonantClarity * pVol, ctx ? block.isVowel : null, ctx ? block.phonemeIndex : null, pVol, fs,
       );
+    }
+
+    if (block.consonantSaturation > 0 && block.hasPhonemeContext && block.isVowel === 0) {
+      const sat = block.consonantSaturation;
+      for (let i = 0; i < left.length; i++) {
+        const x = left[i];
+        const over = x * (1.0 + sat * 4.0);
+        const wet = over / (1.0 + Math.abs(over));
+        left[i] = x + sat * (wet - x);
+      }
     }
 
     this.granular.updateGrainPan(block.grainPanSpread, block.isVowel);

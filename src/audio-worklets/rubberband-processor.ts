@@ -506,6 +506,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         block.gateDepth = gateDepth;
         block.gateRate = gateRate;
         block.consonantClarity = param(parameters, 'consonantClarity', 0.0);
+        block.consonantSaturation = param(parameters, 'consonantSaturation', 0.0);
         block.transientExtraction = param(parameters, 'transientExtraction', 0.0);
         block.spectralComp = param(parameters, 'spectralComp', 0.0);
         block.grainPanSpread = param(parameters, 'grainPanSpread', 0.0);
