@@ -48,6 +48,22 @@ is the single rule:
 Callers pass the live rate they recorded; nothing guesses. `ExportModal` offers
 the three policy options directly and labels `native` with the resolved number.
 
+### One context factory (#1345)
+
+Nothing outside `src/audio/offline/createOfflineContext.ts` constructs an
+`OfflineAudioContext`. Every bounce — this compiler, freeze, stem export,
+pattern renders, multisample generation, resampling, `renderer.worker.ts` —
+asks for one with `createOfflineContext({ channels, length | durationSeconds,
+sampleRate? })` (or `createOfflineBuffer(...)` to wrap samples it already
+has), so the two rules live in one place:
+
+- **Rate** — an explicit `sampleRate` (a resample target, a source buffer's own
+  rate) is taken verbatim; otherwise `resolveExportSampleRate` above decides.
+- **Length** — whole frames, rounded *up*, never below 1.
+
+A source-scan test (`createOfflineContext.test.ts`) fails on any new direct
+`new OfflineAudioContext(...)` outside the factory.
+
 ## Master loudness
 
 The live limiter/meter (#1095) is an `AudioWorklet` sitting last before the

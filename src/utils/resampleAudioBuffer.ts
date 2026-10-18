@@ -1,3 +1,5 @@
+import { createOfflineContext } from '../audio/offline/createOfflineContext';
+
 /**
  * Convert an AudioBuffer to a target sample rate once (offline render).
  * Live voices must never resample inside process().
@@ -11,11 +13,11 @@ export async function resampleAudioBuffer(
     if (signal?.aborted) {
         throw new DOMException('Export cancelled', 'AbortError');
     }
-    const offlineCtx = new OfflineAudioContext(
-        buffer.numberOfChannels,
-        Math.max(1, Math.ceil(buffer.duration * targetSampleRate)),
-        targetSampleRate,
-    );
+    const offlineCtx = createOfflineContext({
+        channels: buffer.numberOfChannels,
+        durationSeconds: buffer.duration,
+        sampleRate: targetSampleRate,
+    });
     const source = offlineCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(offlineCtx.destination);

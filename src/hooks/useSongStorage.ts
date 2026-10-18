@@ -16,6 +16,7 @@ import type { ScaleDefinition } from '../utils/musicTheory';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import { audioBufferToWav, blobToBase64 } from '../utils/audioExport';
 import { automationStore, convertHyphonLanes } from '../stores/automationStore';
+import { noteFxStore } from '../stores/noteFxStore';
 import { midiMapStore } from '../stores/midiMapStore';
 import { transportMixStore } from '../stores/transportMixStore';
 import { resolveSongMeter } from '../utils/songMeter';
@@ -213,6 +214,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             embeddedSamples: encodedSamples,
             ttsPhrases,
             ...(exportedLanes.length > 0 ? { automationLanes: exportedLanes } : {}),
+            ...(noteFxStore.hasChains() ? { noteFx: noteFxStore.exportChains() } : {}),
             ...(exportedMidi.length > 0 ? { midiMappings: exportedMidi } : {}),
             ...(deps.rbsArrangementExtrasRef?.current?.loopStart != null
                 ? { rbsLoopStart: deps.rbsArrangementExtrasRef.current.loopStart }
@@ -347,6 +349,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             }
             // Restore automation lanes — importLanes replaces all existing lanes (including clearing when empty).
             automationStore.importLanes(songData.automationLanes ?? []);
+            // Replaces every chain; a song without `noteFx` clears them.
+            noteFxStore.importChains(songData.noteFx);
             midiMapStore.importSongMappings(songData.midiMappings);
             const wamHost = getWamHost();
             if (wamHost) {

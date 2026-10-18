@@ -1,7 +1,8 @@
 // @mode: typescript
 // @note-for-ai: This is a native WebGPU implementation (L5 in UIMP).
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
-import { probeWebGPU } from './backends/webgpuProbe';
+import { onWebGpuDeviceChange, probeWebGPU } from './backends/webgpuProbe';
+import { OSCILLATOR_MAX_BYTES } from '../webgpu/deviceRequirements';
 // The WGSL shader code is embedded in SHADER_CODE constant.
 // This file handles GPU resource management and buffer pooling.
 // See PERFORMANCE_MIGRATION_STRATEGY.md for migration context.
@@ -15,8 +16,11 @@ export class WebGpuOscillator {
     // Buffer pool for reuse - keyed by size bucket
     private bufferPool: Map<number, { output: GPUBuffer, read: GPUBuffer }[]> = new Map();
     private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
-    private readonly MAX_BUFFER_SIZE = 44100 * 5 * 4; // ~5 seconds at 44.1kHz (limit to prevent OOM)
+    private readonly MAX_BUFFER_SIZE = OSCILLATOR_MAX_BYTES; // ~5 seconds at 44.1kHz (limit to prevent OOM)
     private readonly SIZE_BUCKET_BYTES = 4096; // Quantize to 4KB buckets
+    private unsubscribeDevice: (() => void) | null = null;
+    /** Set once init succeeds, so a restored device re-initialises the oscillator. */
+    private wantsDevice = false;
 
     // Shader Code: Generates raw audio samples
     private readonly SHADER_CODE = `
@@ -76,7 +80,30 @@ export class WebGpuOscillator {
         }
     `;
 
+    /** Pipeline and pooled buffers die with the shared device; rebuild on restore. */
+    private watchDevice(): void {
+        if (this.unsubscribeDevice) return;
+        this.unsubscribeDevice = onWebGpuDeviceChange((change) => {
+            if (change.type === 'lost') {
+                if (change.device === this.device) this.releaseDevice();
+            } else if (change.type === 'restored') {
+                if (this.wantsDevice && !this.isSupported) void this.init();
+            } else {
+                this.releaseDevice();
+            }
+        });
+    }
+
+    private releaseDevice(): void {
+        this.bufferPool.clear();
+        this.device = null;
+        this.pipeline = null;
+        this.bindGroupLayout = null;
+        this.isSupported = false;
+    }
+
     async init() {
+        this.watchDevice();
         const probe = await probeWebGPU();
         if (!probe.ok || !probe.device) {
             logEngineFallback(
@@ -107,6 +134,7 @@ export class WebGpuOscillator {
             });
 
             this.isSupported = true;
+            this.wantsDevice = true;
             try { engineTelemetry.registerResolution('webgpu', 'webgpu', 'device-ready'); } catch (_) {}
         } catch (e) {
             logEngineFallback('webgpu', 'webgpu', 'GPUDevice or compute pipeline creation failed', e);
@@ -176,6 +204,9 @@ export class WebGpuOscillator {
             }
         }
         this.bufferPool.clear();
+        this.unsubscribeDevice?.();
+        this.unsubscribeDevice = null;
+        this.wantsDevice = false;
     }
 
     async generate(frequency: number, duration: number, sampleRate: number, type: 'saw' | 'sqr' | 'tri' | 'sin'): Promise<Float32Array | null> {

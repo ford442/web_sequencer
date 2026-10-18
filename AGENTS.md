@@ -14,6 +14,7 @@
 - **Real-time voice designer** with GPU-accelerated DSP (sharpen, echo, tremolo, jitter, geometric transforms)
 - **Harmonizer** for layered vocal harmonies
 - **Song mode** for pattern arrangement across 8 pattern slots per track
+- **Piano roll** (lazy, WebGPU with Canvas2D fallback) over the melodic tracks' steps, and a per-track **note FX chain** (arp / ratchet / chord / euclid / humanize) that plays identically live and offline — see [docs/piano-roll.md](docs/piano-roll.md), [docs/note-fx.md](docs/note-fx.md)
 - **3D studio visualization** (React Three Fiber), toggleable from the UI
 - **Cloud storage** integration for songs, patterns, banks, and samples
 - **AI song generation** modal and **RBS (Rubberband/RBS) import** modal
