@@ -11,11 +11,11 @@ describe('HardwareModule - WebGPU Optimization', () => {
     ];
     const mockColorHex: [number, number, number] = [0.0, 0.7, 1.0];
 
-    let mockWriteBuffer: any;
-    let mockDevice: any;
-    let mockContext: any;
-    let requestAnimationFrameMock: any;
-    let cancelAnimationFrameMock: any;
+    let mockWriteBuffer: ReturnType<typeof vi.fn>;
+    let mockDevice: unknown;
+    let mockContext: unknown;
+    let requestAnimationFrameMock: ReturnType<typeof vi.spyOn>;
+    let cancelAnimationFrameMock: ReturnType<typeof vi.spyOn>;
     let frameCallbacks: FrameRequestCallback[] = [];
 
     beforeEach(() => {
@@ -24,11 +24,11 @@ describe('HardwareModule - WebGPU Optimization', () => {
         (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         // Mock RequestAnimationFrame
         frameCallbacks = [];
-        requestAnimationFrameMock = vi.fn((cb) => {
+        requestAnimationFrameMock = vi.fn((cb: FrameRequestCallback) => {
             frameCallbacks.push(cb);
             return frameCallbacks.length - 1;
-        });
-        cancelAnimationFrameMock = vi.fn();
+        }) as unknown as ReturnType<typeof vi.spyOn>;
+        cancelAnimationFrameMock = vi.fn() as unknown as ReturnType<typeof vi.spyOn>;
         vi.stubGlobal('requestAnimationFrame', requestAnimationFrameMock);
         vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrameMock);
         vi.stubGlobal('performance', { now: () => 1000 });
@@ -87,7 +87,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         HTMLCanvasElement.prototype.getContext = vi.fn((type) => {
             if (type === 'webgpu') return mockContext;
             return null;
-        }) as any;
+        }) as unknown as typeof HTMLCanvasElement.prototype.getContext;
     });
 
     afterEach(() => {
@@ -97,8 +97,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
     it.skip('optimizes buffer writes: full write initially, partial write on animation frame', async () => {
         const onParamChange = vi.fn();
-        let unmount: any = () => {};
-        let rerender: any;
+        let rerender: (ui: React.ReactElement) => void = () => {};
 
         await act(async () => {
             const result = render(
@@ -111,7 +110,6 @@ describe('HardwareModule - WebGPU Optimization', () => {
                 />
             );
             rerender = result.rerender;
-            unmount = result.unmount;
         });
 
         // Trigger next frame
@@ -127,7 +125,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
         // Initial render: writeBuffer(buffer, 0, buf)
         const firstCall = mockWriteBuffer.mock.calls[0];
-        const writtenData = firstCall[2];
+        const writtenData = firstCall[2] as Float32Array;
         expect(writtenData).toBeInstanceOf(Float32Array);
         expect(writtenData.length).toBe(4); // 4 floats: time, value, width, height
 
@@ -202,9 +200,9 @@ describe('HardwareModule - WebGPU Optimization', () => {
         });
 
         const writes = mockWriteBuffer.mock.calls;
-        let foundData = null;
+        let foundData: Float32Array | null = null;
         for (const call of writes) {
-            const data = call[2];
+            const data = call[2] as unknown;
             if (data instanceof Float32Array && data.length >= 2) {
                 foundData = data;
                 break;

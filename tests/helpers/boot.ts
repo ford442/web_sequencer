@@ -262,5 +262,5 @@ export async function select303Voice(module: Locator, voiceName: RegExp): Promis
 
 /** EngineStatusPill group in the transport header. */
 export function engineStatusIndicators(page: Page) {
-  return page.getByRole('status', { name: 'Active engine indicators' });
+  return page.getByRole('group', { name: 'Active engine indicators' });
 }

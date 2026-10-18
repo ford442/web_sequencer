@@ -157,10 +157,9 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
 
             {lastRejection && (
                 <div
-                    role="alert"
                     className="flex items-center justify-between gap-2 rounded border border-red-500/40 bg-red-950/40 px-2 py-1"
                 >
-                    <span className="font-mono text-[10px] text-red-300">{lastRejection.message}</span>
+                    <span role="alert" className="font-mono text-[10px] text-red-300">{lastRejection.message}</span>
                     <button
                         type="button"
                         onClick={clearRejection}

@@ -64,12 +64,26 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
 
     if (pills.length === 0 && degradations.length === 0) return null;
 
+    // Build the announcement string for the live region
+    const degradationAnnouncement = degradations.length > 0
+        ? degradations.map(d => `${d.subsystem} degraded: ${d.reason}.`).join(' ')
+        : '';
+    const pillsAnnouncement = pills.length > 0
+        ? pills.map(p => p.title).join('. ')
+        : '';
+    const liveAnnouncement = [degradationAnnouncement, pillsAnnouncement].filter(Boolean).join(' ');
+
     return (
         <div
-            className="flex items-center gap-1 flex-wrap"
+            className="flex items-center gap-1 flex-wrap relative"
             aria-label="Active engine indicators"
-            role="status"
+            role="group"
         >
+            {/* Screen reader only live region without the buttons */}
+            <div role="status" aria-live="polite" className="sr-only">
+                {liveAnnouncement}
+            </div>
+
             {degradations.map((d) => (
                 <button
                     key={d.id}
