@@ -282,7 +282,7 @@ export const Wam2GenericEditor: React.FC<Wam2GenericEditorProps> = ({
                     className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-200 hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                     onClick={() => addAutomationLane(param)}
                   >
-                    Automate
+                    <span aria-hidden="true">Automate</span>
                   </button>
                 </div>
               </li>

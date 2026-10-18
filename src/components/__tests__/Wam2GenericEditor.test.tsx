@@ -126,6 +126,13 @@ describe('Wam2GenericEditor', () => {
     expect(host.setParam).toHaveBeenLastCalledWith('slot-1', 'cutoff', 12000);
   });
 
+  it('uses descriptive aria-labels for Automate buttons', () => {
+    render(<Wam2GenericEditor host={makeHost()} slotId="slot-1" descriptor={descriptor} />);
+    const button = screen.getByRole('button', { name: /Automate Cutoff/ });
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute('title', 'Automate Cutoff');
+  });
+
   it('creates an automation lane on the existing wam target', async () => {
     const user = userEvent.setup();
     render(<Wam2GenericEditor host={makeHost()} slotId="slot-1" descriptor={descriptor} />);

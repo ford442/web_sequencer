@@ -11,3 +11,6 @@
 ## 2023-10-27 - Accessible Input Labels
 **Learning:** Adding `aria-label` to inputs that are already wrapped in descriptive `<label>` tags causes screen readers to ignore the visible text and only read the `aria-label`. This can lead to a mismatch between what sighted users see and what screen reader users hear, especially if the `aria-label` is less descriptive.
 **Action:** Always link inputs to visible text labels using `<label htmlFor="id">` and `<input id="id">` instead of adding redundant `aria-label` attributes when a visible label exists.
+## 2026-10-18 - Accessible Labels for Repeating UI Buttons
+**Learning:** When a button repeats across multiple rows with the exact same visible text (e.g., 'Automate'), simply adding an `aria-label` isn't enough, as screen readers may redundantly announce the generic visible text alongside it.
+**Action:** Differentiate them for screen readers by adding context to the `<button>`'s `aria-label` and `title` (e.g., `Automate ${param.label}`). Then, wrap the visible inner text in `<span aria-hidden="true">` to hide the redundant generic string.
