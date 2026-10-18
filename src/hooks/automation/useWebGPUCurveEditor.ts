@@ -125,24 +125,31 @@ function createCurveSession(
   const computeModule = device.createShaderModule({ label: 'curve-editor-compute', code: COMPUTE_SHADER_CODE });
   const renderModule = device.createShaderModule({ label: 'curve-editor-render', code: VERTEX_FRAGMENT_SHADER });
 
-  const bindGroupLayout = device.createBindGroupLayout({
+  // Separate layouts that match each shader: compute reads the lane points
+  // (1) and writes the curve (2); render reads that curve as read-only
+  // storage at 1 (a writable storage binding may not be vertex-visible) and
+  // the colour at 2.
+  const computeLayout = device.createBindGroupLayout({
     entries: [
       { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
       { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-      { binding: 2, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
-      { binding: 3, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  const renderLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
     ],
   });
 
-  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-
   const computePipeline = device.createComputePipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
     compute: { module: computeModule, entryPoint: 'main' },
   });
 
   const renderPipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
     vertex: { module: renderModule, entryPoint: 'vs_main' },
     fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format: surface.format }] },
     primitive: { topology: 'line-strip' },
@@ -169,13 +176,19 @@ function createCurveSession(
   });
   device.queue.writeBuffer(accentColorBuffer, 0, CURVE_COLOR);
 
-  const bindGroup = device.createBindGroup({
-    layout: bindGroupLayout,
+  const computeBindGroup = device.createBindGroup({
+    layout: computeLayout,
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
       { binding: 1, resource: { buffer: pointsBuffer } },
       { binding: 2, resource: { buffer: storageBuffer } },
-      { binding: 3, resource: { buffer: accentColorBuffer } },
+    ],
+  });
+  const renderBindGroup = device.createBindGroup({
+    layout: renderLayout,
+    entries: [
+      { binding: 1, resource: { buffer: storageBuffer } },
+      { binding: 2, resource: { buffer: accentColorBuffer } },
     ],
   });
 
@@ -214,7 +227,7 @@ function createCurveSession(
 
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
-    computePass.setBindGroup(0, bindGroup);
+    computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
     computePass.end();
 
@@ -227,7 +240,7 @@ function createCurveSession(
       }],
     });
     renderPass.setPipeline(renderPipeline);
-    renderPass.setBindGroup(0, bindGroup);
+    renderPass.setBindGroup(0, renderBindGroup);
     renderPass.draw(NUM_POINTS);
     renderPass.end();
     device.queue.submit([commandEncoder.finish()]);

@@ -726,7 +726,9 @@ class KnobGPUContextClass {
         if (attached > 0) {
             this.setStatus('active');
             this.resolveDegradation();
-            this.consecutiveRecoveries = 0;
+            // consecutiveRecoveries resets on the first clean frame, not here: a
+            // device that attaches fine but fails every frame must still hit the
+            // retry limit.
             this.markAllDirty();
             return true;
         }
@@ -951,6 +953,7 @@ class KnobGPUContextClass {
                 this.device.queue.submit([encoder.finish()]);
                 this.submitCount++;
                 this.consecutiveRenderFailures = 0;
+                if (frameFailures === 0) this.consecutiveRecoveries = 0;
             } catch {
                 frameFailures++;
             }

@@ -149,7 +149,7 @@ export async function probeWebGPU(): Promise<WebGpuProbe> {
  * Replace the shared device on purpose and resolve with the probe that
  * follows. Listeners see the same `lost` → `restored` sequence as a real
  * loss, so this doubles as the forced-loss hook for tests and e2e
- * (`window.__HYPHON_WEBGPU__.loseDevice()` in `?e2e=1`).
+ * (`window.__HYPHON_E2E__.loseWebGpuDevice()` in `?e2e=1`).
  */
 export async function restartWebGpuDevice(reason = 'restart requested'): Promise<WebGpuProbe> {
     const current = last ?? (inflight ? await inflight : null);

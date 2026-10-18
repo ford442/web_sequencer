@@ -32,7 +32,7 @@ type Listener = () => void;
 let state: PianoRollState = { open: null };
 const listeners = new Set<Listener>();
 /** Element focused when the roll opened; focus returns there on close. */
-let returnFocus: HTMLElement | null = null;
+let returnFocus: HTMLElement | SVGElement | null = null;
 
 function setState(next: PianoRollState): void {
     if (next.open?.track === state.open?.track && next.open?.bank === state.open?.bank) return;
@@ -52,8 +52,10 @@ export const pianoRollStore = {
         };
     },
     open(track: PianoRollTrack, bank = 0): void {
-        if (!state.open && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-            returnFocus = document.activeElement;
+        // The row-header chip is an SVG <g tabIndex={0}>, not an HTMLElement.
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        if (!state.open && active && (active instanceof HTMLElement || active instanceof SVGElement)) {
+            returnFocus = active;
         }
         setState({ open: { track, bank: track === 'sampler' ? Math.min(7, Math.max(0, bank)) : 0 } });
     },

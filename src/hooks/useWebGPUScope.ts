@@ -141,23 +141,28 @@ function createScopeSession(
   const computeModule = device.createShaderModule({ label: 'scope-compute', code: COMPUTE_SHADER_CODE });
   const renderModule = device.createShaderModule({ label: 'scope-render', code: VERTEX_FRAGMENT_SHADER });
 
-  const bindGroupLayout = device.createBindGroupLayout({
+  // Separate layouts: a writable storage binding may not be visible to the
+  // vertex stage, so the render pass reads the points as read-only storage.
+  const computeLayout = device.createBindGroupLayout({
     entries: [
       { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-      { binding: 1, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  const renderLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
       { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
     ],
   });
 
-  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-
   const computePipeline = device.createComputePipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
     compute: { module: computeModule, entryPoint: 'main' },
   });
 
   const renderPipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
     vertex: { module: renderModule, entryPoint: 'vs_main' },
     fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format: surface.format }] },
     primitive: { topology: 'line-strip' },
@@ -181,10 +186,16 @@ function createScopeSession(
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  const bindGroup = device.createBindGroup({
-    layout: bindGroupLayout,
+  const computeBindGroup = device.createBindGroup({
+    layout: computeLayout,
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
+      { binding: 1, resource: { buffer: storageBuffer } },
+    ],
+  });
+  const renderBindGroup = device.createBindGroup({
+    layout: renderLayout,
+    entries: [
       { binding: 1, resource: { buffer: storageBuffer } },
       { binding: 2, resource: { buffer: accentColorBuffer } },
     ],
@@ -236,7 +247,7 @@ function createScopeSession(
     // COMPUTE PASS
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
-    computePass.setBindGroup(0, bindGroup);
+    computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
     computePass.end();
 
@@ -252,7 +263,7 @@ function createScopeSession(
     });
 
     renderPass.setPipeline(renderPipeline);
-    renderPass.setBindGroup(0, bindGroup);
+    renderPass.setBindGroup(0, renderBindGroup);
     renderPass.draw(NUM_POINTS);
     renderPass.end();
 

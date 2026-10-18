@@ -37,6 +37,24 @@ describe('pianoRollStore', () => {
         other.remove();
     });
 
+    it('returns focus to an SVG chip (the row-header chip is a focusable <g>)', () => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const chip = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        chip.setAttribute('tabindex', '0');
+        svg.appendChild(chip);
+        document.body.appendChild(svg);
+        chip.focus();
+        expect(document.activeElement).toBe(chip);
+        pianoRollStore.open('partA');
+        const other = document.createElement('button');
+        document.body.appendChild(other);
+        other.focus();
+        pianoRollStore.close();
+        expect(document.activeElement).toBe(chip);
+        svg.remove();
+        other.remove();
+    });
+
     it('only melodic tracks have a roll', () => {
         expect(isPianoRollTrack('partA')).toBe(true);
         expect(isPianoRollTrack('sampler')).toBe(true);

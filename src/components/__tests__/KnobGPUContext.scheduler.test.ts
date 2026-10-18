@@ -246,6 +246,34 @@ describe('KnobGPUContext idle-static scheduler', () => {
         expect(mockDevice.createBuffer).toHaveBeenCalledTimes(2);
     });
 
+    it('render failures on a device that keeps attaching still hit the retry limit', async () => {
+        await registerKnobs(1);
+        const ctx = KnobGPUContext as unknown as { scheduleRecovery(reason: string): void };
+        // Hold each backoff timer; the test runs the retry itself.
+        const timers = vi.spyOn(window, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            ctx.scheduleRecovery('3 consecutive render failures');
+            expect(timers).toHaveBeenCalledTimes(attempt);
+            // The retry attaches fine; the next frames would fail again.
+            expect(await KnobGPUContext.retryInit()).toBe(true);
+        }
+        ctx.scheduleRecovery('3 consecutive render failures');
+        expect(timers).toHaveBeenCalledTimes(2);
+        expect(KnobGPUContext.getStatus()).toBe('degraded');
+    });
+
+    it('a clean frame after a recovery resets the retry budget', async () => {
+        await registerKnobs(1);
+        const ctx = KnobGPUContext as unknown as { scheduleRecovery(reason: string): void; consecutiveRecoveries: number };
+        vi.spyOn(window, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+        ctx.scheduleRecovery('3 consecutive render failures');
+        expect(await KnobGPUContext.retryInit()).toBe(true);
+        expect(ctx.consecutiveRecoveries).toBe(1);
+        await flushFrames(4);
+        expect(mockSubmit).toHaveBeenCalled();
+        expect(ctx.consecutiveRecoveries).toBe(0);
+    });
+
     it('an ordinary destroy() leaves the knobs on the 2D fallback', async () => {
         await registerKnobs(2);
         lostResolve!({ reason: 'destroyed', message: 'app teardown' } as GPUDeviceLostInfo);
