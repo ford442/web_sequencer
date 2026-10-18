@@ -24,6 +24,8 @@ import { hexToRgb } from './render/rollScene';
 import { useRollPainter, type SceneInputWithoutLayout } from './render/useRollPainter';
 import { useRollEditor } from './useRollEditor';
 import { usePianoRollPointer, type RollTool } from './usePianoRollPointer';
+import { NoteFxPanel } from './NoteFxPanel';
+import { chainIsActive, type NoteFxChain, type NoteFxModuleId } from '@/sequencer/noteFx/types';
 
 export interface GhostSource {
     key: string;
@@ -50,6 +52,12 @@ export interface PianoRollViewProps {
     onPaste: (clip: (Note | null)[], targetStep: number) => void;
     onSelectTarget: (target: PianoRollTarget) => void;
     onClose: () => void;
+    /** The track's note FX chain and what it plays over these steps. */
+    fxChain: NoteFxChain;
+    fxPreview: readonly { start: number; length: number; pitch: number }[];
+    onFxChange: <M extends NoteFxModuleId>(module: M, patch: Partial<NoteFxChain[M]>) => void;
+    onFreezeFx: () => void;
+    onAutomateFx: (parameterId: string) => void;
 }
 
 const GRID_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
@@ -98,6 +106,8 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
     const [showGhosts, setShowGhosts] = useState(false);
     const [pxPerStep, setPxPerStep] = useState(DEFAULT_LAYOUT.pxPerStep);
     const [focused, setFocused] = useState(false);
+    const [showFx, setShowFx] = useState(false);
+    const fxActive = chainIsActive(props.fxChain);
 
     const { painter, backend } = useRollPainter(gpuCanvasRef, canvas2dRef);
     const maxSteps = Math.max(1, columns);
@@ -145,10 +155,11 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
             laneProperty,
             cursor: focused ? { position: editor.cursor.position, pitch: editor.cursor.pitch, width: grid } : null,
             marquee: null,
+            fxPreview: fxActive ? props.fxPreview : undefined,
         };
         baseInputRef.current = input;
         painter.setInput(input);
-    }, [painter, editor.notes, editor.selectedIds, editor.cursor, ghosts, color, columns, props.loopLength, props.stepsPerBeat, props.stepsPerBar, scale, laneProperty, focused, grid]);
+    }, [painter, editor.notes, editor.selectedIds, editor.cursor, ghosts, color, columns, props.loopLength, props.stepsPerBeat, props.stepsPerBar, scale, laneProperty, focused, grid, fxActive, props.fxPreview]);
 
     useEffect(() => {
         painter.playheadTrack = target.track;
@@ -324,6 +335,17 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
                 <button type="button" aria-pressed={showGhosts} className={toolButton(showGhosts)} onClick={() => setShowGhosts((v) => !v)}>
                     Ghosts
                 </button>
+                <button
+                    type="button"
+                    aria-expanded={showFx}
+                    aria-controls={`${helpId}-fx`}
+                    title={fxActive ? 'Note FX active on this track' : 'Arp, ratchet, chord, euclid, humanize'}
+                    className={toolButton(showFx)}
+                    onClick={() => setShowFx((v) => !v)}
+                >
+                    {`Note FX${fxActive ? ' ●' : ''}`}
+                    {fxActive && <span className="sr-only"> (active)</span>}
+                </button>
                 <div role="group" aria-label="Edit selection" className="flex gap-1 ml-2">
                     <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('quantize')}>Quantize</button>
                     <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('duplicate')}>Duplicate</button>
@@ -339,6 +361,12 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
                 </span>
                 <button type="button" aria-label="Close piano roll" className={toolButton(false)} onClick={props.onClose}>✕</button>
             </div>
+
+            {showFx && (
+                <div id={`${helpId}-fx`}>
+                    <NoteFxPanel trackLabel={props.trackLabel} chain={props.fxChain} onChange={props.onFxChange} onFreeze={props.onFreezeFx} onAutomate={props.onAutomateFx} />
+                </div>
+            )}
 
             <div ref={scrollerRef} className="relative flex-1 min-h-0 overflow-auto" onScroll={syncScroll}>
                 <div style={{ width: size.width, height: size.height }}>

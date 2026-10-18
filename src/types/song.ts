@@ -99,6 +99,11 @@ export interface SavedSongData {
   ttsPhrases?: string[];
   /** Persisted automation lanes (from .rbs import, recordings, or AI) */
   automationLanes?: UnifiedAutomationLane[];
+  /**
+   * Per-track note FX chains (#1345): arp / ratchet / chord / euclid /
+   * humanize. Absent = no chains; validated on load (`normalizeSongNoteFx`).
+   */
+  noteFx?: import('../sequencer/noteFx/types').SongNoteFx;
   /** GLOB loop start bar from an imported .rbs (0-based). */
   rbsLoopStart?: number;
   /** GLOB loop end bar from an imported .rbs (0-based). */

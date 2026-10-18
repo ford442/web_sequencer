@@ -344,6 +344,7 @@ export function useAppState() {
         handleSelectRow,
         handleEditLength,
         handleReplaceTrackSteps,
+        handleReplaceManyTrackSteps,
         handlePasteTrackSteps,
     } = usePatternHandlers({
         patternRef, setPattern, undoRedo, activeSamplerBankRef,
@@ -796,6 +797,7 @@ export function useAppState() {
         handleSelectRow,
         handleEditLength,
         handleReplaceTrackSteps,
+        handleReplaceManyTrackSteps,
         handlePasteTrackSteps,
         handleSongModeToggle,
         handleSongStructureUpdate,

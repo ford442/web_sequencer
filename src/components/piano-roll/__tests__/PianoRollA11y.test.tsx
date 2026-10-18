@@ -11,6 +11,7 @@ import { a11yAnnouncerStore } from '@/stores/a11yAnnouncerStore';
 import { pianoRollStore } from '@/stores/pianoRollStore';
 import { resetWebGpuProbe } from '@/engines/backends/webgpuProbe';
 import { PianoRollChip } from '../../sequencer/PianoRollChip';
+import { defaultNoteFxChain } from '@/sequencer/noteFx/types';
 import { PianoRollView, type PianoRollViewProps } from '../PianoRollView';
 
 const n = (note: string, extra: Partial<Note> = {}): Note => ({ note, velocity: 1, length: 1, slide: false, ...extra });
@@ -38,6 +39,11 @@ function setup(overrides: Partial<PianoRollViewProps> = {}) {
         onPaste,
         onSelectTarget: vi.fn(),
         onClose,
+        fxChain: defaultNoteFxChain(),
+        fxPreview: [],
+        onFxChange: vi.fn(),
+        onFreezeFx: vi.fn(),
+        onAutomateFx: vi.fn(),
         ...overrides,
     };
     const utils = render(<PianoRollView {...props} />);
@@ -186,5 +192,33 @@ describe('PianoRollChip', () => {
     it('renders nothing on drum rows', () => {
         const { container } = render(<svg><PianoRollChip trackKey="kick" label="Kick" /></svg>);
         expect(container.querySelector('.track-piano-roll')).toBeNull();
+    });
+});
+
+describe('Note FX panel', () => {
+    it('opens from the header, toggles modules and freezes', () => {
+        const onFxChange = vi.fn();
+        const onFreezeFx = vi.fn();
+        const active = defaultNoteFxChain();
+        active.arp.enabled = true;
+        const { rerender, props } = setup({ onFxChange, onFreezeFx });
+        const toggle = screen.getByRole('button', { name: 'Note FX' });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        const region = screen.getByRole('region', { name: 'NOTE FX for Lead' });
+        expect(region).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Freeze to pattern' })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Arp' }));
+        expect(onFxChange).toHaveBeenCalledWith('arp', { enabled: true });
+        fireEvent.change(screen.getByRole('combobox', { name: 'Rate' }), { target: { value: '0.5' } });
+        expect(onFxChange).toHaveBeenCalledWith('arp', { rate: 0.5 });
+
+        rerender(<PianoRollView {...props} onFxChange={onFxChange} onFreezeFx={onFreezeFx} fxChain={active} />);
+        expect(screen.getByRole('button', { name: /Note FX ● \(active\)/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Arp' })).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.click(screen.getByRole('button', { name: 'Freeze to pattern' }));
+        expect(onFreezeFx).toHaveBeenCalledTimes(1);
     });
 });

@@ -15,11 +15,21 @@ import { stepsPerBar as meterStepsPerBar, stepsPerBeat as meterStepsPerBeat } fr
 import { ROWS, TRACK_COLORS } from '../sequencer/constants';
 import { PianoRollView, type GhostSource } from './PianoRollView';
 import type { Steps } from './model/rollModel';
+import { a11yAnnouncerStore } from '@/stores/a11yAnnouncerStore';
+import { noteFxStore, useNoteFxChain } from '@/stores/noteFxStore';
+import { renderNoteFx } from '@/sequencer/noteFx/chain';
+import { freezeNoteFx } from '@/sequencer/noteFx/freeze';
+import { noteFxLaneLookup } from '@/sequencer/noteFx/runtime';
+import { NOTE_FX_AUTOMATION_PARAMS, noteFxAutomationTarget } from '@/sequencer/noteFx/params';
+import { automationStore, generateLaneId } from '@/stores/automationStore';
+import { chainIsActive, type NoteFxChain, type NoteFxModuleId } from '@/sequencer/noteFx/types';
 
 const KEYS = [
     'pattern', 'currentScale', 'clipboard', 'setClipboard',
-    'handleReplaceTrackSteps', 'handlePasteTrackSteps',
+    'handleReplaceTrackSteps', 'handleReplaceManyTrackSteps', 'handlePasteTrackSteps',
 ] as const;
+
+const NO_FX: readonly { start: number; length: number; pitch: number }[] = [];
 
 const TRACK_LABELS: Record<PianoRollTarget['track'], string> = {
     partA: ROWS.find((r) => r.key === 'partA')!.label,
@@ -61,7 +71,74 @@ const PianoRollPanel = memo(({ target }: PianoRollPanelProps) => {
 
     const meter = { stepCount, trackLengths };
     const columns = gridColumns(meter);
+    const loopLength = trackLoopLength(meter, target.track);
     const label = target.track === 'sampler' ? `SMP ${target.bank + 1}` : TRACK_LABELS[target.track];
+
+    // Note FX: the chain's first pass over these steps, drawn over the notes.
+    const fxChain = useNoteFxChain(target.track);
+    const salt = target.track === 'sampler' ? target.bank : 0;
+    const fxPreview = useMemo(
+        () => (chainIsActive(fxChain)
+            ? renderNoteFx(steps, fxChain, { loopLength, iteration: 0, salt, lookup: noteFxLaneLookup(target.track) })
+            : NO_FX),
+        [steps, fxChain, loopLength, salt, target.track],
+    );
+    const onFxChange = useCallback(
+        <M extends NoteFxModuleId>(module: M, patch: Partial<NoteFxChain[M]>) => noteFxStore.updateModule(target.track, module, patch),
+        [target.track],
+    );
+    const { handleReplaceManyTrackSteps } = s;
+    const onFreezeFx = useCallback(() => {
+        const chain = noteFxStore.getActiveChain(target.track);
+        if (!chain) return;
+        const lookup = noteFxLaneLookup(target.track);
+        // The sampler chain plays on every bank, so freezing writes them all.
+        const sources = target.track === 'sampler'
+            ? pattern.sampler.map((bank, bankIndex) => ({ bankIndex, steps: bank.steps }))
+            : [{ bankIndex: 0, steps: pattern[target.track].steps }];
+        let notes = 0;
+        let dropped = 0;
+        const edits = sources
+            .filter((src) => src.steps.some(Boolean))
+            .map((src) => {
+                const frozen = freezeNoteFx(src.steps, chain, { loopLength, salt: target.track === 'sampler' ? src.bankIndex : 0, lookup });
+                notes += frozen.notes;
+                dropped += frozen.dropped;
+                return { trackKey: target.track, bankIndex: src.bankIndex, steps: frozen.steps };
+            });
+        handleReplaceManyTrackSteps(edits);
+        noteFxStore.bypass(target.track);
+        a11yAnnouncerStore.announce(
+            `Froze ${notes} note FX ${notes === 1 ? 'note' : 'notes'} into the pattern` +
+            (dropped > 0 ? `; ${dropped} did not fit one note per step` : '') +
+            '. Note FX bypassed; undo restores the steps.',
+        );
+    }, [pattern, target.track, loopLength, handleReplaceManyTrackSteps]);
+
+    // A lane for a chain parameter on the track's own automation target; it
+    // starts flat at the current value and is edited in AUTO VIEW like any lane.
+    const onAutomateFx = useCallback((parameterId: string) => {
+        const param = NOTE_FX_AUTOMATION_PARAMS.find((p) => p.id === parameterId);
+        if (!param) return;
+        const laneTarget = noteFxAutomationTarget(target.track);
+        const exists = automationStore.getState().lanes.some((l) => l.target === laneTarget && l.parameter === parameterId);
+        if (exists) {
+            a11yAnnouncerStore.announce(`${param.label} is already automated on ${label}`);
+            return;
+        }
+        automationStore.addLane({
+            id: generateLaneId(),
+            target: laneTarget,
+            parameter: parameterId,
+            name: `${label} · ${param.label}`,
+            points: [{ step: 0, value: param.read(noteFxStore.getChain(target.track)) }],
+            interpolation: 'step',
+            source: 'manual',
+            scope: 'pattern',
+            enabled: true,
+        });
+        a11yAnnouncerStore.announce(`Automation lane added: ${param.label} on ${label}. Edit it in Auto View.`);
+    }, [target.track, label]);
 
     const { handleReplaceTrackSteps, handlePasteTrackSteps, setClipboard } = s;
     const onCommit = useCallback(
@@ -85,7 +162,7 @@ const PianoRollPanel = memo(({ target }: PianoRollPanelProps) => {
             steps={steps}
             ghostSources={ghostSources}
             columns={columns}
-            loopLength={trackLoopLength(meter, target.track)}
+            loopLength={loopLength}
             stepsPerBeat={meterStepsPerBeat(timeSignature)}
             stepsPerBar={meterStepsPerBar(timeSignature) ?? 16}
             scale={s.currentScale}
@@ -95,6 +172,11 @@ const PianoRollPanel = memo(({ target }: PianoRollPanelProps) => {
             onPaste={onPaste}
             onSelectTarget={onSelectTarget}
             onClose={onClose}
+            fxChain={fxChain}
+            fxPreview={fxPreview}
+            onFxChange={onFxChange}
+            onFreezeFx={onFreezeFx}
+            onAutomateFx={onAutomateFx}
         />
     );
 });

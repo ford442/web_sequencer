@@ -9,11 +9,30 @@ import type {
 } from '../types';
 import { freezeSynthTrack, freezeDrumTrack } from './trackFreezer';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
-import { getTunedFrequency } from './musicTheory';
+import { getTunedFrequency, midiToNote } from './musicTheory';
 import { stepDurationSeconds } from './songTimeline';
 import { createOfflineBuffer, createOfflineContext } from '../audio/offline/createOfflineContext';
+import { renderNoteFxTimeline } from '../sequencer/noteFx/chain';
+import { chainIsActive, type NoteFxChain } from '../sequencer/noteFx/types';
+import type { NoteFxParamLookup } from '../sequencer/noteFx/params';
 
 export type PatternRenderEngines = RenderSynthEngines;
+
+/**
+ * A track's note FX chain for an offline render (#1345). The render plays
+ * the chain's events — the same `renderNoteFx` output the live step handler
+ * schedules — instead of the steps.
+ */
+export interface PatternNoteFx {
+    chain: NoteFxChain;
+    /** The track's own loop length (each pass seeds like the live clock). */
+    loopLength: number;
+    /** Where loop passes start when the timeline re-anchors them (Song Mode). */
+    passStarts?: readonly number[];
+    /** Distinguishes sampler banks that share the sampler chain. */
+    salt?: number;
+    lookup?: NoteFxParamLookup;
+}
 
 export interface PatternRenderOptions {
     sequence: PartSequence;
@@ -21,6 +40,57 @@ export interface PatternRenderOptions {
     sampleRate: number;
     signal?: AbortSignal;
     engines?: PatternRenderEngines;
+    noteFx?: PatternNoteFx;
+}
+
+/** One note to bounce: start / length in steps. */
+interface Hit {
+    start: number;
+    length: number;
+    note: string;
+    velocity: number;
+}
+
+function noteFxHits(sequence: PartSequence, fx: PatternNoteFx | undefined): Hit[] | null {
+    if (!fx || !chainIsActive(fx.chain)) return null;
+    return renderNoteFxTimeline(sequence.steps, fx.chain, {
+        loopLength: fx.loopLength,
+        passStarts: fx.passStarts,
+        salt: fx.salt,
+        lookup: fx.lookup,
+    }).map((e) => ({ start: e.start, length: e.length, note: midiToNote(e.pitch), velocity: e.velocity }));
+}
+
+/** Bounce `hits` with `renderHit` per distinct (note, length), velocity as gain. */
+async function renderHits(
+    totalSteps: number,
+    tempo: number,
+    sampleRate: number,
+    hits: readonly Hit[],
+    renderHit: (note: string, lengthSteps: number) => Promise<AudioBuffer | null>,
+    signal?: AbortSignal,
+): Promise<AudioBuffer> {
+    throwIfAborted(signal);
+    const stepDur = stepDurationSeconds(tempo);
+    const offlineCtx = createOfflineContext({ channels: 2, durationSeconds: totalSteps * stepDur, sampleRate });
+    const rendered = new Map<string, AudioBuffer | null>();
+    for (const hit of hits) {
+        throwIfAborted(signal);
+        const key = `${hit.note}:${hit.length}`;
+        if (!rendered.has(key)) rendered.set(key, await renderHit(hit.note, hit.length));
+        const buffer = rendered.get(key);
+        if (!buffer) continue;
+        const time = hit.start * stepDur;
+        const source = offlineCtx.createBufferSource();
+        source.buffer = buffer;
+        const gain = offlineCtx.createGain();
+        gain.gain.setValueAtTime(hit.velocity, time);
+        source.connect(gain);
+        gain.connect(offlineCtx.destination);
+        source.start(time);
+    }
+    throwIfAborted(signal);
+    return offlineCtx.startRendering();
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -107,6 +177,20 @@ export async function renderSynthPattern(
     const { sequence, tempo, sampleRate, signal, engines } = options;
     throwIfAborted(signal);
 
+    // Note FX: the chain's events, not the steps (the Pyodide freezer only
+    // reads steps, so a chain always takes the Web Audio path).
+    const fxHits = noteFxHits(sequence, options.noteFx);
+    if (fxHits) {
+        return renderHits(
+            sequence.steps.length,
+            tempo,
+            sampleRate,
+            fxHits,
+            (note, lengthSteps) => renderSynthToBuffer(params, note, stepDurationSeconds(tempo) * lengthSteps, engines, sampleRate),
+            signal,
+        );
+    }
+
     if (engines?.pyodide) {
         const freezeParams = {
             ...params,
@@ -179,6 +263,7 @@ export async function renderSamplerBankPattern(
     tempo: number,
     sampleRate: number,
     signal?: AbortSignal,
+    noteFx?: PatternNoteFx,
 ): Promise<AudioBuffer> {
     throwIfAborted(signal);
     const stepDur = stepDurationSeconds(tempo);
@@ -189,14 +274,14 @@ export async function renderSamplerBankPattern(
         return offlineCtx.startRendering();
     }
 
+    const hits: Hit[] = noteFxHits(sequence, noteFx) ?? sequence.steps.flatMap((note, step) =>
+        note ? [{ start: step, length: note.length ?? 1, note: note.note, velocity: note.velocity ?? 1 }] : [],
+    );
     const rootFreq = getTunedFrequency('C4', '12-TET', 'C');
-    for (let step = 0; step < sequence.steps.length; step++) {
+    for (const hit of hits) {
         throwIfAborted(signal);
-        const note = sequence.steps[step];
-        if (!note) continue;
-
-        const time = step * stepDur;
-        const noteFreq = getTunedFrequency(note.note, '12-TET', 'C');
+        const time = hit.start * stepDur;
+        const noteFreq = getTunedFrequency(hit.note, '12-TET', 'C');
         const playbackRate = (noteFreq / rootFreq) * bankParams.playbackSpeed;
 
         const source = offlineCtx.createBufferSource();
@@ -204,12 +289,12 @@ export async function renderSamplerBankPattern(
         source.playbackRate.setValueAtTime(playbackRate, time);
 
         const gain = offlineCtx.createGain();
-        const velocity = (note.velocity ?? 1) * bankParams.volume;
+        const velocity = hit.velocity * bankParams.volume;
         gain.gain.setValueAtTime(velocity, time);
 
         source.connect(gain);
         gain.connect(offlineCtx.destination);
-        source.start(time, 0, stepDur * (note.length ?? 1));
+        source.start(time, 0, stepDur * hit.length);
     }
 
     throwIfAborted(signal);

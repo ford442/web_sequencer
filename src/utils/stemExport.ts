@@ -29,6 +29,12 @@ import {
     type SampleRatePref,
 } from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
+import { noteFxStore } from '../stores/noteFxStore';
+import { measurePassStarts } from '../sequencer/noteFx/chain';
+import { noteFxLaneLookup } from '../sequencer/noteFx/runtime';
+import { chainIsActive, type NoteFxTrack, type SongNoteFx } from '../sequencer/noteFx/types';
+import { trackLoopLength } from './songMeter';
+import { NUM_STEPS } from '../constants';
 import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
 import {
     createMixBus,
@@ -183,6 +189,8 @@ export interface StemExportInput {
     sampleBuffers?: (AudioBuffer | null)[];
     /** Live HARM state: harmony layers exist only in the realtime graph. */
     harmonizerActive?: boolean;
+    /** Per-track note FX chains (#1345). Defaults to the live note FX store. */
+    noteFx?: SongNoteFx;
 }
 
 export type StemId =
@@ -316,6 +324,25 @@ export async function exportStemsToZip(
     const isAudible: StemExportMuteSolo =
         input.isTrackAudible ?? ((track) => trackMuteSoloStore.isAudible(track));
 
+    // Note FX (#1345): the same chain the live step handler plays, one pass
+    // per track loop — re-anchored at each measure in song mode, as live.
+    const songNoteFx = input.noteFx ?? noteFxStore.exportChains();
+    const noteFxFor = (track: NoteFxTrack, salt = 0) => {
+        const chain = songNoteFx[track];
+        if (!chainIsActive(chain)) return undefined;
+        const loopLength = trackLoopLength(
+            { stepCount: input.stepCount ?? NUM_STEPS, trackLengths: input.trackLengths ?? {} },
+            track,
+        );
+        return {
+            chain,
+            loopLength,
+            passStarts: useSongMode ? measurePassStarts(timeline.measureStepCounts, loopLength) : undefined,
+            salt,
+            lookup: noteFxLaneLookup(track),
+        };
+    };
+
     const stems = new Map<StemId, AudioBuffer>();
     const totalStages = STEM_RENDER_ORDER.length;
 
@@ -346,6 +373,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(input.params.synthA, {
                               ...renderOpts,
                               sequence: timeline.sequences.partA,
+                              noteFx: noteFxFor('partA'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -355,6 +383,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(input.params.synthB, {
                               ...renderOpts,
                               sequence: timeline.sequences.partB,
+                              noteFx: noteFxFor('partB'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -364,6 +393,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
                               ...renderOpts,
                               sequence: timeline.sequences.bass2,
+                              noteFx: noteFxFor('bass2'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -405,6 +435,7 @@ export async function exportStemsToZip(
                                   input.tempo,
                                   sampleRate,
                                   signal,
+                                  noteFxFor('sampler', bankIndex),
                               )
                             : silentBuffer(targetLength, sampleRate);
                     } else {

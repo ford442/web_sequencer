@@ -97,3 +97,9 @@ While the grid has focus it keeps its keys from the window-level shortcuts
 (Escape would tape-stop, Delete would clear the grid selection, letters
 would play PC-keyboard notes). Space (transport), Tab and Ctrl/Cmd+Z / Y
 (the shared undo history the roll's edits are in) pass through.
+
+## Note FX
+
+The **Note FX** button opens the track's chain (arp, ratchet, chord,
+euclid, humanize) above the grid; the roll outlines what the chain plays
+over the notes it is generated from. See [note-fx.md](note-fx.md).

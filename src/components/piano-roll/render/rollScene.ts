@@ -55,6 +55,7 @@ export interface RollTheme {
     laneDivider: Rgba;
     laneEmpty: Rgba;
     playhead: Rgba;
+    fxPreview: Rgba;
 }
 
 export const DEFAULT_ROLL_THEME: RollTheme = {
@@ -80,6 +81,7 @@ export const DEFAULT_ROLL_THEME: RollTheme = {
     laneDivider: [0.25, 0.28, 0.33, 1],
     laneEmpty: [0.6, 0.65, 0.72, 0.25],
     playhead: [0.98, 0.98, 0.98, 0.85],
+    fxPreview: [0.98, 0.75, 0.14, 0.9],
 };
 
 export interface RollSceneInput {
@@ -88,6 +90,8 @@ export interface RollSceneInput {
     selected: ReadonlySet<string>;
     /** Notes of other tracks drawn dimmed behind this one. */
     ghosts?: readonly RollNote[];
+    /** What the track's note FX chain plays, outlined over the notes (#1345). */
+    fxPreview?: readonly { start: number; length: number; pitch: number }[];
     /** Track colour, 0–1 RGB. */
     color: readonly [number, number, number];
     /** Columns drawn (the longest loop in the song). */
@@ -259,6 +263,21 @@ export function buildRollScene(input: RollSceneInput): RollScene {
         const alpha = 0.55 + 0.45 * n.probability;
         out.push(grid, x, y, w, h, noteFill(input.color, n.velocity, selected, n.voice > 0), alpha);
         out.outline(grid, x, y, w, h, selected ? theme.selectedOutline : theme.noteOutline, selected ? 2 : 1);
+    }
+
+    // Note FX output: outlines, so the source notes stay readable underneath.
+    if (input.fxPreview) {
+        for (const e of input.fxPreview) {
+            if (e.pitch < low || e.pitch > high) continue;
+            out.outline(
+                grid,
+                stepToX(l, e.start) + 1,
+                pitchToY(l, e.pitch) + 2,
+                Math.max(3, e.length * l.pxPerStep - 2),
+                Math.max(2, l.rowHeight - 4),
+                theme.fxPreview,
+            );
+        }
     }
 
     // Marquee.

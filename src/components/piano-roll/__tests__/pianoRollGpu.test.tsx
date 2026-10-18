@@ -8,6 +8,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Note } from '@/types';
 import { resetWebGpuProbe, restartWebGpuDevice } from '@/engines/backends/webgpuProbe';
+import { defaultNoteFxChain } from '@/sequencer/noteFx/types';
 import { PianoRollView, type PianoRollViewProps } from '../PianoRollView';
 import { ROLL_QUAD_WGSL } from '../render/rollRenderers';
 
@@ -70,6 +71,11 @@ const props = (): PianoRollViewProps => ({
     onPaste: vi.fn(),
     onSelectTarget: vi.fn(),
     onClose: vi.fn(),
+    fxChain: defaultNoteFxChain(),
+    fxPreview: [],
+    onFxChange: vi.fn(),
+    onFreezeFx: vi.fn(),
+    onAutomateFx: vi.fn(),
 });
 
 describe('piano roll on WebGPU', () => {

@@ -298,6 +298,32 @@ export function usePatternHandlers(deps: {
 
     const handleSelectRow = useCallback((k: TrackKey) => setSelectedTrack(k), [setSelectedTrack]);
 
+    /** Several tracks / banks as one undoable edit ("Freeze FX" on all sampler banks). */
+    const handleReplaceManyTrackSteps = useCallback((edits: ReadonlyArray<{ trackKey: TrackKey; bankIndex: number; steps: (Note | null)[] }>) => {
+        if (edits.length === 0) return;
+        const prev = patternRef.current;
+        undoRedo.push(prev);
+        let next: Pattern = prev;
+        const touched = new Set<TrackKey>();
+        for (const { trackKey, bankIndex, steps } of edits) {
+            if (trackKey === 'sampler') {
+                const newSampler = [...next.sampler];
+                newSampler[bankIndex] = { ...newSampler[bankIndex], steps };
+                next = { ...next, sampler: newSampler };
+            } else {
+                next = { ...next, [trackKey]: { ...next[trackKey], steps } };
+            }
+            touched.add(trackKey);
+        }
+        // Two roll edits can land inside one React commit (a drag release and
+        // a key press); the second must build on the first.
+        patternRef.current = next;
+        setPattern(next);
+        for (const trackKey of touched) {
+            updateStorageForTrackInner(trackKey, trackKey === 'sampler' ? next.sampler : next[trackKey]);
+        }
+    }, [undoRedo, patternRef, setPattern, updateStorageForTrackInner]);
+
     /**
      * Replace one track's steps as a single undoable edit (piano roll, #1345).
      * The roll computes `steps` with the pure edits in
@@ -306,25 +332,8 @@ export function usePatternHandlers(deps: {
      * edit. `bankIndex` picks the sampler bank and is ignored for synth tracks.
      */
     const handleReplaceTrackSteps = useCallback((trackKey: TrackKey, bankIndex: number, steps: (Note | null)[]) => {
-        const prev = patternRef.current;
-        undoRedo.push(prev);
-        let next: Pattern;
-        let changedSequence: PartSequence | PartSequence[];
-        if (trackKey === 'sampler') {
-            const newSampler = [...prev.sampler];
-            newSampler[bankIndex] = { ...newSampler[bankIndex], steps };
-            next = { ...prev, sampler: newSampler };
-            changedSequence = newSampler;
-        } else {
-            next = { ...prev, [trackKey]: { ...prev[trackKey], steps } };
-            changedSequence = next[trackKey];
-        }
-        // Two roll edits can land inside one React commit (a drag release and
-        // a key press); the second must build on the first.
-        patternRef.current = next;
-        setPattern(next);
-        updateStorageForTrackInner(trackKey, changedSequence);
-    }, [undoRedo, patternRef, setPattern, updateStorageForTrackInner]);
+        handleReplaceManyTrackSteps([{ trackKey, bankIndex, steps }]);
+    }, [handleReplaceManyTrackSteps]);
 
     /** Paste a clipboard payload at `targetStep` with the grid's own paste rules. */
     const handlePasteTrackSteps = useCallback((trackKey: TrackKey, bankIndex: number, clip: (Note | null)[], targetStep: number) => {
@@ -355,6 +364,7 @@ export function usePatternHandlers(deps: {
         handleSelectRow,
         handleEditLength,
         handleReplaceTrackSteps,
+        handleReplaceManyTrackSteps,
         handlePasteTrackSteps,
     };
 }

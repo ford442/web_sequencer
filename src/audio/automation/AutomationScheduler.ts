@@ -47,6 +47,7 @@ import {
   normaliseTrakParamValue,
   resolveTrakParamMapping,
 } from '../../importers/rbs/trakControllers';
+import { isNoteFxParameter } from '../../sequencer/noteFx/params';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -246,6 +247,10 @@ export class AutomationScheduler {
 
       for (const lane of lanes) {
         if (!lane.enabled) continue;
+        // Note FX parameters shape which notes are generated; the step
+        // handler reads them when it builds a pass (#1345). Nothing here
+        // could be scheduled for them.
+        if (isNoteFxParameter(lane.parameter)) continue;
 
         const value = automationStore.getValueAtStep(lane, step);
         if (value === null) continue;

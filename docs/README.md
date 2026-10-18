@@ -16,6 +16,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [session-launcher.md](session-launcher.md) | Session / clip launcher: schema, quantization, capture, MIDI/gamepad |
 | [arrangement.md](arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [piano-roll.md](piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
+| [note-fx.md](note-fx.md) | Note FX chain (arp / ratchet / chord / euclid / humanize): pure steps → events, identical live and offline, automation, freeze to pattern |
 | [PERFORMANCE_BUDGET.md](PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 | [adr/0001-wam2-host.md](adr/0001-wam2-host.md) | WAM2 host Phase A loading/security model (SDK 0.0.12, allowlist, CSP) |
 
