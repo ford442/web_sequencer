@@ -15,6 +15,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [ai-song-format.md](ai-song-format.md) | AI song JSON schema (`AISongData` v1.0): required fields, ignored fields, examples |
 | [session-launcher.md](session-launcher.md) | Session / clip launcher: schema, quantization, capture, MIDI/gamepad |
 | [arrangement.md](arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
+| [piano-roll.md](piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
 | [PERFORMANCE_BUDGET.md](PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 | [adr/0001-wam2-host.md](adr/0001-wam2-host.md) | WAM2 host Phase A loading/security model (SDK 0.0.12, allowlist, CSP) |
 
@@ -35,7 +36,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [OFFLINE_303_OVERSAMPLE.md](audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
-| [webgpu-session.md](audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred |
+| [webgpu-session.md](audio-engine/webgpu-session.md) | Session WebGPU probe: one device, power preference, device-loss recovery, canvas helper, HUD hard-fail, WebGL viz deferred |
 | [jc303-prophecy.md](audio-engine/jc303-prophecy.md) | Current per-voice Open303/JC303 switching and Prophecy integration notes |
 | [drumkit.md](audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, and Web Audio fallback |
 | [PLAYBACK_STABILITY.md](audio-engine/PLAYBACK_STABILITY.md) | Jitter thresholds, scheduler guards, and stress-test guidance for song-mode playback |

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import { useAppStateSelector, useAppStateSlice } from '../../contexts/AppStateContext'
 import { useTransportMixStore } from '../../stores/transportMixStore'
+import { usePianoRollStore } from '../../stores/pianoRollStore'
 import { SongMode } from '../SongMode'
 import { SessionLauncher } from '../SessionLauncher'
 import { MobileTransportDock } from '../MobileTransportDock'
@@ -127,6 +128,19 @@ const ArrangementBody = React.memo(() => {
 export const ArrangementNode = React.memo(() => {
     const isOpen = useAppStateSelector((state) => state.isArrangementOpen)
     return isOpen ? <ArrangementBody /> : null
+})
+
+// Lazy: the piano roll (model, renderers, WGSL) is its own chunk and loads on
+// first open from a row header (#1345). Closed, it mounts nothing.
+const PianoRollPanel = lazy(() => import('../piano-roll/PianoRollPanel'))
+
+export const PianoRollNode = React.memo(() => {
+    const target = usePianoRollStore((state) => state.open)
+    return target ? (
+        <Suspense fallback={null}>
+            <PianoRollPanel target={target} />
+        </Suspense>
+    ) : null
 })
 
 const DOCK_KEYS = [

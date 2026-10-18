@@ -84,6 +84,7 @@ import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
 import { arrangementPlayhead } from '../arrangement/playhead'
+import { transportPlayhead } from '../sequencer/transportPlayhead'
 
 export function useAppState() {
 
@@ -342,6 +343,8 @@ export function useAppState() {
         handleTrackSlotClick,
         handleSelectRow,
         handleEditLength,
+        handleReplaceTrackSteps,
+        handlePasteTrackSteps,
     } = usePatternHandlers({
         patternRef, setPattern, undoRedo, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection,
@@ -443,6 +446,7 @@ export function useAppState() {
             setCurrentSongMeasure(0);
             isFirstStepRef.current = true;
             arrangementPlayhead.publish(-1);
+            transportPlayhead.stop();
             if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
             currentStepRef.current = -1;
             session.sessionEngineRef.current?.resetTransport();
@@ -791,6 +795,8 @@ export function useAppState() {
         handleTrackSlotClick,
         handleSelectRow,
         handleEditLength,
+        handleReplaceTrackSteps,
+        handlePasteTrackSteps,
         handleSongModeToggle,
         handleSongStructureUpdate,
         handleEditSongStructure,

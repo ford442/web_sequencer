@@ -50,6 +50,7 @@ describe('sequencer/ split has no stale abandoned duplicates', () => {
             .sort();
         expect(entries).toEqual([
             'AutomationStep.tsx',
+            'PianoRollChip.tsx',
             'SequencerRow.tsx',
             'SequencerRowWrapper.tsx',
             'SvgStep.tsx',

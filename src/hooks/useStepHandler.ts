@@ -56,6 +56,7 @@ import type { Arrangement } from '../types';
 import { arrangementEnd } from '../arrangement/model';
 import { createArrangementFrame, resolveArrangementFrame, type ArrangementFrame } from '../arrangement/playback';
 import { arrangementPlayhead } from '../arrangement/playhead';
+import { transportPlayhead } from '../sequencer/transportPlayhead';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -453,6 +454,15 @@ export const useStepHandler = ({
         const trackStep = (key: TrackKey): number =>
             arrangementSteps ? arrangementSteps[key].step : trackStepFor(meter, key, step, absStep, false);
         const currentScale = currentScaleRef.current;
+
+        // Per-track playhead for views outside the grid (piano roll). Captured
+        // now: the arrangement frame is reused on the next tick.
+        const playheadSteps = {
+            partA: trackStep('partA'), partB: trackStep('partB'), bass2: trackStep('bass2'),
+            kick: trackStep('kick'), snare: trackStep('snare'), closedHat: trackStep('closedHat'),
+            openHat: trackStep('openHat'), sampler: trackStep('sampler'),
+        };
+        atStepTime(() => transportPlayhead.publish(step, playheadSteps, stepTime));
 
         const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
             if (!trackMuteSoloStore.isAudible(trackKey)) return;

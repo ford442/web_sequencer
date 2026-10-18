@@ -45,6 +45,8 @@ export const SEQUENCER_STYLES = `
     .svg-step:focus .step-cap { stroke: var(--focus-color, #22d3ee) !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px var(--focus-color, #22d3ee)); }
     .track-slot:focus rect { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
     .track-label:focus text { fill: #22d3ee !important; text-shadow: 0 0 8px rgba(34,211,238,0.8) !important; }
+    .track-piano-roll:focus { outline: none; }
+    .track-piano-roll:focus rect:first-child { stroke: #22d3ee; stroke-width: 2px; filter: drop-shadow(0 0 5px #22d3ee); }
 `;
 
 export const TRACK_COLORS: Record<string, string> = {
