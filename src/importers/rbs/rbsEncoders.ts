@@ -6,6 +6,7 @@ import type { Note, PartSequence, SynthParams, Bass2Params } from '../../types';
 import type { DrumPattern, HyphonSong, PcfSettings, Tb303PatternA, Tb303Step } from './types';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { Tb303DeviceParams } from './iffBuilder';
+import { macroEngineForWaveform } from '../../engines/MacroParams';
 
 function clampByte(value: number): number {
   return Math.max(0, Math.min(127, Math.round(value)));
@@ -38,7 +39,9 @@ export function hyphonFilterModeToEnvMod(filterMode: number): number {
 }
 
 export function hyphonWaveformToRbs(waveform: string): 0 | 1 {
-  return waveform === '303-sqr' || waveform === 'square' ? 1 : 0;
+  // A macro model exports as its documented fallback shape (square → SQR, else SAW).
+  const wf = macroEngineForWaveform(waveform)?.fallback ?? waveform;
+  return wf === '303-sqr' || wf === 'square' ? 1 : 0;
 }
 
 /**
@@ -226,7 +229,11 @@ export function collectExportWarnings(song: HyphonSong): string[] {
   warnings.push('Prophecy formant waveforms are not exported — TB-303 saw/square used instead.');
 
   const checkWave = (wf: string, label: string) => {
-    if (wf.startsWith(PROPHECY_PREFIX)) {
+    const macro = macroEngineForWaveform(wf);
+    if (macro) {
+      const shape = hyphonWaveformToRbs(wf) === 1 ? 'square' : 'saw';
+      warnings.push(`${label} uses Macro model "${macro.label}" — exported as TB-303 ${shape}; its knobs and chords are not exported.`);
+    } else if (wf.startsWith(PROPHECY_PREFIX)) {
       warnings.push(`${label} uses Prophecy waveform "${wf}" — exported as TB-303 saw.`);
     } else if (UNSUPPORTED_WAVEFORM_PREFIXES.some((p) => wf.startsWith(p))) {
       warnings.push(`${label} waveform "${wf}" is not supported in ReBirth — exported as TB-303 saw.`);

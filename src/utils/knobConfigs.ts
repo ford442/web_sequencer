@@ -1,5 +1,6 @@
 import type { KnobConfig } from '@/components/HardwareModule';
 import type { SynthParams, KickParams, SnareParams, SamplerBankParams, Bass2Params, HatParams } from '@/types';
+import { macroEngineForWaveform, resolveMacroParams, type MacroEngineInfo } from '@/engines/MacroParams';
 
 export const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
     const filterModeValue = params.filterMode ?? 0;
@@ -17,7 +18,36 @@ export const getBass2Controls = (params: Bass2Params): KnobConfig[] => {
     ];
 };
 
+/**
+ * A part on a `macro-*` model: its knobs are the model's, not the subtractive
+ * voice's (the engine has no ADSR / filter / delay of its own). Knob ids are
+ * the MACRO_AUTOMATION_TARGETS ids — also the MIDI-learn targets and the
+ * automation lanes; useSynthParamHandlers maps them back onto `SynthParams.macro`.
+ */
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const bipolar = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
+
+export const getMacroSynthControls = (params: SynthParams, engine: MacroEngineInfo): KnobConfig[] => {
+    const m = resolveMacroParams(params.macro);
+    return [
+        { id: 'macroHarmonics', label: 'HARMONICS', x: 0.20, y: 0.28, size: 0.12, value: m.harmonics, valueDisplay: `${engine.knobs.harmonics} ${pct(m.harmonics)}` },
+        { id: 'macroTimbre', label: 'TIMBRE', x: 0.42, y: 0.28, size: 0.12, value: m.timbre, valueDisplay: `${engine.knobs.timbre} ${pct(m.timbre)}` },
+        { id: 'macroMorph', label: 'MORPH', x: 0.64, y: 0.28, size: 0.12, value: m.morph, valueDisplay: `${engine.knobs.morph} ${pct(m.morph)}` },
+        { id: 'macroDecay', label: 'DECAY', x: 0.30, y: 0.62, size: 0.10, value: m.decay, valueDisplay: pct(m.decay) },
+        { id: 'macroLpgColour', label: 'COLOUR', x: 0.50, y: 0.62, size: 0.10, value: m.lpgColour, valueDisplay: m.lpgColour < 0.05 ? 'VCA' : m.lpgColour > 0.95 ? 'LPG' : pct(m.lpgColour) },
+        { id: 'macroFmMod', label: 'FM ENV', x: 0.22, y: 0.85, size: 0.07, value: (m.fmMod + 1) / 2, valueDisplay: bipolar(m.fmMod) },
+        { id: 'macroTimbreMod', label: 'T ENV', x: 0.36, y: 0.85, size: 0.07, value: (m.timbreMod + 1) / 2, valueDisplay: bipolar(m.timbreMod) },
+        { id: 'macroMorphMod', label: 'M ENV', x: 0.50, y: 0.85, size: 0.07, value: (m.morphMod + 1) / 2, valueDisplay: bipolar(m.morphMod) },
+        { id: 'macroGlide', label: 'GLIDE', x: 0.70, y: 0.62, size: 0.08, value: m.glide, valueDisplay: m.glide <= 0 ? 'OFF' : pct(m.glide) },
+        { id: 'macroSpread', label: 'SPREAD', x: 0.68, y: 0.85, size: 0.07, value: m.spread, valueDisplay: pct(m.spread) },
+        { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(1)}st` },
+        { id: 'volume', label: 'LEVEL', x: 0.90, y: 0.50, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
+    ];
+};
+
 export const getSynthControls = (params: SynthParams): KnobConfig[] => {
+    const macroEngine = macroEngineForWaveform(params.waveform);
+    if (macroEngine) return getMacroSynthControls(params, macroEngine);
     const filterModeValue = params.filterMode ?? 0;
     return [
         { id: 'attack', label: 'ATK', x: 0.20, y: 0.25, size: 0.08, value: (params.attack ?? 0), valueDisplay: `${(params.attack ?? 0).toFixed(2)}s` },

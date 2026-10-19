@@ -93,13 +93,15 @@ path passes the live patch straight through it.
 
 ## Phase C — engines are nodes
 
-Open303, Prophecy, the analog drum kit, the sampler worklets and the choir sum
-are graph nodes with ports. Five factories, all in `engineVoices.ts`:
+Open303, Prophecy, the macro engine, the analog drum kit, the sampler worklets
+and the choir sum are graph nodes with ports. Six factories, all in
+`engineVoices.ts`:
 
 | Factory | Voice (`config.voice`) | Engine that attaches | Stock patch node → |
 |---------|------------------------|----------------------|--------------------|
 | `open303Voice` | `lead303` / `bass1` / `bass2` | `Open303Manager` (Open303, JC303, live-highfid) | its 303 strip → `masterSaturation` |
 | `prophecyVoice` | `partA` / `partB` | `ProphecyManager` | `synthABus` / `synthBBus` |
+| `macroVoice` | `partA` / `partB` | `MacroManager` ([macro-voices.md](macro-voices.md)) | `synthABus` / `synthBBus` |
 | `drumkitVoice` | — | `DrumKitEngine` (worklet *and* Web Audio fallback hits) | `masterGain` |
 | `samplerVoice` | `sustain` / `stretch` | sustain worklet / Rubber Band singing voices | `masterGain` / `samplerBus` |
 | `harmonizerBus` | — | choir L/R panners (cables) | `masterGain` |

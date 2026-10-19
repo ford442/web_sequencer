@@ -14,7 +14,7 @@
  *
  *   303 voice ─┬─ dry (1) ──────────────┬─ gain ─ pan ─ masterSaturation
  *              └─ wet (0) ─ drive (100) ┘
- *   Prophecy A/B → Synth A/B bus · drum kit → masterGain
+ *   Prophecy A/B, Macro A/B → Synth A/B bus · drum kit → masterGain
  *   sustain → masterGain · Rubber Band voices → sampler bus
  *   choir L/R panners → choir sum → masterGain
  */
@@ -27,6 +27,9 @@ export type Open303VoiceId = 'lead303' | 'bass1' | 'bass2';
 export const OPEN303_VOICES: readonly Open303VoiceId[] = ['lead303', 'bass1', 'bass2'];
 
 export type ProphecyVoiceId = 'partA' | 'partB';
+
+/** `macroVoice` instances: the macro (Plaits) engine on SYNTH A and SYNTH B. */
+export type MacroVoiceId = 'partA' | 'partB';
 
 /** `samplerVoice` instances: the one-shot sustain worklet and the Rubber Band voice pool. */
 export type SamplerVoiceId = 'sustain' | 'stretch';
@@ -121,6 +124,22 @@ const ENGINE_LAYER_NODES: readonly GraphNodeSpec[] = [
         role: 'instrumentSource',
         config: { voice: 'partB' },
     },
+    {
+        id: 'macroA',
+        label: 'Macro A',
+        fixed: true,
+        factory: 'macroVoice',
+        role: 'instrumentSource',
+        config: { voice: 'partA' },
+    },
+    {
+        id: 'macroB',
+        label: 'Macro B',
+        fixed: true,
+        factory: 'macroVoice',
+        role: 'instrumentSource',
+        config: { voice: 'partB' },
+    },
     { id: 'drumkit', label: 'Drum Kit', fixed: true, factory: 'drumkitVoice', role: 'instrumentSource' },
     {
         id: 'samplerSustain',
@@ -145,6 +164,8 @@ const ENGINE_LAYER_EDGES: readonly EngineLayerEdge[] = [
     ...strips.flatMap((strip) => strip.edges),
     { from: 'prophecyA', to: 'synthABus' },
     { from: 'prophecyB', to: 'synthBBus' },
+    { from: 'macroA', to: 'synthABus' },
+    { from: 'macroB', to: 'synthBBus' },
     // Drums, sustain and the choir bypass the master FX chain, as they always have.
     { from: 'drumkit', to: 'masterGain' },
     { from: 'samplerSustain', to: 'masterGain' },

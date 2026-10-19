@@ -9,6 +9,9 @@ import { getTunedFrequency, type ScaleDefinition } from '@/utils/musicTheory';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
 import { resolveExportSampleRate } from '@/utils/audioContextPolicy';
 import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/createOfflineContext';
+import { macroEngineForWaveform } from '@/engines/MacroParams';
+import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
+import { noteToMidi } from '@/utils/musicTheory';
 
 type PyodideResultProxy = {
     toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
@@ -60,6 +63,22 @@ export async function renderSynthToBuffer(
     engines?: RenderSynthEngines,
     sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> {
+    // A macro model: one note through the live engine's wasm (mid channel, so
+    // XM one-shots stay mono). The gate covers the note; the tail is whatever
+    // fits in `duration`. Unavailable → the model's fallback waveform, below.
+    const macroEngine = macroEngineForWaveform(params.waveform);
+    if (macroEngine) {
+        const rendered = await renderMacroBuffer({
+            params,
+            engine: macroEngine,
+            notes: [{ midi: noteToMidi(note), velocity: 0.8, startSeconds: 0, durationSeconds: duration * 0.8 }],
+            durationSeconds: duration,
+            sampleRate,
+        }, 1);
+        if (rendered) return rendered;
+        params = { ...params, waveform: macroEngine.fallback };
+    }
+
     const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
 
     const time = 0;

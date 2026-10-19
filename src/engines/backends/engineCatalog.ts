@@ -46,6 +46,10 @@ export const ENGINE_CATALOG: Record<OscEngineId, EngineEntry> = {
     pyodide: { kind: 'backend', backendId: 'pyodide', label: 'Pyodide' },
     '303': { kind: 'native-worklet', owner: 'Open303Manager', label: 'Open303 / JC303' },
     prophecy: { kind: 'native-worklet', owner: 'ProphecyManager', label: 'Prophecy' },
+    // Plaits models (MIT), polyphonic. When the worklet is not ready the note
+    // path plays MACRO_ENGINES[i].fallback instead and reports the
+    // substitution — it never reaches `Voice` as `macro-*`.
+    macro: { kind: 'native-worklet', owner: 'MacroManager', label: 'Macro' },
 };
 
 export function engineEntry(engine: OscEngineId): EngineEntry {

@@ -132,6 +132,8 @@ describe('engine voice factories', () => {
         expect(sockets.sort()).toEqual([
             'drumkitVoice:-',
             'harmonizerBus:-',
+            'macroVoice:partA',
+            'macroVoice:partB',
             'open303Voice:bass1',
             'open303Voice:bass2',
             'open303Voice:lead303',
@@ -147,7 +149,7 @@ describe('engine voice factories', () => {
             // The node map holds the output, like a WAM2 slot.
             expect(graph.getNode(socket.nodeId)).toBe(port.output);
         }
-        expect(graph.getRoleNodes('instrumentSource')).toHaveLength(8);
+        expect(graph.getRoleNodes('instrumentSource')).toHaveLength(10);
     });
 
     it('wires a socket input through to its output so cables into an engine node sum', () => {
@@ -365,7 +367,7 @@ describe('patches saved before Phase C', () => {
             expect(restored.fellBack).toBe(false);
             expect(restored.config.presetId).toBe('classic-electribe');
             const { graph } = compileClassic(restored.config);
-            expect(listEngineVoices(graph)).toHaveLength(9);
+            expect(listEngineVoices(graph)).toHaveLength(11);
             expect(getActivePatchController()?.isModified()).toBe(false);
         } finally {
             setActivePatchController(null);
@@ -400,7 +402,7 @@ describe('presets', () => {
             const config = preset.build();
             expect(validateGraph(config).valid).toBe(true);
             const { graph } = compileClassic(config);
-            expect(listEngineVoices(graph)).toHaveLength(9);
+            expect(listEngineVoices(graph)).toHaveLength(11);
         }
     });
 

@@ -181,7 +181,7 @@ jobs:
             jc303_wasm/wasm/build_threaded
             jc303_wasm/wasm/build_single
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed

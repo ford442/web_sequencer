@@ -250,6 +250,23 @@ describe('AutomationScheduler.scheduleFromLanes', () => {
     expect(mgr.scheduleParamRamp).not.toHaveBeenCalled();
   });
 
+  it('routes macro knob lanes to MacroManager on their audio time, never to the 303', () => {
+    const ctx = makeAudioContext();
+    const mgr = makeOpen303Manager();
+    const macro = { scheduleParamAtTime: vi.fn() };
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setMacroManager(macro as never);
+    const lane = makeLane({ target: 'synthB', parameter: 'macroTimbre', points: [{ step: 0, value: 0.75 }] });
+    automationStore.addLane(lane);
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0.1);
+    expect(macro.scheduleParamAtTime).toHaveBeenCalledOnce();
+    const [part, param, value, time] = macro.scheduleParamAtTime.mock.calls[0] as [string, string, number, number];
+    expect([part, param, value]).toEqual(['partB', 'macroTimbre', 0.75]);
+    expect(time).toBeGreaterThanOrEqual(0.1);
+    expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
+    expect(mgr.scheduleParamRamp).not.toHaveBeenCalled();
+  });
+
   it('does nothing when passed an empty lanes array', () => {
     const ctx = makeAudioContext();
     const mgr = makeOpen303Manager();

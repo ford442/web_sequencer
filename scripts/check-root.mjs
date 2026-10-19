@@ -61,6 +61,8 @@ const ALLOWED_ROOT_FILES = new Set([
   'DOCS.md',
   'CHANGELOG.md',
   'claude.md',
+  // Licences of vendored code that ships in the build (third_party/, rubberband/).
+  'THIRD_PARTY_NOTICES.md',
   'CLAUDE.md',
   // Agent swarm state — actively read/written by the weekly agent workflow
   // (see docs/weekly_plan.md), not a scratch file.
@@ -124,6 +126,9 @@ const ALLOWED_ROOT_DIRS = new Set([
   'emscripten',
   'jc303_wasm',
   'rubberband',
+  // Pinned third-party DSP submodules (eurorack + stmlib for the macro-* voices);
+  // licences in THIRD_PARTY_NOTICES.md.
+  'third_party',
   // App source, tests, docs, scripts
   'src',
   'public',

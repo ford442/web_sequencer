@@ -1,4 +1,5 @@
 import type { OscillatorType, Waveform, Engine303 } from '../types/synth';
+import { MACRO_WAVEFORMS } from '../engines/MacroParams';
 
 /** Visual theme applied to the oscillator panel / overlay when this type is active. */
 export interface OscillatorTheme {
@@ -82,21 +83,13 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-amber-300',
     badge: 'AS',
   },
-  rust: {
-    label: 'Rust',
-    accent: 'orange',
-    panelBg: 'bg-orange-950/20',
-    panelBorder: 'border-orange-500/30',
-    text: 'text-orange-200',
-    badge: 'RUST',
-  },
-  cpp: {
-    label: 'C++',
-    accent: 'blue',
-    panelBg: 'bg-blue-950/20',
-    panelBorder: 'border-blue-500/30',
-    text: 'text-blue-200',
-    badge: 'CPP',
+  macro: {
+    label: 'Macro',
+    accent: 'cyan',
+    panelBg: 'bg-cyan-950/30',
+    panelBorder: 'border-cyan-500/30',
+    text: 'text-cyan-300',
+    badge: 'MAC',
   },
 };
 
@@ -110,8 +103,7 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   pyodide: '/osc/pyodide.webp',
   webgpu: '/osc/webgpu.webp',
   wam: '/osc/wam.webp',
-  rust: '/osc/rust.webp',
-  cpp: '/osc/cpp.webp',
+  macro: '/osc/macro.webp',
 };
 
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
@@ -126,6 +118,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('pyodide-')) return 'pyodide';
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
+  if (w.startsWith('macro-')) return 'macro';
   return 'javascript';
 }
 
@@ -146,6 +139,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'pyodide': return 'pyodide-saw';
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
+    case 'macro': return 'macro-va';
     default: return 'sawtooth';
   }
 }
@@ -161,6 +155,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'pyodide': return ['pyodide-saw', 'pyodide-square', 'pyodide-sine'];
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    case 'macro': return [...MACRO_WAVEFORMS];
     default: return ['sawtooth'];
   }
 }

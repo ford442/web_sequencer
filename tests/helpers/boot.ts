@@ -145,6 +145,7 @@ export const OSC_FAMILY_BADGE = {
   open303: '303',
   jc303: 'JC',
   prophecy: 'PRO',
+  macro: 'MAC',
   wam: 'AS',
   javascript: 'JS',
 } as const;

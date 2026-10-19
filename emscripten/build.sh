@@ -1,5 +1,6 @@
 #!/bin/bash
-# Build script for the Hyphon voice module (303 family, Prophecy, drum kit).
+# Build script for the Hyphon voice module (303 family, Prophecy, drum kit,
+# the macro / Plaits voices).
 #
 # Emits TWO voice modules from the same sources (see
 # docs/wasm/BUILD_NOTES.md#threading-profiles):
@@ -144,6 +145,21 @@ PTHREAD_EXPORTS="$VOICE_EXPORTS"
 ST_EXPORTS="$VOICE_EXPORTS"
 
 # ---------------------------------------------------------
+# PLAITS SOURCES (the macro-* engine family)
+# ---------------------------------------------------------
+# tools/plaits_sources.mjs owns the list (the host test and
+# scripts/native-worlds.mjs read it too). It copies the pinned submodules'
+# sources into the temp dir and applies the denormal guards from
+# tools/plaits_wasm_patches.mjs — wasm has no flush-to-zero. The submodules are
+# never modified. An uninitialised submodule, or a guard upstream moved, fails
+# here by name rather than deep in em++.
+PLAITS_STAGE="$TEMP_ROOT/plaits_src"
+if ! PLAITS_UNITS="$(node "$REPO_ROOT/tools/plaits_sources.mjs" --stage "$PLAITS_STAGE")"; then
+    echo "❌ Could not stage the Plaits sources (see above)." >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------
 # COMPILE + LINK (once per threading profile)
 # ---------------------------------------------------------
 build_profile() {
@@ -168,12 +184,28 @@ build_profile() {
     local CXXFLAGS="$COMMON_FLAGS $thread_flags -std=c++17 -fno-exceptions -fno-rtti"
 
     # Helper to compile C++ files. IEEE-safe math only (see the -ffast-math note
-    # above OPT_FLAGS).
+    # above OPT_FLAGS). Extra arguments are per-file flags.
     compile_cpp() {
         local src=$1
+        shift
         local obj="$temp_dir/$(basename "${src%.*}").o"
         echo "  [$variant C++] $src -> $obj"
-        em++ -c "$src" -o "$obj" $includes $CXXFLAGS
+        em++ -c "$src" -o "$obj" $includes $CXXFLAGS "$@"
+    }
+
+    # Mutable Instruments Plaits, from the staged copy (PLAITS SOURCES above).
+    # -DTEST is upstream's portable-host switch: it swaps the Cortex-M4 asm in
+    # stmlib/dsp/dsp.h (ssat, vsqrt) for plain C++. -isystem keeps upstream's
+    # warnings out of our build log. Object names carry a plaits_ prefix:
+    # several basenames (string.cc, units.cc, …) would otherwise collide in
+    # the flat temp dir.
+    local PLAITS_FLAGS="-DTEST -isystem $PLAITS_STAGE/eurorack -isystem $PLAITS_STAGE"
+    compile_plaits() {
+        local src=$1
+        local rel="${src#$PLAITS_STAGE/}"
+        local obj="$temp_dir/plaits_$(echo "${rel%.*}" | tr '/' '_').o"
+        echo "  [$variant C++] $rel -> $obj"
+        em++ -c "$src" -o "$obj" $includes $CXXFLAGS $PLAITS_FLAGS
     }
 
     echo "Compiling Objects ($variant)..."
@@ -199,6 +231,13 @@ build_profile() {
 
     # 5. Analog 808/909 drum kit (same module, new handles — one kit instance)
     compile_cpp "$SCRIPT_DIR/drumkit_wrapper.cpp"
+
+    # 6. macro-* voices: Plaits DSP + the polyphonic wrapper on the voice core.
+    #    upstream voice.cc is not built — macro_wrapper.cpp is its DAW port.
+    for f in $PLAITS_UNITS; do
+        compile_plaits "$f"
+    done
+    compile_cpp "$SCRIPT_DIR/macro_wrapper.cpp" $PLAITS_FLAGS
 
     echo "Linking ($variant)..."
 

@@ -7,6 +7,7 @@ import { captureEventsToArrangement } from '../../session/capture';
 import { parseSessionMidiParam } from '../../session/midiMap';
 import type { LaunchQuantization, SessionDocument, TransportClockSnapshot } from '../../session/types';
 import type { Arrangement } from '../../types/song';
+import type { SynthParams } from '../../types';
 import { getSessionPack, mergePackStorage } from '../../session/packs';
 import type { TrackStorageMap } from '../../utils/trackStorageUtils';
 import { transportMixStore } from '../../stores/transportMixStore';
@@ -163,13 +164,20 @@ export function useSessionState() {
     }
   }, [undo]);
 
-  const loadPack = useCallback((packId: string, setTrackStorage: (s: TrackStorageMap | ((p: TrackStorageMap) => TrackStorageMap)) => void) => {
+  const loadPack = useCallback((
+    packId: string,
+    setTrackStorage: (s: TrackStorageMap | ((p: TrackStorageMap) => TrackStorageMap)) => void,
+    instruments?: { synthA?: (u: Partial<SynthParams>) => void; synthB?: (u: Partial<SynthParams>) => void },
+  ) => {
     const pack = getSessionPack(packId);
     if (!pack) return;
     undo.push(sessionDocument);
     setSessionDocument(pack.session);
     engineRef.current?.setDocument(pack.session);
     setTrackStorage((prev) => mergePackStorage(prev, pack.trackStorage));
+    // The patches the pack's clips were written for (e.g. Macro Palette's models).
+    if (pack.instruments?.synthA) instruments?.synthA?.(pack.instruments.synthA);
+    if (pack.instruments?.synthB) instruments?.synthB?.(pack.instruments.synthB);
   }, [sessionDocument, undo]);
 
   return {

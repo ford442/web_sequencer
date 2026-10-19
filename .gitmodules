@@ -5,3 +5,11 @@
 [submodule "rubberband"]
 	path = rubberband
 	url = https://github.com/breakfastquay/rubberband.git
+[submodule "third_party/eurorack"]
+	path = third_party/eurorack
+	url = https://github.com/pichenettes/eurorack.git
+	shallow = true
+[submodule "third_party/stmlib"]
+	path = third_party/stmlib
+	url = https://github.com/pichenettes/stmlib.git
+	shallow = true

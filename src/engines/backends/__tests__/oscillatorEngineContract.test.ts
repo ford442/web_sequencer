@@ -21,6 +21,7 @@ import {
     type OscEngineId,
 } from '../../../utils/waveformParser';
 import { getWaveformsForType } from '../../../components/oscillatorThemes';
+import { macroEngineForWaveform } from '../../MacroParams';
 import type { OscillatorType, Waveform } from '../../../types';
 
 const ROOT = resolve(__dirname, '../../../..');
@@ -36,6 +37,7 @@ const OSCILLATOR_TYPES: OscillatorType[] = [
     'pyodide',
     'webgpu',
     'wam',
+    'macro',
 ];
 const ALL_WAVEFORMS: Waveform[] = OSCILLATOR_TYPES.flatMap((t) => getWaveformsForType(t));
 
@@ -78,6 +80,16 @@ describe('every waveform family resolves to a documented engine', () => {
         }
     });
 
+    it('gives every macro model a live fallback family (a part that cannot run the engine is never silent)', () => {
+        for (const waveform of getWaveformsForType('macro')) {
+            const { engine } = parseWaveform(waveform);
+            expect(engine).toBe('macro');
+            const fallback = macroEngineForWaveform(waveform)?.fallback;
+            expect(fallback, `${waveform} has no fallback`).toBeDefined();
+            expect(parseWaveform(fallback!).engine).toBe('js');
+        }
+    });
+
     it('no longer offers the retired rust-* / cpp-* families in the rack', () => {
         for (const waveform of ALL_WAVEFORMS) {
             expect(waveform.startsWith('rust-')).toBe(false);
@@ -103,6 +115,8 @@ function walk(dir: string, out: string[] = []): string[] {
  * `generate()`-into-a-buffer family bolted onto `VoiceManager`.
  */
 const ALLOWED_ENGINE_MODULES = [
+    // Drives the macro-processor AudioWorklet (hyphon_native macro_*).
+    'MacroOscillator.ts',
     'Open303Oscillator.ts',
     'ProphecyOscillator.ts',
     'WasmOscillator.ts',

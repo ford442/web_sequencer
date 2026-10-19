@@ -55,7 +55,18 @@
     "drumkit_destroy",
     "drumkit_init",
     "drumkit_push_event",
-    "drumkit_render"
+    "drumkit_render",
+    "macro_create",
+    "macro_destroy",
+    "macro_init",
+    "macro_all_notes_off",
+    "macro_set_param",
+    "macro_set_param_now",
+    "macro_engine_count",
+    "macro_stride",
+    "macro_push_event",
+    "macro_render",
+    "macro_cancel_notes"
   ],
   "optional": [
     "open303_note_on",
@@ -89,7 +100,12 @@
     "drumkit_set_kit",
     "drumkit_trigger",
     "drumkit_choke_open_hat",
-    "drumkit_process"
+    "drumkit_process",
+    "macro_flush",
+    "macro_note_on",
+    "macro_note_off",
+    "macro_process",
+    "macro_active_voices"
   ],
   "runtime": [
     "pthread_self",

@@ -11,6 +11,7 @@ import {
 } from '../../engines/backends/adapters';
 import { Open303Manager } from '../../engines/Open303Manager';
 import { ProphecyManager } from '../../engines/ProphecyManager';
+import { MacroManager } from '../../engines/MacroManager';
 import { DrumKitEngine } from '../../engines/DrumKitEngine';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import { VoiceManager } from '../../engines/VoiceManager';
@@ -72,6 +73,7 @@ export interface EngineLifecycleRefs {
     wasmEngineRef: MutableRefObject<WasmOscillator | null>;
     open303ManagerRef: MutableRefObject<Open303Manager | null>;
     prophecyManagerRef: MutableRefObject<ProphecyManager | null>;
+    macroManagerRef: MutableRefObject<MacroManager | null>;
     drumKitEngineRef: MutableRefObject<DrumKitEngine | null>;
     voiceManagerARef: MutableRefObject<VoiceManager | null>;
     voiceManagerBRef: MutableRefObject<VoiceManager | null>;
@@ -94,6 +96,7 @@ export interface EngineLifecycleUrls {
     sustainProcessorUrl: string;
     open303ProcessorUrl: string;
     prophecyProcessorUrl: string;
+    macroProcessorUrl: string;
     drumkitProcessorUrl: string;
 }
 
@@ -264,6 +267,31 @@ export async function initializeAudioContextAndEngines(
         loadingProgressStore.failStep('prophecyEngine', new Error('Prophecy not ready'), true);
     }
 
+    // Macro engine family (SYNTH A / SYNTH B macro-* waveforms, Plaits DSP).
+    // The manager is published even when a part fails: the note path asks it
+    // which parts can play, and substitutes + reports for the rest.
+    loadingProgressStore.startStep('macroEngine');
+    const macroManager = new MacroManager();
+    refs.macroManagerRef.current = macroManager;
+    try {
+        const macroReady = await macroManager.init(context, urls.macroProcessorUrl);
+        if (macroReady) {
+            const partADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
+            const partBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
+            macroManager.attachToGraph(graph, { partA: partADest, partB: partBDest });
+            console.log('[useAudioEngine] MacroManager Ready');
+            loadingProgressStore.completeStep('macroEngine');
+        } else {
+            console.warn('[useAudioEngine] MacroManager failed to initialize — macro-* parts will substitute');
+            try { engineTelemetry.registerResolution('macro', 'fallback', 'notReady'); } catch { /* noop */ }
+            loadingProgressStore.failStep('macroEngine', new Error('Macro engine not ready'), true);
+        }
+    } catch (e) {
+        console.error('[useAudioEngine] MacroManager crashed during init:', e);
+        loadingProgressStore.failStep('macroEngine', e instanceof Error ? e : new Error(String(e)), true);
+        try { engineTelemetry.registerResolution('macro', 'fallback', String(e)); } catch { /* noop */ }
+    }
+
     loadingProgressStore.startStep('wavFiles');
     const [sawBuf, sqrBuf] = await Promise.all([
         loadWavBuffer(context, './assets/saw.wav'),
@@ -410,6 +438,7 @@ export async function teardownAudioEngine(
 
     safely('open303', () => refs.open303ManagerRef.current?.cleanup());
     safely('prophecy', () => refs.prophecyManagerRef.current?.cleanup());
+    safely('macro', () => refs.macroManagerRef.current?.cleanup());
     safely('drumkit', () => refs.drumKitEngineRef.current?.dispose());
     safely('sustain', () => {
         const node = refs.sustainNodeRef.current;
@@ -427,6 +456,7 @@ export async function teardownAudioEngine(
 
     refs.open303ManagerRef.current = null;
     refs.prophecyManagerRef.current = null;
+    refs.macroManagerRef.current = null;
     refs.drumKitEngineRef.current = null;
     refs.sustainNodeRef.current = null;
     refs.singingVoiceManagerRef.current = null;

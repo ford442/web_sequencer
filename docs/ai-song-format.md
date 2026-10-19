@@ -121,10 +121,31 @@ fields worth setting are `waveform` (`"303-saw"` / `"303-sqr"`), `filterCutoff`,
 `filterResonance`, `filterMode`, `decay`, `volume`, `pitch`, and the
 `delayTime` / `delayFeedback` / `delayMix` trio.
 
+**Macro models** (`synthA` / `synthB`): `waveform` may be any of the 24
+`macro-*` ids ([macro-voices.md](audio-engine/macro-voices.md#models), e.g.
+`"macro-va"`, `"macro-fm2"`, `"macro-chords"`, `"macro-modal"`), with the knobs
+in `params.macro`:
+
+```json
+"params": {
+  "waveform": "macro-chords",
+  "volume": 0.8,
+  "macro": { "harmonics": 0.35, "timbre": 0.5, "morph": 0.2, "decay": 0.6,
+             "lpgColour": 0.5, "lpgMode": "gate", "polyphony": 8 }
+}
+```
+
+Every `macro` field is optional (0–1, except `fmMod` / `timbreMod` /
+`morphMod` −1…1, `polyphony` 1–8, `lpgMode` `"gate"` / `"ping"`). The filter,
+envelope and delay fields do not apply to a macro part. An unknown `macro-*` id
+becomes `"macro-va"` with a warning. A macro part plays one note per step from
+this format (chords come from the editor's step chords).
+
 `bass2` is additionally reduced to the narrower `Bass2Params` shape: its
 `waveform`, `pitch`, `filterCutoff`→`cutoff`, `filterResonance`→`resonance`,
 `filterMode`, `decay` and `volume` carry over; `accent` and `envMod` take fixed
-defaults (0.7 / 0.5).
+defaults (0.7 / 0.5). BASS 2 is a 303 only: a `macro-*` waveform there becomes
+`303-sqr` for square-fallback models and `303-saw` otherwise.
 
 ### Drum tracks — `kick`, `snare`, `closedHat`, `openHat`
 
@@ -182,7 +203,7 @@ mismatch is a `VALIDATION_ERROR`.
 
 | Target | Parameters |
 |--------|------------|
-| `synthA`, `synthB` | `filterCutoff`, `filterResonance`, `filterMode`, `decay`, `accent`, `envMod`, `waveform`, `pitch`, `volume`, `drive`, `delayTime`, `delayFeedback`, `delayMix` |
+| `synthA`, `synthB` | `filterCutoff`, `filterResonance`, `filterMode`, `decay`, `accent`, `envMod`, `waveform`, `pitch`, `volume`, `drive`, `delayTime`, `delayFeedback`, `delayMix`, and the macro knobs `macroHarmonics`, `macroTimbre`, `macroMorph`, `macroDecay`, `macroLpgColour`, `macroFmMod`, `macroTimbreMod`, `macroMorphMod`, `macroGlide`, `macroSpread` |
 | `bass2` | as above, minus the three `delay*` parameters |
 | `kick` | `pitch`, `decay`, `tone`, `volume` |
 | `snare` | `decay`, `tone`, `noise`, `volume` |
@@ -197,7 +218,7 @@ Validation accepts every target/parameter pair in the table above, but
 
 | Target | Routed? | Parameters that reach an engine |
 |--------|---------|---------------------------------|
-| `synthA`, `synthB`, `bass2` | ✅ | `filterCutoff`, `filterResonance`, `decay`, `envMod`, `accent`, `volume`, `drive` |
+| `synthA`, `synthB`, `bass2` | ✅ | `filterCutoff`, `filterResonance`, `decay`, `envMod`, `accent`, `volume`, `drive`; on a macro part, the ten `macro*` knobs (sample-accurate) |
 | `master` | partial | Only the PCF trio (`pcfCutoff`, `pcfResonance`, `pcfEnvAmount`) and only while a `PcfEffect` is attached. `tempo`, `swing` and `masterVolume` validate but no-op |
 | `kick`, `snare`, `closedHat`, `openHat`, `sampler` | ❌ | None — the scheduler has no case for these targets |
 

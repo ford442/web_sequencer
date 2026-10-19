@@ -13,7 +13,7 @@
 
 import { describe, expect, it, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
@@ -28,11 +28,17 @@ const MANIFEST = JSON.parse(
     }),
 ) as { required: string[] };
 
+/** The real native rows, so the over-budget fixture tracks the budget. */
+const NATIVE_BUDGET = (JSON.parse(readFileSync(join(ROOT, 'dist-budget.json'), 'utf8')) as {
+    native: Record<string, number>;
+}).native;
+
 /** Worklet processor names check-release-dist.mjs requires in the dist JS. */
 const WORKLETS = [
     'clock-processor',
     'open303-processor',
     'prophecy-processor',
+    'macro-processor',
     'drumkit-processor',
     'sustain-processor',
     'RubberBandProcessor',
@@ -102,6 +108,8 @@ interface DistOptions {
     pthreadPadding?: number;
     /** A string the pthread binary must not contain (libomp / embind / run_script). */
     pthreadMarker?: string;
+    /** Ship dist/THIRD_PARTY_NOTICES.md (the macro engine's MIT notice). */
+    notices?: boolean;
 }
 
 /** Custom section (id 0): ignored by engines, so the module stays valid. */
@@ -116,6 +124,7 @@ function makeDist({
     mixBus = 'valid',
     pthreadPadding = 0,
     pthreadMarker,
+    notices = true,
 }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
@@ -143,6 +152,7 @@ function makeDist({
         JSON.stringify({ version: 'test', generatedAt: Date.now(), shell: ['./', './manifest.webmanifest', './assets/index.js'] }),
     );
     writeFileSync(join(dir, 'sw.js'), "const BUILD_ID = 'test-build-id';\n");
+    if (notices) writeFileSync(join(dir, 'THIRD_PARTY_NOTICES.md'), readFileSync(join(ROOT, 'THIRD_PARTY_NOTICES.md'), 'utf8'));
     // Glue that declares the same names the map does, so only the binary differs.
     // The single-threaded glue quotes with `'`, as Emscripten emits it.
     const glue = (q: string) =>
@@ -200,6 +210,12 @@ describe('check-release-dist WASM export gate', () => {
         const result = runCheck(makeDist());
         expect(result.output).toContain('resolved in the binary');
         expect(result.status).toBe(0);
+    });
+
+    it('fails a bundle without the third-party notices (macro engine MIT code)', () => {
+        const result = runCheck(makeDist({ notices: false }));
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain('THIRD_PARTY_NOTICES.md');
     });
 
     it('fails the bundle that shipped: glue and map agree, binary has neither API', () => {
@@ -270,7 +286,7 @@ describe('check-release-dist WASM export gate', () => {
     });
 
     it('budgets the voice module binaries (dist-budget.json#native)', () => {
-        const result = runCheck(makeDist({ pthreadPadding: 200_000 }));
+        const result = runCheck(makeDist({ pthreadPadding: NATIVE_BUDGET['hyphon_native.wasm'] + 1 }));
 
         expect(result.status).toBe(1);
         expect(result.output).toMatch(/hyphon_native\.wasm is [\d,]+ B, over budget/);

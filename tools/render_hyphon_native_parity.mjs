@@ -23,6 +23,9 @@
  *
  *   # heap high-water mark of a full voice set (wasm_memory_budget.json evidence)
  *   node tools/render_hyphon_native_parity.mjs heap --wasm … --map … [--sr 192000 --block 4096]
+ *
+ *   # CPU of the macro (Plaits) voices: every engine, 8 voices, as % of a quantum
+ *   node tools/render_hyphon_native_parity.mjs macro-cpu --wasm … --map … [--sr 48000 --seconds 2 --mode held|sequenced]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -126,9 +129,10 @@ function instantiate(wasmPath, mapPath) {
     if (typeof f !== 'function') throw new Error(`export ${name} (${minified}) missing`);
     return f;
   };
+  const has = (name) => typeof raw[map[name] ?? name] === 'function';
   const ctors = raw[map.__wasm_call_ctors ?? '__wasm_call_ctors'];
   if (typeof ctors === 'function') ctors();
-  return { fn, memory, threaded, stubbed: unknown };
+  return { fn, has, memory, threaded, stubbed: unknown };
 }
 
 function readFloats(memory, ptr, n) {
@@ -213,6 +217,80 @@ function renderDrumkit(api, kit) {
   return out;
 }
 
+// MACRO_ENGINE order — src/engines/MacroParams.ts MACRO_ENGINES.
+const MACRO_ENGINE_NAMES = [
+  'va-vcf', 'phase-distortion', 'six-op-1', 'six-op-2', 'six-op-3', 'wave-terrain',
+  'string-machine', 'chiptune', 'virtual-analog', 'waveshaper', 'fm', 'grain',
+  'additive', 'wavetable', 'chords', 'speech', 'swarm', 'noise', 'particle',
+  'string', 'modal', 'bass-drum', 'snare-drum', 'hi-hat',
+];
+
+/** The canonical pattern an octave up on one macro engine; left channel of the planar stereo block. */
+function renderMacro(api, engine) {
+  const { fn, memory } = api;
+  const h = fn('macro_create')();
+  fn('macro_init')(h, SAMPLE_RATE, BLOCK);
+  fn('macro_set_param')(h, 0, engine);
+  const out = new Float32Array(PATTERN.length * STEP_BLOCKS * BLOCK);
+  let w = 0;
+  let prev = -1;
+  for (const s of PATTERN) {
+    if (prev >= 0) fn('macro_note_off')(h, prev);
+    fn('macro_note_on')(h, s.note + 12, s.accent ? 1.0 : 0.7);
+    prev = s.note + 12;
+    for (let b = 0; b < STEP_BLOCKS; b++) {
+      out.set(readFloats(memory, Number(fn('macro_process')(h, BLOCK)), BLOCK), w);
+      w += BLOCK;
+    }
+  }
+  fn('macro_destroy')(h);
+  return out;
+}
+
+/**
+ * CPU of 8 macro voices per engine, as % of one 128-frame render quantum.
+ * `held`: 8 notes held for the whole run (worst case). `sequenced`: 8-note
+ * chords retriggered every 16th at 120 BPM with a 50 % gate — what a pattern
+ * does, voices sleeping between hits.
+ */
+function macroCpu(args) {
+  const api = instantiate(args.wasm, args.map);
+  const { fn } = api;
+  const sr = Number(args.sr ?? 48000);
+  const seconds = Number(args.seconds ?? 2);
+  const mode = args.mode ?? 'held';
+  const quanta = Math.round((seconds * sr) / BLOCK);
+  const budgetUs = (BLOCK / sr) * 1e6;
+  const sixteenth = Math.round((0.125 * sr) / BLOCK);
+  const rows = [];
+  for (let e = 0; e < MACRO_ENGINE_NAMES.length; e++) {
+    const h = fn('macro_create')();
+    fn('macro_init')(h, sr, BLOCK);
+    fn('macro_set_param')(h, 0, e);
+    const notes = Array.from({ length: 8 }, (_, i) => 48 + 3 * i);
+    const on = () => notes.forEach((n) => fn('macro_note_on')(h, n, 0.8));
+    const off = () => notes.forEach((n) => fn('macro_note_off')(h, n));
+    // Warm up the JIT on this engine before timing it.
+    on();
+    for (let q = 0; q < 200; q++) fn('macro_process')(h, BLOCK);
+    if (mode === 'held') on();
+    const t0 = process.hrtime.bigint();
+    for (let q = 0; q < quanta; q++) {
+      if (mode === 'sequenced') {
+        const phase = q % sixteenth;
+        if (phase === 0) on();
+        else if (phase === sixteenth >> 1) off();
+      }
+      fn('macro_process')(h, BLOCK);
+    }
+    const us = Number(process.hrtime.bigint() - t0) / 1e3 / quanta;
+    rows.push({ engine: MACRO_ENGINE_NAMES[e], usPerQuantum: Number(us.toFixed(1)), percentOfQuantum: Number(((100 * us) / budgetUs).toFixed(2)) });
+    fn('macro_destroy')(h);
+  }
+  const worst = rows.reduce((a, b) => (b.usPerQuantum > a.usPerQuantum ? b : a));
+  console.log(JSON.stringify({ wasm: path.basename(args.wasm), sampleRate: sr, mode, voices: 8, budgetUs: Number(budgetUs.toFixed(1)), worst, rows }, null, 2));
+}
+
 function findModelIndex(api, id) {
   const { fn } = api;
   const bytes = new TextEncoder().encode(`${id}\0`);
@@ -252,6 +330,10 @@ function render(args) {
   write('prophecy', renderProphecy(api));
   write('drumkit-808', renderDrumkit(api, 0));
   write('drumkit-909', renderDrumkit(api, 1));
+  // A build without the macro voices (before the macro-* family) just skips them.
+  if (api.has('macro_create')) {
+    MACRO_ENGINE_NAMES.forEach((name, e) => write(`macro-${name}`, renderMacro(api, e)));
+  }
   fs.writeFileSync(path.join(args.out, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   console.log(JSON.stringify(summary, null, 2));
 }
@@ -372,6 +454,19 @@ function heap(args) {
     add('prophecy', (h) => fn('prophecy_init')(h, sr, block), (h) => fn('prophecy_note_on')(h, 48, 1), (h) => fn('prophecy_process')(h, block));
   }
   add('drumkit', (h) => fn('drumkit_init')(h, sr, block), (h) => fn('drumkit_trigger')(h, 0, 1, 0.5, 0.5, 0.5, 0.5), (h) => fn('drumkit_process')(h, block));
+  if (api.has('macro_create')) {
+    // SYNTH A + SYNTH B on macro engines, all 8 voices of each sounding.
+    for (let i = 0; i < 2; i++) {
+      add(
+        'macro',
+        (h) => fn('macro_init')(h, sr, block),
+        (h) => {
+          for (let n = 0; n < 8; n++) fn('macro_note_on')(h, 48 + n, 0.8);
+        },
+        (h) => fn('macro_process')(h, block),
+      );
+    }
+  }
   for (let b = 0; b < 8; b++) for (const run of voices) run();
   const after = probe();
   const mb = (n) => Number((n / 1048576).toFixed(3));
@@ -394,7 +489,8 @@ if (cmd === 'render') render(args);
 else if (cmd === 'compare') compare(args);
 else if (cmd === 'baselines') baselines(args);
 else if (cmd === 'heap') heap(args);
+else if (cmd === 'macro-cpu') macroCpu(args);
 else {
-  console.error('Usage: render_hyphon_native_parity.mjs render|compare|baselines|heap … (see header)');
+  console.error('Usage: render_hyphon_native_parity.mjs render|compare|baselines|heap|macro-cpu … (see header)');
   process.exit(2);
 }

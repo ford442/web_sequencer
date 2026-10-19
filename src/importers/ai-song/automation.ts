@@ -40,8 +40,8 @@ export const VALID_AUTOMATION_TARGETS: readonly AIAutomationTarget[] = [
 
 /** Valid parameters for each target */
 export const VALID_PARAMETERS_BY_TARGET: Readonly<Record<AIAutomationTarget, readonly AITargetedParameter[]>> = {
-  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
+  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
   bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
   kick: ['pitch', 'decay', 'tone', 'volume'],
   snare: ['decay', 'tone', 'noise', 'volume'],

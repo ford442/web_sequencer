@@ -50,6 +50,7 @@ const KNOWN_FACTORIES: ReadonlySet<string> = new Set<GraphNodeFactory>([
     'destination',
     'open303Voice',
     'prophecyVoice',
+    'macroVoice',
     'drumkitVoice',
     'samplerVoice',
     'harmonizerBus',

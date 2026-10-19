@@ -5,6 +5,7 @@ import type {
 import { generateLaneId } from '../../stores/automationStore';
 import { AISongStorage, type AISongUploadOptions, type AISongMetadata } from '../../services/AISongStorage';
 import { validateAISongData } from './types';
+import { isMacroWaveform, macroEngineForWaveform } from '../../engines/MacroParams';
 import {
   type AISongData, type AIImportResultType, type AIAutomationTarget,
   type AIInterpolationMode, type AITrackData, type AISamplerBankData,
@@ -307,13 +308,23 @@ export class AISongImporter {
         value: trackData.params
       });
 
-      return { ...defaultSynth, ...trackData.params };
+      const merged: SynthParams = { ...defaultSynth, ...trackData.params };
+      // A macro-* id this build does not know would play nothing recognisable:
+      // keep the family, take its plainest model, and say so.
+      const wf = String(merged.waveform);
+      if (wf.startsWith('macro-') && !isMacroWaveform(wf)) {
+        this.warnings.push(`Unknown macro model "${wf}" — using "macro-va".`);
+        merged.waveform = 'macro-va';
+      }
+      return merged;
     };
 
     const mapBass2Params = (trackData?: AITrackData): Bass2Params => {
       const synth = mapSynthParams(trackData);
+      // BASS 2 is a 303 only: a macro model maps through its fallback shape.
+      const shape = macroEngineForWaveform(synth.waveform)?.fallback ?? synth.waveform;
       return {
-        waveform: synth.waveform === '303-sqr' ? '303-sqr' : '303-saw',
+        waveform: shape === '303-sqr' || shape === 'square' ? '303-sqr' : '303-saw',
         pitch: synth.pitch,
         cutoff: synth.filterCutoff,
         resonance: synth.filterResonance,

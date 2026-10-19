@@ -333,7 +333,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       return `<div class="subheader">Oscillator backends</div>${header}${attemptRows}`;
     })();
 
-    const workletNames = ['clock', 'open303', 'rubberband', 'vocoder'];
+    const workletNames = ['clock', 'open303', 'macro', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
       const w = runtime.worklets[name];
       const cpu = w ? w.cpuPercent.toFixed(1) : '—';

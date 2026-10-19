@@ -9,6 +9,7 @@
 ### Key Features
 - **Dual synthesizers** (Lead & Bass / Part A & Part B) with ADSR, filters, delay, and multiple waveform engines
 - **TB-303 engines** with per-voice `model303` voice selection (growing catalog) and legacy `engine303` family switching (`open303` or authentic `jc303`) plus Prophecy formant waveforms
+- **Macro engine family** (`macro-*`, 24 models from the Mutable Instruments Plaits DSP, MIT) on SYNTH A / B — 8-voice polyphony, presets, offline render — see [docs/audio-engine/macro-voices.md](docs/audio-engine/macro-voices.md)
 - **Drum machine** (Kick, Snare, Open/Closed Hi-Hats)
 - **Sampler with 8 independent banks** and Supertonic TTS integration
 - **Real-time voice designer** with GPU-accelerated DSP (sharpen, echo, tremolo, jitter, geometric transforms)
@@ -46,13 +47,13 @@
 | Engine | Language | Build Output | Purpose |
 |--------|----------|--------------|---------|
 | AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators (the one WASM wavetable engine — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`), track freezer, FFT, audio export, XM export |
-| Emscripten | C++ | `public/hyphon_native{,.st}.{js,wasm}` | Open303 + JC303 dual-engine wrappers, HighFid303, Prophecy formant engine, analog drum kit (pthread + single-threaded profiles) |
+| Emscripten | C++ | `public/hyphon_native{,.st}.{js,wasm}` | Open303 + JC303 dual-engine wrappers, HighFid303, Prophecy formant engine, analog drum kit, macro (Plaits) voices (pthread + single-threaded profiles) |
 | JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
-- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp` (see `emscripten/build.sh`)
+- **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`, `emscripten/macro_wrapper.cpp` (see `emscripten/build.sh`)
 - **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it; `pnpm run gen:native-types` derives `src/audio-worklets/hyphonNativeExports.ts` from it). The 303 / Prophecy / drum worklets extend `NativeVoiceProcessor` and push every note, trigger and param as an event on its own frame. See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
 - **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
 - **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
@@ -62,6 +63,8 @@
   - `partA` / **SYNTH A LEAD** 303 waves → `lead303`
 - **Prophecy formant routing**:
   - `prophecy-*` waves route via `ProphecyManager` (`partA` + `partB`) and `prophecy-processor` worklet to `prophecy_*` exports in `hyphon_native.wasm`.
+- **Macro routing**:
+  - `macro-*` models route via `MacroManager` (`partA` + `partB`) and the stereo `macro-processor` worklet to `macro_*` exports (8 voices per part, `NativeVoice<…, 2>`). A part that cannot run the engine plays the model's fallback waveform and reports it (Engine HUD). Plaits sources come from the `third_party/eurorack` + `third_party/stmlib` submodules, compiled from a staged copy with wasm denormal guards (`tools/plaits_sources.mjs`, `tools/plaits_wasm_patches.mjs`).
 
 ### Backend & Services
 | Component | Technology | Purpose |
@@ -170,6 +173,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── CMakeLists.txt            # JUCE-based CMake project
 │   └── wasm/                     # CMake-based build
 ├── rubberband/                   # Rubberband library source (in-repo, not submodule)
+├── third_party/                  # Pinned DSP submodules: eurorack (Plaits) + stmlib — macro voices
 ├── Supertonic-Voice-Mixer/       # Python TTS tools
 │   ├── voice-mixer.py            # PyQt5 voice designer GUI
 │   └── helper.py                 # TTS model utilities
@@ -322,7 +326,8 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `public/hyphon_native.{js,wasm}` (pthread) and `public/hyphon_native.st.{js,wasm}` (single-threaded); no `.worker.js` — the pinned emcc inlines pthread workers
 - **Requires**: Emscripten **6.0.9** (`emscripten/toolchain.json`); `emscripten/toolchain_env.sh` fails the build on any other version
 - **Release link**: `-O3 -flto`, no embind, no `main()`; `tools/render_hyphon_native_parity.mjs` is the gate for compiler / flag changes (`docs/wasm/BUILD_NOTES.md#render-parity`)
-- **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`)
+- **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`), macro / Plaits (`macro_wrapper.cpp`)
+- **Requires** the `third_party/eurorack` and `third_party/stmlib` submodules for the macro voices (`git submodule update --init --depth 1 third_party/eurorack third_party/stmlib`); `build.sh` names them when missing
 - **Not** Rubber Band or the offline mix bus — each is its own module (below). No `-ffast-math` here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
 
 ### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
@@ -676,7 +681,7 @@ WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchai
 
 1. **Emscripten 6.0.9** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.9 && ./emsdk activate 6.0.9`. The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
 2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
-3. **Git submodule**: `git submodule update --init --recursive` (required for `jc303_wasm`).
+3. **Git submodules**: `git submodule update --init --recursive` (required for `jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices).
 
 ### First WASM build per workspace
 
@@ -724,7 +729,8 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 - **High-fid 303 path**: [docs/audio-engine/303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) — offline CPU/GPU authenticity tier, fallback, FAQ (epic #972)
 - **Supertonic TTS**: https://github.com/supertone-inc/supertonic
 - **Rubberband Library**: https://breakfastquay.com/rubberband/
-- **JC-303 / Open303 / Prophecy / drumkit wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`
+- **JC-303 / Open303 / Prophecy / drumkit / macro wrappers**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`, `emscripten/macro_wrapper.cpp`
+- **Macro voices (Plaits)**: [docs/audio-engine/macro-voices.md](docs/audio-engine/macro-voices.md); licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - **Analog drum kit**: [docs/audio-engine/drumkit.md](docs/audio-engine/drumkit.md)
 - **Emscripten**: https://emscripten.org/
 - **AssemblyScript**: https://www.assemblyscript.org/

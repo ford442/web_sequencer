@@ -48,7 +48,7 @@ describe('hyphon_native export manifest (#1344)', () => {
 
     it('declares every export HYPHON_EXPORT_VOICE generates', () => {
         const prefixes = voicePrefixes();
-        expect([...prefixes].sort()).toEqual(['drumkit', 'highfid303', 'jc303', 'open303', 'prophecy']);
+        expect([...prefixes].sort()).toEqual(['drumkit', 'highfid303', 'jc303', 'macro', 'open303', 'prophecy']);
         const missing = prefixes.flatMap((p) => macroSuffixes().map((s) => `${p}_${s}`)).filter((n) => !built.has(n));
         expect(missing).toEqual([]);
     });

@@ -14,12 +14,14 @@ A dismissible **What's New** checklist appears on first visit after major update
 
 See also:
 - [docs/audio-engine/jc303-prophecy.md](docs/audio-engine/jc303-prophecy.md) — 303 engine switching + Prophecy formants
+- [docs/audio-engine/macro-voices.md](docs/audio-engine/macro-voices.md) — the 24-model macro engine (Plaits DSP)
 - [docs/automation.md](docs/automation.md) — automation lanes and RBS import
 - [docs/tts/TTS_DEPLOYMENT.md](docs/tts/TTS_DEPLOYMENT.md) — sampler TTS setup
 
 ## Features
 
 - 🎹 Dual synthesizers (Lead & Bass) with ADSR, filters, and waveform selection
+- 🎛️ **Macro engine** - 24 synthesis models from the Mutable Instruments Plaits DSP (MIT), 8-voice polyphony, HARMONICS / TIMBRE / MORPH + low-pass gate ([macro-voices.md](docs/audio-engine/macro-voices.md))
 - 🥁 Drum machine (Kick, Snare, Hi-Hats)
 - 🎤 **Sampler with Supertonic TTS integration** - Generate speech from text
 - 🎨 **Voice Designer** - Real-time voice parameter editing with GPU-accelerated DSP
@@ -64,6 +66,11 @@ A separate Playwright smoke test (`tests/knob-canvas-smoke.spec.ts`) forces the 
 checks that knob canvases render non-blank output (no screenshot comparisons).
 
 ## Build
+The native build needs the submodules (`jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices):
+```bash
+git submodule update --init --depth 1 jc303_wasm third_party/eurorack third_party/stmlib
+```
+
 ```bash
 pnpm run build              # build:release — native + export check + Vite (no JS source maps)
 pnpm run build:web          # typecheck + Vite using already-built artifacts

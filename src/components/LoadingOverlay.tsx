@@ -15,6 +15,7 @@ const STEP_ICONS: Record<LoadingStep, string> = {
   wasmEngine: '⚡',
   open303Engine: '🎸',
   prophecyEngine: '🔮',
+  macroEngine: '🎛️',
   wavFiles: '🎵',
   singingVoice: '🎤',
   ambianceBuffers: '🌊',

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Offline buffer test for the first custom 303 voices (issue #898).
+# Offline buffer tests for the native voices: the first custom 303 voices
+# (issue #898), then every voice-core engine — drum kit, Prophecy, macro.
 #
 # Compiles emscripten/open303_wrapper.cpp with a host g++ (via the emscripten
 # stubs in emscripten_stub/) and renders a fixed pattern through the stock,
@@ -75,6 +76,33 @@ if compgen -G "$OPEN303_DSP/*.cpp" > /dev/null; then
 else
     echo "Skipping tb303_level_alignment_test + tb303_jc303_event_test (jc303_wasm submodule not checked out)."
     echo "  Run: git submodule update --init jc303_wasm"
+    echo
+fi
+
+# macro-* voices: the Plaits sources from the pinned third_party submodules,
+# staged with the wasm denormal guards exactly as emscripten/build.sh compiles
+# them (tools/plaits_sources.mjs). Skipped when the submodules are absent.
+if PLAITS_UNITS="$(node "$SCRIPT_DIR/../../tools/plaits_sources.mjs" --stage "$TMP/plaits_src" 2>/dev/null)"; then
+    echo "Compiling the staged Plaits sources (upstream warnings off)…"
+    mkdir -p "$TMP/plaits_obj"
+    for f in $PLAITS_UNITS; do
+        obj="$TMP/plaits_obj/$(echo "${f#"$TMP"/plaits_src/}" | tr '/' '_').o"
+        g++ -std=c++17 -O2 -w -DTEST \
+            -isystem "$TMP/plaits_src/eurorack" -isystem "$TMP/plaits_src" \
+            -c "$f" -o "$obj"
+    done
+    echo "Compiling macro_offline_test…"
+    g++ -std=c++17 -O2 -Wall -Wextra -DTEST \
+        -I "$SCRIPT_DIR/emscripten_stub" \
+        -isystem "$TMP/plaits_src/eurorack" -isystem "$TMP/plaits_src" \
+        "$SCRIPT_DIR/macro_offline_test.cpp" "$TMP"/plaits_obj/*.o \
+        -o "$TMP/macro_offline_test"
+    echo "Running macro_offline_test…"
+    "$TMP/macro_offline_test"
+    echo
+else
+    echo "Skipping macro_offline_test (third_party/eurorack + third_party/stmlib not checked out)."
+    echo "  Run: git submodule update --init --depth 1 third_party/eurorack third_party/stmlib"
     echo
 fi
 

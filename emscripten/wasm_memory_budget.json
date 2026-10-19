@@ -21,7 +21,12 @@
       "3x JC303, 3x high-fid at 2x, 2x Prophecy and the drum kit, 192 kHz / 4096-frame",
       "blocks, peak at 8.47 MB = 8.02 MB stack + static, 0.45 MB voice heap (identical",
       "on the 3.1.51 -O1 build). 32 MB leaves ~23 MB of heap, ~50x the measured voice",
-      "set, before the first (shared) grow; it was 128 MB."
+      "set, before the first (shared) grow; it was 128 MB.",
+      "2026-10-19, macro-* (Plaits) voices added: each part owns 8 voices of ~11 KB",
+      "state + 16 KB engine RAM (plaits.cc's shared_buffer) and a 33 KB resampler",
+      "table. Same heap tool with SYNTH A + SYNTH B on macro, 16 voices sounding:",
+      "static + stack 8.99 → 9.21 MB, voice heap 1.79 → 2.18 MB, peak 10.78 → 11.39 MB",
+      "of the 32 MB initial memory. No change to these numbers needed."
     ],
     "initialMemoryMb": 32,
     "maximumMemoryMb": 1024,
@@ -40,7 +45,10 @@
       "blocks — peaks at ~2 MB above the 1 MB stack + data (2026-10-13 re-measure with",
       "the drum kit added: 0.45 MB voice heap, 1.47 MB high-water). 16 MB is 8x that; the memory",
       "is non-shared, so growth past it is a cheap ArrayBuffer grow, not a new SAB.",
-      "See docs/wasm/BUILD_NOTES.md#threading-profiles."
+      "See docs/wasm/BUILD_NOTES.md#threading-profiles.",
+      "2026-10-19 with the macro-* voices (2 parts x 8 voices sounding, same tool):",
+      "static + stack 1.99 → 2.21 MB, voice heap 1.81 → 2.11 MB, peak 3.80 → 4.32 MB —",
+      "still under 30 % of the 16 MB initial memory."
     ],
     "initialMemoryMb": 16,
     "maximumMemoryMb": 512,

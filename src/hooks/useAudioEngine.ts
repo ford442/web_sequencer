@@ -10,6 +10,7 @@ import { VoiceManager } from '../engines/VoiceManager';
 import { MultisampleGenerator } from '../engines/MultisampleGenerator';
 import { DrumKitEngine } from '../engines/DrumKitEngine';
 import { ProphecyManager } from '../engines/ProphecyManager';
+import type { MacroManager } from '../engines/MacroManager';
 import { Harmonizer, type HarmonizerConfig } from '../engines/Harmonizer';
 import { PhonemeBufferPool } from '../services/PhonemeBufferPool';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
@@ -52,6 +53,7 @@ export { getSyncedSeconds, getSyncedLfoHz } from './audioEngine/syncUtils';
 import sustainProcessorUrl from '../audio-worklets/sustain-processor.ts?worker&url';
 import open303ProcessorUrl from '../audio-worklets/open303-processor.ts?worker&url';
 import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker&url';
+import macroProcessorUrl from '../audio-worklets/macro-processor.ts?worker&url';
 import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&url';
 import { attachPyodideOscillator } from '../engines/backends/BackendRegistry';
 import type { PyodideLike } from '../utils/pyodideBuffers';
@@ -72,6 +74,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
     const analyserNodeRef = useRef<AnalyserNode | null>(null);
     const trackAnalysersRef = useRef<TrackAnalysers>({});
     const prophecyManagerRef = useRef<ProphecyManager | null>(null);
+    const macroManagerRef = useRef<MacroManager | null>(null);
 
     // Pre-stretched phoneme buffer pool (phoneme-aware time stretching)
     const phonemeBufferPoolRef = useRef<PhonemeBufferPool | null>(null);
@@ -160,6 +163,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         synthBBusRef,
         samplerBusRef,
         prophecyManagerRef,
+        macroManagerRef,
     }), []);
 
     useEffect(() => {
@@ -199,6 +203,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 wasmEngineRef,
                 open303ManagerRef,
                 prophecyManagerRef,
+                macroManagerRef,
                 drumKitEngineRef,
                 voiceManagerARef,
                 voiceManagerBRef,
@@ -221,6 +226,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 sustainProcessorUrl,
                 open303ProcessorUrl,
                 prophecyProcessorUrl,
+                macroProcessorUrl,
                 drumkitProcessorUrl,
             }, precreated?.latencyHint, precreated);
 
@@ -451,5 +457,6 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
         updateSamplerVoiceParams,
         drumKitEngineRef,
         prophecyManagerRef,
+        macroManagerRef,
     }), [audioEngine, isReady, initializeAudio, updateVoiceParams, updateSamplerVoiceParams]);
 };

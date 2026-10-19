@@ -93,7 +93,7 @@ non-replayable plugin into a bounce.
 
 ## First-party engine nodes (patch bay Phase C)
 
-`open303Voice`, `prophecyVoice`, `drumkitVoice`, `samplerVoice` and
+`open303Voice`, `prophecyVoice`, `macroVoice`, `drumkitVoice`, `samplerVoice` and
 `harmonizerBus` compile to the same `EngineVoiceSocket`s offline as live, along
 with the strip nodes after them and any insert or send the user cabled there.
 Nothing boots an engine in the offline context (no worklet, no second
@@ -113,6 +113,16 @@ and pan are AudioParam automation on the live nodes, not config. Offline, the
 strip compiles at its patch values (unity level, no drive, preset pan), so a
 renderer whose buffer already has the track's volume and pan baked in should
 keep entering at `masterFxInput` — which is what stem export still does.
+
+### Macro parts
+
+The macro engine is the one first-party engine whose *notes* render offline
+through its own DSP rather than a generic oscillator: `renderSynthPattern` /
+`renderSynthToBuffer` run the same `hyphon_native.st.wasm` on the calling
+thread (`src/audio/offline/OfflineMacroEngine.ts` — no worklet, a private
+instance) and feed the result in like any other rendered track, bit-identical
+to the live part for the same events. See
+[macro-voices.md](macro-voices.md#offline-freeze-stems-ai-preview-xm).
 
 ## Consumers
 

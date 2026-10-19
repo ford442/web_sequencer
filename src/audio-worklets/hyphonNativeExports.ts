@@ -53,6 +53,17 @@ export interface HyphonNativeExports {
   drumkit_init(h: VoiceHandle, sampleRate: number, maxFrames: number): number;
   drumkit_push_event(h: VoiceHandle, frame: number, type: number, target: number, value: number, a0: number, a1: number, a2: number, a3: number): number;
   drumkit_render(h: VoiceHandle, blockStartFrame: number, frames: number): WasmPtr;
+  macro_create(): VoiceHandle;
+  macro_destroy(h: VoiceHandle): void;
+  macro_init(h: VoiceHandle, sampleRate: number, maxFrames: number): number;
+  macro_all_notes_off(handle: VoiceHandle): void;
+  macro_set_param(handle: VoiceHandle, paramId: number, value: number): void;
+  macro_set_param_now(handle: VoiceHandle, paramId: number, value: number): void;
+  macro_engine_count(): number;
+  macro_stride(handle: VoiceHandle): number;
+  macro_push_event(h: VoiceHandle, frame: number, type: number, target: number, value: number, a0: number, a1: number, a2: number, a3: number): number;
+  macro_render(h: VoiceHandle, blockStartFrame: number, frames: number): WasmPtr;
+  macro_cancel_notes(h: VoiceHandle): void;
   open303_note_on?(handle: VoiceHandle, midiNote: number, velocity: number): void;
   open303_note_off?(handle: VoiceHandle, midiNote: number): void;
   open303_process?(handle: VoiceHandle, outputPtr: WasmPtr, numFrames: number): void;
@@ -85,6 +96,11 @@ export interface HyphonNativeExports {
   drumkit_trigger?(handle: VoiceHandle, voice: number, velocity: number, a: number, b: number, c: number, d: number): void;
   drumkit_choke_open_hat?(handle: VoiceHandle): void;
   drumkit_process?(handle: VoiceHandle, numFrames: number): WasmPtr;
+  macro_flush?(h: VoiceHandle): void;
+  macro_note_on?(handle: VoiceHandle, midiNote: number, velocity: number): void;
+  macro_note_off?(handle: VoiceHandle, midiNote: number): void;
+  macro_process?(handle: VoiceHandle, numFrames: number): WasmPtr;
+  macro_active_voices?(handle: VoiceHandle): number;
 }
 
 /** hyphon::EventType (emscripten/core/voice.h). */

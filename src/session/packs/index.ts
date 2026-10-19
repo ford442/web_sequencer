@@ -1,6 +1,7 @@
 import { TRACK_KEYS, NUM_STEPS } from '@/constants';
 import type { TrackKey } from '@/constants/appDefaults';
-import type { Note, PartSequence } from '@/types';
+import type { Note, PartSequence, SynthParams } from '@/types';
+import { getMacroPreset, macroPresetUpdate } from '@/engines/macroPresets';
 import type { TrackStorageMap } from '@/utils/trackStorageUtils';
 import { createEmptyTrackStorage } from '@/utils/trackStorageUtils';
 import { randomizeDrumTrack, randomizeMelodicTrack, seededRng } from '@/utils/patternRandomizer';
@@ -13,6 +14,18 @@ export interface SessionPack {
   description: string;
   session: SessionDocument;
   trackStorage: TrackStorageMap;
+  /** Instrument settings the pack's clips were written for, applied on load. */
+  instruments?: {
+    synthA?: Partial<SynthParams>;
+    synthB?: Partial<SynthParams>;
+  };
+}
+
+/** A factory macro patch as a part update; throws on an unknown id so a pack cannot ship a dangling one. */
+function macroPatch(id: string): Partial<SynthParams> {
+  const preset = getMacroPreset(id);
+  if (!preset) throw new Error(`session pack names unknown macro patch "${id}"`);
+  return macroPresetUpdate(preset);
 }
 
 function note(n: string, velocity = 0.9, extra?: Partial<Note>): Note {
@@ -176,11 +189,61 @@ export function createMinimalDrumLabPack(): SessionPack {
   };
 }
 
+/**
+ * Macro Palette — the macro engine's polyphony and models: step chords on a
+ * pad, a mono gliding bass, a modal-percussion line, over a light beat.
+ */
+export function createMacroPalettePack(): SessionPack {
+  const rng = seededRng(2424);
+  const storage = createEmptyTrackStorage();
+  const session = createDefaultSessionDocument();
+  const chord = (root: string, rest: string[], velocity = 0.8) => note(root, velocity, { chord: rest, length: 4 });
+
+  // SYNTH A: four-chord pad, one chord per bar (the part plays 8 voices).
+  putSlot(storage, 'partA', 0, seqFromNotes([
+    chord('A3', ['C4', 'E4', 'G4']), null, null, null, null, null, null, null,
+    chord('F3', ['A3', 'C4', 'E4']), null, null, null, null, null, null, null,
+    chord('C3', ['E3', 'G3', 'B3']), null, null, null, null, null, null, null,
+    chord('G3', ['B3', 'D4', 'F4']), null, null, null, null, null, null, null,
+  ]));
+  // …and a plucked line for the second scene.
+  putSlot(storage, 'partA', 1, randomizeMelodicTrack(NUM_STEPS, { root: 'A', scale: 'Minor', density: 0.45, rng }));
+  // SYNTH B: mono bass with slid steps gliding legato.
+  putSlot(storage, 'partB', 0, seqFromNotes([
+    note('A1'), null, note('A2', 0.7, { slide: true }), null, note('A1'), null, note('C2'), note('E2', 0.7, { slide: true }),
+    note('F1'), null, note('F2', 0.7, { slide: true }), null, note('F1'), null, note('A1'), null,
+    note('C2'), null, note('C3', 0.7, { slide: true }), null, note('C2'), null, note('E2'), null,
+    note('G1'), null, note('G2', 0.7, { slide: true }), null, note('G1'), note('B1'), note('D2'), note('F2', 0.7, { slide: true }),
+  ]));
+  putSlot(storage, 'kick', 0, seqFromNotes([note('C2'), null, null, null, note('C2'), null, null, null, note('C2'), null, null, null, note('C2'), null, null, null]));
+  putSlot(storage, 'closedHat', 0, randomizeDrumTrack(NUM_STEPS, { density: 0.4, euclidean: true, rng }));
+
+  nameClips(session, 'partA', ['Pad chords', 'Pluck line']);
+  nameClips(session, 'partB', ['Glide bass']);
+  nameClips(session, 'kick', ['Four']);
+  nameClips(session, 'closedHat', ['Hats']);
+  session.scenes[0].name = 'Chords';
+  session.scenes[1].name = 'Plucks';
+  wireScenes(session, 2);
+  return {
+    id: 'macro-palette',
+    name: 'Macro Palette',
+    description: 'Macro engine: 8-voice pad chords, a mono gliding bass and a plucked line — browse the 40+ patches from the Macro panel.',
+    session,
+    trackStorage: storage,
+    instruments: {
+      synthA: macroPatch('add-spectral-pad'),
+      synthB: macroPatch('va-square-bass'),
+    },
+  };
+}
+
 export const SESSION_PACKS: SessionPack[] = [
   createAcidLiveSetPack(),
   createVocalChopPack(),
   createDual303JamPack(),
   createMinimalDrumLabPack(),
+  createMacroPalettePack(),
 ];
 
 export function getSessionPack(id: string): SessionPack | undefined {

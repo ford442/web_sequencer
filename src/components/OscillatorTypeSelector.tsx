@@ -73,6 +73,7 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
             pyodide: 'bg-gradient-to-b from-yellow-500 to-yellow-600 text-white border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.35)]',
             webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_10px_rgba(217,70,239,0.35)]',
             wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.35)]',
+            macro: 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.35)]',
           };
 
           return (

@@ -61,6 +61,9 @@ export type AITargetedParameter =
   | 'pitch' | 'volume' | 'drive'
   // Delay parameters
   | 'delayTime' | 'delayFeedback' | 'delayMix'
+  // Macro engine knobs (synthA / synthB on a macro-* model; MACRO_AUTOMATION_TARGETS)
+  | 'macroHarmonics' | 'macroTimbre' | 'macroMorph' | 'macroDecay' | 'macroLpgColour'
+  | 'macroFmMod' | 'macroTimbreMod' | 'macroMorphMod' | 'macroGlide' | 'macroSpread'
   // Drum parameters
   | 'tone' | 'noise'
   // Sampler parameters
@@ -259,8 +262,8 @@ const VALID_AUTOMATION_TARGETS: AIAutomationTarget[] = [
 
 /** Valid parameters for each target */
 const VALID_PARAMETERS_BY_TARGET: Record<AIAutomationTarget, AITargetedParameter[]> = {
-  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
-  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix'],
+  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
+  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
   bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
   kick: ['pitch', 'decay', 'tone', 'volume'],
   snare: ['decay', 'tone', 'noise', 'volume'],
