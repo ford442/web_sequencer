@@ -41,7 +41,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
-| [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0): required fields, ignored fields, examples |
+| [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0 / v1.1 song mode): required fields, patterns + song rows, ignored fields, examples |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [docs/piano-roll.md](docs/piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |

@@ -1,0 +1,2191 @@
+{
+  "success": true,
+  "song": {
+    "version": 1,
+    "pattern": {
+      "partA": {
+        "steps": [
+          {
+            "note": "C3",
+            "velocity": 0.95,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          {
+            "note": "G3",
+            "velocity": 0.7,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "Eb3",
+            "velocity": 0.8,
+            "length": 1,
+            "slide": true,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C3",
+            "velocity": 0.9,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          {
+            "note": "Bb3",
+            "velocity": 0.7,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "F3",
+            "velocity": 0.85,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          {
+            "note": "G3",
+            "velocity": 0.8,
+            "length": 2,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      "partB": {
+        "steps": [
+          null,
+          null,
+          {
+            "note": "C4",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "Eb4",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          {
+            "note": "G4",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "Bb4",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          {
+            "note": "C5",
+            "velocity": 0.6,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "bass2": {
+        "steps": [
+          {
+            "note": "C1",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C1",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "Ab1",
+            "velocity": 0.8,
+            "length": 1,
+            "slide": true,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "F1",
+            "velocity": 0.8,
+            "length": 1,
+            "timbre": 1
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "kick": {
+        "steps": [
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "C2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null
+        ]
+      },
+      "snare": {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "D2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "D2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "D2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null
+        ]
+      },
+      "closedHat": {
+        "steps": [
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          {
+            "note": "F#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          }
+        ]
+      },
+      "openHat": {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "A#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "note": "A#2",
+            "velocity": 1,
+            "length": 1,
+            "timbre": 0.5
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "sampler": [
+        {
+          "steps": [
+            {
+              "note": "C4",
+              "velocity": 1,
+              "length": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C4",
+              "velocity": 0.8,
+              "length": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "D#4",
+              "velocity": 0.9,
+              "length": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "A4",
+              "velocity": 0.7,
+              "length": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "A4",
+              "velocity": 0.5,
+              "length": 1
+            },
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        }
+      ]
+    },
+    "params": {
+      "synthA": {
+        "waveform": "303-saw",
+        "pitch": 0,
+        "filterCutoff": 2200,
+        "filterResonance": 14,
+        "filterMode": 1,
+        "attack": 0.01,
+        "decay": 0.45,
+        "sustain": 0.5,
+        "release": 0.3,
+        "length": 0.25,
+        "volume": 0.9,
+        "delayTime": 0.3,
+        "delayFeedback": 0.2,
+        "delayMix": 0.15
+      },
+      "synthB": {
+        "waveform": "303-sqr",
+        "pitch": 0,
+        "filterCutoff": 4800,
+        "filterResonance": 6,
+        "filterMode": 1,
+        "attack": 0.01,
+        "decay": 0.3,
+        "sustain": 0.5,
+        "release": 0.3,
+        "length": 0.25,
+        "volume": 0.9,
+        "delayTime": 0.3,
+        "delayFeedback": 0.2,
+        "delayMix": 0
+      },
+      "bass2": {
+        "waveform": "303-sqr",
+        "pitch": 0,
+        "cutoff": 900,
+        "resonance": 20,
+        "filterMode": 1,
+        "decay": 0.6,
+        "accent": 0.7,
+        "envMod": 0.5,
+        "volume": 0.8
+      },
+      "kick": {
+        "pitch": 60,
+        "decay": 0.4,
+        "tone": 0.6,
+        "volume": 1
+      },
+      "snare": {
+        "decay": 0.3,
+        "tone": 250,
+        "noise": 3000,
+        "volume": 0.9
+      },
+      "closedHat": {
+        "pitch": 10000,
+        "decay": 0.1,
+        "volume": 0.8
+      },
+      "openHat": {
+        "pitch": 8000,
+        "decay": 0.4,
+        "volume": 0.8
+      },
+      "sampler": [
+        {
+          "sampleName": "three four",
+          "playbackSpeed": 1,
+          "volume": 0.9,
+          "filterCutoff": 12000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "sample://fixture/clap",
+          "playbackSpeed": 1.25,
+          "volume": 0.6,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        },
+        {
+          "sampleName": "empty",
+          "playbackSpeed": 1,
+          "volume": 1,
+          "filterCutoff": 20000,
+          "filterResonance": 0,
+          "drive": 0,
+          "delaySend": 0
+        }
+      ]
+    },
+    "trackStorage": {
+      "partA": [
+        {
+          "steps": [
+            {
+              "note": "C3",
+              "velocity": 0.95,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            {
+              "note": "G3",
+              "velocity": 0.7,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "Eb3",
+              "velocity": 0.8,
+              "length": 1,
+              "slide": true,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C3",
+              "velocity": 0.9,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            {
+              "note": "Bb3",
+              "velocity": 0.7,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "F3",
+              "velocity": 0.85,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            {
+              "note": "G3",
+              "velocity": 0.8,
+              "length": 2,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "partB": [
+        {
+          "steps": [
+            null,
+            null,
+            {
+              "note": "C4",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "Eb4",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            {
+              "note": "G4",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "Bb4",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            {
+              "note": "C5",
+              "velocity": 0.6,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bass2": [
+        {
+          "steps": [
+            {
+              "note": "C1",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C1",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "Ab1",
+              "velocity": 0.8,
+              "length": 1,
+              "slide": true,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "F1",
+              "velocity": 0.8,
+              "length": 1,
+              "timbre": 1
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "kick": [
+        {
+          "steps": [
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "C2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "snare": [
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "D2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "D2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "D2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "closedHat": [
+        {
+          "steps": [
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            {
+              "note": "F#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            }
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "openHat": [
+        {
+          "steps": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "A#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "note": "A#2",
+              "velocity": 1,
+              "length": 1,
+              "timbre": 0.5
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "sampler": [
+        [
+          {
+            "steps": [
+              {
+                "note": "C4",
+                "velocity": 1,
+                "length": 1
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              {
+                "note": "C4",
+                "velocity": 0.8,
+                "length": 1
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              {
+                "note": "D#4",
+                "velocity": 0.9,
+                "length": 1
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              {
+                "note": "A4",
+                "velocity": 0.7,
+                "length": 1
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              {
+                "note": "A4",
+                "velocity": 0.5,
+                "length": 1
+              },
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          {
+            "steps": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+        ],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "activeTrackSlots": {
+      "partA": 0,
+      "partB": 0,
+      "bass2": 0,
+      "kick": 0,
+      "snare": 0,
+      "closedHat": 0,
+      "openHat": 0,
+      "sampler": 0
+    },
+    "songStructure": [],
+    "tempo": 96,
+    "timeSignature": [
+      3,
+      4
+    ],
+    "swing": 62,
+    "ambianceUrl": "",
+    "backgroundImage": "",
+    "automationLanes": [
+      {
+        "id": "<lane-id>",
+        "target": "synthA",
+        "parameter": "filterCutoff",
+        "name": "synthA filterCutoff",
+        "points": [
+          {
+            "step": 0,
+            "value": 0.1889763779527559
+          },
+          {
+            "step": 1,
+            "value": 0.1968503937007874
+          },
+          {
+            "step": 2,
+            "value": 0.2204724409448819
+          },
+          {
+            "step": 3,
+            "value": 0.25984251968503935
+          },
+          {
+            "step": 4,
+            "value": 0.30708661417322836
+          },
+          {
+            "step": 5,
+            "value": 0.3700787401574803
+          },
+          {
+            "step": 6,
+            "value": 0.4409448818897638
+          },
+          {
+            "step": 7,
+            "value": 0.5118110236220472
+          },
+          {
+            "step": 8,
+            "value": 0.5984251968503937
+          },
+          {
+            "step": 9,
+            "value": 0.6771653543307087
+          },
+          {
+            "step": 10,
+            "value": 0.7480314960629921
+          },
+          {
+            "step": 11,
+            "value": 0.8188976377952756
+          },
+          {
+            "step": 12,
+            "value": 0.8818897637795275
+          },
+          {
+            "step": 13,
+            "value": 0.9291338582677166
+          },
+          {
+            "step": 14,
+            "value": 0.968503937007874
+          },
+          {
+            "step": 15,
+            "value": 0.9921259842519685
+          },
+          {
+            "step": 16,
+            "value": 1
+          },
+          {
+            "step": 17,
+            "value": 0.9921259842519685
+          },
+          {
+            "step": 18,
+            "value": 0.968503937007874
+          },
+          {
+            "step": 19,
+            "value": 0.9291338582677166
+          },
+          {
+            "step": 20,
+            "value": 0.8818897637795275
+          },
+          {
+            "step": 21,
+            "value": 0.8188976377952756
+          },
+          {
+            "step": 22,
+            "value": 0.7480314960629921
+          },
+          {
+            "step": 23,
+            "value": 0.6771653543307087
+          },
+          {
+            "step": 24,
+            "value": 0.5984251968503937
+          },
+          {
+            "step": 25,
+            "value": 0.5118110236220472
+          },
+          {
+            "step": 26,
+            "value": 0.4409448818897638
+          },
+          {
+            "step": 27,
+            "value": 0.3700787401574803
+          },
+          {
+            "step": 28,
+            "value": 0.30708661417322836
+          },
+          {
+            "step": 29,
+            "value": 0.25984251968503935
+          },
+          {
+            "step": 30,
+            "value": 0.2204724409448819
+          },
+          {
+            "step": 31,
+            "value": 0.1968503937007874
+          }
+        ],
+        "interpolation": "linear",
+        "source": "ai",
+        "scope": "song",
+        "enabled": true,
+        "originalRange": [
+          0,
+          127
+        ]
+      },
+      {
+        "id": "<lane-id>",
+        "target": "synthB",
+        "parameter": "filterResonance",
+        "name": "synthB filterResonance",
+        "points": [
+          {
+            "step": 0,
+            "value": 0.15748031496062992
+          },
+          {
+            "step": 4,
+            "value": 0.25984251968503935
+          },
+          {
+            "step": 8,
+            "value": 0.36220472440944884
+          },
+          {
+            "step": 12,
+            "value": 0.4645669291338583
+          },
+          {
+            "step": 16,
+            "value": 0.5669291338582677
+          },
+          {
+            "step": 20,
+            "value": 0.6692913385826772
+          },
+          {
+            "step": 24,
+            "value": 0.7637795275590551
+          },
+          {
+            "step": 28,
+            "value": 0.8661417322834646
+          }
+        ],
+        "interpolation": "smooth",
+        "source": "ai",
+        "scope": "song",
+        "enabled": true,
+        "originalRange": [
+          0,
+          127
+        ]
+      },
+      {
+        "id": "<lane-id>",
+        "target": "bass2",
+        "parameter": "decay",
+        "name": "bass2 decay",
+        "points": [
+          {
+            "step": 0,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 1,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 2,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 3,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 4,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 5,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 6,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 7,
+            "value": 0.23622047244094488
+          },
+          {
+            "step": 8,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 9,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 10,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 11,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 12,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 13,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 14,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 15,
+            "value": 0.5511811023622047
+          },
+          {
+            "step": 16,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 17,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 18,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 19,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 20,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 21,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 22,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 23,
+            "value": 0.7874015748031497
+          },
+          {
+            "step": 24,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 25,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 26,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 27,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 28,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 29,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 30,
+            "value": 0.4330708661417323
+          },
+          {
+            "step": 31,
+            "value": 0.4330708661417323
+          }
+        ],
+        "interpolation": "step",
+        "source": "ai",
+        "scope": "song",
+        "enabled": true,
+        "originalRange": [
+          0,
+          127
+        ]
+      }
+    ]
+  },
+  "report": {
+    "tracksConverted": 8,
+    "notesConverted": 21,
+    "warnings": [],
+    "mappedParams": [
+      {
+        "source": "AI.params",
+        "target": "SynthParams",
+        "value": {
+          "waveform": "303-saw",
+          "filterCutoff": 2200,
+          "filterResonance": 14,
+          "decay": 0.45,
+          "delayMix": 0.15
+        }
+      },
+      {
+        "source": "AI.params",
+        "target": "SynthParams",
+        "value": {
+          "waveform": "303-sqr",
+          "filterCutoff": 4800,
+          "filterResonance": 6
+        }
+      },
+      {
+        "source": "AI.params",
+        "target": "SynthParams",
+        "value": {
+          "waveform": "303-sqr",
+          "filterCutoff": 900,
+          "filterResonance": 20,
+          "decay": 0.6,
+          "volume": 0.8
+        }
+      },
+      {
+        "source": "automation.synthA.filterCutoff",
+        "target": "partA.filterCutoff",
+        "value": "32 points"
+      },
+      {
+        "source": "automation.synthB.filterResonance",
+        "target": "partB.filterResonance",
+        "value": "8 points"
+      },
+      {
+        "source": "automation.bass2.decay",
+        "target": "bass2.decay",
+        "value": "32 points"
+      }
+    ]
+  }
+}

@@ -615,6 +615,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
 
             // Load the song data using existing loadCloudData logic
             await loadCloudData(song, 'song');
+            // A v1.1 song with an arrangement plays it, like an imported .rbs / SMF song.
+            if (song.songStructure.length > 1) {
+                deps.setIsSongModeActive?.(true);
+            }
 
             // Complete
             setAiImportProgress(100);
@@ -660,7 +664,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Re-throw so modal can handle retry if needed
             throw error;
         }
-    }, [loadCloudData, showToast, setIsAISongModalOpen]);
+    }, [loadCloudData, showToast, setIsAISongModalOpen, deps]);
 
     // ---- RBS Import ----
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {

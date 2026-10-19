@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { AISongData } from '../../importers/ai-song';
+import { primaryAITracks } from '../../importers/ai-song/songBlock';
 import type { TrackStats } from '../../types/aiSongModal';
 
 export function useAISongPreviewElements(parsedData: AISongData | null, trackStats: TrackStats | null) {
@@ -21,13 +22,13 @@ export function useAISongPreviewElements(parsedData: AISongData | null, trackSta
   )) as React.ReactElement[], [noteCountEntries]);
 
   const parsedTracksElements = useMemo(() => {
-    if (!parsedData?.tracks) return null;
-    return Object.keys(parsedData.tracks).map(track => (
+    if (!parsedData) return null;
+    return Object.keys(primaryAITracks(parsedData)).map(track => (
       <span key={track} className="px-1.5 py-0.5 bg-emerald-500/10 rounded text-emerald-400/70 text-[10px]">
         {track}
       </span>
     ));
-  }, [parsedData?.tracks]);
+  }, [parsedData]);
 
   const parsedAutomationLanesList = useMemo(() => {
     if (!parsedData?.automation) return null;

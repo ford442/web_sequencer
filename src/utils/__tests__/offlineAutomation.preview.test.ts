@@ -87,7 +87,7 @@ class RecordingOfflineContext {
     startRendering() { return Promise.resolve(this.createBuffer(this.numberOfChannels, this.length, this.sampleRate)); }
 }
 
-const STEP_OF_SYNTH_A_NOTE = (fullSong as unknown as AISongData).tracks.synthA!.notes.map((n) => n.step);
+const STEP_OF_SYNTH_A_NOTE = (fullSong as unknown as AISongData).tracks!.synthA!.notes.map((n) => n.step);
 const CUTOFF_LANE = (fullSong as unknown as AISongData).automation!.find(
     (lane) => lane.target === 'synthA' && lane.parameter === 'filterCutoff',
 )!.steps as number[];

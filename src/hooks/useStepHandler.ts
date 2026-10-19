@@ -26,8 +26,8 @@ import type { AutomationTarget, UnifiedAutomationLane } from '../types';
 // ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
 // Resolved like the scheduler and the offline renders (laneResolver, #1384):
 // enabled, in scope for the playing pattern, first lane with a value wins.
-const getAutomationValue = (target: AutomationTarget, param: string, step: number, patternIndex: number): number | undefined =>
-    resolveParamAtStep(automationStore.getLanesForParam(target, param), step, patternIndex) ?? undefined;
+const getAutomationValue = (target: AutomationTarget, param: string, step: number, patternIndex: number, songStep?: number): number | undefined =>
+    resolveParamAtStep(automationStore.getLanesForParam(target, param), step, patternIndex, songStep) ?? undefined;
 
 
 
@@ -38,7 +38,7 @@ const getAutomationValue = (target: AutomationTarget, param: string, step: numbe
 import { isE2eMode, recordE2eDrumHit, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
 import { scheduleAtAudioTime } from '../midi/clock/scheduleAtAudioTime';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
-import { isLaneActive, resolveParamAtStep } from '../audio/automation/laneResolver';
+import { isLaneActive, laneReadStep, resolveParamAtStep } from '../audio/automation/laneResolver';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 import {
     playbackHealthMonitor,
@@ -450,6 +450,9 @@ export const useStepHandler = ({
         // Off the linear player (pattern / session): the timeline playhead hides.
         if (!arrangementSteps && arrangementPlayhead.get() >= 0) atStepTime(() => arrangementPlayhead.publish(-1));
 
+        // Song position song-timeline lanes are read at (linear player only).
+        const laneSongStep = arrangementSteps ? songPosRef.current : undefined;
+
         const p = activePattern;
         const stepTime = 60 / tempo / 4;
         // Step each track reads: its own loop when it has a length override.
@@ -512,11 +515,11 @@ export const useStepHandler = ({
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
             // These override per-step; values are already 0-1 normalized (playSynth scales to Hz/Q)
             const targetForLane: 'synthA' | 'synthB' = trackKey === 'partA' ? 'synthA' : 'synthB';
-            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step, lanePatternIndex());
+            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step, lanePatternIndex(), laneSongStep);
             if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
-            const resVal = getAutomationValue(targetForLane, 'filterResonance', step, lanePatternIndex());
+            const resVal = getAutomationValue(targetForLane, 'filterResonance', step, lanePatternIndex(), laneSongStep);
             if (resVal !== undefined) noteParams.filterResonance = resVal;
-            const driveVal = getAutomationValue(targetForLane, 'drive', step, lanePatternIndex());
+            const driveVal = getAutomationValue(targetForLane, 'drive', step, lanePatternIndex(), laneSongStep);
             if (driveVal !== undefined) noteParams.drive = driveVal;
             return noteParams;
         };
@@ -611,11 +614,11 @@ export const useStepHandler = ({
         const bass2NoteParamsFor = (stepData: Note): SynthNoteParams => {
             const bass2NoteParams: SynthNoteParams = {};
             if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
-            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step, lanePatternIndex());
+            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step, lanePatternIndex(), laneSongStep);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
-            const b2Res = getAutomationValue('bass2', 'filterResonance', step, lanePatternIndex());
+            const b2Res = getAutomationValue('bass2', 'filterResonance', step, lanePatternIndex(), laneSongStep);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
-            const b2Drive = getAutomationValue('bass2', 'drive', step, lanePatternIndex());
+            const b2Drive = getAutomationValue('bass2', 'drive', step, lanePatternIndex(), laneSongStep);
             if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
             return bass2NoteParams;
         };
@@ -721,11 +724,11 @@ export const useStepHandler = ({
             bankParams.lockToSequencer = voiceParams.lockToSequencer;
 
             // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
-            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step, lanePatternIndex());
+            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step, lanePatternIndex(), laneSongStep);
             if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
-            const sampRes = getAutomationValue('sampler', 'filterResonance', step, lanePatternIndex());
+            const sampRes = getAutomationValue('sampler', 'filterResonance', step, lanePatternIndex(), laneSongStep);
             if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
-            const sampVol = getAutomationValue('sampler', 'volume', step, lanePatternIndex());
+            const sampVol = getAutomationValue('sampler', 'volume', step, lanePatternIndex(), laneSongStep);
             if (sampVol !== undefined) (bankParams as any).volume = sampVol;
             return bankParams as SamplerBankParams;
         };
@@ -858,7 +861,7 @@ export const useStepHandler = ({
                     continue;
                 }
 
-                const normVal = automationStore.getValueAtStep(lane, step);
+                const normVal = automationStore.getValueAtStep(lane, laneReadStep(lane, step, laneSongStep));
                 if (normVal === null) continue;
 
                 // Track for UI automation indicators
@@ -904,12 +907,13 @@ export const useStepHandler = ({
                     step,
                     1,          // schedule one step ahead
                     stepTime,
-                    time
+                    time,
+                    laneSongStep
                 );
                 // Collect live values from these lanes for UI indicators.
                 for (let i = 0; i < schedulerLanes.length; i++) {
                     const lane = schedulerLanes[i];
-                    const normVal = automationStore.getValueAtStep(lane, step);
+                    const normVal = automationStore.getValueAtStep(lane, laneReadStep(lane, step, laneSongStep));
                     if (normVal === null) continue;
                     const cacheKey = `${lane.target}:${lane.parameter}`;
                 if (liveValues[cacheKey] === undefined) _liveValuesKeys.push(cacheKey);

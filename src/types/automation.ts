@@ -90,6 +90,14 @@ export interface UnifiedAutomationLane {
   scope: AutomationScope;
   /** Pattern index this lane belongs to (when scope='pattern') */
   patternIndex?: number;
+  /**
+   * `'song'`: point steps are song positions (`measure * stepCount + step`),
+   * read at the song position while Song Mode plays — a lane that changes
+   * from measure to measure (AI song v1.1 pattern lanes). Outside Song Mode
+   * it is read at the pattern step, i.e. it plays its first measure.
+   * Absent: point steps are pattern steps and the lane repeats every measure.
+   */
+  timeline?: 'song';
   /** Whether the lane is enabled for playback */
   enabled: boolean;
   /**

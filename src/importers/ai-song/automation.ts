@@ -27,6 +27,10 @@ import type {
   AISongData 
 } from './types';
 import type { AutomationPoint } from '../../types';
+import type { ResolvedAISongBlock } from './songBlock';
+import { EXAMPLE_WITH_AUTOMATION } from './automationExample';
+
+export { EXAMPLE_WITH_AUTOMATION };
 
 // ============================================================================
 // CONSTANTS
@@ -289,6 +293,133 @@ export function mapTargetToTrackKey(target: AIAutomationTarget): string {
 }
 
 // ============================================================================
+// SONG TIMELINE (v1.1 pattern-local lanes)
+// ============================================================================
+
+/** A pattern-local lane laid out on the song timeline. */
+export interface TiledAutomationLane {
+  target: AIAutomationTarget;
+  parameter: AITargetedParameter;
+  interpolation: AIInterpolationMode;
+  /** Song-timeline steps (`measure * stepCount + step`), values in [0, 1]. */
+  points: AutomationPoint[];
+}
+
+/** Pattern lane on one target/parameter, by pattern id. */
+type LaneByPattern = Map<string, { lane: AIAutomationLane; index: number }>;
+
+/**
+ * The pattern whose lane plays on `target` in one measure: the pattern its
+ * track plays, or for `master` the first track (in row order) whose pattern
+ * has the lane.
+ */
+function contributingPattern(
+  block: ResolvedAISongBlock,
+  measure: number,
+  target: AIAutomationTarget,
+  lanes: LaneByPattern,
+): string | null {
+  const row = block.measures[measure];
+  const tracks = target === 'master' ? (Object.keys(row) as (keyof typeof row)[]) : [target];
+  for (const track of tracks) {
+    const slot = row[track];
+    if (slot === null) continue;
+    const id = block.slots[track][slot];
+    if (lanes.has(id)) return id;
+  }
+  return null;
+}
+
+/**
+ * Tile pattern-local lanes across the measures that play their pattern, as
+ * one song-timeline lane per `target.parameter`.
+ *
+ * Each occurrence plays the way the lane plays when its pattern loops: it
+ * holds its first value up to its first point and its last value after its
+ * last point, so a lane is padded with a point at the occurrence's first and
+ * last step when it has none there. Between occurrences the lane holds the
+ * value the last one ended on (a point on the gap's last step stops a
+ * `linear` / `smooth` lane from ramping across measures it does not play).
+ *
+ * @returns the tiled lanes plus warnings for lanes that never play
+ */
+export function tilePatternAutomation(
+  block: ResolvedAISongBlock,
+): { lanes: TiledAutomationLane[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const byKey = new Map<string, LaneByPattern>();
+  for (const [id, pattern] of Object.entries(block.patterns)) {
+    (pattern.automation ?? []).forEach((lane, index) => {
+      const key = `${lane.target}.${lane.parameter}`;
+      const lanes = byKey.get(key) ?? new Map();
+      lanes.set(id, { lane, index });
+      byKey.set(key, lanes);
+    });
+  }
+
+  const steps = block.stepCount;
+  const tiled: Array<TiledAutomationLane & { firstMeasure: number }> = [];
+
+  for (const [key, lanes] of byKey) {
+    const [target, parameter] = key.split('.') as [AIAutomationTarget, AITargetedParameter];
+    const points: AutomationPoint[] = [];
+    const heard = new Set<string>();
+    let interpolation: AIInterpolationMode | null = null;
+    let firstMeasure = -1;
+    let lastMeasure = -1;
+
+    for (let m = 0; m < block.measures.length; m++) {
+      const id = contributingPattern(block, m, target, lanes);
+      if (id === null) continue;
+      const { lane } = lanes.get(id)!;
+      const values = convertAutomationToPoints(lane).map((p) => ({
+        step: p.step,
+        value: Math.max(0, Math.min(1, p.value)),
+      }));
+      if (values.length === 0) continue;
+
+      const mode = lane.interpolation ?? 'step';
+      if (interpolation === null) {
+        interpolation = mode;
+        firstMeasure = m;
+      } else if (mode !== interpolation && !heard.has(id)) {
+        warnings.push(
+          `patterns.${id} ${key} uses "${mode}" interpolation; the tiled lane uses "${interpolation}" from its first pattern.`,
+        );
+      }
+      heard.add(id);
+
+      const base = m * steps;
+      const gap = lastMeasure >= 0 && m > lastMeasure + 1;
+      if (gap) {
+        points.push({ step: base - 1, value: points[points.length - 1].value });
+      }
+      if (values[0].step > 0) points.push({ step: base, value: values[0].value });
+      for (const p of values) points.push({ step: base + p.step, value: p.value });
+      const last = values[values.length - 1];
+      if (last.step < steps - 1) points.push({ step: base + steps - 1, value: last.value });
+      lastMeasure = m;
+    }
+
+    for (const [id, { index }] of lanes) {
+      if (!heard.has(id) && !block.unusedPatterns.includes(id)) {
+        const where = target === 'master' ? 'any track' : target;
+        warnings.push(
+          `patterns.${id}.automation[${index}] (${key}) never plays: no measure plays pattern ${id} on ${where}.`,
+        );
+      }
+    }
+
+    if (interpolation !== null) {
+      tiled.push({ target, parameter, interpolation, points, firstMeasure });
+    }
+  }
+
+  tiled.sort((a, b) => a.firstMeasure - b.firstMeasure);
+  return { lanes: tiled.map(({ firstMeasure: _, ...lane }) => lane), warnings };
+}
+
+// ============================================================================
 // SUMMARY & METADATA
 // ============================================================================
 
@@ -399,10 +530,10 @@ export function getValidParametersForTarget(target: AIAutomationTarget): readonl
 export function determinePatternLength(tracks: AISongData['tracks']): number {
   // Check drum tracks for length
   const drumTracks: (boolean[] | undefined)[] = [
-    tracks.kick, 
-    tracks.snare, 
-    tracks.closedHat, 
-    tracks.openHat
+    tracks?.kick,
+    tracks?.snare,
+    tracks?.closedHat,
+    tracks?.openHat
   ];
   
   for (const track of drumTracks) {
@@ -507,83 +638,6 @@ export function interpolateAutomation(
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
-
-// ============================================================================
-// EXAMPLE DATA
-// ============================================================================
-
-/**
- * Example AI Song with automation for documentation and testing.
- * 
- * Demonstrates filter sweeps on synthA and delay mix automation on synthB.
- */
-export const EXAMPLE_WITH_AUTOMATION: AISongData = {
-  meta: { 
-    title: "Acid with Filter Sweep", 
-    author: "AI Demo", 
-    version: "1.0", 
-    createdAt: "2024-03-06T12:00:00Z", 
-    generator: "claude-3-opus", 
-    prompt: "Acid techno with filter automation",
-    tags: ["techno", "acid", "automation"]
-  },
-  globals: { 
-    tempo: 130, 
-    timeSignature: [4, 4], 
-    swing: 52 
-  },
-  tracks: {
-    synthA: { 
-      notes: [
-        {step: 0, note: "C2", velocity: 0.9, accent: true},
-        {step: 2, note: "C2"},
-        {step: 4, note: "Eb2", accent: true, slide: true},
-        {step: 6, note: "F2"},
-        {step: 8, note: "C2", accent: true},
-        {step: 12, note: "G2", accent: true, slide: true},
-        {step: 14, note: "Bb2"}
-      ], 
-      params: { 
-        waveform: "303-saw", 
-        filterCutoff: 1500, 
-        filterResonance: 18, 
-        decay: 0.4
-      } 
-    },
-    kick: [
-      true, false, false, false, true, false, false, false,
-      true, false, false, false, true, false, false, false
-    ],
-    snare: [
-      false, false, false, false, true, false, false, false,
-      false, false, false, false, true, false, false, false
-    ],
-    closedHat: [
-      false, true, false, true, false, true, false, true,
-      false, true, false, true, false, true, false, true
-    ]
-  },
-  automation: [
-    {
-      target: 'synthA',
-      parameter: 'filterCutoff',
-      steps: [
-        100, 110, 120, 127, 120, 110, 100, 90,
-        null, null, 100, 110, 120, 127, 120, 100
-      ],
-      interpolation: 'linear'
-    },
-    {
-      target: 'synthB',
-      parameter: 'delayMix',
-      steps: [
-        0, 0, 10, 20, 30, 40, 50, 60,
-        70, 80, 90, 100, 100, 100, 80, 60
-      ],
-      interpolation: 'smooth'
-    }
-  ]
-};
 
 export default {
   validateAutomation,

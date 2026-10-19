@@ -12,7 +12,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | File | Summary |
 |------|---------|
 | [automation.md](automation.md) | Current automation scheduler + RBS import architecture and testing touchpoints |
-| [ai-song-format.md](ai-song-format.md) | AI song JSON schema (`AISongData` v1.0): required fields, ignored fields, examples |
+| [ai-song-format.md](ai-song-format.md) | AI song JSON schema (`AISongData` v1.0 / v1.1 song mode): required fields, patterns + song rows, ignored fields, examples |
 | [session-launcher.md](session-launcher.md) | Session / clip launcher: schema, quantization, capture, MIDI/gamepad |
 | [arrangement.md](arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [piano-roll.md](piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |

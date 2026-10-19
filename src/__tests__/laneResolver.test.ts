@@ -152,6 +152,24 @@ describe('laneResolver', () => {
     expect(resolveParamAtStep([scoped], 0, 0)).toBeNull();
   });
 
+  it('reads a song-timeline lane at the song step, and a plain lane at the pattern step', () => {
+    // Measure 1 of a 16-step song ramps 0 → 1; measure 0 holds 0.
+    const timeline = lane({ timeline: 'song', points: [{ step: 16, value: 0 }, { step: 31, value: 1 }] });
+    const plain = lane({ parameter: 'filterResonance' });
+
+    expect(resolveParamAtStep([timeline], 15, 0, 31)).toBe(1);
+    expect(resolveParamAtStep([timeline], 15, 0, 15)).toBe(0);
+    // No song position (pattern mode): the lane's first measure plays.
+    expect(resolveParamAtStep([timeline], 15, 0)).toBe(0);
+    // A plain lane ignores the song position and repeats every measure.
+    expect(resolveParamAtStep([plain], 15, 0, 31)).toBe(1);
+
+    const resolved = resolveLaneTimeline([timeline, plain], { totalSteps: 32, stepCount: 16, songMode: true });
+    const cutoff = (g: number) => resolved[g].find((v) => v.lane.parameter === 'filterCutoff')?.value;
+    expect(cutoff(15)).toBe(0);
+    expect(cutoff(31)).toBe(1);
+  });
+
   it('reports master PCF lanes as not rendered — the live chain never builds a PcfEffect', () => {
     const pcf = lane({ target: 'master', parameter: 'pcfCutoff' });
     const { report } = resolveSynthLaneAutomation(

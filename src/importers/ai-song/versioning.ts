@@ -5,7 +5,26 @@
  * and manages the version tree for AI-generated songs.
  */
 
-import type { AISongData } from './types';
+import type { AISongData, AISongFormatVersion } from './types';
+import { primaryAITracks } from './songBlock';
+
+// ============================================================================
+// FORMAT VERSIONS
+// ============================================================================
+
+/**
+ * `meta.version` values the importer reads. 1.0 = one pattern; 1.1 adds the
+ * optional song block (`patterns`, `song`, `globals.stepCount`). Anything
+ * else is `UNSUPPORTED_VERSION`.
+ */
+export const AI_SONG_FORMAT_VERSIONS: readonly AISongFormatVersion[] = ['1.0', '1.1'];
+
+/** The version new songs should declare. */
+export const CURRENT_AI_SONG_FORMAT_VERSION: AISongFormatVersion = '1.1';
+
+export function isSupportedAISongVersion(version: unknown): version is AISongFormatVersion {
+  return AI_SONG_FORMAT_VERSIONS.includes(version as AISongFormatVersion);
+}
 
 // ============================================================================
 // VERSION TYPES
@@ -224,6 +243,8 @@ const STEPS_PER_ROW = 4; // 32 steps / 8 rows = 4 steps per row
  * @returns Preview data for display
  */
 export function generatePreviewData(aiSong: AISongData): PreviewData {
+  // A v1.1 song previews the pattern it opens with.
+  const songTracks = primaryAITracks(aiSong);
   const warnings: string[] = [];
   const trackSummary: PreviewData['trackSummary'] = [];
   let totalNotes = 0;
@@ -231,9 +252,9 @@ export function generatePreviewData(aiSong: AISongData): PreviewData {
 
   // Calculate track summaries
   const tracks = [
-    { key: 'synthA', name: 'Synth A', data: aiSong.tracks.synthA },
-    { key: 'synthB', name: 'Synth B', data: aiSong.tracks.synthB },
-    { key: 'bass2', name: 'Bass 2', data: aiSong.tracks.bass2 },
+    { key: 'synthA', name: 'Synth A', data: songTracks.synthA },
+    { key: 'synthB', name: 'Synth B', data: songTracks.synthB },
+    { key: 'bass2', name: 'Bass 2', data: songTracks.bass2 },
   ] as const;
 
   for (const track of tracks) {
@@ -252,10 +273,10 @@ export function generatePreviewData(aiSong: AISongData): PreviewData {
 
   // Count drum hits
   const drumTracks = [
-    { key: 'kick', name: 'Kick', data: aiSong.tracks.kick },
-    { key: 'snare', name: 'Snare', data: aiSong.tracks.snare },
-    { key: 'closedHat', name: 'Closed Hat', data: aiSong.tracks.closedHat },
-    { key: 'openHat', name: 'Open Hat', data: aiSong.tracks.openHat },
+    { key: 'kick', name: 'Kick', data: songTracks.kick },
+    { key: 'snare', name: 'Snare', data: songTracks.snare },
+    { key: 'closedHat', name: 'Closed Hat', data: songTracks.closedHat },
+    { key: 'openHat', name: 'Open Hat', data: songTracks.openHat },
   ] as const;
 
   for (const track of drumTracks) {
@@ -273,8 +294,8 @@ export function generatePreviewData(aiSong: AISongData): PreviewData {
   }
 
   // Count sampler notes
-  if (aiSong.tracks.sampler) {
-    for (const bank of aiSong.tracks.sampler) {
+  if (songTracks.sampler) {
+    for (const bank of songTracks.sampler) {
       const noteCount = bank.steps.length;
       const density = noteCount / NUM_STEPS;
       trackSummary.push({
@@ -344,8 +365,8 @@ export function generatePreviewData(aiSong: AISongData): PreviewData {
   }
 
   // Mark sampler notes
-  if (aiSong.tracks.sampler) {
-    for (const bank of aiSong.tracks.sampler) {
+  if (songTracks.sampler) {
+    for (const bank of songTracks.sampler) {
       for (const note of bank.steps) {
         if (note.step >= 0 && note.step < NUM_STEPS) {
           patternGrid[Math.floor(note.step / STEPS_PER_ROW)][note.step] = true;
