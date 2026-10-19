@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Sampler custom grain envelope now applies
+- The drawn **custom grain envelope** (sampler knobs and per-note override) was saved but never reached the worklet: playback never sent it, and the message omitted the `data` wrapper the worklet reads. Both are fixed, so grain envelopes users drew and saved will now be audible in granular / frozen playback.
+
 ### Macro engine family — 24 Plaits models on SYNTH A / B
 - **New `macro-*` waveforms**: virtual analog, waveshaping, 2-op and 6-op FM, granular formant, harmonic, wavetable, chords, speech, swarm, filtered / particle noise, inharmonic string, modal resonator, analog drums, and the extended bank (filtered VA, phase distortion, wave terrain, string machine, chiptune) — the Mutable Instruments Plaits DSP (MIT), vendored as pinned submodules and compiled into `hyphon_native.wasm` (+218 KiB). See [macro-voices.md](docs/audio-engine/macro-voices.md).
 - **8-voice polyphony per part**: step chords play as chords; mono mode glides slid steps legato. Stereo from the AUX output.
