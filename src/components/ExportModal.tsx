@@ -66,7 +66,15 @@ function describeExportWarning(report: StemExportReport | null): string | null {
     if (!report) return null;
     const vocal = formatOfflineVocalWarning(report.vocalOffline);
     const master = describeMasterWarning(report);
-    return [vocal, master].filter(Boolean).join(' ') || null;
+    const lanes = describeAutomationWarning(report);
+    return [vocal, master, lanes].filter(Boolean).join(' ') || null;
+}
+
+function describeAutomationWarning(report: StemExportReport): string | null {
+    const skipped = report.automation?.notRendered ?? [];
+    if (skipped.length === 0) return null;
+    return `${skipped.length} automation lane${skipped.length === 1 ? '' : 's'} could not be rendered `
+        + `(${skipped.map((skip) => skip.lane).join(', ')}) — see metadata.json.`;
 }
 
 function describeMasterWarning(report: StemExportReport): string | null {

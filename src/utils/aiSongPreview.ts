@@ -29,6 +29,12 @@ import {
     type OfflineGraphReport,
 } from '../audio/offline/compileOfflineGraph';
 import { resolveExportSampleRate, type SampleRatePref } from './audioContextPolicy';
+import {
+    resolveSynthLaneAutomation,
+    type OfflineAutomationReport,
+} from '../audio/offline/offlineLaneAutomation';
+import type { Open303LaneTarget } from '../audio/automation/laneResolver';
+import { NUM_STEPS } from '../constants';
 
 /** Steps in one bar of the 32-step (two-bar) pattern grid. */
 export const STEPS_PER_BAR = 16;
@@ -61,6 +67,8 @@ export interface AISongPreviewResult {
     slots: AISongPreviewSlot[];
     /** Patch, rate and WAM2 offline support of the graph it rendered through. */
     graph: OfflineGraphReport;
+    /** Song automation lanes the preview plays, and the ones it cannot (#1384). */
+    automation: OfflineAutomationReport;
 }
 
 export interface AISongPreviewOptions {
@@ -172,9 +180,9 @@ export async function renderAISongPreview(
         }
     };
 
-    const synthTracks: Array<{ slot: string; sequence: PartSequence; params: SynthParams }> = [
-        { slot: 'synthA', sequence: takeSteps(pattern.partA, steps), params: song.params.synthA },
-        { slot: 'synthB', sequence: takeSteps(pattern.partB, steps), params: song.params.synthB },
+    const synthTracks: Array<{ slot: Open303LaneTarget; sequence: PartSequence; params: SynthParams; waveform: string }> = [
+        { slot: 'synthA', sequence: takeSteps(pattern.partA, steps), params: song.params.synthA, waveform: song.params.synthA.waveform },
+        { slot: 'synthB', sequence: takeSteps(pattern.partB, steps), params: song.params.synthB, waveform: song.params.synthB.waveform },
     ];
     // bass2 is optional on a saved song: a preview of a song without it plays
     // the other tracks rather than failing.
@@ -183,8 +191,16 @@ export async function renderAISongPreview(
             slot: 'bass2',
             sequence: takeSteps(pattern.bass2, steps),
             params: bass2ToSynthParams(song.params.bass2),
+            waveform: song.params.bass2.waveform,
         });
     }
+
+    // The song's automation lanes, as live playback plays them in pattern mode.
+    const automation = resolveSynthLaneAutomation(
+        song.automationLanes ?? [],
+        { totalSteps: steps, stepCount: song.stepCount ?? NUM_STEPS, songMode: false },
+        synthTracks.map((track) => ({ target: track.slot, waveform: track.waveform })),
+    );
 
     for (const track of synthTracks) {
         await renderTrack(track.slot, track.sequence, () =>
@@ -192,6 +208,7 @@ export async function renderAISongPreview(
                 ...renderOpts,
                 sequence: track.sequence,
                 sampleRate,
+                automation: automation.byTarget[track.slot],
             }),
         );
     }
@@ -239,6 +256,7 @@ export async function renderAISongPreview(
         tempo,
         slots,
         graph: bounced.report,
+        automation: automation.report,
     };
 }
 
@@ -246,7 +264,8 @@ export async function renderAISongPreview(
 export function summarizePreviewSkips(result: AISongPreviewResult): string | null {
     const skipped = result.slots.filter((slot) => slot.status === 'skipped');
     const bypassed = result.graph.slots.filter((slot) => slot.status === 'bypassed');
-    if (skipped.length === 0 && bypassed.length === 0) return null;
+    const lanes = result.automation.notRendered;
+    if (skipped.length === 0 && bypassed.length === 0 && lanes.length === 0) return null;
 
     const parts: string[] = [];
     if (skipped.length > 0) {
@@ -256,6 +275,9 @@ export function summarizePreviewSkips(result: AISongPreviewResult): string | nul
         parts.push(
             `${bypassed.length} WAM2 insert${bypassed.length === 1 ? '' : 's'} unsupported offline`,
         );
+    }
+    if (lanes.length > 0) {
+        parts.push(`${lanes.length} automation lane${lanes.length === 1 ? '' : 's'} not rendered`);
     }
     return parts.join(' · ');
 }

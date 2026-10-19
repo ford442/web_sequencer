@@ -32,7 +32,6 @@ import type {
   ResolvedTrakEvent,
   AutomationSchedulerConfig,
 } from '../../types';
-import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
 import type { ProphecyManager } from '../../engines/ProphecyManager';
 import type { MacroManager } from '../../engines/MacroManager';
@@ -49,7 +48,11 @@ import {
   normaliseTrakParamValue,
   resolveTrakParamMapping,
 } from '../../importers/rbs/trakControllers';
-import { isNoteFxParameter } from '../../sequencer/noteFx/params';
+import {
+  open303ParamForLane,
+  resolveLaneValuesAtStep,
+  type Open303LaneParam,
+} from './laneResolver';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -105,29 +108,18 @@ function clamp01(v: number): number {
 
 const PROPHECY_AUTOMATION_PARAMS = new Set(['vowel', 'portamento', 'formantShift']);
 
-/**
- * Dev-only guard for the lane value invariant: every `AutomationLanePoint.value`
- * is normalised to [0, 1] (see `AutomationLanePoint` in types.ts).  A lane that
- * stores raw engine units (Hz, 0–127 MIDI …) would be silently clamped to the
- * parameter maximum, so reject the point instead of scheduling a wrong value.
- *
- * @returns `true` when the value may be scheduled.
- */
-function assertNormalizedLaneValue(
-  lane: UnifiedAutomationLane,
-  step: number,
-  value: number,
-): boolean {
-  if (!import.meta.env.DEV) return true;
-  if (Number.isFinite(value) && value >= 0 && value <= 1) return true;
-  console.error(
-    `[AutomationScheduler] Lane "${lane.name}" (${lane.target}.${lane.parameter}, ` +
-    `source=${lane.source}) has a non-normalised point value ${value} at step ${step}. ` +
-    'AutomationPoint.value must be in [0, 1]; originalRange is display metadata only. ' +
-    'Point rejected.',
-  );
-  return false;
-}
+/** Open303Manager setter for each 303 lane param (lane names: `laneResolver`). */
+const OPEN303_SETTERS: Record<Exclude<Open303LaneParam, 'slide'>, string> = {
+  cutoff: 'setCutoff',
+  resonance: 'setResonance',
+  decay: 'setDecay',
+  envMod: 'setEnvMod',
+  accent: 'setAccent',
+  volume: 'setVolume',
+  drive: 'setDrive',
+  tuning: 'setTuning',
+  abMix: 'setAbMix',
+};
 
 /**
  * Convert a normalised MIDI value to Hz using an exponential curve that
@@ -253,20 +245,9 @@ export class AutomationScheduler {
       const step = fromStep + i;
       const stepAudioTime = baseAudioTime + i * stepTime;
 
-      for (const lane of lanes) {
-        if (!lane.enabled) continue;
-        // Note FX parameters shape which notes are generated; the step
-        // handler reads them when it builds a pass (#1345). Nothing here
-        // could be scheduled for them.
-        if (isNoteFxParameter(lane.parameter)) continue;
-
-        const value = automationStore.getValueAtStep(lane, step);
-        if (value === null) continue;
-
-        // Lane point values are normalised to [0, 1] by contract; `originalRange`
-        // is display metadata and is deliberately NOT applied here.
-        if (!assertNormalizedLaneValue(lane, step, value)) continue;
-
+      // The same resolver the offline renders read (#1384), so a bounce plays
+      // the values scheduled here.
+      for (const { lane, value } of resolveLaneValuesAtStep(lanes, step)) {
         this._scheduleParam(
           lane.target,
           lane.parameter,
@@ -478,51 +459,14 @@ export class AutomationScheduler {
     _rampDuration: number
   ): void {
     const v = clamp01(value);
+    const param = open303ParamForLane(parameter);
+    if (!param) return;
     const effectiveTime = this._effectiveAudioTime(audioTime, voice, parameter);
-    switch (parameter) {
-      case 'filterCutoff':
-      case 'cutoff':
-      case 'tb303Acutoff':
-      case 'tb303Bcutoff':
-        mgr.scheduleParamAtTime(voice, 'setCutoff', v, effectiveTime);
-        break;
-      case 'filterResonance':
-      case 'resonance':
-      case 'tb303Aresonance':
-      case 'tb303Bresonance':
-        mgr.scheduleParamAtTime(voice, 'setResonance', v, effectiveTime);
-        break;
-      case 'decay':
-      case 'tb303Adecay':
-      case 'tb303Bdecay':
-        mgr.scheduleParamAtTime(voice, 'setDecay', v, effectiveTime);
-        break;
-      case 'envMod':
-        mgr.scheduleParamAtTime(voice, 'setEnvMod', v, effectiveTime);
-        break;
-      case 'accent':
-        mgr.scheduleParamAtTime(voice, 'setAccent', v, effectiveTime);
-        break;
-      case 'slide':
-        mgr.scheduleSlideAtTime(voice, v > 0.5, effectiveTime);
-        break;
-      case 'volume':
-        mgr.scheduleParamAtTime(voice, 'setVolume', v, effectiveTime);
-        break;
-      case 'drive':
-        mgr.scheduleParamAtTime(voice, 'setDrive', v, effectiveTime);
-        break;
-      case 'tune':
-        // TRAK TUNE controller (rbs.h tb303_event_t 0x02) → OPEN303_TUNING.
-        mgr.scheduleParamAtTime(voice, 'setTuning', v, effectiveTime);
-        break;
-      case 'abMix':
-        // Live high-fid A/B blend (Phase L2): 0 = stock Open303, 1 = high-fid.
-        mgr.scheduleParamAtTime(voice, 'setAbMix', v, effectiveTime);
-        break;
-      default:
-        break;
+    if (param === 'slide') {
+      mgr.scheduleSlideAtTime(voice, v > 0.5, effectiveTime);
+      return;
     }
+    mgr.scheduleParamAtTime(voice, OPEN303_SETTERS[param], v, effectiveTime);
   }
 
   /**

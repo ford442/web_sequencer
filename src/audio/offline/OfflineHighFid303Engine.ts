@@ -437,7 +437,11 @@ export function renderOfflineHighFid303Pattern(
 
   let write = 0;
   let prevNote = -1;
-  for (const step of pattern.steps) {
+  for (let i = 0; i < pattern.steps.length; i++) {
+    const step = pattern.steps[i];
+    // Per-step automation (#1384): see Offline303PatternData.paramSteps.
+    const changes = pattern.paramSteps?.[i];
+    if (changes) engine.setParams(changes);
     if (!step.slide && prevNote >= 0) engine.noteOff(prevNote);
     const vel = step.velocity ?? (step.accent ? 120 : 90);
     engine.noteOn(step.note, vel);

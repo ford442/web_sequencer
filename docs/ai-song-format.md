@@ -227,6 +227,10 @@ the automation UI, but changes nothing you can hear. `filterMode`, `waveform`,
 `pitch` and the three `delay*` parameters are likewise accepted and stored but
 have no dispatch case. Prefer the ✅ row when the point is audible movement.
 
+Offline renders (stems, the import modal's audio preview, 303 freeze) play
+the same lanes; what each one can and cannot play is listed in
+[automation.md § Offline renders](automation.md#offline-renders-stems-ai-preview-303-freeze).
+
 ### What the importer produces
 
 Each lane with at least one non-null step becomes a `UnifiedAutomationLane` on

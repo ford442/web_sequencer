@@ -49,6 +49,13 @@ interface RenderSynthEngines {
 export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
 
 /**
+ * Filter changes inside one rendered note (#1384): a 303 voice's automation
+ * lands on every step, so a held note moves with it. `time` is seconds from
+ * the note start; the value at time 0 is `params` itself.
+ */
+export type SynthFilterCurve = ReadonlyArray<{ time: number; filterCutoff?: number; filterResonance?: number }>;
+
+/**
  * Renders a synth sound to an AudioBuffer.
  * Useful for exporting to XM samples.
  *
@@ -62,6 +69,7 @@ export async function renderSynthToBuffer(
     duration: number = 2.0,
     engines?: RenderSynthEngines,
     sampleRate: number = resolveExportSampleRate(),
+    filterCurve?: SynthFilterCurve,
 ): Promise<AudioBuffer> {
     // A macro model: one note through the live engine's wasm (mid channel, so
     // XM one-shots stay mono). The gate covers the note; the tail is whatever
@@ -204,6 +212,11 @@ export async function renderSynthToBuffer(
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(params.filterCutoff, time);
         filter.Q.setValueAtTime(params.filterResonance, time);
+        for (const point of filterCurve ?? []) {
+            if (point.time <= time || point.time >= duration) continue;
+            if (point.filterCutoff !== undefined) filter.frequency.setValueAtTime(point.filterCutoff, point.time);
+            if (point.filterResonance !== undefined) filter.Q.setValueAtTime(point.filterResonance, point.time);
+        }
         sourceNode.connect(filter);
         nextNode = filter;
     }

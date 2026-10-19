@@ -64,6 +64,7 @@ export const AudioPreviewPanel = React.memo(function AudioPreviewPanel({
 
   const skipped = preview.result?.slots.filter((slot) => slot.status !== 'rendered') ?? [];
   const bypassed = preview.result?.graph.slots.filter((slot) => slot.status === 'bypassed') ?? [];
+  const lanesNotRendered = preview.result?.automation.notRendered ?? [];
 
   return (
     <div className="p-4 bg-gray-900/50 rounded-lg">
@@ -108,7 +109,7 @@ export const AudioPreviewPanel = React.memo(function AudioPreviewPanel({
         </p>
       )}
 
-      {preview.result && (skipped.length > 0 || bypassed.length > 0) && (
+      {preview.result && (skipped.length > 0 || bypassed.length > 0 || lanesNotRendered.length > 0) && (
         <div className="mt-3 space-y-1">
           <p className="text-[10px] uppercase tracking-wide text-gray-500">
             Not in this preview{preview.skipSummary ? ` — ${preview.skipSummary}` : ''}
@@ -132,6 +133,13 @@ export const AudioPreviewPanel = React.memo(function AudioPreviewPanel({
                   {slot.reason ? WAM_SKIP_LABELS[slot.reason] : 'bypassed'}
                 </Badge>
                 {slot.detail && <span className="truncate">{slot.detail}</span>}
+              </li>
+            ))}
+            {lanesNotRendered.map((skip) => (
+              <li key={skip.lane} className="flex items-center gap-2 text-[11px] text-gray-400">
+                <span className="w-28 shrink-0 text-gray-500">{skip.lane}</span>
+                <Badge tone="amber">automation not rendered</Badge>
+                <span className="truncate">{skip.reason}</span>
               </li>
             ))}
           </ul>

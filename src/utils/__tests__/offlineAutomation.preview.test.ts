@@ -13,7 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fullSong from '../../../test-fixtures/ai-song/full.json';
 import type { AISongData } from '../../importers/ai-song';
-import { renderAISongPreview } from '../aiSongPreview';
+import { renderAISongPreview, summarizePreviewSkips } from '../aiSongPreview';
 
 vi.mock('../../audio/offline/compileOfflineGraph', () => ({
     bounceBuffersThroughOfflineGraph: (opts: { sampleRate: number }) =>
@@ -134,6 +134,21 @@ describe('AI song preview — automation lanes (#1384)', () => {
             (CUTOFF_LANE[29] / 127) * 8000,
         ].map((v) => expect.closeTo(v, 3) as unknown as number));
         expect(held[1].time).toBeGreaterThan(held[0].time);
+    });
+
+    it('lists the lanes it plays and the routed ones it cannot', async () => {
+        const song = fullSong as unknown as AISongData;
+        const withEnvMod: AISongData = {
+            ...song,
+            automation: [
+                ...song.automation!,
+                { target: 'synthB', parameter: 'envMod', steps: Array.from({ length: 32 }, (_, i) => i * 4), interpolation: 'linear' },
+            ],
+        };
+        const result = await renderAISongPreview(withEnvMod, { sampleRatePref: 44100 });
+        expect(result.automation.applied).toEqual(['bass2.decay', 'synthA.filterCutoff', 'synthB.filterResonance']);
+        expect(result.automation.notRendered.map((s) => s.lane)).toEqual(['synthB.envMod']);
+        expect(summarizePreviewSkips(result)).toContain('1 automation lane not rendered');
     });
 
     it('renders a song without lanes at the knob cutoff', async () => {

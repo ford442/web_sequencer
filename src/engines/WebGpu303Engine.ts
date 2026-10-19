@@ -19,6 +19,7 @@ import {
   type OversampleFactor,
   DEFAULT_OFFLINE_303_PARAMS,
   bufferHasNonFinite,
+  patternHasParamSteps,
 } from '@/audio/offline/OfflineOpen303Engine';
 import { renderOfflineHighFid303Pattern } from '@/audio/offline/OfflineHighFid303Engine';
 import {
@@ -378,6 +379,16 @@ export class WebGpu303Engine {
 
     if (options.forceCpuFallback) {
       return this.cpuFallback(pattern, oversample, sampleRate, 'forced CPU fallback');
+    }
+    // The compute shader takes one param uniform for the whole pattern, so an
+    // automated pattern (#1384) renders through highfid-cpu, which steps them.
+    if (patternHasParamSteps(pattern)) {
+      return this.cpuFallback(
+        pattern,
+        oversample,
+        sampleRate,
+        'per-step automation renders through highfid-cpu',
+      );
     }
 
     const ok = await this.init();
