@@ -176,6 +176,27 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
     expect(firstDifference(long, short)).toBe(64 + 600);
   });
 
+  it('a timed Prophecy note sounds, then releases to silence; untimed, its noteOff lands first', async () => {
+    const run = async (timed: boolean) => {
+      const { lead } = await bootVoices();
+      const start = SAMPLE_RATE;
+      const on = timed ? (start + 2 * BLOCK) / SAMPLE_RATE : undefined;
+      const off = timed ? (start + 2 * BLOCK + 4800) / SAMPLE_RATE : undefined;
+      // What ProphecyManager posts for one sequenced step: both up front.
+      await lead.port.deliver({ type: 'noteOn', data: { note: 57, velocity: 100, audioTime: on } });
+      await lead.port.deliver({ type: 'noteOff', data: { note: 57, audioTime: off } });
+      const [out] = renderAll([lead], start, 1200); // 3.2 s: past the 0.5 s release
+      resetHyphonNativeSessionForTests();
+      const peak = (a: Float32Array) => a.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+      return { note: peak(out.subarray(0, SAMPLE_RATE / 2)), tail: peak(out.subarray(out.length - SAMPLE_RATE)) };
+    };
+    const timed = await run(true);
+    expect(timed.note).toBeGreaterThan(0.05);
+    expect(timed.tail).toBe(0);
+    // Both on the next block's first frame: released before it sounded.
+    expect((await run(false)).note).toBe(0);
+  });
+
   /**
    * The whole chain (#1344 P5): the real clock worklet posts the steps, a
    * stand-in for the step handler schedules a kick, a jc303 note and a
