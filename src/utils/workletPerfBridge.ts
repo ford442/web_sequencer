@@ -18,12 +18,27 @@ let monitoredContext: AudioContext | null = null;
 
 const sampleRateFallbackRecorded = new Set<string>();
 
-function handlePerfMessage(data: WorkletPerfMessage): void {
+/** Live per-node slots by worklet kind, so concurrent nodes get distinct telemetry keys. */
+const liveSlots = new Map<string, Set<number>>();
+
+function claimSlot(name: string): number {
+  let slots = liveSlots.get(name);
+  if (!slots) {
+    slots = new Set();
+    liveSlots.set(name, slots);
+  }
+  let slot = 0;
+  while (slots.has(slot)) slot++;
+  slots.add(slot);
+  return slot;
+}
+
+function handlePerfMessage(key: string, data: WorkletPerfMessage): void {
   if (data.sampleRateFallback && !sampleRateFallbackRecorded.has(data.name)) {
     sampleRateFallbackRecorded.add(data.name);
     engineTelemetry.recordGlitch('worklet-sample-rate-fallback', { worklet: data.name });
   }
-  engineTelemetry.recordWorkletPerf(data.name, {
+  engineTelemetry.recordWorkletPerf(key, {
     cpuPercent: data.cpuPercent,
     underruns: data.underruns,
     processUs: data.processUs,
@@ -51,23 +66,35 @@ function handleArtifactMessage(data: Record<string, unknown>): void {
 /**
  * Attach perf + artifact listeners to a worklet node's MessagePort.
  * Safe to call alongside existing port.onmessage handlers (uses addEventListener).
+ *
+ * Each attached node reports under its own key (`name`, then `name#1`, `name#2`, …)
+ * so a pool of voices sums into the master budget rather than the last reporter
+ * winning. The returned detach drops the node's telemetry and frees its slot.
  */
 export function attachWorkletPerf(node: AudioWorkletNode, name: string): () => void {
-  engineTelemetry.registerWorklet(name);
-
+  const slot = claimSlot(name);
+  const key = slot === 0 ? name : `${name}#${slot}`;
+  engineTelemetry.registerWorklet(key);
   const onMessage = (event: MessageEvent): void => {
     const data: unknown = event.data;
     if (!data || typeof data !== 'object') return;
     const message = data as Record<string, unknown>;
     if (message.type === WORKLET_PERF_MSG_TYPE) {
-      handlePerfMessage(data as WorkletPerfMessage);
+      handlePerfMessage(key, data as WorkletPerfMessage);
     } else {
       handleArtifactMessage(message);
     }
   };
 
   node.port.addEventListener('message', onMessage);
-  return () => node.port.removeEventListener('message', onMessage);
+  let detached = false;
+  return () => {
+    if (detached) return;
+    detached = true;
+    node.port.removeEventListener('message', onMessage);
+    liveSlots.get(name)?.delete(slot);
+    engineTelemetry.unregisterWorklet(key);
+  };
 }
 
 function onContextStateChange(): void {

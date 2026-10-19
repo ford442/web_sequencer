@@ -17,6 +17,8 @@ export const WorkletSetupMixin = {
     wasmBinary?: ArrayBuffer,
   ): Promise<void> {
     // Clean up existing node if reinitializing
+    this.detachWorkletPerf?.();
+    this.detachWorkletPerf = null;
     if (this.workletNode) {
       this.workletNode.disconnect();
       this.workletNode = null;
@@ -102,7 +104,7 @@ export const WorkletSetupMixin = {
       });
 
       console.log("SingingVoice: AudioWorklet initialized successfully");
-      attachWorkletPerf(this.workletNode, 'rubberband');
+      this.detachWorkletPerf = attachWorkletPerf(this.workletNode, 'rubberband');
       // Mid-session native FX failures switch the worklet to the TS chain.
       this.workletNode.port.addEventListener("message", (event: MessageEvent) => {
         const msg = event.data as { type?: string; backend?: string; reason?: string } | null;
@@ -113,6 +115,8 @@ export const WorkletSetupMixin = {
       registerRubberbandNode(this.workletNode);
     } catch (e) {
       console.error("SingingVoice: AudioWorklet initialization failed:", e);
+      this.detachWorkletPerf?.();
+      this.detachWorkletPerf = null;
       this.workletNode = null;
       throw new Error(
         `AudioWorklet initialization failed: ${e instanceof Error ? e.message : String(e)}`,

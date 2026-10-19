@@ -55,6 +55,7 @@ export interface SingingVoice extends SingingVoicePublic {}
 export class SingingVoice implements SingingVoicePublic {
   audioContext: AudioContext;
   workletNode: AudioWorkletNode | null = null;
+  detachWorkletPerf: (() => void) | null = null;
   config: SingingVoiceConfig;
 
   /** Latency of the Rubber Band processor in samples */

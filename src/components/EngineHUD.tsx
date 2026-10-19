@@ -1,5 +1,5 @@
 // Side-effecting HUD mount. Lightweight DOM overlay that polls engineTelemetry.
-import { engineTelemetry } from '../utils/engineTelemetry';
+import { engineTelemetry, workletBaseName } from '../utils/engineTelemetry';
 import { LATENCY_MODES, getStoredLatencyMode, setStoredLatencyMode, type LatencyMode } from '../utils/audioLatencyMode';
 import {
   RENDER_SIZE_HINT_PREFS,
@@ -335,11 +335,15 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
 
     const workletNames = ['clock', 'open303', 'macro', 'rubberband', 'vocoder'];
     const workletRows = workletNames.map((name) => {
-      const w = runtime.worklets[name];
-      const cpu = w ? w.cpuPercent.toFixed(1) : '—';
-      const und = w ? String(w.underruns) : '—';
-      const cls = w ? cpuClass(w.cpuPercent) : '';
-      return `<div class="row"><div style="flex:1">${name}</div><div class="${cls}" style="min-width:56px;text-align:right">${cpu}%</div><div style="width:48px;text-align:right" title="underruns">${und}</div></div>`;
+      // Pooled kinds (rubberband, open303, macro) report one key per node.
+      const nodes = Object.entries(runtime.worklets).filter(([key]) => workletBaseName(key) === name);
+      const cpuSum = nodes.reduce((acc, [, n]) => acc + n.cpuPercent, 0);
+      const w = nodes.length > 0;
+      const cpu = w ? cpuSum.toFixed(1) : '—';
+      const und = w ? String(nodes.reduce((acc, [, n]) => acc + n.underruns, 0)) : '—';
+      const cls = w ? cpuClass(cpuSum) : '';
+      const label = nodes.length > 1 ? `${name} ×${nodes.length}` : name;
+      return `<div class="row"><div style="flex:1">${label}</div><div class="${cls}" style="min-width:56px;text-align:right">${cpu}%</div><div style="width:48px;text-align:right" title="underruns">${und}</div></div>`;
     }).join('');
 
     const rows = keys.map(k => {

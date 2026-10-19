@@ -369,6 +369,15 @@ export function serializeEngineReport(
 }
 
 const MAX_GLITCH_EVENTS = 64;
+
+/** Reporters post at ~10 Hz; a node silent for this long no longer counts towards the budget. */
+const WORKLET_PERF_STALE_MS = 3000;
+
+/** `rubberband#3` → `rubberband`. Per-node keys are `kind` or `kind#n`. */
+export function workletBaseName(key: string): string {
+  const i = key.indexOf('#');
+  return i === -1 ? key : key.slice(0, i);
+}
 const MAX_DEGRADATION_LOG = 32;
 
 export class EngineTelemetry {
@@ -427,6 +436,26 @@ export class EngineTelemetry {
     }
   }
 
+  /**
+   * Forget a worklet instance's perf state (node disposed). Without this a
+   * disposed voice's last sample would keep counting towards the master budget.
+   */
+  unregisterWorklet(key: string): void {
+    this.runtime.worklets.delete(key);
+    this.lastUnderrunByWorklet.delete(key);
+    const s = this.data.get(key);
+    if (s) {
+      s.worklet = undefined;
+      s.workletCpuHistory.length = 0;
+    }
+    this.recomputeMasterBudget();
+  }
+
+  /**
+   * `name` is a per-node key: a worklet kind with several live nodes reports as
+   * `kind`, `kind#2`, `kind#3`, … so concurrent voices sum into the master
+   * budget instead of overwriting each other (see `workletBaseName`).
+   */
   recordWorkletPerf(
     name: string,
     sample: Omit<WorkletPerfSample, 'ts'>,
@@ -665,13 +694,21 @@ export class EngineTelemetry {
 
   private recomputeMasterBudget(): void {
     let sum = 0;
-    for (const w of this.runtime.worklets.values()) {
+    const now = Date.now();
+    for (const [key, w] of this.runtime.worklets) {
+      // A node that stopped reporting (context suspended, node torn down
+      // without a detach) must not pin the budget at its last sample.
+      if (now - w.ts > WORKLET_PERF_STALE_MS) {
+        this.runtime.worklets.delete(key);
+        continue;
+      }
       sum += w.cpuPercent;
     }
     this.runtime.masterBudgetPercent = Math.min(100, sum);
   }
 
   getRuntimeSnapshot(): RuntimeSnapshot {
+    this.recomputeMasterBudget();
     const worklets: Record<string, WorkletPerfReport> = {};
     for (const [name, w] of this.runtime.worklets.entries()) {
       worklets[name] = {
