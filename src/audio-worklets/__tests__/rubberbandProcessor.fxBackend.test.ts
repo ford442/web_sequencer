@@ -170,6 +170,78 @@ describe('RubberBandProcessor native FX runtime failure', () => {
   });
 });
 
+describe('RubberBandProcessor setStretchProfile', () => {
+  const trackedModule = () => {
+    const created: Array<{ rate: number; options: number; deleted: boolean; time: number; pitch: number }> = [];
+    const freed: number[] = [];
+    class Tracked extends FakeStretcher {
+      state = { rate: 0, options: 0, deleted: false, time: 1, pitch: 1 };
+      constructor(rate: number, _channels: number, options: number) {
+        super();
+        this.state.rate = rate;
+        this.state.options = options;
+        created.push(this.state);
+      }
+      delete() { this.state.deleted = true; }
+      setTimeRatio(r: number) { this.state.time = r; }
+      setPitchScale(p: number) { this.state.pitch = p; }
+      getTimeRatio() { return this.state.time; }
+      getPitchScale() { return this.state.pitch; }
+    }
+    const module = { ...stretcherOnlyModule(), RubberBandStretcher: Tracked, _free: (ptr: number) => freed.push(ptr) };
+    return { module, created, freed };
+  };
+
+  it('deletes the previous stretcher, floors the sample rate and carries ratio/pitch over', async () => {
+    const { module, created } = trackedModule();
+    const { processor } = await boot(module);
+    (processor as unknown as { sampleRate: number }).sampleRate = 44100.5;
+
+    const rb = (processor as unknown as { rubberBand: { setTimeRatio(r: number): void; setPitchScale(p: number): void } }).rubberBand;
+    rb.setTimeRatio(1.5);
+    rb.setPitchScale(2);
+
+    await processor.handleMessage({ data: { type: 'setStretchProfile', data: { profile: 'granular-quality' } } });
+
+    expect(created).toHaveLength(2);
+    expect(created[0].deleted).toBe(true);
+    expect(created[1].deleted).toBe(false);
+    expect(created[1].rate).toBe(44100);
+    expect(Number.isInteger(created[1].rate)).toBe(true);
+    expect(created[1].time).toBe(1.5);
+    expect(created[1].pitch).toBe(2);
+  });
+
+  it('does not accumulate live stretchers across repeated switches', async () => {
+    const { module, created } = trackedModule();
+    const { processor } = await boot(module);
+
+    for (const profile of ['granular-quality', 'vocal', 'granular-quality', 'vocal']) {
+      await processor.handleMessage({ data: { type: 'setStretchProfile', data: { profile } } });
+    }
+
+    expect(created).toHaveLength(5);
+    expect(created.filter((s) => !s.deleted)).toHaveLength(1);
+    expect(created[created.length - 1].deleted).toBe(false);
+  });
+
+  it('frees the heap buffers before replacing the stretcher', async () => {
+    const { module, freed } = trackedModule();
+    const { processor } = await boot(module);
+    const internals = processor as unknown as { inputHeapPtr: number; outputHeapPtr: number; heapSizeFrames: number };
+    internals.inputHeapPtr = 111;
+    internals.outputHeapPtr = 222;
+    internals.heapSizeFrames = 128;
+
+    await processor.handleMessage({ data: { type: 'setStretchProfile', data: { profile: 'vocal' } } });
+
+    expect(freed).toEqual([111, 222]);
+    expect(internals.inputHeapPtr).toBe(0);
+    expect(internals.outputHeapPtr).toBe(0);
+    expect(internals.heapSizeFrames).toBe(0);
+  });
+});
+
 describe('RubberBandProcessor spectral stage', () => {
   it('splits and compresses once per block on the TS chain (no second compressor pass)', async () => {
     const { SpectralBandProcessor } = await import('../rubberband/spectralEffects');
