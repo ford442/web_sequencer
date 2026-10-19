@@ -280,6 +280,18 @@ npx vitest --ui
 npx playwright test
 ```
 
+### AI songs
+```bash
+# Render an AISongData song headless and check it without listening (needs `pnpm run build` first):
+# writes mix.wav, song.rbs/.mid/.xm and report.json (importer warnings, render report,
+# per-stem peak / LUFS / RMS + spectral centroid per bar) into --out.
+pnpm run ai-song:render path/to/song.json --out out/my-song [--formats wav,rbs,mid,xm] [--stems] [--engine303 open303|jc303] [--no-strict]
+# Exit codes: 0 ok · 1 usage/boot · 2 validation (strict: any importer warning) · 3 render/export failure · 4 silent master
+```
+Format: [docs/ai-song-format.md](docs/ai-song-format.md). Command, report fields and the
+`window.__HYPHON_AGENT__` hook (registered only with `?agent=1` / `?e2e=1`):
+[docs/ai-song-render.md](docs/ai-song-render.md). Spec: `tests/ai-song-render.spec.ts`.
+
 ### Deployment
 ```bash
 # Deploy dist/ to the configured server (requires DEPLOY_TOKEN)

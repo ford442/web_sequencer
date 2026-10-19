@@ -607,6 +607,7 @@ export function useAppState() {
         handleAddMeasure,
         handleRemoveMeasure,
         handleExportXM,
+        buildXmExport,
     } = useSongHandlers({
         songStructure, setSongStructure, setIsSongModeOpen,
         patternRef, songStructureRef, trackStorageRef, tempoRef,
@@ -616,9 +617,9 @@ export function useAppState() {
 
     const {
         getSongData, getBankData, getPatternData,
-        exportSongToFile, exportRbsToFile, exportSmfToFile, importSongFromFile,
+        exportSongToFile, exportRbsToFile, exportSmfToFile, buildRbsExport, buildSmfExport, importSongFromFile,
         handleSaveSong, loadSong, loadCloudData,
-        handleAISongImport, handleRbsImport, handleSmfImport,
+        handleAISongImport, loadImportedAISong, handleRbsImport, handleSmfImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
         setIsImportingAISong, setAiImportStage, setAiImportProgress,
     } = useSongStorage({
@@ -820,6 +821,7 @@ export function useAppState() {
         handleEditSongStructure,
         handleAddMeasure,
         handleExportXM,
+        buildXmExport,
         handleRemoveMeasure,
         undoSongStructure,
         redoSongStructure,
@@ -866,11 +868,14 @@ export function useAppState() {
         exportSongToFile,
         exportRbsToFile,
         exportSmfToFile,
+        buildRbsExport,
+        buildSmfExport,
         importSongFromFile,
         handleSaveSong,
         loadSong,
         loadCloudData,
         handleAISongImport,
+        loadImportedAISong,
         handleRbsImport,
         handleSmfImport,
         isImportingAISong,

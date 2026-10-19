@@ -9,6 +9,7 @@ that the **AI Song** modal validates, imports, and loads into the sequencer.
 - **Converter:** [`AISongImporter.convert()`](../src/importers/ai-song/AISongImporter.ts) → `SavedSongData`
 - **Song block (v1.1):** [`src/importers/ai-song/songBlock.ts`](../src/importers/ai-song/songBlock.ts) (pattern ids → slots), lane tiling in [`automation.ts`](../src/importers/ai-song/automation.ts)
 - **Worked examples:** [`test-fixtures/ai-song/minimal.json`](../test-fixtures/ai-song/minimal.json), [`test-fixtures/ai-song/full.json`](../test-fixtures/ai-song/full.json), [`test-fixtures/ai-song/song-mode.json`](../test-fixtures/ai-song/song-mode.json) (v1.1)
+- **Render and check it yourself:** `pnpm run ai-song:render song.json --out out/song` writes `mix.wav`, `.rbs` / `.mid` / `.xm` and a `report.json` with importer warnings and per-bar loudness + spectral centroid — see [ai-song-render.md](ai-song-render.md). Iterate on the report, not on a human's ears
 - **Golden tests:** [`src/__tests__/aiSongGolden.test.ts`](../src/__tests__/aiSongGolden.test.ts), [`src/__tests__/aiSongSongMode.test.ts`](../src/__tests__/aiSongSongMode.test.ts) (v1.1, and the recorded v1.0 imports in `test-fixtures/ai-song/expected/`)
 
 **v1.0** describes one pattern — every v1.0 song is a single loop. **v1.1**
@@ -248,6 +249,13 @@ the automation UI, but changes nothing you can hear. `filterMode`, `waveform`,
 `pitch` and the three `delay*` parameters are likewise accepted and stored but
 have no dispatch case. Prefer the ✅ row when the point is audible movement.
 
+The importer says so: each such lane adds a warning to `report.warnings`
+(`automation kick.decay is saved but never plays: the scheduler routes no kick
+lanes.`), and `ai-song:render` fails on it unless run with `--no-strict`. The
+check is `laneDispatchGap()` in
+[`laneResolver.ts`](../src/audio/automation/laneResolver.ts), which mirrors the
+scheduler's dispatch.
+
 Offline renders (stems, the import modal's audio preview, 303 freeze) play
 the same lanes; what each one can and cannot play is listed in
 [automation.md § Offline renders](automation.md#offline-renders-stems-ai-preview-303-freeze).
@@ -425,7 +433,6 @@ the imported song:
 | `meta.createdAt` | Stored as metadata; never parsed or range-checked. |
 | Extra/unknown top-level keys | Ignored by the validator. In particular there is **no `effects` field** — an effects chain was never part of `AISongData` and the dead converter for it has been removed. |
 | Drum voice parameters | Not expressible; kick/snare/hat params always come from importer defaults. |
-| Automation on unrouted targets/parameters | Validated, converted and saved, but never dispatched — see [Which lanes actually reach an engine](#which-lanes-actually-reach-an-engine). |
 
 ## Errors
 
@@ -440,5 +447,6 @@ the imported song:
 | `STORAGE_ERROR` | Upload path only |
 
 Recoverable problems (a note on step 40, an unparseable note name, a sampler
-`bankIndex` of 9) do **not** fail the import — they are dropped and reported in
-`result.report.warnings`.
+`bankIndex` of 9, a lane that never plays) do **not** fail the import — they
+are dropped (or kept but inaudible) and reported in `result.report.warnings`.
+`ai-song:render` treats every warning as an error by default (strict mode).

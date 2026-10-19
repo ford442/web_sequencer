@@ -231,8 +231,9 @@ export async function renderSynthToBuffer(
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(1.0, time + attack); // Normalize to 1.0 for sample
     gain.gain.linearRampToValueAtTime(sustain, time + attack + decay);
-    // Hold sustain
-    gain.gain.setValueAtTime(sustain, duration - release);
+    // Hold sustain. A note shorter than its release starts releasing at once:
+    // `duration - release` would be negative, which setValueAtTime rejects.
+    gain.gain.setValueAtTime(sustain, Math.max(time, duration - release));
     gain.gain.linearRampToValueAtTime(0, duration);
 
     nextNode.connect(gain);

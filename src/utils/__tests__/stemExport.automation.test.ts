@@ -46,7 +46,7 @@ vi.mock('../songTimeline', () => ({
     timelineDurationSeconds: () => 1,
 }));
 
-import { exportStemsToZip, type StemExportInput } from '../stemExport';
+import { exportStemsToZip, renderStemFiles, type StemExportInput } from '../stemExport';
 
 const SAMPLE_RATE = 44100;
 function fakeBuffer(length = SAMPLE_RATE): AudioBuffer {
@@ -135,6 +135,16 @@ describe('exportStemsToZip automation lanes', () => {
 
         const metadata = JSON.parse(new TextDecoder().decode(entries.find((e) => e.path === 'metadata.json')!.data)) as { automation: unknown };
         expect(metadata.automation).toEqual(report);
+    });
+
+    it('hands the same files and report back unzipped (the agent render hook, #1386)', async () => {
+        const onReport = vi.fn();
+        const { entries, report } = await renderStemFiles(input([lane({})]), { sampleRate: SAMPLE_RATE, useSongMode: false, onReport });
+        expect(report).toBe(onReport.mock.calls[0][0]);
+        expect(entries.map((e) => e.path)).toContain('stems/master.wav');
+        expect(entries[entries.length - 1].path).toBe('metadata.json');
+        const zipped = (await exportStemsToZip(input([lane({})]), { sampleRate: SAMPLE_RATE, useSongMode: false })) as unknown as typeof entries;
+        expect(zipped.map((e) => e.path)).toEqual(entries.map((e) => e.path));
     });
 
     it('defaults to the live store, and to no lanes while automation playback is off', async () => {

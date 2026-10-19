@@ -1,3 +1,5 @@
+import { isAgentQuery } from '../agent/agentQuery';
+
 declare global {
   interface Window {
     __HYPHON_E2E_TRANSPORT__?: {
@@ -60,13 +62,19 @@ export function recordE2eDrumHit(track: string, songStep: number, step: number):
 const e2eAudioTaps = new Map<string, AudioNode>();
 
 /**
- * Expose an engine's output node to `measureAudioTapPeak` (e2e mode only), so a
- * spec can tell a native voice that renders from one that is merely wired up.
+ * Expose an engine's output node to `measureAudioTapPeak` (e2e mode), so a spec
+ * can tell a native voice that renders from one that is merely wired up, and
+ * to the agent hook's live capture (`?agent=1`, see src/agent/agentApi.ts).
  */
 export function registerE2eAudioTap(name: string, node: AudioNode | null): void {
-  if (!isE2eMode()) return;
+  if (typeof location === 'undefined' || !isAgentQuery(location.search)) return;
   if (node) e2eAudioTaps.set(name, node);
   else e2eAudioTaps.delete(name);
+}
+
+/** A registered tap (`open303-lead303`, `drumkit-worklet`, …), or null. */
+export function getE2eAudioTap(name: string): AudioNode | null {
+  return e2eAudioTaps.get(name) ?? null;
 }
 
 /**

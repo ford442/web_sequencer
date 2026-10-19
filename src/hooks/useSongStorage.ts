@@ -35,6 +35,22 @@ import {
 
 // ---- Types for the hook parameters ----
 
+/** A file built in memory for a download button (or the agent render hook). */
+export type FileExportResult =
+    | { success: true; blob: Blob; filename: string; warnings: string[] }
+    | { success: false; error: string; warnings: string[] };
+
+function downloadFile(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 export type AiImportStage = 'parsing' | 'validating' | 'converting' | 'uploading' | 'loading' | 'complete' | 'error' | null;
 
 export interface SongStorageDeps {
@@ -124,6 +140,9 @@ export interface SongStorageReturn {
     exportSongToFile: () => Promise<void>;
     exportRbsToFile: () => Promise<void>;
     exportSmfToFile: () => Promise<void>;
+    /** The `.rbs` / `.mid` the export buttons download, built without downloading. */
+    buildRbsExport: () => Promise<FileExportResult>;
+    buildSmfExport: () => Promise<FileExportResult>;
     importSongFromFile: () => void;
 
     // Save / Load
@@ -133,6 +152,8 @@ export interface SongStorageReturn {
 
     // Importers
     handleAISongImport: (song: SavedSongData, aiData: AISongData) => Promise<void>;
+    /** The AI import's load step alone: no cloud upload, no progress overlay. */
+    loadImportedAISong: (song: SavedSongData) => Promise<void>;
     handleRbsImport: (song: import('../importers/rbs').HyphonSong) => void;
     handleSmfImport: (song: import('../importers/smf').HyphonSmfSong) => void;
 
@@ -461,40 +482,45 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         URL.revokeObjectURL(url);
     }, [getSongData]);
 
+    /**
+     * Build the `.rbs` file the "Export RBS" button downloads. The button and
+     * the agent render hook (`window.__HYPHON_AGENT__.exportRbs`) both call this.
+     */
+    const buildRbsExport = useCallback(async (): Promise<FileExportResult> => {
+        // Dynamically imported so the ~9K-line RBS import/export surface
+        // never lands in the entry chunk — only an actual "Export RBS" click does.
+        const { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } = await import('../importers/rbs');
+        const songData = await getSongData();
+        const exporter = new RbsExporter();
+        const song = hyphonSongFromSavedData(songData, {
+            trakEvents: deps.trakEventsRef?.current,
+            isSongModeActive: deps.isSongModeActive,
+        });
+        const exportMode = shouldExportRbsSongMode(songData, deps.isSongModeActive)
+            ? 'song'
+            : 'pattern';
+        const result = exporter.exportToBlob(song, {
+            songName: song.metadata.name,
+            mode: exportMode,
+        });
+        if (!result.success || !result.blob) {
+            return { success: false, error: result.error ?? 'RBS export failed', warnings: result.warnings };
+        }
+        const safeName = (song.metadata.name || 'hyphon-song').replace(/[^\w.-]+/g, '_');
+        return { success: true, blob: result.blob, filename: `${safeName}.rbs`, warnings: result.warnings };
+    }, [getSongData, deps.isSongModeActive, deps.trakEventsRef]);
+
     const exportRbsToFile = useCallback(async () => {
         try {
-            // Dynamically imported so the ~9K-line RBS import/export surface
-            // never lands in the entry chunk — only an actual "Export RBS" click does.
-            const { RbsExporter, hyphonSongFromSavedData, shouldExportRbsSongMode } = await import('../importers/rbs');
-            const songData = await getSongData();
-            const exporter = new RbsExporter();
-            const song = hyphonSongFromSavedData(songData, {
-                trakEvents: deps.trakEventsRef?.current,
-                isSongModeActive: deps.isSongModeActive,
-            });
-            const exportMode = shouldExportRbsSongMode(songData, deps.isSongModeActive)
-                ? 'song'
-                : 'pattern';
-            const result = exporter.exportToBlob(song, {
-                songName: song.metadata.name,
-                mode: exportMode,
-            });
-            if (!result.success || !result.blob) {
-                showToast(result.error ?? 'RBS export failed', 'error');
+            const result = await buildRbsExport();
+            if (!result.success) {
+                showToast(result.error, 'error');
                 return;
             }
             if (result.warnings.length > 0) {
                 console.warn('[RBS Export warnings]', result.warnings);
             }
-            const url = URL.createObjectURL(result.blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const safeName = (song.metadata.name || 'hyphon-song').replace(/[^\w.-]+/g, '_');
-            a.download = `${safeName}.rbs`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            downloadFile(result.blob, result.filename);
             showToast(
                 result.warnings.length > 0
                     ? `Exported .rbs (${result.warnings.length} compatibility warnings)`
@@ -505,32 +531,42 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             console.error('RBS export failed:', err);
             showToast('Failed to export .rbs file', 'error');
         }
-    }, [getSongData, showToast, deps.isSongModeActive, deps.trakEventsRef]);
+    }, [buildRbsExport, showToast]);
+
+    /**
+     * Build the `.mid` file the "Export .mid" button downloads (also the agent
+     * render hook's `exportMidi`).
+     */
+    const buildSmfExport = useCallback(async (): Promise<FileExportResult> => {
+        // Dynamically imported so the SMF import/export surface never lands
+        // in the entry chunk — only an actual "Export .mid" click does.
+        const { SmfExporter, hyphonSongFromSavedDataForSmf } = await import('../importers/smf');
+        const songData = await getSongData();
+        const exporter = new SmfExporter();
+        const input = hyphonSongFromSavedDataForSmf(songData);
+        const result = exporter.exportToBlob(input, { useSongMode: !!deps.isSongModeActive });
+        if (!result.success || !result.blob) {
+            return { success: false, error: result.error ?? 'MIDI export failed', warnings: result.warnings };
+        }
+        return {
+            success: true,
+            blob: result.blob,
+            filename: `hyphon-song-${new Date().toISOString().slice(0, 10)}.mid`,
+            warnings: result.warnings,
+        };
+    }, [getSongData, deps.isSongModeActive]);
 
     const exportSmfToFile = useCallback(async () => {
         try {
-            // Dynamically imported so the SMF import/export surface never lands
-            // in the entry chunk — only an actual "Export .mid" click does.
-            const { SmfExporter, hyphonSongFromSavedDataForSmf } = await import('../importers/smf');
-            const songData = await getSongData();
-            const exporter = new SmfExporter();
-            const input = hyphonSongFromSavedDataForSmf(songData);
-            const result = exporter.exportToBlob(input, { useSongMode: !!deps.isSongModeActive });
-            if (!result.success || !result.blob) {
-                showToast(result.error ?? 'MIDI export failed', 'error');
+            const result = await buildSmfExport();
+            if (!result.success) {
+                showToast(result.error, 'error');
                 return;
             }
             if (result.warnings.length > 0) {
                 console.warn('[SMF Export warnings]', result.warnings);
             }
-            const url = URL.createObjectURL(result.blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `hyphon-song-${new Date().toISOString().slice(0, 10)}.mid`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            downloadFile(result.blob, result.filename);
             showToast(
                 result.warnings.length > 0
                     ? `Exported .mid (${result.warnings.length} compatibility warning(s))`
@@ -541,7 +577,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             console.error('SMF export failed:', err);
             showToast('Failed to export .mid file', 'error');
         }
-    }, [getSongData, showToast, deps.isSongModeActive]);
+    }, [buildSmfExport, showToast]);
 
     const importSongFromFile = useCallback(() => {
         const input = document.createElement('input');
@@ -563,6 +599,20 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     }, [loadCloudData, showToast]);
 
     // ---- AI Song Import ----
+
+    /**
+     * Put a converted AI song into the sequencer: the load step of the import
+     * modal, without its cloud upload and progress overlay. The agent render
+     * hook (`window.__HYPHON_AGENT__.importAISong`) loads songs through this.
+     */
+    const loadImportedAISong = useCallback(async (song: SavedSongData) => {
+        // Load the song data using existing loadCloudData logic
+        await loadCloudData(song, 'song');
+        // A v1.1 song with an arrangement plays it, like an imported .rbs / SMF song.
+        if (song.songStructure.length > 1) {
+            deps.setIsSongModeActive?.(true);
+        }
+    }, [loadCloudData, deps]);
 
     const handleAISongImport = useCallback(async (song: SavedSongData, aiData: AISongData) => {
         setIsImportingAISong(true);
@@ -613,12 +663,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             setAiImportProgress(90);
             await new Promise(resolve => setTimeout(resolve, 200));
 
-            // Load the song data using existing loadCloudData logic
-            await loadCloudData(song, 'song');
-            // A v1.1 song with an arrangement plays it, like an imported .rbs / SMF song.
-            if (song.songStructure.length > 1) {
-                deps.setIsSongModeActive?.(true);
-            }
+            await loadImportedAISong(song);
 
             // Complete
             setAiImportProgress(100);
@@ -664,7 +709,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             // Re-throw so modal can handle retry if needed
             throw error;
         }
-    }, [loadCloudData, showToast, setIsAISongModalOpen, deps]);
+    }, [loadImportedAISong, showToast, setIsAISongModalOpen]);
 
     // ---- RBS Import ----
     const handleRbsImport = useCallback((song: import('../importers/rbs').HyphonSong) => {
@@ -899,11 +944,14 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         exportSongToFile,
         exportRbsToFile,
         exportSmfToFile,
+        buildRbsExport,
+        buildSmfExport,
         importSongFromFile,
         handleSaveSong,
         loadSong,
         loadCloudData,
         handleAISongImport,
+        loadImportedAISong,
         handleRbsImport,
         handleSmfImport,
         isImportingAISong,

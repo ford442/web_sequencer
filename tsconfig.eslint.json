@@ -11,6 +11,7 @@
     "vitest.*.config.ts",
     "playwright.config.ts",
     "vite.config.ts",
-    "scripts/**/*.mjs"
+    "scripts/**/*.mjs",
+    "scripts/**/*.ts"
   ]
 }

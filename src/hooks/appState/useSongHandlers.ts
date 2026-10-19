@@ -61,10 +61,12 @@ export function useSongHandlers(deps: {
         setSongStructure(prev => prev.slice(0, -1));
     }, [songStructure, setSongStructure]);
 
-    const handleExportXM = useCallback(() => {
+    /** Build the `.xm` "Export XM" downloads (also the agent render hook's `exportXm`). */
+    const buildXmExport = useCallback(async () => {
         // Dynamically imported so the XM writer (xm_save_lib) never lands in the
         // entry chunk — only an actual "Export XM" click does.
-        void import('../../utils/xmExport').then(({ exportSongToXM }) => exportSongToXM(
+        const { buildSongXM } = await import('../../utils/xmExport');
+        return buildSongXM(
             songStructureRef.current,
             trackStorageRef.current,
             {
@@ -85,14 +87,19 @@ export function useSongHandlers(deps: {
                 stepCount: transportMixStore.meterRef.current.stepCount,
                 trackLengths: transportMixStore.meterRef.current.trackLengths,
             },
-        )).then(result => {
+        );
+    }, [audioEngine, pyodide, sampleBuffers, songStructureRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
+
+    const handleExportXM = useCallback(() => {
+        void Promise.all([buildXmExport(), import('../../utils/xmExport')]).then(([result, { downloadXM }]) => {
+            downloadXM(result.bytes);
             // The .xm still downloaded; surface anything the format could not hold.
             if (result.truncationMessage) showToast(result.truncationMessage, 'error');
         }).catch((e: unknown) => {
             console.error('XM export failed:', e);
             showToast('XM export failed', 'error');
         });
-    }, [audioEngine, pyodide, sampleBuffers, showToast, songStructureRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
+    }, [buildXmExport, showToast]);
 
     return {
         handleSongModeToggle,
@@ -100,6 +107,7 @@ export function useSongHandlers(deps: {
         handleAddMeasure,
         handleRemoveMeasure,
         handleExportXM,
+        buildXmExport,
     };
 }
 

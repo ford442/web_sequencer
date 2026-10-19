@@ -49,6 +49,7 @@ import {
   resolveTrakParamMapping,
 } from '../../importers/rbs/trakControllers';
 import {
+  PROPHECY_LANE_PARAMS,
   open303ParamForLane,
   resolveLaneValuesAtStep,
   type Open303LaneParam,
@@ -105,8 +106,6 @@ const DEFAULT_PPQ = 24;
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
-
-const PROPHECY_AUTOMATION_PARAMS = new Set(['vowel', 'portamento', 'formantShift']);
 
 /** Open303Manager setter for each 303 lane param (lane names: `laneResolver`). */
 const OPEN303_SETTERS: Record<Exclude<Open303LaneParam, 'slide'>, string> = {
@@ -372,7 +371,7 @@ export class AutomationScheduler {
 
     if (
       (target === 'synthA' || target === 'synthB') &&
-      PROPHECY_AUTOMATION_PARAMS.has(parameter) &&
+      PROPHECY_LANE_PARAMS.has(parameter) &&
       this.prophecyManager
     ) {
       const part = target === 'synthA' ? 'partA' : 'partB';

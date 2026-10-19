@@ -24,9 +24,12 @@ vi.mock('../../audio/offline/compileOfflineGraph', () => ({
 }));
 
 interface ParamEvent { kind: string; value: number; time: number }
+/** Every param any render created, so a test can check all of their events. */
+let allParams: RecordingParam[] = [];
 class RecordingParam {
     value = 0;
     events: ParamEvent[] = [];
+    constructor() { allParams.push(this); }
     private push(kind: string, value: number, time: number) {
         this.events.push({ kind, value, time });
         return this;
@@ -95,6 +98,7 @@ const CUTOFF_LANE = (fullSong as unknown as AISongData).automation!.find(
 describe('AI song preview — automation lanes (#1384)', () => {
     beforeEach(() => {
         hits = [];
+        allParams = [];
         track = -1;
         globalThis.OfflineAudioContext = RecordingOfflineContext as unknown as typeof OfflineAudioContext;
         // renderSynthToBuffer checks `instanceof OscillatorNode`; happy-dom has none.
@@ -149,6 +153,16 @@ describe('AI song preview — automation lanes (#1384)', () => {
         expect(result.automation.applied).toEqual(['bass2.decay', 'synthA.filterCutoff', 'synthB.filterResonance']);
         expect(result.automation.notRendered.map((s) => s.lane)).toEqual(['synthB.envMod']);
         expect(summarizePreviewSkips(result)).toContain('1 automation lane not rendered');
+    });
+
+    it('schedules nothing before time 0 when a note is shorter than its release', async () => {
+        // A one-step note at 96 BPM lasts 0.156 s; the imported release is longer,
+        // and `duration - release` went negative — a real OfflineAudioContext
+        // throws on that, which failed the whole bounce (found by ai-song:render).
+        await renderAISongPreview(fullSong as unknown as AISongData, { sampleRatePref: 44100 });
+        const times = allParams.flatMap((p) => p.events.map((e) => e.time));
+        expect(times.length).toBeGreaterThan(0);
+        expect(Math.min(...times)).toBeGreaterThanOrEqual(0);
     });
 
     it('renders a song without lanes at the knob cutoff', async () => {

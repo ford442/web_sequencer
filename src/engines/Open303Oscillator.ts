@@ -584,6 +584,11 @@ export class Open303Oscillator {
         if (this.outputNode) this.outputNode.connect(dest);
     }
 
+    /** The voice's output, for a monitor tap (e2e / agent capture). */
+    get output(): AudioNode | null {
+        return this.outputNode;
+    }
+
     disconnect() {
         if (this.outputNode) this.outputNode.disconnect();
     }
