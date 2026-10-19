@@ -53,6 +53,8 @@ export interface SingingVoiceMixinMethods {
 export interface SingingVoiceHost extends SingingVoiceMixinMethods {
   audioContext: AudioContext;
   workletNode: AudioWorkletNode | null;
+  /** Drops this node's worklet-perf telemetry; set by `initWorklet`. */
+  detachWorkletPerf: (() => void) | null;
   config: SingingVoiceConfig;
   processorLatency: number;
   pitchCache: PitchCache;

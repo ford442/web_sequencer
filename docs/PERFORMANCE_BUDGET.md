@@ -199,6 +199,12 @@ masterBudgetPercent = min(100, Σ workletCpuPercent)
 All worklets share the same audio rendering thread; their CPU costs add within each
 quantum.
 
+The sum is over **nodes**, not worklet kinds. `attachWorkletPerf` keys every node
+separately (`rubberband`, `rubberband#1`, `rubberband#2`, …), so a 12-voice rubberband
+pool contributes all twelve reports instead of whichever voice reported last. The
+EngineHUD groups rows back by kind (`rubberband ×12`). A node's entry is dropped when
+it detaches, or when it has not reported for 3 s (suspended context, torn-down node).
+
 ## Master loudness / true-peak limiter
 
 `master-loudness-processor` runs the BS.1770-5 meters and the true-peak limiter for

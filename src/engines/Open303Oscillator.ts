@@ -40,6 +40,7 @@ const OPEN303_INIT_TIMEOUT_MS = 8000;
 
 export class Open303Oscillator {
     private workletNode: AudioWorkletNode | null = null;
+    private detachPerf: (() => void) | null = null;
     private gainNode: GainNode | null = null;
     private outputNode: GainNode | null = null;
     private fallbackSynth: FallbackBassSynth | null = null;
@@ -225,7 +226,7 @@ export class Open303Oscillator {
             // Connect and Listen (gainNode is always set before _initWithWasmBytes is reached)
             if (!this.gainNode) throw new Error('gainNode not initialized');
             this.workletNode.connect(this.gainNode);
-            attachWorkletPerf(this.workletNode, 'open303');
+            this.detachPerf = attachWorkletPerf(this.workletNode, 'open303');
             this.attachStatusListener(this.workletNode);
 
             // Wait for worklet to confirm initialization
@@ -657,6 +658,8 @@ export class Open303Oscillator {
         this.detachStatusListener?.();
         this.detachStatusListener = null;
         this.liveHighFid.detach();
+        this.detachPerf?.();
+        this.detachPerf = null;
         if (this.workletNode) {
             // hyphon_native is shared by every voice in the audio session: ask the
             // processor to destroy its handles before the port goes away.

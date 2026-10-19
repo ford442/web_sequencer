@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EngineTelemetry, engineTelemetry } from '../utils/engineTelemetry';
+import { attachWorkletPerf } from '../utils/workletPerfBridge';
 import { performanceBudget, BUDGET_OVERLOAD_THRESHOLD, DEGRADE_ORDER } from '../utils/performanceBudget';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 
@@ -46,6 +47,41 @@ describe('EngineTelemetry worklet perf', () => {
       blockFrames: 128,
     });
     expect(t.getRuntimeSnapshot().totalUnderruns).toBe(4);
+  });
+
+  it('sums concurrent nodes of the same worklet kind into the master budget', () => {
+    const t = new EngineTelemetry();
+    const sample = (cpuPercent: number) => ({
+      cpuPercent,
+      underruns: 0,
+      processUs: 100,
+      quantumUs: 2500,
+      blockFrames: 128,
+    });
+    t.recordWorkletPerf('rubberband', sample(20));
+    t.recordWorkletPerf('rubberband#1', sample(25));
+    t.recordWorkletPerf('rubberband#2', sample(30));
+    expect(t.getRuntimeSnapshot().masterBudgetPercent).toBe(75);
+
+    t.unregisterWorklet('rubberband#1');
+    const runtime = t.getRuntimeSnapshot();
+    expect(runtime.masterBudgetPercent).toBe(50);
+    expect(Object.keys(runtime.worklets).sort()).toEqual(['rubberband', 'rubberband#2']);
+  });
+
+  it('stops counting a node that has gone silent', () => {
+    vi.useFakeTimers();
+    try {
+      const t = new EngineTelemetry();
+      t.recordWorkletPerf('rubberband', {
+        cpuPercent: 70, underruns: 0, processUs: 1, quantumUs: 1, blockFrames: 128,
+      });
+      expect(t.getRuntimeSnapshot().masterBudgetPercent).toBe(70);
+      vi.advanceTimersByTime(10_000);
+      expect(t.getRuntimeSnapshot().masterBudgetPercent).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('records glitches and includes them in runtime snapshot', () => {
@@ -128,5 +164,51 @@ describe('performanceBudget auto-degrade', () => {
 
     expect(performanceBudget.getSpectralPanMultiplier()).toBe(0);
     expect(engineDegradationStore.getIssue('perf-spectral-pan')?.status).toBe('active');
+  });
+});
+
+describe('attachWorkletPerf per-node keys', () => {
+  function fakeNode() {
+    const listeners = new Set<(e: MessageEvent) => void>();
+    const node = {
+      port: {
+        addEventListener: (_: string, fn: (e: MessageEvent) => void) => listeners.add(fn),
+        removeEventListener: (_: string, fn: (e: MessageEvent) => void) => listeners.delete(fn),
+      },
+    } as unknown as AudioWorkletNode;
+    const emit = (cpuPercent: number) =>
+      listeners.forEach((fn) => fn({
+        data: {
+          type: 'worklet-perf', name: 'bridge-test', cpuPercent, underruns: 0,
+          processUs: 1, quantumUs: 1, blockFrames: 128, sampleRateFallback: false,
+        },
+      } as MessageEvent));
+    return { node, emit };
+  }
+
+  it('reports each node under its own key and reuses a freed slot', () => {
+    const a = fakeNode();
+    const b = fakeNode();
+    const detachA = attachWorkletPerf(a.node, 'bridge-test');
+    const detachB = attachWorkletPerf(b.node, 'bridge-test');
+    a.emit(10);
+    b.emit(25);
+
+    let runtime = engineTelemetry.getRuntimeSnapshot();
+    expect(runtime.worklets['bridge-test']?.cpuPercent).toBe(10);
+    expect(runtime.worklets['bridge-test#1']?.cpuPercent).toBe(25);
+
+    detachB();
+    runtime = engineTelemetry.getRuntimeSnapshot();
+    expect(runtime.worklets['bridge-test#1']).toBeUndefined();
+
+    const c = fakeNode();
+    const detachC = attachWorkletPerf(c.node, 'bridge-test');
+    c.emit(5);
+    expect(engineTelemetry.getRuntimeSnapshot().worklets['bridge-test#1']?.cpuPercent).toBe(5);
+
+    detachA();
+    detachC();
+    expect(engineTelemetry.getRuntimeSnapshot().worklets['bridge-test']).toBeUndefined();
   });
 });
