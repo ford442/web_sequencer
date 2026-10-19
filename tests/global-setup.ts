@@ -12,9 +12,12 @@ export default function globalSetup(): void {
     try {
       execSync('pulseaudio --start --exit-idle-time=-1', { stdio: 'ignore' });
     } catch {
-      // CI images without pulseaudio still run Chromium; FF/WK may need the sink.
+      // Chromium and WebKit run their clocks without a sink; Firefox does not.
+      // Workers inherit this, so startPlaybackAndAwaitClock can name the cause.
+      process.env.HYPHON_E2E_NO_AUDIO_SINK = '1';
       console.warn(
-        '[playwright globalSetup] pulseaudio not available — Firefox AudioContext may stay suspended',
+        '[playwright globalSetup] pulseaudio not available — Firefox playback specs will fail: ' +
+          'AudioContext.resume() never settles without an audio sink',
       );
     }
   }

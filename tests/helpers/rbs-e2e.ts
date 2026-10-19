@@ -74,27 +74,42 @@ export async function hasSequencerPlayhead(page: Page): Promise<boolean> {
 }
 
 /**
- * Click Start Playback and confirm the audio clock is running.
- * Relies on PulseAudio (see tests/global-setup.ts) so Firefox/WebKit can
- * leave `suspended`; StartOverlay ?e2e=1 also resumes on gesture.
+ * Click Start Playback and prove the audio clock is running on every browser:
+ * the context reports `running` and its `currentTime` moves.
+ *
+ * Headless Firefox with no audio sink never settles `AudioContext.resume()`
+ * (state stays `suspended`, `currentTime` stays 0), so the transport clock
+ * never ticks. tests/global-setup.ts starts a PulseAudio null sink for it; when
+ * that is missing this fails here, naming the cause, rather than letting the
+ * spec's own playback assertions see an idle transport.
  */
 export async function startPlaybackAndAwaitClock(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start Playback', exact: true }).evaluate((node) => (node as HTMLElement).click());
   await expect(page.getByRole('button', { name: 'Stop Playback' })).toBeVisible();
 
-  const browserName = page.context().browser()?.browserType().name() ?? 'unknown';
-  if (browserName === 'firefox' || browserName === 'webkit') {
-    return;
-  }
+  const noSink = process.env.HYPHON_E2E_NO_AUDIO_SINK === '1';
+  const readClock = () =>
+    page.evaluate(() => {
+      const w = window as Window & { audioContext?: AudioContext };
+      return { state: w.audioContext?.state ?? 'missing', time: w.audioContext?.currentTime ?? 0 };
+    });
 
   await expect
-    .poll(
-      async () =>
-        page.evaluate(() => {
-          const w = window as Window & { audioContext?: AudioContext };
-          return w.audioContext?.state ?? 'missing';
-        }),
-      { timeout: 15_000, intervals: [50, 100, 250] },
-    )
+    .poll(async () => (await readClock()).state, {
+      message: noSink
+        ? 'AudioContext never reached `running`: no PulseAudio sink (see tests/global-setup.ts)'
+        : 'AudioContext never reached `running` after Start Playback',
+      timeout: 15_000,
+      intervals: [50, 100, 250],
+    })
     .toBe('running');
+
+  const t0 = (await readClock()).time;
+  await expect
+    .poll(async () => (await readClock()).time, {
+      message: 'AudioContext is `running` but currentTime does not advance',
+      timeout: 5_000,
+      intervals: [50, 100, 250],
+    })
+    .toBeGreaterThan(t0);
 }

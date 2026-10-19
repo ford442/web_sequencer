@@ -71,6 +71,11 @@ jobs:
         run: pnpm run build:release:changed
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
+      # Headless Firefox needs an audio sink: without one AudioContext.resume()
+      # never settles and the transport clock never ticks (#1372). The null sink
+      # that tests/global-setup.ts starts comes from this package.
+      - name: Install PulseAudio
+        run: sudo apt-get install -y --no-install-recommends pulseaudio
       # Playwright webServer starts `vite preview` (COOP/COEP via vite.config.ts).
       # Do not background preview in a separate step — GHA kills that process group
       # when the step ends, then Playwright falls back to Vite *dev*, which cannot

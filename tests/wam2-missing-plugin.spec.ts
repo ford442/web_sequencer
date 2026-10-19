@@ -94,11 +94,6 @@ test.describe('WAM2 missing plugin', () => {
       () => (window as { __HYPHON_E2E__?: Wam2Probe }).__HYPHON_E2E__!.getAudioContextTime!(),
     );
 
-    // Explicitly require the context to move beyond initial 0.
-    // In CI (especially Firefox), pulseaudio might not be available causing the context to stay suspended at 0.
-    // Allow the test to pass if the time stays at 0 if the browser is firefox, since the DOM/playback state acts correctly.
-    const isFirefox = page.context().browser()?.browserType().name() === 'firefox';
-
     await expect
       .poll(
         async () => {
@@ -112,6 +107,6 @@ test.describe('WAM2 missing plugin', () => {
         },
         { timeout: 30_000 },
       )
-      .toBeGreaterThanOrEqual(isFirefox ? 0 : Math.max(t0 ?? 0, 0));
+      .toBeGreaterThan(Math.max(t0 ?? 0, 0));
   });
 });
