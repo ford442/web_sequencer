@@ -75,14 +75,14 @@ afterEach(() => {
   resetHyphonNativeSessionForTests();
 });
 
-async function bootVoices() {
+async function bootVoices(rate = SAMPLE_RATE) {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const wasm = readFileSync(WASM);
   const init = () => ({
     type: 'init-wasm',
     data: {
       wasmBytes: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
-      sampleRate: SAMPLE_RATE,
+      sampleRate: rate,
       isThreaded: false,
       variant: 'st',
       exportMap: JSON.parse(readFileSync(MAP, 'utf8')) as Record<string, string>,
@@ -174,6 +174,42 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
     const short = await run(600);
     // Identical until the shorter gate closes, then they part.
     expect(firstDifference(long, short)).toBe(64 + 600);
+  });
+
+  it('a flam inside one block: each drum hit starts on its own frame, at 44.1, 48 and 96 kHz', async () => {
+    // A flam: a kick, then a closed hat 1.5 ms later (1 ms at 96 kHz, where
+    // 1.5 ms is more than a block), both inside one 128-frame block. Before
+    // #1344 P4 both would have started on the block's first frame.
+    const flam = async (rate: number, kickOffset: number, gapSec: number, withHat: boolean) => {
+      g.sampleRate = rate;
+      try {
+        const { drums } = await bootVoices(rate);
+        const start = rate * 2;
+        const blockStart = start + 2 * BLOCK;
+        const hatAt = blockStart + kickOffset + Math.round(gapSec * rate);
+        // Posted latest first: the voice's event ring orders them by frame.
+        if (withHat) {
+          await drums.port.deliver({ type: 'trigger', data: { voice: 2, velocity: 1, a: 400, b: 0.1, c: 0.7, d: 0, audioTime: hatAt / rate } });
+        }
+        await drums.port.deliver({ type: 'trigger', data: { voice: 0, velocity: 1, a: 50, b: 0.6, c: 0.6, d: 1, audioTime: (blockStart + kickOffset) / rate } });
+        const [out] = renderAll([drums], start, 6);
+        resetHyphonNativeSessionForTests();
+        return { out, hatFrame: hatAt - start };
+      } finally {
+        g.sampleRate = SAMPLE_RATE;
+      }
+    };
+    for (const [rate, gapSec] of [[44100, 0.0015], [48000, 0.0015], [96000, 0.001]] as const) {
+      const kickOffset = 20;
+      const kickOnly = await flam(rate, kickOffset, gapSec, false);
+      const both = await flam(rate, kickOffset, gapSec, true);
+      const gap = Math.round(gapSec * rate);
+      expect(kickOffset + gap, `${rate} Hz: the flam fits one block`).toBeLessThan(BLOCK);
+      // The kick on its own frame; the hat parts from the kick-only render on its own.
+      expect(firstNonZero(both.out), `${rate} Hz kick`).toBe(2 * BLOCK + kickOffset);
+      expect(firstDifference(both.out, kickOnly.out), `${rate} Hz hat`).toBe(both.hatFrame);
+      expect(both.hatFrame - (2 * BLOCK + kickOffset)).toBe(gap);
+    }
   });
 
   it('a drum hit plays at its own pan: centre is the mono kit on both sides, constant power off-centre', async () => {

@@ -26,6 +26,27 @@ Events: `kTrigger` (target = voice, value = velocity, args = a..d),
 
 Voice IDs: `0` kick, `1` snare, `2` closed hat, `3` open hat.
 
+## Timing inside the render quantum
+
+A hit starts on the sample its `audioTime` names, not on the next block
+boundary (#1344 P4). `playDrum` passes the step's scheduled time
+(`useStepHandler` → `DrumKitEngine.play`), and the worklet turns it into an
+absolute frame (`round(audioTime × sampleRate)`) and pushes it into the
+voice's native event ring. A time that is missing or already past lands on the
+first frame of the next block. `drumkit-processor` makes **one**
+`drumkit_render(handle, blockStartFrame, frames)` call per block, whether the
+block holds no hits or several. Inside it, `renderSplit`
+(`emscripten/core/voice.h`) renders up to each event's frame, applies the
+event and carries on, so a flam two hits 1.5 ms apart in one 128-frame block
+plays both hits at their own offsets. A block with no events is a single
+engine render. Events on the same frame keep the order they were pushed in:
+the pan goes in before its trigger, and the closed hat chokes the open hat
+inside the trigger. Nothing on this path allocates. The event ring is
+fixed-size, and the export names `NativeVoiceProcessor` looks up are built
+once at load. Coverage: `voiceProcessors.events.test.ts` (one render call per
+block) and `voiceTiming.realWasm.test.ts` (the flam at 44.1 / 48 / 96 kHz on the
+real wasm).
+
 ## Per-hit pan
 
 A drum step's **Pan** (note editor) travels with the hit:

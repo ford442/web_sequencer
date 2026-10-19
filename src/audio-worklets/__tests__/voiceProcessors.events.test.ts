@@ -187,6 +187,26 @@ describe('voice processors on the event API', () => {
     expect(calls.at(-1)).toEqual({ fn: 'drumkit_cancel_notes', h, args: [] });
   });
 
+  it('drumkit: every block is one native render call, however many hits it holds', async () => {
+    const voice = await boot('drumkit-processor');
+    const h = calls.find((c) => c.fn === 'drumkit_init')!.h;
+    const block = 44032;
+    // A flam: two hits 1.5 ms (66 frames) apart, both inside the block at 44032.
+    await voice.port.deliver({ type: 'trigger', data: { voice: 0, velocity: 1, audioTime: (block + 20) / SAMPLE_RATE } });
+    await voice.port.deliver({ type: 'trigger', data: { voice: 2, velocity: 1, audioTime: (block + 86) / SAMPLE_RATE } });
+    expect(calls.filter((c) => c.fn === 'drumkit_push_event').map((c) => c.args[0])).toEqual([
+      block + 20, block + 20, block + 86, block + 86,
+    ]);
+
+    // The ring splits the block at each event frame inside the native render;
+    // the worklet makes the same single call with or without triggers.
+    for (const frame of [block - BLOCK, block, block + BLOCK]) {
+      calls = [];
+      render(voice, frame);
+      expect(calls).toEqual([{ fn: 'drumkit_render', h, args: [frame, BLOCK] }]);
+    }
+  });
+
   it('the drum kit joins the shared instance and hands its handle back on dispose', async () => {
     const lead = await boot('prophecy-processor');
     const drums = await boot('drumkit-processor');
