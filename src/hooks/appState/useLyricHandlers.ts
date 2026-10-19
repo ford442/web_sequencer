@@ -181,6 +181,15 @@ export function useLyricHandlers(deps: {
                                 // Escalating velocity for the roll
                                 const vel = 0.3 + (0.7 * (j / gapSize));
                                 newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+
+                                // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
+                                if (consecutiveConsonants >= 3 && gapSize >= 2) {
+                                    if (j % 3 === 0 && fillStep >= 0 && fillStep < newKick.steps.length) {
+                                        newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
+                                    } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
+                                        newSnare.steps[fillStep] = { note: 'C4', velocity: 0.4, length: 1 };
+                                    }
+                                }
                             }
                         }
                     }

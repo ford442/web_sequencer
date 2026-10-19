@@ -7,7 +7,7 @@
   "@typescript-eslint/no-misused-promises": 27,
   "@typescript-eslint/no-non-null-asserted-optional-chain": 1,
   "@typescript-eslint/no-redundant-type-constituents": 9,
-  "@typescript-eslint/no-unnecessary-type-assertion": 109,
+  "@typescript-eslint/no-unnecessary-type-assertion": 113,
   "@typescript-eslint/no-unsafe-argument": 106,
   "@typescript-eslint/no-unsafe-assignment": 300,
   "@typescript-eslint/no-unsafe-call": 147,

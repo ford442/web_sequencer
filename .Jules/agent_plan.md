@@ -24,6 +24,7 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
 - [x] Explore randomizing granular jitter based on note velocity.
@@ -32,7 +33,7 @@
 - What if we could reverse the TTS sample per step? (Implemented via `isReverse` support in `RubberBandProcessor`).
 - [x] Implement dynamic vocal chops by using the slice index and varying direction over time.
 - Implement Lyric Track parsing.
-- Explore generating dynamic complementary snare/kick fills for syncopated rhythm patterns in handleTextToDrums
+- [x] Explore generating dynamic complementary snare/kick fills for syncopated rhythm patterns in handleTextToDrums
 - [x] What if we could apply subtle saturation exclusively to unvoiced consonants to make whispering more gritty?
 - [x] Explore non-linear envelope shapes for the granular synthesis window (e.g. exponential vs linear curves) for specific frequency bands
 - [x] What if we modulate the granular window size using an envelope follower driven by the root synth bass?
@@ -209,3 +210,8 @@
 
 - Completed "What if we could apply subtle saturation exclusively to unvoiced consonants to make whispering more gritty?". Implemented a soft clipper (wave shaper) in `vocalFx.ts` and `rubberband_fx.cpp` exclusively applied when `isVowel === 0`. Wired it to the UI in `SamplerVoicePanel.tsx` via a new "CONS. SATURATE" slider, which passes `consonantSaturation` down through the AudioWorklet block logic.
 - Velocity Check: Mapping a mathematical waveshaper specifically gated on the `isVowel` flag creates the grit effectively without affecting the rest of the vocal signal. Maintaining TS/C++ dual implementation kept golden tests intact.
+
+- Completed "Explore generating dynamic complementary snare/kick fills for syncopated rhythm patterns in handleTextToDrums".
+  - Updated the gap-filling logic for multiple consecutive consonants (`consecutiveConsonants >= 3`).
+  - While adding escalating hi-hat rolls in the gaps between sequential consonants, the logic now also interweaves ghost snares (on even gap steps) and soft kicks (on every 3rd step) to create a much more syncopated and dynamic rhythmic fill directly from the spoken text phrasing.
+- Velocity Check: This change successfully piggybacks on the existing `isVowel`/`consonant` parser loop, introducing zero extra text alignment cost, while making the generated drum patterns noticeably less repetitive and more musical during intense consonant clusters. Added a new idea to the Innovation Lab.
