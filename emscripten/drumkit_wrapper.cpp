@@ -10,12 +10,17 @@
  * generic exports come from HYPHON_EXPORT_VOICE —
  *   drumkit_create / _destroy / _init(handle, sampleRate, maxFrames)
  *   drumkit_push_event(handle, frame, type, target, value, a, b, c, d)
- *   drumkit_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate
+ *   drumkit_render(handle, blockStartFrame, numFrames)  → float*, sample-accurate,
+ *       planar stereo: left at the pointer, right maxFrames (init) floats on
  *   drumkit_cancel_notes(handle)
  * Events: hyphon::kTrigger (target = voice, value = velocity, args = a..d),
- * kDrumkitChokeOpenHat, kDrumkitSetKit (target = kit).
+ * kDrumkitChokeOpenHat, kDrumkitSetKit (target = kit),
+ * kDrumkitSetPan (target = voice, value = pan -1..1). A pan is latched by the
+ * voice's next trigger, so the worklet pushes it just before the trigger on the
+ * same frame; a hit that is still ringing keeps the pan it started with.
  *
- * Immediate API (what the worklet calls today; applies at the next block):
+ * Immediate API (tests and tools/render_hyphon_native_parity.mjs; applies at
+ * the next block):
  *   drumkit_set_kit(handle, kit)                        // 0 = 808, 1 = 909
  *   drumkit_trigger(handle, voice, velocity, a, b, c, d)
  *   drumkit_choke_open_hat(handle)
@@ -315,7 +320,28 @@ struct HatVoice {
 enum DrumkitEvent : uint16_t {
     kDrumkitChokeOpenHat = hyphon::kEngine,
     kDrumkitSetKit       = hyphon::kEngine + 1,  // target = kit
+    kDrumkitSetPan       = hyphon::kEngine + 2,  // target = voice, value = pan
 };
+
+static constexpr int kDrumkitVoiceCount = 4;
+
+/**
+ * Constant-power pan with unity at the centre: each channel is √2·cos / √2·sin
+ * of the pan angle, so L² + R² = 2 everywhere — a centred hit is exactly the
+ * mono kit on both channels, a hard-panned one is +3 dB on its side. Keep in
+ * sync with drumPanGains() in src/engines/DrumKitEngine.ts.
+ */
+struct PanGains {
+    float left = 1.0f;
+    float right = 1.0f;
+};
+
+static PanGains panGains(float pan) {
+    if (!std::isfinite(pan) || pan == 0.0f) return {};
+    const float angle = (std::clamp(pan, -1.0f, 1.0f) + 1.0f) * (kPi * 0.25f);
+    constexpr float kSqrt2 = 1.41421356237f;
+    return {kSqrt2 * std::cos(angle), kSqrt2 * std::sin(angle)};
+}
 
 struct DrumkitEngine {
     float sampleRate = 44100.0f;
@@ -324,14 +350,24 @@ struct DrumkitEngine {
     SnareVoice snare;
     HatVoice closedHat;
     HatVoice openHat;
+    /** Pan the next trigger of each voice takes (kDrumkitSetPan). */
+    float nextPan[kDrumkitVoiceCount] = {0.0f, 0.0f, 0.0f, 0.0f};
+    /** Pan of the hit each voice is playing. */
+    PanGains pan[kDrumkitVoiceCount];
+    int stride = 0;  // channel stride of the planar output (init's maxFrames)
 
     const KitCharacter& character() const {
         return kit == DRUMKIT_KIT_909 ? kKit909 : kKit808;
     }
 
-    bool init(float sr, int /*maxFrames*/) {
+    bool init(float sr, int maxFrames) {
         sampleRate = sr > 0.0f ? sr : 44100.0f;
-        return true;
+        stride = maxFrames;
+        return maxFrames > 0;
+    }
+
+    void setPan(int voice, float value) {
+        if (voice >= 0 && voice < kDrumkitVoiceCount) nextPan[voice] = value;
     }
 
     void setKit(int k) {
@@ -341,6 +377,7 @@ struct DrumkitEngine {
     void trigger(int voice, float velocity, float a, float b, float c, float d) {
         const float vel = std::clamp(velocity, 0.0f, 2.0f);
         const KitCharacter& ch = character();
+        if (voice >= 0 && voice < kDrumkitVoiceCount) pan[voice] = panGains(nextPan[voice]);
         switch (voice) {
             case DRUMKIT_KICK:
                 kick.trigger(a, b, c, d * vel, ch);
@@ -373,25 +410,46 @@ struct DrumkitEngine {
             case kDrumkitSetKit:
                 setKit(e.target);
                 break;
+            case kDrumkitSetPan:
+                setPan(e.target, e.value);
+                break;
             default:
                 break;
         }
     }
 
+    /** Planar stereo: left at out[i], right at out[stride + i]. */
     void render(float* out, int numFrames) {
         const float dt = 1.0f / sampleRate;
+        float* right = out + stride;
+        const PanGains& pk = pan[DRUMKIT_KICK];
+        const PanGains& ps = pan[DRUMKIT_SNARE];
+        const PanGains& pc = pan[DRUMKIT_CLOSED_HAT];
+        const PanGains& po = pan[DRUMKIT_OPEN_HAT];
         for (int i = 0; i < numFrames; ++i) {
-            float s = kick.tick(dt, sampleRate);
-            s += snare.tick(dt, sampleRate);
-            s += closedHat.tick(dt, sampleRate);
-            s += openHat.tick(dt, sampleRate);
-            if (!std::isfinite(s)) s = 0.0f;
-            out[i] = std::clamp(s, -1.5f, 1.5f);
+            const float k = kick.tick(dt, sampleRate);
+            const float sn = snare.tick(dt, sampleRate);
+            const float ch = closedHat.tick(dt, sampleRate);
+            const float oh = openHat.tick(dt, sampleRate);
+            // Same summing order as the mono kit, so a centred hit (gain 1)
+            // renders bit-for-bit what it did before pan.
+            float l = k * pk.left;
+            l += sn * ps.left;
+            l += ch * pc.left;
+            l += oh * po.left;
+            float r = k * pk.right;
+            r += sn * ps.right;
+            r += ch * pc.right;
+            r += oh * po.right;
+            if (!std::isfinite(l)) l = 0.0f;
+            if (!std::isfinite(r)) r = 0.0f;
+            out[i] = std::clamp(l, -1.5f, 1.5f);
+            right[i] = std::clamp(r, -1.5f, 1.5f);
         }
     }
 };
 
-using DrumkitNativeVoice = hyphon::NativeVoice<DrumkitEngine, 128>;
+using DrumkitNativeVoice = hyphon::NativeVoice<DrumkitEngine, 128, 2>;
 
 // One kit per worklet today; the slack covers offline renders and tests.
 HYPHON_EXPORT_VOICE(drumkit, DrumkitNativeVoice, 8)
@@ -415,18 +473,18 @@ void drumkit_choke_open_hat(uintptr_t handle) {
 
 /**
  * Whole-block render with no event timing — the immediate calls above land on
- * the block's first frame. Kept for the current worklet: unlike
- * drumkit_render it grows the buffer for a block larger than init reserved
- * (counted in stats.overruns), as the hand-rolled outBuf did.
+ * the block's first frame. Planar stereo like drumkit_render. 0 (counted in
+ * stats.overruns) for a block larger than init reserved: the right channel
+ * sits one stride in, so the buffer cannot grow under it.
  */
 EMSCRIPTEN_KEEPALIVE
 uintptr_t drumkit_process(uintptr_t handle, int numFrames) {
     DrumkitNativeVoice* v = drumkit_voice(handle);
     if (!v || v->buffer.capacity() == 0) return 0;  // not initialised
     if (numFrames <= 0) return reinterpret_cast<uintptr_t>(v->buffer.data());
-    if (numFrames > v->buffer.capacity()) {
+    if (numFrames > v->maxFrames) {
         ++v->stats.overruns;
-        if (!v->buffer.reserve(numFrames)) return 0;
+        return 0;
     }
     float* out = v->buffer.acquire(numFrames);
     v->engine.render(out, numFrames);

@@ -56,7 +56,6 @@ export interface Note {
   bitcrush?: number;
   spectralComp?: number;
   downsample?: number;
-  spectralCompression?: number;
   phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;

@@ -176,21 +176,25 @@ export class ProphecyManager {
     }
 
     // ── Note control ─────────────────────────────────────────────────────────
+    // `audioTime` goes through to the worklet, which applies the event on that
+    // frame. Without it a sequenced noteOn and its noteOff (posted together,
+    // up to the lookahead early) both landed on the next block's first frame:
+    // the note released before it sounded.
 
     noteOnPartA(midiNote: number, velocity: number = 100, audioTime?: number): void {
-        this.partA?.noteOn(midiNote, velocity);
+        this.partA?.noteOn(midiNote, velocity, audioTime);
     }
 
     noteOffPartA(midiNote: number, audioTime?: number): void {
-        this.partA?.noteOff(midiNote);
+        this.partA?.noteOff(midiNote, audioTime);
     }
 
     noteOnPartB(midiNote: number, velocity: number = 100, audioTime?: number): void {
-        this.partB?.noteOn(midiNote, velocity);
+        this.partB?.noteOn(midiNote, velocity, audioTime);
     }
 
     noteOffPartB(midiNote: number, audioTime?: number): void {
-        this.partB?.noteOff(midiNote);
+        this.partB?.noteOff(midiNote, audioTime);
     }
 
     allNotesOff(): void {

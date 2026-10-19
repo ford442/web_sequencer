@@ -3,6 +3,7 @@
 // closed + open hat) on the audio session's shared hyphon_native instance.
 // Triggers are pushed into the voice's native event ring and start on their
 // own frame — the same clock the 303 and Prophecy voices use (#1344 P4).
+// Each trigger carries its hit's pan; the kit renders planar stereo.
 
 import { DRUMKIT_REQUIRED_WASM_EXPORTS, formatMissingWasmExports, hasDrumkitApi } from './hyphonNativeImports';
 import { DrumkitEvent, VoiceEvent } from './hyphonNativeExports';
@@ -19,6 +20,7 @@ interface DrumkitMessageData {
     b?: number;
     c?: number;
     d?: number;
+    pan?: number;
     audioTime?: number;
 }
 
@@ -60,9 +62,12 @@ class DrumkitProcessor extends NativeVoiceProcessor {
         switch (type) {
             case 'trigger':
                 if (d.voice !== undefined) {
+                    const frame = this.frameAt(d.audioTime);
+                    // Same frame, pushed first: the trigger latches it.
+                    this.pushEvent(voice, frame, DrumkitEvent.SetPan, d.voice, d.pan ?? 0);
                     this.pushEvent(
                         voice,
-                        this.frameAt(d.audioTime),
+                        frame,
                         VoiceEvent.Trigger,
                         d.voice,
                         d.velocity ?? 1,
@@ -166,7 +171,7 @@ class DrumkitProcessor extends NativeVoiceProcessor {
 
         this.perf.beginProcess(frames);
         try {
-            this.renderVoice(voice, frames, left, right);
+            this.renderVoiceStereo(voice, frames, NativeVoiceProcessor.MAX_BLOCK_FRAMES, left, right);
         } catch (e) {
             this.processFailed(e, left, right);
         } finally {

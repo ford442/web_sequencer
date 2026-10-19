@@ -117,4 +117,5 @@ export const VoiceEvent = {
 export const DrumkitEvent = {
   ChokeOpenHat: 0x100,
   SetKit: 0x101,
+  SetPan: 0x102,
 } as const;

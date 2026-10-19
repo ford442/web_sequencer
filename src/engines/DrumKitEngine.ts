@@ -23,8 +23,21 @@ import {
     type HyphonNativeArtifact,
 } from '@/audio-worklets/hyphonNativeImports';
 import { resolveHyphonNativeArtifact } from './hyphonNativeVariant';
+import { registerE2eAudioTap } from '@/e2e/probe';
 
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
+
+/**
+ * Per-hit pan law, shared with panGains() in emscripten/drumkit_wrapper.cpp:
+ * constant power with unity at the centre (√2·cos / √2·sin of the pan angle),
+ * so a centred hit is the mono kit on both channels and a hard-panned one is
+ * +3 dB on its side. Out-of-range pans clamp; a non-finite one is centre.
+ */
+export function drumPanGains(pan: number | undefined): [left: number, right: number] {
+  if (pan === undefined || !Number.isFinite(pan) || pan === 0) return [1, 1];
+  const angle = (Math.min(1, Math.max(-1, pan)) + 1) * (Math.PI / 4);
+  return [Math.SQRT2 * Math.cos(angle), Math.SQRT2 * Math.sin(angle)];
+}
 
 export class DrumKitEngine {
   private _kitType: DrumKitType;
@@ -214,6 +227,7 @@ export class DrumKitEngine {
 
       this.wasmReady = true;
       this.fallbackReason = null;
+      registerE2eAudioTap('drumkit-worklet', this.workletNode);
       this.workletNode.port.postMessage({
         type: 'set-kit',
         data: { kit: kitToNativeId(this._kitType) },
@@ -233,7 +247,8 @@ export class DrumKitEngine {
 
   /**
    * Play a drum sound. Worklet path posts a trigger at `audioTime`; fallback
-   * allocates Web Audio oscillators (legacy kit).
+   * allocates Web Audio oscillators (legacy kit). `pan` (-1..1, the step's)
+   * overrides the sound's own `params.pan`; both paths use drumPanGains().
    */
   play(
     context: AudioContext,
@@ -242,12 +257,15 @@ export class DrumKitEngine {
     sound: DrumSound,
     params: KickParams | SnareParams | HatParams,
     time: number,
+    pan?: number,
   ): void {
+    const hitPan = pan ?? params.pan ?? 0;
     if (this.wasmReady && this.workletNode) {
-      this.triggerWorklet(sound, params, time);
+      this.triggerWorklet(sound, params, time, hitPan);
       return;
     }
-    this.playFallback(context, this.output ?? masterGain, noiseBuffer, sound, params, time);
+    const dest = this.output ?? masterGain;
+    this.playFallback(context, hitPan === 0 ? dest : panStage(context, dest, hitPan), noiseBuffer, sound, params, time);
   }
 
   /**
@@ -270,6 +288,7 @@ export class DrumKitEngine {
     sound: DrumSound,
     params: KickParams | SnareParams | HatParams,
     audioTime: number,
+    pan: number,
   ): void {
     const voice = DRUMKIT_VOICE[sound];
     let a = 0;
@@ -297,7 +316,7 @@ export class DrumKitEngine {
     }
     this.workletNode!.port.postMessage({
       type: 'trigger',
-      data: { voice, velocity: 1, a, b, c, d, audioTime },
+      data: { voice, velocity: 1, a, b, c, d, pan, audioTime },
     });
   }
 
@@ -321,6 +340,7 @@ export class DrumKitEngine {
       this.workletNode.disconnect();
       this.workletNode.port.close();
       this.workletNode = null;
+      registerE2eAudioTap('drumkit-worklet', null);
     }
   }
 
@@ -453,4 +473,27 @@ export class DrumKitEngine {
       src.stop(time + params.decay + 0.01);
     }
   }
+}
+
+/**
+ * Fallback-kit pan for one hit: the hit's (mono) signal into two gains with
+ * drumPanGains() and a merger onto `dest`. Built only for a panned hit; a
+ * centred one connects straight to `dest`, as it always has.
+ */
+function panStage(context: AudioContext, dest: AudioNode, pan: number): AudioNode {
+  const [left, right] = drumPanGains(pan);
+  const input = context.createGain();
+  input.channelCount = 1;
+  input.channelCountMode = 'explicit';
+  const gainL = context.createGain();
+  const gainR = context.createGain();
+  gainL.gain.value = left;
+  gainR.gain.value = right;
+  const merger = context.createChannelMerger(2);
+  input.connect(gainL);
+  input.connect(gainR);
+  gainL.connect(merger, 0, 0);
+  gainR.connect(merger, 0, 1);
+  merger.connect(dest);
+  return input;
 }

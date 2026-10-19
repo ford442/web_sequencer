@@ -35,7 +35,6 @@ export type PropertyChangeKey =
   | "microtonalVariance"
   | "drumDuckDepth"
   | "downsample"
-  | "spectralCompression"
   | "tranceGate"
   | "volumeFilterMod"
   | "formantShift"
@@ -112,7 +111,6 @@ export interface NoteSelectorProps {
   currentFreeze?: number;
   currentBitcrush?: number;
   currentDownsample?: number;
-  currentSpectralCompression?: number;
   currentDrumDuckDepth?: number;
   currentSubHarmonics?: number;
   currentSpatialRouting?: number;

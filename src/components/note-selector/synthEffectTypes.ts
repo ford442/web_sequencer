@@ -30,7 +30,6 @@ export interface SynthEffectPropertiesProps {
   currentSpatialRouting?: number;
   currentDrumDuckDepth?: number;
   currentDownsample?: number;
-  currentSpectralCompression?: number;
   currentTranceGate?: number;
   currentFormantShift?: number;
   currentFormantPitchLink?: number;

@@ -81,7 +81,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
     currentGranularPitchShift = 0,
     currentBitcrush = 0,
     currentDownsample = 1,
-    currentSpectralCompression = 0,
     currentSubHarmonics,
     currentSpatialRouting,
     currentDrumDuckDepth,
@@ -176,7 +175,6 @@ export const NoteSelector: React.FC<NoteSelectorProps> = memo(
                 currentSpatialRouting={currentSpatialRouting}
                 currentDrumDuckDepth={currentDrumDuckDepth}
                 currentDownsample={currentDownsample}
-                currentSpectralCompression={currentSpectralCompression}
                 currentTranceGate={currentTranceGate}
                 currentVolumeFilterMod={currentVolumeFilterMod}
                 currentAutoTune={currentAutoTune}

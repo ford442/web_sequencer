@@ -133,7 +133,6 @@ export function createPlaySamplerVoice(
     const pBitcrush = noteParams?.bitcrush !== undefined ? noteParams.bitcrush : params.bitcrush;
     const pSpectralComp = noteParams?.spectralComp !== undefined ? noteParams.spectralComp : params.spectralComp;
     const pDownsample = noteParams?.downsample !== undefined ? noteParams.downsample : params.downsample;
-    const pSpectralCompression = noteParams?.spectralCompression !== undefined ? noteParams.spectralCompression : params.spectralCompression;
     const pSubHarmonics = noteParams?.subHarmonics !== undefined ? noteParams.subHarmonics : params.subHarmonics;
     const pSpatialRouting = noteParams?.spatialRouting !== undefined ? noteParams.spatialRouting : (params.spatialRouting ?? 0);
     const pVocalChorus = noteParams?.vocalChorus !== undefined ? noteParams.vocalChorus : params.vocalChorus;
@@ -383,7 +382,6 @@ export function createPlaySamplerVoice(
         if (pBitcrush !== undefined) voice.setBitcrush(pBitcrush, triggerTime);
         if (pSpectralComp !== undefined) voice.setSpectralComp(pSpectralComp, triggerTime);
         if (pDownsample !== undefined) voice.setDownsample(pDownsample, triggerTime);
-        if (pSpectralCompression !== undefined) voice.setSpectralCompression(pSpectralCompression, triggerTime);
         if (pSubHarmonics !== undefined && voice.setSubHarmonics) voice.setSubHarmonics(pSubHarmonics, triggerTime);
         if (pSpatialRouting !== undefined && voice.setSpatialRouting) voice.setSpatialRouting(pSpatialRouting, triggerTime);
         if (pVocalChorus !== undefined && voice.setVocalChorus) voice.setVocalChorus(pVocalChorus, triggerTime);

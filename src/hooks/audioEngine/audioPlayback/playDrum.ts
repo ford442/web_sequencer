@@ -102,6 +102,7 @@ export function createPlayDrum(
         sound,
         adjustedParams,
         now,
+        pan,
       );
       return;
     }

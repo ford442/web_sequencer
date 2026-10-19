@@ -327,10 +327,10 @@ export function createPlaySynth(
           );
 
           refs.prophecyManagerRef?.current?.noteOnPartB(engineMidi, 100, noteTime);
-
-          if (slideFromFreq === undefined) {
-            refs.prophecyManagerRef?.current?.noteOffPartB(engineMidi, noteTime + noteDuration);
-          }
+          // Always released: Prophecy is polyphonic and has no legato path, so
+          // the next note takes another voice and a slide step left without
+          // a noteOff held forever (glide is the PORTAMENTO knob).
+          refs.prophecyManagerRef?.current?.noteOffPartB(engineMidi, noteTime + noteDuration);
 
           continue;
         }
@@ -343,10 +343,10 @@ export function createPlaySynth(
           const noteDuration = subDuration;
 
           refs.prophecyManagerRef?.current?.noteOnPartA(engineMidi, 100, noteTime);
-
-          if (slideFromFreq === undefined) {
-            refs.prophecyManagerRef?.current?.noteOffPartA(engineMidi, noteTime + noteDuration);
-          }
+          // Always released: Prophecy is polyphonic and has no legato path, so
+          // the next note takes another voice and a slide step left without
+          // a noteOff held forever (glide is the PORTAMENTO knob).
+          refs.prophecyManagerRef?.current?.noteOffPartA(engineMidi, noteTime + noteDuration);
 
           continue;
         }

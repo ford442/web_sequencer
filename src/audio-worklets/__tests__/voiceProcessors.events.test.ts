@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
+import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from '../hyphonNativeImports';
 
 /**
  * #1344 P4: prophecy-processor and drumkit-processor on NativeVoiceProcessor.
@@ -112,6 +113,8 @@ describe('voice processors on the event API', () => {
         [`${api}_render`]: (h: number, blockStart: number, frames: number) => {
           calls.push({ fn: `${api}_render`, h, args: [blockStart, frames] });
           new Float32Array(memory.buffer, 2048, frames).fill(0.25);
+          // Planar right channel for the stereo drum kit, one stride on.
+          new Float32Array(memory.buffer, 2048 + 4 * NATIVE_VOICE_MAX_BLOCK_FRAMES, frames).fill(-0.5);
           return 2048;
         },
       });
@@ -156,21 +159,28 @@ describe('voice processors on the event API', () => {
     expect(right[5]).toBe(0.25);
   });
 
-  it('drumkit: a trigger carries velocity and a..d on its frame; set-kit and choke are events', async () => {
+  it('drumkit: a trigger carries its pan, velocity and a..d on its frame; set-kit and choke are events', async () => {
     const voice = await boot('drumkit-processor');
     const h = calls.find((c) => c.fn === 'drumkit_init')!.h;
     calls = [];
 
     await voice.port.deliver({ type: 'trigger', data: { voice: 0, velocity: 1, a: 50, b: 0.6, c: 0.6, d: 1, audioTime: 1 } });
+    await voice.port.deliver({ type: 'trigger', data: { voice: 2, velocity: 1, a: 400, b: 0.1, c: 0.7, pan: -0.5, audioTime: 1.25 } });
     await voice.port.deliver({ type: 'set-kit', data: { kit: 1 } });
     await voice.port.deliver({ type: 'choke-open-hat', data: { audioTime: 1.5 } });
     expect(calls.map((c) => c.args)).toEqual([
-      [44100, 5, 0, 1, 50, 0.6, 0.6, 1],   // kTrigger, kick
-      [0, 0x101, 1, 0, 0, 0, 0, 0],        // kDrumkitSetKit, 909
-      [66150, 0x100, 0, 0, 0, 0, 0, 0],    // kDrumkitChokeOpenHat
+      [44100, 0x102, 0, 0, 0, 0, 0, 0],      // kDrumkitSetPan, kick: centre
+      [44100, 5, 0, 1, 50, 0.6, 0.6, 1],     // kTrigger, kick — latches it
+      [55125, 0x102, 2, -0.5, 0, 0, 0, 0],   // kDrumkitSetPan, closed hat
+      [55125, 5, 2, 1, 400, 0.1, 0.7, 0],    // kTrigger, closed hat
+      [0, 0x101, 1, 0, 0, 0, 0, 0],          // kDrumkitSetKit, 909
+      [66150, 0x100, 0, 0, 0, 0, 0, 0],      // kDrumkitChokeOpenHat
     ]);
-    render(voice, 44032);
+    const [left, right] = render(voice, 44032);
     expect(calls.at(-1)).toEqual({ fn: 'drumkit_render', h, args: [44032, BLOCK] });
+    // Planar stereo: right is one stride after left.
+    expect(left[5]).toBe(0.25);
+    expect(right[5]).toBe(-0.5);
 
     // Transport stop (#1344 P5): hits posted ahead of their frame are dropped.
     await voice.port.deliver({ type: 'allNotesOff', data: {} });
