@@ -25,8 +25,21 @@ declare class AudioWorkletProcessor {
 declare const currentFrame: number | undefined;
 declare const sampleRate: number | undefined;
 
+const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
+
 /** Engines on the voice core — the prefix of their generic exports. */
-export type NativeVoicePrefix = 'open303' | 'jc303' | 'highfid303' | 'prophecy' | 'drumkit' | 'macro';
+export type NativeVoicePrefix = (typeof VOICE_PREFIXES)[number];
+
+/**
+ * Each engine's generic export names, built once at load: process() and the
+ * message handler look them up without building a string on the audio thread.
+ */
+const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
+    pushEvent: `${p}_push_event`,
+    render: `${p}_render`,
+    cancelNotes: `${p}_cancel_notes`,
+    flush: `${p}_flush`,
+}])) as Record<NativeVoicePrefix, { pushEvent: string; render: string; cancelNotes: string; flush: string }>;
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
@@ -154,7 +167,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         a2 = 0,
         a3 = 0,
     ): boolean {
-        const push = this.x[`${voice.prefix}_push_event`] as PushEvent | undefined;
+        const push = this.x[VOICE_EXPORT_NAMES[voice.prefix].pushEvent] as PushEvent | undefined;
         if (!push) return false;
         if (push(voice.handle, frame, type, target, value, a0, a1, a2, a3) === 1) return true;
         if (this.droppedEvents++ < MAX_LOGGED_ERRORS) {
@@ -165,12 +178,12 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
 
     /** Drop the notes and triggers `voice` still holds for later frames; params still land. */
     protected cancelNotes(voice: NativeVoiceRef): void {
-        (this.x[`${voice.prefix}_cancel_notes`] as HandleCall | undefined)?.(voice.handle);
+        (this.x[VOICE_EXPORT_NAMES[voice.prefix].cancelNotes] as HandleCall | undefined)?.(voice.handle);
     }
 
     /** Apply everything `voice` holds now — before it stops being rendered. */
     protected flushEvents(voice: NativeVoiceRef): void {
-        (this.x[`${voice.prefix}_flush`] as HandleCall | undefined)?.(voice.handle);
+        (this.x[VOICE_EXPORT_NAMES[voice.prefix].flush] as HandleCall | undefined)?.(voice.handle);
     }
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -186,9 +199,9 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         right: Float32Array | undefined,
         gain = 1,
     ): boolean {
-        const render = this.x[`${voice.prefix}_render`] as Render | undefined;
+        const render = this.x[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
         const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
-        return this.copyOut(ptr, frames, left, right, gain, `${voice.prefix}_render`);
+        return this.copyOut(ptr, frames, left, right, gain, VOICE_EXPORT_NAMES[voice.prefix].render);
     }
 
     /**
@@ -204,7 +217,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         right: Float32Array | undefined,
         gain = 1,
     ): boolean {
-        const render = this.x[`${voice.prefix}_render`] as Render | undefined;
+        const render = this.x[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
         const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
         this.refreshHeap();
         const heap = this.heap;
