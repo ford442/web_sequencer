@@ -42,6 +42,7 @@ export type GraphNodeFactory =
     // so the engine is a node in the patch rather than hard-wired lifecycle code.
     | 'open303Voice'
     | 'prophecyVoice'
+    | 'macroVoice'
     | 'drumkitVoice'
     | 'samplerVoice'
     | 'harmonizerBus';

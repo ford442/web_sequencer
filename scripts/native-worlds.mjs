@@ -10,6 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { plaitsHashInputs } from '../tools/plaits_sources.mjs';
+
 export const STAMP_REL = path.join('.cache', 'native', 'stamps.json');
 export const CACHE_MANIFEST_REL = path.join('.cache', 'native', 'native-artifacts.json');
 
@@ -170,6 +172,13 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   const open303Dsp = walkFiles(repoRoot, 'jc303_wasm/src/dsp/open303', {
     excludeDirNames: new Set(['.git']),
   });
+  // macro-* voices: the vendored Plaits/stmlib sources (third_party submodules)
+  // and the staging + denormal-guard step that turns them into what em++ sees.
+  const plaitsInputs = [
+    ...plaitsHashInputs(repoRoot),
+    'tools/plaits_sources.mjs',
+    'tools/plaits_wasm_patches.mjs',
+  ];
 
   return [
     ...asWorlds,
@@ -203,6 +212,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       inputs: [
         ...emccFiles.map(fileInput),
         ...open303Dsp.map(fileInput),
+        ...plaitsInputs.map(fileInput),
         fileInput('emscripten/wasm_export_manifest.json'),
         fileInput('tools/hyphon_native_exports.mjs'),
         fileInput('tools/extract_wasm_export_map.mjs'),

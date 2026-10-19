@@ -11,7 +11,12 @@ export type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficie
  *
  * `rust-*` and `cpp-*` were removed: neither had a worklet, both dumped (or in
  * cpp's case, failed to dump) a buffer on the main thread. Saved songs that
- * still contain them are rewritten by `LEGACY_WAVEFORM_ALIASES`.
+ * still contain them are rewritten by `LEGACY_WAVEFORM_ALIASES` (whose keys are
+ * plain strings — the ids are no longer members of this union).
+ *
+ * `macro-*` are the 24 models of the macro engine family (Plaits DSP, MIT) —
+ * the id names the model; `SynthParams.macro` carries its knobs. The order
+ * and ids are persisted: see MACRO_ENGINES in engines/MacroParams.ts.
  *
  * `wam-*` is Hyphon's AssemblyScript wavetable kernel and is labelled
  * "WASM OSC" in the UI — it is NOT Web Audio Modules 2.0 (ADR 0001). The ids
@@ -25,13 +30,46 @@ export type Waveform =
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
-  | 'rust-saw'
-  | 'rust-sqr'
-  | 'cpp-saw'
-  | 'cpp-sqr'
-  | 'cpp-tri'
-  | 'cpp-sin'
-  | 'cpp-rand';
+  | MacroWaveform;
+
+/** The macro engine family, in native engine order (MACRO_ENGINES). */
+export type MacroWaveform =
+  | 'macro-va-vcf' | 'macro-phase-dist' | 'macro-fm6-a' | 'macro-fm6-b' | 'macro-fm6-c'
+  | 'macro-wave-terrain' | 'macro-string-machine' | 'macro-chiptune'
+  | 'macro-va' | 'macro-waveshaper' | 'macro-fm2' | 'macro-grain'
+  | 'macro-additive' | 'macro-wavetable' | 'macro-chords' | 'macro-speech'
+  | 'macro-swarm' | 'macro-noise' | 'macro-particle' | 'macro-string'
+  | 'macro-modal' | 'macro-bass-drum' | 'macro-snare' | 'macro-hihat';
+
+/**
+ * Knobs of a `macro-*` part (engines/MacroParams.ts). Every field is optional
+ * so older songs and partial presets load; missing ones take
+ * DEFAULT_MACRO_PARAMS. The model itself is the waveform id, not a field here.
+ */
+export interface MacroSynthParams {
+  /** 0–1, meaning per model (MACRO_ENGINES[i].knobs). */
+  harmonics?: number;
+  timbre?: number;
+  morph?: number;
+  /** 0–1: LPG release in gate mode, the whole envelope in ping mode. */
+  decay?: number;
+  /** 0 = VCA, 1 = low-pass gate. */
+  lpgColour?: number;
+  /** 1–8 voices; 1 = mono with legato slides. */
+  polyphony?: number;
+  /** Internal decay envelope → pitch / TIMBRE / MORPH, −1…1. */
+  fmMod?: number;
+  timbreMod?: number;
+  morphMod?: number;
+  /** Stereo width from the AUX output, 0–1. */
+  spread?: number;
+  /** Portamento 0–1 (0 = off, 1 ≈ 1 s). */
+  glide?: number;
+  /** 'gate' holds the LPG open for the note's length; 'ping' strikes it like the module. */
+  lpgMode?: 'gate' | 'ping';
+  /** OUT → AUX crossfade on the mid channel, 0–1. */
+  auxMix?: number;
+}
 
 export interface SynthParams {
   waveform: Waveform;
@@ -69,9 +107,10 @@ export interface SynthParams {
   formantPitchLink?: number;
   coarseTune?: number;
   fineTune?: number;
-  /** CPP: fine tune / shape parameter 0–1 */
   /** @deprecated CPP oscillator family removed (#1294); kept so old songs load. */
   cppFine?: number;
+  /** Macro engine knobs — only read when `waveform` is a `macro-*` id. */
+  macro?: MacroSynthParams;
 }
 
 /** TB-303 DSP engine selection.
@@ -94,9 +133,7 @@ export type OscillatorType =
   | 'pyodide'      // Python/Pyodide software oscillators
   | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
-  | 'cpp'
-
-  | 'rust';
+  | 'macro';       // Macro engine family (Plaits DSP, polyphonic native worklet)
 
 export interface Bass2Params {
   waveform: '303-saw' | '303-sqr';

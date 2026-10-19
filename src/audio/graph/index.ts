@@ -184,7 +184,7 @@ export type {
     EngineVoiceRequest,
 } from './engineVoices';
 export { OPEN303_VOICES, open303StripIds, withEngineVoices } from './engineStrips';
-export type { Open303StripIds, Open303VoiceId, ProphecyVoiceId, SamplerVoiceId } from './engineStrips';
+export type { Open303StripIds, Open303VoiceId, MacroVoiceId, ProphecyVoiceId, SamplerVoiceId } from './engineStrips';
 export { NODE_PALETTE, createPaletteNode, paletteDefaults } from './nodePalette';
 export type { PaletteEntry, PaletteParam } from './nodePalette';
 export type { GraphPreset } from './presets';

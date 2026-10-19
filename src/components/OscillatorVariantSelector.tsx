@@ -2,6 +2,7 @@
 import React, { memo } from 'react';
 import type { OscillatorType, Waveform } from '../types';
 import { getWaveformsForType, OSCILLATOR_THEMES } from './oscillatorThemes';
+import { MACRO_BANKS, macroEngineForWaveform } from '../engines/MacroParams';
 
 interface OscillatorVariantSelectorProps {
   /** The high-level oscillator family (determines which variants are offered). */
@@ -47,6 +48,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     pyodide: 'bg-gradient-to-b from-yellow-500 to-yellow-600 text-white border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]',
     webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_8px_rgba(217,70,239,0.4)]',
     wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
+    macro: 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.4)]',
   };
 
   const inactiveBase = 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200';
@@ -59,6 +61,8 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     if (s === 'triangle' || s === 'prophecy-tri' || s === 'wgsl-tri' || s === 'wam-tri') return 'TRI';
     if (s === 'sine' || s === 'pyodide-sine' || s === 'wgsl-sin' || s === 'wam-sin') return 'SIN';
     if (s === 'prophecy-pulse') return 'PLS';
+    const macro = macroEngineForWaveform(s);
+    if (macro) return macro.short;
     // Fallback to last segment or upper
     return s.split('-').pop()?.toUpperCase().slice(0, 3) ?? 'WAV';
   };
@@ -75,13 +79,42 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     >
       <div className="flex items-center justify-between gap-1 px-0.5">
         <span className={`text-[7px] font-mono uppercase tracking-widest ${accentColor === 'cyan' ? 'text-cyan-400/60' : 'text-pink-400/60'}`}>
-          {type === 'prophecy' ? 'Carrier' : type.includes('303') ? 'Wave' : 'Shape'}
+          {type === 'prophecy' ? 'Carrier' : type === 'macro' ? 'Model' : type.includes('303') ? 'Wave' : 'Shape'}
         </span>
         <span className={`text-[6px] font-bold uppercase tracking-[1px] ${theme.text} opacity-70`}>
           {theme.badge}
         </span>
       </div>
 
+      {type === 'macro' ? (
+        // The 24 models as a grid, one row per bank.
+        MACRO_BANKS.map(({ bank, label: bankLabel, engines }) => (
+          <div key={bank} className="flex items-center gap-1" role="group" aria-label={`${bankLabel} models`}>
+            <span className="w-8 shrink-0 text-[6px] font-mono uppercase tracking-wider text-zinc-500" aria-hidden="true">
+              {bankLabel.split(' ')[0]}
+            </span>
+            <div className="grid flex-1 grid-cols-8 gap-0.5">
+              {engines.map((engine) => {
+                const active = isActive(engine.waveform);
+                return (
+                  <button type="button"
+                    key={engine.waveform}
+                    onClick={() => onChange(engine.waveform)}
+                    aria-pressed={active}
+                    title={`${engine.label} — H: ${engine.knobs.harmonics} · T: ${engine.knobs.timbre} · M: ${engine.knobs.morph}`}
+                    aria-label={`Select ${theme.label} ${engine.label} model`}
+                    className={`px-0.5 py-0.5 text-[7px] font-bold rounded transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115] ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-500' : 'focus-visible:ring-pink-500'} ${
+                      active ? familyActiveMap[type] : inactiveBase
+                    }`}
+                  >
+                    {engine.short}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      ) : (
       <div className="flex flex-wrap gap-1">
         {variants.map((w) => {
           const label = getLabel(w);
@@ -102,6 +135,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
           );
         })}
       </div>
+      )}
     </div>
   );
 });

@@ -26,7 +26,7 @@ declare const currentFrame: number | undefined;
 declare const sampleRate: number | undefined;
 
 /** Engines on the voice core — the prefix of their generic exports. */
-export type NativeVoicePrefix = 'open303' | 'jc303' | 'highfid303' | 'prophecy' | 'drumkit';
+export type NativeVoicePrefix = 'open303' | 'jc303' | 'highfid303' | 'prophecy' | 'drumkit' | 'macro';
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
@@ -189,6 +189,39 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         const render = this.x[`${voice.prefix}_render`] as Render | undefined;
         const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
         return this.copyOut(ptr, frames, left, right, gain, `${voice.prefix}_render`);
+    }
+
+    /**
+     * Render this block of a planar-stereo voice (NativeVoice<E, N, 2>: left
+     * at the returned pointer, right `stride` floats on — the maxFrames it was
+     * initialised with) into the two channels, times `gain`.
+     */
+    protected renderVoiceStereo(
+        voice: NativeVoiceRef,
+        frames: number,
+        stride: number,
+        left: Float32Array | undefined,
+        right: Float32Array | undefined,
+        gain = 1,
+    ): boolean {
+        const render = this.x[`${voice.prefix}_render`] as Render | undefined;
+        const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
+        this.refreshHeap();
+        const heap = this.heap;
+        const offset = ptr > 0 ? ptr >>> 2 : -1;
+        if (!heap || offset < 0 || frames > stride || offset + stride + frames > heap.length) {
+            if (this.renderErrors++ < MAX_LOGGED_ERRORS) {
+                console.error(`${this.logPrefix} ${voice.prefix}_render returned an unreadable stereo buffer (ptr=${ptr})`);
+            }
+            NativeVoiceProcessor.silence(left, right);
+            return false;
+        }
+        const r = offset + stride;
+        for (let i = 0; i < frames; i++) {
+            if (left) left[i] = heap[offset + i] * gain;
+            if (right) right[i] = heap[r + i] * gain;
+        }
+        return true;
     }
 
     /** Copy `frames` mono samples at `ptr` to both channels. */

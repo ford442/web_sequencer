@@ -32,6 +32,11 @@
  *   void render(float* out, int frames);    // mono; any frames >= 1
  *   void apply(const hyphon::Event& e);
  *
+ * Multi-channel engines (NativeVoice<E, N, Channels>, e.g. the stereo macro
+ * voice) render planar: channel c of the frame at `out[i]` is
+ * `out[c * maxFrames + i]`, maxFrames being what init was given. renderSplit
+ * offsets `out` per sub-block, so the stride holds for every call.
+ *
  * Denormals. WebAssembly has no flush-to-zero mode and -ffast-math is not an
  * option for recursive filters (docs/wasm/BUILD_NOTES.md#fast-math), so
  * feedback paths clamp their state with flushDenormal().
@@ -358,17 +363,22 @@ private:
 
 // ── NativeVoice: what one handle owns ───────────────────────────────────────
 
-template <class Engine, uint32_t EventCapacity = 256>
+template <class Engine, uint32_t EventCapacity = 256, int Channels = 1>
 struct NativeVoice {
+    static_assert(Channels >= 1, "a voice renders at least one channel");
+    static constexpr int kChannels = Channels;
+
     Engine engine;
     EventRing<EventCapacity> ring;
     EventSchedule<EventCapacity> schedule;
     BlockBuffer buffer;
     VoiceStats stats;
+    int maxFrames = 0;  // channel stride of the planar buffer
 
     /** Setup path: the only place a voice allocates. */
-    bool init(float sampleRate, int maxFrames) {
-        return buffer.reserve(maxFrames) && engine.init(sampleRate, maxFrames);
+    bool init(float sampleRate, int frames) {
+        maxFrames = frames;
+        return buffer.reserve(frames * Channels) && engine.init(sampleRate, frames);
     }
 
     /** Producer side. False (and counted in ring.dropped()) when the ring is full. */
@@ -380,7 +390,9 @@ struct NativeVoice {
      * silence; growing here would allocate on the audio thread.
      */
     float* process(int64_t blockStart, int frames) {
-        float* out = buffer.acquire(frames);
+        // Planar channels sit maxFrames apart, so a multi-channel block may
+        // not exceed the stride even if the buffer happens to be larger.
+        float* out = (Channels == 1 || frames <= maxFrames) ? buffer.acquire(frames) : nullptr;
         if (!out) {
             ++stats.overruns;
             return nullptr;

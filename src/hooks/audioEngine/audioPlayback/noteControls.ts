@@ -2,6 +2,8 @@ import type { AudioEngine } from "../../../types";
 import { noteToMidi } from "../../../utils/musicTheory";
 import { getPitchOffsetSemitones, transposeMidi } from "../../../utils/pitchOffset";
 import { PROPHECY_WAVEFORM_SUFFIX } from "../../../engines/ProphecyParams";
+import { macroEngineForWaveform } from "../../../engines/MacroParams";
+import { substituteMacroWaveform } from "../../../engines/MacroManager";
 import { engineTelemetry } from "../../../utils/engineTelemetry";
 import { pulseExpressionLed } from "../../../audio/expressionLedPulse";
 import { triggerBassEQDuck } from "./duckingEffects";
@@ -18,6 +20,7 @@ export function createNoteOnSynth(
     PlaybackRefs,
     | "open303ManagerRef"
     | "prophecyManagerRef"
+    | "macroManagerRef"
     | "voiceManagerARef"
     | "voiceManagerBRef"
     | "nextSynthNoteId"
@@ -194,16 +197,52 @@ export function createNoteOnSynth(
       }
     }
 
+    // === Macro Routing (interactive noteOn) ===
+    const macroEngine = macroEngineForWaveform(params.waveform);
+    let voiceParams = params;
+    if (macroEngine && (track === "partA" || track === "partB")) {
+      const macroManager = refs.macroManagerRef?.current;
+      if (macroManager?.canPlay(track, macroEngine)) {
+        // Untransposed: TUNE is the engine's native transpose (applyParams).
+        const midi = noteToMidi(note);
+        const at = time || undefined;
+        macroManager.applyParams(track, params, macroEngine, at);
+        if (track === "partB") {
+          triggerBassEQDuck(
+            context,
+            refs.bassSidechainEQBusRef.current,
+            now,
+            0.25,
+            refs.singingVoiceManagerRef.current,
+            1.0
+          );
+        }
+        const t0 = performance.now();
+        macroManager.noteOn(track, midi, 0.8, at);
+        try {
+          engineTelemetry.recordLatency("macro", performance.now() - t0);
+        } catch { /* telemetry only */ }
+        const id = refs.nextSynthNoteId.current++;
+        refs.activeSynthNotes.current.set(id, {
+          stop: () => refs.macroManagerRef?.current?.noteOff(track, midi),
+        });
+        return id;
+      }
+      // Not playable here: the documented fallback waveform, reported once.
+      const substitute = substituteMacroWaveform(track, params.waveform, macroManager);
+      if (substitute) voiceParams = { ...params, waveform: substitute };
+    }
+
     let manager = refs.voiceManagerARef.current;
     if (track === "partB") {
       manager = refs.voiceManagerBRef.current;
     }
 
     if (manager) {
-      const voice = manager.noteOn(params, note, now);
+      const voice = manager.noteOn(voiceParams, note, now);
       const id = refs.nextSynthNoteId.current++;
       refs.activeSynthNotes.current.set(id, {
-        stop: () => voice.stopNote(context.currentTime, params),
+        stop: () => voice.stopNote(context.currentTime, voiceParams),
       });
       return id;
     }
@@ -234,6 +273,7 @@ export function createStopTrackNotes(
     | "singingVoiceManagerRef"
     | "open303ManagerRef"
     | "prophecyManagerRef"
+    | "macroManagerRef"
   >,
 ): NonNullable<AudioEngine["stopTrackNotes"]> {
   return (track) => {
@@ -241,12 +281,14 @@ export function createStopTrackNotes(
       refs.voiceManagerARef.current?.stopAll(0);
       refs.open303ManagerRef.current?.allNotesOffLead303();
       refs.prophecyManagerRef.current?.allNotesOffPartA();
+      refs.macroManagerRef?.current?.allNotesOff("partA");
       return;
     }
     if (track === "partB") {
       refs.voiceManagerBRef.current?.stopAll(0);
       refs.open303ManagerRef.current?.allNotesOffBass1();
       refs.prophecyManagerRef.current?.allNotesOffPartB();
+      refs.macroManagerRef?.current?.allNotesOff("partB");
       return;
     }
     if (track === "bass2") {
@@ -277,6 +319,7 @@ export function createStopAllNotes(
     | "singingVoiceManagerRef"
     | "open303ManagerRef"
     | "prophecyManagerRef"
+    | "macroManagerRef"
     | "drumKitEngineRef"
   >,
 ): NonNullable<AudioEngine["stopAllNotes"]> {
@@ -304,6 +347,7 @@ export function createStopAllNotes(
     // Steps are posted ahead of time (#1344 P5): notes and hits due after
     // STOP are already queued in the voice worklets — cancel them too.
     refs.prophecyManagerRef?.current?.allNotesOff();
+    refs.macroManagerRef?.current?.allNotesOff();
     refs.drumKitEngineRef?.current?.cancelPending();
   };
 }

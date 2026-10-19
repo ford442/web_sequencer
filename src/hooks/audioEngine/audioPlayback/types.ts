@@ -3,12 +3,14 @@ import type {
   AudioEngine,
   DrumSound,
   ExpressionLedTarget,
+  MacroSynthParams,
   SynthParams,
 } from "../../../types";
 import type { ScaleDefinition } from "../../../utils/musicTheory";
 import { Harmonizer } from "../../../engines/Harmonizer";
 import { Open303Manager } from "../../../engines/Open303Manager";
 import { ProphecyManager } from "../../../engines/ProphecyManager";
+import type { MacroManager } from "../../../engines/MacroManager";
 import type { VoiceManager } from "../../../engines/VoiceManager";
 import { SingingVoiceManager } from "../../../engines/SingingVoiceManager";
 import { DrumKitEngine } from "../../../engines/DrumKitEngine";
@@ -52,6 +54,8 @@ export interface SynthNoteParams {
   formantShift?: number;
   /** Note velocity 0–1 (mapped to MIDI 0–127 for Open303 noteOn) */
   velocity?: number;
+  /** Macro: per-step knob values (pattern automation lanes), over the part's `macro`. */
+  macro?: MacroSynthParams;
 }
 
 export interface DrumNoteParams {
@@ -103,6 +107,7 @@ export interface PlaybackRefs {
   noiseBufferRef: MutableRefObject<AudioBuffer | null>;
   open303ManagerRef: MutableRefObject<Open303Manager | null>;
   prophecyManagerRef: MutableRefObject<ProphecyManager | null>;
+  macroManagerRef?: MutableRefObject<MacroManager | null>;
   voiceManagerARef: MutableRefObject<VoiceManager | null>;
   voiceManagerBRef: MutableRefObject<VoiceManager | null>;
   nextSynthNoteId: MutableRefObject<number>;

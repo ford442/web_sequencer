@@ -99,6 +99,34 @@ its wavetables) holds it by pointer and allocates it in `init`, as
 `render` is called with arbitrary split sizes, so an engine that updates
 coefficients per block must do it per call, or use `Smoothed::advance(frames)`.
 
+### Stereo engines (`Channels = 2`)
+
+`NativeVoice<Engine, EventCapacity, Channels>` takes a third parameter for an
+engine that renders more than one channel. The buffer is then **planar**: one
+`maxFrames`-long lane per channel: channel `c` of frame `i` is at
+`out[c * maxFrames + i]`, and `*_render` returns the left lane's pointer. A
+render longer than `maxFrames` is refused (returns 0) rather than growing the
+buffer, because the stride would move under the caller.
+
+`renderSplit` still hands the engine `out + pos` for each split, so the engine
+keeps the stride it was given in `init` and writes the right lane at
+`out + stride`:
+
+```cpp
+struct MyStereoEngine {
+    bool init(float sampleRate, int maxFrames);  // keep maxFrames as the stride
+    void render(float* out, int frames);         // left out[i], right out[stride + i]
+    void apply(const hyphon::Event& e);
+};
+using MyStereoVoice = hyphon::NativeVoice<MyStereoEngine, 256, 2>;
+```
+
+The engine exports its own `*_stride(h)` so the worklet knows where the right
+lane starts; `NativeVoiceProcessor.renderVoiceStereo(voice, frames, stride,
+left, right)` copies both lanes to the outputs. The macro voice
+(`emscripten/macro_wrapper.cpp`, [macro-voices.md](../audio-engine/macro-voices.md))
+is the first stereo engine.
+
 ## Mono note discipline (`MonoNoteEngine`)
 
 The three 303 engines are wrapped in `hyphon::MonoNoteEngine`, which applies
@@ -122,7 +150,8 @@ release a note the engine already dropped.
 ## Worklet side
 
 `src/audio-worklets/nativeVoiceProcessor.ts` is the base of
-`open303-processor`, `prophecy-processor` and `drumkit-processor`:
+`open303-processor`, `prophecy-processor`, `drumkit-processor` and
+`macro-processor`:
 
 - joins the audio session's one `hyphon_native` instance (the drum kit used to
   instantiate its own; it now resolves the same pthread / ST profile as the

@@ -35,6 +35,8 @@ import type {
 import { automationStore } from '../../stores/automationStore';
 import type { Open303Manager } from '../../engines/Open303Manager';
 import type { ProphecyManager } from '../../engines/ProphecyManager';
+import type { MacroManager } from '../../engines/MacroManager';
+import { isMacroAutomationParam } from '../../engines/MacroParams';
 import type { PcfEffect } from '../../engines/PcfEffect';
 import type { WamHost } from '../wam/WamHost';
 import {
@@ -166,6 +168,7 @@ export class AutomationScheduler {
    */
   private open303Manager: Open303Manager | null;
   private prophecyManager: ProphecyManager | null = null;
+  private macroManager: MacroManager | null = null;
   private pcfEffect: PcfEffect | null = null;
   private wamHost: WamHost | null = null;
 
@@ -218,6 +221,11 @@ export class AutomationScheduler {
   /** Update ProphecyManager for audio-clock vowel/portamento automation. */
   setProphecyManager(manager: ProphecyManager | null): void {
     this.prophecyManager = manager;
+  }
+
+  /** Update MacroManager for the `macro*` knob lanes on synthA / synthB (sample-accurate). */
+  setMacroManager(manager: MacroManager | null): void {
+    this.macroManager = manager;
   }
 
   /**
@@ -389,6 +397,18 @@ export class AutomationScheduler {
         parameter as 'vowel' | 'portamento' | 'formantShift',
         value,
         effectiveTime,
+      );
+      return;
+    }
+
+    if ((target === 'synthA' || target === 'synthB') && isMacroAutomationParam(parameter)) {
+      // Lands on its own frame in the macro worklet; a part that is not on a
+      // macro model simply ignores it (the native param is per part).
+      this.macroManager?.scheduleParamAtTime(
+        target === 'synthA' ? 'partA' : 'partB',
+        parameter,
+        value,
+        this._effectiveAudioTime(audioTime, target, parameter),
       );
       return;
     }

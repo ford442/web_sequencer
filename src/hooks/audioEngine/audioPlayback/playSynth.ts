@@ -2,6 +2,8 @@ import type { SynthParams } from "../../../types";
 import { noteToMidi } from "../../../utils/musicTheory";
 import { getPitchOffsetSemitones, transposeMidi } from "../../../utils/pitchOffset";
 import { PROPHECY_WAVEFORM_SUFFIX } from "../../../engines/ProphecyParams";
+import { macroEngineForWaveform } from "../../../engines/MacroParams";
+import { substituteMacroWaveform, type MacroPart } from "../../../engines/MacroManager";
 import type { Voice } from "../../../engines/VoiceManager";
 import { pulseExpressionLed } from "../../../audio/expressionLedPulse";
 import { triggerBassEQDuck } from "./duckingEffects";
@@ -22,6 +24,7 @@ export function createPlaySynth(
     | "masterGainRef"
     | "open303ManagerRef"
     | "prophecyManagerRef"
+    | "macroManagerRef"
     | "voiceManagerARef"
     | "voiceManagerBRef"
     | "reverbNodesRef"
@@ -57,7 +60,8 @@ export function createPlaySynth(
       noteParams?.filterResonance !== undefined ||
       noteParams?.vowel !== undefined ||
       noteParams?.portamento !== undefined ||
-      noteParams?.formantShift !== undefined
+      noteParams?.formantShift !== undefined ||
+      noteParams?.macro !== undefined
     ) {
       for (let i = 0; i < _synthParamsScratchKeys.length; i++) {
         asRecord(_synthParamsScratch)[_synthParamsScratchKeys[i]] = undefined;
@@ -102,6 +106,9 @@ export function createPlaySynth(
       if (noteParams?.formantShift !== undefined) {
         effectiveParams.formantShift = noteParams.formantShift;
       }
+      if (noteParams?.macro !== undefined) {
+        effectiveParams.macro = { ...params.macro, ...noteParams.macro };
+      }
     }
 
     const retrigger = Math.max(1, Math.floor(noteParams?.retrigger || 1));
@@ -123,6 +130,24 @@ export function createPlaySynth(
     const engineMidi = transposeMidi(midi, getPitchOffsetSemitones(effectiveParams));
     const velocity = Math.round((noteParams?.velocity ?? 0.8) * 127);
     const prophecyWaveType = PROPHECY_WAVEFORM_SUFFIX[params.waveform];
+
+    // === Macro engine (macro-* models, polyphonic) ===
+    // A part that cannot render the model plays its documented fallback
+    // waveform through VoiceManager instead and reports the substitution —
+    // never silence (docs/audio-engine/macro-voices.md#fallback).
+    const macroEngine = macroEngineForWaveform(params.waveform);
+    let macroPart: MacroPart | null = null;
+    if (macroEngine && (track === "partA" || track === "partB")) {
+      const macroManager = refs.macroManagerRef?.current;
+      if (macroManager?.canPlay(track, macroEngine)) {
+        macroPart = track;
+        // TUNE travels as the native transpose, so the notes below stay untransposed.
+        macroManager.applyParams(track, effectiveParams, macroEngine, actualTime);
+      } else {
+        const substitute = substituteMacroWaveform(track, params.waveform, macroManager);
+        if (substitute) effectiveParams = { ...effectiveParams, waveform: substitute };
+      }
+    }
 
     // Hoist expensive WASM parameter mappings to avoid cross-boundary calls in retrigger loop
     if (
@@ -251,6 +276,38 @@ export function createPlaySynth(
 
           continue;
         }
+      }
+
+      // === Macro Routing === every chord note is its own voice.
+      if (macroPart) {
+        const macroManager = refs.macroManagerRef?.current;
+        if (macroManager) {
+          const noteDuration = subDuration;
+          const noteNames = Array.isArray(note) ? note : [note];
+          const noteVelocity = noteParams?.velocity ?? 0.8;
+          // A step's timbre (0–1, 0.5 neutral) bends TIMBRE around the knob.
+          const timbre = noteParams?.timbre !== undefined ? noteParams.timbre - 0.5 : 0;
+          const slide = i === 0 && slideFromFreq !== undefined;
+          if (macroPart === "partB") {
+            triggerBassEQDuck(
+              context,
+              refs.bassSidechainEQBusRef.current,
+              noteTime,
+              noteDuration,
+              refs.singingVoiceManagerRef.current,
+              noteVelocity,
+            );
+          }
+          for (const name of noteNames) {
+            if (!name) continue;
+            const noteMidi = noteToMidi(name);
+            macroManager.noteOn(macroPart, noteMidi, noteVelocity, noteTime, { timbre, slide });
+            // Always released: a slid note keeps sounding only through the
+            // mono legato in the engine, never by leaving a gate open.
+            macroManager.noteOff(macroPart, noteMidi, noteTime + noteDuration);
+          }
+        }
+        continue;
       }
 
       // === Prophecy Routing ===

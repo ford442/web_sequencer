@@ -278,7 +278,7 @@ async function instantiateWithTimeout(
  *   during init even though sp never falls below the real limit; stackEnd=0
  *   makes the check (sp < 0) always false.
  */
-function configureWasmStack(exports: Record<string, any>): void {
+export function configureWasmStack(exports: Record<string, any>): void {
     if (typeof exports.emscripten_stack_init === 'function') {
         exports.emscripten_stack_init();
     }

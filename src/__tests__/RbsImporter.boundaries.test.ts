@@ -34,6 +34,7 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   portamento: 0,
   formantShift: 0,
   cppFine: 0,
+  macro: undefined,
   drive: 0,
   formantPitchLink: 0,
   coarseTune: 0,

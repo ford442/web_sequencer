@@ -61,6 +61,7 @@ import { transportPlayhead } from '../sequencer/transportPlayhead';
 import { groupSimultaneous } from '../sequencer/noteFx/chain';
 import { noteFxEventsForStep } from '../sequencer/noteFx/runtime';
 import type { FxNoteEvent, NoteFxTrack } from '../sequencer/noteFx/types';
+import { MACRO_AUTOMATION_PARAMS, MACRO_AUTOMATION_TARGETS, macroControlValue } from '../engines/MacroParams';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -501,6 +502,14 @@ export const useStepHandler = ({
             if (autoPortamento !== undefined && autoPortamento !== null) noteParams.portamento = autoPortamento;
             const autoFormantShift = automation?.['formantShift']?.[tStep];
             if (autoFormantShift !== undefined && autoFormantShift !== null) noteParams.formantShift = autoFormantShift;
+            // Macro knob lanes drawn per step: that step's notes play with them
+            // (the next step without a value hears the knob again).
+            for (let i = 0; i < MACRO_AUTOMATION_PARAMS.length; i++) {
+                const lane = MACRO_AUTOMATION_PARAMS[i];
+                const v = automation?.[lane]?.[tStep];
+                if (v === undefined || v === null) continue;
+                (noteParams.macro ??= {})[MACRO_AUTOMATION_TARGETS[lane].field] = macroControlValue(lane, v);
+            }
 
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
             // These override per-step; values are already 0-1 normalized (playSynth scales to Hz/Q)

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { automationStore } from '../../stores/automationStore'
 import type { AutomationTarget, SamplerBankParams, SamplerParams } from '../../types'
+import { MACRO_AUTOMATION_TARGETS, isMacroAutomationParam, macroControlValue } from '../../engines/MacroParams'
 
 export function useSynthParamHandlers(deps: {
     updateSynthA: (updates: any) => void;
@@ -23,6 +24,17 @@ export function useSynthParamHandlers(deps: {
 
     const handleSynthChange = useCallback((isA: boolean, id: string, val: number) => {
         const updater = isA ? updateSynthA : updateSynthB;
+        const target: AutomationTarget = isA ? 'synthA' : 'synthB';
+        if (isMacroAutomationParam(id)) {
+            // Macro knobs live in SynthParams.macro (the updater merges it field by field).
+            const knob = Math.max(0, Math.min(1, val));
+            updater({ macro: { [MACRO_AUTOMATION_TARGETS[id].field]: macroControlValue(id, knob) } });
+            if (automationStore.isParameterArmed(target, id)) {
+                const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
+                automationStore.recordPoint(target, id, { step, value: knob });
+            }
+            return;
+        }
         let realVal = val;
         if (id === 'pitch') realVal = Math.floor(val * 48 - 24);
         else if (id === 'filterCutoff') realVal = val * 8000;
@@ -32,7 +44,6 @@ export function useSynthParamHandlers(deps: {
         else if (id === 'release') realVal = val * 2;
         else if (id === 'length') realVal = val * 2;
         updater({ [id]: realVal });
-        const target: AutomationTarget = isA ? 'synthA' : 'synthB';
         if (automationStore.isParameterArmed(target, id)) {
             const step = automationStore.getState().playbackStep || currentStepRef.current || 0;
             automationStore.recordPoint(target, id, { step, value: Math.max(0, Math.min(1, val)) });

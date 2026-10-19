@@ -13,6 +13,7 @@ export type LoadingStep =
   | 'wasmEngine'
   | 'open303Engine'
   | 'prophecyEngine'
+  | 'macroEngine'
   | 'wavFiles'
   | 'singingVoice'
   | 'ambianceBuffers'
@@ -66,8 +67,9 @@ class LoadingProgressStore {
     wasmEngine: 5,          // WASM oscillator init
     open303Engine: 15,      // WASM fetch + worklet × 2 (was 20; reduced by 5 to fit prophecyEngine)
     prophecyEngine: 10,     // Prophecy formant WASM worklet init
+    macroEngine: 5,         // Macro (Plaits) worklet × 2 on the already-instantiated hyphon_native
     wavFiles: 5,            // fetch + decodeAudioData for saw/square
-    singingVoice: 45,       // 12 SingingVoice worklets, dominant cost (was 50; reduced by 5 to fit prophecyEngine)
+    singingVoice: 40,       // 12 SingingVoice worklets, dominant cost (was 50; −5 for prophecyEngine, −5 for macroEngine)
     ambianceBuffers: 0,     // lazy-loaded, not part of init
     ttsEngine: 0,           // Supertonic, loads after overlay closes
     complete: 5,            // final wiring
@@ -80,6 +82,7 @@ class LoadingProgressStore {
     wasmEngine: 'Loading WASM Oscillator',
     open303Engine: 'Loading TB-303 Bass Engine',
     prophecyEngine: 'Loading Prophecy Formant Engine',
+    macroEngine: 'Loading Macro Engine',
     wavFiles: 'Loading Waveform Samples',
     singingVoice: 'Initializing Singing Voice Pool',
     ambianceBuffers: 'Preparing Ambiance Tracks',

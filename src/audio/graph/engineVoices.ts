@@ -15,7 +15,7 @@
  * dangling edge.
  *
  * No new WASM world and no new heap: the engines behind these sockets are the
- * same `open303_*` / `prophecy_*` / `drumkit_*` handles on the one shared
+ * same `open303_*` / `prophecy_*` / `macro_*` / `drumkit_*` handles on the one shared
  * hyphon_native instance. A socket is two `GainNode`s on the main graph.
  */
 
@@ -24,6 +24,7 @@ import type { CompiledAudioGraph, EngineVoiceConfig, GraphNodeFactory, GraphNode
 export type EngineVoiceFactory =
     | 'open303Voice'
     | 'prophecyVoice'
+    | 'macroVoice'
     | 'drumkitVoice'
     | 'samplerVoice'
     | 'harmonizerBus';
@@ -31,6 +32,7 @@ export type EngineVoiceFactory =
 export const ENGINE_VOICE_FACTORIES: ReadonlySet<GraphNodeFactory> = new Set<EngineVoiceFactory>([
     'open303Voice',
     'prophecyVoice',
+    'macroVoice',
     'drumkitVoice',
     'samplerVoice',
     'harmonizerBus',

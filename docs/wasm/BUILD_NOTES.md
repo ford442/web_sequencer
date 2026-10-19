@@ -1,7 +1,7 @@
 # WASM Build Notes
 
 Covers `public/hyphon_native.wasm` (Emscripten: Open303 / JC303 / Prophecy /
-HighFid303 / analog drumkit), `public/rubberband.wasm`, the offline
+HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 `public/mix_bus.wasm`, and the AssemblyScript modules under `assembly/`.
 
 - [Build profiles](#build-profiles)
@@ -10,6 +10,7 @@ HighFid303 / analog drumkit), `public/rubberband.wasm`, the offline
 - [Sizes: 3.1.51 `-O1` → 6.0.9 `-O3 -flto`](#sizes)
 - [Module split](#module-split)
 - [Offline mix bus](#mix-bus)
+- [Plaits sources (macro voices)](#plaits-sources)
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [`-ffast-math`](#fast-math)
@@ -142,6 +143,21 @@ Intermediate data point — 6.0.9 with the *old* flags (`-O1`, embind, `main()`)
 is the compiler, half is `-O3` + LTO + dropping embind. `dist-budget.json` carries
 the new numbers.
 
+**Macro voices (2026-10-19).** Linking the Plaits DSP (24 models, its wavetables
+and LUTs) grows the module; same flags, bytes:
+
+| Artifact | before | with `macro-*` | Δ |
+|---|---:|---:|---:|
+| `hyphon_native.wasm` (pthread) | 134,186 | 357,536 | +218 KiB (59 → 182 KB gzipped) |
+| `hyphon_native.st.wasm` | 121,286 | 343,980 | +217 KiB |
+| `hyphon_native.js` (glue) | 26,979 | 28,427 | +1.4 KB (the new export names) |
+| `hyphon_native.st.js` (glue) | 15,127 | 16,575 | +1.4 KB |
+
+That is under the 250 KB go/no-go the family was given, so it ships inside
+`hyphon_native` rather than as its own module ([macro-voices.md](../audio-engine/macro-voices.md#measurements-p0)).
+The `dist-budget.json` native rows were raised to ~5 % above these in their own
+commit.
+
 ### Threading / OpenMP: the single source of truth
 
 Nothing in the repo uses OpenMP any more, and the committed `emscripten/libomp.a`,
@@ -238,8 +254,8 @@ issue, not done here).
 ## Module split
 
 `hyphon_native.wasm` is the **voice** module: Open303, JC303, Prophecy,
-HighFid303 and the analog drumkit. Neither Rubber Band nor the offline
-[mix bus](#mix-bus) is in it.
+HighFid303, the analog drumkit and the macro voices. Neither Rubber Band nor
+the offline [mix bus](#mix-bus) is in it.
 
 ### Why Rubber Band moved out
 
@@ -413,6 +429,7 @@ WebGPU → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
 | Pyodide | `pyodide-*` | NumPy/SciPy in the vendored CPython | offline pre-render |
 | Open303 / JC303 | `303-*` | `hyphon_native` AudioWorklet | native worklet |
 | Prophecy | `prophecy-*` | `hyphon_native` AudioWorklet | native worklet |
+| Macro (Plaits) | `macro-*` | `hyphon_native` AudioWorklet, stereo, 8 voices per part | native worklet ([macro-voices.md](../audio-engine/macro-voices.md)) |
 
 ### The choice, and why
 
@@ -505,6 +522,7 @@ in `createHyphonMemory()`, which now distinguishes "no SharedArrayBuffer" from
 | 3 × Open303 / JC303 voices | ~2 MB | ~4 MB | per-instance state + oversampled scratch |
 | Prophecy voice | ~1 MB | ~2 MB | |
 | Analog drumkit (one handle) | ~0.5 MB | ~1 MB | kick/snare/hats share the voice module |
+| 2 × macro part (8 voices each) | ~0.4 MB | ~0.5 MB | 16 KB engine RAM + ~11 KB state per voice; measured +0.52 MB peak with 16 voices sounding ([macro-voices.md](../audio-engine/macro-voices.md#measurements-p0)) |
 | ~~Rubber Band stretch (finer, stereo)~~ | — | — | **moved to its own module** — see [Module split](#module-split). It was ~12 MB steady / ~40 MB peak here, and the reason a stretch could grow the voice heap mid-playback. |
 | Offline/export scratch buffers | 0 | ~24 MB | `malloc`'d per render, freed after |
 | Headroom / allocator fragmentation | — | ~30 MB | |
@@ -563,6 +581,43 @@ console.log('hyphon heap MB', memory.buffer.byteLength / 1048576);
 If the worklet reports growth past 32 MB during normal playback, raise
 `initialMemoryMb` in the budget JSON. The test caps it at 256 MB deliberately:
 going above that should be a measured decision, not a default.
+
+---
+
+<a id="plaits-sources"></a>
+## Plaits sources (macro voices)
+
+The `macro-*` voices compile Mutable Instruments' Plaits DSP from two pinned,
+shallow submodules: `third_party/eurorack` (only `plaits/dsp` and
+`plaits/resources.*` are used) and `third_party/stmlib`. Both are MIT; the
+notices ship as `dist/THIRD_PARTY_NOTICES.md` and `check-release-dist.mjs`
+fails a release without them.
+
+- **Translation units** come from `tools/plaits_sources.mjs`, not a glob in
+  `build.sh`: every `plaits/dsp/**/*.cc` except `voice.cc` (the wrapper carries
+  its own adaptation of `Voice::Render`), `resources.cc`, and stmlib's
+  `dsp/units.cc` and `utils/random.cc`. The same module lists the hash inputs
+  `scripts/native-worlds.mjs` adds to the emcc world, and the CI native cache
+  keys hash the same trees.
+- **`-DTEST`** selects stmlib's portable C++ paths instead of the Cortex-M4
+  inline assembly. It changes no DSP.
+- **`-isystem`** for both trees, so upstream warnings do not drown the build log.
+- **Staged, patched copy.** WebAssembly has no flush-to-zero, and Plaits' filters,
+  resonators and envelopes ring down into subnormals the M4 flushed for free —
+  8 modal voices cost 46 % of a render quantum before the guards.
+  `node tools/plaits_sources.mjs --stage DIR` copies the hashed sources into the
+  build's temp directory and applies `tools/plaits_wasm_patches.mjs`: named,
+  exact-count find/replace guards that zero recursive state below 1e-15. The
+  submodules stay pristine, and an upstream bump that moves a guarded line fails
+  the build by patch id instead of silently losing a guard. The host test
+  (`emscripten/tests/macro_offline_test.cpp`) builds the same staged copy and
+  fails when any model runs > 2× (and > 30 µs) slower without x86 FTZ.
+- **IEEE, like the rest of the module.** `compile_plaits` uses the profile's
+  `CXXFLAGS` (the same ones `compile_cpp` uses) plus the two above; no
+  `-ffast-math`.
+
+Checkout: `git submodule update --init --depth 1 third_party/eurorack third_party/stmlib`.
+A checkout without them cannot build `hyphon_native`; the host test runner skips.
 
 ---
 

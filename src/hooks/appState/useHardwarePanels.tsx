@@ -9,6 +9,8 @@ import {
     tb303ModelFamily,
 } from '../../engines/TB303Models'
 import { ProphecyPanel } from '../../components/ProphecyPanel'
+import { MacroPanel } from '../../components/MacroPanel'
+import { macroPresetUpdate } from '../../engines/macroPresets'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
@@ -165,6 +167,15 @@ export function useHardwarePanels(deps: {
                         {...highFidExtraProps(synthA.model303Extra, updateSynthA)}
                     />
                 )}
+                {currentTypeA === 'macro' && (
+                    <MacroPanel
+                        waveform={synthA.waveform}
+                        macro={synthA.macro}
+                        accentColor="cyan"
+                        onMacroChange={(patch) => updateSynthA({ macro: patch })}
+                        onPresetChange={(preset) => updateSynthA(macroPresetUpdate(preset))}
+                    />
+                )}
                 {isProphecy && (
                     <ProphecyPanel
                         vowel={synthA.vowel ?? 0}
@@ -179,7 +190,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.model303Extra, synthA.vowel, synthA.portamento, synthA.formantShift, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.model303Extra, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.macro, updateSynthA, audioEngine]);
 
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
@@ -245,6 +256,15 @@ export function useHardwarePanels(deps: {
                         {...highFidExtraProps(synthB.model303Extra, updateSynthB)}
                     />
                 )}
+                {currentTypeB === 'macro' && (
+                    <MacroPanel
+                        waveform={synthB.waveform}
+                        macro={synthB.macro}
+                        accentColor="pink"
+                        onMacroChange={(patch) => updateSynthB({ macro: patch })}
+                        onPresetChange={(preset) => updateSynthB(macroPresetUpdate(preset))}
+                    />
+                )}
                 {isProphecy && (
                     <ProphecyPanel
                         vowel={synthB.vowel ?? 0}
@@ -259,7 +279,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.model303Extra, synthB.vowel, synthB.portamento, synthB.formantShift, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.model303Extra, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.macro, updateSynthB, audioEngine]);
 
     const bass2Child = useMemo(() => {
         const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);

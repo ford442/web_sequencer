@@ -85,6 +85,7 @@ import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
 import { arrangementPlayhead } from '../arrangement/playhead'
 import { transportPlayhead } from '../sequencer/transportPlayhead'
+import { macroEngineForWaveform } from '../engines/MacroParams'
 
 export function useAppState() {
 
@@ -123,7 +124,7 @@ export function useAppState() {
         reverbType, setReverbType,
     } = useTransportMixState();
 
-    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef, prophecyManagerRef } = useAudioEngine(pyodide, tempo)
+    const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef, prophecyManagerRef, macroManagerRef } = useAudioEngine(pyodide, tempo)
     // Core sequencer transport only needs the Web Audio engine — it never touches
     // Pyodide ("Spectral Puppet"), so gating playback on Python readiness left the
     // clock permanently blocked whenever Pyodide was slow or failed to load.
@@ -245,6 +246,20 @@ export function useAppState() {
         sampler, setSampler, samplerRef, updateSampler,
     } = useInstrumentState(drumKitEngineRef);
 
+    // A macro part hears its panel at once: knob moves and model switches are
+    // pushed now (changed values only), overriding whatever the next notes
+    // already queued. Notes still apply their own patch on their frame.
+    useEffect(() => {
+        const engine = macroEngineForWaveform(synthA.waveform);
+        const mgr = macroManagerRef?.current;
+        if (engine && mgr?.canPlay('partA', engine)) mgr.applyParamsNow('partA', synthA, engine);
+    }, [synthA, macroManagerRef, isReady]);
+    useEffect(() => {
+        const engine = macroEngineForWaveform(synthB.waveform);
+        const mgr = macroManagerRef?.current;
+        if (engine && mgr?.canPlay('partB', engine)) mgr.applyParamsNow('partB', synthB, engine);
+    }, [synthB, macroManagerRef, isReady]);
+
     const patternRef = useRef(pattern);
     useEffect(() => { patternRef.current = pattern; }, [pattern]);
 
@@ -283,9 +298,10 @@ export function useAppState() {
             if (prophecyManagerRef) {
                 automationSchedulerRef.current.setProphecyManager(prophecyManagerRef.current ?? null);
             }
+            automationSchedulerRef.current.setMacroManager(macroManagerRef?.current ?? null);
             automationSchedulerRef.current.setWamHost(getWamHost());
         }
-    }, [audioEngine, prophecyManagerRef]);
+    }, [audioEngine, prophecyManagerRef, macroManagerRef]);
 
     useEffect(() => {
         const mgr = audioEngine?.open303Engine;
@@ -896,6 +912,6 @@ export function useAppState() {
         redoSession: session.redoSession,
         canUndoSession: session.canUndoSession,
         canRedoSession: session.canRedoSession,
-        loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage),
+        loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage, { synthA: updateSynthA, synthB: updateSynthB }),
     }
 }

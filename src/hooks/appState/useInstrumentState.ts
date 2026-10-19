@@ -13,17 +13,27 @@ import {
 import type { SynthParams, KickParams, SnareParams, SamplerParams, Bass2Params, DrumKitType } from '../../types'
 import { INITIAL_SAMPLER_PARAMS } from '../../constants/appDefaults'
 
+/**
+ * Shallow merge, except `macro`, which merges field by field: a macro knob
+ * updates one field without restating the rest of the block.
+ */
+export function mergeSynthParams(prev: SynthParams, updates: Partial<SynthParams>): SynthParams {
+    const next = { ...prev, ...updates };
+    if (updates.macro) next.macro = { ...prev.macro, ...updates.macro };
+    return next;
+}
+
 export function useInstrumentState(drumKitEngineRef: React.MutableRefObject<any>) {
     const [synthA, setSynthA] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
     const synthARef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_A);
     const updateSynthA = useCallback((updates: Partial<SynthParams>) => {
-        setSynthA(prev => { const n = { ...prev, ...updates }; synthARef.current = n; return n; });
+        setSynthA(prev => { const n = mergeSynthParams(prev, updates); synthARef.current = n; return n; });
     }, []);
 
     const [synthB, setSynthB] = useState<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const synthBRef = useRef<SynthParams>(DEFAULT_SYNTH_PARAMS_B);
     const updateSynthB = useCallback((updates: Partial<SynthParams>) => {
-        setSynthB(prev => { const n = { ...prev, ...updates }; synthBRef.current = n; return n; });
+        setSynthB(prev => { const n = mergeSynthParams(prev, updates); synthBRef.current = n; return n; });
     }, []);
 
     const [bass2, setBass2] = useState<Bass2Params>(DEFAULT_BASS2_PARAMS);

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Macro engine family — 24 Plaits models on SYNTH A / B
+- **New `macro-*` waveforms**: virtual analog, waveshaping, 2-op and 6-op FM, granular formant, harmonic, wavetable, chords, speech, swarm, filtered / particle noise, inharmonic string, modal resonator, analog drums, and the extended bank (filtered VA, phase distortion, wave terrain, string machine, chiptune) — the Mutable Instruments Plaits DSP (MIT), vendored as pinned submodules and compiled into `hyphon_native.wasm` (+218 KiB). See [macro-voices.md](docs/audio-engine/macro-voices.md).
+- **8-voice polyphony per part**: step chords play as chords; mono mode glides slid steps legato. Stereo from the AUX output.
+- **Panel**: MAC family, a 24-model grid, HARMONICS / TIMBRE / MORPH / DECAY / COLOUR knobs (MIDI-learnable, automatable, per-step lanes), GATE / PING low-pass gate, voice count, 43 factory patches and a **Macro Palette** session pack.
+- **Never silent**: a build or browser that cannot run the engine plays a documented fallback waveform and says so in the Engine HUD. Freeze / stems / AI preview / XM render through the same wasm offline, bit-identical to live.
+- **Denormal guards**: wasm has no flush-to-zero, so the build compiles a staged copy of the Plaits sources with named guards (`tools/plaits_wasm_patches.mjs`); worst model 8.6 % of a render quantum for 8 voices (modal was 46 %).
+- `rust-*` / `cpp-*` are gone from the `Waveform` / `OscillatorType` unions (still rewritten on load), with their dead RUST / CPP selector buttons and panel art.
+- MIT notices ship in `dist/THIRD_PARTY_NOTICES.md` (release gate enforced).
+
 ### Offline graph — what you hear is what you bounce (#1233)
 - **One compiler**: `compileOfflineGraph` builds the `OfflineAudioContext` for track freeze, the stem-ZIP master and the AI song preview from the **live patch bay** config, through the same `compileAudioGraph` the running engine uses ([offline-graph.md](docs/audio-engine/offline-graph.md)).
 - **Export sample rate follows the user policy** (the export half of #1136): `44100` / `48000` verbatim, `native` resolved from the live `AudioContext.sampleRate`. Stem export no longer hardcodes 44.1 kHz, and the export dialog offers "Match live".

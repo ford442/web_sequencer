@@ -1,6 +1,7 @@
 
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { MACRO_WAVEFORMS, macroEngineForWaveform } from '../engines/MacroParams';
 import type { Waveform } from '../types';
 
 interface WaveformSelectorProps {
@@ -74,9 +75,14 @@ const WaveformIcon: React.FC<{ type: Waveform }> = React.memo(({ type }) => {
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>TRI</div>;
     case 'prophecy-pulse':
       return <div className="font-bold text-[10px] leading-none text-center text-purple-400">PRO<br/>PLS</div>;
-    default:
+    default: {
+      const macro = macroEngineForWaveform(type);
+      if (macro) {
+        return <div className="font-bold text-[10px] leading-none text-center text-cyan-300">MAC<br/>{macro.short}</div>;
+      }
       // Always show at least the waveform name so unknown types are visible
       return <div className="font-bold text-[10px] leading-none text-center break-all">{type}</div>;
+    }
   }
 });
 
@@ -90,6 +96,8 @@ const OSCILLATOR_GROUPS = [
   // AssemblyScript WASM wavetable kernel — deliberately NOT called "WAM":
   // Web Audio Modules 2.0 is a different system (src/audio/wam, ADR 0001).
   { label: 'WASM OSC', items: ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'] as Waveform[] },
+  // Macro engine family (Plaits DSP): 24 models, polyphonic.
+  { label: 'Macro', items: [...MACRO_WAVEFORMS] },
 ];
 
 // Flat list of all waveforms in display order, for cycling

@@ -179,6 +179,9 @@ export const BottomBar = memo(function BottomBar({
                             <option value="chordInversion">Chord Inversion</option>
                             <option value="vowel">Vowel (Prophecy)</option>
                             <option value="portamento">Portamento (Prophecy)</option>
+                            <option value="macroHarmonics">Harmonics (Macro)</option>
+                            <option value="macroTimbre">Timbre (Macro)</option>
+                            <option value="macroMorph">Morph (Macro)</option>
                         </select>
                     </>
                 )}

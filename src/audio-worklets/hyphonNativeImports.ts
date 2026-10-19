@@ -173,6 +173,19 @@ export const PROPHECY_REQUIRED_WASM_EXPORTS = [
   'prophecy_all_notes_off',
 ] as const;
 
+/** Bare export names the macro (Plaits) worklet must resolve via the export map. */
+export const MACRO_REQUIRED_WASM_EXPORTS = [
+  'macro_create',
+  'macro_init',
+  'macro_push_event',
+  'macro_render',
+  'macro_cancel_notes',
+  'macro_all_notes_off',
+  'macro_set_param_now',
+  'macro_engine_count',
+  'macro_stride',
+] as const;
+
 /** Bare export names the drumkit worklet must resolve via the export map. */
 export const DRUMKIT_REQUIRED_WASM_EXPORTS = [
   'drumkit_create',
@@ -228,6 +241,22 @@ export function prophecyExportMapInsufficient(
 
 export function hasProphecyApi(exports: Record<string, unknown>): boolean {
   return PROPHECY_REQUIRED_WASM_EXPORTS.every((name) => typeof exports[name] === 'function');
+}
+
+/**
+ * True when the macro voice API cannot be resolved from the export map — a
+ * hyphon_native built before the macro-* family, or a broken map.
+ */
+export function macroExportMapInsufficient(
+  module: WebAssembly.Module,
+  exportMap: WasmExportMap,
+): boolean {
+  const normalized = normalizeWasmExports(wasmExportNameSnapshot(module), exportMap);
+  return !hasMacroApi(normalized);
+}
+
+export function hasMacroApi(exports: Record<string, unknown>): boolean {
+  return MACRO_REQUIRED_WASM_EXPORTS.every((name) => typeof exports[name] === 'function');
 }
 
 /** True when the drumkit voice API cannot be resolved from the export map. */

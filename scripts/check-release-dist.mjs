@@ -179,11 +179,28 @@ if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
   }
 }
 
+// Third-party notices: the macro engine compiles MIT code (Plaits / stmlib)
+// whose notice must travel with the build (vite.config.ts copies it in).
+{
+  const notices = path.join(distDir, 'THIRD_PARTY_NOTICES.md');
+  if (!fs.existsSync(notices)) {
+    console.error('[check-release-dist] dist/THIRD_PARTY_NOTICES.md is missing — the vendored MIT notices must ship with the build.');
+    console.error('  vite.config.ts (hyphonThirdPartyNoticesPlugin) copies it from the repo root.');
+    process.exit(1);
+  }
+  const text = fs.readFileSync(notices, 'utf8');
+  if (!text.includes('Emilie Gillet') || !text.includes('MIT License')) {
+    console.error('[check-release-dist] dist/THIRD_PARTY_NOTICES.md does not carry the Plaits / stmlib MIT notice.');
+    process.exit(1);
+  }
+}
+
 // Worklets that must ship in every production bundle (imported from reachable code paths).
 const REQUIRED_WORKLET_PROCESSORS = [
   'clock-processor',
   'open303-processor',
   'prophecy-processor',
+  'macro-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',

@@ -82,11 +82,35 @@ function hyphonPrecacheManifestPlugin(): Plugin {
   };
 }
 
+/**
+ * Copies THIRD_PARTY_NOTICES.md into dist/: the MIT notice of the vendored
+ * Plaits / stmlib code (the macro engine) has to ship with the build, and
+ * scripts/check-release-dist.mjs fails a bundle without it.
+ */
+function hyphonThirdPartyNoticesPlugin(): Plugin {
+  let resolved: ResolvedConfig;
+  return {
+    name: 'hyphon-third-party-notices',
+    apply: 'build',
+    configResolved(config) {
+      resolved = config;
+    },
+    closeBundle() {
+      const outDir = path.isAbsolute(resolved.build.outDir)
+        ? resolved.build.outDir
+        : path.join(resolved.root, resolved.build.outDir);
+      const src = path.join(resolved.root, 'THIRD_PARTY_NOTICES.md');
+      if (fs.existsSync(outDir) && fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(outDir, 'THIRD_PARTY_NOTICES.md'));
+      }
+    },
+  };
+}
 
 export default mergeConfig(
   vitestSharedConfig,
   defineConfig({
-    plugins: [hyphonPrecacheManifestPlugin()],
+    plugins: [hyphonPrecacheManifestPlugin(), hyphonThirdPartyNoticesPlugin()],
     server: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

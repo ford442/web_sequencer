@@ -161,6 +161,31 @@ export const HELP_TOPICS: HelpTopic[] = [
     docLink: 'docs/audio-engine/jc303-prophecy.md',
   },
   {
+    id: 'macro-engine',
+    title: 'Macro engine (24 models, 8 voices)',
+    summary: 'Pick MAC on SYNTH A/B, choose a model, then shape it with HARMONICS / TIMBRE / MORPH.',
+    body:
+      'The macro family is 24 synthesis models built from the Plaits source code (MIT): virtual analog, waveshaping, FM, ' +
+      'granular formant, additive, wavetable, chords, speech, swarm, noise, particle, physical models, analog drums, and the ' +
+      'extended bank (filtered VA, phase distortion, 6-op FM, wave terrain, string machine, chiptune).\n\n' +
+      'Each model reads the same three knobs — HARMONICS, TIMBRE and MORPH — with a meaning of its own (hover a model button). ' +
+      'DECAY and COLOUR shape the low-pass gate: GATE mode holds it open for the note length, PING strikes it like the module. ' +
+      'Parts play up to 8 voices, so step chords sound as chords; MONO makes slid steps glide legato. ' +
+      'Every macro knob is MIDI-learnable and automatable. If this build cannot run the engine, the part plays a plain ' +
+      'oscillator instead and the Engine HUD says so.',
+    keywords: [
+      'macro', 'plaits', 'fm', 'wavetable', 'granular', 'modal', 'string', 'speech', 'chords', 'polyphony', 'harmonics', 'timbre', 'morph',
+    ],
+    category: 'engine',
+    steps: [
+      'On SYNTH A or SYNTH B, choose the MAC oscillator family.',
+      'Pick one of the 24 models in the Model grid (or load a patch).',
+      'Turn HARMONICS, TIMBRE and MORPH; DECAY / COLOUR shape the gate.',
+      'Choose GATE or PING and the number of voices in the Macro panel.',
+    ],
+    docLink: 'docs/audio-engine/macro-voices.md',
+  },
+  {
     id: 'automation-filter',
     title: 'Automate a filter (or any knob)',
     summary: 'Right-click a hardware knob → enable lane, press Play, move the knob while REC AUTO is on.',

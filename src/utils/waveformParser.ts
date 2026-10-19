@@ -18,7 +18,7 @@ import type { Waveform } from '../types';
  *               the JS oscillator. Legacy `cpp-*` waveforms migrate to `wam-*`.
  *   - `wasm`  — dead alias, no waveform prefix ever produced it.
  */
-export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | '303' | 'prophecy';
+export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | '303' | 'prophecy' | 'macro';
 export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin';
 
 const ENGINE_MAP: Record<string, OscEngineId> = {
@@ -28,6 +28,8 @@ const ENGINE_MAP: Record<string, OscEngineId> = {
     wam: 'wam',
     '303': '303',
     prophecy: 'prophecy',
+    // macro-<model>: the suffix names a model (MACRO_ENGINES), not a shape.
+    macro: 'macro',
 };
 
 const SHAPE_ALIASES: Record<string, WaveShape> = {
@@ -59,6 +61,7 @@ export const LEGACY_WAVEFORM_ALIASES: Record<string, Waveform> = {
     'cpp-sin': 'wam-sin',
     'cpp-saw': 'wam-saw',
     'cpp-sqr': 'wam-sqr',
+    'cpp-tri': 'wam-tri',
     'cpp-rand': 'wam-saw',
 };
 

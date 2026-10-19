@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import type { Engine303 } from '../types';
 import { useEngineDegradation } from '../stores/engineDegradationStore';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
+import { macroEngineForWaveform } from '../engines/MacroParams';
 
 interface EngineVoiceStatus {
     /** Short label for the voice, e.g. "A", "B", "B2" */
@@ -24,6 +25,7 @@ interface EngineStatusPillProps {
  * Shows a small pill for each voice that is using a non-default engine:
  *  - Pink "JC303" badge when the authentic JC303 engine is selected
  *  - Cyan "PROPHECY" badge when a prophecy-* waveform is active
+ *  - Cyan "MACRO" badge when a macro-* model is active
  *
  * Hidden entirely when all voices are using default engines, so it only
  * takes up space when relevant.
@@ -41,9 +43,18 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
 
     for (const voice of voices) {
         const isProphecy = voice.waveform?.startsWith('prophecy-') ?? false;
+        const macro = macroEngineForWaveform(voice.waveform);
         const isJc303 = (voice.engine303 ?? 'open303') === 'jc303';
 
-        if (isProphecy) {
+        if (macro) {
+            pills.push({
+                key: `${voice.label}-macro`,
+                label: voice.label,
+                engine: 'MACRO',
+                style: 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60',
+                title: `SYNTH ${voice.label}: Macro engine — ${macro.label}`,
+            });
+        } else if (isProphecy) {
             pills.push({
                 key: `${voice.label}-prophecy`,
                 label: voice.label,

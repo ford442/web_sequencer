@@ -15,6 +15,9 @@ import { createOfflineBuffer, createOfflineContext } from '../audio/offline/crea
 import { renderNoteFxTimeline } from '../sequencer/noteFx/chain';
 import { chainIsActive, type NoteFxChain } from '../sequencer/noteFx/types';
 import type { NoteFxParamLookup } from '../sequencer/noteFx/params';
+import { macroEngineForWaveform } from '../engines/MacroParams';
+import { renderMacroBuffer, type OfflineMacroNote } from '../audio/offline/OfflineMacroEngine';
+import { noteToMidi } from './musicTheory';
 
 export type PatternRenderEngines = RenderSynthEngines;
 
@@ -170,6 +173,31 @@ function monoToStereo(buffer: AudioBuffer, sampleRate: number): AudioBuffer {
     return out;
 }
 
+/**
+ * The notes of a pattern for an offline macro render: every step note and its
+ * chord notes (the part is polyphonic), with slide, velocity and the step's
+ * timbre — or the note FX chain's events when one is active.
+ */
+function macroNotes(sequence: PartSequence, stepDur: number, fxHits: Hit[] | null): OfflineMacroNote[] {
+    const notes: OfflineMacroNote[] = [];
+    if (fxHits) {
+        for (const hit of fxHits) {
+            notes.push({ midi: noteToMidi(hit.note), velocity: hit.velocity, startSeconds: hit.start * stepDur, durationSeconds: hit.length * stepDur });
+        }
+        return notes;
+    }
+    sequence.steps.forEach((step, i) => {
+        if (!step) return;
+        const durationSeconds = (step.length ?? 1) * stepDur;
+        const timbre = step.timbre !== undefined ? step.timbre - 0.5 : undefined;
+        for (const name of [step.note, ...(step.chord ?? [])]) {
+            if (!name) continue;
+            notes.push({ midi: noteToMidi(name), velocity: step.velocity ?? 0.8, startSeconds: i * stepDur, durationSeconds, slide: !!step.slide, timbre });
+        }
+    });
+    return notes;
+}
+
 export async function renderSynthPattern(
     params: SynthParams,
     options: PatternRenderOptions,
@@ -180,6 +208,24 @@ export async function renderSynthPattern(
     // Note FX: the chain's events, not the steps (the Pyodide freezer only
     // reads steps, so a chain always takes the Web Audio path).
     const fxHits = noteFxHits(sequence, options.noteFx);
+
+    // Macro models render through the same wasm the live part runs. When it
+    // cannot run here the model's documented fallback waveform renders below
+    // (reported once by renderMacroBuffer).
+    const macroEngine = macroEngineForWaveform(params.waveform);
+    if (macroEngine) {
+        const stepDur = stepDurationSeconds(tempo);
+        const rendered = await renderMacroBuffer({
+            params,
+            engine: macroEngine,
+            notes: macroNotes(sequence, stepDur, fxHits),
+            durationSeconds: sequence.steps.length * stepDur,
+            sampleRate,
+        });
+        throwIfAborted(signal);
+        if (rendered) return rendered;
+        params = { ...params, waveform: macroEngine.fallback };
+    }
     if (fxHits) {
         return renderHits(
             sequence.steps.length,
