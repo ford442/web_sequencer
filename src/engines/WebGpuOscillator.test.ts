@@ -1,7 +1,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebGpuOscillator } from './WebGpuOscillator';
-import { resetWebGpuProbeForTests } from './backends/webgpuProbe';
+import { resetWebGpuProbe } from './backends/webgpuProbe';
 
 // Types for mocking
 type MockGPUDevice = {
@@ -24,7 +24,7 @@ describe('WebGpuOscillator', () => {
   let mockAdapter: any;
 
   beforeEach(() => {
-    resetWebGpuProbeForTests();
+    resetWebGpuProbe();
     engine = new WebGpuOscillator();
 
     // Reset mocks

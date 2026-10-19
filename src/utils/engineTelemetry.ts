@@ -8,6 +8,20 @@ import { HYPHON_NATIVE_ARTIFACTS, type HyphonNativeThreading } from '../audio-wo
 
 type Resolution = { backend: string; reason?: string; ts: number };
 
+/** Shared GPUDevice health (#1345): losses, recoveries, uncaptured errors. */
+export type WebGpuDeviceTelemetry = {
+  losses: number;
+  /** Losses followed by a re-probe (automatic or intentional restart). */
+  recoveries: number;
+  lastLoss: { reason: string; message: string; intentional: boolean; ts: number } | null;
+  uncapturedErrors: number;
+  lastError: { type: string; message: string; deviceLabel: string; ts: number } | null;
+};
+
+function emptyWebGpuDeviceTelemetry(): WebGpuDeviceTelemetry {
+  return { losses: 0, recoveries: 0, lastLoss: null, uncapturedErrors: 0, lastError: null };
+}
+
 // Bound the per-subsystem fallback-transition log. ~20 * ~50 bytes = negligible.
 const MAX_RESOLUTION_HISTORY = 20;
 // The latency ring caps at maxLatencySamples (256). Below this many samples a p95
@@ -112,6 +126,7 @@ type RuntimeTelemetry = {
   wam2Constraints: Wam2RuntimeConstraints | null;
   /** Session WebGPU probe (JSON-safe; no GPUDevice). */
   webgpuProbe: WebGpuProbeSnapshot | null;
+  webgpuDevice: WebGpuDeviceTelemetry;
   hyphonNativeHeap: HyphonNativeHeapTelemetry | null;
 };
 
@@ -290,6 +305,8 @@ export interface RuntimeSnapshot {
   wam2Constraints: Wam2RuntimeConstraints | null;
   /** Session WebGPU probe breadcrumb (browser, reason, adapter). */
   webgpuProbe: WebGpuProbeSnapshot | null;
+  /** Shared GPUDevice losses / recoveries / uncaptured errors. Absent on old reports. */
+  webgpuDevice?: WebGpuDeviceTelemetry;
   /** Shared hyphon_native heap (303 + Prophecy + live high-fid); null until a voice is ready. */
   hyphonNativeHeap: HyphonNativeHeapTelemetry | null;
 }
@@ -399,6 +416,7 @@ export class EngineTelemetry {
     wam2Slots: [],
     wam2Constraints: null,
     webgpuProbe: null,
+    webgpuDevice: emptyWebGpuDeviceTelemetry(),
     hyphonNativeHeap: null,
   };
   private lastUnderrunByWorklet = new Map<string, number>();
@@ -626,6 +644,25 @@ export class EngineTelemetry {
     this.runtime.gpuAvailable = snapshot.ok;
   }
 
+  /** `uncapturederror` on the shared GPUDevice (validation / OOM / internal). */
+  recordWebGpuError(error: { type: string; message: string; deviceLabel: string }): void {
+    const t = this.runtime.webgpuDevice;
+    t.uncapturedErrors += 1;
+    t.lastError = { ...error, ts: Date.now() };
+    this.recordError('webgpu-device', `${error.type}: ${error.message}`);
+  }
+
+  /** `device.lost` on the shared GPUDevice, and whether a re-probe follows. */
+  recordWebGpuDeviceLost(meta: { reason: string; message: string; intentional: boolean; willRecover: boolean }): void {
+    const t = this.runtime.webgpuDevice;
+    t.losses += 1;
+    if (meta.willRecover) t.recoveries += 1;
+    t.lastLoss = { reason: meta.reason, message: meta.message, intentional: meta.intentional, ts: Date.now() };
+    if (!meta.intentional) {
+      this.recordDegradation('webgpu-device-lost', !meta.willRecover, `${meta.reason}: ${meta.message}`);
+    }
+  }
+
   private recomputeMasterBudget(): void {
     let sum = 0;
     for (const w of this.runtime.worklets.values()) {
@@ -688,6 +725,11 @@ export class EngineTelemetry {
       wam2Slots: this.runtime.wam2Slots.slice(),
       wam2Constraints: this.runtime.wam2Constraints,
       webgpuProbe: this.runtime.webgpuProbe,
+      webgpuDevice: {
+        ...this.runtime.webgpuDevice,
+        lastLoss: this.runtime.webgpuDevice.lastLoss ? { ...this.runtime.webgpuDevice.lastLoss } : null,
+        lastError: this.runtime.webgpuDevice.lastError ? { ...this.runtime.webgpuDevice.lastError } : null,
+      },
       hyphonNativeHeap: this.runtime.hyphonNativeHeap ? { ...this.runtime.hyphonNativeHeap } : null,
     };
   }

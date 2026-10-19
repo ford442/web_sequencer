@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 import type { SynthParams } from '../types';
 import { noteToFrequency } from '../constants';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
-import { probeWebGPU } from '../engines/backends/webgpuProbe';
+import { startGpuCanvasSession, type GpuCanvasSession } from '../webgpu/gpuCanvasSession';
+import { syncCanvasSize, type ConfiguredCanvas } from '../webgpu/configureCanvas';
 
 // ---------------------------------------------------------
 // 1. WGSL Shader Code
@@ -124,7 +125,167 @@ fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
 `;
 
 // ---------------------------------------------------------
-// 2. The Hook
+// 2. GPU session (rebuilt from scratch on every device restore)
+// ---------------------------------------------------------
+const WORKGROUP_SIZE = 64;
+const NUM_POINTS = 1024;
+const COLOR_CYAN = new Float32Array([0.2, 0.9, 1.0, 1.0]);
+const COLOR_PINK = new Float32Array([1.0, 0.2, 0.8, 1.0]);
+
+function createScopeSession(
+  device: GPUDevice,
+  surface: ConfiguredCanvas,
+  paramsRef: React.MutableRefObject<SynthParams>,
+  accentColorRef: React.MutableRefObject<'cyan' | 'pink'>,
+): GpuCanvasSession {
+  const computeModule = device.createShaderModule({ label: 'scope-compute', code: COMPUTE_SHADER_CODE });
+  const renderModule = device.createShaderModule({ label: 'scope-render', code: VERTEX_FRAGMENT_SHADER });
+
+  // Separate layouts: a writable storage binding may not be visible to the
+  // vertex stage, so the render pass reads the points as read-only storage.
+  const computeLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  const renderLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+    ],
+  });
+
+  const computePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
+    compute: { module: computeModule, entryPoint: 'main' },
+  });
+
+  const renderPipeline = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
+    vertex: { module: renderModule, entryPoint: 'vs_main' },
+    fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format: surface.format }] },
+    primitive: { topology: 'line-strip' },
+  });
+
+  // Param Buffer: 32 bytes (8 floats/u32s) aligned
+  const uniformBuffer = device.createBuffer({
+    size: 32,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  // Storage Buffer: 1024 points * 2 floats (vec2) * 4 bytes = 8192 bytes
+  const storageBuffer = device.createBuffer({
+    size: NUM_POINTS * 2 * 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
+  });
+
+  // Accent Color Buffer: 16 bytes (vec4)
+  const accentColorBuffer = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  const computeBindGroup = device.createBindGroup({
+    layout: computeLayout,
+    entries: [
+      { binding: 0, resource: { buffer: uniformBuffer } },
+      { binding: 1, resource: { buffer: storageBuffer } },
+    ],
+  });
+  const renderBindGroup = device.createBindGroup({
+    layout: renderLayout,
+    entries: [
+      { binding: 1, resource: { buffer: storageBuffer } },
+      { binding: 2, resource: { buffer: accentColorBuffer } },
+    ],
+  });
+
+  const paramData = new Float32Array(8);
+  const uintView = new Uint32Array(paramData.buffer);
+  const startTime = Date.now();
+  let animationFrame = 0;
+  let disposed = false;
+
+  const renderFrame = () => {
+    if (disposed) return;
+    const currentParams = paramsRef.current;
+
+    // Map Waveform string to int
+    // Handle other waveform types by defaulting to basic ones
+    let waveIndex = 0;
+    if (currentParams.waveform.includes('saw')) waveIndex = 0;
+    else if (currentParams.waveform.includes('squ') || currentParams.waveform.includes('sqr')) waveIndex = 1;
+    else if (currentParams.waveform.includes('tri')) waveIndex = 2;
+    else if (currentParams.waveform.includes('sin')) waveIndex = 3;
+
+    // Normalize frequency purely for visualization scale
+    const freq = noteToFrequency('C4') / 1000.0;
+
+    // WRITE PARAMS TO GPU
+    // Structure must match WGSL struct Params exactly
+    // slot 3: sustain level derived from volume (0-1 range) — filterResonance repurposed
+    const sustainLevel = Math.max(0, Math.min(1, currentParams.volume));
+
+    paramData[1] = freq;
+    paramData[2] = currentParams.filterCutoff;
+    paramData[3] = sustainLevel;
+    paramData[4] = currentParams.attack;
+    paramData[5] = currentParams.decay;
+    paramData[6] = currentParams.volume;
+    paramData[7] = (Date.now() - startTime) / 1000.0;
+
+    // Cast to uint32 for the first slot
+    uintView[0] = waveIndex;
+
+    device.queue.writeBuffer(accentColorBuffer, 0, accentColorRef.current === 'cyan' ? COLOR_CYAN : COLOR_PINK);
+    device.queue.writeBuffer(uniformBuffer, 0, paramData);
+
+    syncCanvasSize(surface);
+    const commandEncoder = device.createCommandEncoder();
+
+    // COMPUTE PASS
+    const computePass = commandEncoder.beginComputePass();
+    computePass.setPipeline(computePipeline);
+    computePass.setBindGroup(0, computeBindGroup);
+    computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
+    computePass.end();
+
+    // RENDER PASS
+    const textureView = surface.context.getCurrentTexture().createView();
+    const renderPass = commandEncoder.beginRenderPass({
+      colorAttachments: [{
+        view: textureView,
+        clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    });
+
+    renderPass.setPipeline(renderPipeline);
+    renderPass.setBindGroup(0, renderBindGroup);
+    renderPass.draw(NUM_POINTS);
+    renderPass.end();
+
+    device.queue.submit([commandEncoder.finish()]);
+    animationFrame = requestAnimationFrame(renderFrame);
+  };
+
+  renderFrame();
+
+  return {
+    dispose() {
+      disposed = true;
+      cancelAnimationFrame(animationFrame);
+      uniformBuffer.destroy();
+      storageBuffer.destroy();
+      accentColorBuffer.destroy();
+    },
+  };
+}
+
+// ---------------------------------------------------------
+// 3. The Hook
 // ---------------------------------------------------------
 export const useWebGPUScope = (
   canvasRef: React.RefObject<HTMLCanvasElement>,
@@ -132,23 +293,10 @@ export const useWebGPUScope = (
   accentColor: 'cyan' | 'pink',
   initDelay: number = 0
 ) => {
-  const deviceRef = useRef<GPUDevice | null>(null);
-  const pipelineRef = useRef<GPUComputePipeline | null>(null);
-  const renderPipelineRef = useRef<GPURenderPipeline | null>(null);
-  const uniformBufferRef = useRef<GPUBuffer | null>(null);
-  const storageBufferRef = useRef<GPUBuffer | null>(null);
-  const accentColorBufferRef = useRef<GPUBuffer | null>(null);
-  const bindGroupRef = useRef<GPUBindGroup | null>(null);
-  const animationRef = useRef<number>(0);
-  const startTimeRef = useRef<number>(0);
-
   // PERFORMANCE: Use refs to hold latest params/color to avoid re-running the effect loop
   // This allows the animation loop to persist while parameters update.
   const paramsRef = useRef(params);
   const accentColorRef = useRef(accentColor);
-
-  const WORKGROUP_SIZE = 64;
-  const NUM_POINTS = 1024;
 
   // Sync props to refs
   useEffect(() => {
@@ -157,189 +305,36 @@ export const useWebGPUScope = (
   }, [params, accentColor]);
 
   useEffect(() => {
-    let isCleanedUp = false;
+    let stop: (() => void) | null = null;
 
-    const initWebGPU = async () => {
-      if (!canvasRef.current) return;
-
-      const probe = await probeWebGPU();
-      if (!probe.ok || !probe.device || isCleanedUp) {
-        if (!probe.ok) {
+    // Use setTimeout to stagger WebGPU initialization between components
+    const initTimeoutId = setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      stop = startGpuCanvasSession(canvas, {
+        // The scope clears to an opaque panel colour every frame.
+        alphaMode: 'opaque',
+        create: (device, surface) => createScopeSession(device, surface, paramsRef, accentColorRef),
+        onActive: () => engineDegradationStore.resolve('webgpu-scope'),
+        onUnavailable: (reason) => {
           engineDegradationStore.report({
             id: 'webgpu-scope',
             subsystem: 'webgpu-scope',
             category: 'gpu',
             message: 'Oscilloscope using static fallback',
-            reason: probe.reason ?? 'WebGPU unavailable',
+            reason,
             status: 'active',
             activeBackend: 'static',
             requestedBackend: 'webgpu',
             retryable: false,
           });
-        }
-        return;
-      }
-      const device = probe.device;
-      deviceRef.current = device;
-
-      const context = canvasRef.current.getContext('webgpu') as GPUCanvasContext | null;
-      if (!context) return;
-
-      const format = navigator.gpu?.getPreferredCanvasFormat?.() ?? 'bgra8unorm';
-      context.configure({ device, format });
-
-      // 1. Create Layouts & Pipelines
-      const computeModule = device.createShaderModule({ code: COMPUTE_SHADER_CODE });
-      const renderModule = device.createShaderModule({ code: VERTEX_FRAGMENT_SHADER });
-
-      const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-          { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-          { binding: 1, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX, buffer: { type: 'storage' } },
-          { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
-        ],
+        },
       });
-
-      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-
-      pipelineRef.current = device.createComputePipeline({
-        layout: pipelineLayout,
-        compute: { module: computeModule, entryPoint: 'main' },
-      });
-
-      renderPipelineRef.current = device.createRenderPipeline({
-        layout: pipelineLayout,
-        vertex: { module: renderModule, entryPoint: 'vs_main' },
-        fragment: { module: renderModule, entryPoint: 'fs_main', targets: [{ format }] },
-        primitive: { topology: 'line-strip' },
-      });
-
-      // 2. Create Buffers
-      // Param Buffer: 32 bytes (8 floats/u32s) aligned
-      uniformBufferRef.current = device.createBuffer({
-        size: 32,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
-      // Storage Buffer: 1024 points * 2 floats (vec2) * 4 bytes = 8192 bytes
-      storageBufferRef.current = device.createBuffer({
-        size: NUM_POINTS * 2 * 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
-      });
-
-      // Accent Color Buffer: 16 bytes (vec4)
-      accentColorBufferRef.current = device.createBuffer({
-        size: 16,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
-      // 3. Create Bind Group
-      bindGroupRef.current = device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-          { binding: 0, resource: { buffer: uniformBufferRef.current } },
-          { binding: 1, resource: { buffer: storageBufferRef.current } },
-          { binding: 2, resource: { buffer: accentColorBufferRef.current } },
-        ],
-      });
-
-      // ---------------------------------------------------------
-      // 3. Render Loop
-      // ---------------------------------------------------------
-      const paramData = new Float32Array(8);
-      const uintView = new Uint32Array(paramData.buffer);
-      const colorDataCyan = new Float32Array([0.2, 0.9, 1.0, 1.0]);
-      const colorDataPink = new Float32Array([1.0, 0.2, 0.8, 1.0]);
-
-      const renderFrame = () => {
-        if (isCleanedUp || !deviceRef.current) return;
-
-        const device = deviceRef.current;
-        const currentParams = paramsRef.current;
-        const currentAccent = accentColorRef.current;
-
-        // Map Waveform string to int
-        // Handle other waveform types by defaulting to basic ones
-        let waveIndex = 0;
-        if (currentParams.waveform.includes('saw')) waveIndex = 0;
-        else if (currentParams.waveform.includes('squ') || currentParams.waveform.includes('sqr')) waveIndex = 1;
-        else if (currentParams.waveform.includes('tri')) waveIndex = 2;
-        else if (currentParams.waveform.includes('sin')) waveIndex = 3;
-
-        // Normalize frequency purely for visualization scale
-        const freq = noteToFrequency('C4') / 1000.0;
-
-        // WRITE PARAMS TO GPU
-        // Structure must match WGSL struct Params exactly
-        // slot 3: sustain level derived from volume (0-1 range) — filterResonance repurposed
-        const sustainLevel = Math.max(0, Math.min(1, currentParams.volume));
-
-        paramData[1] = freq;
-        paramData[2] = currentParams.filterCutoff;
-        paramData[3] = sustainLevel;
-        paramData[4] = currentParams.attack;
-        paramData[5] = currentParams.decay;
-        paramData[6] = currentParams.volume;
-        paramData[7] = (Date.now() - startTimeRef.current) / 1000.0;
-
-        // Cast to uint32 for the first slot
-        uintView[0] = waveIndex;
-
-        // UPDATE ACCENT COLOR
-        const colorData = currentAccent === 'cyan' ? colorDataCyan : colorDataPink;
-
-        // Check refs before writing to avoid null access if something went wrong
-        if (accentColorBufferRef.current) {
-             device.queue.writeBuffer(accentColorBufferRef.current, 0, colorData);
-        }
-        if (uniformBufferRef.current) {
-            device.queue.writeBuffer(uniformBufferRef.current, 0, paramData);
-        }
-
-        const commandEncoder = device.createCommandEncoder();
-
-        // COMPUTE PASS
-        const computePass = commandEncoder.beginComputePass();
-        computePass.setPipeline(pipelineRef.current!);
-        computePass.setBindGroup(0, bindGroupRef.current!);
-        computePass.dispatchWorkgroups(Math.ceil(NUM_POINTS / WORKGROUP_SIZE));
-        computePass.end();
-
-        // RENDER PASS
-        const textureView = context.getCurrentTexture().createView();
-        const renderPass = commandEncoder.beginRenderPass({
-          colorAttachments: [{
-            view: textureView,
-            clearValue: { r: 0.05, g: 0.05, b: 0.07, a: 1.0 }, // bg-gray-900 equivalent
-            loadOp: 'clear',
-            storeOp: 'store',
-          }],
-        });
-
-        renderPass.setPipeline(renderPipelineRef.current!);
-        renderPass.setBindGroup(0, bindGroupRef.current!);
-        renderPass.draw(NUM_POINTS);
-        renderPass.end();
-
-        device.queue.submit([commandEncoder.finish()]);
-        animationRef.current = requestAnimationFrame(renderFrame);
-      };
-
-      startTimeRef.current = Date.now();
-      renderFrame();
-    };
-
-    // Use setTimeout to stagger WebGPU initialization between components
-    const initTimeoutId = setTimeout(() => {
-      void initWebGPU();
     }, initDelay);
 
     return () => {
-      // cleanup
-      isCleanedUp = true;
       clearTimeout(initTimeoutId);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      deviceRef.current = null;
+      stop?.();
     };
   }, [initDelay, canvasRef]);
 };

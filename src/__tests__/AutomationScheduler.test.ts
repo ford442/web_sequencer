@@ -235,6 +235,21 @@ describe('AutomationScheduler.cancelAll', () => {
 // ---------------------------------------------------------------------------
 
 describe('AutomationScheduler.scheduleFromLanes', () => {
+  it('leaves note FX lanes to the step handler (#1345)', () => {
+    const ctx = makeAudioContext();
+    const mgr = makeOpen303Manager();
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    const lane = makeLane({
+      target: 'synthA',
+      parameter: 'noteFx.arp.rate',
+      points: [{ step: 0, value: 0.75 }],
+    });
+    automationStore.addLane(lane);
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0.1);
+    expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
+    expect(mgr.scheduleParamRamp).not.toHaveBeenCalled();
+  });
+
   it('does nothing when passed an empty lanes array', () => {
     const ctx = makeAudioContext();
     const mgr = makeOpen303Manager();

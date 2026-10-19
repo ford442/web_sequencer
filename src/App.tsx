@@ -13,7 +13,7 @@ import {
     AISongImportNode, CrashRecoveryNode, LoadingOverlayNode, StartOverlayNode, ToastNode,
 } from './components/appParts/AppOverlays'
 import { ModalHosts } from './components/appParts/ModalHosts'
-import { ArrangementNode, LyricTrackNode, MobileTransportNode, SessionNode, SongModeNode } from './components/appParts/PanelNodes'
+import { ArrangementNode, LyricTrackNode, MobileTransportNode, PianoRollNode, SessionNode, SongModeNode } from './components/appParts/PanelNodes'
 
 import { WhatsNewBanner } from './components/help/WhatsNewBanner'
 import { UpdateAvailableToast } from '@/components/UpdateAvailableToast'
@@ -100,6 +100,7 @@ export const App: React.FC = () => {
 
             <SessionNode />
             <ArrangementNode />
+            <PianoRollNode />
 
             <MobileTransportNode />
 

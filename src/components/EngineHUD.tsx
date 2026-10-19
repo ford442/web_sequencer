@@ -23,7 +23,13 @@ import {
 } from '../utils/audioOutputDevice';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 import { BACKEND_LABELS } from '../engines/backends/OscillatorBackend';
-import { getLastWebGpuProbe } from '../engines/backends/webgpuProbe';
+import { getLastWebGpuProbe, restartWebGpuDevice } from '../engines/backends/webgpuProbe';
+import {
+  GPU_POWER_PREFERENCES,
+  getStoredGpuPowerPreference,
+  parseGpuPowerPreference,
+  setStoredGpuPowerPreference,
+} from '../webgpu/powerPreference';
 import { transportSyncStore, syncStateLabel } from '../stores/transportSyncStore';
 import { getWamHost } from '../audio/wam/WamHost';
 
@@ -79,6 +85,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   let audioOutputDevices: MediaDeviceInfo[] = [];
   let sinkListError: string | null = null;
   let reinitError: string | null = null;
+  let gpuRestartPending = false;
 
   function cpuClass(pct: number): string {
     if (pct >= 80) return 'cpu-hot';
@@ -151,13 +158,27 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
     const restartNote = needsRestart
       ? `<button type="button" id="hud-apply-restart" aria-label="Apply and re-initialise the audio engine" style="margin-top:4px">${canReinitAudioEngine() ? 'Apply (re-init engine)' : 'Apply &amp; reload'}</button>`
       : '';
+    // GPU power preference (#1345): takes effect on the next adapter request,
+    // so applying it swaps the shared device (every GPU consumer rebuilds).
+    const storedGpuPower = getStoredGpuPowerPreference();
+    const activeGpuPower = getLastWebGpuProbe()?.powerPreference ?? null;
+    const gpuPowerButtons = GPU_POWER_PREFERENCES.map((pref) => {
+      const active = pref === storedGpuPower;
+      const style = active ? 'background:#0ea5e9;border-color:#0ea5e9;' : '';
+      return `<button type="button" aria-label="${pref} GPU power preference" class="hud-gpu-power-btn" data-gpu-power="${pref}" style="${style}">${pref}</button>`;
+    }).join('');
+    const gpuPowerApply = activeGpuPower != null && activeGpuPower !== storedGpuPower
+      ? `<button type="button" id="hud-gpu-apply" aria-label="Apply GPU power preference and restart the GPU device" style="margin-top:4px" ${gpuRestartPending ? 'disabled' : ''}>Apply (restart GPU device)</button>`
+      : '';
     const latencySection = `<div class="subheader">Latency mode</div>
       <div class="row" style="gap:4px">${modeButtons}</div>
       <div class="subheader">Sample rate</div>
       <div class="row" style="gap:4px">${rateButtons}</div>${renderSizeSupported ? `
       <div class="subheader">Render size hint</div>
       <div class="row" style="gap:4px">${renderSizeButtons}</div>` : ''}${reinitError ? `
-      <div style="font-size:10px;color:#f87171">${reinitError.replace(/</g, '&lt;')}</div>` : ''}${restartNote}`;
+      <div style="font-size:10px;color:#f87171">${reinitError.replace(/</g, '&lt;')}</div>` : ''}${restartNote}
+      <div class="subheader">GPU power</div>
+      <div class="row" style="gap:4px">${gpuPowerButtons}</div>${gpuPowerApply}`;
 
     const sinkSection = supportsSetSinkId()
       ? `<div class="subheader">Audio output</div>
@@ -188,18 +209,28 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         adapter: probe!.adapter,
         ts: probe!.ts,
       };
+      const health = runtime.webgpuDevice;
+      const healthRows = health
+        ? `
+      <div class="row" title="${(health.lastLoss ? `${health.lastLoss.reason}: ${health.lastLoss.message}` : 'no loss this session').replace(/"/g, '&quot;')}"><div style="flex:1">Device losses</div><div class="${health.losses > 0 ? 'cpu-warn' : ''}" style="min-width:72px;text-align:right">${health.losses} (${health.recoveries} recovered)</div></div>
+      <div class="row" title="${(health.lastError ? `${health.lastError.type}: ${health.lastError.message}` : 'none').replace(/"/g, '&quot;')}"><div style="flex:1">Uncaptured errors</div><div class="${health.uncapturedErrors > 0 ? 'cpu-hot' : ''}" style="min-width:72px;text-align:right">${health.uncapturedErrors}</div></div>`
+        : '';
       if (snap.ok) {
         const desc = snap.adapter?.description || snap.adapter?.vendor || 'adapter';
+        const info = snap.deviceInfo;
         return `<div class="subheader">WebGPU session</div>
       <div class="row" title="${probeTitle}"><div style="flex:1">Status</div><div class="cpu-ok" style="min-width:72px;text-align:right">device-ready</div></div>
-      <div class="row"><div style="flex:1">Adapter</div><div style="min-width:72px;text-align:right;font-size:10px">${desc}</div></div>`;
+      <div class="row"><div style="flex:1">Adapter</div><div style="min-width:72px;text-align:right;font-size:10px">${desc}</div></div>
+      <div class="row"><div style="flex:1">Power</div><div style="min-width:72px;text-align:right;font-size:10px">${snap.powerPreference ?? '—'}</div></div>
+      <div class="row" title="${(info?.features ?? []).join(', ')}"><div style="flex:1">Device</div><div style="min-width:72px;text-align:right;font-size:10px">${info?.label ?? '—'} #${snap.generation ?? 1}</div></div>
+      <div class="row"><div style="flex:1">timestamp-query</div><div style="min-width:72px;text-align:right">${info?.timestampQuery ? 'yes' : 'no'}</div></div>${healthRows}`;
       }
       const reason = (snap.reason ?? 'WebGPU unavailable').replace(/</g, '&lt;').replace(/"/g, '&quot;');
       const browser = snap.browser?.engineHint ?? 'unknown';
       return `<div class="subheader">WebGPU session</div>
       <div class="row" title="${probeTitle}"><div style="flex:1">Status</div><div class="cpu-hot" style="min-width:120px;text-align:right">WebGPU unavailable</div></div>
       <div class="row" title="${reason}"><div style="flex:1">Reason</div><div class="cpu-hot" style="min-width:72px;text-align:right;font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${reason}</div></div>
-      <div class="row"><div style="flex:1">Browser</div><div style="min-width:72px;text-align:right;font-size:10px">${browser}</div></div>`;
+      <div class="row"><div style="flex:1">Browser</div><div style="min-width:72px;text-align:right;font-size:10px">${browser}</div></div>${healthRows}`;
     })();
 
     const ts = runtime.transportSync;
@@ -384,6 +415,19 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         setStoredSampleRatePref(pref);
         render();
       }
+    } else if (target.classList.contains('hud-gpu-power-btn')) {
+      const pref = parseGpuPowerPreference(target.getAttribute('data-gpu-power'));
+      if (pref) {
+        setStoredGpuPowerPreference(pref);
+        render();
+      }
+    } else if (target.id === 'hud-gpu-apply') {
+      gpuRestartPending = true;
+      render();
+      void restartWebGpuDevice('GPU power preference changed').finally(() => {
+        gpuRestartPending = false;
+        render();
+      });
     } else if (target.classList.contains('hud-rsize-btn')) {
       const pref = parseRenderSizeHintPref(target.getAttribute('data-rsize'));
       if (pref) {

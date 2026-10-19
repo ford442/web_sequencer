@@ -91,7 +91,7 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | 789 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below |
 | 770 | `src/hooks/useSongStorage.ts` | justified exception — see split plan below |
 | 762 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
-| 746 | `src/hooks/useStepHandler.ts` | un-triaged |
+| 920 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
 | 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
 | 721 | `src/components/WaveformDisplay.tsx` | un-triaged |
 | 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |

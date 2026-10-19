@@ -43,6 +43,8 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0): required fields, ignored fields, examples |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
+| [docs/piano-roll.md](docs/piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
+| [docs/note-fx.md](docs/note-fx.md) | Note FX chain (arp / ratchet / chord / euclid / humanize): pure steps → events, identical live and offline, automation, freeze to pattern |
 | [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |
 | [docs/adr/0001-wam2-host.md](docs/adr/0001-wam2-host.md) | WAM2 host Phase A: SDK pin, allowlist, CSP, integrity, lifecycle |
 
@@ -77,7 +79,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [OFFLINE_303_OVERSAMPLE.md](docs/audio-engine/OFFLINE_303_OVERSAMPLE.md) | Phase-1 offline 303 oversampling + worker pool |
 | [HIGHFID_CPU_303.md](docs/audio-engine/HIGHFID_CPU_303.md) | Phase-2 diode-ladder highfid-cpu offline reference |
 | [GPU_HIGHFID_303.md](docs/audio-engine/GPU_HIGHFID_303.md) | Phase-3 WGSL gpu-highfid offline authenticity tier |
-| [webgpu-session.md](docs/audio-engine/webgpu-session.md) | Session WebGPU probe: one device, HUD hard-fail, WebGL viz deferred (#1105) |
+| [webgpu-session.md](docs/audio-engine/webgpu-session.md) | Session WebGPU probe: one device, power preference, device-loss recovery, canvas helper, HUD hard-fail, WebGL viz deferred (#1105, #1345) |
 | [OPENMP_RUBBERBAND_PATCHES.md](docs/audio-engine/OPENMP_RUBBERBAND_PATCHES.md) | Rubberband OpenMP patches |
 | [RBS_IMPORT_PIPELINE.md](docs/audio-engine/RBS_IMPORT_PIPELINE.md) | RBS import pipeline documentation |
 | [RUBBERBAND_ANALYSIS.md](docs/audio-engine/RUBBERBAND_ANALYSIS.md) | Rubberband library integration analysis |

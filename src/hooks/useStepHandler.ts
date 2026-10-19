@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type {
+    Note,
     Pattern,
     SynthParams,
     Bass2Params,
@@ -56,6 +57,10 @@ import type { Arrangement } from '../types';
 import { arrangementEnd } from '../arrangement/model';
 import { createArrangementFrame, resolveArrangementFrame, type ArrangementFrame } from '../arrangement/playback';
 import { arrangementPlayhead } from '../arrangement/playhead';
+import { transportPlayhead } from '../sequencer/transportPlayhead';
+import { groupSimultaneous } from '../sequencer/noteFx/chain';
+import { noteFxEventsForStep } from '../sequencer/noteFx/runtime';
+import type { FxNoteEvent, NoteFxTrack } from '../sequencer/noteFx/types';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -454,40 +459,33 @@ export const useStepHandler = ({
             arrangementSteps ? arrangementSteps[key].step : trackStepFor(meter, key, step, absStep, false);
         const currentScale = currentScaleRef.current;
 
-        const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
-            if (!trackMuteSoloStore.isAudible(trackKey)) return;
-            const tStep = trackStep(trackKey);
-            const stepData = p[trackKey].steps[tStep];
-            if (!stepData) return;
+        // Per-track playhead for views outside the grid (piano roll). Captured
+        // now: the arrangement frame is reused on the next tick.
+        const playheadSteps = {
+            partA: trackStep('partA'), partB: trackStep('partB'), bass2: trackStep('bass2'),
+            kick: trackStep('kick'), snare: trackStep('snare'), closedHat: trackStep('closedHat'),
+            openHat: trackStep('openHat'), sampler: trackStep('sampler'),
+        };
+        atStepTime(() => transportPlayhead.publish(step, playheadSteps, stepTime));
 
-            if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+        // Note FX (#1345): a track with an active chain plays the chain's events
+        // for this step instead of the step's own note, each at its sub-step offset.
+        const fxBucket = (track: NoteFxTrack, cacheKey: string, seq: PartSequence, tStep: number, salt: number) =>
+            noteFxEventsForStep({ track, cacheKey, steps: seq.steps, tStep, absStep, meter, salt });
+        const fxTime = (e: FxNoteEvent, tStep: number) => time + (e.start - tStep) * stepTime;
 
-            let rawNotes: string | string[] = stepData.note;
-            if (stepData.chord) {
-                _chordScratch.length = 0;
-                _chordScratch.push(stepData.note);
-                for (let i = 0; i < stepData.chord.length; i++) {
-                    _chordScratch.push(stepData.chord[i]);
-                }
-                rawNotes = _chordScratch;
-            }
-            const invVal = activePattern[trackKey].automation?.['chordInversion']?.[tStep] ?? 0;
-            const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
-
-            const slideFrom = stepData.slide && lastFreqRef.current[trackKey] > 0
-                ? lastFreqRef.current[trackKey]
-                : undefined;
-
-            // Build per-step note params from stepData (including Prophecy params).
-            // Note: previously `currentScale` was passed here but `SynthNoteParams` has no scale
-            // properties — it was never consumed by createPlaySynth. Microtonal slide tracking
-            // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
-            // independently when it plays the note string.
+        // Build per-step note params from stepData (including Prophecy params).
+        // Note: previously `currentScale` was passed here but `SynthNoteParams` has no scale
+        // properties — it was never consumed by createPlaySynth. Microtonal slide tracking
+        // continues to use `tunedNoteToFrequency` below. VoiceManager handles scale tuning
+        // independently when it plays the note string. `timing` is false for note FX
+        // events: their start and repeats are already in the event.
+        const buildSynthNoteParams = (trackKey: 'partA' | 'partB', stepData: Note, tStep: number, timing: boolean): SynthNoteParams => {
             const noteParams: SynthNoteParams = {};
             if (stepData.velocity !== undefined) noteParams.velocity = stepData.velocity;
             if (stepData.timbre !== undefined) noteParams.timbre = stepData.timbre;
-            if (stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
-            if (stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
+            if (timing && stepData.microtiming !== undefined) noteParams.microtiming = stepData.microtiming;
+            if (timing && stepData.retrigger !== undefined) noteParams.retrigger = stepData.retrigger;
             if (stepData.formantShift !== undefined) noteParams.formantShift = stepData.formantShift;
             if (stepData.reverbSend !== undefined) noteParams.reverbSend = stepData.reverbSend;
             if (stepData.reverbType !== undefined) noteParams.reverbType = stepData.reverbType;
@@ -513,24 +511,143 @@ export const useStepHandler = ({
             if (resVal !== undefined) noteParams.filterResonance = resVal;
             const driveVal = getAutomationValue(targetForLane, 'drive', step);
             if (driveVal !== undefined) noteParams.drive = driveVal;
+            return noteParams;
+        };
 
-            const durationSeconds = (stepData.length ?? 1) * stepTime;
+        const playSynthNotes = (
+            trackKey: 'partA' | 'partB',
+            params: SynthParams,
+            notes: string | string[],
+            at: number,
+            lengthSteps: number | undefined,
+            velocity: number,
+            slideFrom: number | undefined,
+            noteParams: SynthNoteParams,
+        ) => {
             const wamHost = getWamHost();
             if (wamHost?.takesOverTrack(trackKey)) {
-                const velocity = stepData.velocity ?? 1;
-                wamHost.scheduleTrackNotes(trackKey, notes, time, durationSeconds, velocity);
+                wamHost.scheduleTrackNotes(trackKey, notes, at, (lengthSteps ?? 1) * stepTime, velocity);
             } else {
-                audioEngine.playSynth(params, notes, time, stepData.length, stepTime, slideFrom, trackKey, currentScale, noteParams);
+                audioEngine.playSynth(params, notes, at, lengthSteps, stepTime, slideFrom, trackKey, currentScale, noteParams);
             }
+        };
+
+        const triggerSynth = (trackKey: 'partA' | 'partB', params: SynthParams) => {
+            if (!trackMuteSoloStore.isAudible(trackKey)) return;
+            const tStep = trackStep(trackKey);
+            const seq = p[trackKey];
+
+            const fx = fxBucket(trackKey, trackKey, seq, tStep, 0);
+            if (fx) {
+                for (const group of groupSimultaneous(fx)) {
+                    const head = group[0];
+                    const source = seq.steps[head.sourceStep];
+                    if (!source) continue;
+                    const notes = group.length === 1 ? midiToNote(head.pitch) : group.map((e) => midiToNote(e.pitch));
+                    const noteParams = buildSynthNoteParams(trackKey, source, head.sourceStep, false);
+                    noteParams.velocity = head.velocity;
+                    const slideFrom = head.slide && lastFreqRef.current[trackKey] > 0 ? lastFreqRef.current[trackKey] : undefined;
+                    playSynthNotes(trackKey, params, notes, fxTime(head, tStep), head.length, head.velocity, slideFrom, noteParams);
+                    lastFreqRef.current[trackKey] = tunedNoteToFrequency(midiToNote(head.pitch), currentScale);
+                }
+                return;
+            }
+
+            const stepData = seq.steps[tStep];
+            if (!stepData) return;
+
+            if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
+
+            let rawNotes: string | string[] = stepData.note;
+            if (stepData.chord) {
+                _chordScratch.length = 0;
+                _chordScratch.push(stepData.note);
+                for (let i = 0; i < stepData.chord.length; i++) {
+                    _chordScratch.push(stepData.chord[i]);
+                }
+                rawNotes = _chordScratch;
+            }
+            const invVal = activePattern[trackKey].automation?.['chordInversion']?.[tStep] ?? 0;
+            const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
+
+            const slideFrom = stepData.slide && lastFreqRef.current[trackKey] > 0
+                ? lastFreqRef.current[trackKey]
+                : undefined;
+
+            const noteParams = buildSynthNoteParams(trackKey, stepData, tStep, true);
+            playSynthNotes(trackKey, params, notes, time, stepData.length, stepData.velocity ?? 1, slideFrom, noteParams);
 
             // Update last frequency for future slides
             lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
         };
 
         // === Bass 2 (TB-303) ===
+        const bass2SynthParams = (lengthSteps: number): SynthParams => ({
+            waveform: bass2Ref.current.waveform,
+            pitch: bass2Ref.current.pitch,
+            filterCutoff: bass2Ref.current.cutoff,
+            filterResonance: bass2Ref.current.resonance,
+            filterMode: bass2Ref.current.filterMode,
+            attack: 0.01,
+            decay: bass2Ref.current.decay,
+            sustain: 0,
+            release: 0.1,
+            length: lengthSteps * stepTime,
+            volume: bass2Ref.current.volume,
+            delayTime: 0,
+            delayFeedback: 0,
+            delayMix: 0,
+            drive: bass2Ref.current.drive ?? 0,
+        });
+
+        // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
+        const bass2NoteParamsFor = (stepData: Note): SynthNoteParams => {
+            const bass2NoteParams: SynthNoteParams = {};
+            if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
+            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
+            if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
+            const b2Res = getAutomationValue('bass2', 'filterResonance', step);
+            if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
+            const b2Drive = getAutomationValue('bass2', 'drive', step);
+            if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
+            return bass2NoteParams;
+        };
+
+        // Only Open303Manager takes BASS 2 params; the other 303 engines skip them.
+        const applyBass2Params = () =>
+            (audioEngine.open303Engine as { applyBass2Params?: (p: Bass2Params) => void } | null | undefined)?.applyBass2Params?.(bass2Ref.current);
+
+        const playBass2Notes = (notes: string | string[], at: number, lengthSteps: number | undefined, velocity: number, noteParams: SynthNoteParams) => {
+            const wamBass = getWamHost();
+            if (wamBass?.takesOverTrack('bass2')) {
+                wamBass.scheduleTrackNotes('bass2', notes, at, (lengthSteps ?? 1) * stepTime, velocity);
+            } else {
+                const hasParams = noteParams.drive !== undefined || noteParams.filterCutoff !== undefined
+                    || noteParams.filterResonance !== undefined || noteParams.velocity !== undefined;
+                audioEngine.playSynth(bass2SynthParams(lengthSteps ?? 1), notes, at, lengthSteps, stepTime, undefined, 'bass2' as any, currentScale, hasParams ? noteParams : undefined);
+            }
+        };
+
         const triggerBass2 = () => {
             if (!trackMuteSoloStore.isAudible('bass2')) return;
             const tStep = trackStep('bass2');
+
+            const fx = fxBucket('bass2', 'bass2', p.bass2, tStep, 0);
+            if (fx) {
+                if (fx.length > 0) applyBass2Params();
+                for (const group of groupSimultaneous(fx)) {
+                    const head = group[0];
+                    const source = p.bass2.steps[head.sourceStep];
+                    if (!source) continue;
+                    const notes = group.length === 1 ? midiToNote(head.pitch) : group.map((e) => midiToNote(e.pitch));
+                    // FX events carry their own velocity (ratchet decay, humanize).
+                    const noteParams = bass2NoteParamsFor(source);
+                    noteParams.velocity = head.velocity;
+                    playBass2Notes(notes, fxTime(head, tStep), head.length, head.velocity, noteParams);
+                }
+                return;
+            }
+
             const stepData = p.bass2.steps[tStep];
             if (!stepData) return;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) return;
@@ -547,45 +664,9 @@ export const useStepHandler = ({
             const invVal = activePattern.bass2.automation?.['chordInversion']?.[tStep] ?? 0;
             const notes = invVal > 0 ? applyInversion(rawNotes, invVal) : rawNotes;
 
-            const bass2Params: SynthParams = {
-                waveform: bass2Ref.current.waveform,
-                pitch: bass2Ref.current.pitch,
-                filterCutoff: bass2Ref.current.cutoff,
-                filterResonance: bass2Ref.current.resonance,
-                filterMode: bass2Ref.current.filterMode,
-                attack: 0.01,
-                decay: bass2Ref.current.decay,
-                sustain: 0,
-                release: 0.1,
-                length: (stepData.length ?? 1) * stepTime,
-                volume: bass2Ref.current.volume,
-                delayTime: 0,
-                delayFeedback: 0,
-                delayMix: 0,
-                drive: bass2Ref.current.drive ?? 0,
-            };
+            applyBass2Params();
 
-            if (audioEngine.open303Engine) {
-                (audioEngine.open303Engine as any).applyBass2Params?.(bass2Ref.current);
-            }
-
-            // Bass2 filter automation from unified lanes (RBS tb303Bcutoff etc maps to bass2)
-            const bass2NoteParams: any = {};
-            if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
-            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step);
-            if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
-            const b2Res = getAutomationValue('bass2', 'filterResonance', step);
-            if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
-            const b2Drive = getAutomationValue('bass2', 'drive', step);
-            if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
-
-            const wamBass = getWamHost();
-            if (wamBass?.takesOverTrack('bass2')) {
-                const durationSeconds = (stepData.length ?? 1) * stepTime;
-                wamBass.scheduleTrackNotes('bass2', notes, time, durationSeconds, stepData.velocity ?? 1);
-            } else {
-                audioEngine.playSynth(bass2Params, notes, time, stepData.length, stepTime, undefined, 'bass2' as any, currentScale, bass2NoteParams.drive !== undefined || bass2NoteParams.filterCutoff !== undefined || bass2NoteParams.filterResonance !== undefined ? bass2NoteParams : undefined);
-            }
+            playBass2Notes(notes, time, stepData.length, stepData.velocity ?? 1, bass2NoteParamsFor(stepData));
         };
 
         // Trigger synths
@@ -615,8 +696,58 @@ export const useStepHandler = ({
         // ⚡ Bolt Optimization: Replacing forEach with for loop to prevent closure allocations on hot path
         const samplerAudible = trackMuteSoloStore.isAudible('sampler');
         const samplerStep = trackStep('sampler');
+        const buildBankParams = (bankIdx: number, pan: number | undefined) => {
+            const voiceParams = samplerVoiceParamsRef.current;
+            const baseSampler = samplerRef.current[bankIdx];
+            const bankParams = Object.assign(_bankParamsScratch, baseSampler);
+            bankParams.rootNote = voiceParams.rootNote;
+            bankParams.coarseTune = voiceParams.coarseTune;
+            bankParams.fineTune = voiceParams.fineTune;
+            bankParams.pan = pan ?? voiceParams.pan;
+            bankParams.formantShift = voiceParams.formantShift;
+            bankParams.attack = voiceParams.attack;
+            bankParams.decay = voiceParams.decay;
+            bankParams.stretchProfile = voiceParams.stretchProfile;
+            bankParams.stretchMode = voiceParams.stretchMode;
+            bankParams.lockToSequencer = voiceParams.lockToSequencer;
+
+            // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
+            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step);
+            if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
+            const sampRes = getAutomationValue('sampler', 'filterResonance', step);
+            if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
+            const sampVol = getAutomationValue('sampler', 'volume', step);
+            if (sampVol !== undefined) (bankParams as any).volume = sampVol;
+            return bankParams as SamplerBankParams;
+        };
         for (let bankIdx = 0; samplerAudible && bankIdx < p.sampler.length; bankIdx++) {
             const seq = p.sampler[bankIdx];
+
+            // Note FX: one chain for the sampler track, salted per bank.
+            const fx = fxBucket('sampler', `sampler:${bankIdx}`, seq, samplerStep, bankIdx);
+            if (fx) {
+                for (const group of groupSimultaneous(fx)) {
+                    const head = group[0];
+                    const source = seq.steps[head.sourceStep];
+                    if (!source) continue;
+                    const notes = group.length === 1 ? midiToNote(head.pitch) : group.map((e) => midiToNote(e.pitch));
+                    const slideFromMidi = head.slide ? lastSamplerMidiRef.current[bankIdx] : undefined;
+                    const slideFromFormant = (head.slide || source.slideFormant) ? lastSamplerFormantRef.current[bankIdx] : undefined;
+                    audioEngine.playSampler(
+                        buildBankParams(bankIdx, source.pan),
+                        notes,
+                        fxTime(head, samplerStep),
+                        head.length,
+                        stepTime,
+                        { ...source, velocity: head.velocity, microtiming: undefined, retrigger: undefined, slideFromMidi, slideFromFormant },
+                        currentScale,
+                    );
+                    lastSamplerMidiRef.current[bankIdx] = head.pitch;
+                    lastSamplerFormantRef.current[bankIdx] = source.formantShift !== undefined ? source.formantShift : (samplerVoiceParamsRef.current.formantShift || 0);
+                }
+                continue;
+            }
+
             const stepData = seq.steps[samplerStep];
             if (!stepData) continue;
             if (stepData.probability !== undefined && Math.random() > stepData.probability) continue;
@@ -671,28 +802,8 @@ export const useStepHandler = ({
                 }
             }
 
-            const baseSampler = samplerRef.current[bankIdx];
-            const bankParams = Object.assign(_bankParamsScratch, baseSampler);
-            bankParams.rootNote = voiceParams.rootNote;
-            bankParams.coarseTune = voiceParams.coarseTune;
-            bankParams.fineTune = voiceParams.fineTune;
-            bankParams.pan = stepData.pan ?? voiceParams.pan;
-            bankParams.formantShift = voiceParams.formantShift;
-            bankParams.attack = voiceParams.attack;
-            bankParams.decay = voiceParams.decay;
-            bankParams.stretchProfile = voiceParams.stretchProfile;
-            bankParams.stretchMode = voiceParams.stretchMode;
-            bankParams.lockToSequencer = voiceParams.lockToSequencer;
-
-            // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
-            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step);
-            if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
-            const sampRes = getAutomationValue('sampler', 'filterResonance', step);
-            if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
-            const sampVol = getAutomationValue('sampler', 'volume', step);
-            if (sampVol !== undefined) (bankParams as any).volume = sampVol;
-
-            audioEngine.playSampler(bankParams as SamplerBankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
+            const bankParams = buildBankParams(bankIdx, stepData.pan);
+            audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
 
             lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);

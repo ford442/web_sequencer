@@ -8,6 +8,7 @@ import type { SynthParams, KickParams, SnareParams, HatParams } from '@/types';
 import { getTunedFrequency, type ScaleDefinition } from '@/utils/musicTheory';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
 import { resolveExportSampleRate } from '@/utils/audioContextPolicy';
+import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/createOfflineContext';
 
 type PyodideResultProxy = {
     toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
@@ -59,7 +60,7 @@ export async function renderSynthToBuffer(
     engines?: RenderSynthEngines,
     sampleRate: number = resolveExportSampleRate(),
 ): Promise<AudioBuffer> {
-    const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
+    const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
 
     const time = 0;
     const baseFreq = getTunedFrequency(note, '12-TET', 'C'); // default for offline rendering
@@ -257,8 +258,7 @@ export async function renderDrumToBuffer(
                  // We can construct an AudioBuffer from the float array.
                  // We need an AudioContext to createBuffer. Since we are in browser, we can use offline one or main one.
                  // Let's use OfflineAudioContext just to create the buffer object cleanly.
-                 const ctx = new OfflineAudioContext(1, audioSamples.length, sampleRate);
-                 const buffer = ctx.createBuffer(1, audioSamples.length, sampleRate);
+                 const buffer = createOfflineBuffer({ channels: 1, length: audioSamples.length, sampleRate });
                  buffer.getChannelData(0).set(audioSamples);
                  return buffer;
             }
@@ -269,7 +269,7 @@ export async function renderDrumToBuffer(
     }
 
     // Fallback Approximation (Existing Code)
-    const offlineCtx = new OfflineAudioContext(1, Math.ceil(sampleRate * duration), sampleRate);
+    const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
     const time = 0;
 
     const gain = offlineCtx.createGain();

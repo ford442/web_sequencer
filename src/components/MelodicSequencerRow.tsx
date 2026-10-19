@@ -4,6 +4,7 @@ import { GridIndicators } from './GridIndicators';
 import { TrackSlotStrip } from './sequencer/TrackSlotButton';
 import { TrackMuteSoloButtons } from './sequencer/TrackMuteSoloButtons';
 import { TrackLoopLengthChip } from './sequencer/TrackLoopLengthChip';
+import { PianoRollChip } from './sequencer/PianoRollChip';
 import type { HighlightTrackStep } from './sequencer/SequencerRow';
 import { NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
@@ -242,6 +243,10 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           >
             {label.toUpperCase()}
           </text>
+        </g>
+
+        <g transform="translate(0, 1)">
+          <PianoRollChip trackKey={rowKey} label={label} />
         </g>
 
         {/* Mute / solo */}

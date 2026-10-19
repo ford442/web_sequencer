@@ -29,6 +29,13 @@ import {
     type SampleRatePref,
 } from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
+import { noteFxStore } from '../stores/noteFxStore';
+import { measurePassStarts } from '../sequencer/noteFx/chain';
+import { noteFxLaneLookup } from '../sequencer/noteFx/runtime';
+import { chainIsActive, type NoteFxTrack, type SongNoteFx } from '../sequencer/noteFx/types';
+import { trackLoopLength } from './songMeter';
+import { NUM_STEPS } from '../constants';
+import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
 import {
     createMixBus,
     type MixBus,
@@ -182,6 +189,8 @@ export interface StemExportInput {
     sampleBuffers?: (AudioBuffer | null)[];
     /** Live HARM state: harmony layers exist only in the realtime graph. */
     harmonizerActive?: boolean;
+    /** Per-track note FX chains (#1345). Defaults to the live note FX store. */
+    noteFx?: SongNoteFx;
 }
 
 export type StemId =
@@ -210,8 +219,7 @@ const STEM_RENDER_ORDER: Array<{ id: StemId; label: string }> = [
 
 /** An all-zero stem, used in place of rendering a track the mix has silenced. */
 function silentBuffer(targetLength: number, sampleRate: number): AudioBuffer {
-    const ctx = new OfflineAudioContext(2, Math.max(1, targetLength), sampleRate);
-    return ctx.createBuffer(2, Math.max(1, targetLength), sampleRate);
+    return createOfflineBuffer({ channels: 2, length: targetLength, sampleRate });
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -224,8 +232,7 @@ function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate
     if (buffer.length === targetLength) return buffer;
 
     const channels = buffer.numberOfChannels;
-    const aligned = new OfflineAudioContext(channels, targetLength, sampleRate);
-    const out = aligned.createBuffer(channels, targetLength, sampleRate);
+    const out = createOfflineBuffer({ channels, length: targetLength, sampleRate });
 
     for (let ch = 0; ch < channels; ch++) {
         const src = buffer.getChannelData(ch);
@@ -240,8 +247,7 @@ function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate
 /** Wrap mix-bus output channels in an AudioBuffer for the WAV encoder. */
 function channelsToBuffer(channels: Float32Array[], targetLength: number, sampleRate: number): AudioBuffer {
     const count = channels.length;
-    const ctx = new OfflineAudioContext(count, Math.max(1, targetLength), sampleRate);
-    const out = ctx.createBuffer(count, Math.max(1, targetLength), sampleRate);
+    const out = createOfflineBuffer({ channels: count, length: targetLength, sampleRate });
     for (let ch = 0; ch < count; ch++) {
         out.getChannelData(ch).set(channels[ch].subarray(0, out.length));
     }
@@ -318,6 +324,25 @@ export async function exportStemsToZip(
     const isAudible: StemExportMuteSolo =
         input.isTrackAudible ?? ((track) => trackMuteSoloStore.isAudible(track));
 
+    // Note FX (#1345): the same chain the live step handler plays, one pass
+    // per track loop — re-anchored at each measure in song mode, as live.
+    const songNoteFx = input.noteFx ?? noteFxStore.exportChains();
+    const noteFxFor = (track: NoteFxTrack, salt = 0) => {
+        const chain = songNoteFx[track];
+        if (!chainIsActive(chain)) return undefined;
+        const loopLength = trackLoopLength(
+            { stepCount: input.stepCount ?? NUM_STEPS, trackLengths: input.trackLengths ?? {} },
+            track,
+        );
+        return {
+            chain,
+            loopLength,
+            passStarts: useSongMode ? measurePassStarts(timeline.measureStepCounts, loopLength) : undefined,
+            salt,
+            lookup: noteFxLaneLookup(track),
+        };
+    };
+
     const stems = new Map<StemId, AudioBuffer>();
     const totalStages = STEM_RENDER_ORDER.length;
 
@@ -348,6 +373,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(input.params.synthA, {
                               ...renderOpts,
                               sequence: timeline.sequences.partA,
+                              noteFx: noteFxFor('partA'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -357,6 +383,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(input.params.synthB, {
                               ...renderOpts,
                               sequence: timeline.sequences.partB,
+                              noteFx: noteFxFor('partB'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -366,6 +393,7 @@ export async function exportStemsToZip(
                         ? await renderSynthPattern(bass2ToSynthParams(input.params.bass2), {
                               ...renderOpts,
                               sequence: timeline.sequences.bass2,
+                              noteFx: noteFxFor('bass2'),
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -407,6 +435,7 @@ export async function exportStemsToZip(
                                   input.tempo,
                                   sampleRate,
                                   signal,
+                                  noteFxFor('sampler', bankIndex),
                               )
                             : silentBuffer(targetLength, sampleRate);
                     } else {

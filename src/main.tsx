@@ -13,6 +13,7 @@ import { e2eTransportSnapshot } from './e2e/probe'
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
 import { swUpdateStore } from '@/stores/swUpdateStore'
+import { getLastWebGpuProbe, restartWebGpuDevice } from './engines/backends/webgpuProbe'
 
 // The voice module is instantiated only inside the AudioWorklet session; the
 // main thread just checks it is reachable (StartOverlay "NATIVE MODULE").
@@ -144,6 +145,16 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
         oversample: runtime.liveHighFidOversample,
       };
     },
+
+    // --- Shared WebGPU device (#1345 Phase 0) -----------------------------
+    // Forced device loss: destroys the shared device on purpose and resolves
+    // once the probe has restored (or failed to restore) one. Knobs, scope,
+    // curve editor and piano roll must come back without a reload.
+    loseWebGpuDevice: async () => {
+      const probe = await restartWebGpuDevice('e2e forced device loss')
+      return { ok: probe.ok, generation: probe.generation ?? 0, reason: probe.reason }
+    },
+    getWebGpuDeviceGeneration: () => getLastWebGpuProbe()?.generation ?? 0,
   }
 }
 

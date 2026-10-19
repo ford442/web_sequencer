@@ -215,8 +215,8 @@ describe('oscillator backend fallback (integration)', () => {
     });
 
     it('keeps voices audible when the session WebGPU probe fails', async () => {
-        const { probeWebGPU, resetWebGpuProbeForTests, getLastWebGpuProbe } = await import('../webgpuProbe');
-        resetWebGpuProbeForTests();
+        const { probeWebGPU, resetWebGpuProbe, getLastWebGpuProbe } = await import('../webgpuProbe');
+        resetWebGpuProbe();
         vi.stubGlobal('navigator', { gpu: undefined });
         const probe = await probeWebGPU();
         expect(probe.ok).toBe(false);

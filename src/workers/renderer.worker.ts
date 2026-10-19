@@ -3,6 +3,8 @@
 // Prefer `patternRenderer.ts` + `trackFreezer` on the main thread for stem export;
 // this worker remains available for simple synth pattern previews.
 
+import { createOfflineContext } from '../audio/offline/createOfflineContext';
+
 type Waveform = 'sawtooth' | 'square' | 'triangle' | 'sine';
 
 interface SynthParams {
@@ -154,7 +156,7 @@ self.onmessage = async (event: MessageEvent<{
 
     const stepDuration = 60 / tempo / 4;
     const totalDuration = numSteps * stepDuration;
-    const offlineContext = new OfflineAudioContext(2, Math.ceil(sampleRate * totalDuration), sampleRate);
+    const offlineContext = createOfflineContext({ channels: 2, durationSeconds: totalDuration, sampleRate });
 
     sequence.steps.forEach((note, step) => {
         if (note && !cancelled) {
