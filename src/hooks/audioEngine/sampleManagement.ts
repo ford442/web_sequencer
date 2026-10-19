@@ -4,6 +4,7 @@ import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { SingingVoiceManager } from '../../engines/SingingVoiceManager';
 import type { MultisampleBank, SamplerBankParams } from '../../types';
+import { noteBankStretchProfile } from '../../utils/workletPerfBridge';
 
 interface SampleManagementRefs {
     audioContextRef: MutableRefObject<AudioContext | null>;
@@ -248,6 +249,7 @@ export function applySamplerVoiceParamUpdate({
                         break;
                     }
                     _lastStretchProfiles.set(workletNode, profile);
+                    noteBankStretchProfile(workletNode, profile);
                     workletNode.port.postMessage({
                         type: 'setStretchProfile',
                         data: { profile }
