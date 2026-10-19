@@ -33,6 +33,7 @@ const VOCAL_FX_KEYS = [
   'freeze', 'grainJitter', 'grainPanSpread', 'granularPitchShift', 'grainPitchQuantize',
   'vocalChorus', 'subHarmonics', 'spectralComp', 'bitcrush', 'autoTune', 'microtonalVariance',
   'drumDuckDepth', 'phonemeFilterMod', 'volumeFilterMod', 'gateDepth', 'breathIntensity',
+  'phonemeDelayAmount',
 ] as const satisfies readonly (keyof SamplerBankParams & keyof Note)[];
 
 const hasVocalFx = (source: Partial<Record<(typeof VOCAL_FX_KEYS)[number] | 'downsample', unknown>>) =>
