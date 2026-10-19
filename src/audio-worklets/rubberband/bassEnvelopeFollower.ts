@@ -1,59 +1,98 @@
+import { SidechainRingReader, BASS_TRIGGER_STRIDE } from "../../utils/sidechainTriggerRing";
+
+/** Attack ramp to the note's velocity; an instant step made the grain size jump audibly. */
+export const BASS_ENV_ATTACK_SECONDS = 0.01;
+/** Default release after the note's duration. */
+export const BASS_ENV_RELEASE_SECONDS = 0.1;
+
 /**
- * Bass envelope follower sidechaining driven by bass note triggers delivered through a shared
- * Float32Array [triggerTime, velocity, duration].
+ * Bass envelope follower for the granular grain-size modulation
+ * (GranularEngine.initGrain / rb_fx: size *= 1 - env * bassEnvDepth).
+ *
+ * Triggers arrive through a sidechain trigger ring of [time, velocity 0..1,
+ * duration s] events (see utils/sidechainTriggerRing.ts), so dense bass lines
+ * written ahead of the audio clock are not lost. Per block: linear attack to
+ * the velocity, hold for the note's duration, exponential release.
  */
 export class BassEnvelopeFollower {
-  private env = 0.0;
-  private lastTrigger = 0.0;
-  private currentDuration = 0.0;
-  private currentVelocity = 0.0;
+  private reader: SidechainRingReader | null = null;
+  private readerSab: ArrayBufferLike | null = null;
+  private readonly event = new Float64Array(BASS_TRIGGER_STRIDE);
 
+  private env = 0.0;
+  private peak = 0.0;
+  private holdUntil = -Infinity;
+  private attacking = false;
+
+  private readonly attackSeconds: number;
+  private releaseSeconds: number;
   private cachedSampleRate = 0;
+  private cachedBlockFrames = 0;
+  private cachedReleaseSeconds = 0;
   private cachedReleaseMultPow = 0;
 
+  constructor(options: { attackSeconds?: number; releaseSeconds?: number } = {}) {
+    this.attackSeconds = Math.max(0, options.attackSeconds ?? BASS_ENV_ATTACK_SECONDS);
+    this.releaseSeconds = Math.max(0.001, options.releaseSeconds ?? BASS_ENV_RELEASE_SECONDS);
+  }
+
+  setReleaseSeconds(seconds: number): void {
+    if (seconds > 0) this.releaseSeconds = seconds;
+  }
+
+  /** Current envelope (0..1), for tests. */
+  get value(): number {
+    return this.env;
+  }
+
+  /** Returns the envelope (0..1) for the block starting at `currentTime`. */
   process(
-    sidechain: Float32Array | null,
+    sidechain: SharedArrayBuffer | null,
     currentTime: number,
     blockFrames: number,
     sampleRate: number
   ): number {
-    if (!sidechain) {
-      return 0.0;
+    if (!sidechain) return 0.0;
+    if (sidechain !== this.readerSab) {
+      this.readerSab = sidechain;
+      this.reader = new SidechainRingReader(sidechain);
     }
 
-    const triggerTime = sidechain[0];
-    const velocity = sidechain[1];
-    const duration = sidechain[2];
-
-    // Check for a new trigger
-    if (triggerTime > this.lastTrigger && currentTime >= triggerTime) {
-      this.env = 1.0;
-      this.lastTrigger = triggerTime;
-      this.currentDuration = duration;
-      this.currentVelocity = velocity;
+    if (this.reader!.poll(currentTime, this.event) > 0) {
+      const velocity = this.event[1];
+      const duration = this.event[2];
+      this.peak = velocity > 0 ? Math.min(1, velocity) : 0;
+      this.holdUntil = this.event[0] + (duration > 0 ? duration : 0);
+      this.attacking = true;
     }
 
-    // Determine if we are in the "hold" phase or "release" phase
-    const timeSinceTrigger = currentTime - this.lastTrigger;
-
-    // Fixed release time of 100ms
-    const releaseSeconds = 0.1;
-
-    if (sampleRate !== this.cachedSampleRate) {
+    if (
+      sampleRate !== this.cachedSampleRate ||
+      blockFrames !== this.cachedBlockFrames ||
+      this.releaseSeconds !== this.cachedReleaseSeconds
+    ) {
       this.cachedSampleRate = sampleRate;
-      const releaseFrames = Math.max(1, sampleRate * releaseSeconds);
-      const releaseMult = Math.exp(-1.0 / releaseFrames);
-      this.cachedReleaseMultPow = Math.pow(releaseMult, blockFrames);
+      this.cachedBlockFrames = blockFrames;
+      this.cachedReleaseSeconds = this.releaseSeconds;
+      const releaseFrames = Math.max(1, sampleRate * this.releaseSeconds);
+      this.cachedReleaseMultPow = Math.pow(Math.exp(-1.0 / releaseFrames), blockFrames);
     }
 
-    // If we are past the note duration, start decaying
-    let currentBlockEnv = this.env;
-    if (timeSinceTrigger > this.currentDuration) {
-       this.env *= this.cachedReleaseMultPow;
-       currentBlockEnv = this.env;
+    if (this.attacking) {
+      // Linear slew toward the peak at full scale per attackSeconds (up or down on a retrigger).
+      const step = this.attackSeconds > 0 ? blockFrames / (sampleRate * this.attackSeconds) : 1;
+      const delta = this.peak - this.env;
+      if (Math.abs(delta) <= step) {
+        this.env = this.peak;
+        this.attacking = false;
+      } else {
+        this.env += delta > 0 ? step : -step;
+      }
+    } else if (currentTime >= this.holdUntil) {
+      this.env *= this.cachedReleaseMultPow;
+      if (this.env < 1e-6) this.env = 0;
     }
 
-    // Return the final modulated envelope value (0.0 to 1.0) scaled by velocity
-    return currentBlockEnv * this.currentVelocity;
+    return this.env;
   }
 }

@@ -69,14 +69,12 @@ export function createPlayDrum(
     // Broadcast trigger to granulator sidechain SAB
     if (sound === "kick" || sound === "snare") {
       const manager = refs.singingVoiceManagerRef.current;
-      if (manager) {
-        const drumSidechainSAB = manager.getDrumSidechainSAB();
-        const view = new Float32Array(drumSidechainSAB);
-        view[0] = now;
-        view[1] = ("volume" in adjustedParams ? adjustedParams.volume : 0.8);
-        view[2] = ("decay" in adjustedParams ? adjustedParams.decay : 0.25);
-        view[3] = sound === "snare" ? 1.0 : 0.0;
-      }
+      manager?.pushDrumTrigger(
+        now,
+        "volume" in adjustedParams ? adjustedParams.volume : 0.8,
+        "decay" in adjustedParams ? adjustedParams.decay : 0.25,
+        sound === "snare",
+      );
     }
 
     if (kitEngine) {

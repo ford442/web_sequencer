@@ -1,6 +1,12 @@
 import { SingingVoice, type SingingVoiceConfig } from './SingingVoice';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { VoicePool } from './base/VoicePool';
+import {
+    BASS_TRIGGER_STRIDE,
+    DRUM_TRIGGER_STRIDE,
+    SidechainRingWriter,
+    createSidechainRing,
+} from '../utils/sidechainTriggerRing';
 
 export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private audioContext: AudioContext;
@@ -8,12 +14,19 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private config: SingingVoiceConfig;
     private drumSidechainSAB: SharedArrayBuffer;
     private bassSidechainSAB: SharedArrayBuffer;
+    private readonly drumTriggers: SidechainRingWriter;
+    private readonly bassTriggers: SidechainRingWriter;
+    private readonly drumEvent = new Float64Array(DRUM_TRIGGER_STRIDE);
+    private readonly bassEvent = new Float64Array(BASS_TRIGGER_STRIDE);
 
     constructor(audioContext: AudioContext, maxVoices: number = 12, config: SingingVoiceConfig = {}) {
         super(maxVoices);
         this.audioContext = audioContext;
-        this.drumSidechainSAB = new SharedArrayBuffer(4 * 4); // 4 floats: [triggerTime, velocity, decay, isSnare]
-        this.bassSidechainSAB = new SharedArrayBuffer(3 * 4); // 3 floats: [triggerTime, velocity, duration]
+        // Trigger rings, not single slots: notes are written ahead of the clock (utils/sidechainTriggerRing.ts).
+        this.drumSidechainSAB = createSidechainRing(DRUM_TRIGGER_STRIDE);
+        this.bassSidechainSAB = createSidechainRing(BASS_TRIGGER_STRIDE);
+        this.drumTriggers = new SidechainRingWriter(this.drumSidechainSAB);
+        this.bassTriggers = new SidechainRingWriter(this.bassSidechainSAB);
         this.config = {
             useHighQuality: false,
             preserveFormants: true,
@@ -32,6 +45,25 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
 
     public getBassSidechainSAB(): SharedArrayBuffer {
         return this.bassSidechainSAB;
+    }
+
+    /** Queues a kick/snare hit for the granulator's drum duck. Velocity is clamped to 0..1. */
+    public pushDrumTrigger(time: number, velocity: number, decaySeconds: number, isSnare: boolean): void {
+        const e = this.drumEvent;
+        e[0] = time;
+        e[1] = clamp01(velocity);
+        e[2] = decaySeconds > 0 ? decaySeconds : 0.25;
+        e[3] = isSnare ? 1 : 0;
+        this.drumTriggers.push(e);
+    }
+
+    /** Queues a root-bass note for the bass envelope follower. Velocity is clamped to 0..1. */
+    public pushBassTrigger(time: number, velocity: number, durationSeconds: number): void {
+        const e = this.bassEvent;
+        e[0] = time;
+        e[1] = clamp01(velocity);
+        e[2] = durationSeconds > 0 ? durationSeconds : 0;
+        this.bassTriggers.push(e);
     }
 
     async init(
@@ -148,4 +180,8 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     override stopAll(time?: number) {
         super.stopAll(time ?? this.audioContext.currentTime);
     }
+}
+
+function clamp01(v: number): number {
+    return v > 0 ? (v < 1 ? v : 1) : 0;
 }

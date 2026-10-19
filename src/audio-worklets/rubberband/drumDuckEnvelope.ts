@@ -1,10 +1,19 @@
+import { SidechainRingReader, DRUM_TRIGGER_STRIDE } from "../../utils/sidechainTriggerRing";
+
 /**
- * Sidechain ducking driven by drum-hit triggers delivered through a shared
- * Float32Array [triggerTime, velocity, decaySeconds, isSnare].
+ * Sidechain ducking driven by drum-hit triggers delivered through a sidechain
+ * trigger ring of [time, velocity, decaySeconds, isSnare] events (see
+ * utils/sidechainTriggerRing.ts), so hits written ahead of the clock are not
+ * overwritten by the next one.
  */
 export class DrumDuckEnvelope {
   private env = 0.0;
-  private lastTrigger = 0.0;
+  private reader: SidechainRingReader | null = null;
+  private readerSab: ArrayBufferLike | null = null;
+  private readonly event = new Float64Array(DRUM_TRIGGER_STRIDE);
+  private drumVelocity = 0.0;
+  private drumDecay = 0.25;
+  private isSnare = 0.0;
   private readonly processResult = { duckingScalar: 0.0, isSnare: 0.0 };
   private eqState = { lp: [0,0], bp: [0,0] };
   private cachedSampleRate = 0;
@@ -13,27 +22,27 @@ export class DrumDuckEnvelope {
   private cachedReleaseMultPow = 0;
 
   process(
-    sidechain: Float32Array | null,
+    sidechain: SharedArrayBuffer | null,
     drumDuckDepth: number,
     currentTime: number,
     blockFrames: number,
     sampleRate: number
   ): { duckingScalar: number; isSnare: number } {
-    if (!(drumDuckDepth > 0 && sidechain)) {
-      this.processResult.duckingScalar = 0.0;
-      this.processResult.isSnare = 0.0;
-      return this.processResult;
+    if (sidechain && sidechain !== this.readerSab) {
+      this.readerSab = sidechain;
+      this.reader = new SidechainRingReader(sidechain);
     }
-
-    const triggerTime = sidechain[0];
-    const drumVelocity = sidechain[1];
-    const drumDecay = sidechain[2];
-    const isSnare = sidechain[3];
-
-    if (triggerTime > this.lastTrigger && currentTime >= triggerTime) {
+    // Drained even at depth 0, so turning the knob up never replays stale hits.
+    if (this.reader && this.reader.poll(currentTime, this.event) > 0) {
       this.env = 1.0;
-      this.lastTrigger = triggerTime;
+      this.drumVelocity = this.event[1];
+      this.drumDecay = this.event[2] > 0 ? this.event[2] : 0.25;
+      this.isSnare = this.event[3];
     }
+
+    const drumVelocity = this.drumVelocity;
+    const drumDecay = this.drumDecay;
+    const isSnare = this.isSnare;
 
     if (drumDecay !== this.cachedDecay || sampleRate !== this.cachedSampleRate) {
       this.cachedDecay = drumDecay;
@@ -42,6 +51,14 @@ export class DrumDuckEnvelope {
       const releaseFrames = Math.max(1, sampleRate * drumDecay);
       const releaseMult = Math.exp(-1.0 / releaseFrames);
       this.cachedReleaseMultPow = Math.pow(releaseMult, blockFrames);
+    }
+
+    if (!(drumDuckDepth > 0 && sidechain)) {
+      // Keep the envelope moving while bypassed: a hit must not sit at 1 until the depth comes up.
+      this.env *= this.cachedReleaseMultPow;
+      this.processResult.duckingScalar = 0.0;
+      this.processResult.isSnare = 0.0;
+      return this.processResult;
     }
 
     // Apply a non-linear convex curve to the envelope to hold the peak ducking slightly longer
