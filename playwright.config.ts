@@ -18,10 +18,9 @@ import { defineConfig, devices } from '@playwright/test';
 // Known-red triage tests, excluded on CI only so the E2E job stays a usable
 // signal. They still run locally and stay in tests/live-issue-triage.spec.ts.
 //  - #1395: SUS/REL REC dots overlap the oscillator selector (all browsers).
-//  - #1389 on Firefox: headless CI Firefox never starts the AudioContext clock (#1372).
 // Remove each entry when its issue is fixed.
 const CI_KNOWN_RED_ALL = /#1395 Synth A/;
-const CI_KNOWN_RED_FIREFOX = /#1395 Synth A|#1389 sequencer advances/;
+const CI_KNOWN_RED_FIREFOX = /#1395 Synth A/;
 
 export default defineConfig({
   testDir: './tests',

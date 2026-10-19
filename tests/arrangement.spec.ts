@@ -39,13 +39,6 @@ test('ARR: add a kick clip, play the arrangement, playhead moves, kick on clip s
     await page.evaluate(() => { window.__HYPHON_E2E_DRUM_HITS__ = []; });
     await startPlaybackAndAwaitClock(page);
 
-    const browserName = page.context().browser()?.browserType().name() ?? 'unknown';
-    if (browserName === 'firefox' || browserName === 'webkit') {
-        // AudioContext may stay suspended on headless Firefox/WebKit; same carve-out as pattern-length.spec.
-        await page.getByRole('button', { name: 'Stop Playback' }).click();
-        return;
-    }
-
     // Collect playhead positions in-page so no step is missed between round trips.
     const playhead = page.getByTestId('arrangement-playhead');
     await playhead.evaluate((el) => {

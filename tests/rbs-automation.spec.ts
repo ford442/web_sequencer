@@ -34,16 +34,13 @@ test.describe('RBS import E2E', () => {
     await startPlaybackAndAwaitClock(page);
 
     // Transport advances during playback (E2E transport bucket or sequencer playhead).
-    const browserName = page.context().browser()?.browserType().name();
-    if (browserName !== 'firefox') {
-      await expect
-        .poll(async () => {
-          const step = await getAutomationPlaybackStep(page);
-          if (step >= 0) return step;
-          return (await hasSequencerPlayhead(page)) ? 0 : -1;
-        }, { timeout: 15_000, intervals: [100, 250, 500] })
-        .toBeGreaterThanOrEqual(0);
-    }
+    await expect
+      .poll(async () => {
+        const step = await getAutomationPlaybackStep(page);
+        if (step >= 0) return step;
+        return (await hasSequencerPlayhead(page)) ? 0 : -1;
+      }, { timeout: 15_000, intervals: [100, 250, 500] })
+      .toBeGreaterThanOrEqual(0);
   });
 
   test('imports .rbs and hydrates automation lanes for playback scheduling', async ({

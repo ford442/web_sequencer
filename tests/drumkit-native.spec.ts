@@ -44,14 +44,6 @@ test('native drum kit: resolves to the worklet and renders the hits', async ({ p
   await page.evaluate(() => { window.__HYPHON_E2E_DRUM_HITS__ = []; });
   await startPlaybackAndAwaitClock(page);
 
-  const browserName = page.context().browser()?.browserType().name() ?? 'unknown';
-  if (browserName === 'firefox' || browserName === 'webkit') {
-    // Headless Firefox/WebKit may keep the AudioContext clock stopped (#1372):
-    // the resolution check above is what these projects can verify.
-    await page.getByRole('button', { name: 'Stop Playback' }).click();
-    return;
-  }
-
   await expect
     .poll(() => page.evaluate(() => (window.__HYPHON_E2E_DRUM_HITS__ ?? []).filter((h) => h.track === 'kick').length), {
       timeout: 15_000,

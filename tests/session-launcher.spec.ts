@@ -16,9 +16,7 @@ test.describe('Session clip launcher', () => {
 
     await page.getByTestId('session-scene-0').click();
 
-    const browserName = page.context().browser()?.browserType().name();
-    if (browserName !== 'firefox') {
-      await expect
+    await expect
       .poll(async () => {
         return page.evaluate(() => {
           const w = window as Window & {
@@ -28,7 +26,6 @@ test.describe('Session clip launcher', () => {
         });
       }, { timeout: 15_000, intervals: [100, 250, 500] })
       .toBeGreaterThan(0);
-    }
 
     await page.getByRole('button', { name: 'Capture launches into the arrangement' }).click();
     await page.getByRole('button', { name: 'Stop capturing launches into the arrangement' }).click();
