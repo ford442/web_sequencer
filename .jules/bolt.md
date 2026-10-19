@@ -43,3 +43,7 @@
 ## 2025-01-20 - Extract Array Property Accesses from DSP Inner Loops
 **Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), repeatedly accessing object properties that are arrays (e.g., `this.eqState.lp[channel]`) incurs significant overhead. For instance, in `DrumDuckEnvelope`, these lookups slowed down the `applyMasterDuck` process substantially because V8 could not easily hoist the array index lookup out of the loop.
 **Action:** Extract such properties into block-scoped local variables (e.g., `let lp = this.eqState.lp[channel];`) before entering the per-sample inner loop. Update the local variable inside the loop, and save its final value back to the array property after the loop finishes. This optimizes memory access and drastically improves execution speed.
+
+## 2025-01-22 - Avoid Unmeasurable Micro-Optimizations in AudioWorklets
+**Learning:** Replacing a single `Math.pow()` or `midiToHz(127)` inside `process()` with a cached variable in `PcfProcessor` was rejected because it is a negligible micro-optimization (saving a single O(1) operation every 128 samples). Furthermore, hardcoding `midiToHz(127)` as exactly 20000 instead of computing the true frequency caused an auditory regression.
+**Action:** Do not submit PRs for micro-optimizations that have no measurable gain, especially if they risk altering exact math. Only optimize continuous allocations or expensive operations inside the per-sample inner loop, not operations that happen once per 128-sample block unless they are measurably slow.
