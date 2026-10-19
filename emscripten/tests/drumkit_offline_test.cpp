@@ -167,6 +167,36 @@ void testEventApi() {
         drumkit_destroy(h);
     }
 
+    // Per-hit pan (planar stereo, right at ptr + BLOCK): a pan event latches on
+    // the voice's next trigger; centre is the mono kit on both channels.
+    {
+        auto renderPanned = [&](float pan, std::vector<float>& left, std::vector<float>& right) {
+            uintptr_t h = drumkit_create();
+            drumkit_init(h, SAMPLE_RATE, BLOCK);
+            drumkit_push_event(h, static_cast<double>(start + 37), kDrumkitSetPan, 1, pan, 0, 0, 0, 0);
+            drumkit_push_event(h, static_cast<double>(start + 37), hyphon::kTrigger, 1, 1.0f, 200.0f, 0.3f, 2000.0f, 0.9f);
+            for (int b = 0; b < 40; ++b) {
+                const float* buf = reinterpret_cast<const float*>(
+                    drumkit_render(h, static_cast<double>(start + int64_t{b} * BLOCK), BLOCK));
+                left.insert(left.end(), buf, buf + BLOCK);
+                right.insert(right.end(), buf + BLOCK, buf + 2 * BLOCK);
+            }
+            drumkit_destroy(h);
+        };
+        std::vector<float> cl, cr, hl, hr, ql, qr;
+        renderPanned(0.0f, cl, cr);
+        renderPanned(-1.0f, hl, hr);
+        renderPanned(0.5f, ql, qr);
+        const float c = rms(cl, 0, cl.size());
+        check(c > 0.01f && cl == cr, "a centred hit is identical on both channels");
+        check(rms(hr, 0, hr.size()) < 1e-6f && std::fabs(rms(hl, 0, hl.size()) / c - std::sqrt(2.0f)) < 1e-3f,
+              "hard left: silent right, +3 dB left");
+        const float lq = rms(ql, 0, ql.size());
+        const float rq = rms(qr, 0, qr.size());
+        check(rq > lq && std::fabs((lq * lq + rq * rq) / (2.0f * c * c) - 1.0f) < 1e-3f,
+              "half right: louder right, constant power");
+    }
+
     // Stop: pending triggers are dropped.
     {
         uintptr_t h = drumkit_create();
@@ -182,7 +212,7 @@ void testEventApi() {
         uintptr_t h = drumkit_create();
         drumkit_init(h, SAMPLE_RATE, BLOCK);
         check(drumkit_render(h, 0.0, BLOCK * 4) == 0, "drumkit_render refuses a block larger than init reserved");
-        check(drumkit_process(h, BLOCK * 4) != 0, "drumkit_process still grows for one, as before the port");
+        check(drumkit_process(h, BLOCK * 4) == 0, "drumkit_process refuses one too: the right channel sits a stride in");
         drumkit_destroy(h);
         check(drumkit_render(h, 0.0, BLOCK) == 0 && drumkit_push_event(h, 0.0, hyphon::kTrigger, 0, 1, 0, 0, 0, 0) == 0,
               "a destroyed handle resolves to nothing");

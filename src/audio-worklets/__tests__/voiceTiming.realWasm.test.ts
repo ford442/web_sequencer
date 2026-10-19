@@ -176,6 +176,43 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
     expect(firstDifference(long, short)).toBe(64 + 600);
   });
 
+  it('a drum hit plays at its own pan: centre is the mono kit on both sides, constant power off-centre', async () => {
+    const hit = async (pan: number | undefined) => {
+      const { drums } = await bootVoices();
+      const start = SAMPLE_RATE;
+      const audioTime = (start + BLOCK + 37) / SAMPLE_RATE;
+      // A snare: noise and tone, so both channels carry a real signal.
+      await drums.port.deliver({ type: 'trigger', data: { voice: 1, velocity: 1, a: 200, b: 0.3, c: 3000, d: 0.8, pan, audioTime } });
+      const blocks = 40;
+      const L = new Float32Array(blocks * BLOCK);
+      const R = new Float32Array(blocks * BLOCK);
+      for (let b = 0; b < blocks; b++) {
+        g.currentFrame = start + b * BLOCK;
+        const left = new Float32Array(BLOCK);
+        const right = new Float32Array(BLOCK);
+        drums.process([], [[left, right]], {});
+        L.set(left, b * BLOCK);
+        R.set(right, b * BLOCK);
+      }
+      resetHyphonNativeSessionForTests();
+      return { L, R };
+    };
+    const energy = (a: Float32Array) => a.reduce((s, x) => s + x * x, 0);
+
+    const centre = await hit(undefined);
+    expect(energy(centre.L)).toBeGreaterThan(0);
+    expect(Array.from(centre.R)).toEqual(Array.from(centre.L));
+
+    const left = await hit(-1);
+    expect(energy(left.R)).toBeLessThan(1e-9 * energy(left.L));
+    // Constant power: L² + R² matches the centred hit (2 · mono²).
+    const quarter = await hit(0.5);
+    const total = (h: { L: Float32Array; R: Float32Array }) => energy(h.L) + energy(h.R);
+    expect(total(left) / total(centre)).toBeCloseTo(1, 4);
+    expect(total(quarter) / total(centre)).toBeCloseTo(1, 4);
+    expect(energy(quarter.R)).toBeGreaterThan(energy(quarter.L));
+  });
+
   it('a timed Prophecy note sounds, then releases to silence; untimed, its noteOff lands first', async () => {
     const run = async (timed: boolean) => {
       const { lead } = await bootVoices();

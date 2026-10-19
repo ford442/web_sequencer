@@ -10,7 +10,7 @@ vi.mock('@/utils/engineTelemetry', async (importOriginal) => {
   return { ...actual, logEngineFallback };
 });
 
-import { DrumKitEngine } from '@/engines/DrumKitEngine';
+import { DrumKitEngine, drumPanGains } from '@/engines/DrumKitEngine';
 import { DRUM_KIT_PRESETS, getDrumKitDefaults, PRESET_808, PRESET_909 } from '@/engines/DrumKitPresets';
 
 function mockAudioGraph() {
@@ -137,9 +137,34 @@ describe('DrumKitEngine', () => {
         b: PRESET_808.kick.decay,
         c: PRESET_808.kick.tone,
         d: PRESET_808.kick.volume,
+        pan: 0,
         audioTime: 1.25,
       },
     });
+  });
+
+  it('a hit carries its pan to the worklet: the step pan overrides the sound\'s own', () => {
+    const engine = new DrumKitEngine('808');
+    const postMessage = vi.fn();
+    Object.assign(engine, { wasmReady: true, workletNode: { port: { postMessage } } });
+    const { context, masterGain } = mockAudioGraph();
+    const panned = { ...PRESET_808.closedHat, pan: 0.25 };
+    engine.play(context, masterGain, null, 'closedHat', panned, 1);
+    engine.play(context, masterGain, null, 'closedHat', panned, 2, -1);
+    const pans = postMessage.mock.calls.map((c) => (c[0] as { data: { pan: number } }).data.pan);
+    expect(pans).toEqual([0.25, -1]);
+  });
+
+  it('fallback: a panned hit goes through a two-gain merger; a centred one connects straight', () => {
+    const engine = new DrumKitEngine('808');
+    const { context, masterGain } = mockAudioGraph();
+    const merger = { connect: vi.fn() };
+    Object.assign(context, { createChannelMerger: vi.fn(() => merger) });
+    engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 0);
+    expect(context.createChannelMerger).not.toHaveBeenCalled();
+    engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 0, 0.5);
+    expect(context.createChannelMerger).toHaveBeenCalledWith(2);
+    expect(merger.connect).toHaveBeenCalledWith(masterGain);
   });
 
   it('records a HUD fallback reason when WASM drums cannot load', async () => {
@@ -155,5 +180,24 @@ describe('DrumKitEngine', () => {
   it('constructs at most one worklet node for the whole kit', () => {
     const engine = new DrumKitEngine();
     expect(engine.workletInstanceCount).toBe(0);
+  });
+});
+
+describe('drumPanGains (same law as panGains() in drumkit_wrapper.cpp)', () => {
+  it('is exactly unity at the centre, so an unpanned kit is unchanged', () => {
+    expect(drumPanGains(0)).toEqual([1, 1]);
+    expect(drumPanGains(undefined)).toEqual([1, 1]);
+    expect(drumPanGains(Number.NaN)).toEqual([1, 1]);
+  });
+
+  it('is constant power and hard-pans to one side at +3 dB', () => {
+    for (const pan of [-1, -0.5, -0.1, 0.3, 0.75, 1]) {
+      const [l, r] = drumPanGains(pan);
+      expect(l * l + r * r).toBeCloseTo(2, 6);
+    }
+    const [l, r] = drumPanGains(1);
+    expect(l).toBeCloseTo(0, 6);
+    expect(r).toBeCloseTo(Math.SQRT2, 6);
+    expect(drumPanGains(-3)).toEqual(drumPanGains(-1));
   });
 });

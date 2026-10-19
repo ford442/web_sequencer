@@ -688,7 +688,9 @@ export const useStepHandler = ({
             if (!trackMuteSoloStore.isAudible(trackKey)) return;
             const stepData = p[trackKey].steps[trackStep(trackKey)];
             if (stepData && !(stepData.probability !== undefined && Math.random() > stepData.probability)) {
-                audioEngine.playDrum(sound, params, time, currentScale, stepTime, stepData.note);
+                // The step's pan (note editor) rides with its note: per-hit pan.
+                const note = stepData.pan !== undefined ? { note: stepData.note, pan: stepData.pan } : stepData.note;
+                audioEngine.playDrum(sound, params, time, currentScale, stepTime, note);
                 if (e2e) recordE2eDrumHit(trackKey, arrangementSteps ? songPosRef.current : -1, step);
             }
         };

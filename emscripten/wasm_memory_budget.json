@@ -48,7 +48,9 @@
       "See docs/wasm/BUILD_NOTES.md#threading-profiles.",
       "2026-10-19 with the macro-* voices (2 parts x 8 voices sounding, same tool):",
       "static + stack 1.99 → 2.21 MB, voice heap 1.81 → 2.11 MB, peak 3.80 → 4.32 MB —",
-      "still under 30 % of the 16 MB initial memory."
+      "still under 30 % of the 16 MB initial memory.",
+      "2026-10-19, stereo drum kit (per-hit pan, planar 2 x maxFrames buffer): voice",
+      "heap 2.11 → 2.13 MB, peak 4.32 → 4.34 MB."
     ],
     "initialMemoryMb": 16,
     "maximumMemoryMb": 512,

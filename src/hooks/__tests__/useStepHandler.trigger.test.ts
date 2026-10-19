@@ -114,6 +114,19 @@ describe('useStepHandler trigger dispatch', () => {
     expect(engine.playSampler).toHaveBeenCalledTimes(1);
   });
 
+  it('a drum step\'s pan rides with its note; an unpanned step sends the bare note', () => {
+    const engine = makeEngine();
+    const pattern = patternArmedOnStepZero();
+    pattern.snare.steps[0] = { note: 'C3', velocity: 1, length: 1, pan: -0.6 };
+    const { result } = renderHook(() => useStepHandler(makeOptions(engine, pattern)));
+
+    result.current.onStep(0, 1.0);
+
+    const noteFor = (sound: string) => engine.playDrum.mock.calls.find((c) => c[0] === sound)?.[5];
+    expect(noteFor('snare')).toEqual({ note: 'C3', pan: -0.6 });
+    expect(noteFor('kick')).toBe('C3');
+  });
+
   it('fires nothing on a step where no track is armed', () => {
     const engine = makeEngine();
     const { result } = renderHook(() =>
