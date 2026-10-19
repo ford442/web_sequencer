@@ -54,50 +54,62 @@ export class VocoderEffect {
       if (!outCh) continue;
       if (channel > 1) continue; // Stereo only
 
+      // ⚡ Bolt: Extract state to local variables outside the inner loop to
+      // eliminate O(N) array property lookups per quantum on the hot path.
+      let env = this.env[channel];
+      let lastSign = this.lastSign[channel];
+      let zeroCrossings = this.zeroCrossings[channel];
+      let periodSamples = this.periodSamples[channel];
+      let phase = this.phase[channel];
+      let smoothedPeriod = this.smoothedPeriod[channel];
+      let smoothedIntensity = this.smoothedIntensity[channel];
+      let noiseSeed = this.noiseSeed[channel];
+      let noiseHp = this.noiseHp[channel];
+
       for (let i = 0; i < outCh.length; i++) {
         const x = outCh[i];
 
         // 1. Amplitude Envelope Following (Modulator)
         const absX = Math.abs(x);
-        if (absX > this.env[channel]) {
-          this.env[channel] = envAttack * (this.env[channel] - absX) + absX;
+        if (absX > env) {
+          env = envAttack * (env - absX) + absX;
         } else {
-          this.env[channel] = envRelease * (this.env[channel] - absX) + absX;
+          env = envRelease * (env - absX) + absX;
         }
 
         // 2. Pitch Tracking via Zero-Crossing
         const currentSign = x >= 0 ? 1 : -1;
-        if (currentSign !== this.lastSign[channel] && currentSign === 1) {
+        if (currentSign !== lastSign && currentSign === 1) {
           // Positive zero crossing
-          if (this.zeroCrossings[channel] > minPeriod && this.zeroCrossings[channel] < maxPeriod) {
-            this.periodSamples[channel] = this.zeroCrossings[channel];
+          if (zeroCrossings > minPeriod && zeroCrossings < maxPeriod) {
+            periodSamples = zeroCrossings;
           }
-          this.zeroCrossings[channel] = 0;
+          zeroCrossings = 0;
         } else {
-          this.zeroCrossings[channel]++;
+          zeroCrossings++;
         }
-        this.lastSign[channel] = currentSign;
+        lastSign = currentSign;
 
         // Smooth the period
-        if (this.periodSamples[channel] > 0) {
-            if (this.smoothedPeriod[channel] === 0) {
-                this.smoothedPeriod[channel] = this.periodSamples[channel];
+        if (periodSamples > 0) {
+            if (smoothedPeriod === 0) {
+                smoothedPeriod = periodSamples;
             } else {
-                this.smoothedPeriod[channel] = 0.1 * this.periodSamples[channel] + 0.9 * this.smoothedPeriod[channel];
+                smoothedPeriod = 0.1 * periodSamples + 0.9 * smoothedPeriod;
             }
         }
 
         // 3. Carrier Generation (Sawtooth)
         let carrier = 0;
-        if (this.smoothedPeriod[channel] > 0) {
-          const phaseInc = 1.0 / this.smoothedPeriod[channel];
-          this.phase[channel] += phaseInc;
-          if (this.phase[channel] > 1.0) {
-            this.phase[channel] -= 1.0;
+        if (smoothedPeriod > 0) {
+          const phaseInc = 1.0 / smoothedPeriod;
+          phase += phaseInc;
+          if (phase > 1.0) {
+            phase -= 1.0;
           }
 
           // Basic sawtooth wave -1 to 1
-          carrier = (this.phase[channel] * 2.0) - 1.0;
+          carrier = (phase * 2.0) - 1.0;
         }
 
         // 4. Unvoiced Consonant Generation (Noise)
@@ -109,19 +121,19 @@ export class VocoderEffect {
             const safeIntensity = Math.max(0.01, phonemeIntensity);
             const noiseThreshold = 0.005 / safeIntensity;
 
-            if (this.env[channel] > noiseThreshold) {
+            if (env > noiseThreshold) {
                 // LCG Pseudo-random noise
-                this.noiseSeed[channel] = (this.noiseSeed[channel] * 1664525 + 1013904223) | 0;
-                const rawNoise = (this.noiseSeed[channel] / 2147483648.0);
+                noiseSeed = (noiseSeed * 1664525 + 1013904223) | 0;
+                const rawNoise = (noiseSeed / 2147483648.0);
 
                 // 1-pole high-pass filter (approx 2kHz cutoff)
                 // hp(t) = alpha * hp(t-1) + alpha * (x(t) - x(t-1)) => approx: y = rawNoise - lowpass
                 const alpha = 0.8; // Simple fast hp
-                this.noiseHp[channel] = alpha * this.noiseHp[channel] + (1 - alpha) * rawNoise;
-                noise = rawNoise - this.noiseHp[channel];
+                noiseHp = alpha * noiseHp + (1 - alpha) * rawNoise;
+                noise = rawNoise - noiseHp;
             } else {
                 // Fade out HP state to prevent click when threshold is crossed again
-                this.noiseHp[channel] *= 0.9;
+                noiseHp *= 0.9;
             }
 
             // For unvoiced, we rely entirely on noise, zero carrier
@@ -130,17 +142,27 @@ export class VocoderEffect {
 
         // 5. Amplitude Modulation (Vocoder effect)
         // Multiply the generated carrier by the modulator's envelope
-        const vocoded = carrier * this.env[channel] * 2.0;
+        const vocoded = carrier * env * 2.0;
 
         // 6. Dynamic Mix with dry signal
         // Smooth the phoneme intensity to prevent mix clicks at phoneme boundaries
-        this.smoothedIntensity[channel] = intensityAlpha * this.smoothedIntensity[channel] + (1 - intensityAlpha) * phonemeIntensity;
+        smoothedIntensity = intensityAlpha * smoothedIntensity + (1 - intensityAlpha) * phonemeIntensity;
 
         // Map the dry/wet mix dynamically to lyric stress via smoothed intensity
-        const dynamicAmount = Math.min(1.0, amount * this.smoothedIntensity[channel]);
+        const dynamicAmount = Math.min(1.0, amount * smoothedIntensity);
 
         outCh[i] = x * (1.0 - (dynamicAmount * 0.5)) + (vocoded * dynamicAmount);
       }
+
+      this.env[channel] = env;
+      this.lastSign[channel] = lastSign;
+      this.zeroCrossings[channel] = zeroCrossings;
+      this.periodSamples[channel] = periodSamples;
+      this.phase[channel] = phase;
+      this.smoothedPeriod[channel] = smoothedPeriod;
+      this.smoothedIntensity[channel] = smoothedIntensity;
+      this.noiseSeed[channel] = noiseSeed;
+      this.noiseHp[channel] = noiseHp;
     }
   }
 }
