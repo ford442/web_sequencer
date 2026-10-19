@@ -23,6 +23,7 @@ import {
     type HyphonNativeArtifact,
 } from '@/audio-worklets/hyphonNativeImports';
 import { resolveHyphonNativeArtifact } from './hyphonNativeVariant';
+import { registerE2eAudioTap } from '@/e2e/probe';
 
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
 
@@ -226,6 +227,7 @@ export class DrumKitEngine {
 
       this.wasmReady = true;
       this.fallbackReason = null;
+      registerE2eAudioTap('drumkit-worklet', this.workletNode);
       this.workletNode.port.postMessage({
         type: 'set-kit',
         data: { kit: kitToNativeId(this._kitType) },
@@ -338,6 +340,7 @@ export class DrumKitEngine {
       this.workletNode.disconnect();
       this.workletNode.port.close();
       this.workletNode = null;
+      registerE2eAudioTap('drumkit-worklet', null);
     }
   }
 

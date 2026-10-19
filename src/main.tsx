@@ -8,7 +8,7 @@ import { CompactLayoutProvider } from './contexts/CompactLayoutContext'
 import { engineTelemetry } from './utils/engineTelemetry'
 import { probeHyphonNative } from './engines/hyphonNativeProbe'
 import { automationStore } from './stores/automationStore'
-import { e2eTransportSnapshot } from './e2e/probe'
+import { e2eTransportSnapshot, measureE2eAudioTapPeak } from './e2e/probe'
 // Direct module import, not the './audio/wam' barrel: the barrel re-exports the
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
@@ -155,6 +155,14 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
       return { ok: probe.ok, generation: probe.generation ?? 0, reason: probe.reason }
     },
     getWebGpuDeviceGeneration: () => getLastWebGpuProbe()?.generation ?? 0,
+
+    // --- Native voices ------------------------------------------------------
+    // Which backend a subsystem resolved to ('wasm-worklet', 'webaudio', …),
+    // and the peak a registered engine output reached over `ms` (null when
+    // the engine never registered one — i.e. it is not on its native path).
+    getEngineResolution: (subsystem: string) =>
+      engineTelemetry.snapshot()[subsystem]?.resolution?.backend ?? null,
+    measureAudioTapPeak: (name: string, ms: number) => measureE2eAudioTapPeak(name, ms),
   }
 }
 
