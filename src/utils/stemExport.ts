@@ -285,18 +285,28 @@ export function downloadBlob(blob: Blob, filename: string): void {
     URL.revokeObjectURL(url);
 }
 
+/** The files a stem export writes, before they are zipped. */
+export interface StemFiles {
+    /** `stems/<id>.wav` per stem, then `metadata.json`. */
+    entries: { path: string; data: Uint8Array }[];
+    report: StemExportReport;
+}
+
 /**
- * Renders dry per-track stems and returns a ZIP blob with aligned WAV files.
+ * Renders dry per-track stems as aligned WAV files plus `metadata.json`.
  *
  * Per-track stems are always dry. The master stem is the sample-aligned sum of
  * them, either exclusively (`masterChain: 'dry-exclusive'`) or bounced through
  * the live patch bay's master chain (`'live-patch'`, #1233). Everything renders
  * at the rate the sample-rate policy resolves to.
+ *
+ * `exportStemsToZip` zips these; the agent render hook (`window.__HYPHON_AGENT__`)
+ * hands them back as bytes.
  */
-export async function exportStemsToZip(
+export async function renderStemFiles(
     input: StemExportInput,
     options: StemExportOptions = {},
-): Promise<Blob> {
+): Promise<StemFiles> {
     const {
         bitDepth = 16,
         useSongMode = true,
@@ -599,7 +609,7 @@ export async function exportStemsToZip(
         data: new TextEncoder().encode(JSON.stringify(metadata, null, 2)),
     });
 
-    options.onReport?.({
+    const report: StemExportReport = {
         sampleRate,
         sampleRatePref,
         bitDepth,
@@ -609,11 +619,21 @@ export async function exportStemsToZip(
         vocalOffline,
         mixBus: mixBusReport,
         automation: automation.report,
-    });
+    };
+    options.onReport?.(report);
 
     throwIfAborted(signal);
-    onProgress?.(1, 'Creating ZIP…');
-    return createZipBlob(zipEntries);
+    return { entries: zipEntries, report };
+}
+
+/** Renders the stems (see `renderStemFiles`) and returns them as a ZIP blob. */
+export async function exportStemsToZip(
+    input: StemExportInput,
+    options: StemExportOptions = {},
+): Promise<Blob> {
+    const { entries } = await renderStemFiles(input, options);
+    options.onProgress?.(1, 'Creating ZIP…');
+    return createZipBlob(entries);
 }
 
 export async function exportStemsDownload(

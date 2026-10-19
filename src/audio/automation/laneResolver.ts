@@ -21,6 +21,7 @@
 import type { AutomationTarget, UnifiedAutomationLane } from '../../types';
 import { interpolateLaneAtStep } from '../../utils/knobAutomationCurve';
 import { isNoteFxParameter } from '../../sequencer/noteFx/params';
+import { isMacroAutomationParam } from '../../engines/MacroParams';
 
 // ---------------------------------------------------------------------------
 // Engine units
@@ -83,6 +84,38 @@ export type Open303LaneTarget = (typeof OPEN303_LANE_TARGETS)[number];
 
 export function isOpen303LaneTarget(target: AutomationTarget): target is Open303LaneTarget {
   return target === 'synthA' || target === 'synthB' || target === 'bass2';
+}
+
+/** Prophecy formant params the scheduler sends to a `synthA` / `synthB` Prophecy part. */
+export const PROPHECY_LANE_PARAMS: ReadonlySet<string> = new Set(['vowel', 'portamento', 'formantShift']);
+
+/** Master lanes the scheduler sends to `PcfEffect`. */
+const PCF_LANE_PARAMS: ReadonlySet<string> = new Set(['pcfCutoff', 'pcfResonance', 'pcfEnvAmount']);
+
+/**
+ * Why live playback never plays a `target.parameter` lane, or null when it
+ * does: the cases `AutomationScheduler._scheduleParam` dispatches, plus note FX
+ * parameters (the step handler reads those). A lane with a gap is stored,
+ * saved and drawn, but nothing hears it.
+ */
+export function laneDispatchGap(target: AutomationTarget, parameter: string): string | null {
+  if (isNoteFxParameter(parameter)) return null;
+  switch (target) {
+    case 'synthA':
+    case 'synthB':
+      if (PROPHECY_LANE_PARAMS.has(parameter) || isMacroAutomationParam(parameter)) return null;
+      return open303ParamForLane(parameter) ? null : `the scheduler has no ${target} case for "${parameter}"`;
+    case 'bass2':
+      return open303ParamForLane(parameter) ? null : `the scheduler has no bass2 case for "${parameter}"`;
+    case 'master':
+      return PCF_LANE_PARAMS.has(parameter)
+        ? 'nothing creates the PcfEffect the scheduler sends PCF lanes to'
+        : `the scheduler has no master case for "${parameter}"`;
+    case 'wam':
+      return null;
+    default:
+      return `the scheduler routes no ${target} lanes`;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -527,7 +527,13 @@ const bass2ToSynthParams = (p: Bass2Params): SynthParams => ({
     model303Extra: p.model303Extra,
 });
 
-export const exportSongToXM = async (
+/** An XM module built in memory, plus what it could not hold. */
+export interface XmModuleResult extends XmExportResult {
+    /** The `.xm` file. */
+    bytes: Uint8Array;
+}
+
+type XmExportArgs = [
     songStructure: { [key in TrackKey]: number | null }[],
     trackStorage: Record<TrackKey, (PartSequence | PartSequence[] | null)[]>,
     params: {
@@ -537,8 +543,25 @@ export const exportSongToXM = async (
     currentPattern?: Pattern,
     engines?: RenderSynthEngines,
     sampleBuffers?: (AudioBuffer | null)[],
-    options: XmExportOptions = {},
-): Promise<XmExportResult> => {
+    options?: XmExportOptions,
+];
+
+/** Download a built module as `song.xm`. */
+export const downloadXM = (bytes: Uint8Array): void => {
+    downloadBlob(new Blob([bytes as BlobPart], { type: 'audio/xm' }), 'song.xm');
+};
+
+/** Export the song as `song.xm` (a browser download). */
+export const exportSongToXM = async (...args: XmExportArgs): Promise<XmExportResult> => {
+    const { bytes, truncation, truncationMessage } = await buildSongXM(...args);
+    downloadXM(bytes);
+    return { truncation, truncationMessage };
+};
+
+/** Build the `.xm` file `exportSongToXM` downloads, without downloading it. */
+export const buildSongXM = async (
+    ...[songStructure, trackStorage, params, tempo, currentPattern, engines, sampleBuffers, options = {}]: XmExportArgs
+): Promise<XmModuleResult> => {
     console.log("Starting XM Export with engines:", engines);
 
     // One rate for every instrument in the module, resolved from the user
@@ -747,8 +770,6 @@ export const exportSongToXM = async (
 
     const writer = new XMWriter();
     const buffer = writer.write(mod);
-    const blob = new Blob([buffer], { type: 'audio/xm' });
-    downloadBlob(blob, 'song.xm');
 
     // The file is written either way -- XM's row and channel limits are hard, and
     // a truncated module is still worth having. Say what was lost.
@@ -757,5 +778,5 @@ export const exportSongToXM = async (
         console.warn('[xmExport]', truncationMessage, truncation);
     }
 
-    return { truncation, truncationMessage };
+    return { bytes: new Uint8Array(buffer), truncation, truncationMessage };
 };

@@ -9,6 +9,7 @@ import { convertAISong, type AISongData } from '../importers/ai-song';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import {
   isLaneActive,
+  laneDispatchGap,
   lanePositionAt,
   resolveLaneTimeline,
   resolveLaneValuesAtStep,
@@ -180,4 +181,27 @@ describe('laneResolver', () => {
     expect(report.applied).toEqual([]);
     expect(report.notRendered.map((s) => s.lane)).toEqual(['master.pcfCutoff', 'synthB.envMod']);
   });
+});
+
+describe('laneDispatchGap — which lanes live playback ever plays', () => {
+    it('is null for what the scheduler dispatches', () => {
+        for (const target of ['synthA', 'synthB', 'bass2'] as const) {
+            for (const parameter of ['filterCutoff', 'filterResonance', 'decay', 'envMod', 'accent', 'volume', 'drive']) {
+                expect(laneDispatchGap(target, parameter)).toBeNull();
+            }
+        }
+        expect(laneDispatchGap('synthA', 'macroTimbre')).toBeNull();
+        expect(laneDispatchGap('synthB', 'vowel')).toBeNull();
+        expect(laneDispatchGap('wam', 'slot-1/gain')).toBeNull();
+        expect(laneDispatchGap('bass2', 'noteFx.arp.rate')).toBeNull();
+    });
+
+    it('names the gap for what it does not', () => {
+        expect(laneDispatchGap('kick', 'decay')).toBe('the scheduler routes no kick lanes');
+        expect(laneDispatchGap('sampler', 'volume')).toBe('the scheduler routes no sampler lanes');
+        expect(laneDispatchGap('synthA', 'pitch')).toBe('the scheduler has no synthA case for "pitch"');
+        expect(laneDispatchGap('bass2', 'macroTimbre')).toBe('the scheduler has no bass2 case for "macroTimbre"');
+        expect(laneDispatchGap('master', 'tempo')).toBe('the scheduler has no master case for "tempo"');
+        expect(laneDispatchGap('master', 'pcfCutoff')).toMatch(/PcfEffect/);
+    });
 });

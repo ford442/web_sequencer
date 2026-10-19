@@ -8,6 +8,7 @@ import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import type { Open303Config } from './Open303Params';
 import { findEngineVoice } from '../audio/graph/engineVoices';
 import { OPEN303_VOICES, open303StripIds, type Open303VoiceId } from '../audio/graph/engineStrips';
+import { registerE2eAudioTap } from '../e2e/probe';
 import type { CompiledAudioGraph } from '../audio/graph/types';
 
 /**
@@ -127,6 +128,7 @@ export class Open303Manager {
         for (const voice of OPEN303_VOICES) {
             const osc = this.getVoice(voice);
             if (!osc || !this.isVoiceReady(voice)) continue;
+            registerE2eAudioTap(`open303-${voice}`, osc.output);
             const ids = open303StripIds(voice);
             const socket = findEngineVoice(graph, 'open303Voice', voice);
             const dry = graph.nodes.get(ids.dry) as GainNode | undefined;

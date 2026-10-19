@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### `pnpm run ai-song:render` — agents render and check their own songs (#1386)
+- **One command, no human**: imports an `AISongData` song into the built app in headless Chromium and writes `mix.wav` (the export modal's live-patch master), optional `stems/*.wav`, `song.rbs` / `.mid` / `.xm`, and `report.json` — importer warnings, the stem export report, and per-stem peak, BS.1770 LUFS, and RMS + spectral centroid per bar. Exit codes: 2 validation, 3 render failure, 4 silent master. See [ai-song-render.md](docs/ai-song-render.md).
+- **Strict by default**: any importer warning fails the run, and the importer now **warns about automation lanes live playback never dispatches** (drums, sampler, `pitch`, …) instead of importing them silently.
+- **`window.__HYPHON_AGENT__`** (only with `?agent=1` / `?e2e=1`): calls the same functions as the import modal and the export buttons, plus `captureLive`, which records a live 303 voice — used to show a cutoff lane moves a JC303 voice like open303.
+- **Fix**: stems and the AI song preview threw (`setValueAtTime … -0.14`) on an automated synth track whose notes are shorter than their release; found by the new command on `full.json`.
+
 ### Sampler custom grain envelope now applies
 - The drawn **custom grain envelope** (sampler knobs and per-note override) was saved but never reached the worklet: playback never sent it, and the message omitted the `data` wrapper the worklet reads. Both are fixed, so grain envelopes users drew and saved will now be audible in granular / frozen playback.
 

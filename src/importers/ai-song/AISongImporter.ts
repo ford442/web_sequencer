@@ -17,6 +17,7 @@ import { AI_TRACK_TO_TRACK_KEY, hasSongBlock, resolveSongBlock, type ResolvedAIS
 import { tilePatternAutomation, type TiledAutomationLane } from './automation';
 import { createEmptyTrackStorage, deriveActiveTrackSlotsFromStructure } from '../../utils/trackStorageUtils';
 import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
+import { laneDispatchGap } from '../../audio/automation/laneResolver';
 
 /** Time signature applied when a song does not declare one. */
 const DEFAULT_TIME_SIGNATURE: [number, number] = [4, 4];
@@ -86,6 +87,7 @@ export class AISongImporter {
 
       // Convert automation lanes into the unified store format
       const automationLanes = this.buildAutomationLanes(aiSong);
+      this.warnUnplayedLanes(automationLanes);
 
       // Build SavedSongData
       const song: SavedSongData = {
@@ -190,6 +192,7 @@ export class AISongImporter {
     const tiled = tilePatternAutomation(block);
     this.warnings.push(...tiled.warnings);
     const automationLanes = [...this.buildAutomationLanes(aiSong), ...this.buildTiledLanes(tiled.lanes)];
+    this.warnUnplayedLanes(automationLanes);
 
     const song: SavedSongData = {
       // v4: the song meter is written. The arrangement (v5) is derived from
@@ -268,6 +271,22 @@ export class AISongImporter {
       written = true;
     }
     return written ? storage : undefined;
+  }
+
+  /**
+   * Validation accepts lanes live playback never dispatches (drums, sampler,
+   * `pitch`, …). They still import, but say so: an author expecting to hear a
+   * kick-decay sweep should not have to discover by ear that nothing moved.
+   */
+  private warnUnplayedLanes(lanes: UnifiedAutomationLane[]): void {
+    const seen = new Set<string>();
+    for (const lane of lanes) {
+      const key = `${lane.target}.${lane.parameter}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const gap = laneDispatchGap(lane.target, lane.parameter);
+      if (gap) this.warnings.push(`automation ${key} is saved but never plays: ${gap}.`);
+    }
   }
 
   /** Song-timeline lanes from {@link tilePatternAutomation}. */

@@ -24,12 +24,16 @@ import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
+import { isAgentQuery } from './agent/agentQuery'
 
 // Route-split: neither renders on first paint — each is behind a query-param
 // dev view or the 3D-mode switch — so keep them out of the entry chunk and
 // fetch on demand. (The modals are lazy in appParts/ModalHosts.tsx.)
 const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ default: module.Studio3D })));
 const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
+// Agent render hook (`window.__HYPHON_AGENT__`): only ?agent=1 / ?e2e=1 load it.
+const AgentBridge = lazy(() => import('./agent/AgentBridge'));
+const AGENT_MODE = typeof location !== 'undefined' && isAgentQuery(location.search);
 
 /**
  * Layout shell. It reads no app state of its own beyond the background image
@@ -91,6 +95,7 @@ export const App: React.FC = () => {
             <AISongImportNode />
 
             <ModalHosts />
+            {AGENT_MODE && <Suspense fallback={null}><AgentBridge /></Suspense>}
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 
