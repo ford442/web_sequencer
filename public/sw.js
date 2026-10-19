@@ -169,7 +169,10 @@ async function cacheFirst(event, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
-  const response = await fetchWithTimeout(request);
+  // Deliberately unbounded: on a cold cache there is nothing to fall back to,
+  // so a timeout can only convert a slow-but-working download (a ~47 MB scipy
+  // wheel took ~7 s under `vite preview`) into net::ERR_FAILED for the page.
+  const response = await fetch(request);
   if (response && response.ok) {
     event.waitUntil(cache.put(request, withCorp(response.clone())));
   }
