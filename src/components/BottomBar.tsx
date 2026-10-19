@@ -151,7 +151,7 @@ export const BottomBar = memo(function BottomBar({
                         title="Notes View"
                         className={`px-2.5 py-1 text-[10px] font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${viewMode === 'notes' ? 'bg-cyan-600 text-white hover:scale-105 active:scale-95' : 'text-gray-500 hover:text-gray-300 hover:scale-105 active:scale-95'}`}
                     >
-                        NOTES
+                        <span aria-hidden="true">NOTES</span>
                     </button>
                     <button type="button"
                         onClick={() => setViewMode('automation')}
@@ -160,7 +160,7 @@ export const BottomBar = memo(function BottomBar({
                         title="Automation View"
                         className={`px-2.5 py-1 text-[10px] font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${viewMode === 'automation' ? 'bg-pink-600 text-white hover:scale-105 active:scale-95' : 'text-gray-500 hover:text-gray-300 hover:scale-105 active:scale-95'}`}
                     >
-                        AUTO
+                        <span aria-hidden="true">AUTO</span>
                     </button>
                 </div>
 
@@ -208,7 +208,7 @@ export const BottomBar = memo(function BottomBar({
                         }
                         className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'bg-zinc-800 text-red-400 border border-red-900/50 hover:bg-red-950 hover:text-red-300'} ${!isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                        {isAutomationRecording ? <><span aria-hidden="true">●</span> REC</> : 'REC AUTO'}
+                        {isAutomationRecording ? <><span aria-hidden="true">●</span> <span aria-hidden="true">REC</span></> : <span aria-hidden="true">REC AUTO</span>}
                     </button>
                     </HelpTip>
                 )}
@@ -225,7 +225,7 @@ export const BottomBar = memo(function BottomBar({
                             : 'bg-zinc-800 text-cyan-400 border-cyan-900/50'
                     }`}
                 >
-                    AUTO VIEW
+                    <span aria-hidden="true">AUTO VIEW</span>
                 </button>
 
                 {/* LYRICS Button */}
@@ -236,7 +236,7 @@ export const BottomBar = memo(function BottomBar({
                     title="Toggle Global Lyric Track"
                     className={`h-6 px-2.5 rounded-md font-orbitron text-[10px] font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isLyricTrackVisible ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'bg-zinc-800 text-cyan-400 border border-zinc-700 hover:bg-zinc-700'}`}
                 >
-                    LYRICS
+                    <span aria-hidden="true">LYRICS</span>
                 </button>
             </div>
 
