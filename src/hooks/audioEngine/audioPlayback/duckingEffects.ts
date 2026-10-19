@@ -25,6 +25,13 @@ export const triggerSidechainDuck = (
 
 import type { SingingVoiceManager } from "../../../engines/SingingVoiceManager";
 
+/**
+ * One root-bass note: queues it for the granulator's bass envelope follower
+ * (bassEnvDepth) and ducks the bass sidechain EQ bus. Every root-bass source
+ * calls this, scheduled (playSynth) and interactive (noteControls) alike:
+ * bass2, partB 303 / Prophecy / macro, and the partB VoiceManager. The lead
+ * (partA) paths do not. `velocity` is 0..1.
+ */
 export const triggerBassEQDuck = (
   audioCtx: AudioContext,
   eqNode: BiquadFilterNode | null,
@@ -34,15 +41,7 @@ export const triggerBassEQDuck = (
   velocity: number,
   depthDb: number = -6,
 ) => {
-  if (singingVoiceManager) {
-    const bassSidechainSAB = singingVoiceManager.getBassSidechainSAB();
-    if (bassSidechainSAB) {
-      const view = new Float32Array(bassSidechainSAB);
-      view[0] = time;
-      view[1] = velocity;
-      view[2] = duration;
-    }
-  }
+  singingVoiceManager?.pushBassTrigger(time, velocity, duration);
 
   if (!eqNode) return;
 

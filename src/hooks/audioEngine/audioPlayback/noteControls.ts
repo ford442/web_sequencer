@@ -14,6 +14,28 @@ import {
   type PlaybackRefs,
 } from "./types";
 
+/** Interactive note-ons send 100 to the 303 / Prophecy engines; the follower gets the same, normalised. */
+const INTERACTIVE_303_VELOCITY = 100 / 127;
+const MACRO_INTERACTIVE_VELOCITY = 0.8;
+/** Held keys have no known length; the follower holds this long, then releases. */
+const INTERACTIVE_BASS_DURATION = 0.25;
+
+function triggerInteractiveBass(
+  context: AudioContext,
+  refs: Pick<PlaybackRefs, "bassSidechainEQBusRef" | "singingVoiceManagerRef">,
+  time: number,
+  velocity: number,
+): void {
+  triggerBassEQDuck(
+    context,
+    refs.bassSidechainEQBusRef.current,
+    time,
+    INTERACTIVE_BASS_DURATION,
+    refs.singingVoiceManagerRef.current,
+    velocity,
+  );
+}
+
 export function createNoteOnSynth(
   context: AudioContext,
   refs: Pick<
@@ -39,22 +61,7 @@ export function createNoteOnSynth(
     if (track === "bass2") {
       if (refs.open303ManagerRef.current?.isBass2Ready()) {
         const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
-        triggerBassEQDuck(
-          context,
-          refs.bassSidechainEQBusRef.current,
-          now,
-          0.25,
-          refs.singingVoiceManagerRef.current,
-          1.0
-        ); // Approximate duration for interactive play
-        if (refs.singingVoiceManagerRef?.current) {
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-          const view = new Float32Array(bassSidechainSAB);
-          view[0] = now;
-          view[1] = params.volume !== undefined ? params.volume : 0.8;
-          view[2] = 0.5;
-          view[3] = 0;
-        }
+        triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass2Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnBass2(midi, 100);
@@ -81,22 +88,7 @@ export function createNoteOnSynth(
           params.waveform === "303-sqr" ? "sqr" : "saw",
         );
         const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
-        triggerBassEQDuck(
-          context,
-          refs.bassSidechainEQBusRef.current,
-          now,
-          0.25,
-          refs.singingVoiceManagerRef.current,
-          1.0
-        ); // Approximate duration
-        if (refs.singingVoiceManagerRef?.current) {
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-          const view = new Float32Array(bassSidechainSAB);
-          view[0] = now;
-          view[1] = params.volume !== undefined ? params.volume : 0.8;
-          view[2] = 0.5;
-          view[3] = 0;
-        }
+        triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass1Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnBass1(midi, 100);
@@ -146,22 +138,7 @@ export function createNoteOnSynth(
           prophecyWaveTypeNoteOn,
         );
         const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
-        triggerBassEQDuck(
-          context,
-          refs.bassSidechainEQBusRef.current,
-          now,
-          0.25,
-          refs.singingVoiceManagerRef.current,
-          1.0
-        );
-        if (refs.singingVoiceManagerRef?.current) {
-          const bassSidechainSAB = refs.singingVoiceManagerRef.current.getBassSidechainSAB();
-          const view = new Float32Array(bassSidechainSAB);
-          view[0] = now;
-          view[1] = params.volume !== undefined ? params.volume : 0.8;
-          view[2] = 0.5;
-          view[3] = 0;
-        }
+        triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
         const t1 = performance.now();
@@ -208,17 +185,10 @@ export function createNoteOnSynth(
         const at = time || undefined;
         macroManager.applyParams(track, params, macroEngine, at);
         if (track === "partB") {
-          triggerBassEQDuck(
-            context,
-            refs.bassSidechainEQBusRef.current,
-            now,
-            0.25,
-            refs.singingVoiceManagerRef.current,
-            1.0
-          );
+          triggerInteractiveBass(context, refs, now, MACRO_INTERACTIVE_VELOCITY);
         }
         const t0 = performance.now();
-        macroManager.noteOn(track, midi, 0.8, at);
+        macroManager.noteOn(track, midi, MACRO_INTERACTIVE_VELOCITY, at);
         try {
           engineTelemetry.recordLatency("macro", performance.now() - t0);
         } catch { /* telemetry only */ }
@@ -239,6 +209,10 @@ export function createNoteOnSynth(
     }
 
     if (manager) {
+      // partB, or bass2 falling back while its 303 is not ready: both are root bass.
+      if (track === "partB" || track === "bass2") {
+        triggerInteractiveBass(context, refs, now, 1.0);
+      }
       const voice = manager.noteOn(voiceParams, note, now);
       const id = refs.nextSynthNoteId.current++;
       refs.activeSynthNotes.current.set(id, {

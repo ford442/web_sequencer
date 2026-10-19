@@ -3,6 +3,9 @@ import { RB_FX_ABI_VERSION, RB_FX_PARAM_COUNT, RB_FX_REQUIRED_EXPORTS } from '..
 import { RUBBERBAND_PARAMETER_DESCRIPTORS } from '../rubberband/parameterDescriptors';
 import { SpatialRouter } from '../rubberband/spatialRouter';
 import { PhonemeDelay } from '../rubberband/phonemeDelay';
+import { BassEnvelopeFollower } from '../rubberband/bassEnvelopeFollower';
+import { DrumDuckEnvelope } from '../rubberband/drumDuckEnvelope';
+import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../utils/sidechainTriggerRing';
 
 type Posted = Record<string, unknown>;
 type ProcessorInstance = {
@@ -266,5 +269,33 @@ describe('RubberBandProcessor phoneme delay', () => {
       outputs[0][0], outputs[0][1], expect.closeTo(0.6, 5), expect.closeTo(0.4, 5),
       expect.objectContaining({ hasPhonemeContext: false }),
     );
+  });
+});
+
+describe('RubberBandProcessor sidechain trigger rings', () => {
+  const run = async (bassSidechainSAB: unknown, drumSidechainSAB: unknown) => {
+    const { processor } = await boot(fxModule({ _malloc: () => 32768 }), { bassSidechainSAB, drumSidechainSAB });
+    const bass = vi.spyOn(BassEnvelopeFollower.prototype, 'process');
+    const drum = vi.spyOn(DrumDuckEnvelope.prototype, 'process');
+    const parameters = Object.fromEntries(
+      RUBBERBAND_PARAMETER_DESCRIPTORS.map((d) => [d.name, new Float32Array([d.defaultValue])]),
+    );
+    (processor as unknown as { process(i: unknown, o: Float32Array[][], p: Record<string, Float32Array>): boolean })
+      .process([], [[new Float32Array(128), new Float32Array(128)]], parameters);
+    return { bassArg: bass.mock.calls[0]?.[0], drumArg: drum.mock.calls[0]?.[0] };
+  };
+
+  it('hands the rings sent in INIT_WASM to the follower and the drum duck', async () => {
+    const bassRing = createSidechainRing(BASS_TRIGGER_STRIDE);
+    const drumRing = createSidechainRing(DRUM_TRIGGER_STRIDE);
+    const { bassArg, drumArg } = await run(bassRing, drumRing);
+    expect(bassArg).toBe(bassRing);
+    expect(drumArg).toBe(drumRing);
+  });
+
+  it('ignores an old single-slot Float32 SAB instead of misreading it', async () => {
+    const { bassArg, drumArg } = await run(new SharedArrayBuffer(3 * 4), new SharedArrayBuffer(4 * 4));
+    expect(bassArg).toBeNull();
+    expect(drumArg).toBeNull();
   });
 });
