@@ -179,9 +179,23 @@ export function stopGlitchMonitor(): void {
   lastOutputLatencyMs = null;
 }
 
+const DEFAULT_STRETCH_PROFILE = 'vocal';
+
+/** Bank stretch profile last sent to each rubberband node, restored after a degrade. */
+const bankStretchProfiles = new WeakMap<AudioWorkletNode, string>();
+
+/** Record the bank profile sent to a rubberband node so recovery can restore it. */
+export function noteBankStretchProfile(node: AudioWorkletNode, profile: string): void {
+  bankStretchProfiles.set(node, profile);
+}
+
 /** Register rubberband worklet nodes for auto quality reduction. */
 export function registerRubberbandNode(node: AudioWorkletNode): () => void {
-  return performanceBudget.registerRubberbandHandler((profile) => {
+  return performanceBudget.registerRubberbandHandler((action) => {
+    const profile =
+      action === 'fast'
+        ? 'fast'
+        : bankStretchProfiles.get(node) ?? DEFAULT_STRETCH_PROFILE;
     node.port.postMessage({ type: 'setStretchProfile', data: { profile } });
   });
 }

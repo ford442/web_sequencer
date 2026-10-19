@@ -7,6 +7,7 @@ import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
 import type { SamplerPanelProps } from './types';
 import { DEFAULT_BANK_PARAMS } from './types';
 import { MODES } from './SamplerModeSelector';
+import { noteBankStretchProfile } from '../../utils/workletPerfBridge';
 
 type PanelProps = Pick<SamplerPanelProps,
   | 'params' | 'onChange' | 'onLoadSample' | 'audioEngine' | 'activeBankIdx'
@@ -105,6 +106,7 @@ export function useSamplerPanelState({
         case 'stretchProfile': {
           const node = voice.getSourceNode();
           if (node && 'port' in node) {
+            noteBankStretchProfile(node as AudioWorkletNode, String(value));
             (node as AudioWorkletNode).port.postMessage({
               type: 'setStretchProfile',
               data: { profile: value },

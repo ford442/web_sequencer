@@ -40,7 +40,8 @@ export interface PerformanceBudgetState {
   webgpuKnobsEnabled: boolean;
 }
 
-type RubberbandQualityHandler = (profile: 'vocal' | 'fast') => void;
+/** `'fast'` degrades; `'restore'` puts each node back on its own bank profile. */
+type RubberbandQualityHandler = (action: 'fast' | 'restore') => void;
 
 class PerformanceBudget {
   private active = new Set<DegradeStep>();
@@ -179,7 +180,7 @@ class PerformanceBudget {
       case 'granular-quality':
         this.rubberbandHandlers.forEach((h) => {
           try {
-            h('vocal');
+            h('restore');
           } catch {
             /* ignore */
           }
