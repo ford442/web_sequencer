@@ -46,3 +46,7 @@
 ## 2025-03-03 - [Extract per-channel state in VocoderEffect]
 **Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), accessing object properties from arrays (e.g. `this.env[channel]`) adds unnecessary overhead. The properties can be extracted to local variables outside the inner loop to eliminate O(N) array property lookups per quantum on the hot path.
 **Action:** Extracted array state variables to local variables before the inner loop, updated them within the loop, and wrote them back to the array afterwards in `src/audio-worklets/rubberband/vocoderEffect.ts`.
+
+## 2025-01-22 - Avoid Unmeasurable Micro-Optimizations in AudioWorklets
+**Learning:** Replacing a single `Math.pow()` or `midiToHz(127)` inside `process()` with a cached variable in `PcfProcessor` was rejected because it is a negligible micro-optimization (saving a single O(1) operation every 128 samples). Furthermore, hardcoding `midiToHz(127)` as exactly 20000 instead of computing the true frequency caused an auditory regression.
+**Action:** Do not submit PRs for micro-optimizations that have no measurable gain, especially if they risk altering exact math. Only optimize continuous allocations or expensive operations inside the per-sample inner loop, not operations that happen once per 128-sample block unless they are measurably slow.
