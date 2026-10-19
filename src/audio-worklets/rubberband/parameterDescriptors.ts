@@ -42,6 +42,8 @@ export const RUBBERBAND_PARAMETER_DESCRIPTORS = [
   { name: 'subHarmonics', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'vocalChorus', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'vocoder', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+  { name: 'phonemeDelayAmount', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
+  { name: 'phonemeDelayFeedback', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'volumeFilterMod', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'drumDuckDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },
   { name: 'bassEnvDepth', defaultValue: 0.0, minValue: 0.0, maxValue: 1.0 },

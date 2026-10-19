@@ -28,6 +28,14 @@ describe('describeOfflineVocalSupport', () => {
     ]);
   });
 
+  it('flags the phoneme delay as vocal FX the offline bounce does not render', () => {
+    const reports = describeOfflineVocalSupport({
+      sampler: [bank({ mode: 'stretch', phonemeDelayAmount: 0.4 }), bank({ mode: 'stretch' })],
+      sequences: [seq(note()), seq(note({ phonemeDelayAmount: 0.2 }))],
+    });
+    expect(reports.map((r) => r.gaps)).toEqual([['rubber-band', 'vocal-fx'], ['rubber-band', 'vocal-fx']]);
+  });
+
   it('flags HARM on any bank that plays, and ignores silent or loop-only banks', () => {
     const reports = describeOfflineVocalSupport({
       sampler: [bank({ mode: 'loop' }), bank({ mode: 'stretch' }), bank({ mode: 'loop' })],

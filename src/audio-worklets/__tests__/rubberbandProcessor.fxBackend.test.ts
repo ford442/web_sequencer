@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RB_FX_ABI_VERSION, RB_FX_PARAM_COUNT, RB_FX_REQUIRED_EXPORTS } from '../rubberband/nativeVocalFx';
 import { RUBBERBAND_PARAMETER_DESCRIPTORS } from '../rubberband/parameterDescriptors';
 import { SpatialRouter } from '../rubberband/spatialRouter';
+import { PhonemeDelay } from '../rubberband/phonemeDelay';
 
 type Posted = Record<string, unknown>;
 type ProcessorInstance = {
@@ -237,5 +238,33 @@ describe('RubberBandProcessor spatial routing', () => {
     route.mockClear();
     p.process([], [[new Float32Array(128)]], parameters);
     expect(route).not.toHaveBeenCalled();
+  });
+});
+
+describe('RubberBandProcessor phoneme delay', () => {
+  it('declares phonemeDelayAmount / phonemeDelayFeedback AudioParams (setWorkletParam would no-op otherwise)', () => {
+    const names = RUBBERBAND_PARAMETER_DESCRIPTORS.map((d) => d.name);
+    expect(names).toContain('phonemeDelayAmount');
+    expect(names).toContain('phonemeDelayFeedback');
+  });
+
+  it.each(['native', 'ts'] as const)('runs after the %s chain every block, including after the stretcher runs dry', async (fxBackend) => {
+    const module = fxModule({ _malloc: () => 32768 });
+    const { processor } = await boot(module, { fxBackend });
+    const delay = vi.spyOn(PhonemeDelay.prototype, 'process');
+    const parameters = Object.fromEntries(
+      RUBBERBAND_PARAMETER_DESCRIPTORS.map((d) => [
+        d.name,
+        new Float32Array([d.name === 'phonemeDelayAmount' ? 0.6 : d.name === 'phonemeDelayFeedback' ? 0.4 : d.defaultValue]),
+      ]),
+    );
+    const outputs = [[new Float32Array(128), new Float32Array(128)]];
+    // FakeStretcher has nothing available: the tail must still be processed.
+    (processor as unknown as { process(i: unknown, o: Float32Array[][], p: Record<string, Float32Array>): boolean })
+      .process([], outputs, parameters);
+    expect(delay).toHaveBeenCalledWith(
+      outputs[0][0], outputs[0][1], expect.closeTo(0.6, 5), expect.closeTo(0.4, 5),
+      expect.objectContaining({ hasPhonemeContext: false }),
+    );
   });
 });
