@@ -1,6 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
+- Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
 - [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
 - [x] Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
@@ -24,9 +26,8 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
-- Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - What if we map vowel brightness/formant to open hi-hat decay time?
-- Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
+- Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
@@ -215,3 +216,8 @@
   - Updated the gap-filling logic for multiple consecutive consonants (`consecutiveConsonants >= 3`).
   - While adding escalating hi-hat rolls in the gaps between sequential consonants, the logic now also interweaves ghost snares (on even gap steps) and soft kicks (on every 3rd step) to create a much more syncopated and dynamic rhythmic fill directly from the spoken text phrasing.
 - Velocity Check: This change successfully piggybacks on the existing `isVowel`/`consonant` parser loop, introducing zero extra text alignment cost, while making the generated drum patterns noticeably less repetitive and more musical during intense consonant clusters. Added a new idea to the Innovation Lab.
+
+- Completed "Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves."
+  - In `handleTextToDrums`, updated the gap-filling logic for multiple consecutive consonants and the preceding-step ghost snare injection.
+  - When a ghost snare is inserted, the overlapping closed hi-hat step is now randomly skipped (nulled) with a probability equal to the ghost snare's velocity.
+- Velocity Check: Utilizing standard `Math.random()` scaled by the ghost snare velocity effectively creates a probabilistic "choke" effect without requiring heavy AudioWorklet DSP changes, keeping the drum patterns organic and less rigid on intense fills. Added a new idea to the Innovation Lab.

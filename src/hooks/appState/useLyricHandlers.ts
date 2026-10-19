@@ -187,7 +187,11 @@ export function useLyricHandlers(deps: {
                                     if (j % 3 === 0 && fillStep >= 0 && fillStep < newKick.steps.length) {
                                         newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
-                                        newSnare.steps[fillStep] = { note: 'C4', velocity: 0.4, length: 1 };
+                                        const ghostVel = 0.4;
+                                        newSnare.steps[fillStep] = { note: 'C4', velocity: ghostVel, length: 1 };
+                                        if (Math.random() < ghostVel) {
+                                            newCH.steps[fillStep] = null;
+                                        }
                                     }
                                 }
                             }
@@ -198,7 +202,11 @@ export function useLyricHandlers(deps: {
                         if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
-                            newSnare.steps[stepIdx - 1] = { note: 'C4', velocity: 0.4, length: 1 };
+                            const ghostVel = 0.4;
+                            newSnare.steps[stepIdx - 1] = { note: 'C4', velocity: ghostVel, length: 1 };
+                            if (Math.random() < ghostVel && stepIdx - 1 < newCH.steps.length) {
+                                newCH.steps[stepIdx - 1] = null;
+                            }
                         }
                     } else if (isOpenHat) {
                         if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
