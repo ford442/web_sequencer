@@ -60,8 +60,51 @@ values remain in `song.rbsMetadata` (`automation`, `pcfSettings`).
   - `drums` → not converted (no endpoint); kept in `song.rbsMetadata.pcfSettings`
 - If no automation lanes remain after conversion, `song.automation` is omitted.
 
+## Offline renders (stems, AI preview, 303 freeze)
+
+Bounces play the same lanes as live playback (#1384). There is one resolver,
+`src/audio/automation/laneResolver.ts`, and both sides read through it:
+
+- **Live:** `AutomationScheduler.scheduleFromLanes` schedules
+  `resolveLaneValuesAtStep()`; the step handler's per-note overrides use
+  `resolveParamAtStep()`.
+- **Offline:** `src/audio/offline/offlineLaneAutomation.ts` resolves the lanes
+  onto the render's flat step axis with `resolveLaneTimeline()` — global step
+  `g` plays pattern step `g % stepCount`, and in song mode pattern-scoped lanes
+  follow `measure % 8` — then converts them for each renderer.
+
+The rules: a lane plays when enabled and in scope; it is read at the pattern
+step; a value outside `[0, 1]` is rejected in dev and clamped otherwise; the
+first lane per `target:parameter` with a value wins the step.
+
+| Renderer | What plays | Units |
+|----------|------------|-------|
+| `render303FreezeOffline` / `render303Offline*` (open303, jc303, highfid-cpu) | `Offline303PatternData.paramSteps`: cutoff, resonance, decay, envMod, accent, volume, set as each step starts and held | The normalised values the worklet gets live |
+| `gpu-highfid` | An automated pattern renders through highfid-cpu: the shader takes one param set per pattern | — |
+| Stems + AI preview (`renderSynthPattern`) | Filter cutoff + resonance; decay on 303 voices. 303 voices move the filter on every step of a held note, as the scheduler does; other voices keep the value the note started with, as the per-note override does | 303: `× 8000` Hz / `× 20` (`Open303Manager`'s knob scale); others: `× 20000` Hz / `× 20` (`playSynth`) |
+
+What a renderer cannot play is reported, never dropped: `StemExportReport.automation`
+(also in the ZIP's `metadata.json`, and a toast), and `AISongPreviewResult.automation`
+(the preview's "Not in this preview" list). Not rendered offline:
+
+- `drive`, `tune`, `abMix`, `slide` on the 303 freeze path — the offline engines
+  have no such stage.
+- `volume`, `envMod`, `accent`, `drive` on the stem path — the stem renderer
+  plays a filtered oscillator with no stage for them (not even the knob value).
+- Macro voices' filter lanes.
+- **Master PCF lanes.** Live, `AutomationScheduler` routes them to
+  `audioEngine.pcfEffect`, but nothing constructs a `PcfEffect`, so live
+  playback does not play them either. Offline matches that.
+- XM export: instruments are one-shot samples, which cannot carry automation.
+
+Unrouted targets (drums, sampler, `filterMode`, `waveform`, `pitch`, delay) are
+out of scope here; see #1387.
+
 ## Testing touchpoints
 
 - `src/__tests__/RbsParser.test.ts` validates sample-file parse + parse→convert flow.
 - `src/__tests__/RbsImporter.test.ts` validates pattern/automation/PCF conversion behavior.
 - `src/__tests__/AutomationScheduler.test.ts` validates TRAK/lane scheduling and Open303 param routing.
+- `src/__tests__/laneResolver.test.ts` checks live/offline parity: the fixture lanes resolve to exactly what the scheduler schedules.
+- `src/__tests__/offlineAutomation.freeze.test.ts` is the spectral golden: a frozen 303 gets brighter and darker with the cutoff lane on every engine family; a flat render does not move.
+- `src/utils/__tests__/offlineAutomation.preview.test.ts` and `stemExport.automation.test.ts` cover the preview and stem paths.

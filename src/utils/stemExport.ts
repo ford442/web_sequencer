@@ -35,6 +35,12 @@ import { noteFxLaneLookup } from '../sequencer/noteFx/runtime';
 import { chainIsActive, type NoteFxTrack, type SongNoteFx } from '../sequencer/noteFx/types';
 import { trackLoopLength } from './songMeter';
 import { NUM_STEPS } from '../constants';
+import type { UnifiedAutomationLane } from '../types';
+import { automationStore } from '../stores/automationStore';
+import {
+    resolveSynthLaneAutomation,
+    type OfflineAutomationReport,
+} from '../audio/offline/offlineLaneAutomation';
 import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
 import {
     createMixBus,
@@ -133,6 +139,8 @@ export interface StemExportReport {
     vocalOffline: OfflineVocalBankReport[];
     /** Which engine summed the stems, and why it fell back if it did. */
     mixBus: StemMixBusReport;
+    /** Song automation lanes the stems play, and the routed ones they cannot (#1384). */
+    automation: OfflineAutomationReport;
 }
 
 export interface StemMixBusReport {
@@ -191,6 +199,11 @@ export interface StemExportInput {
     harmonizerActive?: boolean;
     /** Per-track note FX chains (#1345). Defaults to the live note FX store. */
     noteFx?: SongNoteFx;
+    /**
+     * Song automation lanes (#1384). Defaults to the live automation store's
+     * lanes — none while automation playback is off, as live.
+     */
+    automationLanes?: readonly UnifiedAutomationLane[];
 }
 
 export type StemId =
@@ -343,6 +356,20 @@ export async function exportStemsToZip(
         };
     };
 
+    // Automation lanes (#1384): resolved onto the timeline exactly as the live
+    // scheduler plays them, measure by measure.
+    const automationLanes = input.automationLanes
+        ?? (automationStore.getState().playbackEnabled ? automationStore.exportLanes() : []);
+    const automation = resolveSynthLaneAutomation(
+        automationLanes,
+        { totalSteps: timeline.totalSteps, stepCount: input.stepCount ?? NUM_STEPS, songMode: useSongMode },
+        [
+            { target: 'synthA', waveform: input.params.synthA.waveform ?? '' },
+            { target: 'synthB', waveform: input.params.synthB.waveform ?? '' },
+            { target: 'bass2', waveform: input.params.bass2.waveform ?? '' },
+        ],
+    );
+
     const stems = new Map<StemId, AudioBuffer>();
     const totalStages = STEM_RENDER_ORDER.length;
 
@@ -374,6 +401,7 @@ export async function exportStemsToZip(
                               ...renderOpts,
                               sequence: timeline.sequences.partA,
                               noteFx: noteFxFor('partA'),
+                              automation: automation.byTarget.synthA,
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -384,6 +412,7 @@ export async function exportStemsToZip(
                               ...renderOpts,
                               sequence: timeline.sequences.partB,
                               noteFx: noteFxFor('partB'),
+                              automation: automation.byTarget.synthB,
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -394,6 +423,7 @@ export async function exportStemsToZip(
                               ...renderOpts,
                               sequence: timeline.sequences.bass2,
                               noteFx: noteFxFor('bass2'),
+                              automation: automation.byTarget.bass2,
                           })
                         : silentBuffer(targetLength, sampleRate);
                     break;
@@ -556,6 +586,8 @@ export async function exportStemsToZip(
         vocalOffline,
         /** Engine that summed the dry stems (#1341) and the dry master's sample peaks. */
         mixBus: mixBusReport,
+        /** Automation lanes the stems play, and the routed ones they cannot (#1384). */
+        automation: automation.report,
         stems: Array.from(stems.keys()),
         silencedTracks: (
             ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
@@ -576,6 +608,7 @@ export async function exportStemsToZip(
         offlineGraph,
         vocalOffline,
         mixBus: mixBusReport,
+        automation: automation.report,
     });
 
     throwIfAborted(signal);

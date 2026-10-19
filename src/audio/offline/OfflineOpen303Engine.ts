@@ -398,6 +398,14 @@ export interface Offline303PatternData {
   tempo?: number;
   params?: Partial<Offline303Params>;
   /**
+   * Per-step param changes (#1384), resolved from the song's automation lanes
+   * before the job leaves the main thread (`resolveOffline303ParamSteps`).
+   * Entry `i` is merged into the params as step `i` starts and holds until a
+   * later entry changes it — what the live scheduler's per-step
+   * `scheduleParamAtTime` does to the worklet. Absent / null: no change.
+   */
+  paramSteps?: ReadonlyArray<Partial<Offline303Params> | null | undefined>;
+  /**
    * Diode-ladder coefficients (Phase L3) for the `highfid-cpu` engine. Omitted
    * means the canonical preset. Ignored by every other engine.
    */
@@ -435,7 +443,10 @@ export function renderOffline303Pattern(
   let write = 0;
   let prevNote = -1;
 
-  for (const step of pattern.steps) {
+  for (let i = 0; i < pattern.steps.length; i++) {
+    const step = pattern.steps[i];
+    const changes = pattern.paramSteps?.[i];
+    if (changes) engine.setParams(changes);
     if (!step.slide && prevNote >= 0) {
       engine.noteOff(prevNote);
     }
@@ -456,6 +467,11 @@ export function renderOffline303Pattern(
   }
 
   return out;
+}
+
+/** True when `pattern` carries at least one per-step param change. */
+export function patternHasParamSteps(pattern: Offline303PatternData): boolean {
+  return !!pattern.paramSteps?.some((changes) => !!changes && Object.keys(changes).length > 0);
 }
 
 /** Mix mono voice buffers sample-wise (OpenMP analogue on the JS side). */

@@ -8,7 +8,8 @@ import type {
     Bass2Params,
 } from '../types';
 import { freezeSynthTrack, freezeDrumTrack } from './trackFreezer';
-import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
+import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines, type SynthFilterCurve } from './renderAudio';
+import type { PatternAutomation } from '../audio/offline/offlineLaneAutomation';
 import { getTunedFrequency, midiToNote } from './musicTheory';
 import { stepDurationSeconds } from './songTimeline';
 import { createOfflineBuffer, createOfflineContext } from '../audio/offline/createOfflineContext';
@@ -44,6 +45,8 @@ export interface PatternRenderOptions {
     signal?: AbortSignal;
     engines?: PatternRenderEngines;
     noteFx?: PatternNoteFx;
+    /** The track's song automation lanes on this sequence's steps (#1384). */
+    automation?: PatternAutomation;
 }
 
 /** One note to bounce: start / length in steps. */
@@ -70,8 +73,10 @@ async function renderHits(
     tempo: number,
     sampleRate: number,
     hits: readonly Hit[],
-    renderHit: (note: string, lengthSteps: number) => Promise<AudioBuffer | null>,
+    renderHit: (note: string, lengthSteps: number, start: number) => Promise<AudioBuffer | null>,
     signal?: AbortSignal,
+    /** Extra cache key for hits whose sound depends on where they start (automation). */
+    hitKey?: (hit: Hit) => string,
 ): Promise<AudioBuffer> {
     throwIfAborted(signal);
     const stepDur = stepDurationSeconds(tempo);
@@ -79,8 +84,8 @@ async function renderHits(
     const rendered = new Map<string, AudioBuffer | null>();
     for (const hit of hits) {
         throwIfAborted(signal);
-        const key = `${hit.note}:${hit.length}`;
-        if (!rendered.has(key)) rendered.set(key, await renderHit(hit.note, hit.length));
+        const key = `${hit.note}:${hit.length}${hitKey ? `:${hitKey(hit)}` : ''}`;
+        if (!rendered.has(key)) rendered.set(key, await renderHit(hit.note, hit.length, hit.start));
         const buffer = rendered.get(key);
         if (!buffer) continue;
         const time = hit.start * stepDur;
@@ -128,6 +133,55 @@ export function bass2ToSynthParams(bass2: Bass2Params): SynthParams {
         delayFeedback: 0,
         delayMix: 0,
     };
+}
+
+function hasAutomation(automation: PatternAutomation | undefined): automation is PatternAutomation {
+    const any = (values: ReadonlyArray<number | null> | undefined) => !!values?.some((v) => v !== null);
+    return !!automation && (any(automation.filterCutoff) || any(automation.filterResonance) || any(automation.decay));
+}
+
+/**
+ * One note's params under the track's automation (#1384): the values on the
+ * note's first step replace the knob's (decay shapes the envelope, so it is
+ * read there only), and on a 303 voice every later step the note holds
+ * through moves the filter again — a step with no value keeps
+ * the last one, as a param the scheduler set does.
+ */
+function automatedHit(
+    params: SynthParams,
+    automation: PatternAutomation | undefined,
+    start: number,
+    lengthSteps: number,
+    stepDur: number,
+): { params: SynthParams; curve?: SynthFilterCurve } {
+    if (!automation) return { params };
+    const first = Math.floor(start);
+    const at = (values: ReadonlyArray<number | null> | undefined, step: number) => values?.[step] ?? null;
+    const cutoff = at(automation.filterCutoff, first);
+    const resonance = at(automation.filterResonance, first);
+    const decay = at(automation.decay, first);
+    const hitParams = cutoff === null && resonance === null && decay === null
+        ? params
+        : {
+            ...params,
+            filterCutoff: cutoff ?? params.filterCutoff,
+            filterResonance: resonance ?? params.filterResonance,
+            decay: decay ?? params.decay,
+        };
+    if (!automation.perStep) return { params: hitParams };
+
+    const curve: Array<{ time: number; filterCutoff?: number; filterResonance?: number }> = [];
+    for (let step = first + 1; step < start + lengthSteps; step++) {
+        const c = at(automation.filterCutoff, step);
+        const r = at(automation.filterResonance, step);
+        if (c === null && r === null) continue;
+        curve.push({
+            time: (step - start) * stepDur,
+            ...(c !== null ? { filterCutoff: c } : {}),
+            ...(r !== null ? { filterResonance: r } : {}),
+        });
+    }
+    return curve.length > 0 ? { params: hitParams, curve } : { params: hitParams };
 }
 
 async function renderWithOfflineSteps(
@@ -204,6 +258,12 @@ export async function renderSynthPattern(
 ): Promise<AudioBuffer> {
     const { sequence, tempo, sampleRate, signal, engines } = options;
     throwIfAborted(signal);
+    const automation = hasAutomation(options.automation) ? options.automation : undefined;
+    const stepSeconds = stepDurationSeconds(tempo);
+    const renderAutomatedHit = (note: string, start: number, lengthSteps: number) => {
+        const hit = automatedHit(params, automation, start, lengthSteps, stepSeconds);
+        return renderSynthToBuffer(hit.params, note, stepSeconds * lengthSteps, engines, sampleRate, hit.curve);
+    };
 
     // Note FX: the chain's events, not the steps (the Pyodide freezer only
     // reads steps, so a chain always takes the Web Audio path).
@@ -232,12 +292,15 @@ export async function renderSynthPattern(
             tempo,
             sampleRate,
             fxHits,
-            (note, lengthSteps) => renderSynthToBuffer(params, note, stepDurationSeconds(tempo) * lengthSteps, engines, sampleRate),
+            (note, lengthSteps, start) => renderAutomatedHit(note, start, lengthSteps),
             signal,
+            automation ? (hit) => String(hit.start) : undefined,
         );
     }
 
-    if (engines?.pyodide) {
+    // The Pyodide freezer takes one set of params for the whole track, so an
+    // automated track renders per hit below.
+    if (engines?.pyodide && !automation) {
         const freezeParams = {
             ...params,
             waveform: mapWaveformForFreeze(params.waveform),
@@ -260,14 +323,7 @@ export async function renderSynthPattern(
             if (!note) return null;
             // Render the hit at the target rate: a buffer recorded at another
             // rate would be resampled on playback into the offline context.
-            const hit = await renderSynthToBuffer(
-                params,
-                note.note,
-                stepDurationSeconds(tempo) * (note.length ?? 1),
-                engines,
-                sampleRate,
-            );
-            return hit;
+            return renderAutomatedHit(note.note, _step, note.length ?? 1);
         },
         signal,
     );
