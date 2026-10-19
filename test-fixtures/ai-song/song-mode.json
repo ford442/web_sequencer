@@ -1,0 +1,162 @@
+{
+  "meta": {
+    "title": "Song Mode Reference",
+    "author": "hyphon-fixtures",
+    "version": "1.1",
+    "createdAt": "2026-10-19T00:00:00Z",
+    "generator": "claude-opus-5",
+    "prompt": "A 16-step acid track with an intro, a groove, a drop with its own 303 sound and a filter sweep, a break, and an outro.",
+    "tags": ["fixture", "song-mode", "v1.1"]
+  },
+  "globals": {
+    "tempo": 132,
+    "timeSignature": [4, 4],
+    "stepCount": 16
+  },
+  "patterns": {
+    "intro": {
+      "tracks": {
+        "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+        "closedHat": [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false]
+      }
+    },
+    "groove": {
+      "tracks": {
+        "synthA": {
+          "notes": [
+            { "step": 0, "note": "C2", "accent": true },
+            { "step": 3, "note": "C2" },
+            { "step": 6, "note": "Eb2", "slide": true },
+            { "step": 8, "note": "C2" },
+            { "step": 11, "note": "G2" },
+            { "step": 14, "note": "Bb2" }
+          ],
+          "params": {
+            "waveform": "303-saw",
+            "filterCutoff": 900,
+            "filterResonance": 12,
+            "decay": 0.3
+          }
+        },
+        "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+        "snare": [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        "closedHat": [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, true]
+      }
+    },
+    "drop": {
+      "tracks": {
+        "synthA": {
+          "notes": [
+            { "step": 0, "note": "C3", "accent": true },
+            { "step": 2, "note": "C2" },
+            { "step": 4, "note": "Eb3", "slide": true },
+            { "step": 7, "note": "F2" },
+            { "step": 8, "note": "C3", "accent": true },
+            { "step": 10, "note": "G2" },
+            { "step": 12, "note": "Bb2", "slide": true },
+            { "step": 14, "note": "C3" }
+          ],
+          "params": {
+            "waveform": "303-sqr",
+            "filterCutoff": 2400,
+            "filterResonance": 18,
+            "decay": 0.6
+          }
+        },
+        "bass2": {
+          "notes": [
+            { "step": 0, "note": "C1", "velocity": 0.9 },
+            { "step": 6, "note": "C1" },
+            { "step": 10, "note": "G1", "slide": true }
+          ],
+          "params": {
+            "waveform": "303-saw",
+            "filterCutoff": 600,
+            "filterResonance": 10
+          }
+        },
+        "kick": [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+        "snare": [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        "openHat": [false, false, true, false, false, false, false, false, false, false, true, false, false, false, false, false]
+      },
+      "automation": [
+        {
+          "target": "synthA",
+          "parameter": "filterCutoff",
+          "interpolation": "linear",
+          "steps": [20, null, null, null, 50, null, null, null, 90, null, null, null, 127, null, null, 60]
+        }
+      ]
+    },
+    "break": {
+      "tracks": {
+        "synthA": {
+          "notes": [
+            { "step": 0, "note": "G2", "length": 4 },
+            { "step": 8, "note": "F2", "length": 4 }
+          ]
+        },
+        "snare": [false, false, false, false, false, false, false, false, true, false, true, false, true, true, true, true]
+      }
+    }
+  },
+  "song": [
+    {
+      "kick": "intro",
+      "closedHat": "intro"
+    },
+    {
+      "kick": "intro",
+      "closedHat": "intro"
+    },
+    {
+      "synthA": "groove",
+      "kick": "groove",
+      "snare": "groove",
+      "closedHat": "groove"
+    },
+    {
+      "synthA": "groove",
+      "kick": "groove",
+      "snare": "groove",
+      "closedHat": "groove"
+    },
+    {
+      "synthA": "drop",
+      "bass2": "drop",
+      "kick": "drop",
+      "snare": "drop",
+      "closedHat": "groove",
+      "openHat": "drop"
+    },
+    {
+      "synthA": "drop",
+      "bass2": "drop",
+      "kick": "drop",
+      "snare": "drop",
+      "closedHat": "groove",
+      "openHat": "drop"
+    },
+    {
+      "synthA": "break",
+      "snare": "break"
+    },
+    {
+      "synthA": "drop",
+      "bass2": "drop",
+      "kick": "drop",
+      "snare": "drop",
+      "closedHat": "groove",
+      "openHat": "drop"
+    },
+    {
+      "synthA": "groove",
+      "kick": "intro",
+      "closedHat": "intro"
+    },
+    {
+      "kick": "intro",
+      "synthA": null
+    }
+  ]
+}

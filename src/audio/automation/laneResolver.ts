@@ -11,7 +11,8 @@
  *   - a lane plays when enabled, and in scope: `song`, or `pattern` with the
  *     playing pattern index (song mode: `measure % 8`, pattern mode: 0);
  *   - lanes are read at the *pattern* step (the wrapped step the clock posts),
- *     interpolated by `interpolateLaneAtStep`;
+ *     interpolated by `interpolateLaneAtStep` — except a `timeline: 'song'`
+ *     lane, which Song Mode reads at the song position;
  *   - a point outside [0, 1] is rejected in dev and clamped otherwise;
  *   - the first lane per `target:parameter` with a value wins that step;
  *   - note FX parameters are not scheduled (the step handler reads them).
@@ -123,6 +124,18 @@ export function assertNormalizedLaneValue(
 }
 
 /**
+ * The step `lane` is read at: the song position for a song-timeline lane
+ * while Song Mode supplies one, else the pattern step.
+ */
+export function laneReadStep(
+  lane: Pick<UnifiedAutomationLane, 'timeline'>,
+  step: number,
+  songStep: number | undefined,
+): number {
+  return lane.timeline === 'song' && songStep !== undefined ? songStep : step;
+}
+
+/**
  * A lane's normalised value at a (pattern) step, or null when it has none.
  * `originalRange` is display metadata and is deliberately NOT applied.
  */
@@ -146,6 +159,7 @@ export interface ResolvedLaneValue {
 export function resolveLaneValuesAtStep(
   lanes: readonly UnifiedAutomationLane[],
   step: number,
+  songStep?: number,
 ): ResolvedLaneValue[] {
   const out: ResolvedLaneValue[] = [];
   const seen = new Set<string>();
@@ -156,7 +170,7 @@ export function resolveLaneValuesAtStep(
     if (isNoteFxParameter(lane.parameter)) continue;
     const key = `${lane.target}:${lane.parameter}`;
     if (seen.has(key)) continue;
-    const value = resolveLaneValue(lane, step);
+    const value = resolveLaneValue(lane, laneReadStep(lane, step, songStep));
     if (value === null) continue;
     seen.add(key);
     out.push({ lane, value });
@@ -172,10 +186,11 @@ export function resolveParamAtStep(
   lanes: readonly UnifiedAutomationLane[],
   step: number,
   patternIndex: number,
+  songStep?: number,
 ): number | null {
   for (const lane of lanes) {
     if (!isLaneActive(lane, patternIndex)) continue;
-    const value = resolveLaneValue(lane, step);
+    const value = resolveLaneValue(lane, laneReadStep(lane, step, songStep));
     if (value !== null) return value;
   }
   return null;
@@ -229,7 +244,7 @@ export function resolveLaneTimeline(
       active = lanes.filter((lane) => isLaneActive(lane, patternIndex));
       activeByPattern.set(patternIndex, active);
     }
-    out.push(resolveLaneValuesAtStep(active, step));
+    out.push(resolveLaneValuesAtStep(active, step, timeline.songMode ? g : undefined));
   }
   return out;
 }

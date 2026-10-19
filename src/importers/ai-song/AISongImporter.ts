@@ -4,13 +4,19 @@ import type {
 } from '../../types';
 import { generateLaneId } from '../../stores/automationStore';
 import { AISongStorage, type AISongUploadOptions, type AISongMetadata } from '../../services/AISongStorage';
-import { validateAISongData } from './types';
+import { validateAISongData, AI_SONG_TRACK_NAMES } from './types';
 import { isMacroWaveform, macroEngineForWaveform } from '../../engines/MacroParams';
 import {
   type AISongData, type AIImportResultType, type AIAutomationTarget,
   type AIInterpolationMode, type AITrackData, type AISamplerBankData,
-  type AIHarmonizerConfig, type AIPhonemePainterConfig, type AIUploadResultType
+  type AIHarmonizerConfig, type AIPhonemePainterConfig, type AIUploadResultType,
+  type AISongTracks, type AISongTrackName
 } from './types';
+import type { SongMeasure } from '../../types/songMode';
+import { AI_TRACK_TO_TRACK_KEY, hasSongBlock, resolveSongBlock, type ResolvedAISongBlock } from './songBlock';
+import { tilePatternAutomation, type TiledAutomationLane } from './automation';
+import { createEmptyTrackStorage, deriveActiveTrackSlotsFromStructure } from '../../utils/trackStorageUtils';
+import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 
 /** Time signature applied when a song does not declare one. */
 const DEFAULT_TIME_SIGNATURE: [number, number] = [4, 4];
@@ -65,11 +71,18 @@ export class AISongImporter {
     }
 
     try {
+      if (hasSongBlock(aiSong)) {
+        return this.convertSongBlock(aiSong, resolveSongBlock(aiSong));
+      }
+
+      // v1.0: one pattern, written exactly as before the song block existed.
+      const tracks = aiSong.tracks ?? {};
+
       // Convert pattern
-      const pattern = this.convertPattern(aiSong);
+      const pattern = this.convertPattern(tracks, 32);
 
       // Convert params
-      const params = this.convertParams(aiSong);
+      const params = this.convertParams(tracks);
 
       // Convert automation lanes into the unified store format
       const automationLanes = this.buildAutomationLanes(aiSong);
@@ -91,13 +104,13 @@ export class AISongImporter {
       };
 
       // Count converted elements
-      const notesConverted = this.countNotes(aiSong);
+      const notesConverted = this.countNotes(tracks);
 
       return {
         success: true,
         song,
         report: {
-          tracksConverted: Object.keys(aiSong.tracks).length,
+          tracksConverted: Object.keys(tracks).length,
           notesConverted,
           warnings: this.warnings,
           mappedParams: this.mappedParams
@@ -117,32 +130,197 @@ export class AISongImporter {
   }
 
   /**
-   * Convert AI tracks to Hyphon Pattern
+   * v1.1: every pattern a track plays becomes a slot, every `song` row a
+   * Song Mode measure. Pattern params on the 303 tracks become per-slot
+   * `trackParamStorage`; pattern-local lanes are tiled onto the song timeline.
    */
-  private convertPattern(aiSong: AISongData): Pattern {
-    const numSteps = 32; // Hyphon uses 32 steps
+  private convertSongBlock(aiSong: AISongData, block: ResolvedAISongBlock): AIImportResultType {
+    const steps = block.stepCount;
+    for (const id of block.unusedPatterns) {
+      this.warnings.push(`patterns.${id} is never played by song — skipped.`);
+    }
 
+    const label = (id: string) => (aiSong.patterns ? `patterns.${id}.` : '');
+    const converted = new Map<string, Pattern>();
+    const patternFor = (id: string): Pattern => {
+      let pattern = converted.get(id);
+      if (!pattern) {
+        pattern = this.convertPattern(block.patterns[id].tracks, steps, label(id));
+        converted.set(id, pattern);
+      }
+      return pattern;
+    };
+
+    const trackStorage = createEmptyTrackStorage();
+    const live = this.convertPattern({}, steps);
+    let tracksConverted = 0;
+    let notesConverted = 0;
+    for (const track of AI_SONG_TRACK_NAMES) {
+      const key = AI_TRACK_TO_TRACK_KEY[track];
+      const ids = block.slots[track];
+      ids.forEach((id, slot) => {
+        trackStorage[key][slot] = patternFor(id)[key];
+        const tracks = block.patterns[id].tracks;
+        if (tracks[track] === undefined) {
+          if (aiSong.song) {
+            this.warnings.push(`song plays pattern ${id} on ${track}, but pattern ${id} has no ${track} track — silent.`);
+          }
+          return;
+        }
+        notesConverted += this.countNotes({ [track]: tracks[track] });
+      });
+      if (ids.some((id) => block.patterns[id].tracks[track] !== undefined)) tracksConverted++;
+      if (ids.length > 0) Object.assign(live, { [key]: patternFor(ids[0])[key] });
+    }
+
+    const firstTracks = (track: AISongTrackName): AISongTracks =>
+      block.slots[track].length > 0 ? block.patterns[block.slots[track][0]].tracks : {};
+    const params = this.convertParams(
+      { synthA: firstTracks('synthA').synthA, synthB: firstTracks('synthB').synthB, bass2: firstTracks('bass2').bass2 },
+      this.collectSamplerBanks(block),
+    );
+    const trackParamStorage = this.buildTrackParamStorage(block, params);
+
+    const songStructure: SongMeasure[] = block.measures.map((measure) => {
+      const row = {} as SongMeasure;
+      for (const track of AI_SONG_TRACK_NAMES) row[AI_TRACK_TO_TRACK_KEY[track]] = measure[track];
+      return row;
+    });
+
+    const tiled = tilePatternAutomation(block);
+    this.warnings.push(...tiled.warnings);
+    const automationLanes = [...this.buildAutomationLanes(aiSong), ...this.buildTiledLanes(tiled.lanes)];
+
+    const song: SavedSongData = {
+      // v4: the song meter is written. The arrangement (v5) is derived from
+      // songStructure on load, the same migration every v1–v4 song takes.
+      version: 4,
+      pattern: live,
+      params,
+      trackStorage,
+      activeTrackSlots: deriveActiveTrackSlotsFromStructure(songStructure),
+      songStructure,
+      tempo: aiSong.globals.tempo,
+      timeSignature: aiSong.globals.timeSignature ?? DEFAULT_TIME_SIGNATURE,
+      swing: aiSong.globals.swing ?? DEFAULT_SWING,
+      stepCount: steps,
+      ambianceUrl: '',
+      backgroundImage: '',
+      ...(trackParamStorage ? { trackParamStorage } : {}),
+      ...(automationLanes.length > 0 ? { automationLanes } : {})
+    };
+
+    return {
+      success: true,
+      song,
+      report: {
+        tracksConverted,
+        notesConverted,
+        warnings: this.warnings,
+        mappedParams: this.mappedParams
+      }
+    };
+  }
+
+  /**
+   * Sampler bank voice settings are song-wide: the first pattern (in sampler
+   * slot order) that defines a bank sets it.
+   */
+  private collectSamplerBanks(block: ResolvedAISongBlock): AISamplerBankData[] {
+    const banks: AISamplerBankData[] = [];
+    const seen = new Set<number>();
+    for (const id of block.slots.sampler) {
+      for (const bank of block.patterns[id].tracks.sampler ?? []) {
+        if (seen.has(bank.bankIndex)) continue;
+        seen.add(bank.bankIndex);
+        banks.push(bank);
+      }
+    }
+    return banks;
+  }
+
+  /**
+   * Per-slot 303 knobs, recalled when Song Mode switches slot. Written for a
+   * track that plays more than one pattern and declares params in at least
+   * one of them; then every slot gets a full snapshot, so moving to a pattern
+   * without params returns to the song's (slot 0) params.
+   */
+  private buildTrackParamStorage(
+    block: ResolvedAISongBlock,
+    params: SavedSongData['params'],
+  ): SavedSongData['trackParamStorage'] | undefined {
+    const empty = () => Array<null>(MAX_TRACK_PATTERN_SLOTS).fill(null);
+    const storage: NonNullable<SavedSongData['trackParamStorage']> = {
+      synthA: empty(), synthB: empty(), bass2: empty(),
+    };
+    let written = false;
+    for (const track of ['synthA', 'synthB', 'bass2'] as const) {
+      const ids = block.slots[track];
+      if (ids.length < 2 || !ids.some((id) => block.patterns[id].tracks[track]?.params)) continue;
+      ids.forEach((id, slot) => {
+        const data = block.patterns[id].tracks[track];
+        if (track === 'bass2') {
+          storage.bass2[slot] = slot > 0 && data?.params ? this.mapBass2Params(data) : { ...params.bass2! };
+        } else {
+          storage[track][slot] = slot > 0 && data?.params ? this.mapSynthParams(data) : { ...params[track] };
+        }
+      });
+      written = true;
+    }
+    return written ? storage : undefined;
+  }
+
+  /** Song-timeline lanes from {@link tilePatternAutomation}. */
+  private buildTiledLanes(lanes: TiledAutomationLane[]): UnifiedAutomationLane[] {
+    return lanes.map((lane) => {
+      this.mappedParams.push({
+        source: `patterns.*.automation.${lane.target}.${lane.parameter}`,
+        target: `${lane.target}.${lane.parameter}`,
+        value: `${lane.points.length} points (song timeline)`
+      });
+      return {
+        id: generateLaneId(),
+        target: lane.target as AutomationTarget,
+        parameter: lane.parameter,
+        name: `${lane.target} ${lane.parameter}`,
+        points: lane.points,
+        interpolation: lane.interpolation,
+        source: 'ai' as const,
+        scope: 'song' as const,
+        timeline: 'song' as const,
+        enabled: true,
+        originalRange: [0, 127] as [number, number],
+      };
+    });
+  }
+
+  /**
+   * Convert AI tracks to Hyphon Pattern
+   *
+   * @param label - Prefix for warning paths (`patterns.B.` in a v1.1 song)
+   */
+  private convertPattern(tracks: AISongTracks, numSteps: number, label = ''): Pattern {
     // Convert synth tracks
-    const partA = aiSong.tracks.synthA 
-      ? this.convertAITrack(aiSong.tracks.synthA, numSteps, 'synthA')
+    const partA = tracks.synthA
+      ? this.convertAITrack(tracks.synthA, numSteps, `${label}synthA`)
       : { steps: Array(numSteps).fill(null) };
 
-    const partB = aiSong.tracks.synthB
-      ? this.convertAITrack(aiSong.tracks.synthB, numSteps, 'synthB')
+    const partB = tracks.synthB
+      ? this.convertAITrack(tracks.synthB, numSteps, `${label}synthB`)
       : { steps: Array(numSteps).fill(null) };
 
-    const bass2 = aiSong.tracks.bass2
-      ? this.convertAITrack(aiSong.tracks.bass2, numSteps, 'bass2')
+    const bass2 = tracks.bass2
+      ? this.convertAITrack(tracks.bass2, numSteps, `${label}bass2`)
       : { steps: Array(numSteps).fill(null) };
 
     // Convert drum tracks
-    const kick = this.convertDrumPattern(aiSong.tracks.kick, numSteps, 'C2');
-    const snare = this.convertDrumPattern(aiSong.tracks.snare, numSteps, 'D2');
-    const closedHat = this.convertDrumPattern(aiSong.tracks.closedHat, numSteps, 'F#2');
-    const openHat = this.convertDrumPattern(aiSong.tracks.openHat, numSteps, 'A#2');
+    const kick = this.convertDrumPattern(tracks.kick, numSteps, 'C2');
+    const snare = this.convertDrumPattern(tracks.snare, numSteps, 'D2');
+    const closedHat = this.convertDrumPattern(tracks.closedHat, numSteps, 'F#2');
+    const openHat = this.convertDrumPattern(tracks.openHat, numSteps, 'A#2');
 
     // Convert sampler to PartSequence[] for Pattern
-    const sampler = this.convertSamplerToSequences(aiSong.tracks.sampler, numSteps);
+    const sampler = this.convertSamplerToSequences(tracks.sampler, numSteps);
 
     return { partA, partB, bass2, kick, snare, closedHat, openHat, sampler };
   }
@@ -278,73 +456,75 @@ export class AISongImporter {
     return sampler;
   }
 
+  /** Importer defaults every synth part starts from. */
+  private static readonly DEFAULT_SYNTH: SynthParams = {
+    waveform: '303-saw',
+    pitch: 0,
+    filterCutoff: 3000,
+    filterResonance: 8,
+    filterMode: 1,
+    attack: 0.01,
+    decay: 0.3,
+    sustain: 0.5,
+    release: 0.3,
+    length: 0.25,
+    volume: 0.9,
+    delayTime: 0.3,
+    delayFeedback: 0.2,
+    delayMix: 0.0
+  };
+
+  private mapSynthParams(trackData?: AITrackData): SynthParams {
+    const defaultSynth = AISongImporter.DEFAULT_SYNTH;
+    if (!trackData?.params) return { ...defaultSynth };
+
+    this.mappedParams.push({
+      source: 'AI.params',
+      target: 'SynthParams',
+      value: trackData.params
+    });
+
+    const merged: SynthParams = { ...defaultSynth, ...trackData.params };
+    // A macro-* id this build does not know would play nothing recognisable:
+    // keep the family, take its plainest model, and say so.
+    const wf = String(merged.waveform);
+    if (wf.startsWith('macro-') && !isMacroWaveform(wf)) {
+      this.warnings.push(`Unknown macro model "${wf}" — using "macro-va".`);
+      merged.waveform = 'macro-va';
+    }
+    return merged;
+  }
+
+  private mapBass2Params(trackData?: AITrackData): Bass2Params {
+    const synth = this.mapSynthParams(trackData);
+    // BASS 2 is a 303 only: a macro model maps through its fallback shape.
+    const shape = macroEngineForWaveform(synth.waveform)?.fallback ?? synth.waveform;
+    return {
+      waveform: shape === '303-sqr' || shape === 'square' ? '303-sqr' : '303-saw',
+      pitch: synth.pitch,
+      cutoff: synth.filterCutoff,
+      resonance: synth.filterResonance,
+      filterMode: synth.filterMode ?? 1,
+      decay: synth.decay,
+      accent: 0.7,
+      envMod: 0.5,
+      volume: synth.volume
+    };
+  }
+
   /**
    * Convert AI params to Hyphon params
    */
-  private convertParams(aiSong: AISongData): SavedSongData['params'] {
-    const defaultSynth: SynthParams = {
-      waveform: '303-saw',
-      pitch: 0,
-      filterCutoff: 3000,
-      filterResonance: 8,
-      filterMode: 1,
-      attack: 0.01,
-      decay: 0.3,
-      sustain: 0.5,
-      release: 0.3,
-      length: 0.25,
-      volume: 0.9,
-      delayTime: 0.3,
-      delayFeedback: 0.2,
-      delayMix: 0.0
-    };
-
-    const mapSynthParams = (trackData?: AITrackData): SynthParams => {
-      if (!trackData?.params) return defaultSynth;
-      
-      this.mappedParams.push({
-        source: 'AI.params',
-        target: 'SynthParams',
-        value: trackData.params
-      });
-
-      const merged: SynthParams = { ...defaultSynth, ...trackData.params };
-      // A macro-* id this build does not know would play nothing recognisable:
-      // keep the family, take its plainest model, and say so.
-      const wf = String(merged.waveform);
-      if (wf.startsWith('macro-') && !isMacroWaveform(wf)) {
-        this.warnings.push(`Unknown macro model "${wf}" — using "macro-va".`);
-        merged.waveform = 'macro-va';
-      }
-      return merged;
-    };
-
-    const mapBass2Params = (trackData?: AITrackData): Bass2Params => {
-      const synth = mapSynthParams(trackData);
-      // BASS 2 is a 303 only: a macro model maps through its fallback shape.
-      const shape = macroEngineForWaveform(synth.waveform)?.fallback ?? synth.waveform;
-      return {
-        waveform: shape === '303-sqr' || shape === 'square' ? '303-sqr' : '303-saw',
-        pitch: synth.pitch,
-        cutoff: synth.filterCutoff,
-        resonance: synth.filterResonance,
-        filterMode: synth.filterMode ?? 1,
-        decay: synth.decay,
-        accent: 0.7,
-        envMod: 0.5,
-        volume: synth.volume
-      };
-    };
-
+  private convertParams(tracks: AISongTracks, samplerBanks = tracks.sampler): SavedSongData['params'] {
     return {
-      synthA: mapSynthParams(aiSong.tracks.synthA),
-      synthB: mapSynthParams(aiSong.tracks.synthB),
-      bass2: mapBass2Params(aiSong.tracks.bass2),
+      synthA: this.mapSynthParams(tracks.synthA),
+      synthB: this.mapSynthParams(tracks.synthB),
+      bass2: this.mapBass2Params(tracks.bass2),
       kick: { pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 },
       snare: { decay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
       closedHat: { pitch: 10000, decay: 0.1, volume: 0.8 },
       openHat: { pitch: 8000, decay: 0.4, volume: 0.8 },
-      sampler: this.convertSamplerTracks(aiSong.tracks.sampler)
+      sampler: this.convertSamplerTracks(samplerBanks)
     };
   }
 
@@ -367,13 +547,13 @@ export class AISongImporter {
   /**
    * Count total notes in AI song
    */
-  private countNotes(aiSong: AISongData): number {
+  private countNotes(tracks: AISongTracks): number {
     let count = 0;
-    if (aiSong.tracks.synthA) count += aiSong.tracks.synthA.notes.length;
-    if (aiSong.tracks.synthB) count += aiSong.tracks.synthB.notes.length;
-    if (aiSong.tracks.bass2) count += aiSong.tracks.bass2.notes.length;
-    if (aiSong.tracks.sampler) {
-      for (const bank of aiSong.tracks.sampler) {
+    if (tracks.synthA) count += tracks.synthA.notes.length;
+    if (tracks.synthB) count += tracks.synthB.notes.length;
+    if (tracks.bass2) count += tracks.bass2.notes.length;
+    if (tracks.sampler) {
+      for (const bank of tracks.sampler) {
         count += bank.steps.length;
       }
     }

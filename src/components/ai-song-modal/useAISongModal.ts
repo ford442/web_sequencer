@@ -14,6 +14,7 @@ import type {
   AISongModalProps,
 } from '../../types/aiSongModal';
 import { PROMPT_TEMPLATE, EXAMPLES } from '../../constants/aiSongExamples';
+import { primaryAITracks } from '../../importers/ai-song/songBlock';
 import {
   generateId,
   fixCommonJsonIssues,
@@ -390,6 +391,8 @@ export function useAISongModal({
 
   const trackStats = useMemo<TrackStats | null>(() => {
     if (!parsedData) return null;
+    // A v1.1 song summarises the pattern it opens with.
+    const tracks = primaryAITracks(parsedData);
 
     const stats: TrackStats = {
       totalNotes: 0,
@@ -404,7 +407,7 @@ export function useAISongModal({
     };
 
     ['synthA', 'synthB', 'bass2'].forEach(track => {
-      const trackData = parsedData.tracks[track as keyof typeof parsedData.tracks];
+      const trackData = tracks[track as keyof typeof tracks];
       if (trackData && 'notes' in trackData && Array.isArray(trackData.notes)) {
         const count = trackData.notes.length;
         stats.noteCounts[track] = count;
@@ -419,7 +422,7 @@ export function useAISongModal({
     });
 
     ['kick', 'snare', 'closedHat', 'openHat'].forEach(track => {
-      const trackData = parsedData.tracks[track as keyof typeof parsedData.tracks];
+      const trackData = tracks[track as keyof typeof tracks];
       if (Array.isArray(trackData)) {
         const count = trackData.filter(Boolean).length;
         stats.noteCounts[track] = count;
@@ -427,8 +430,8 @@ export function useAISongModal({
       }
     });
 
-    if (parsedData.tracks.sampler) {
-      parsedData.tracks.sampler.forEach((bank) => {
+    if (tracks.sampler) {
+      tracks.sampler.forEach((bank) => {
         const count = bank.steps.length;
         stats.noteCounts[`sampler${bank.bankIndex}`] = count;
         stats.totalNotes += count;
@@ -464,16 +467,17 @@ export function useAISongModal({
 
     const tracks = ['synthA', 'synthB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler0'];
     const grid: boolean[][] = [];
+    const songTracks = primaryAITracks(parsedData);
 
     tracks.forEach((trackName) => {
       const row = new Array<boolean>(32).fill(false);
 
-      if (trackName === 'sampler0' && parsedData.tracks.sampler?.[0]) {
-        parsedData.tracks.sampler[0].steps.forEach((note: { step: number }) => {
+      if (trackName === 'sampler0' && songTracks.sampler?.[0]) {
+        songTracks.sampler[0].steps.forEach((note: { step: number }) => {
           if (note.step >= 0 && note.step < 32) row[note.step] = true;
         });
-      } else if (trackName in parsedData.tracks) {
-        const trackData = parsedData.tracks[trackName as keyof typeof parsedData.tracks];
+      } else if (trackName in songTracks) {
+        const trackData = songTracks[trackName as keyof typeof songTracks];
         if (trackData && 'notes' in trackData && Array.isArray(trackData.notes)) {
           trackData.notes.forEach((note: { step: number }) => {
             if (note.step >= 0 && note.step < 32) row[note.step] = true;

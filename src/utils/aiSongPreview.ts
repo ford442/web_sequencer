@@ -35,6 +35,7 @@ import {
 } from '../audio/offline/offlineLaneAutomation';
 import type { Open303LaneTarget } from '../audio/automation/laneResolver';
 import { NUM_STEPS } from '../constants';
+import { primaryAITracks } from '../importers/ai-song/songBlock';
 
 /** Steps in one bar of the 32-step (two-bar) pattern grid. */
 export const STEPS_PER_BAR = 16;
@@ -225,7 +226,7 @@ export async function renderAISongPreview(
         );
     }
 
-    for (const bank of data.tracks.sampler ?? []) {
+    for (const bank of primaryAITracks(data).sampler ?? []) {
         const source = bank.ttsText
             ? ('tts-not-rendered' as const)
             : ('sample-not-loaded' as const);

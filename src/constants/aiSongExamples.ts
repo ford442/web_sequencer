@@ -62,6 +62,20 @@ AUTOMATION (Optional):
 - steps: Array of 16 or 32 values (0-127) or null for no change
 - interpolation: "step", "linear", or "smooth" (default: "step")
 
+ARRANGEMENT (Optional — set "version": "1.1"):
+- Replace "tracks" with named "patterns" and add a "song" array, one row per measure:
+  "globals": { "tempo": 128, "stepCount": 16 },
+  "patterns": {
+    "intro": { "tracks": { "kick": [...] } },
+    "drop":  { "tracks": { "synthA": {...}, "kick": [...] },
+               "automation": [ { "target": "synthA", "parameter": "filterCutoff", "steps": [...] } ] }
+  },
+  "song": [ { "kick": "intro" }, { "kick": "intro" }, { "synthA": "drop", "kick": "drop" } ]
+- A track missing from a row is silent for that measure
+- stepCount (1-64, default 32) is the length of every pattern, drum array and automation lane
+- Up to 32 different patterns per track; a pattern's synth "params" apply while it plays
+- Pattern "automation" moves only in the measures that play that pattern and holds its last value between them
+
 Generate a {GENRE} song at {TEMPO} BPM with {MOOD} mood.
 Return ONLY the JSON, no markdown, no explanation.`;
 

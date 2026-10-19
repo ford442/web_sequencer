@@ -87,9 +87,32 @@ export {
   type AutomationLaneSummary
 } from './automation';
 
+// v1.1 song block (patterns + song rows → Song Mode slots)
+export {
+  resolveSongBlock,
+  primaryAITracks,
+  hasSongBlock,
+  AI_SONG_TRACK_NAMES,
+  AI_TRACK_TO_TRACK_KEY,
+  DEFAULT_AI_PATTERN_ID,
+  MAX_AI_PATTERNS_PER_TRACK,
+  type ResolvedAISongBlock
+} from './songBlock';
+export { tilePatternAutomation, type TiledAutomationLane } from './automation';
+export {
+  AI_SONG_FORMAT_VERSIONS,
+  CURRENT_AI_SONG_FORMAT_VERSION,
+  isSupportedAISongVersion
+} from './versioning';
+
 // Types from AISongImporter
 export type { 
   AISongData, 
+  AISongTracks,
+  AISongTrackName,
+  AISongRow,
+  AIPatternData,
+  AISongFormatVersion,
   AITrackData, 
   AINoteEvent, 
   AISamplerBankData,

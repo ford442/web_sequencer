@@ -231,13 +231,16 @@ export class AutomationScheduler {
    * @param stepCount    Number of steps to look ahead (default: 1).
    * @param stepTime     Duration of one step in seconds.
    * @param baseAudioTime AudioContext time corresponding to `fromStep`.
+   * @param fromSongStep Song position of `fromStep` while Song Mode plays;
+   *                     `timeline: 'song'` lanes are read there.
    */
   scheduleFromLanes(
     lanes: UnifiedAutomationLane[],
     fromStep: number,
     stepCount: number,
     stepTime: number,
-    baseAudioTime: number
+    baseAudioTime: number,
+    fromSongStep?: number
   ): void {
     if (!lanes.length) return;
 
@@ -247,7 +250,8 @@ export class AutomationScheduler {
 
       // The same resolver the offline renders read (#1384), so a bounce plays
       // the values scheduled here.
-      for (const { lane, value } of resolveLaneValuesAtStep(lanes, step)) {
+      const songStep = fromSongStep === undefined ? undefined : fromSongStep + i;
+      for (const { lane, value } of resolveLaneValuesAtStep(lanes, step, songStep)) {
         this._scheduleParam(
           lane.target,
           lane.parameter,
