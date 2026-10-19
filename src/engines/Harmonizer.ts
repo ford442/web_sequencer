@@ -222,37 +222,6 @@ export class Harmonizer {
     }
 
     /**
-     * Generate sampler bank configurations for each harmony voice
-     * @param baseParams Base sampler parameters to derive from
-     * @returns Array of sampler bank params for each voice
-     */
-    generateSamplerConfigs(baseParams: SamplerBankParams): SamplerBankParams[] {
-        if (!this.isActive) {
-            return [baseParams];
-        }
-
-        const voices = this.generateVoices();
-        
-        return voices.map(voice => ({
-            ...baseParams,
-            // Apply pitch offset via playback speed (semitone to ratio)
-            playbackSpeed: baseParams.playbackSpeed * Math.pow(2, voice.pitchOffset / 12),
-            // Apply fine detune
-            fineTune: (baseParams.fineTune || 0) + voice.detuneCents,
-            // Apply formant spread (width only). Stretch-mode pitch runs through Rubber Band with
-            // OptionFormantPreserved, so no -pitchOffset compensation belongs here (#1297).
-            formantShift: (baseParams.formantShift || 0) + voice.formantShift,
-            // Apply pan
-            pan: voice.pan,
-            // Adjust volume
-            volume: baseParams.volume * voice.gain,
-            // Mark as harmony voice
-            isHarmonyVoice: true,
-            harmonyIndex: voice.index
-        }));
-    }
-
-    /**
      * Toggle harmonize on/off
      */
     toggle(): boolean {
