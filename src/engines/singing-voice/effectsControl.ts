@@ -482,7 +482,7 @@ export const EffectsControlMixin = {
     if (this.workletNode && this.workletNode.port) {
       this.workletNode.port.postMessage({
         type: 'setCustomGrainEnvelope',
-        shape: shape,
+        data: { shape },
       });
     }
   },

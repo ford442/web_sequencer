@@ -5,6 +5,8 @@ import { SpatialRouter } from '../rubberband/spatialRouter';
 import { PhonemeDelay } from '../rubberband/phonemeDelay';
 import { BassEnvelopeFollower } from '../rubberband/bassEnvelopeFollower';
 import { DrumDuckEnvelope } from '../rubberband/drumDuckEnvelope';
+import { EffectsControlMixin } from '../../engines/singing-voice/effectsControl';
+import type { SingingVoiceHost } from '../../engines/singing-voice/host';
 import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../utils/sidechainTriggerRing';
 
 type Posted = Record<string, unknown>;
@@ -297,5 +299,20 @@ describe('RubberBandProcessor sidechain trigger rings', () => {
     const { bassArg, drumArg } = await run(new SharedArrayBuffer(3 * 4), new SharedArrayBuffer(4 * 4));
     expect(bassArg).toBeNull();
     expect(drumArg).toBeNull();
+  });
+});
+
+describe('setCustomGrainEnvelope message round trip', () => {
+  it('reaches the worklet FX chain with the posted shape', async () => {
+    const { processor } = await boot(fxModule(), { fxBackend: 'ts' });
+    const fx = (processor as unknown as { fx: { setCustomGrainEnvelope(s: number[] | null): void } }).fx;
+    const spy = vi.spyOn(fx, 'setCustomGrainEnvelope');
+
+    const post = vi.fn();
+    const host = { workletNode: { port: { postMessage: post } } } as unknown as SingingVoiceHost;
+    EffectsControlMixin.setCustomGrainEnvelope.call(host, [0, 0.5, 1]);
+    await processor.handleMessage({ data: post.mock.calls[0][0] as Record<string, unknown> });
+
+    expect(spy).toHaveBeenCalledWith([0, 0.5, 1]);
   });
 });
