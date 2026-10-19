@@ -43,7 +43,6 @@ interface SamplerKnobHandlers {
   microtonalVariance: (v: number) => void;
   spatialRouting: (v: number) => void;
   drumDuckDepth: (v: number) => void;
-  spectralCompression: (v: number) => void;
   windowShape: (v: number) => void;
   customGrainEnvelope: (v: unknown) => void;
   formantLfoDepth: (v: number) => void;
@@ -206,7 +205,6 @@ export const SamplerKnobControls = React.memo(function SamplerKnobControls({
           <Knob label="Bitcrush" value={currentParams.bitcrush || 0} onChange={handlers.bitcrush} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Spectral Comp" value={currentParams.spectralComp || 0} onChange={handlers.spectralComp} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Downsample" value={currentParams.downsample || 1} onChange={handlers.downsample} min={1} max={32} step={1} color="indigo" unit="x" />
-          <Knob label="Band Dyn" value={currentParams.spectralCompression || 0} onChange={handlers.spectralCompression} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Fmt LFO Rate" value={currentParams.formantLfoRate ?? 0} onChange={handlers.formantLfoRate} min={0} max={20.0} step={0.1} color="indigo" unit="Hz" />
           <Knob label="Fmt LFO Depth" value={currentParams.formantLfoDepth ?? 0} onChange={handlers.formantLfoDepth} min={0} max={1.0} step={0.01} color="indigo" unit="%" />
           <Knob label="Reverb LFO Rate" value={currentParams.reverbLfoRate ?? 0.1} onChange={handlers.reverbLfoRate} min={0.1} max={10.0} step={0.1} color="indigo" unit="Hz" />

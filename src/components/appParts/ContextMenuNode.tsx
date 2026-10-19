@@ -95,7 +95,6 @@ const OpenContextMenu = React.memo(() => {
           currentGranularPitchShift={stepData?.granularPitchShift}
           currentBitcrush={stepData?.bitcrush}
           currentDownsample={stepData?.downsample}
-          currentSpectralCompression={stepData?.spectralCompression}
           currentVolumeFilterMod={stepData?.volumeFilterMod}
           currentAutoTune={stepData?.autoTune}
           isProphecy={isProphecy}

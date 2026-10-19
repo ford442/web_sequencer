@@ -312,9 +312,10 @@ Same flags as the stretcher: `-msimd128`, `-DNO_THREADING`, no `-ffast-math`.
   degradation and is never silent. `?vocalFx=ts` pins the TS chain for A/B testing.
 - **Spectral path.** One crossover split and one compressor per band, in both chains.
   The unregistered `spectralCompression` "leveler" (a second compressor on the same
-  bands) was deleted from the TS oracle in #1273. The "Band Dyn" knob that writes it
-  has never reached the worklet. `spectralEffects.test.ts` fails if a second stage
-  comes back.
+  bands) was deleted from the TS oracle in #1273. The "Band Dyn" knob that wrote it
+  never reached the worklet and is gone too (sampler panel and note editor); the one
+  band compressor is **Spectral Comp** (`spectralComp`). `spectralEffects.test.ts`
+  fails if a second stage comes back.
 - **SIMD.** The stereo stages whose L/R channels share coefficients (drum-duck dynamic
   EQ, sub harmonics) run both channels in `f64x2` lanes under `__wasm_simd128__`, with
   a scalar fallback. Lane math is the same IEEE double arithmetic, so the golden test

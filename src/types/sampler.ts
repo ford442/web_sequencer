@@ -85,7 +85,6 @@ export interface SamplerBankParams {
   microtonalVariance?: number;
   drumDuckDepth?: number;
   downsample?: number;
-  spectralCompression?: number;
   phonemeFilterMod?: number;
   delayLfoRate?: number;
   delayLfoDepth?: number;
