@@ -23,14 +23,14 @@ vi.mock('../rubberband-lib.js', () => ({
 
 class FakeStretcher {
   reset() {}
-  setPitchScale() {}
-  setTimeRatio() {}
+  setPitchScale(_p: number) {}
+  setTimeRatio(_r: number) {}
   getTimeRatio() { return 1; }
   getPitchScale() { return 1; }
   getSamplesRequired() { return 0; }
-  process() {}
+  process(_c: Float32Array[], _n: number, _f: boolean) {}
   available() { return 0; }
-  retrieve() { return 0; }
+  retrieve(_c: Float32Array[], _n: number) { return 0; }
 }
 
 function stretcherOnlyModule(): Record<string, unknown> {

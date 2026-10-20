@@ -17,16 +17,21 @@ export const AutomationVisualizationPanel: React.FC<AutomationVisualizationPanel
   if (trackStats.automationLaneCount <= 0 || !parsedData?.automation) {
     return (
       <div className="p-4">
-        <div role="status" className="flex flex-col items-center justify-center py-8 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-          <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
+        <div className="flex flex-col items-center justify-center py-8 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
+          <div role="status" aria-live="polite" className="sr-only">
+            No automation lanes. This song has no automation data. Lanes will appear here when the import includes parameter curves.
           </div>
-          <h3 className="text-gray-300 font-bold mb-2 text-sm">No automation lanes</h3>
-          <p className="text-gray-500 text-xs max-w-[250px]">
-            This song has no automation data. Lanes will appear here when the import includes parameter curves.
-          </p>
+          <div aria-hidden="true">
+            <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 mx-auto text-cyan-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+            <h3 className="text-gray-300 font-bold mb-2 text-sm">No automation lanes</h3>
+            <p className="text-gray-500 text-xs max-w-[250px]">
+              This song has no automation data. Lanes will appear here when the import includes parameter curves.
+            </p>
+          </div>
         </div>
       </div>
     );
