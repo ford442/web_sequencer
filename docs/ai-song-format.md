@@ -4,6 +4,8 @@ The JSON contract for handing a song spec to an AI agent and getting back
 something Hyphon can play. An agent that follows this document produces a file
 that the **AI Song** modal validates, imports, and loads into the sequencer.
 
+- **Agent brief:** [ai-song-agent-brief.md](ai-song-agent-brief.md) — a compact, prompt-ready version of this page (tracks, idioms, audible lanes, limits, one example)
+- **JSON Schema:** [`schemas/ai-song.schema.json`](schemas/ai-song.schema.json) — generated from `types.ts` by `pnpm run gen:ai-song-schema`; `pnpm run check:ai-song-schema` (part of `pnpm lint`) fails on drift, and `aiSongSchemaAgreement.test.ts` keeps schema, validator and fixtures in agreement. It is stricter than the importer in one way (unknown keys are rejected) and cannot state cross-field rules (lane length vs `stepCount`, `song` rows naming defined patterns, shadowed lanes); the validator still enforces those
 - **Schema type:** [`src/importers/ai-song/types.ts`](../src/importers/ai-song/types.ts) (`AISongData`)
 - **Validator:** `validateAISongData()` in the same file
 - **Converter:** [`AISongImporter.convert()`](../src/importers/ai-song/AISongImporter.ts) → `SavedSongData`
