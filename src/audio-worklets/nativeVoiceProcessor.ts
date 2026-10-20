@@ -35,11 +35,11 @@ export type NativeVoicePrefix = (typeof VOICE_PREFIXES)[number];
  * message handler look them up without building a string on the audio thread.
  */
 const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
-    pushEvent: `${p}_push_event`,
-    render: `${p}_render`,
-    cancelNotes: `${p}_cancel_notes`,
-    flush: `${p}_flush`,
-}])) as Record<NativeVoicePrefix, { pushEvent: string; render: string; cancelNotes: string; flush: string }>;
+    pushEvent: `${p}_push_event` as keyof HyphonNativeExports,
+    render: `${p}_render` as keyof HyphonNativeExports,
+    cancelNotes: `${p}_cancel_notes` as keyof HyphonNativeExports,
+    flush: `${p}_flush` as keyof HyphonNativeExports,
+}])) as Record<NativeVoicePrefix, { pushEvent: keyof HyphonNativeExports; render: keyof HyphonNativeExports; cancelNotes: keyof HyphonNativeExports; flush: keyof HyphonNativeExports }>;
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {

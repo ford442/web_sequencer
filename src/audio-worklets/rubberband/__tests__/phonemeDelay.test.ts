@@ -122,12 +122,16 @@ describe('PhonemeDelay', () => {
     let hasDenormal = false;
 
     for (const ch of [l, r]) {
+      let hasNaN = false;
+      let hasDenormal = false;
       for (let i = 0; i < ch.length; i++) {
         if (i === BLOCK + 5) continue; // the NaN sample itself passes through dry
         const x = ch[i];
         if (!Number.isFinite(x)) hasNaN = true;
         if (x !== 0 && Math.abs(x) < MIN_NORMAL) hasDenormal = true;
       }
+      expect(hasNaN).toBe(false);
+      expect(hasDenormal).toBe(false);
     }
 
     expect(hasNaN).toBe(false);
