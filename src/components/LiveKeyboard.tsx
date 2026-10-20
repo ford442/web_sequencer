@@ -341,6 +341,12 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
         return active;
     }, [heldByKeys, heldByMouse]);
 
+    // The most recently pressed held note drives the LED; null when nothing is held.
+    const ledNote = useMemo(() => {
+        const notes = Array.from(targetActiveNotes);
+        return notes.length > 0 ? notes[notes.length - 1] : null;
+    }, [targetActiveNotes]);
+
     useEffect(() => {
         const currentlyPlaying = playingNotesRef.current;
         const target = targetActiveNotes;
@@ -485,6 +491,16 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             </div>
 
             <div className="absolute -top-7 right-0 flex items-center gap-2 z-40">
+                <span
+                    data-testid="keyboard-note-led"
+                    role="img"
+                    aria-label={ledNote ? `Note LED: ${ledNote}` : 'Note LED: off'}
+                    title={ledNote ?? 'Note LED'}
+                    className="inline-block w-3 h-3 rounded-full border border-black/60 transition-colors duration-75"
+                    style={ledNote
+                        ? { backgroundColor: getNoteColor(ledNote), boxShadow: `0 0 8px 2px ${getNoteColor(ledNote)}` }
+                        : { backgroundColor: '#1f2937' }}
+                />
                 <button type="button" onClick={() => setShowGuide(true)} aria-label="Show Keyboard Layout Guide" title="Show Keyboard Layout Guide" className="flex items-center gap-1 text-[10px] text-cyan-500/80 hover:text-cyan-400 font-mono tracking-wider px-2 py-1 rounded border border-cyan-900/30 bg-black/20 hover:bg-black/40 transition-all">
                     <span className="text-xs" aria-hidden="true">⌨</span> PIANO LAYOUT INFO
                 </button>
