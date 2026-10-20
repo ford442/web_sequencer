@@ -9,6 +9,8 @@ interface ValidationDisplayProps {
   hasErrors: boolean;
   isValid: boolean;
   parsedData: AISongData | null;
+  /** `AIImportReport.warnings` of the last conversion. */
+  importWarnings?: string[];
   showFixSuccess: boolean;
   copiedError: boolean;
   onFixCommonIssues: () => void;
@@ -119,9 +121,10 @@ export const ValidationErrorDisplay = React.memo(function ValidationErrorDisplay
 
 export const ValidationSuccessDisplay = React.memo(function ValidationSuccessDisplay({
   parsedData,
+  importWarnings = [],
   parsedTracksElements,
   parsedAutomationLanesList,
-}: Pick<ValidationDisplayProps, 'parsedData' | 'parsedTracksElements' | 'parsedAutomationLanesList'>) {
+}: Pick<ValidationDisplayProps, 'parsedData' | 'importWarnings' | 'parsedTracksElements' | 'parsedAutomationLanesList'>) {
   if (!parsedData) return null;
 
   return (
@@ -161,6 +164,24 @@ export const ValidationSuccessDisplay = React.memo(function ValidationSuccessDis
           </p>
         )}
       </div>
+      {importWarnings.length > 0 && (
+        <div
+          className="mt-3 pt-3 border-t border-amber-900/40 text-xs"
+          role="status"
+          aria-label="Import warnings"
+          data-testid="ai-song-import-warnings"
+        >
+          <p className="text-amber-400 font-medium mb-1">
+            <span aria-hidden="true">⚠</span> {importWarnings.length} import warning{importWarnings.length === 1 ? '' : 's'}
+            <span className="text-gray-500 font-normal"> — the song still imports; these parts will not be heard</span>
+          </p>
+          <ul className="space-y-0.5 list-disc list-inside text-amber-300/80 font-mono">
+            {importWarnings.map((warning, idx) => (
+              <li key={idx}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 });

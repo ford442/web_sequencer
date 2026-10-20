@@ -305,6 +305,13 @@ export interface TiledAutomationLane {
   points: AutomationPoint[];
 }
 
+/** A recoverable problem and the input path it is about. */
+export interface AutomationIssue {
+  /** Path in the AI song, e.g. `patterns.drop.automation[0]`. */
+  field: string;
+  message: string;
+}
+
 /** Pattern lane on one target/parameter, by pattern id. */
 type LaneByPattern = Map<string, { lane: AIAutomationLane; index: number }>;
 
@@ -341,12 +348,13 @@ function contributingPattern(
  * value the last one ended on (a point on the gap's last step stops a
  * `linear` / `smooth` lane from ramping across measures it does not play).
  *
- * @returns the tiled lanes plus warnings for lanes that never play
+ * @returns the tiled lanes plus warnings for lanes that never play (`issues`
+ * carries the same messages with the path of the lane each is about)
  */
 export function tilePatternAutomation(
   block: ResolvedAISongBlock,
-): { lanes: TiledAutomationLane[]; warnings: string[] } {
-  const warnings: string[] = [];
+): { lanes: TiledAutomationLane[]; warnings: string[]; issues: AutomationIssue[] } {
+  const issues: AutomationIssue[] = [];
   const byKey = new Map<string, LaneByPattern>();
   for (const [id, pattern] of Object.entries(block.patterns)) {
     (pattern.automation ?? []).forEach((lane, index) => {
@@ -371,7 +379,7 @@ export function tilePatternAutomation(
     for (let m = 0; m < block.measures.length; m++) {
       const id = contributingPattern(block, m, target, lanes);
       if (id === null) continue;
-      const { lane } = lanes.get(id)!;
+      const { lane, index } = lanes.get(id)!;
       const values = convertAutomationToPoints(lane).map((p) => ({
         step: p.step,
         value: Math.max(0, Math.min(1, p.value)),
@@ -383,9 +391,10 @@ export function tilePatternAutomation(
         interpolation = mode;
         firstMeasure = m;
       } else if (mode !== interpolation && !heard.has(id)) {
-        warnings.push(
-          `patterns.${id} ${key} uses "${mode}" interpolation; the tiled lane uses "${interpolation}" from its first pattern.`,
-        );
+        issues.push({
+          field: `patterns.${id}.automation[${index}].interpolation`,
+          message: `patterns.${id} ${key} uses "${mode}" interpolation; the tiled lane uses "${interpolation}" from its first pattern.`,
+        });
       }
       heard.add(id);
 
@@ -404,9 +413,10 @@ export function tilePatternAutomation(
     for (const [id, { index }] of lanes) {
       if (!heard.has(id) && !block.unusedPatterns.includes(id)) {
         const where = target === 'master' ? 'any track' : target;
-        warnings.push(
-          `patterns.${id}.automation[${index}] (${key}) never plays: no measure plays pattern ${id} on ${where}.`,
-        );
+        issues.push({
+          field: `patterns.${id}.automation[${index}]`,
+          message: `patterns.${id}.automation[${index}] (${key}) never plays: no measure plays pattern ${id} on ${where}.`,
+        });
       }
     }
 
@@ -416,7 +426,11 @@ export function tilePatternAutomation(
   }
 
   tiled.sort((a, b) => a.firstMeasure - b.firstMeasure);
-  return { lanes: tiled.map(({ firstMeasure: _, ...lane }) => lane), warnings };
+  return {
+    lanes: tiled.map(({ firstMeasure: _, ...lane }) => lane),
+    warnings: issues.map((issue) => issue.message),
+    issues,
+  };
 }
 
 // ============================================================================
