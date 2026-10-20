@@ -18,8 +18,9 @@ import {
  * (gitignored); each is referenced by filename in the comment above its test.
  *
  * Not covered here, on purpose:
- *   #1394 — storage.noahcohn.com:8000 ERR_SSL_PROTOCOL_ERROR is the cloud
- *           host's TLS configuration, not code in this repo. Nothing to assert.
+ *   #1394 — storage.noahcohn.com:8000 ERR_SSL_PROTOCOL_ERROR: port 8000 is the
+ *           backend's plain-HTTP listener. Fixed by pointing CloudStorage.ts at
+ *           https://storage.noahcohn.com (443). Nothing browser-side to assert.
  *   #1397 — feature request (note-coloured LED beside the live keyboard).
  *           There is no behaviour to assert yet.
  */

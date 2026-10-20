@@ -21,7 +21,7 @@ export const CloudStatus: React.FC = React.memo(() => {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 5000);
 
-            const res = await fetch(API_BASE_URL, { signal: controller.signal });
+            const res = await fetch(`${API_BASE_URL}/api/health`, { signal: controller.signal });
             clearTimeout(timeout);
 
             if (res.ok) {
