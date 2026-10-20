@@ -2,7 +2,8 @@
 
 ## Active Backlog
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
-- Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
+- [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer. (Global clock processor makes per-track non-linear swing mathematically problematic for polyrhythm alignment).
+- [x] Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`.
 - [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
 - [x] Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
@@ -26,7 +27,7 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
-- What if we map vowel brightness/formant to open hi-hat decay time?
+- What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
@@ -221,3 +222,8 @@
   - In `handleTextToDrums`, updated the gap-filling logic for multiple consecutive consonants and the preceding-step ghost snare injection.
   - When a ghost snare is inserted, the overlapping closed hi-hat step is now randomly skipped (nulled) with a probability equal to the ghost snare's velocity.
 - Velocity Check: Utilizing standard `Math.random()` scaled by the ghost snare velocity effectively creates a probabilistic "choke" effect without requiring heavy AudioWorklet DSP changes, keeping the drum patterns organic and less rigid on intense fills. Added a new idea to the Innovation Lab.
+
+- Completed "Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`".
+  - Updated `handleTextToDrums` to assign a `length` of `2` to kick drum steps when mapping dark vowels (`'AA','AO','OW','UH','UW','AW'`).
+  - Updated open hi-hat mapping to dynamically calculate `length` based on the phoneme's duration (`p.end - p.start`).
+- Velocity Check: Expanding the data mapped from the phoneme alignment to include duration and phoneme class characteristics adds a new layer of musicality to the auto-generated drum patterns. The logic is simple but highly effective at creating more varied and expressive rhythms. Added a new idea to the Innovation Lab.
