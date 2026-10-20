@@ -88,6 +88,9 @@ export class ProphecyOscillator {
             console.log(`[ProphecyOscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
             const exportMap = await this.fetchExportMap(wasmBytes, artifact);
+            // The worklet would refuse this module by the same check — fail now
+            // instead of after PROPHECY_INIT_TIMEOUT_MS.
+            if (!exportMap) return false;
             return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, exportMap, artifact);
 
         } catch (e) {
@@ -97,42 +100,36 @@ export class ProphecyOscillator {
     }
 
     /**
-     * Complete worklet initialisation given pre-fetched WASM bytes.
-     * Extracted so the init path stays testable without a real network.
+     * Load the export map and check it resolves the prophecy voice API against
+     * the fetched module. Returns `null` when it does not: the worklet would
+     * refuse the module by the same check (prophecy-processor#initializeWasm).
      */
     private async fetchExportMap(
         wasmBytes: ArrayBuffer,
         artifact: HyphonNativeArtifact,
-    ): Promise<Record<string, string>> {
+    ): Promise<Record<string, string> | null> {
         const map = await loadHyphonWasmExportMap(artifact.threading);
-        const mapUrl = resolvePublicAsset(artifact.exportMap);
-        const glueUrl = resolvePublicAsset(artifact.glue);
         const wasmModule = await WebAssembly.compile(wasmBytes);
+        if (!prophecyExportMapInsufficient(wasmModule, map)) return map;
+
         const rawExports = wasmExportNameSnapshot(wasmModule);
-
-        if (Object.keys(map).length === 0) {
-            logEngineFallback(
-                'prophecy',
-                'wasm-worklet',
-                `${artifact.exportMap} empty and glue parse found no exports ` +
-                `(tried ${mapUrl} and ${glueUrl}). ` +
-                formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS]),
-            );
-            return map;
-        }
-
-        if (prophecyExportMapInsufficient(wasmModule, map)) {
-            logEngineFallback(
-                'prophecy',
-                'wasm-worklet',
-                `export map did not resolve prophecy_* against WASM. ` +
-                formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS]),
-            );
-        }
-
-        return map;
+        const detail = Object.keys(map).length === 0
+            ? `${artifact.exportMap} empty and glue parse found no exports ` +
+              `(tried ${resolvePublicAsset(artifact.exportMap)} and ${resolvePublicAsset(artifact.glue)}). `
+            : `export map did not resolve prophecy_* against WASM. `;
+        logEngineFallback(
+            'prophecy',
+            'wasm-worklet',
+            `${detail}${formatMissingWasmExports(rawExports, [...PROPHECY_REQUIRED_WASM_EXPORTS])} ` +
+            `— ${artifact.wasm} does not match this build (stale deploy?)`,
+        );
+        return null;
     }
 
+    /**
+     * Complete worklet initialisation given pre-fetched WASM bytes.
+     * Extracted so the init path stays testable without a real network.
+     */
     async _initWithWasmBytes(
         audioContext: AudioContext,
         workletUrl:   string,

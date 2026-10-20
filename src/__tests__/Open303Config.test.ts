@@ -2,11 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
-import { HYPHON_NATIVE_MIN_MEMORY_PAGES } from '../audio-worklets/hyphonNativeImports';
+import {
+    HYPHON_NATIVE_MIN_MEMORY_PAGES,
+    OPEN303_REQUIRED_WASM_EXPORTS,
+    PROPHECY_REQUIRED_WASM_EXPORTS,
+} from '../audio-worklets/hyphonNativeImports';
 
 // Mock WebAssembly.compile and Module.imports to avoid needing a real WASM binary.
 // Re-stubbed per test because afterEach unstubs the environment globals below.
+// The mock binary carries the voice API under its own names, like the
+// -lexports.js release build; the main thread refuses one that does not.
 const mockWasmModule = {} as WebAssembly.Module;
+const MOCK_EXPORT_NAMES = [...OPEN303_REQUIRED_WASM_EXPORTS, ...PROPHECY_REQUIRED_WASM_EXPORTS];
 const realWebAssembly = WebAssembly;
 function stubWebAssembly() {
     vi.stubGlobal('WebAssembly', {
@@ -14,10 +21,9 @@ function stubWebAssembly() {
         compile: vi.fn().mockResolvedValue(mockWasmModule),
         Module: {
             imports: vi.fn().mockReturnValue([]),
-            exports: vi.fn().mockReturnValue([
-                { name: 'da', kind: 'function' },
-                { name: 'fa', kind: 'function' },
-            ]),
+            exports: vi.fn().mockReturnValue(
+                MOCK_EXPORT_NAMES.map((name) => ({ name, kind: 'function' })),
+            ),
         },
     });
 }
@@ -34,7 +40,7 @@ function mockOpen303Fetch(url: string | Request | URL): Promise<Response> {
     if (/hyphon_wasm_export_map(\.st)?\.json/.test(href)) {
         return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ open303_create: 'da', open303_init: 'fa' }),
+            json: () => Promise.resolve(Object.fromEntries(MOCK_EXPORT_NAMES.map((name) => [name, name]))),
         } as Response);
     }
     if (/hyphon_native(\.st)?\.js/.test(href)) {
