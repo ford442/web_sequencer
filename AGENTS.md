@@ -555,7 +555,7 @@ Located in `.github/workflows/`:
 
 ### VPS Storage (Primary)
 - **Client**: `src/services/CloudStorage.ts`
-- **Base URL**: `https://storage.noahcohn.com:8000`
+- **Base URL**: `https://storage.noahcohn.com` (nginx on 443; do not use `:8000`, it is plain HTTP and fails with `ERR_SSL_PROTOCOL_ERROR`)
 - Provides REST API for songs, patterns, banks, samples
 - Endpoints:
   - `GET /api/songs` — List songs (with optional `?type=` and `?search=`)

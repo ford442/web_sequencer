@@ -82,8 +82,8 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
     }
 
     /** The session's exports, typed. Only meaningful once a session is attached. */
-    protected get x(): HyphonNativeExports {
-        return (this.native?.exports ?? {}) as HyphonNativeExports;
+    protected get x(): HyphonNativeExports & Record<string, (...args: never[]) => unknown> {
+        return (this.native?.exports ?? {}) as HyphonNativeExports & Record<string, (...args: never[]) => unknown>;
     }
 
     // ── Session ──────────────────────────────────────────────────────────────
