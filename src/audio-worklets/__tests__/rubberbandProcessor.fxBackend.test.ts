@@ -23,8 +23,8 @@ vi.mock('../rubberband-lib.js', () => ({
 
 class FakeStretcher {
   reset() {}
-  setPitchScale() {}
-  setTimeRatio() {}
+  setPitchScale(_p: number) {}
+  setTimeRatio(_r: number) {}
   getTimeRatio() { return 1; }
   getPitchScale() { return 1; }
   getSamplesRequired() { return 0; }
