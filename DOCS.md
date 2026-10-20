@@ -42,6 +42,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
 | [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0 / v1.1 song mode): required fields, patterns + song rows, ignored fields, examples |
+| [docs/ai-song-agent-brief.md](docs/ai-song-agent-brief.md) | Prompt-ready (≤150 lines) spec for agents writing `AISongData`: tracks, idioms, audible lanes, limits, a validated example, the render command. Pairs with [docs/schemas/ai-song.schema.json](docs/schemas/ai-song.schema.json) (generated; `pnpm run check:ai-song-schema`) |
 | [docs/ai-song-render.md](docs/ai-song-render.md) | `pnpm run ai-song:render`: render an AI song headless, `report.json` metrics + exit codes, the `window.__HYPHON_AGENT__` hook |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |

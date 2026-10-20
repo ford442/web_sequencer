@@ -37,6 +37,7 @@ import {
 } from '../../services/AISongStorage';
 import type { StorageResult, UploadSuccess, StorageError } from '../../services/CloudStorage';
 import { isSupportedAISongVersion } from './versioning';
+import { VALID_PARAMETERS_BY_TARGET } from './automationParameters';
 import {
   AI_SONG_TRACK_NAMES,
   DEFAULT_AI_PATTERN_ID,
@@ -314,18 +315,6 @@ const VALID_AUTOMATION_TARGETS: AIAutomationTarget[] = [
   'closedHat', 'openHat', 'sampler', 'master'
 ];
 
-/** Valid parameters for each target */
-const VALID_PARAMETERS_BY_TARGET: Record<AIAutomationTarget, AITargetedParameter[]> = {
-  synthA: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
-  synthB: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive', 'delayTime', 'delayFeedback', 'delayMix', 'macroHarmonics', 'macroTimbre', 'macroMorph', 'macroDecay', 'macroLpgColour', 'macroFmMod', 'macroTimbreMod', 'macroMorphMod', 'macroGlide', 'macroSpread'],
-  bass2: ['filterCutoff', 'filterResonance', 'filterMode', 'decay', 'accent', 'envMod', 'waveform', 'pitch', 'volume', 'drive'],
-  kick: ['pitch', 'decay', 'tone', 'volume'],
-  snare: ['decay', 'tone', 'noise', 'volume'],
-  closedHat: ['pitch', 'decay', 'volume'],
-  openHat: ['pitch', 'decay', 'volume'],
-  sampler: ['filterCutoff', 'filterResonance', 'drive', 'volume', 'playbackSpeed'],
-  master: ['tempo', 'swing', 'masterVolume']
-};
 
 /** Valid interpolation modes */
 const VALID_INTERPOLATION_MODES: AIInterpolationMode[] = ['step', 'linear', 'smooth'];

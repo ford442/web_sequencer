@@ -35,6 +35,8 @@ const TB303_2 = TRAK_TRACK_INDEX.TB303_2;
 const PCF_TRACK = TRAK_TRACK_INDEX.PCF;
 import { automationStore, generateLaneId, resetLaneIdCounter } from '../stores/automationStore';
 import type { UnifiedAutomationLane } from '../types';
+import { ROUTED_AUTOMATION, laneDispatchGap } from '../audio/automation/laneResolver';
+import { VALID_PARAMETERS_BY_TARGET } from '../importers/ai-song/automation';
 
 // ---------------------------------------------------------------------------
 // Minimal AudioContext mock
@@ -802,5 +804,71 @@ describe('AutomationScheduler lane sweep (acceptance)', () => {
     expect(mgr.scheduleParamAtTime).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ROUTED_AUTOMATION ↔ _scheduleParam dispatch
+// ---------------------------------------------------------------------------
+
+/** A scheduler with every engine attached, and the calls each one received. */
+function makeFullyAttachedScheduler() {
+  const mgr = makeOpen303Manager();
+  const prophecy = { scheduleParamAtTime: vi.fn() };
+  const macro = { scheduleParamAtTime: vi.fn() };
+  const pcf = makePcfEffect();
+  const scheduler = new AutomationScheduler(makeAudioContext(), mgr as unknown as Open303Manager);
+  scheduler.setProphecyManager(prophecy as never);
+  scheduler.setMacroManager(macro as never);
+  scheduler.setPcfEffect(pcf as unknown as PcfEffect);
+  // Dispatches only: `is*Ready()` is the scheduler asking, not an engine being set.
+  const dispatchers = [
+    ...Object.entries(mgr), ...Object.entries(prophecy), ...Object.entries(macro), ...Object.entries(pcf),
+  ].filter(([name]) => !/^is[A-Z]/.test(name));
+  const calls = () => dispatchers.reduce((n, [, fn]) => n + (fn as ReturnType<typeof vi.fn>).mock.calls.length, 0);
+  return { scheduler, calls };
+}
+
+describe('ROUTED_AUTOMATION — the importer and the scheduler share one list', () => {
+  const routed = Object.entries(ROUTED_AUTOMATION).flatMap(([target, entry]) =>
+    entry!.parameters.map((parameter) => [target, parameter] as const));
+
+  it('lists the targets the scheduler switch routes', () => {
+    expect(Object.keys(ROUTED_AUTOMATION).sort()).toEqual(['bass2', 'master', 'synthA', 'synthB']);
+  });
+
+  it.each(routed)('%s.%s has a dispatch case that reaches an engine', (target, parameter) => {
+    const { scheduler, calls } = makeFullyAttachedScheduler();
+    const lane = makeLane({
+      target: target as UnifiedAutomationLane['target'],
+      parameter,
+      points: [{ step: 0, value: 0.5 }],
+    });
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+    expect(calls()).toBeGreaterThan(0);
+  });
+
+  // The other direction: a lane the importer calls a gap really is silent. Both
+  // lists would drift together if only the table was ever checked against the switch.
+  const gaps = (Object.entries(VALID_PARAMETERS_BY_TARGET) as Array<[string, readonly string[]]>)
+    .flatMap(([target, parameters]) => parameters.map((parameter) => [target, parameter] as const))
+    .filter(([target, parameter]) => laneDispatchGap(target as UnifiedAutomationLane['target'], parameter) !== null);
+
+  it('has gaps to check (the AI vocabulary is wider than what is routed)', () => {
+    expect(gaps.length).toBeGreaterThan(0);
+  });
+
+  it.each(gaps)('%s.%s is a gap and the scheduler plays nothing for it', (target, parameter) => {
+    const { scheduler, calls } = makeFullyAttachedScheduler();
+    const lane = makeLane({
+      target: target as UnifiedAutomationLane['target'],
+      parameter,
+      points: [{ step: 0, value: 0.5 }],
+    });
+    scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+    // master.pcf* is the one routed-but-unattached entry; it is not an AI parameter.
+    expect(calls()).toBe(0);
   });
 });
