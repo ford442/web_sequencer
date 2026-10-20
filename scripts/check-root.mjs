@@ -60,7 +60,7 @@ const ALLOWED_ROOT_FILES = new Set([
   'AGENTS.md',
   'DOCS.md',
   'CHANGELOG.md',
-  'claude.md',
+  'CLAUDE.md',
   // Licences of vendored code that ships in the build (third_party/, rubberband/).
   'THIRD_PARTY_NOTICES.md',
   'CLAUDE.md',

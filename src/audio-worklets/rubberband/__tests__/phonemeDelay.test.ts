@@ -118,8 +118,8 @@ describe('PhonemeDelay', () => {
     const [l, r] = render(delay, 3000, 1, 1, () => vowel, (b, i) => (b === 0 && i === 0 ? 1 : b === 1 && i === 5 ? NaN : 0));
     const MIN_NORMAL = 1.1754943508222875e-38;
 
-    let hasNaN = false;
-    let hasDenormal = false;
+    const hasNaN = false;
+    const hasDenormal = false;
 
     for (const ch of [l, r]) {
       let hasNaN = false;

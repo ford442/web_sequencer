@@ -68,7 +68,7 @@ Places to look first when debugging audio/backends
 AI-assistant / repo docs to fuse into Copilot behavior
 
 - `README.md` — quick start and major scripts (includes TTS model notes and quick commands).
-- `AGENTS.md` / `claude.md` — contain the "Four Worlds" rule, SharedArrayBuffer/COOP+COEP requirement, and detailed build boundaries. Copilot sessions should respect those build-world boundaries and prefer touching TypeScript only unless explicitly asked to rebuild native/WASM pieces.
+- `AGENTS.md` / `CLAUDE.md` — contain the "Four Worlds" rule, SharedArrayBuffer/COOP+COEP requirement, and detailed build boundaries. Copilot sessions should respect those build-world boundaries and prefer touching TypeScript only unless explicitly asked to rebuild native/WASM pieces.
 
 Practical tips for Copilot sessions (do this first)
 

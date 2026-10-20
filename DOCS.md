@@ -9,7 +9,7 @@ Single entry point for all **live** Hyphon documentation. Historical planning sc
 | Audience | Read first |
 |----------|------------|
 | New contributors | [README.md](README.md) → [AGENTS.md](AGENTS.md) |
-| AI agents (Claude, Copilot, Jules) | [AGENTS.md](AGENTS.md) → [claude.md](claude.md) |
+| AI agents (Claude, Copilot, Jules) | [AGENTS.md](AGENTS.md) → [CLAUDE.md](CLAUDE.md) |
 | Architecture deep-dive | [docs/DEVELOPER_CONTEXT.md](docs/DEVELOPER_CONTEXT.md) |
 | Subsystem docs by topic | [docs/README.md](docs/README.md) (mirrors tables below) |
 
@@ -24,7 +24,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [README.md](README.md) | Project overview, features, quick-start, TTS model setup |
 | [AGENTS.md](AGENTS.md) | Agent guide: architecture, Four Worlds build rule, commands, pitfalls |
 | [CHANGELOG.md](CHANGELOG.md) | Release and feature changelog |
-| [claude.md](claude.md) | Claude-specific dev guide: stack, structure, debugging |
+| [CLAUDE.md](CLAUDE.md) | Claude-specific dev guide: stack, structure, debugging |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Licence notices of vendored code compiled into the build (Plaits / stmlib, MIT); ships in `dist/` |
 | [DOCS.md](DOCS.md) | This index |
 
