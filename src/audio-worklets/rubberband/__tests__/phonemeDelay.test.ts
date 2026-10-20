@@ -117,18 +117,22 @@ describe('PhonemeDelay', () => {
     // NaN in block 1, impulse in block 0, then a long silent ring-out.
     const [l, r] = render(delay, 3000, 1, 1, () => vowel, (b, i) => (b === 0 && i === 0 ? 1 : b === 1 && i === 5 ? NaN : 0));
     const MIN_NORMAL = 1.1754943508222875e-38;
-    let hasNan = false;
+
+    let hasNaN = false;
     let hasDenormal = false;
+
     for (const ch of [l, r]) {
       for (let i = 0; i < ch.length; i++) {
         if (i === BLOCK + 5) continue; // the NaN sample itself passes through dry
         const x = ch[i];
-        if (!Number.isFinite(x)) hasNan = true;
+        if (!Number.isFinite(x)) hasNaN = true;
         if (x !== 0 && Math.abs(x) < MIN_NORMAL) hasDenormal = true;
       }
     }
-    expect(hasNan).toBe(false);
+
+    expect(hasNaN).toBe(false);
     expect(hasDenormal).toBe(false);
+
     // Long after the impulse the tail has died to exact silence (flushed, not denormal).
     expect(l.subarray(l.length - BLOCK).every((x) => x === 0)).toBe(true);
   });
