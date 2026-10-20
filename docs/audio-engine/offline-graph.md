@@ -157,6 +157,25 @@ a sampler bank whose audio is TTS or a URL does not exist until import, so it is
 listed as skipped rather than dropped. The modal plays the rendered WAV and
 shows the skip rows plus any unsupported WAM2 insert.
 
+### Song automation lanes
+
+Stems, the AI preview and the 303 freeze play `SavedSongData.automationLanes`
+(#1384). The lanes are resolved per 16th step by `laneResolver.ts`, the
+resolver the live `AutomationScheduler` uses, and reach the renderers as
+per-step params: `renderSynthPattern`'s `automation` (filter cutoff and
+resonance, plus decay on 303 voices) and `Offline303PatternData.paramSteps`
+(plain data, so a job crosses the worker boundary unchanged). Nothing is
+scheduled against the `OfflineAudioContext`; the compiler's master bus never
+sees a lane. Each consumer reports the routed lanes it cannot play, master PCF
+among them (live does not play those either). An automated track skips the
+Pyodide freezer, which takes one param set per track, and renders per hit.
+Real WebGPU high-fid renders an automated pattern through highfid-cpu. The
+stem renderer's biquad also maps cutoff linearly (`× 8000` Hz), where the 303
+worklet uses an exponential curve. That gap exists for static knob values too.
+Rendering `303-*` stems through the offline 303 engines closes it, and the
+`paramSteps` plumbing for that is already in place. Details:
+[automation.md](../automation.md#offline-renders-stems-ai-preview-303-freeze).
+
 ## Not in this phase
 
 - **Instrument slots offline.** Native WAM2 instruments mount and are exposed as

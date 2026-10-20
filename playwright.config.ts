@@ -15,13 +15,6 @@ import { defineConfig, devices } from '@playwright/test';
  * StartOverlay `?e2e=1` unlocks AudioContext inside the click turn (Firefox/
  * WebKit otherwise hang forever on suspended resume after React setState).
  */
-// Known-red triage tests, excluded on CI only so the E2E job stays a usable
-// signal. They still run locally and stay in tests/live-issue-triage.spec.ts.
-//  - #1395: SUS/REL REC dots overlap the oscillator selector (all browsers).
-// Remove each entry when its issue is fixed.
-const CI_KNOWN_RED_ALL = /#1395 Synth A/;
-const CI_KNOWN_RED_FIREFOX = /#1395 Synth A/;
-
 export default defineConfig({
   testDir: './tests',
   globalSetup: './tests/global-setup.ts',
@@ -54,7 +47,6 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      grepInvert: process.env.CI ? CI_KNOWN_RED_ALL : undefined,
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: {
@@ -65,7 +57,6 @@ export default defineConfig({
     },
     {
       name: 'firefox',
-      grepInvert: process.env.CI ? CI_KNOWN_RED_FIREFOX : undefined,
       use: {
         ...devices['Desktop Firefox'],
         launchOptions: {
@@ -84,7 +75,6 @@ export default defineConfig({
       // Renderer aborts under parallel boots; serial + one retry keeps the matrix honest.
       fullyParallel: false,
       retries: 1,
-      grepInvert: process.env.CI ? CI_KNOWN_RED_ALL : undefined,
       use: { ...devices['Desktop Safari'] },
     },
   ],

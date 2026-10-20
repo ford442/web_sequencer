@@ -4,6 +4,8 @@ The JSON contract for handing a song spec to an AI agent and getting back
 something Hyphon can play. An agent that follows this document produces a file
 that the **AI Song** modal validates, imports, and loads into the sequencer.
 
+- **Agent brief:** [ai-song-agent-brief.md](ai-song-agent-brief.md) — a compact, prompt-ready version of this page (tracks, idioms, audible lanes, limits, one example)
+- **JSON Schema:** [`schemas/ai-song.schema.json`](schemas/ai-song.schema.json) — generated from `types.ts` by `pnpm run gen:ai-song-schema`; `pnpm run check:ai-song-schema` (part of `pnpm lint`) fails on drift, and `aiSongSchemaAgreement.test.ts` keeps schema, validator and fixtures in agreement. It is stricter than the importer in one way (unknown keys are rejected) and cannot state cross-field rules (lane length vs `stepCount`, `song` rows naming defined patterns, shadowed lanes); the validator still enforces those
 - **Schema type:** [`src/importers/ai-song/types.ts`](../src/importers/ai-song/types.ts) (`AISongData`)
 - **Validator:** `validateAISongData()` in the same file
 - **Converter:** [`AISongImporter.convert()`](../src/importers/ai-song/AISongImporter.ts) → `SavedSongData`
@@ -96,7 +98,9 @@ existed still load. Both are validated when present: a malformed value is a
 `VALIDATION_ERROR`, not a silent drop.
 
 > **Pattern length:** `swing` and `timeSignature` reach the transport through
-> the song meter when the song loads. A v1.0 song is always 32 steps
+> the song meter when the song loads (`resolveSongMeter` → `transportMixStore.applyMeter`;
+> the clock gets `swingPercentToClock(swing)`, so 50 → straight and 75 → the
+> hardest shuffle: values above 75 play like 75, below 50 like 50; swing is ignored while the transport follows an external MIDI clock). A v1.0 song is always 32 steps
 > regardless of the signature. A v1.1 song is `globals.stepCount` steps (default 32), written to
 > the song meter (`SavedSongData.stepCount`).
 
@@ -117,7 +121,7 @@ song's `patterns`.
 "synthA": {
   "notes": [ ... ],   // required
   "params": { ... },  // optional
-  "harmonizer": { }   // optional — IGNORED, see below
+  "harmonizer": { }   // optional — IGNORED (warns when enabled), see below
 }
 ```
 
@@ -196,7 +200,7 @@ placement):
 | `params` | partial `SamplerBankParams` | — | `playbackSpeed`, `volume`, `filterCutoff`, `filterResonance`, `drive`, `delaySend`, … |
 | `ttsText` | `string` | — | Becomes the bank's `sampleName` |
 | `sampleUrl` | `string` | — | Fallback `sampleName` when `ttsText` is absent |
-| `phonemePainter` | object | — | **IGNORED**, see below |
+| `phonemePainter` | object | — | **IGNORED** (warns when enabled), see below |
 
 Neither `ttsText` nor `sampleUrl` loads audio at import — they name the bank, and
 the sample itself is resolved later by the sampler.
@@ -236,7 +240,11 @@ pattern-local. A mismatch is a `VALIDATION_ERROR`
 ### Which lanes actually reach an engine
 
 Validation accepts every target/parameter pair in the table above, but
-`AutomationScheduler` only routes three targets today:
+`AutomationScheduler` only routes three targets today. The routed set is one
+table, `ROUTED_AUTOMATION` in
+[`laneResolver.ts`](../src/audio/automation/laneResolver.ts) — the importer reads
+it, and a scheduler test asserts every entry has a dispatch case, so this page,
+the warnings and the scheduler cannot drift apart silently:
 
 | Target | Routed? | Parameters that reach an engine |
 |--------|---------|---------------------------------|
@@ -249,12 +257,16 @@ the automation UI, but changes nothing you can hear. `filterMode`, `waveform`,
 `pitch` and the three `delay*` parameters are likewise accepted and stored but
 have no dispatch case. Prefer the ✅ row when the point is audible movement.
 
-The importer says so: each such lane adds a warning to `report.warnings`
-(`automation kick.decay is saved but never plays: the scheduler routes no kick
-lanes.`), and `ai-song:render` fails on it unless run with `--no-strict`. The
-check is `laneDispatchGap()` in
-[`laneResolver.ts`](../src/audio/automation/laneResolver.ts), which mirrors the
-scheduler's dispatch.
+The importer says so: each such lane adds a warning to `report.warnings` that
+names its path (`automation[3] kick.decay is saved but never plays: the
+scheduler routes no kick lanes.`; `patterns.drop.automation[0] …` for a
+pattern-local lane). The lane stays in `song.automationLanes`, so nothing is
+lost if routing lands later. A lane with no value on any step is not stored and
+not reported. The check is `laneDispatchGap()`, which reads
+`ROUTED_AUTOMATION`. The warnings also show in the AI Song modal under
+"Valid AI Song", and `ai-song:render` fails on them unless run with
+`--no-strict`; `convert(data, { strict: true })` does the same, see
+[Errors](#errors).
 
 Offline renders (stems, the import modal's audio preview, 303 freeze) play
 the same lanes; what each one can and cannot play is listed in
@@ -421,6 +433,16 @@ with `trackParamStorage.synthA` = `[groove, drop, groove]` knobs (break has no
 
 ---
 
+## Accepted but not played
+
+An **enabled** `harmonizer` or `phonemePainter` parses without error but has
+**no effect** on the imported song: nothing attaches it. Each adds a warning
+(`tracks.synthA.harmonizer is ignored: the importer does not attach harmonizer
+settings to the song.`, `tracks.sampler[1].phonemePainter is ignored: …`); one
+with `enabled: false` asks for nothing and does not warn.
+`AISongImporter.convertHarmonizer()` / `convertPhonemePainter()` still validate
+one on request.
+
 ## Silently ignored
 
 These parse without error and appear in no warning, but have **no effect** on
@@ -428,8 +450,6 @@ the imported song:
 
 | Input | Status |
 |-------|--------|
-| `tracks.<synth>.harmonizer` | Accepted by the schema; `AISongImporter.convertHarmonizer()` still validates one on request, but nothing attaches the result to the song. |
-| `tracks.sampler[].phonemePainter` | Same — validated on request, never attached. |
 | `meta.createdAt` | Stored as metadata; never parsed or range-checked. |
 | Extra/unknown top-level keys | Ignored by the validator. In particular there is **no `effects` field** — an effects chain was never part of `AISongData` and the dead converter for it has been removed. |
 | Drum voice parameters | Not expressible; kick/snare/hat params always come from importer defaults. |
@@ -440,7 +460,7 @@ the imported song:
 
 | Type | Meaning |
 |------|---------|
-| `VALIDATION_ERROR` | `field` + `message` name the offending path, e.g. `meta.prompt`, `globals.swing`, `automation[1].steps`, `song[3].bass2`, `patterns.drop.automation[0].steps` |
+| `VALIDATION_ERROR` | `field` + `message` name the offending path, e.g. `meta.prompt`, `globals.swing`, `automation[1].steps`, `song[3].bass2`, `patterns.drop.automation[0].steps`. With `{ strict: true }` it also carries the first warning (see below) |
 | `UNSUPPORTED_VERSION` | `meta.version` is not `"1.0"` or `"1.1"` |
 | `CONVERSION_ERROR` | Threw while converting; `track` + `details` |
 | `INVALID_NOTE` | Reserved for note-level failures |
@@ -450,3 +470,11 @@ Recoverable problems (a note on step 40, an unparseable note name, a sampler
 `bankIndex` of 9, a lane that never plays) do **not** fail the import — they
 are dropped (or kept but inaudible) and reported in `result.report.warnings`.
 `ai-song:render` treats every warning as an error by default (strict mode).
+
+`new AISongImporter().convert(data, { strict: true })` (or
+`convertAISong(data, { strict: true })`) does the same in code: instead of
+importing, it returns a `VALIDATION_ERROR` whose `field` is the path of the first
+warning (`automation[3]`, `tracks.synthA.harmonizer`, `tracks.synthA.notes[2].step`)
+and whose `message` is that warning, plus the paths of any others
+(`… (and 2 more warnings: automation[4], automation[5])`). Default is off: the
+import modal and the app load a song with its warnings.

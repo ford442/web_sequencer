@@ -39,6 +39,8 @@ export function useAISongModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
   const [parsedData, setParsedData] = useState<AISongData | null>(null);
+  // Recoverable import problems (dropped notes, lanes nothing plays): the song still imports.
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [validationState, setValidationState] = useState<ValidationState>({
     stage: 'idle',
     progress: 0,
@@ -61,6 +63,7 @@ export function useAISongModal({
     if (!isOpen) {
       setJsonInput('');
       setParsedData(null);
+      setImportWarnings([]);
       setValidationState({ stage: 'idle', progress: 0, fieldErrors: [] });
       setIsImporting(false);
       setActiveTab('paste');
@@ -99,6 +102,7 @@ export function useAISongModal({
   const handleJsonChange = useCallback(async (value: string, skipProgress = false) => {
     setJsonInput(value);
     setParsedData(null);
+    setImportWarnings([]);
     setValidationState({ stage: 'idle', progress: 0, fieldErrors: [] });
     setShowFixSuccess(false);
 
@@ -169,7 +173,13 @@ export function useAISongModal({
 
     setValidationState({ stage: 'complete', progress: 100, fieldErrors: [], category: undefined });
     setParsedData(parseResult.data);
-    onShowToast(`✓ Valid: "${parseResult.data.meta.title}"`, 'success');
+    setImportWarnings(result.report.warnings);
+    onShowToast(
+      result.report.warnings.length > 0
+        ? `⚠ Valid: "${parseResult.data.meta.title}" (${result.report.warnings.length} warning${result.report.warnings.length === 1 ? '' : 's'})`
+        : `✓ Valid: "${parseResult.data.meta.title}"`,
+      result.report.warnings.length > 0 ? 'info' : 'success',
+    );
   }, [onShowToast]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -563,6 +573,7 @@ export function useAISongModal({
     isDragging,
     dragCounter,
     parsedData,
+    importWarnings,
     validationState,
     isImporting,
     activeTab,

@@ -18,8 +18,9 @@ import {
  * (gitignored); each is referenced by filename in the comment above its test.
  *
  * Not covered here, on purpose:
- *   #1394 — storage.noahcohn.com:8000 ERR_SSL_PROTOCOL_ERROR is the cloud
- *           host's TLS configuration, not code in this repo. Nothing to assert.
+ *   #1394 — storage.noahcohn.com:8000 ERR_SSL_PROTOCOL_ERROR: port 8000 is the
+ *           backend's plain-HTTP listener. Fixed by pointing CloudStorage.ts at
+ *           https://storage.noahcohn.com (443). Nothing browser-side to assert.
  *   #1397 — feature request (note-coloured LED beside the live keyboard).
  *           There is no behaviour to assert yet.
  */
@@ -128,11 +129,11 @@ test.describe('live-site issue triage — fresh dist boot', () => {
   });
 
   // #1395 -------------------------------------------------------------------
-  // REPRODUCES ON MAIN — see issue #1395. Chromium, Firefox and WebKit all
-  // agree: at the default 1280x720 viewport the SUS and REL knobs' REC "R" dots
-  // sit on top of the oscillator selector buttons (303 / PRO). The other
-  // reported symptoms do NOT reproduce: knobs paint, labels sit under their
-  // knobs. Left failing on purpose; see the issue comment for the hypothesis.
+  // Reproduced on main as the oscillator selector covering the SUS/REL REC
+  // dots and labels (it sized to its content, ~520px wide). Fixed by capping the
+  // selector to a right-hand column and moving the knobs out from under it
+  // (`SYNTH_OVERLAY_COLUMN`, `getSynthControls`). The other reported symptoms
+  // (knobs missing, labels scattered) did not reproduce on a fresh build.
   // Screenshot: 1395-synth-a-lead.png
   test('#1395 Synth A // LEAD panel: knobs, labels and oscillator selector are laid out', async () => {
     const synthA = await openRackModule(page, 'SYNTH A');
