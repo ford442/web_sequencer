@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseHyphonGlueExportMap, resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
-import { normalizeWasmExports } from '../audio-worklets/hyphonNativeImports';
+import { normalizeWasmExports, OPEN303_REQUIRED_WASM_EXPORTS } from '../audio-worklets/hyphonNativeImports';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { repoRoot } from '@/test/helpers/requireRepoArtifacts';
@@ -135,12 +135,21 @@ describe('Open303Oscillator.init export map wiring', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const mockModule = {} as WebAssembly.Module;
+
+    const requiredMangled = OPEN303_REQUIRED_WASM_EXPORTS
+      .map((bare) => exportMap[bare])
+      .filter((name): name is string => Boolean(name));
+
+    expect(requiredMangled.length).toBe(OPEN303_REQUIRED_WASM_EXPORTS.length);
+
     vi.stubGlobal('WebAssembly', {
       ...WebAssembly,
       compile: vi.fn().mockResolvedValue(mockModule),
       Module: {
          imports: vi.fn().mockReturnValue([{ kind: 'memory', module: 'a', name: 'a' }]),
-         exports: vi.fn().mockReturnValue([{ kind: 'function', name: 'open303_create_mangled' }]),
+         exports: vi.fn().mockReturnValue(
+           requiredMangled.map((name) => ({ kind: 'function', name })),
+         ),
       },
     });
 
