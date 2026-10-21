@@ -22,34 +22,46 @@ export class SubHarmonicsEffect {
       if (!outCh) continue;
       if (channel > 1) continue; // Stereo only
 
+      // ⚡ Bolt: Extract state to local variables outside the inner loop to
+      // eliminate O(N) array property lookups per quantum on the hot path.
+      let lastSign = this.lastSign[channel];
+      let subToggle = this.subToggle[channel];
+      let lp1 = this.lp1[channel];
+      let lp2 = this.lp2[channel];
+
       for (let i = 0; i < outCh.length; i++) {
         const x = outCh[i];
 
         // Zero crossing detector to divide frequency by 2
         const currentSign = x >= 0 ? 1 : -1;
-        if (currentSign !== this.lastSign[channel]) {
+        if (currentSign !== lastSign) {
           if (currentSign === 1) {
-            this.subToggle[channel] = -this.subToggle[channel];
+            subToggle = -subToggle;
           }
-          this.lastSign[channel] = currentSign;
+          lastSign = currentSign;
         }
 
         // Raw sub-octave square wave
-        const rawSub = this.subToggle[channel] * 0.5;
+        const rawSub = subToggle * 0.5;
 
         // Apply low-pass filter twice (2-pole approximation) to make it smooth/sine-like
-        this.lp1[channel] = this.lp1[channel] + alpha * (rawSub - this.lp1[channel]);
-        this.lp2[channel] = this.lp2[channel] + alpha * (this.lp1[channel] - this.lp2[channel]);
+        lp1 = lp1 + alpha * (rawSub - lp1);
+        lp2 = lp2 + alpha * (lp1 - lp2);
 
         // Apply subtle soft-clipping saturation to the sub-harmonic
         const drive = 2.5;
-        const drivenSub = this.lp2[channel] * 4.0 * drive;
+        const drivenSub = lp2 * 4.0 * drive;
         const saturatedSub = drivenSub / (1.0 + Math.abs(drivenSub));
 
         // Compensate for gain loss and mix with the dry signal
         const finalSub = (saturatedSub / drive) * 4.0;
         outCh[i] = x + (finalSub * effectiveSubAmount);
       }
+
+      this.lastSign[channel] = lastSign;
+      this.subToggle[channel] = subToggle;
+      this.lp1[channel] = lp1;
+      this.lp2[channel] = lp2;
     }
   }
 }
