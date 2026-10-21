@@ -69,6 +69,7 @@ export function generatePyodideLoopBuffer(
 }
 
 /** Pre-render C4 loop buffers for live VoiceManager playback. */
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function prerenderPyodideBuffers(
   pyodide: PyodideLike,
   context: BaseAudioContext,
