@@ -1,6 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore dynamically linking step lengths to phoneme duration.
+- Velocity Check: Utilizing standard arithmetic to implement dynamic phoneme step lengths within `handleTextToDrums` allowed translating phonetic rhythm onto generated drum loops effectively without affecting core Sequencer or TTS DSP architecture.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
 - [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
@@ -26,8 +28,9 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing.
+- Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
 - What if we map vowel brightness/formant to open hi-hat decay time?
-- Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).

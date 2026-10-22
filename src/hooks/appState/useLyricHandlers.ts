@@ -165,10 +165,12 @@ export function useLyricHandlers(deps: {
                 const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
                 const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
 
+                const durationSteps = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
+
                 if (isVowel) {
                     consecutiveConsonants = 0;
                     lastConsonantStep = -1;
-                    if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                    if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: durationSteps };
                 } else {
                     consecutiveConsonants++;
 
@@ -199,7 +201,7 @@ export function useLyricHandlers(deps: {
                     }
 
                     if (isSnare) {
-                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: durationSteps };
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = 0.4;
@@ -209,11 +211,11 @@ export function useLyricHandlers(deps: {
                             }
                         }
                     } else if (isOpenHat) {
-                        if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: durationSteps };
                     } else if (isHat) {
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: durationSteps };
                     } else {
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: durationSteps };
                     }
 
                     lastConsonantStep = stepIdx;
