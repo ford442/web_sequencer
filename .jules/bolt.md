@@ -56,3 +56,7 @@
 **Learning:** In AudioWorklet DSP modules, variables like envelope multipliers and cutoff frequencies are often calculated using `Math.exp()` and `Math.pow()` inside the `process()` hot path every quantum (128 samples). In `pcf-processor.ts`, `envelopeDecayRate` and `baseCutoff` values were being repeatedly used in `Math.pow` calculations on every block.
 **Action:** Extracted these calculations by caching the block decay multiplier (updating it only when `blockSize` or the rate parameter changes) and pre-calculating the static `baseHz` mapped from `baseCutoff` on parameter change. This totally eliminated `Math.pow` calls per-block on the hot path without altering the math.
 >>>>>>> c4f2143 (feat(ai-song): `pnpm run ai-song:render` — agents render and check their own songs (#1386) (#1467))
+
+## 2025-03-03 - Extract array property accesses from DSP inner loops
+**Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), accessing object properties from arrays (e.g. `this.fastEnv[channel]`) adds unnecessary overhead. Extracting them to local variables outside the inner loop eliminates O(N) array property lookups per quantum on the hot path, resulting in measurable performance improvements in effects like `TransientExtractor`, `SubHarmonicsEffect`, and `ToneFilters`.
+**Action:** Extract array state variables to local variables before the inner loop, update them within the loop, and write them back to the array afterwards in hot loop AudioWorklets to reduce overhead.
