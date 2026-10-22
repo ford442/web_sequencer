@@ -1,10 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
-- What if we map vowel brightness/formant to open hi-hat decay time?
-- [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
-- [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer - mathematically problematic because the engine relies on a global AudioWorklet clock processor.
+- Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
 - [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
 - [x] Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
@@ -28,10 +26,8 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
-- Explore mapping lyric text sentiment to default scale
-- Explore adding a humanize function to drum velocities based on phoneme intensity
-
-
+- What if we map vowel brightness/formant to open hi-hat decay time?
+- Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
@@ -225,6 +221,3 @@
   - In `handleTextToDrums`, updated the gap-filling logic for multiple consecutive consonants and the preceding-step ghost snare injection.
   - When a ghost snare is inserted, the overlapping closed hi-hat step is now randomly skipped (nulled) with a probability equal to the ghost snare's velocity.
 - Velocity Check: Utilizing standard `Math.random()` scaled by the ghost snare velocity effectively creates a probabilistic "choke" effect without requiring heavy AudioWorklet DSP changes, keeping the drum patterns organic and less rigid on intense fills. Added a new idea to the Innovation Lab.
-
-- Completed "Explore dynamically linking step lengths to phoneme duration" by updating `handleLyricApply` and `handleTextToDrums` in `useLyricHandlers.ts`.
-- Velocity Check: Mapping the calculated physical time duration of the phonemes mathematically to the 16th-note grid length via `Math.round((p.end - p.start) / (60 / tempoRef.current / 4))` natively binds text-rhythm without overhauling step logic, maintaining architectural simplicity.
