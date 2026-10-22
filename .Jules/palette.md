@@ -14,3 +14,6 @@
 ## 2026-10-18 - Accessible Labels for Repeating UI Buttons
 **Learning:** When a button repeats across multiple rows with the exact same visible text (e.g., 'Automate'), simply adding an `aria-label` isn't enough, as screen readers may redundantly announce the generic visible text alongside it.
 **Action:** Differentiate them for screen readers by adding context to the `<button>`'s `aria-label` and `title` (e.g., `Automate ${param.label}`). Then, wrap the visible inner text in `<span aria-hidden="true">` to hide the redundant generic string.
+## 2024-09-24 - Accessible Input Labels
+**Learning:** Adding an `aria-label` alone is sometimes insufficient. Adding `aria-label` to inputs that are already grouped, or stand-alone controls like `<select>` elements, might be insufficient or redundant. Screen readers handle explicit `<label htmlFor="id">` bindings much better.
+**Action:** Always link `<select>` or `<input>` elements to `<label htmlFor="id">` elements instead of adding redundant `aria-label` attributes.
