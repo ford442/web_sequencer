@@ -168,8 +168,10 @@ export function useLyricHandlers(deps: {
                 if (isVowel) {
                     consecutiveConsonants = 0;
                     lastConsonantStep = -1;
-                    const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
-                    if (stepIdx >= 0 && stepIdx < newKick.steps.length) newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
+                    if (stepIdx >= 0 && stepIdx < newKick.steps.length) {
+                        const isDarkVowel = ['AA','AO','OW','UH','UW','AW'].includes(ph);
+                        newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: isDarkVowel ? 2 : 1 };
+                    }
                 } else {
                     consecutiveConsonants++;
 
@@ -211,8 +213,10 @@ export function useLyricHandlers(deps: {
                             }
                         }
                     } else if (isOpenHat) {
-                        const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
-                        if (stepIdx >= 0 && stepIdx < newOH.steps.length) newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
+                        if (stepIdx >= 0 && stepIdx < newOH.steps.length) {
+                            const ohLength = Math.max(1, Math.min(4, Math.round((p.end - p.start) / 0.15)));
+                            newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: ohLength };
+                        }
                     } else if (isHat) {
                         const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
                         if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
