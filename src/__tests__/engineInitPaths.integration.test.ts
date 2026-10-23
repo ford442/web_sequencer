@@ -140,7 +140,9 @@ describe('Open303Oscillator.init export map wiring', () => {
       compile: vi.fn().mockResolvedValue(mockModule),
       Module: {
          imports: vi.fn().mockReturnValue([{ kind: 'memory', module: 'a', name: 'a' }]),
-         exports: vi.fn().mockReturnValue([{ kind: 'function', name: 'open303_create_mangled' }]),
+         exports: vi.fn().mockImplementation(() =>
+           Object.values(exportMap).map(name => ({ kind: 'function', name }))
+         ),
       },
     });
 
