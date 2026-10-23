@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseHyphonGlueExportMap, resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
-import { normalizeWasmExports } from '../audio-worklets/hyphonNativeImports';
+import { normalizeWasmExports, OPEN303_REQUIRED_WASM_EXPORTS } from '../audio-worklets/hyphonNativeImports';
 import { WebGpuOscillator } from '../engines/WebGpuOscillator';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { repoRoot } from '@/test/helpers/requireRepoArtifacts';
@@ -135,12 +135,21 @@ describe('Open303Oscillator.init export map wiring', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const mockModule = {} as WebAssembly.Module;
+
+    const requiredMangled = OPEN303_REQUIRED_WASM_EXPORTS
+      .map((bare) => exportMap[bare] as string | undefined)
+      .filter((name): name is string => Boolean(name));
+
+    expect(requiredMangled.length).toBe(OPEN303_REQUIRED_WASM_EXPORTS.length);
+
     vi.stubGlobal('WebAssembly', {
       ...WebAssembly,
       compile: vi.fn().mockResolvedValue(mockModule),
       Module: {
          imports: vi.fn().mockReturnValue([{ kind: 'memory', module: 'a', name: 'a' }]),
-         exports: vi.fn().mockReturnValue([{ kind: 'function', name: 'open303_create_mangled' }]),
+         exports: vi.fn().mockReturnValue(
+           requiredMangled.map((name) => ({ kind: 'function', name })),
+         ),
       },
     });
 
@@ -164,14 +173,15 @@ describe('Open303Oscillator.init export map wiring', () => {
 
     // The promise might not resolve true if it's already initialized or if there was a problem.
     // Just assert that we called the port message as expected
-    expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'init-wasm',
-        data: expect.objectContaining({
-          variant: threading,
-          exportMap: expect.objectContaining({ open303_create: expect.any(String) }),
-        }),
-      }),
-    );
+    type InitMsg = { type: string; data: { variant: string; exportMap: Record<string, unknown> } };
+    const postMessageMock = mockWorkletNode.port.postMessage as unknown as { mock: { calls: unknown[][] } };
+    const calls = postMessageMock.mock.calls;
+    // Find the init-wasm call in case it is posted more than once
+    const msg = calls.find(c => (c[0] as InitMsg)?.type === 'init-wasm')?.[0] as InitMsg | undefined;
+    expect(msg).toBeDefined();
+    if (!msg) return;
+
+    expect(msg.data.variant).toBe(threading);
+    expect(typeof msg.data.exportMap.open303_create).toBe('string');
   });
 });
