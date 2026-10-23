@@ -1,6 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
+- What if we map vowel brightness/formant to open hi-hat decay time?
+- [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer. (Global clock processor makes per-track non-linear swing mathematically problematic for polyrhythm alignment).
 - [x] Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`.
@@ -29,6 +31,10 @@
 ## Innovation Lab
 - What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - Explore dynamically linking step lengths to phoneme duration.
+- Explore mapping lyric text sentiment to default scale
+- Explore adding a humanize function to drum velocities based on phoneme intensity
+
+
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).

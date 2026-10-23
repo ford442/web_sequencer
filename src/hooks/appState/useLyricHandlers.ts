@@ -202,7 +202,8 @@ export function useLyricHandlers(deps: {
                     }
 
                     if (isSnare) {
-                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
+                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = 0.4;
@@ -217,9 +218,11 @@ export function useLyricHandlers(deps: {
                             newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: ohLength };
                         }
                     } else if (isHat) {
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: 1 };
+                        const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
                     } else {
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: 1 };
+                        const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: dur };
                     }
 
                     lastConsonantStep = stepIdx;
@@ -313,8 +316,7 @@ export function useLyricHandlers(deps: {
                     }
 
                     if (startStep >= 0 && startStep < trackLength) {
-                        const endStep = timeToStep(p.end, tempoRef.current, transportMixStore.getSnapshot().swing);
-                        const durationSteps = Math.max(1, endStep - startStep);
+                        const durationSteps = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
                         newSteps[startStep] = {
                             note: pitches[currentPitchIdx] || 'C4',
                             velocity: 1,
