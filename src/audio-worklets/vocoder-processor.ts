@@ -135,6 +135,7 @@ private envelopes: number[] = [];
     private modulatorRe: Float32Array;
     private modulatorIm: Float32Array;
     private smoothedEnvelope: Float32Array;
+    private modulatorMag: Float32Array;
     private stftEnabled = true;
     private readonly perf = new WorkletPerfReporter(this.port, 'vocoder');
 
@@ -162,6 +163,7 @@ private envelopes: number[] = [];
         this.modulatorRe = new Float32Array(this.fftSize);
         this.modulatorIm = new Float32Array(this.fftSize);
         this.smoothedEnvelope = new Float32Array(this.fftSize);
+        this.modulatorMag = new Float32Array(this.fftSize / 2 + 1);
 
         // Delay the read pointer by fftSize to allow time for the OLA buffer to accumulate a full frame
         // before we start reading from it. This ensures causality in the ring buffer.
@@ -250,14 +252,36 @@ private envelopes: number[] = [];
         const halfSize = this.fftSize / 2;
         const smoothingRadius = 4; // Bins
 
-        for (let i = 0; i <= halfSize; i++) {
-            let sum = 0;
-            let count = 0;
-            for (let j = Math.max(0, i - smoothingRadius); j <= Math.min(halfSize, i + smoothingRadius); j++) {
-                sum += Math.sqrt(this.modulatorRe[j]*this.modulatorRe[j] + this.modulatorIm[j]*this.modulatorIm[j]);
-                count++;
+        // Precompute modulator magnitudes to avoid redundant Math.sqrt in the sliding window
+        for (let j = 0; j <= halfSize; j++) {
+            this.modulatorMag[j] = Math.sqrt(this.modulatorRe[j]*this.modulatorRe[j] + this.modulatorIm[j]*this.modulatorIm[j]);
+        }
+
+        // O(N) sliding window for smoothing
+        let windowSum = 0;
+        let windowCount = 0;
+
+        // Initialize window for i=0
+        for (let j = 0; j <= Math.min(halfSize, smoothingRadius); j++) {
+            windowSum += this.modulatorMag[j];
+            windowCount++;
+        }
+        this.smoothedEnvelope[0] = windowSum / windowCount;
+
+        for (let i = 1; i <= halfSize; i++) {
+            const addIdx = i + smoothingRadius;
+            const removeIdx = i - smoothingRadius - 1;
+
+            if (addIdx <= halfSize) {
+                windowSum += this.modulatorMag[addIdx];
+                windowCount++;
             }
-            this.smoothedEnvelope[i] = sum / count;
+            if (removeIdx >= 0) {
+                windowSum -= this.modulatorMag[removeIdx];
+                windowCount--;
+            }
+
+            this.smoothedEnvelope[i] = windowSum / windowCount;
         }
 
         // 4. Apply Envelope to Carrier
