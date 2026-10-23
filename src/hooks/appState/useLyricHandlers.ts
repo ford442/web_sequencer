@@ -163,14 +163,20 @@ export function useLyricHandlers(deps: {
                 const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
                 const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
                 const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
-                const isOpenHat = ['SH','ZH','S','F'].includes(ph) && p.end - p.start > 0.15;
+                const phonemeDurSec = p.end - p.start;
+                const isOpenHat = ['SH','ZH','S','F'].includes(ph) && phonemeDurSec > 0.15;
+
+                // Humanize velocity based on duration (longer = harder hit)
+                // Normalize duration roughly between 0.05s (short) and 0.3s (long) to a velocity between 0.6 and 1.0
+                const normDur = Math.max(0, Math.min(1, (phonemeDurSec - 0.05) / 0.25));
+                const humanVelocity = 0.6 + (0.4 * normDur);
 
                 if (isVowel) {
                     consecutiveConsonants = 0;
                     lastConsonantStep = -1;
                     if (stepIdx >= 0 && stepIdx < newKick.steps.length) {
                         const isDarkVowel = ['AA','AO','OW','UH','UW','AW'].includes(ph);
-                        newKick.steps[stepIdx] = { note: 'C4', velocity: 1, length: isDarkVowel ? 2 : 1 };
+                        newKick.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: isDarkVowel ? 2 : 1 };
                     }
                 } else {
                     consecutiveConsonants++;
@@ -203,7 +209,7 @@ export function useLyricHandlers(deps: {
 
                     if (isSnare) {
                         const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
-                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
+                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: dur };
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = 0.4;
@@ -215,14 +221,14 @@ export function useLyricHandlers(deps: {
                     } else if (isOpenHat) {
                         if (stepIdx >= 0 && stepIdx < newOH.steps.length) {
                             const ohLength = Math.max(1, Math.min(4, Math.round((p.end - p.start) / 0.15)));
-                            newOH.steps[stepIdx] = { note: 'C4', velocity: 1, length: ohLength };
+                            newOH.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: ohLength };
                         }
                     } else if (isHat) {
                         const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 1, length: dur };
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: dur };
                     } else {
                         const dur = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
-                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: 0.5, length: dur };
+                        if (stepIdx >= 0 && stepIdx < newCH.steps.length) newCH.steps[stepIdx] = { note: 'C4', velocity: humanVelocity * 0.7, length: dur };
                     }
 
                     lastConsonantStep = stepIdx;
