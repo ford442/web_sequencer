@@ -17,3 +17,6 @@
 ## 2024-09-24 - Accessible Input Labels
 **Learning:** Adding an `aria-label` alone is sometimes insufficient. Adding `aria-label` to inputs that are already grouped, or stand-alone controls like `<select>` elements, might be insufficient or redundant. Screen readers handle explicit `<label htmlFor="id">` bindings much better.
 **Action:** Always link `<select>` or `<input>` elements to `<label htmlFor="id">` elements instead of adding redundant `aria-label` attributes.
+## 2026-10-24 - Inner wrappers for live regions with interactive descendants
+**Learning:** Adding `aria-hidden="true"` to a wrapper container block just because it contains text duplicated inside an `sr-only` live region is a dangerous anti-pattern if that wrapper also contains interactive descendants (like buttons). This hides the interactive elements from assistive technologies, rendering them completely inaccessible and breaking automated tests that query by role.
+**Action:** When separating visually hidden live regions from rendered UI, only apply `aria-hidden="true"` specifically to the decorative nodes (like icons or the exact span holding the redundant text). Never blanket-hide a container `div` unless you are absolutely sure it contains zero interactive descendants.
