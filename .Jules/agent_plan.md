@@ -1,6 +1,7 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
@@ -29,10 +30,11 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
-- What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - Explore dynamically linking step lengths to phoneme duration.
 - Explore mapping lyric text sentiment to default scale
 - Explore adding a humanize function to drum velocities based on phoneme intensity
+- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
+- Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
 
 
 - [x] Explore randomizing granular jitter based on note velocity.
@@ -233,3 +235,8 @@
   - Updated `handleTextToDrums` to assign a `length` of `2` to kick drum steps when mapping dark vowels (`'AA','AO','OW','UH','UW','AW'`).
   - Updated open hi-hat mapping to dynamically calculate `length` based on the phoneme's duration (`p.end - p.start`).
 - Velocity Check: Expanding the data mapped from the phoneme alignment to include duration and phoneme class characteristics adds a new layer of musicality to the auto-generated drum patterns. The logic is simple but highly effective at creating more varied and expressive rhythms. Added a new idea to the Innovation Lab.
+
+- Completed "What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?"
+  - Modified `handleTextToDrums` in `useLyricHandlers.ts`.
+  - Ghost snares generated during consecutive consonant fills and preceding organic triggers are now assigned a descending pitch contour from `['G3', 'E3', 'C3', 'A2', 'G2', 'E2']` based on the normalized phrase progress.
+- Velocity Check: Converting the static 'C4' ghost snare into a dynamic, phrase-aware melodic tom sweep was computationally cheap (just a progress calculation and a modulo array lookup) but significantly increases the musicality of the auto-generated rhythm. Added new ideas to the Innovation Lab.

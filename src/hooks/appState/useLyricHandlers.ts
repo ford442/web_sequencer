@@ -156,7 +156,12 @@ export function useLyricHandlers(deps: {
             let consecutiveConsonants = 0;
             let lastConsonantStep = -1;
 
+            const tomPitches = ['G3', 'E3', 'C3', 'A2', 'G2', 'E2'];
+
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+                const phraseProgress = Math.max(0, Math.min(1, _i / alignment.phonemes.length));
+                const tomPitch = tomPitches[Math.floor(phraseProgress * tomPitches.length) % tomPitches.length];
+
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
                 const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
@@ -191,7 +196,7 @@ export function useLyricHandlers(deps: {
                                         newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
                                         const ghostVel = 0.4;
-                                        newSnare.steps[fillStep] = { note: 'C4', velocity: ghostVel, length: 1 };
+                                        newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: 1 };
                                         if (Math.random() < ghostVel) {
                                             newCH.steps[fillStep] = null;
                                         }
@@ -207,7 +212,7 @@ export function useLyricHandlers(deps: {
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = 0.4;
-                            newSnare.steps[stepIdx - 1] = { note: 'C4', velocity: ghostVel, length: 1 };
+                            newSnare.steps[stepIdx - 1] = { note: tomPitch, velocity: ghostVel, length: 1 };
                             if (Math.random() < ghostVel && stepIdx - 1 < newCH.steps.length) {
                                 newCH.steps[stepIdx - 1] = null;
                             }
