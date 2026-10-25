@@ -140,8 +140,13 @@ class Open303Processor extends NativeVoiceProcessor {
 
     // ── Routing ──────────────────────────────────────────────────────────────
 
-    private ref(prefix: NativeVoicePrefix, handle: number | bigint): NativeVoiceRef {
-        return { prefix, handle: Number(handle) };
+    private updateRef(arr: NativeVoiceRef[], idx: number, prefix: NativeVoicePrefix, handle: number | bigint): void {
+        const numHandle = Number(handle);
+        if (!arr[idx]) arr[idx] = { prefix, handle: numHandle };
+        else {
+            arr[idx].prefix = prefix;
+            arr[idx].handle = numHandle;
+        }
     }
 
     /**
@@ -150,21 +155,23 @@ class Open303Processor extends NativeVoiceProcessor {
      */
     private renderedVoices(): NativeVoiceRef[] {
         const out = this.rendered;
-        out.length = 0;
+        let count = 0;
         const highFid = this.engineSelection.liveHighFid;
         const engine = this.engineSelection.activeEngine;
         if (engine === 'highfid' && highFid?.isReady) {
-            if (this.engineSelection.abActive) out.push(this.ref('open303', this.session.instanceHandle));
-            out.push(this.ref('highfid303', highFid.voiceHandle));
+            if (this.engineSelection.abActive) this.updateRef(out, count++, 'open303', this.session.instanceHandle);
+            this.updateRef(out, count++, 'highfid303', highFid.voiceHandle);
         } else if (engine === 'jc303' && this.session.hasJc303MultiApi) {
-            out.push(this.ref('jc303', this.session.jc303Handle));
+            this.updateRef(out, count++, 'jc303', this.session.jc303Handle);
         } else if (this.session.isNativeApi) {
-            out.push(this.ref('open303', this.session.instanceHandle));
+            this.updateRef(out, count++, 'open303', this.session.instanceHandle);
         }
+        out.length = count;
         return out;
     }
 
     private pushNote(type: number, note: number, velocity: number, audioTime: number | undefined): void {
+
         const frame = this.frameAt(audioTime);
         for (const voice of this.renderedVoices()) this.pushEvent(voice, frame, type, note, velocity);
     }
@@ -180,13 +187,13 @@ class Open303Processor extends NativeVoiceProcessor {
         if (paramId === undefined || !this.session.isNativeApi) return;
 
         const targets = this.paramTargets;
-        targets.length = 0;
+        let count = 0;
         const highFid = this.engineSelection.liveHighFid;
-        if (highFid?.isReady) targets.push(this.ref('highfid303', highFid.voiceHandle));
+        if (highFid?.isReady) this.updateRef(targets, count++, 'highfid303', highFid.voiceHandle);
         if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-            targets.push(this.ref('jc303', this.session.jc303Handle));
+            this.updateRef(targets, count++, 'jc303', this.session.jc303Handle);
         } else {
-            targets.push(this.ref('open303', this.session.instanceHandle));
+            this.updateRef(targets, count++, 'open303', this.session.instanceHandle);
         }
 
         const frame = this.frameAt(audioTime);
@@ -245,7 +252,8 @@ class Open303Processor extends NativeVoiceProcessor {
             this.engineSelection.setLiveAb(data?.armed === true);
             // Side A stops rendering: don't leave its notes hanging for the next arm.
             if (wasShadowing && !this.engineSelection.abActive && this.session.isNativeApi) {
-                this.quiesce(this.ref('open303', this.session.instanceHandle));
+                const ref: NativeVoiceRef = { prefix: 'open303', handle: Number(this.session.instanceHandle) };
+                this.quiesce(ref);
             }
         } else if (type === 'set-highfid-coeffs') {
             this.engineSelection.setHighFidCoefficients(data?.coefficients ?? null);
