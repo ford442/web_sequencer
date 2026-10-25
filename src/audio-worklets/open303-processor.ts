@@ -195,6 +195,7 @@ class Open303Processor extends NativeVoiceProcessor {
         } else {
             this.updateRef(targets, count++, 'open303', this.session.instanceHandle);
         }
+        targets.length = count;
 
         const frame = this.frameAt(audioTime);
         const rendered = this.renderedVoices();
