@@ -257,6 +257,8 @@ pnpm run build                  # alias of build:release
 ```
 
 ### Testing
+Before opening a PR, `pnpm run lint:ratchet` must exit 0, and `eslint-baseline.json` may only go down.
+
 ```bash
 # Run unit tests (default PR gate — hermetic, no WASM build)
 pnpm run test:unit
