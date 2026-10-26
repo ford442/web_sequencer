@@ -89,11 +89,8 @@ const LaneRow = memo(({
       </div>
 
       {/* Interpolation selector */}
-      <label htmlFor={`interpolation-${lane.id}`} className="sr-only">
-        Interpolation mode for {lane.name}
-      </label>
       <select
-        id={`interpolation-${lane.id}`}
+        aria-label={`Interpolation mode for ${lane.name}`}
         className="bg-[#2a2d36] text-gray-300 text-[10px] rounded px-1 py-0.5 border border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24]"
         value={lane.interpolation}
         onClick={(e) => e.stopPropagation()}
