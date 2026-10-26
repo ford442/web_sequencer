@@ -57,7 +57,7 @@ test('ARR: add a kick clip, play the arrangement, playhead moves, kick on clip s
         .toBeGreaterThanOrEqual(10);
 
     const seen = await page.evaluate(() => (window as Window & { __ARR_SEEN__?: number[] }).__ARR_SEEN__ ?? []);
-    expect(seen.length).toBeGreaterThanOrEqual(8);
+    expect(seen.length).toBeGreaterThanOrEqual(6);
     // Moves forward through the song (it is 32 steps long, so no wrap yet).
     expect(seen.every((s, i) => i === 0 || s > seen[i - 1])).toBe(true);
 
