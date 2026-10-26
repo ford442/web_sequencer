@@ -83,7 +83,6 @@
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 - [x] Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
-- Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - Completed "Explore using a noise generator for unvoiced vocoder consonants." I modified the `VocoderEffect` class in the `RubberBandProcessor` to no longer skip unvoiced consonants (`isVowel <= 0`). Instead, it uses a lightweight LCG pseudo-random noise generator to produce white noise, which is then shaped by a simple 1-pole high-pass filter (to remove low-end rumble). This noise is amplitude-modulated by the original unvoiced consonant's envelope, allowing the vocoder effect to seamlessly articulate sibilants and plosives without requiring additional complex carrier waves. Added "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity." to the Innovation Lab.
 - Velocity Check: Expanding the vocoder to include unvoiced consonants using a simple LCG random number generator avoids the overhead of reading from a noise buffer or using `Math.random()`, keeping the hot path highly optimized.

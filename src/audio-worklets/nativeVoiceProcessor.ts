@@ -43,8 +43,8 @@ const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
-    readonly prefix: NativeVoicePrefix;
-    readonly handle: VoiceHandle;
+    prefix: NativeVoicePrefix;
+    handle: VoiceHandle;
 }
 
 type PushEvent = (h: VoiceHandle, frame: number, type: number, target: number, value: number,

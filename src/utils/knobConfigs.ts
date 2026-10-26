@@ -59,8 +59,8 @@ export const getSynthControls = (params: SynthParams): KnobConfig[] => {
         { id: 'filterMode', label: 'MODE', x: 0.65, y: 0.60, size: 0.08, value: filterModeValue, valueDisplay: filterModeValue > 0 ? '24dB' : '18dB' },
         { id: 'pitch', label: 'TUNE', x: 0.10, y: 0.50, size: 0.09, value: (params.pitch + 24) / 48, valueDisplay: `${params.pitch > 0 ? '+' : ''}${params.pitch.toFixed(1)}st` },
         { id: 'drive', label: 'DRIVE', x: 0.10, y: 0.80, size: 0.09, value: params.drive ?? 0, valueDisplay: `${Math.round((params.drive ?? 0) * 100)}%` },
-        { id: 'length', label: 'GATE', x: 0.77, y: 0.66, size: 0.09, value: (params.length || 0.25) / 2, valueDisplay: `${(params.length || 0.25).toFixed(2)}s` },
-        { id: 'volume', label: 'LEVEL', x: 0.92, y: 0.66, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
+        { id: 'length', label: 'GATE', x: 0.77, y: 0.86, size: 0.09, value: (params.length || 0.25) / 2, valueDisplay: `${(params.length || 0.25).toFixed(2)}s` },
+        { id: 'volume', label: 'LEVEL', x: 0.92, y: 0.86, size: 0.10, value: params.volume, valueDisplay: `${Math.round(params.volume * 100)}%` },
         { id: 'delayMix', label: 'DLY MIX', x: 0.35, y: 0.86, size: 0.07, value: params.delayMix, valueDisplay: `${Math.round(params.delayMix * 100)}%` },
         { id: 'delayTime', label: 'DLY TIME', x: 0.50, y: 0.86, size: 0.07, value: params.delayTime, valueDisplay: `${params.delayTime.toFixed(2)}s` },
     ];
