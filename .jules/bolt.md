@@ -60,3 +60,7 @@
 ## 2025-03-03 - Extract array property accesses from DSP inner loops
 **Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), accessing object properties from arrays (e.g. `this.fastEnv[channel]`) adds unnecessary overhead. Extracting them to local variables outside the inner loop eliminates O(N) array property lookups per quantum on the hot path, resulting in measurable performance improvements in effects like `TransientExtractor`, `SubHarmonicsEffect`, and `ToneFilters`.
 **Action:** Extract array state variables to local variables before the inner loop, update them within the loop, and write them back to the array afterwards in hot loop AudioWorklets to reduce overhead.
+
+## 2024-10-26 - Math.pow vs Math.exp + Math.log in AudioWorklets
+**Learning:** In V8, `Math.pow(x, y)` with fractional exponents inside hot DSP loops is extremely slow compared to `Math.exp(y * Math.log(x))`. Microbenchmarks show the latter is nearly twice as fast.
+**Action:** When working on AudioWorklet `process` methods or heavily used inner DSP loops, avoid `Math.pow` for fractional exponents and use pre-computed inverse constants with `Math.exp(Math.log())` instead.
