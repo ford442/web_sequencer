@@ -132,7 +132,7 @@ describe('limiter settings persistence', () => {
 
         saveLimiterSettings({ ...DEFAULT_LIMITER_SETTINGS, ceilingDbtp: -2.5 }, storage);
         const raw = store.get(LIMITER_STORAGE_KEY)!;
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
         for (const value of Object.values(parsed)) {
             expect(['number', 'boolean']).toContain(typeof value);
         }

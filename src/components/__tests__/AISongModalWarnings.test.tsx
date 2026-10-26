@@ -17,7 +17,7 @@ function renderModal() {
   );
 }
 
-async function paste(song: object) {
+function paste(song: object) {
   const textarea = screen.getByLabelText(/Or paste JSON directly/i);
   fireEvent.change(textarea, { target: { value: JSON.stringify(song) } });
 }
@@ -25,7 +25,7 @@ async function paste(song: object) {
 describe('AISongModal — import warnings', () => {
   it('lists what the importer saved but nothing will play', async () => {
     renderModal();
-    await paste({ ...minimal, automation: [kickLane] });
+    paste({ ...minimal, automation: [kickLane] });
 
     const warnings = await screen.findByTestId('ai-song-import-warnings', undefined, { timeout: 3000 });
     expect(warnings).toHaveTextContent('1 import warning');
@@ -36,7 +36,7 @@ describe('AISongModal — import warnings', () => {
 
   it('shows no warnings block for a song that plays everything it says', async () => {
     renderModal();
-    await paste(minimal);
+    paste(minimal);
     await screen.findByText('Valid AI Song', undefined, { timeout: 3000 });
     await waitFor(() => expect(screen.queryByTestId('ai-song-import-warnings')).toBeNull());
   });
