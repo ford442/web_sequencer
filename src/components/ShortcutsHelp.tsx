@@ -31,8 +31,10 @@ function TopicDetail({ topic, onBack }: { topic: HelpTopic; onBack?: () => void 
           type="button"
           onClick={onBack}
           className="text-[10px] text-cyan-500 hover:text-cyan-300 font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded"
+          aria-label="Back to results"
+          title="Back to results"
         >
-          ← Back to results
+          <span aria-hidden="true">← Back to results</span>
         </button>
       )}
       <header>
@@ -257,6 +259,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
                     <button type="button"
                       onClick={() => setQuery('')}
                       className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-4 py-2 rounded-full text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                      title="Clear Search"
                     >
                       Clear Search
                     </button>
@@ -321,6 +324,7 @@ export const ShortcutsHelp: React.FC<ShortcutsHelpProps> = memo(({
             type="button"
             onClick={onClose}
             className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 hover:bg-cyan-900/50 px-6 py-2 rounded font-orbitron text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ml-auto"
+            title="GOT IT"
           >
             GOT IT
           </button>
