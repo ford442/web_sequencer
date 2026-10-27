@@ -15,6 +15,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
+- [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
 - [Export surface + export map](#export-surface)
 - [Worklet import table](#worklet-import-table)
 - [AssemblyScript browser matrix](#assemblyscript-browser-matrix)
@@ -406,15 +407,16 @@ sources in JS, so the master is never partial. `metadata.json` and
 any fallback, and the dry master's per-channel peaks.
 
 **Numerical contract** (`src/__tests__/mixBus.integration.test.ts`, run against
-the emcc 3.1.51 and 6.0.6 builds):
+the emcc 3.1.51 and 6.0.6 builds, and the 6.0.9 `-O3 -flto` build):
 
 | | native vs JS |
 |---|---|
 | gain = 1 (every gain stem export uses today) | **bit-identical**. Switching engines never changes a stem. |
 | other gains (future channel-strip faders) | ≤ `1e-6` per sample: an f32 multiply-add against JS's f64-then-round |
-| peak | identical |
+| peak | identical, NaN samples skipped as in JS (explicit `f32x4.pmax`) |
 
-**Measured** (Node 24, x86-64, 48 kHz, 180 s, stereo):
+**Measured** (Node 24, x86-64, 48 kHz, 180 s, stereo; `-O1` link — for the
+`-O3 -flto` numbers see [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)):
 
 | | JS | wasm (as shipped: streamed through the scratch) |
 |---|---|---|
@@ -674,7 +676,8 @@ reassociation of float arithmetic. Applied to this codebase that hits two things
 `mix_bus.cpp`: a multiply-add and a max-reduction over stateless `float`
 blocks. It has no recursive state and no baseline contract. The accumulate is
 one operation per element, so reassociation cannot reorder anything across
-samples, and the max-reduction is the loop the flag lets the compiler vectorise.
+samples. The max-reduction is hand-vectorised with `f32x4.pmax` rather than left
+to the flag (see [the peak loop](#standalone-link-profiles)).
 At unity gain the result is bit-identical to the JS path (see
 [mix bus](#mix-bus)). The **debug** profile drops the flag, so a debug build is
 IEEE by construction.
@@ -721,6 +724,107 @@ names. The worklets do not use the glue, so they would have to guess
 it clears `MINIFY_WASM_EXPORT_NAMES` and therefore `MINIFY_WASM_IMPORTS_AND_EXPORTS`)
 while linking no code, and the export maps stay identity maps — byte-identical
 between the two profiles and between any two machines on the pin.
+
+<a id="standalone-link-profiles"></a>
+### Rubber Band and the mix bus at `-O3 -flto` (2026-10-27)
+
+The other two em++ modules kept the 3.1.51 workaround after #1424 lifted it for
+`hyphon_native`: compiled `-O3`, but linked at **`-O1`** with no LTO. Both now use
+the voice module's release profile:
+
+| Module | Compile (release) | Link (release) |
+|---|---|---|
+| `hyphon_native` | `-O3 -funroll-loops -flto` | `-O3 -flto` |
+| `rubberband.wasm` | `-O3 -funroll-loops -flto` (IEEE — never `-ffast-math`) | `-O3 -flto` (was `-O1`) |
+| `mix_bus.wasm` | `-O3 -ffast-math -flto` (the one fast-math TU) | `-O3 -flto` (was `-O1`) |
+
+Debug profiles are unchanged (`-O1 -g3`, IEEE). Neither module needs `-lexports.js`:
+Rubber Band is only ever instantiated through its own glue
+(`createRubberBandModule`, regenerated with the wasm), and the mix bus is a
+`STANDALONE_WASM` reactor whose export names are not minified
+(`tools/check_mix_bus_module.mjs` checks them after every build).
+`src/__tests__/wasmCompileFlags.test.ts` pins both profiles.
+
+**Parity.**
+
+- *Rubber Band stretcher*: five 4 s renders through the embind stretcher (R2
+  real-time vocal profile with pitch + formant, R2 precise stretch, R2 short-window
+  consistency, R3 finer mono with formant, R3 finer stereo ×2) are **bit-identical**
+  between the `-O1` and the `-O3 -flto` build. Same reason as the voice module: no
+  fast-math, and wasm has no implicit FMA contraction.
+- *Vocal FX* (`rb_fx_*`): `nativeVocalFx.integration.test.ts` — the TS oracle at
+  0 error / ∞ SNR on every case — passes unchanged on the new binary.
+- *Mix bus*: every accumulate (gain 1, 0.7, 0.333, 1.25 over 12 × 180 s stereo
+  stems) is **bit-identical** to the IEEE debug build and to the old release
+  build. `mix_bus_peak` matched the JS reference and the debug build on all 150
+  edge cases (lengths 0–200,003 with NaN / ±Inf / −0 at the start, middle and
+  end); the **old** release build did not — fast-math had made its scalar max
+  NaN-propagating, so a stem with a NaN sample reported a NaN peak in 27 of the
+  150 cases. `mixBus.integration.test.ts` now pins that case.
+
+**The peak loop.** Left to the compiler, the `-O3 -flto` link vectorised the peak
+reduction into `f32x4.max`, whose NaN-propagating x86 lowering made it ~30 %
+*slower* than the old scalar loop (13.8 → 18.2 ms for an 8.6 M-sample channel).
+`mix_bus_peak` is now written with `wasm_f32x4_pmax`, which is exactly the JS
+`if (a > peak) peak = a` and lowers to one `maxps`.
+
+**Performance** (Node 22, x86-64; medians of interleaved runs):
+
+| Workload | `-O1` link | `-O3 -flto` | Δ |
+|---|---:|---:|---:|
+| Rubber Band R2 vocal pitch, 4 s mono | 262 ms | 229 ms | −13 % |
+| Rubber Band R2 precise stretch ×1.6 | 202 ms | 163 ms | −19 % |
+| Rubber Band R2 short window, ×0.8 | 87 ms | 73 ms | −16 % |
+| Rubber Band R3 finer + formant ×1.25 | 628 ms | 507 ms | −19 % |
+| Rubber Band R3 finer stereo ×2 | 1,097 ms | 1,139 ms | noise (1,076–1,140 both) |
+| `vocalFx.perf`: native FX quantum | 0.0157 ms | 0.0161 ms | flat |
+| `vocalFx.perf`: native grains, 1024 frames | 0.0235 ms | 0.0241 ms | flat |
+| Mix bus: 12-stem 180 s stereo sum | 501 ms | 359 ms | −28 % |
+| Mix bus: peak, one 8.6 M-sample channel | 13.8 ms | 6.5 ms | −53 % (pmax) |
+
+The rb_fx chain is a handful of calls per 128-frame quantum on a hot path that
+was already inlined within its TU, so LTO has nothing to add there; the
+stretcher, spread over Rubber Band's many TUs, is where cross-TU inlining pays.
+
+**Sizes** (bytes; `dist-budget.json#native` rows added in their own commit):
+
+| Artifact | `-O1` link | `-O3 -flto` | Δ |
+|---|---:|---:|---:|
+| `rubberband.wasm` | 553,042 | 464,544 | −16.0 % |
+| `rubberband-lib.js` (glue, bundled into the worklet chunks) | 199,615 | 103,152 | −48.3 % |
+| `mix_bus.wasm` | 730 | 880 | +150 (the explicit SIMD peak) |
+
+<a id="rubberband-memory-growth"></a>
+### Rubber Band memory growth: kept, and tested
+
+`rubberband.wasm` runs in an AudioWorklet with `ALLOW_MEMORY_GROWTH=1`; a grow
+replaces the memory's `ArrayBuffer` and detaches every `HEAPF32` / `HEAPF64` view
+made before it. **Decision: keep growth** (initial 64 MB, max 256 MB, unchanged),
+because the one allocation that scales with user input has no bound:
+`loadBuffer` copies the whole sample into the heap (`rb_fx_sample_alloc`), and
+nothing caps sample length. A fixed heap would turn a long sample into a load
+failure. Everything else is small: a build with an **8 MB** initial heap never
+grew through all five stretcher renders above (R3 finer stereo included) — the
+"~40 MB finer-engine stretch transient" quoted when the module split out does
+not reproduce on the real-time engine both worklets use — and
+`nativeVocalFx.integration.test.ts` already pins a 30 s vocal session at zero
+growth inside 64 MB. So in practice a grow happens on `loadBuffer`, outside
+`process()`.
+
+What makes growth safe is that no view outlives a call that can allocate. The
+calls that can are `_malloc`, `rb_fx_create`, `rb_fx_sample_alloc`,
+`rb_fx_window_alloc` and the stretcher's `process` / `retrieve` /
+`setTimeRatio` / `setPitchScale`; the per-block `rb_fx_process`,
+`rb_fx_render_grains` and `rb_fx_advance_lfo` work in buffers sized up front and
+never allocate. The glue reassigns `Module.HEAPF32` / `HEAPF64` on every grow,
+and the worklets read them after each such call; `NativeVocalFx` re-derives its
+cached channel views when the buffer changes.
+`src/__tests__/rubberbandHeapGrowth.integration.test.ts` proves it: it drives the
+real `RubberBandProcessor` (stream, freeze granulator, FX chain) and
+`sustain-processor` on the real module twice, once untouched and once with the
+heap forced to grow right after **every** allocating call returns, and requires
+bit-identical output. Reading `HEAPF32` before `retrieve()` instead of after
+fails it at the second block.
 
 ### Why the export map is checked against the binary too
 

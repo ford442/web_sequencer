@@ -82,4 +82,19 @@ describe('public/mix_bus.wasm', () => {
         expect(native.peak(buf)).toBe(jsMixKernel.peak(buf));
         expect(native.peak(buf)).toBeCloseTo(0.9876, 6);
     });
+
+    it('skips NaN and keeps ±Infinity exactly like the JS reference, in the SIMD body and the tail', async () => {
+        // -ffast-math once turned this loop into a NaN-propagating max; the
+        // release build returned NaN where JS (and the IEEE debug build) skip it.
+        const native = await createNativeMixKernel(bytes);
+        for (const length of [1, 3, 4, 5, 65536, 65539]) {
+            for (const special of [Number.NaN, Infinity, -Infinity, -0]) {
+                for (const at of [0, length >> 1, length - 1]) {
+                    const buf = signal(13, length);
+                    buf[at] = special;
+                    expect(native.peak(buf), `len ${length}, ${special} at ${at}`).toBe(jsMixKernel.peak(buf));
+                }
+            }
+        }
+    });
 });

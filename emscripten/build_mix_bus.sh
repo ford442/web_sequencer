@@ -57,8 +57,11 @@ if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3"
     LINK_PROFILE_FLAGS="-O1 -g3 -s ASSERTIONS=2"
 else
-    OPT_FLAGS="-O3 -ffast-math"
-    LINK_PROFILE_FLAGS="-O1 -s ASSERTIONS=0"
+    # -O3 -flto like hyphon_native (BUILD_NOTES#wasm-opt); the -O1 link was the
+    # emsdk 3.1.51 wasm-opt workaround. -ffast-math stays on the compile only:
+    # LTO carries it per function, and this is the module's one TU.
+    OPT_FLAGS="-O3 -ffast-math -flto"
+    LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"
 fi
 
 # Keep in step with MIX_BUS_REQUIRED_EXPORTS in
