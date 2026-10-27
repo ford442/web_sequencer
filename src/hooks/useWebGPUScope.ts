@@ -220,7 +220,7 @@ function createScopeSession(
     else if (currentParams.waveform.includes('sin')) waveIndex = 3;
 
     // Normalize frequency purely for visualization scale
-    const freq = noteToFrequency('C4') / 1000.0;
+    const freq = (noteToFrequency('C4') ?? 261.63) / 1000.0;
 
     // WRITE PARAMS TO GPU
     // Structure must match WGSL struct Params exactly

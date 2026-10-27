@@ -3,6 +3,9 @@ import {
     NOTES,
     noteToMidi,
     midiToNote,
+    isNoteName,
+    normalizeNoteName,
+    tunedNoteToFrequency,
     SCALE_INTERVALS,
     SCALE_NAMES,
     getScaleNotes,
@@ -107,6 +110,91 @@ describe('musicTheory - Scale utilities', () => {
         it('returns correct tuning for 24-TET around center', () => {
             expect(applyMicrotonalTuning(60, { root: 'C', scale: 'Major', tuning: '24-TET (Quarter)' })).toBe(60.0);
             expect(applyMicrotonalTuning(61, { root: 'C', scale: 'Major', tuning: '24-TET (Quarter)' })).toBe(60.5);
+        });
+    });
+
+    describe('noteToMidi — note names', () => {
+        it.each([
+            // The flats the AI fixture uses (#1466): each used to parse as MIDI 0.
+            ['Eb3', 51],
+            ['Bb3', 58],
+            ['Ab1', 32],
+            ['Eb4', 63],
+            ['Bb4', 70],
+            ['Cb4', 59],
+            ['F##3', 55],
+            ['Fx3', 55],
+            ['Ebb4', 62],
+            ['C-1', 0],
+            ['B9', 131],
+            ['C4', 60],
+            ['A4', 69],
+            ['C#4', 61],
+            ['B#3', 60],
+            ['E#4', 65],
+            ['Fb4', 64],
+            ['D♭4', 61],
+            ['F♯3', 54],
+            ['G𝄪2', 45],
+            ['B𝄫3', 57],
+            [' Db5 ', 73],
+        ])('%s → %i', (name, midi) => {
+            expect(noteToMidi(name)).toBe(midi);
+        });
+
+        it('folds every spelling of a pitch to one number', () => {
+            for (const group of [['Eb3', 'D#3', 'Fbb3'], ['Cb4', 'B3', 'Ax3'], ['F##3', 'Fx3', 'G3', 'Abb3']]) {
+                const midis = group.map(noteToMidi);
+                expect(new Set(midis).size, group.join(' / ')).toBe(1);
+            }
+        });
+
+        it.each([
+            'nope', '', 'H4', 'C', '4', 'c4', 'C10', 'C-2', 'C4.5', 'C#', 'Cb-1', 'B#9', 'C 4', 'C4x', 'Eb3 kick',
+        ])('rejects %j with null, never 0', (name) => {
+            expect(noteToMidi(name)).toBeNull();
+            expect(isNoteName(name)).toBe(false);
+        });
+
+        it('rejects non-strings', () => {
+            expect(noteToMidi(undefined)).toBeNull();
+            expect(noteToMidi(null)).toBeNull();
+        });
+
+        it('only returns 0 for C-1', () => {
+            expect(noteToMidi('C-1')).toBe(0);
+            expect(noteToMidi('B#-2')).toBeNull();
+        });
+
+        it('round-trips through midiToNote as the sharp spelling', () => {
+            for (let midi = 0; midi <= 131; midi++) {
+                expect(noteToMidi(midiToNote(midi))).toBe(midi);
+            }
+            expect(normalizeNoteName('Eb3')).toBe('D#3');
+            expect(normalizeNoteName('Fx3')).toBe('G3');
+            expect(normalizeNoteName('C#4')).toBe('C#4');
+            expect(normalizeNoteName('nope')).toBeNull();
+        });
+    });
+
+    describe('tunedNoteToFrequency — flats and invalid names', () => {
+        const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+
+        it.each([['Eb3', 51], ['Bb3', 58], ['Ab1', 32], ['Eb4', 63], ['Bb4', 70], ['Cb4', 59]])(
+            '%s plays at MIDI %i, not 8 Hz',
+            (name, midi) => {
+                expect(tunedNoteToFrequency(name)).toBeCloseTo(hz(midi), 6);
+            },
+        );
+
+        it('matches the sharp spelling under a microtonal tuning too', () => {
+            const quarter = { root: 'C', scale: 'Chromatic', tuning: '24-TET (Quarter)' };
+            expect(tunedNoteToFrequency('Db4', quarter)).toBeCloseTo(tunedNoteToFrequency('C#4', quarter)!, 9);
+        });
+
+        it('returns null for a name that does not parse', () => {
+            expect(tunedNoteToFrequency('nope')).toBeNull();
+            expect(tunedNoteToFrequency('')).toBeNull();
         });
     });
 

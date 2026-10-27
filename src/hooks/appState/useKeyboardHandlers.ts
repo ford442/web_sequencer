@@ -181,8 +181,9 @@ export function useKeyboardHandlers(deps: {
             stepData = patternRef.current[track].steps[step];
         }
         if (!stepData) return;
-        setIsNoteDragging(true);
         const startMidi = noteToMidi(stepData.note);
+        if (startMidi === null) return;
+        setIsNoteDragging(true);
         noteDragRef.current = { track, step, startY: e.clientY, startMidi, hasMoved: false, lastMidi: startMidi };
         document.body.style.cursor = 'ns-resize';
     }, [patternRef, activeSamplerBankRef, setIsNoteDragging, noteDragRef]);

@@ -4,6 +4,7 @@
 // this worker remains available for simple synth pattern previews.
 
 import { createOfflineContext } from '../audio/offline/createOfflineContext';
+import { noteToMidi } from '../utils/musicTheory';
 
 type Waveform = 'sawtooth' | 'square' | 'triangle' | 'sine';
 
@@ -40,19 +41,13 @@ const noteFrequencies: { [key: string]: number } = {
 };
 
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const noteToMidi = (note: string): number => {
-    if (!note) return 0;
-    const match = note.match(/([A-G]#?)(\d+)/);
-    if (!match) return 0;
-    return (parseInt(match[2], 10) + 1) * 12 + NOTES.indexOf(match[1]);
-};
-const getTunedFrequency = (note: string, tuning: string = '12-TET', rootNote: string = 'C'): number => {
-    if (!note) return 0;
+/** Hz for `note`; `null` when it is not a note name (it must not play). */
+const getTunedFrequency = (note: string, tuning: string = '12-TET', rootNote: string = 'C'): number | null => {
     const midi = noteToMidi(note);
+    if (midi === null) return null;
     if (tuning === '12-TET') return 440 * Math.pow(2, (midi - 69) / 12);
     if (tuning === '24-TET') return 440 * Math.pow(2, (midi - 69) / 24);
-    const rootMidi = noteToMidi(rootNote.replace(/\d+$/, '') + '4');
+    const rootMidi = noteToMidi(rootNote.replace(/\d+$/, '') + '4') ?? 60;
     const rootFreq = 440 * Math.pow(2, (rootMidi - 69) / 12);
     const distance = midi - rootMidi;
     if (tuning === 'Bohlen-Pierce') return rootFreq * Math.pow(3, distance / 13);
@@ -65,6 +60,7 @@ const getTunedFrequency = (note: string, tuning: string = '12-TET', rootNote: st
 const playSynthForRender = (context: OfflineAudioContext, params: SynthParams, note: string, time: number, tuningSystem?: string, rootNote?: string) => {
     const destination = context.destination;
     const baseFreq = getTunedFrequency(note, tuningSystem, rootNote);
+    if (baseFreq === null) return;
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
     // ADSR timing - use length as gate time, fallback to attack+decay if not set

@@ -7,7 +7,7 @@ import type { AlignmentResult, PhonemeSegment } from '../../engines/rubberband/P
 import { updateSamplerRange } from './patternUpdates'
 import { transportMixStore } from '../../stores/transportMixStore'
 import { padSteps, trackLoopLength } from '../../utils/songMeter'
-import { swingPercentToClock } from '../../utils/musicTheory'
+import { MAX_NOTE_MIDI, MIN_NOTE_MIDI, midiToNote, noteToMidi, swingPercentToClock } from '../../utils/musicTheory'
 
 
 const timeToStep = (time: number, tempo: number, swingPercent: number): number => {
@@ -31,39 +31,14 @@ const timeToStep = (time: number, tempo: number, swingPercent: number): number =
     }
 };
 
-const NOTE_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const FLAT_TO_SHARP: Record<string, string> = {
-    'DB': 'C#', 'EB': 'D#', 'GB': 'F#', 'AB': 'G#', 'BB': 'A#'
-};
-const NOTE_REGEX = /^([A-G][#b]?)([0-9])$/i;
-
+/** Transpose a note name by semitones, spelled with sharps. Unparseable or out-of-range results return `note` unchanged. */
 const transposeNote = (note: string, semitones: number): string => {
     if (semitones === 0) return note;
-
-    const match = note.match(NOTE_REGEX);
-    if (!match) return note;
-
-    const [, noteNameMatch, octaveStr] = match;
-    let noteName = noteNameMatch.toUpperCase();
-    let octave = parseInt(octaveStr, 10);
-
-    if (FLAT_TO_SHARP[noteName]) noteName = FLAT_TO_SHARP[noteName];
-
-    let index = NOTE_MAP.indexOf(noteName);
-    if (index === -1) return note;
-
-    index += semitones;
-
-    while (index >= 12) {
-        index -= 12;
-        octave++;
-    }
-    while (index < 0) {
-        index += 12;
-        octave--;
-    }
-
-    return `${NOTE_MAP[index]}${octave}`;
+    // Lyric notes may be typed lower-case ("eb4").
+    const midi = noteToMidi(note.charAt(0).toUpperCase() + note.slice(1));
+    if (midi === null) return note;
+    const shifted = midi + semitones;
+    return shifted >= MIN_NOTE_MIDI && shifted <= MAX_NOTE_MIDI ? midiToNote(shifted) : note;
 };
 
 export function useLyricHandlers(deps: {

@@ -9,6 +9,7 @@ import {
   NOTES,
   noteToMidi,
   midiToNote,
+  normalizeNoteName,
   getScaleNotes,
   isMidiInScale,
   nextScaleNote,
@@ -69,7 +70,8 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> =
       const lastMidiRef = useRef(0);
       const buttonRef = useRef<HTMLButtonElement>(null);
 
-      const currentMidi = noteToMidi(value) || 60;
+      const valueMidi = noteToMidi(value);
+      const currentMidi = valueMidi ?? 60;
 
       // Clamp MIDI to range
       const clamp = useCallback(
@@ -259,7 +261,7 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> =
         () => getNoteColor(value, trackKey),
         [value, trackKey],
       );
-      const currentNoteName = useMemo(() => extractNoteName(value), [value]);
+      const currentNoteName = useMemo(() => extractNoteName(normalizeNoteName(value) ?? value), [value]);
 
       const handleKeyDown = useCallback(
         (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -341,10 +343,10 @@ export const AdvancedNoteSelector: React.FC<AdvancedNoteSelectorProps> =
                       .map((noteName) => {
                         const fullNote = `${noteName}${octave}`;
                         const midi = noteToMidi(fullNote);
-                        if (midi < minMidi || midi > maxMidi) return null;
+                        if (midi === null || midi < minMidi || midi > maxMidi) return null;
 
                         const noteColor = getNoteColor(fullNote, trackKey);
-                        const isSelected = fullNote === value;
+                        const isSelected = midi === valueMidi;
                         const isInScale = scaleNotes
                           ? scaleNotes.has(noteName)
                           : true;

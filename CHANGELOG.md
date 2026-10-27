@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Flat note names play at their pitch (#1466)
+- **Fix**: `noteToMidi` understood only sharps, so `Eb3`, `Bb3`, `Cb4`, `F##3` and `C-1` all parsed as MIDI 0 (≈ 8 Hz), live and offline. The AI reference song (`full.json`) has five such notes. The parser now takes a letter, any run of `#` `b` `♯` `♭` `x` `𝄪` `𝄫`, and an octave from `-1` to `9`, and folds every spelling to one MIDI number (`Eb3` = `D#3` = 51). `midiToNote` still spells with sharps.
+- **Invalid names return `null`, never 0**: every caller now skips the note (live engines, sampler, drums, WAM, macro / freeze / stem renders, SMF and RBS export) instead of playing MIDI 0. `tunedNoteToFrequency` / `noteToFrequency` return `null` too. The renderer worker and the lyric transposer use the shared parser instead of their own copies.
+
 ### `pnpm run ai-song:render` — agents render and check their own songs (#1386)
 - **One command, no human**: imports an `AISongData` song into the built app in headless Chromium and writes `mix.wav` (the export modal's live-patch master), optional `stems/*.wav`, `song.rbs` / `.mid` / `.xm`, and `report.json` — importer warnings, the stem export report, and per-stem peak, BS.1770 LUFS, and RMS + spectral centroid per bar. Exit codes: 2 validation, 3 render failure, 4 silent master. See [ai-song-render.md](docs/ai-song-render.md).
 - **Strict by default**: any importer warning fails the run, and the importer now **warns about automation lanes live playback never dispatches** (drums, sampler, `pitch`, …) instead of importing them silently.
