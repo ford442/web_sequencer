@@ -57,6 +57,7 @@ export function stepsToFxEvents(steps: readonly (Note | null)[], loopLength: num
         const velocity = typeof note.velocity === 'number' ? Math.min(1, Math.max(0, note.velocity)) : 1;
         const pitches = [noteToMidi(note.note), ...(note.chord ?? []).map(noteToMidi)];
         for (const pitch of pitches) {
+            if (pitch === null) continue; // not a note name: never sounds
             out.push({ start, length, pitch: clampPitch(pitch), velocity, sourceStep: step, slide: !!note.slide });
         }
     }

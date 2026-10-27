@@ -79,15 +79,16 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     const numInversions = Math.round(inversionVal * maxInversions);
     if (numInversions === 0) return notes;
 
-    // Fill + convert in one pass (no .map allocation)
+    // Fill + convert in one pass (no .map allocation). Names that do not
+    // parse never sound, so they drop out of the voicing.
+    let count = 0;
     _midiScratch.length = len;
-    if (isArray) {
-        for (let i = 0; i < len; i++) {
-            _midiScratch[i] = noteToMidi((notes as string[])[i]);
-        }
-    } else {
-        _midiScratch[0] = noteToMidi(notes as string);
+    for (let i = 0; i < len; i++) {
+        const midi = noteToMidi((notes as string[])[i]);
+        if (midi !== null) _midiScratch[count++] = midi;
     }
+    _midiScratch.length = count;
+    if (count === 0) return notes;
 
     // Sort ascending in place
     _midiScratch.sort((a, b) => a - b);
@@ -95,15 +96,15 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     // Rotate without shift() — O(n) total instead of O(n²)
     for (let inv = 0; inv < numInversions; inv++) {
         const lowest = _midiScratch[0];
-        for (let i = 0; i < len - 1; i++) {
+        for (let i = 0; i < count - 1; i++) {
             _midiScratch[i] = _midiScratch[i + 1];
         }
-        _midiScratch[len - 1] = lowest + 12;
+        _midiScratch[count - 1] = lowest + 12;
     }
 
     // Convert back — return a fresh array so callers can keep it
-    _noteScratch.length = len;
-    for (let i = 0; i < len; i++) {
+    _noteScratch.length = count;
+    for (let i = 0; i < count; i++) {
         _noteScratch[i] = midiToNote(_midiScratch[i]);
     }
     return _noteScratch;
@@ -566,7 +567,7 @@ export const useStepHandler = ({
                     noteParams.velocity = head.velocity;
                     const slideFrom = head.slide && lastFreqRef.current[trackKey] > 0 ? lastFreqRef.current[trackKey] : undefined;
                     playSynthNotes(trackKey, params, notes, fxTime(head, tStep), head.length, head.velocity, slideFrom, noteParams);
-                    lastFreqRef.current[trackKey] = tunedNoteToFrequency(midiToNote(head.pitch), currentScale);
+                    lastFreqRef.current[trackKey] = tunedNoteToFrequency(midiToNote(head.pitch), currentScale) ?? 0;
                 }
                 return;
             }
@@ -595,8 +596,8 @@ export const useStepHandler = ({
             const noteParams = buildSynthNoteParams(trackKey, stepData, tStep, true);
             playSynthNotes(trackKey, params, notes, time, stepData.length, stepData.velocity ?? 1, slideFrom, noteParams);
 
-            // Update last frequency for future slides
-            lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
+            // Update last frequency for future slides (0 = no slide source)
+            lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale) ?? 0;
         };
 
         // === Bass 2 (TB-303) ===
@@ -825,7 +826,9 @@ export const useStepHandler = ({
             const bankParams = buildBankParams(bankIdx, stepData.pan);
             audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
 
-            lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
+            const samplerMidi = noteToMidi(stepData.note);
+            if (samplerMidi !== null) lastSamplerMidiRef.current[bankIdx] = samplerMidi;
+            else delete lastSamplerMidiRef.current[bankIdx]; // no slide source
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
         }
 

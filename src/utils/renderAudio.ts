@@ -71,6 +71,10 @@ export async function renderSynthToBuffer(
     sampleRate: number = resolveExportSampleRate(),
     filterCurve?: SynthFilterCurve,
 ): Promise<AudioBuffer> {
+    const midi = noteToMidi(note);
+    const baseFreq = getTunedFrequency(note, '12-TET', 'C'); // default for offline rendering
+    if (midi === null || baseFreq === null) throw new Error(`renderSynthToBuffer: "${note}" is not a note name`);
+
     // A macro model: one note through the live engine's wasm (mid channel, so
     // XM one-shots stay mono). The gate covers the note; the tail is whatever
     // fits in `duration`. Unavailable → the model's fallback waveform, below.
@@ -79,7 +83,7 @@ export async function renderSynthToBuffer(
         const rendered = await renderMacroBuffer({
             params,
             engine: macroEngine,
-            notes: [{ midi: noteToMidi(note), velocity: 0.8, startSeconds: 0, durationSeconds: duration * 0.8 }],
+            notes: [{ midi, velocity: 0.8, startSeconds: 0, durationSeconds: duration * 0.8 }],
             durationSeconds: duration,
             sampleRate,
         }, 1);
@@ -90,7 +94,6 @@ export async function renderSynthToBuffer(
     const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
 
     const time = 0;
-    const baseFreq = getTunedFrequency(note, '12-TET', 'C'); // default for offline rendering
     // Apply pitch shift from params
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 

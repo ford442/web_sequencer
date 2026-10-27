@@ -40,9 +40,11 @@ export function createPlayDrum(
 
     pulseExpressionLed(DRUM_SOUND_TO_LED[sound], noteStr, noteStr ? 1 : 0.9);
 
-    // Compute pitch multiplier from note relative to reference C3
-    const pitchRatio = noteStr
-      ? Math.pow(2, (noteToMidi(noteStr) - DRUM_REF_MIDI) / 12)
+    // Compute pitch multiplier from note relative to reference C3. A step
+    // without a parseable note plays the hit at its own pitch.
+    const drumMidi = noteStr ? noteToMidi(noteStr) : null;
+    const pitchRatio = drumMidi !== null
+      ? Math.pow(2, (drumMidi - DRUM_REF_MIDI) / 12)
       : 1;
 
     // Hoisted adjustedParams (conditional clone only when pitch changes)

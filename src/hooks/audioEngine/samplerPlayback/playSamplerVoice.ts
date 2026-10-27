@@ -192,6 +192,10 @@ export function createPlaySamplerVoice(
       const alignment = refs.vocalAlignmentsRef.current.get(params.sampleName);
 
       const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+        const noteStrMidi = noteToMidi(noteStr);
+        const noteStrHz = tunedNoteToFrequency(noteStr, tuning ?? null);
+        // Not a note name: the voice stays silent (never MIDI 0).
+        if (noteStrMidi === null || noteStrHz === null) return;
         const targetDuration = overrideDuration !== undefined ? overrideDuration : (durationSteps * stepTime);
         const originalDuration = buffer.duration;
         const triggerTime = overrideTime !== undefined ? overrideTime : actualTime;
@@ -270,7 +274,7 @@ export function createPlaySamplerVoice(
           const rootNote = params.rootNote ?? 60;
           const coarse = noteParams?.coarseTune ?? params.coarseTune ?? 0;
           const fine = (noteParams?.fineTune ?? params.fineTune ?? 0) / 100;
-          const noteMidi = noteToMidi(noteStr) + pitchOffsetSemitones + coarse + fine;
+          const noteMidi = noteStrMidi + pitchOffsetSemitones + coarse + fine;
           finalFormantShift = (finalFormantShift ?? baseShift) + (noteMidi - rootNote) * formantLinkRatio;
         }
 
@@ -421,12 +425,11 @@ export function createPlaySamplerVoice(
 
           if (noteParams?.sliceIndex !== undefined) {
             sliceIndex = noteParams.sliceIndex;
-            const targetMidi = noteToMidi(noteStr);
+            const targetMidi = noteStrMidi;
             const baseMidi = 60;
             pitchRatio = Math.pow(2, (targetMidi - baseMidi + pitchOffset + pitchOffsetSemitones) / 12);
           } else {
-            const targetMidi = noteToMidi(noteStr);
-            sliceIndex = targetMidi - 60;
+            sliceIndex = noteStrMidi - 60;
             pitchRatio = Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
           }
 
@@ -457,8 +460,8 @@ export function createPlaySamplerVoice(
         voice.setTimeRatio(timeRatio, triggerTime);
 
         // 2. Pitch Shift (with offset for harmonizer and slide support)
-        const targetMidi = noteToMidi(noteStr) + pitchOffsetSemitones;
-        const targetHz = tunedNoteToFrequency(noteStr, tuning ?? null) * Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
+        const targetMidi = noteStrMidi + pitchOffsetSemitones;
+        const targetHz = noteStrHz * Math.pow(2, (pitchOffset + pitchOffsetSemitones) / 12);
 
         if (noteParams?.slideFromMidi !== undefined) {
           const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
@@ -657,6 +660,7 @@ export function createPlaySamplerVoice(
     // ⚡ Bolt Optimization: Replacing forEach with for...of to prevent closure allocations on hot path
     for (const noteStr of notes) {
       const midi = noteToMidi(noteStr);
+      if (midi === null) continue; // not a note name: never sounds
 
       if (shouldGlitch) {
         const numStutters = Math.floor(Math.random() * 3) + 2;
