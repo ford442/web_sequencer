@@ -7,7 +7,7 @@ import { BassEnvelopeFollower } from '../rubberband/bassEnvelopeFollower';
 import { DrumDuckEnvelope } from '../rubberband/drumDuckEnvelope';
 import { EffectsControlMixin } from '../../engines/singing-voice/effectsControl';
 import type { SingingVoiceHost } from '../../engines/singing-voice/host';
-import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../utils/sidechainTriggerRing';
+import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../shared/rt/sidechainTriggerRing';
 
 type Posted = Record<string, unknown>;
 type ProcessorInstance = {

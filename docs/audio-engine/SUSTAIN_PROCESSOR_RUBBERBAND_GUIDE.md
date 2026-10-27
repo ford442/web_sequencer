@@ -228,5 +228,5 @@ async function setupSustainWithRubberBand(audioContext: AudioContext) {
 ## See Also
 
 - [rubberband-processor.ts](./rubberband-processor.ts) - Standalone Rubber Band processor
-- [RingBuffer](../utils/ringBuffer.ts) - Lock-free ring buffer implementation
+- [RingBuffer](../../src/shared/rt/ringBuffer.ts) - Lock-free ring buffer implementation
 - [SingingVoice](../engines/SingingVoice.ts) - Example of Rubber Band integration

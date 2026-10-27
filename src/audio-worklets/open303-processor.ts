@@ -11,13 +11,11 @@
 // instead of slide, ignore a stale noteOff, release a stuck note after 8 s —
 // run natively on the event frame (hyphon::MonoNoteEngine).
 
-import { VoiceEvent } from './hyphonNativeExports';
+import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef, type NativeVoicePrefix } from './nativeVoiceProcessor';
 import { Open303EngineSession } from './open303/engineSession';
 import { Open303EngineSelection } from './open303/engineSelection';
 import { getTime, type EngineFamily } from './open303/shared';
-
-declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
 
 // Map from jc303_set* message name → Open303Param id. The message protocol
 // predates the native API; every engine shares these ids.

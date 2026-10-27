@@ -43,7 +43,7 @@ type Voice = {
 };
 type VoiceCtor = new () => Voice;
 const registered = new Map<string, VoiceCtor>();
-const g = globalThis as {
+const g = globalThis as unknown as {
   currentFrame?: number;
   sampleRate?: number;
   AudioWorkletProcessor?: new () => { port: FakePort };

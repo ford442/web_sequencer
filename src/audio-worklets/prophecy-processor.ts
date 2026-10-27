@@ -6,10 +6,8 @@
 // (#1344 P4 — they used to apply whenever the message arrived).
 
 import { formatMissingWasmExports, hasProphecyApi } from './hyphonNativeImports';
-import { VoiceEvent } from './hyphonNativeExports';
+import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
-
-declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
 
 /** Fields the port messages carry; each message type reads a few of them. */
 interface ProphecyMessageData {

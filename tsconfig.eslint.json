@@ -13,5 +13,8 @@
     "vite.config.ts",
     "scripts/**/*.mjs",
     "scripts/**/*.ts"
-  ]
+  ],
+  // Lint every file, worklet sources included; the app project's exclude is
+  // only about which lib each file is type-checked against (tsc -b).
+  "exclude": []
 }

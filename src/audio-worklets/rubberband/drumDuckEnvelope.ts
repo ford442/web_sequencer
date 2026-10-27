@@ -1,9 +1,9 @@
-import { SidechainRingReader, DRUM_TRIGGER_STRIDE } from "../../utils/sidechainTriggerRing";
+import { SidechainRingReader, DRUM_TRIGGER_STRIDE } from "../../shared/rt/sidechainTriggerRing";
 
 /**
  * Sidechain ducking driven by drum-hit triggers delivered through a sidechain
  * trigger ring of [time, velocity, decaySeconds, isSnare] events (see
- * utils/sidechainTriggerRing.ts), so hits written ahead of the clock are not
+ * shared/rt/sidechainTriggerRing.ts), so hits written ahead of the clock are not
  * overwritten by the next one.
  */
 export class DrumDuckEnvelope {

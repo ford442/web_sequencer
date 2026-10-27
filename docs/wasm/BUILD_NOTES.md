@@ -18,6 +18,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
 - [Export surface + export map](#export-surface)
 - [Worklet import table](#worklet-import-table)
+- [Worklet global scope (typing)](#worklet-global-scope)
 - [AssemblyScript browser matrix](#assemblyscript-browser-matrix)
 - [Standalone JC-303 (retired)](#standalone-jc-303-memory-budget)
 - [Pyodide + the CSP boot path](#pyodide-csp)
@@ -885,6 +886,38 @@ into `open303_set_param` / `jc303_set_param` param IDs, not exports.
 it (`OfflineHighFid303Engine.ts` and the WGSL shader mirror it in TS/GPU instead).
 
 ---
+
+<a id="worklet-global-scope"></a>
+## Worklet global scope: three TypeScript programs
+
+AudioWorklet code runs in `AudioWorkletGlobalScope`: `sampleRate`, `currentTime`,
+`currentFrame`, `registerProcessor`, `AudioWorkletProcessor`, `console`,
+`MessagePort` — and no `window`, `document`, `fetch`, `setTimeout` or (in most
+engines) `performance`. It used to type-check under the app's `lib: ["DOM"]`, so
+none of that was enforced (a `setTimeout` in a drum-worklet WIP broke it once),
+and 11 processors hand-declared the scope's members, each slightly differently.
+
+`tsc -b` now builds three programs:
+
+| Project | Covers | `lib` / `types` |
+|---|---|---|
+| `tsconfig.app.json` | the app, all tests | `ES2022` + `DOM`; `@types/audioworklet` is visible too, because tests and a few main-thread modules import worklet files |
+| `src/audio-worklets/tsconfig.json` | worklet sources (not `__tests__`) and everything they import | `ES2022` + `@types/audioworklet` (+ `vite/client` for `import.meta.env`) — **no DOM** |
+| `src/shared/rt/tsconfig.json` | real-time code both worlds import | `ES2022` only |
+
+A `window` or `setTimeout` in `src/audio-worklets/` — or in any module a worklet
+imports, wherever it lives — fails `tsc -b`. ESLint's `no-restricted-globals` on
+`src/audio-worklets/**` and `src/shared/rt/**` is the backstop, and
+`src/__tests__/workletGlobalScope.test.ts` pins the configuration.
+
+`src/shared/rt/` holds what both sides use and so must assume neither global set:
+`ringBuffer.ts`, `sidechainTriggerRing.ts`, the generated `hyphonNativeExports.ts`
+(`pnpm run gen:native-types` writes it there), `clock.ts` (the transport clock
+constants, re-exported by `src/midi/clock/types.ts`, plus the clock worklet's
+message protocol) and `time.ts` (`nowMs()`, the one `performance.now()`-or-`Date.now()`
+lookup the worklets used to repeat). Other modules a worklet imports (the loudness
+DSP, `stretchProfiles`, `ExpressiveVoiceProcessor`, `workletSampleRate`) stay where
+they are; the worklet program checks them all the same.
 
 <a id="worklet-import-table"></a>
 ## Worklet import table

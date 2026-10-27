@@ -1,0 +1,31 @@
+{
+  // AudioWorkletGlobalScope, not a window: ES2022 + @types/audioworklet and no
+  // DOM lib, so `window`, `document`, `fetch` or `setTimeout` in worklet code (or
+  // in anything it imports) fails `tsc -b`. Tests under __tests__ run in Node /
+  // happy-dom and are type-checked by tsconfig.app.json instead.
+  // See docs/wasm/BUILD_NOTES.md#worklet-global-scope.
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../node_modules/.tmp/tsconfig.worklets.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022"],
+    "types": ["audioworklet", "vite/client"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.d.ts"],
+  "exclude": ["./**/__tests__/**"]
+}
