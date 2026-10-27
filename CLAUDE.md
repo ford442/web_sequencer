@@ -88,7 +88,6 @@ The project has multiple WASM builds with specific purposes:
 - `build:wasm:oscillators` - AssemblyScript oscillator engines
 - `build:wasm:freezer` - Track freezer/time-stretch prep
 - `bench:wasm:rust` - Rust bench crate only; not part of `build:native` (#1294)
-- `build:wasm:jc303` - Standalone JC303 synth (C++ via Emscripten pthreads)
 - `build:emcc` - Voice module `hyphon_native` (Emscripten 6.0.9, pinned in `emscripten/toolchain.json`; `-O3 -flto`)
 
 ⚠️ **Important:** Individual WASM rebuilds may be needed after changes. The main `dev` and `build` commands handle this, but specific engine changes may require targeted rebuilds.
@@ -169,7 +168,7 @@ npm run build     # Ensure production build succeeds
 - WASM modules must be properly imported async
 
 ### Modifying Synth Parameters
-- Changes to JC303 require recompilation: `npm run build:wasm:jc303`
+- JC303 runs inside `hyphon_native`: changes require `pnpm run build:emcc`
 - Parameter changes propagate through audio engine hooks
 - Test with both pre-allocated and real-time synthesis
 

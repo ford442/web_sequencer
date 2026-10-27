@@ -87,31 +87,6 @@ function fileInput(relPath) {
   return { kind: 'file', name: relPath };
 }
 
-function readSubmoduleCommit(repoRoot) {
-  const gitFile = path.join(repoRoot, 'jc303_wasm', '.git');
-  if (!exists(gitFile)) return 'missing';
-  try {
-    const raw = fs.readFileSync(gitFile, 'utf8').trim();
-    if (raw.startsWith('gitdir:')) {
-      const gitdir = raw.slice('gitdir:'.length).trim();
-      const headPath = path.isAbsolute(gitdir)
-        ? path.join(gitdir, 'HEAD')
-        : path.join(repoRoot, 'jc303_wasm', gitdir, 'HEAD');
-      if (!exists(headPath)) return 'missing-head';
-      const head = fs.readFileSync(headPath, 'utf8').trim();
-      if (head.startsWith('ref:')) {
-        const ref = head.slice(4).trim();
-        const refPath = path.join(path.dirname(headPath), ref);
-        if (exists(refPath)) return fs.readFileSync(refPath, 'utf8').trim();
-      }
-      return head;
-    }
-    return raw.slice(0, 40);
-  } catch {
-    return 'unreadable';
-  }
-}
-
 /**
  * @param {string} repoRoot
  * @param {Record<string, string>} [scripts]
@@ -135,14 +110,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     ],
     toolchain: 'asc',
   }));
-
-
-  const jc303WasmFiles = walkFiles(repoRoot, 'jc303_wasm/wasm', {
-    excludeDirNames: new Set(['build_threaded', 'build_single', 'dist', 'build']),
-  });
-  const jc303SrcFiles = walkFiles(repoRoot, 'jc303_wasm/src', {
-    excludeDirNames: new Set(['.git']),
-  });
 
   // Rubber Band lives in its own world now (see BUILD_NOTES#module-split), so its
   // sources must not re-stale the voice module on every stretcher change.
@@ -169,6 +136,8 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   const rubberbandSrc = walkFiles(repoRoot, 'rubberband/src', {
     excludeDirNames: new Set(['.git']),
   });
+  // The jc303_wasm submodule's only consumer: build.sh compiles its rosic Open303
+  // DSP into hyphon_native (the standalone public/jc303* build is gone).
   const open303Dsp = walkFiles(repoRoot, 'jc303_wasm/src/dsp/open303', {
     excludeDirNames: new Set(['.git']),
   });
@@ -182,29 +151,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
 
   return [
     ...asWorlds,
-    {
-      id: 'jc303',
-      world: 'jc303',
-      rebuildCommand: 'pnpm run build:wasm:jc303',
-      inputs: [
-        ...jc303WasmFiles.map(fileInput),
-        ...jc303SrcFiles.map(fileInput),
-        fileInput('tools/build_jc303_omp.sh'),
-        ...EMCC_PIN_INPUTS.map(fileInput),
-        fileInput('tools/jc303_cmake/CMakeLists.txt'),
-        fileInput(budgetRel),
-        textInput('jc303_wasm.submodule', readSubmoduleCommit(repoRoot)),
-      ],
-      outputs: [
-        'public/jc303-single.js',
-        'public/jc303-single.wasm',
-        'public/jc303-single-worklet.js',
-        'public/jc303-threaded.js',
-        'public/jc303-threaded.wasm',
-        'public/jc303-threaded-worklet.js',
-      ],
-      toolchain: 'emcc',
-    },
     {
       id: 'emcc',
       world: 'emcc',

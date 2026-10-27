@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sourced (not executed) by every em++ build script:
-#   emscripten/build.sh, build_rubberband.sh, build_mix_bus.sh, tools/build_jc303_omp.sh
+#   emscripten/build.sh, build_rubberband.sh, build_mix_bus.sh
 #
 # Puts the PINNED Emscripten on PATH and refuses to continue with any other one.
 # The pin lives in exactly one place, emscripten/toolchain.json#emscripten.version;

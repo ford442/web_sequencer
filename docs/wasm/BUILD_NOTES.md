@@ -18,7 +18,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Export surface + export map](#export-surface)
 - [Worklet import table](#worklet-import-table)
 - [AssemblyScript browser matrix](#assemblyscript-browser-matrix)
-- [Standalone JC-303 memory budget](#standalone-jc-303-memory-budget)
+- [Standalone JC-303 (retired)](#standalone-jc-303-memory-budget)
 - [Pyodide + the CSP boot path](#pyodide-csp)
 - [Appendix: Rubber Band integration notes](#appendix-rubber-band-integration-notes)
 
@@ -45,7 +45,7 @@ HYPHON_BUILD_PROFILE=debug bash emscripten/build.sh
 |---|---|
 | `build:web` | `tsc -b` + Vite using already-built artifacts. No JS source maps. |
 | `build:web:debug` | Same with `HYPHON_SOURCEMAP=1`. |
-| `build:native` | Rebuild AssemblyScript, Rust, standalone JC-303, and `hyphon_native`. |
+| `build:native` | Rebuild AssemblyScript, `hyphon_native`, Rubber Band and the mix bus. |
 | `build:native:changed` | Content-hash incremental; only stale/missing worlds. |
 | `check:native` | Preflight only. |
 | `build:release` | Native + `check:exports --glue` + web + `dist/native-artifacts.json`. |
@@ -79,8 +79,8 @@ profile*, not per build profile — every `build.sh` run emits both, see
 
 **One place:** `emscripten/toolchain.json#emscripten.version` (**6.0.9**).
 
-- Every em++ script — `build.sh`, `build_rubberband.sh`, `build_mix_bus.sh`,
-  `tools/build_jc303_omp.sh` — sources `emscripten/toolchain_env.sh`. It accepts an
+- Every em++ script — `build.sh`, `build_rubberband.sh`, `build_mix_bus.sh` —
+  sources `emscripten/toolchain_env.sh`. It accepts an
   `emcc` already on `PATH` whose `-dumpversion` matches, otherwise tries
   `$HYPHON_EMSDK` and the usual emsdk checkouts, and **exits 1** naming what it
   found when none matches. A mismatched compiler used to build silently.
@@ -89,7 +89,7 @@ profile*, not per build profile — every `build.sh` run emits both, see
   `playwright-e2e.yml`, `test-perf.yml`) reads the field with `jq` and passes it to
   `setup-emsdk` and its native cache key. `.jules/setup.sh` reads it too.
 - `scripts/native-worlds.mjs` hashes `toolchain.json` + `toolchain_env.sh` into
-  every em++ world, so moving the pin rebuilds all four of them.
+  every em++ world, so moving the pin rebuilds all three of them.
 - `src/__tests__/wasmCompileFlags.test.ts` fails if a workflow hard-codes a version
   or a build script sources `emsdk_env.sh` directly.
 
@@ -165,8 +165,8 @@ Nothing in the repo uses OpenMP any more, and the committed `emscripten/libomp.a
 together with `libomp.a`, but because `-fopenmp` was never passed, `_OPENMP` was
 undefined, every `#pragma omp` was dead, and the archive never contributed an object
 (no `__kmpc_*` symbol was ever in the binary). The standalone JC-303 "threaded"
-variant (`tools/build_jc303_omp.sh`, name kept for its callers) linked `libomp.a`
-too, but `jc303_wasm/src` has no OpenMP pragma either; it is plain `-pthread` now.
+variant (`tools/build_jc303_omp.sh`, since deleted) linked `libomp.a` too, but
+`jc303_wasm/src` has no OpenMP pragma either.
 The pthread pool exists for Emscripten's own runtime work. Rubber Band is a separate
 module and is built `-DNO_THREADING` — it runs single-threaded inside the worklet.
 Comments elsewhere that describe Rubber Band as OpenMP-parallel are stale; this
@@ -244,9 +244,9 @@ nothing instantiates it on the main thread any more (see
 because it removes shared memory and the pthread runtime from the worklet
 entirely.
 
-**Standalone `public/jc303*`.** Still built and still the fourth world. Retire it
-only once ST plus the shared heap are proven on WebKit end to end (tracked in the
-issue, not done here).
+**Standalone `public/jc303*`.** Retired: nothing in `src/` loaded it, and JC303
+has run inside `hyphon_native` (both threading profiles) since voice core P3. See
+[Standalone JC-303 (retired)](#standalone-jc-303-memory-budget).
 
 ---
 
@@ -277,7 +277,6 @@ Two independent reasons, one of which is simply that it was never used there:
 | `public/hyphon_native.wasm` | `emscripten/build.sh` | `wasm_memory_budget.json#hyphonNative` | **yes** — the worklets pass one in, so `initial` must match exactly |
 | `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` | no — the module owns its memory |
 | `public/mix_bus.wasm` | `emscripten/build_mix_bus.sh` | `#mixBus` — fixed, never grows | no — owns it, zero imports |
-| `public/jc303-*.wasm` | `tools/build_jc303_omp.sh` | `#standaloneJc303` | no |
 | `src/wasm/*.wasm` | `asc` (see the AS matrix) | `#assemblyScript` (pages) | no |
 
 Each has exactly one imported-memory contract, and no script carries memory
@@ -773,9 +772,8 @@ along with the `HYPHON_LEGACY_JC303` switch that kept them in debug builds (#134
 `jc303_init(handle, sampleRate, maxFrames)`.
 
 They were never reachable in hyphon_native: `open303-processor.ts` only falls back
-to that API when `open303_*` is missing, which describes the standalone
-`jc303-single.wasm` artifact (`tools/build_jc303_omp.sh`), not this module — that
-fallback path is unchanged. The worklet's `JC303_PARAM_MAP` message names
+to that API when `open303_*` is missing, which described the standalone
+`jc303-single.wasm` artifact (since retired), not this module. The worklet's `JC303_PARAM_MAP` message names
 (`jc303_setCutoff`, …) are unaffected too: they are *message* names translated
 into `open303_set_param` / `jc303_set_param` param IDs, not exports.
 
@@ -890,29 +888,20 @@ fallback for a bundle-time failure.
 
 ## Standalone JC-303 memory budget
 
-**This is not `hyphon_native`.** The live 303 path is `public/hyphon_native.wasm`.
-Standalone `public/jc303-*.wasm` is still built for fallback/compat.
+**Retired.** The standalone `public/jc303-{single,threaded}{.js,.wasm,-worklet.js}`
+world (plus the legacy `public/jc303.{js,wasm}` / `jc303_worklet.js` copies) was
+built by `tools/build_jc303_omp.sh` + `tools/jc303_cmake/CMakeLists.txt` on every
+`build:native`, but nothing in `src/` loaded it — JC303 runs inside
+`hyphon_native` (`emscripten/jc303_wrapper.cpp`, compiled from
+`jc303_wasm/src/dsp/open303/*.cpp`). It had also drifted to `-O2 -flto` links
+against `hyphon_native`'s `-O3 -flto`. The script, the CMake overlay, the
+`standaloneJc303` budget entry, its native world and CI cache paths are deleted.
 
-**Source of truth:** `emscripten/wasm_memory_budget.json#standaloneJc303`, consumed by
-`tools/build_jc303_omp.sh` and `tools/jc303_cmake/CMakeLists.txt` (Hyphon-owned
-overlay — the submodule `jc303_wasm/wasm/CMakeLists.txt` is not used).
-
-| Setting | Value |
-|---|---|
-| `INITIAL_MEMORY` | 16 MB |
-| `MAXIMUM_MEMORY` | 256 MB |
-| `STACK_SIZE` (release / debug) | 4 MB / 2 MB |
-| Threaded `PTHREAD_POOL_SIZE` | 4 |
-
-These are the settings that actually shipped when CMake last-won over the
-script banner that advertised 64 / 32 / 256. Raise them in the JSON if the
-standalone fallback overflows; do not put a second set of literals in the
-shell script.
-
-`src/jc303-single.wasm` is a stale tracked leftover and is no longer part of
-the runtime or the commit set. Generated JC-303 binaries stay in `public/`.
-
-Contract: `src/__tests__/wasmMemoryBudget.test.ts` + `src/__tests__/jc303LinkFlags.test.ts`.
+The `jc303_wasm` submodule stays: `hyphon_native` compiles its rosic DSP, and the
+emcc world hashes `jc303_wasm/src/dsp/open303`. `scripts/check-release-dist.mjs`
+fails a `dist/` that still carries any `jc303*.js` / `jc303*.wasm` (a stale copy
+left in `public/` would otherwise ship unreferenced); `public/osc/jc303.webp` is
+UI art and is unaffected.
 
 <a id="pyodide-csp"></a>
 ## Pyodide + the CSP boot path

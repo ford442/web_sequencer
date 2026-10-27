@@ -692,9 +692,22 @@ if (rawTsInDist.length) {
   process.exit(1);
 }
 
+// The standalone JC-303 world (public/jc303-{single,threaded}*, the legacy
+// public/jc303.{js,wasm} + jc303_worklet.js) is retired: JC303 runs inside
+// hyphon_native. A stale copy left in public/ would otherwise ship unreferenced.
+// public/osc/jc303.webp is UI art and is not matched.
+{
+  const staleJc303 = walk(distDir).filter((p) => /^jc303.*\.(js|wasm)$/i.test(path.basename(p)));
+  if (staleJc303.length) {
+    console.error('[check-release-dist] dist/ ships retired standalone JC-303 artifacts (delete them from public/):');
+    for (const p of staleJc303) console.error(`  ${path.relative(repoRoot, p)}`);
+    process.exit(1);
+  }
+}
+
 // Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
 // dist/assets/ — the directory Vite's bundler actually controls. Vendored
-// native binaries (hyphon_native*, jc303*, rubberband.wasm, mix_bus.wasm) and the vendored
+// native binaries (hyphon_native*, rubberband.wasm, mix_bus.wasm) and the vendored
 // Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
 // here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by

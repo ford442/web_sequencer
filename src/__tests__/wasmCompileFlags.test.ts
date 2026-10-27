@@ -32,7 +32,6 @@ const withoutJsLineComments = (src: string) =>
 const buildSh = read('emscripten/build.sh');
 const rubberbandSh = read('emscripten/build_rubberband.sh');
 const mixBusSh = read('emscripten/build_mix_bus.sh');
-const jc303Sh = read('tools/build_jc303_omp.sh');
 const toolchainEnvSh = read('emscripten/toolchain_env.sh');
 const indexHtml = read('index.html');
 const bootstrapTs = read('src/pyodide/bootstrap.ts');
@@ -147,7 +146,6 @@ describe('Emscripten pin (#toolchain-pin)', () => {
         'emscripten/build.sh': buildSh,
         'emscripten/build_rubberband.sh': rubberbandSh,
         'emscripten/build_mix_bus.sh': mixBusSh,
-        'tools/build_jc303_omp.sh': jc303Sh,
     };
     const workflowsWithEmsdk = readdirSync(join(REPO_ROOT, '.github/workflows'))
         .filter((f) => f.endsWith('.yml'))
@@ -231,7 +229,6 @@ describe('voice module link (hyphon_native)', () => {
     it('emits no pthread *.worker.js shim (the pinned emcc inlines workers)', () => {
         expect(existsSync(join(REPO_ROOT, 'scripts/ensure-pthread-worker-stamp.mjs'))).toBe(false);
         expect(code).not.toContain('worker.js');
-        expect(withoutShellComments(jc303Sh)).not.toMatch(/worker\.js|libomp|-fopenmp/);
     });
 
     it('release and emcc builds re-check the linked wasm, not only glue', () => {
