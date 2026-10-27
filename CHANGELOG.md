@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Build hygiene after the 10-02 epics: dead code, link profiles, worklet typing
+- **Standalone JC-303 world retired**: `build:native` no longer builds `public/jc303-{single,threaded}*` (or the legacy `jc303.{js,wasm}` / `jc303_worklet.js`); nothing loaded them — JC303 runs inside `hyphon_native`. `check-release-dist` fails a `dist/` that still ships a `jc303*.js` / `.wasm`.
+- **Rubber Band and the mix bus link at `-O3 -flto`** like the voice module: stretcher output bit-identical, Rubber Band 13–19 % faster and its wasm 16 % smaller, mix-bus sum 28 % faster. The mix-bus peak is now explicit `f32x4.pmax` (2× faster) and **skips NaN samples like the JS path** — the old release build reported a NaN peak for a stem containing one. Rubber Band keeps memory growth (an uncapped sample is copied into its heap); a new test proves the worklets survive a grow after every allocating call. See [BUILD_NOTES](docs/wasm/BUILD_NOTES.md#standalone-link-profiles).
+- **~5,700 lines of unreached modules deleted** (old panels, a duplicate harmonizer popover, four never-loaded worklets, …). `pnpm lint` now runs **knip**: a module no production entry reaches fails lint.
+- **WAM2 generic editor reachable**: the Engine HUD's per-slot **Edit** button opens the descriptor-driven editor (params, automation lanes, presets) that ADR 0001 describes.
+- **Worklet code type-checks against `AudioWorkletGlobalScope`** (its own `tsc -b` project, no DOM): `window`, `fetch` or `setTimeout` in a worklet is a compile error. Code shared by both sides lives in `src/shared/rt/`.
+
 ### Flat note names play at their pitch (#1466)
 - **Fix**: `noteToMidi` understood only sharps, so `Eb3`, `Bb3`, `Cb4`, `F##3` and `C-1` all parsed as MIDI 0 (≈ 8 Hz), live and offline. The AI reference song (`full.json`) has five such notes. The parser now takes a letter, any run of `#` `b` `♯` `♭` `x` `𝄪` `𝄫`, and an octave from `-1` to `9`, and folds every spelling to one MIDI number (`Eb3` = `D#3` = 51). `midiToNote` still spells with sharps.
 - **Invalid names return `null`, never 0**: every caller now skips the note (live engines, sampler, drums, WAM, macro / freeze / stem renders, SMF and RBS export) instead of playing MIDI 0. `tunedNoteToFrequency` / `noteToFrequency` return `null` too. The renderer worker and the lyric transposer use the shared parser instead of their own copies.

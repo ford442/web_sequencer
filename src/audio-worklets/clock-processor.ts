@@ -23,31 +23,9 @@
 // the voice worklets apply them on that sample instead of at the next block
 // boundary after the message round trip. Default 0 — post when the step falls.
 
+import { MAX_CLOCK_LOOKAHEAD_SEC, type ClockControlMessage, type ClockStepMessage } from '../shared/rt/clock';
 import { WorkletPerfReporter } from './workletPerfReporter';
 
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(
-        inputs: Float32Array[][],
-        outputs: Float32Array[][],
-        parameters: Record<string, Float32Array>,
-    ): boolean;
-}
-declare function registerProcessor(name: string, ctor: new (options?: unknown) => AudioWorkletProcessor): void;
-declare const sampleRate: number;
-declare const currentTime: number;   // AudioWorkletGlobalScope: time of current block
-
-interface ClockMessage {
-    type: 'start' | 'stop' | 'setTempo' | 'setSwing' | 'setSteps' | 'setLookahead';
-    tempo?: number;
-    swing?: number;
-    steps?: number;
-    /** Seconds. */
-    lookahead?: number;
-}
-
-/** Upper bound on the lookahead a caller may ask for (seconds). */
-const MAX_LOOKAHEAD_SEC = 0.5;
 
 class ClockProcessor extends AudioWorkletProcessor {
     private running = false;
@@ -69,11 +47,11 @@ class ClockProcessor extends AudioWorkletProcessor {
     // How far ahead of a step's sample its message is posted.
     private lookaheadSamples = 0;
 
-    private readonly stepMessage: { type: 'step'; step: number; audioTime: number; absStep: number } = { type: 'step', step: 0, audioTime: 0, absStep: 0 };
+    private readonly stepMessage: ClockStepMessage = { type: 'step', step: 0, audioTime: 0, absStep: 0 };
 
     constructor() {
         super();
-        this.port.onmessage = (e: MessageEvent<ClockMessage>) => {
+        this.port.onmessage = (e: MessageEvent<ClockControlMessage>) => {
             const { type, tempo, swing, steps, lookahead } = e.data;
             switch (type) {
                 case 'start':
@@ -98,7 +76,7 @@ class ClockProcessor extends AudioWorkletProcessor {
                     break;
                 case 'setLookahead':
                     if (lookahead != null && Number.isFinite(lookahead) && lookahead >= 0) {
-                        this.lookaheadSamples = Math.round(Math.min(lookahead, MAX_LOOKAHEAD_SEC) * sampleRate);
+                        this.lookaheadSamples = Math.round(Math.min(lookahead, MAX_CLOCK_LOOKAHEAD_SEC) * sampleRate);
                     }
                     break;
                 case 'setSteps':

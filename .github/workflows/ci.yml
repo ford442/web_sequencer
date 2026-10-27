@@ -170,18 +170,10 @@ jobs:
             public/hyphon_native.st.js
             public/hyphon_native.st.wasm
             public/hyphon_wasm_export_map.st.json
-            public/jc303-single.js
-            public/jc303-single.wasm
-            public/jc303-single-worklet.js
-            public/jc303-threaded.js
-            public/jc303-threaded.wasm
-            public/jc303-threaded-worklet.js
             public/rust-wasm/
             rust-audio/target
-            jc303_wasm/wasm/build_threaded
-            jc303_wasm/wasm/build_single
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'tools/build_jc303_omp.sh', 'tools/jc303_cmake/**', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed

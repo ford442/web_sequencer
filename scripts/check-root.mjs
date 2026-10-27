@@ -79,6 +79,9 @@ const ALLOWED_ROOT_FILES = new Set([
   'vite.config.ts',
   'eslint.config.js',
   'eslint-baseline.json',
+  // Dead-code gate: knip config and the shrink-only orphan baseline (scripts/knip-ratchet.mjs).
+  'knip.json',
+  'knip-baseline.json',
   'postcss.config.js',
   'tailwind.config.js',
   'playwright.config.ts',
@@ -99,11 +102,10 @@ const ALLOWED_ROOT_FILES = new Set([
   'deploy.py',
   'dist-budget.json',
   // Documented one-off setup/rebuild helpers — referenced by name from
-  // README.md / docs/tts/TTS_DEPLOYMENT.md / docs/audio-engine/OPEN303_STACK_OVERFLOW_FIX.md.
+  // README.md / docs/tts/TTS_DEPLOYMENT.md.
   // Not "one-shot agent scratch": these are maintained, linked-to tools.
   'download_models.sh',
   'download_models.ps1',
-  'rebuild_open303.sh',
   // Standalone SVG demo referenced by README.md and the `demo` npm script.
   'svg-demo.html',
 ]);

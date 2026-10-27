@@ -4,7 +4,7 @@ import {
   BASS_ENV_RELEASE_SECONDS,
   BassEnvelopeFollower,
 } from '../bassEnvelopeFollower';
-import { BASS_TRIGGER_STRIDE, SidechainRingWriter, createSidechainRing } from '../../../utils/sidechainTriggerRing';
+import { BASS_TRIGGER_STRIDE, SidechainRingWriter, createSidechainRing } from '../../../shared/rt/sidechainTriggerRing';
 import { SingingVoiceManager } from '../../../engines/SingingVoiceManager';
 
 const SR = 48000;

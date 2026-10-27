@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main.tsx!",
+    "scripts/**/*.{js,mjs,cjs,ts,mts}!",
+    "tools/**/*.{js,mjs,ts,mts}!"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx,js,mjs}!",
+    "scripts/**/*.{js,mjs,cjs,ts,mts}!",
+    "tools/**/*.{js,mjs,ts,mts}!",
+    "!src/**/__tests__/**!",
+    "!src/test/**!",
+    "!src/**/*.{test,spec,bench,perf}.{ts,tsx}!",
+    "!src/**/*.d.ts!"
+  ]
+}

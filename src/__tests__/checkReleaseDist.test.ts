@@ -15,7 +15,7 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
@@ -133,6 +133,8 @@ interface DistOptions {
     workletSuffix?: Record<string, string>;
     /** Processors whose chunk is left out, as if inlined into a shared chunk. */
     omitWorklets?: readonly string[];
+    /** Extra files at the dist/ root (relative path -> bytes), e.g. a stale public/ copy. */
+    extraRootFiles?: Record<string, string>;
 }
 
 /** Custom section (id 0): ignored by engines, so the module stays valid. */
@@ -151,6 +153,7 @@ function makeDist({
     extraAssets = {},
     workletSuffix = {},
     omitWorklets = [],
+    extraRootFiles = {},
 }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
@@ -211,6 +214,10 @@ function makeDist({
     );
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
     if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
+    for (const [rel, text] of Object.entries(extraRootFiles)) {
+        mkdirSync(dirname(join(dir, rel)), { recursive: true });
+        writeFileSync(join(dir, rel), text);
+    }
     return dir;
 }
 
@@ -308,6 +315,25 @@ describe('check-release-dist WASM export gate', () => {
 
         expect(result.status).toBe(1);
         expect(result.output).toContain('hyphon_native.st.wasm is not a single-threaded build');
+    });
+
+    it.each(['jc303-single.wasm', 'jc303-threaded-worklet.js', 'jc303.js', 'jc303_worklet.js'])(
+        'rejects a retired standalone JC-303 artifact (%s)',
+        (file) => {
+            const result = runCheck(makeDist({ extraRootFiles: { [file]: '' } }));
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('retired standalone JC-303 artifacts');
+            expect(result.output).toContain(file);
+        },
+    );
+
+    it('keeps the JC-303 UI art (osc/jc303.webp)', () => {
+        // Only the JC-303 gate is under test: a lone dist/osc/ entry trips the
+        // panel-art check for the other engines, so the exit status is not asserted.
+        const result = runCheck(makeDist({ extraRootFiles: { 'osc/jc303.webp': '' } }));
+
+        expect(result.output).not.toContain('retired standalone JC-303');
     });
 
     it('requires the offline mix bus to ship (#1341)', () => {

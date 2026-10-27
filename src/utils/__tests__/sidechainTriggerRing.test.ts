@@ -5,7 +5,7 @@ import {
   SidechainRingWriter,
   createSidechainRing,
   isSidechainRing,
-} from '../sidechainTriggerRing';
+} from '../../shared/rt/sidechainTriggerRing';
 
 const ev = (time: number, velocity = 1, duration = 0.1) => [time, velocity, duration];
 

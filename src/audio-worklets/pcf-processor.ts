@@ -2,14 +2,6 @@
 // Pattern Controlled Filter (PCF) AudioWorklet Processor
 // Implements ReBirth-style pattern-driven filter modulation as a real-time audio effect.
 
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-
-declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
-declare const sampleRate: number;
-
 /** Clamp a value to the [0, 1] range. */
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
 /** Clamp a value to the [0, 127] MIDI range. */

@@ -11,7 +11,7 @@
  * 1. PhonemeAligner (Section 3) - Aligns TTS output to phoneme boundaries
  * 2. FormantShifter (Section 4) - Independent formant control for vocal character
  * 3. ExpressiveVoiceProcessor (Section 5) - Vibrato, tremolo, breath effects
- * 4. HybridNeuralPipeline (Section 6) - Neural vocoding integration
+ * 4. (Section 6, the HybridNeuralPipeline experiment, was deleted unreached)
  * 5. PerformanceOptimizer (Section 7) - Real-time performance optimization
  * 6. ConcatenativeHybrid (Section 8) - TTS + real sample blending
  * 7. ArtifactDetector (Section 10) - Quality monitoring
@@ -59,11 +59,10 @@ export * from './FormantShifter';
 // Section 5: Expressiveness Layer (Vibrato, Dynamics)
 export * from './ExpressiveVoiceProcessor';
 
-// Section 6: Hybrid Neural + Rubber Band Approach — quarantined, not re-exported.
-// See src/engines/rubberband/experimental/HybridNeuralPipeline.ts: nothing in
-// the app constructs it. Import it directly from that path if you are working
-// on the neural-vocoder epic (#1257); do not add it back to this barrel until
-// something outside its own tests actually wires it in.
+// Section 6: Hybrid Neural + Rubber Band Approach — deleted. The experimental
+// HybridNeuralPipeline was never constructed by the app; the neural-vocoder epic
+// (#1257) starts from git history (it was removed with the dead-code gate,
+// `pnpm run lint:knip`).
 
 // Section 7: Real-Time Performance Optimizations
 export * from './performance';

@@ -32,7 +32,6 @@ const withoutJsLineComments = (src: string) =>
 const buildSh = read('emscripten/build.sh');
 const rubberbandSh = read('emscripten/build_rubberband.sh');
 const mixBusSh = read('emscripten/build_mix_bus.sh');
-const jc303Sh = read('tools/build_jc303_omp.sh');
 const toolchainEnvSh = read('emscripten/toolchain_env.sh');
 const indexHtml = read('index.html');
 const bootstrapTs = read('src/pyodide/bootstrap.ts');
@@ -81,7 +80,7 @@ describe('-ffast-math audit', () => {
             .split('\n')
             .filter((line) => line.includes('-ffast-math'));
         expect(fastLines).toHaveLength(1);
-        expect(fastLines[0]).toMatch(/^\s*OPT_FLAGS="-O3 -ffast-math"$/);
+        expect(fastLines[0]).toMatch(/^\s*OPT_FLAGS="-O3 -ffast-math -flto"$/);
         // One source file, and the debug profile stays IEEE.
         expect(mixBusSh.match(/em\+\+ "\$SCRIPT_DIR\/[^"]+"/g)).toEqual(['em++ "$SCRIPT_DIR/mix_bus.cpp"']);
         expect(mixBusSh).toMatch(/OPT_FLAGS="-O1 -g3"/);
@@ -90,6 +89,27 @@ describe('-ffast-math audit', () => {
     it('does not reintroduce fast-math in the Rubber Band module', () => {
         // Phase-vocoder accumulators and the resampler are the same class of code.
         expect(withoutShellComments(rubberbandSh)).not.toContain('-ffast-math');
+    });
+});
+
+describe('standalone em++ modules link like the voice module (rubberband, mix bus)', () => {
+    // The -O1 link was the emsdk 3.1.51 wasm-opt workaround (BUILD_NOTES#wasm-opt);
+    // on the 6.0.9 pin every em++ module links release at -O3 with LTO.
+    it('links rubberband.wasm at -O3 -flto, compiled with LTO and without fast-math', () => {
+        expect(rubberbandSh).toContain('OPT_FLAGS="-O3 -funroll-loops -flto"');
+        expect(rubberbandSh).toContain('LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"');
+    });
+
+    it('links mix_bus.wasm at -O3 -flto; fast-math stays on its compile only', () => {
+        expect(mixBusSh).toContain('OPT_FLAGS="-O3 -ffast-math -flto"');
+        expect(mixBusSh).toContain('LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"');
+    });
+
+    it('no em++ release link is held at -O1 any more', () => {
+        for (const [name, src] of [['build_rubberband.sh', rubberbandSh], ['build_mix_bus.sh', mixBusSh], ['build.sh', buildSh]]) {
+            const release = withoutShellComments(src).split(/\nelse\n/)[1] ?? '';
+            expect(release, name).not.toMatch(/LINK_PROFILE_FLAGS="-O1\b/);
+        }
     });
 });
 
@@ -147,7 +167,6 @@ describe('Emscripten pin (#toolchain-pin)', () => {
         'emscripten/build.sh': buildSh,
         'emscripten/build_rubberband.sh': rubberbandSh,
         'emscripten/build_mix_bus.sh': mixBusSh,
-        'tools/build_jc303_omp.sh': jc303Sh,
     };
     const workflowsWithEmsdk = readdirSync(join(REPO_ROOT, '.github/workflows'))
         .filter((f) => f.endsWith('.yml'))
@@ -231,7 +250,6 @@ describe('voice module link (hyphon_native)', () => {
     it('emits no pthread *.worker.js shim (the pinned emcc inlines workers)', () => {
         expect(existsSync(join(REPO_ROOT, 'scripts/ensure-pthread-worker-stamp.mjs'))).toBe(false);
         expect(code).not.toContain('worker.js');
-        expect(withoutShellComments(jc303Sh)).not.toMatch(/worker\.js|libomp|-fopenmp/);
     });
 
     it('release and emcc builds re-check the linked wasm, not only glue', () => {

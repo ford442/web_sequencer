@@ -15,15 +15,8 @@
 
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from './hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeInitData, type HyphonNativeSession } from './hyphonNativeSession';
-import type { HyphonNativeExports, VoiceHandle, WasmPtr } from './hyphonNativeExports';
+import type { HyphonNativeExports, VoiceHandle, WasmPtr } from '../shared/rt/hyphonNativeExports';
 import { WorkletPerfReporter } from './workletPerfReporter';
-
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-declare const currentFrame: number | undefined;
-declare const sampleRate: number | undefined;
 
 const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
 

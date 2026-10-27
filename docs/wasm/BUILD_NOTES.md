@@ -15,10 +15,12 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
+- [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
 - [Export surface + export map](#export-surface)
 - [Worklet import table](#worklet-import-table)
+- [Worklet global scope (typing)](#worklet-global-scope)
 - [AssemblyScript browser matrix](#assemblyscript-browser-matrix)
-- [Standalone JC-303 memory budget](#standalone-jc-303-memory-budget)
+- [Standalone JC-303 (retired)](#standalone-jc-303-memory-budget)
 - [Pyodide + the CSP boot path](#pyodide-csp)
 - [Appendix: Rubber Band integration notes](#appendix-rubber-band-integration-notes)
 
@@ -45,7 +47,7 @@ HYPHON_BUILD_PROFILE=debug bash emscripten/build.sh
 |---|---|
 | `build:web` | `tsc -b` + Vite using already-built artifacts. No JS source maps. |
 | `build:web:debug` | Same with `HYPHON_SOURCEMAP=1`. |
-| `build:native` | Rebuild AssemblyScript, Rust, standalone JC-303, and `hyphon_native`. |
+| `build:native` | Rebuild AssemblyScript, `hyphon_native`, Rubber Band and the mix bus. |
 | `build:native:changed` | Content-hash incremental; only stale/missing worlds. |
 | `check:native` | Preflight only. |
 | `build:release` | Native + `check:exports --glue` + web + `dist/native-artifacts.json`. |
@@ -79,8 +81,8 @@ profile*, not per build profile — every `build.sh` run emits both, see
 
 **One place:** `emscripten/toolchain.json#emscripten.version` (**6.0.9**).
 
-- Every em++ script — `build.sh`, `build_rubberband.sh`, `build_mix_bus.sh`,
-  `tools/build_jc303_omp.sh` — sources `emscripten/toolchain_env.sh`. It accepts an
+- Every em++ script — `build.sh`, `build_rubberband.sh`, `build_mix_bus.sh` —
+  sources `emscripten/toolchain_env.sh`. It accepts an
   `emcc` already on `PATH` whose `-dumpversion` matches, otherwise tries
   `$HYPHON_EMSDK` and the usual emsdk checkouts, and **exits 1** naming what it
   found when none matches. A mismatched compiler used to build silently.
@@ -89,7 +91,7 @@ profile*, not per build profile — every `build.sh` run emits both, see
   `playwright-e2e.yml`, `test-perf.yml`) reads the field with `jq` and passes it to
   `setup-emsdk` and its native cache key. `.jules/setup.sh` reads it too.
 - `scripts/native-worlds.mjs` hashes `toolchain.json` + `toolchain_env.sh` into
-  every em++ world, so moving the pin rebuilds all four of them.
+  every em++ world, so moving the pin rebuilds all three of them.
 - `src/__tests__/wasmCompileFlags.test.ts` fails if a workflow hard-codes a version
   or a build script sources `emsdk_env.sh` directly.
 
@@ -165,8 +167,8 @@ Nothing in the repo uses OpenMP any more, and the committed `emscripten/libomp.a
 together with `libomp.a`, but because `-fopenmp` was never passed, `_OPENMP` was
 undefined, every `#pragma omp` was dead, and the archive never contributed an object
 (no `__kmpc_*` symbol was ever in the binary). The standalone JC-303 "threaded"
-variant (`tools/build_jc303_omp.sh`, name kept for its callers) linked `libomp.a`
-too, but `jc303_wasm/src` has no OpenMP pragma either; it is plain `-pthread` now.
+variant (`tools/build_jc303_omp.sh`, since deleted) linked `libomp.a` too, but
+`jc303_wasm/src` has no OpenMP pragma either.
 The pthread pool exists for Emscripten's own runtime work. Rubber Band is a separate
 module and is built `-DNO_THREADING` — it runs single-threaded inside the worklet.
 Comments elsewhere that describe Rubber Band as OpenMP-parallel are stale; this
@@ -244,9 +246,9 @@ nothing instantiates it on the main thread any more (see
 because it removes shared memory and the pthread runtime from the worklet
 entirely.
 
-**Standalone `public/jc303*`.** Still built and still the fourth world. Retire it
-only once ST plus the shared heap are proven on WebKit end to end (tracked in the
-issue, not done here).
+**Standalone `public/jc303*`.** Retired: nothing in `src/` loaded it, and JC303
+has run inside `hyphon_native` (both threading profiles) since voice core P3. See
+[Standalone JC-303 (retired)](#standalone-jc-303-memory-budget).
 
 ---
 
@@ -277,7 +279,6 @@ Two independent reasons, one of which is simply that it was never used there:
 | `public/hyphon_native.wasm` | `emscripten/build.sh` | `wasm_memory_budget.json#hyphonNative` | **yes** — the worklets pass one in, so `initial` must match exactly |
 | `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` | no — the module owns its memory |
 | `public/mix_bus.wasm` | `emscripten/build_mix_bus.sh` | `#mixBus` — fixed, never grows | no — owns it, zero imports |
-| `public/jc303-*.wasm` | `tools/build_jc303_omp.sh` | `#standaloneJc303` | no |
 | `src/wasm/*.wasm` | `asc` (see the AS matrix) | `#assemblyScript` (pages) | no |
 
 Each has exactly one imported-memory contract, and no script carries memory
@@ -407,15 +408,16 @@ sources in JS, so the master is never partial. `metadata.json` and
 any fallback, and the dry master's per-channel peaks.
 
 **Numerical contract** (`src/__tests__/mixBus.integration.test.ts`, run against
-the emcc 3.1.51 and 6.0.6 builds):
+the emcc 3.1.51 and 6.0.6 builds, and the 6.0.9 `-O3 -flto` build):
 
 | | native vs JS |
 |---|---|
 | gain = 1 (every gain stem export uses today) | **bit-identical**. Switching engines never changes a stem. |
 | other gains (future channel-strip faders) | ≤ `1e-6` per sample: an f32 multiply-add against JS's f64-then-round |
-| peak | identical |
+| peak | identical, NaN samples skipped as in JS (explicit `f32x4.pmax`) |
 
-**Measured** (Node 24, x86-64, 48 kHz, 180 s, stereo):
+**Measured** (Node 24, x86-64, 48 kHz, 180 s, stereo; `-O1` link — for the
+`-O3 -flto` numbers see [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)):
 
 | | JS | wasm (as shipped: streamed through the scratch) |
 |---|---|---|
@@ -675,7 +677,8 @@ reassociation of float arithmetic. Applied to this codebase that hits two things
 `mix_bus.cpp`: a multiply-add and a max-reduction over stateless `float`
 blocks. It has no recursive state and no baseline contract. The accumulate is
 one operation per element, so reassociation cannot reorder anything across
-samples, and the max-reduction is the loop the flag lets the compiler vectorise.
+samples. The max-reduction is hand-vectorised with `f32x4.pmax` rather than left
+to the flag (see [the peak loop](#standalone-link-profiles)).
 At unity gain the result is bit-identical to the JS path (see
 [mix bus](#mix-bus)). The **debug** profile drops the flag, so a debug build is
 IEEE by construction.
@@ -722,6 +725,108 @@ names. The worklets do not use the glue, so they would have to guess
 it clears `MINIFY_WASM_EXPORT_NAMES` and therefore `MINIFY_WASM_IMPORTS_AND_EXPORTS`)
 while linking no code, and the export maps stay identity maps — byte-identical
 between the two profiles and between any two machines on the pin.
+
+<a id="standalone-link-profiles"></a>
+### Rubber Band and the mix bus at `-O3 -flto` (2026-10-27)
+
+The other two em++ modules kept the 3.1.51 workaround after #1424 lifted it for
+`hyphon_native`: compiled `-O3`, but linked at **`-O1`** with no LTO. Both now use
+the voice module's release profile:
+
+| Module | Compile (release) | Link (release) |
+|---|---|---|
+| `hyphon_native` | `-O3 -funroll-loops -flto` | `-O3 -flto` |
+| `rubberband.wasm` | `-O3 -funroll-loops -flto` (IEEE — never `-ffast-math`) | `-O3 -flto` (was `-O1`) |
+| `mix_bus.wasm` | `-O3 -ffast-math -flto` (the one fast-math TU) | `-O3 -flto` (was `-O1`) |
+
+Debug profiles are unchanged (`-O1 -g3`, IEEE). Neither module needs `-lexports.js`:
+Rubber Band is only ever instantiated through its own glue
+(`createRubberBandModule`, regenerated with the wasm), and the mix bus is a
+`STANDALONE_WASM` reactor whose export names are not minified
+(`tools/check_mix_bus_module.mjs` checks them after every build).
+`src/__tests__/wasmCompileFlags.test.ts` pins both profiles.
+
+**Parity.**
+
+- *Rubber Band stretcher*: five 4 s renders through the embind stretcher (R2
+  real-time vocal profile with pitch + formant, R2 precise stretch, R2 short-window
+  consistency, R3 finer mono with formant, R3 finer stereo ×2) are **bit-identical**
+  between the `-O1` and the `-O3 -flto` build. Same reason as the voice module: no
+  fast-math, and wasm has no implicit FMA contraction.
+- *Vocal FX* (`rb_fx_*`): `nativeVocalFx.integration.test.ts` — the TS oracle at
+  0 error / ∞ SNR on every case — passes unchanged on the new binary.
+- *Mix bus*: every accumulate (gain 1, 0.7, 0.333, 1.25 over 12 × 180 s stereo
+  stems) is **bit-identical** to the IEEE debug build and to the old release
+  build. `mix_bus_peak` matched the JS reference and the debug build on all 150
+  edge cases (lengths 0–200,003 with NaN / ±Inf / −0 at the start, middle and
+  end); the **old** release build did not — fast-math had made its scalar max
+  NaN-propagating, so a stem with a NaN sample reported a NaN peak in 27 of the
+  150 cases. `mixBus.integration.test.ts` now pins that case.
+
+**The peak loop.** Left to the compiler, the `-O3 -flto` link vectorised the peak
+reduction into `f32x4.max`, whose NaN-propagating x86 lowering made it ~30 %
+*slower* than the old scalar loop (13.8 → 18.2 ms for an 8.6 M-sample channel).
+`mix_bus_peak` is now written with `wasm_f32x4_pmax`, which is exactly the JS
+`if (a > peak) peak = a` and lowers to one `maxps`.
+
+**Performance** (Node 22, x86-64; medians of interleaved runs):
+
+| Workload | `-O1` link | `-O3 -flto` | Δ |
+|---|---:|---:|---:|
+| Rubber Band R2 vocal pitch, 4 s mono | 262 ms | 229 ms | −13 % |
+| Rubber Band R2 precise stretch ×1.6 | 202 ms | 163 ms | −19 % |
+| Rubber Band R2 short window, ×0.8 | 87 ms | 73 ms | −16 % |
+| Rubber Band R3 finer + formant ×1.25 | 628 ms | 507 ms | −19 % |
+| Rubber Band R3 finer stereo ×2 | 1,097 ms | 1,139 ms | noise (1,076–1,140 both) |
+| `vocalFx.perf`: native FX quantum | 0.0157 ms | 0.0161 ms | flat |
+| `vocalFx.perf`: native grains, 1024 frames | 0.0235 ms | 0.0241 ms | flat |
+| Mix bus: 12-stem 180 s stereo sum | 501 ms | 359 ms | −28 % |
+| Mix bus: peak, one 8.6 M-sample channel | 13.8 ms | 6.5 ms | −53 % (pmax) |
+
+The rb_fx chain is a handful of calls per 128-frame quantum on a hot path that
+was already inlined within its TU, so LTO has nothing to add there; the
+stretcher, spread over Rubber Band's many TUs, is where cross-TU inlining pays.
+
+**Sizes** (bytes; `dist-budget.json#native` rows added in their own commit):
+
+| Artifact | `-O1` link | `-O3 -flto` | Δ |
+|---|---:|---:|---:|
+| `rubberband.wasm` | 553,042 | 464,544 | −16.0 % |
+| `rubberband-lib.js` (glue as emitted) | 199,615 | 103,152 | −48.3 % |
+| `rubberband-processor` worklet chunk (Vite-minified, brotli) | 33,245 | 32,995 | −0.8 % (Vite minified the old glue too) |
+| `mix_bus.wasm` | 730 | 880 | +150 (the explicit SIMD peak) |
+
+<a id="rubberband-memory-growth"></a>
+### Rubber Band memory growth: kept, and tested
+
+`rubberband.wasm` runs in an AudioWorklet with `ALLOW_MEMORY_GROWTH=1`; a grow
+replaces the memory's `ArrayBuffer` and detaches every `HEAPF32` / `HEAPF64` view
+made before it. **Decision: keep growth** (initial 64 MB, max 256 MB, unchanged),
+because the one allocation that scales with user input has no bound:
+`loadBuffer` copies the whole sample into the heap (`rb_fx_sample_alloc`), and
+nothing caps sample length. A fixed heap would turn a long sample into a load
+failure. Everything else is small: a build with an **8 MB** initial heap never
+grew through all five stretcher renders above (R3 finer stereo included) — the
+"~40 MB finer-engine stretch transient" quoted when the module split out does
+not reproduce on the real-time engine both worklets use — and
+`nativeVocalFx.integration.test.ts` already pins a 30 s vocal session at zero
+growth inside 64 MB. So in practice a grow happens on `loadBuffer`, outside
+`process()`.
+
+What makes growth safe is that no view outlives a call that can allocate. The
+calls that can are `_malloc`, `rb_fx_create`, `rb_fx_sample_alloc`,
+`rb_fx_window_alloc` and the stretcher's `process` / `retrieve` /
+`setTimeRatio` / `setPitchScale`; the per-block `rb_fx_process`,
+`rb_fx_render_grains` and `rb_fx_advance_lfo` work in buffers sized up front and
+never allocate. The glue reassigns `Module.HEAPF32` / `HEAPF64` on every grow,
+and the worklets read them after each such call; `NativeVocalFx` re-derives its
+cached channel views when the buffer changes.
+`src/__tests__/rubberbandHeapGrowth.integration.test.ts` proves it: it drives the
+real `RubberBandProcessor` (stream, freeze granulator, FX chain) and
+`sustain-processor` on the real module twice, once untouched and once with the
+heap forced to grow right after **every** allocating call returns, and requires
+bit-identical output. Reading `HEAPF32` before `retrieve()` instead of after
+fails it at the second block.
 
 ### Why the export map is checked against the binary too
 
@@ -773,9 +878,8 @@ along with the `HYPHON_LEGACY_JC303` switch that kept them in debug builds (#134
 `jc303_init(handle, sampleRate, maxFrames)`.
 
 They were never reachable in hyphon_native: `open303-processor.ts` only falls back
-to that API when `open303_*` is missing, which describes the standalone
-`jc303-single.wasm` artifact (`tools/build_jc303_omp.sh`), not this module — that
-fallback path is unchanged. The worklet's `JC303_PARAM_MAP` message names
+to that API when `open303_*` is missing, which described the standalone
+`jc303-single.wasm` artifact (since retired), not this module. The worklet's `JC303_PARAM_MAP` message names
 (`jc303_setCutoff`, …) are unaffected too: they are *message* names translated
 into `open303_set_param` / `jc303_set_param` param IDs, not exports.
 
@@ -783,6 +887,38 @@ into `open303_set_param` / `jc303_set_param` param IDs, not exports.
 it (`OfflineHighFid303Engine.ts` and the WGSL shader mirror it in TS/GPU instead).
 
 ---
+
+<a id="worklet-global-scope"></a>
+## Worklet global scope: three TypeScript programs
+
+AudioWorklet code runs in `AudioWorkletGlobalScope`: `sampleRate`, `currentTime`,
+`currentFrame`, `registerProcessor`, `AudioWorkletProcessor`, `console`,
+`MessagePort` — and no `window`, `document`, `fetch`, `setTimeout` or (in most
+engines) `performance`. It used to type-check under the app's `lib: ["DOM"]`, so
+none of that was enforced (a `setTimeout` in a drum-worklet WIP broke it once),
+and 11 processors hand-declared the scope's members, each slightly differently.
+
+`tsc -b` now builds three programs:
+
+| Project | Covers | `lib` / `types` |
+|---|---|---|
+| `tsconfig.app.json` | the app, all tests | `ES2022` + `DOM`; `@types/audioworklet` is visible too, because tests and a few main-thread modules import worklet files |
+| `src/audio-worklets/tsconfig.json` | worklet sources (not `__tests__`) and everything they import | `ES2022` + `@types/audioworklet` (+ `vite/client` for `import.meta.env`) — **no DOM** |
+| `src/shared/rt/tsconfig.json` | real-time code both worlds import | `ES2022` only |
+
+A `window` or `setTimeout` in `src/audio-worklets/` — or in any module a worklet
+imports, wherever it lives — fails `tsc -b`. ESLint's `no-restricted-globals` on
+`src/audio-worklets/**` and `src/shared/rt/**` is the backstop, and
+`src/__tests__/workletGlobalScope.test.ts` pins the configuration.
+
+`src/shared/rt/` holds what both sides use and so must assume neither global set:
+`ringBuffer.ts`, `sidechainTriggerRing.ts`, the generated `hyphonNativeExports.ts`
+(`pnpm run gen:native-types` writes it there), `clock.ts` (the transport clock
+constants, re-exported by `src/midi/clock/types.ts`, plus the clock worklet's
+message protocol) and `time.ts` (`nowMs()`, the one `performance.now()`-or-`Date.now()`
+lookup the worklets used to repeat). Other modules a worklet imports (the loudness
+DSP, `stretchProfiles`, `ExpressiveVoiceProcessor`, `workletSampleRate`) stay where
+they are; the worklet program checks them all the same.
 
 <a id="worklet-import-table"></a>
 ## Worklet import table
@@ -890,29 +1026,20 @@ fallback for a bundle-time failure.
 
 ## Standalone JC-303 memory budget
 
-**This is not `hyphon_native`.** The live 303 path is `public/hyphon_native.wasm`.
-Standalone `public/jc303-*.wasm` is still built for fallback/compat.
+**Retired.** The standalone `public/jc303-{single,threaded}{.js,.wasm,-worklet.js}`
+world (plus the legacy `public/jc303.{js,wasm}` / `jc303_worklet.js` copies) was
+built by `tools/build_jc303_omp.sh` + `tools/jc303_cmake/CMakeLists.txt` on every
+`build:native`, but nothing in `src/` loaded it — JC303 runs inside
+`hyphon_native` (`emscripten/jc303_wrapper.cpp`, compiled from
+`jc303_wasm/src/dsp/open303/*.cpp`). It had also drifted to `-O2 -flto` links
+against `hyphon_native`'s `-O3 -flto`. The script, the CMake overlay, the
+`standaloneJc303` budget entry, its native world and CI cache paths are deleted.
 
-**Source of truth:** `emscripten/wasm_memory_budget.json#standaloneJc303`, consumed by
-`tools/build_jc303_omp.sh` and `tools/jc303_cmake/CMakeLists.txt` (Hyphon-owned
-overlay — the submodule `jc303_wasm/wasm/CMakeLists.txt` is not used).
-
-| Setting | Value |
-|---|---|
-| `INITIAL_MEMORY` | 16 MB |
-| `MAXIMUM_MEMORY` | 256 MB |
-| `STACK_SIZE` (release / debug) | 4 MB / 2 MB |
-| Threaded `PTHREAD_POOL_SIZE` | 4 |
-
-These are the settings that actually shipped when CMake last-won over the
-script banner that advertised 64 / 32 / 256. Raise them in the JSON if the
-standalone fallback overflows; do not put a second set of literals in the
-shell script.
-
-`src/jc303-single.wasm` is a stale tracked leftover and is no longer part of
-the runtime or the commit set. Generated JC-303 binaries stay in `public/`.
-
-Contract: `src/__tests__/wasmMemoryBudget.test.ts` + `src/__tests__/jc303LinkFlags.test.ts`.
+The `jc303_wasm` submodule stays: `hyphon_native` compiles its rosic DSP, and the
+emcc world hashes `jc303_wasm/src/dsp/open303`. `scripts/check-release-dist.mjs`
+fails a `dist/` that still carries any `jc303*.js` / `jc303*.wasm` (a stale copy
+left in `public/` would otherwise ship unreferenced); `public/osc/jc303.webp` is
+UI art and is unaffected.
 
 <a id="pyodide-csp"></a>
 ## Pyodide + the CSP boot path

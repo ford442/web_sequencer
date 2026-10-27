@@ -1,0 +1,28 @@
+{
+  "$comment": [
+    "Files knip (knip.json, production mode) already found unreachable when the",
+    "gate landed. Shrink only: scripts/knip-ratchet.mjs fails on a new orphan and",
+    "on an entry here that is no longer unused. Update with pnpm run lint:knip:update."
+  ],
+  "unusedFiles": [
+    "src/components/DragValue.tsx",
+    "src/components/LevelMeter.tsx",
+    "src/components/OscillatorModuleSelector.tsx",
+    "src/components/WaveformSelector.tsx",
+    "src/components/automation/AutomationLaneList.tsx",
+    "src/components/automation/index.ts",
+    "src/engines/rubberband/ArtifactDetector.ts",
+    "src/engines/rubberband/index.ts",
+    "src/engines/rubberband/performance/PerformanceOptimizer.ts",
+    "src/engines/rubberband/performance/index.ts",
+    "src/engines/rubberband/performance/types.ts",
+    "src/engines/rubberband/performance/worker.ts",
+    "src/hooks/useWebGPUScope.ts",
+    "src/session/index.ts",
+    "src/utils/fft.ts",
+    "src/utils/fftLoader.ts",
+    "src/utils/tb303AuthenticityMetrics.ts",
+    "src/utils/xm_save_lib/xmWriter.node.ts",
+    "src/workers/renderer.worker.ts"
+  ]
+}

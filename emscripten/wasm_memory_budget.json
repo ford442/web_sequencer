@@ -2,7 +2,7 @@
   "$comment": [
     "Single source of truth for WASM memory sizing across every module Hyphon links.",
     "Consumed by emscripten/build.sh (-s INITIAL_MEMORY / -s MAXIMUM_MEMORY),",
-    "emscripten/build_rubberband.sh, tools/build_jc303_omp.sh, and by",
+    "emscripten/build_rubberband.sh, emscripten/build_mix_bus.sh, and by",
     "src/audio-worklets/hyphonNativeImports.ts, which allocates the imported",
     "WebAssembly.Memory for the AudioWorklet instantiation path. The two MUST agree:",
     "an imported memory whose `initial` is below the module's declared minimum fails",
@@ -62,8 +62,12 @@
       "instantiated by src/audio-worklets/{rubberband,sustain}-processor.ts through",
       "createRubberBandModule(). This module owns its memory (it is NOT imported), so",
       "the only contract is that build_rubberband.sh reads these numbers instead of",
-      "carrying literals. 64 MB covers the ~40 MB finer-engine stereo stretch peak",
-      "plus scratch; growth to 256 MB stays available for long offline renders."
+      "carrying literals. Growth stays on (BUILD_NOTES#rubberband-memory-growth):",
+      "loadBuffer copies the whole, uncapped sample into the heap. Measured",
+      "2026-10-27 (emcc 6.0.9 -O3 -flto): the real-time stretcher, R3 finer stereo",
+      "included, never grows an 8 MB heap, so 64 MB is ~4 min of 48 kHz sample",
+      "before the first grow; 256 MB bounds it. rubberbandHeapGrowth.integration",
+      "proves the worklets re-derive every heap view after a grow."
     ],
     "initialMemoryMb": 64,
     "maximumMemoryMb": 256,
@@ -90,20 +94,5 @@
     "freezerPages": 128,
     "audioExportPages": 128,
     "xmExportPages": 128
-  },
-  "standaloneJc303": {
-    "$comment": [
-      "Effective link settings for the standalone JC-303 variants built by",
-      "tools/build_jc303_omp.sh + tools/jc303_cmake/CMakeLists.txt.",
-      "These match the CMakeLists values that actually shipped (16 MB initial,",
-      "2/4 MB stack). The old 64/32/256 banner in the shell script was never",
-      "passed through to the linker. Raise here — not in banners — if the",
-      "standalone fallback overflows."
-    ],
-    "initialMemoryMb": 16,
-    "maximumMemoryMb": 256,
-    "stackSizeMbRelease": 4,
-    "stackSizeMbDebug": 2,
-    "pthreadPoolSize": 4
   }
 }

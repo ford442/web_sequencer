@@ -1,5 +1,6 @@
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
 import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
+import type { ClockStepMessage } from '../../shared/rt/clock';
 import { STEP_LOOKAHEAD_MS, type StepCallback, type TransportClock, type TransportSyncTelemetry } from './types';
 
 let clockModulePromise: Promise<void> | null = null;
@@ -86,7 +87,7 @@ export class InternalClockAdapter implements TransportClock {
             this.clearStepWatchdog();
             console.info('[Clock] source: clock-processor AudioWorklet');
           }
-          const { step, audioTime, absStep } = e.data as { step: number; audioTime: number; absStep: number };
+          const { step, audioTime, absStep } = e.data as ClockStepMessage;
           for (const cb of this.stepListeners) cb(step, audioTime, absStep);
         }
       };

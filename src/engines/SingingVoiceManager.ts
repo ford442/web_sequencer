@@ -6,7 +6,7 @@ import {
     DRUM_TRIGGER_STRIDE,
     SidechainRingWriter,
     createSidechainRing,
-} from '../utils/sidechainTriggerRing';
+} from '../shared/rt/sidechainTriggerRing';
 
 export class SingingVoiceManager extends VoicePool<SingingVoice> {
     private audioContext: BaseAudioContext;
@@ -22,7 +22,7 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
     constructor(audioContext: BaseAudioContext, maxVoices: number = 12, config: SingingVoiceConfig = {}) {
         super(maxVoices);
         this.audioContext = audioContext;
-        // Trigger rings, not single slots: notes are written ahead of the clock (utils/sidechainTriggerRing.ts).
+        // Trigger rings, not single slots: notes are written ahead of the clock (shared/rt/sidechainTriggerRing.ts).
         this.drumSidechainSAB = createSidechainRing(DRUM_TRIGGER_STRIDE);
         this.bassSidechainSAB = createSidechainRing(BASS_TRIGGER_STRIDE);
         this.drumTriggers = new SidechainRingWriter(this.drumSidechainSAB);

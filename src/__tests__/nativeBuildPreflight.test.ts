@@ -82,7 +82,8 @@ describe('native preflight', () => {
       worlds.map((w: { id: string; rebuildCommand: string }) => [w.id, w.rebuildCommand]),
     );
     expect(byId.emcc).toBe('pnpm run build:emcc');
-    expect(byId.jc303).toBe('pnpm run build:wasm:jc303');
+    // The standalone public/jc303* world is retired: JC303 runs inside hyphon_native.
+    expect(byId.jc303).toBeUndefined();
     expect(byId['as-oscillators']).toBe('pnpm run build:wasm:oscillators');
     // rust-audio/ is a bench crate (#1294): nothing in the app loads
     // public/rust-wasm/, so it is not a native world and `build:native` must
@@ -100,7 +101,7 @@ describe('native preflight', () => {
 
   it('rebuilds every em++ world when the Emscripten pin moves', () => {
     const worlds = defineWorlds(defaultRepoRoot()) as World[];
-    for (const id of ['emcc', 'jc303', 'rubberband', 'mixbus']) {
+    for (const id of ['emcc', 'rubberband', 'mixbus']) {
       const world = worlds.find((w) => w.id === id);
       expect(world, id).toBeDefined();
       expect(world!.inputs.map((i) => i.name), id).toContain('emscripten/toolchain.json');
