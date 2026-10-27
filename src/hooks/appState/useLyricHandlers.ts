@@ -186,14 +186,22 @@ export function useLyricHandlers(deps: {
                     consecutiveConsonants++;
 
                     if (consecutiveConsonants >= 2 && lastConsonantStep !== -1 && stepIdx > lastConsonantStep + 1) {
-                        // Fill the gap with closed hi-hat rolls
+                        // Fill the gap with evolving polyrhythmic Euclidean drum sequences
                         const gapSize = stepIdx - lastConsonantStep - 1;
+                        // Calculate number of hits based on consonant density
+                        const hits = Math.max(1, Math.floor(gapSize * (0.3 + (consecutiveConsonants * 0.15) % 0.6)));
+
                         for (let j = 1; j <= gapSize; j++) {
                             const fillStep = lastConsonantStep + j;
                             if (fillStep >= 0 && fillStep < newCH.steps.length) {
-                                // Escalating velocity for the roll
-                                const vel = 0.3 + (0.7 * (j / gapSize));
-                                newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                // Euclidean Rhythm E(k, n): ((j - 1) * hits) % gapSize < hits
+                                const isEuclideanHit = ((j - 1) * hits) % gapSize < hits;
+
+                                if (isEuclideanHit) {
+                                    // Escalating velocity for the evolving sequence
+                                    const vel = 0.3 + (0.7 * (j / gapSize));
+                                    newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                }
 
                                 // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
                                 if (consecutiveConsonants >= 3 && gapSize >= 2) {
