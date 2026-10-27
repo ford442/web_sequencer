@@ -1,11 +1,12 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore dynamically linking step lengths to phoneme duration.
+- Velocity Check: Utilizing standard arithmetic to implement dynamic phoneme step lengths within `handleTextToDrums` allowed translating phonetic rhythm onto generated drum loops effectively without affecting core Sequencer or TTS DSP architecture.
 - [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
 - [ ] Explore mapping pitch contour to tom-tom or melodic percussive elements
 - [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - [x] What if we map vowel brightness/formant to open hi-hat decay time?
-- [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer. (Global clock processor makes per-track non-linear swing mathematically problematic for polyrhythm alignment).
 - [x] Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`.
@@ -32,16 +33,14 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing.
+- Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
+- What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
 - What if we dynamically map the formants of mid-vowels to a phaser effect sweep in the granular engine?
-
-- Explore dynamically linking step lengths to phoneme duration.
 - Explore mapping lyric text sentiment to default scale
-- Explore adding a humanize function to drum velocities based on phoneme intensity
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
-
-
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).

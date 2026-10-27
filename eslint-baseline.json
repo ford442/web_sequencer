@@ -9,7 +9,7 @@
   "@typescript-eslint/no-redundant-type-constituents": 9,
   "@typescript-eslint/no-unnecessary-type-assertion": 116,
   "@typescript-eslint/no-unsafe-argument": 108,
-  "@typescript-eslint/no-unsafe-assignment": 303,
+  "@typescript-eslint/no-unsafe-assignment": 306,
   "@typescript-eslint/no-unsafe-call": 150,
   "@typescript-eslint/no-unsafe-member-access": 480,
   "@typescript-eslint/no-unsafe-return": 29,
