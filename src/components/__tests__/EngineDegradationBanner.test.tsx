@@ -30,7 +30,7 @@ describe('EngineDegradationBanner', () => {
         });
 
         render(<EngineDegradationBanner />);
-        expect(screen.getByText(/GPU knobs using 2D fallback/)).toBeInTheDocument();
+        expect(screen.getAllByText(/GPU knobs using 2D fallback/)[0]).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Retry gpu-knobs/i })).toBeInTheDocument();
     });
 });

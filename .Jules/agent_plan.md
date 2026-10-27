@@ -3,6 +3,7 @@
 ## Active Backlog
 - [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
 - [ ] Explore mapping pitch contour to tom-tom or melodic percussive elements
+- [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
@@ -31,7 +32,11 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore dynamically linking step lengths to phoneme duration.
 - Explore mapping lyric text sentiment to default scale
+- Explore adding a humanize function to drum velocities based on phoneme intensity
+- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
+- Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
 
 
 - [x] Explore randomizing granular jitter based on note velocity.
@@ -80,7 +85,6 @@
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 - [x] Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
-- Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - Completed "Explore using a noise generator for unvoiced vocoder consonants." I modified the `VocoderEffect` class in the `RubberBandProcessor` to no longer skip unvoiced consonants (`isVowel <= 0`). Instead, it uses a lightweight LCG pseudo-random noise generator to produce white noise, which is then shaped by a simple 1-pole high-pass filter (to remove low-end rumble). This noise is amplitude-modulated by the original unvoiced consonant's envelope, allowing the vocoder effect to seamlessly articulate sibilants and plosives without requiring additional complex carrier waves. Added "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity." to the Innovation Lab.
 - Velocity Check: Expanding the vocoder to include unvoiced consonants using a simple LCG random number generator avoids the overhead of reading from a noise buffer or using `Math.random()`, keeping the hot path highly optimized.
@@ -238,3 +242,8 @@
   - Mapped this normalized duration to a dynamic velocity between 0.6 and 1.0 (longer duration = harder hit).
   - Applied this humanized velocity to the Kick, Snare, Open Hat, and Closed Hat sequence generations, replacing the hardcoded `1` values.
 - Velocity Check: Hooking into the phoneme duration to control velocity directly translates the natural cadence and pacing of speech into the generated drum patterns, instantly making them feel more dynamic and less robotic, all without requiring complex DSP.
+
+- Completed "What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?"
+  - Modified `handleTextToDrums` in `useLyricHandlers.ts`.
+  - Ghost snares generated during consecutive consonant fills and preceding organic triggers are now assigned a descending pitch contour from `['G3', 'E3', 'C3', 'A2', 'G2', 'E2']` based on the normalized phrase progress.
+- Velocity Check: Converting the static 'C4' ghost snare into a dynamic, phrase-aware melodic tom sweep was computationally cheap (just a progress calculation and a modulo array lookup) but significantly increases the musicality of the auto-generated rhythm. Added new ideas to the Innovation Lab.

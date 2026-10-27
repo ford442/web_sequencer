@@ -155,11 +155,32 @@ export function useLyricHandlers(deps: {
 
             let consecutiveConsonants = 0;
             let lastConsonantStep = -1;
+            let currentStress = 0;
+
+            const tomPitches = ['G3', 'E3', 'C3', 'A2', 'G2', 'E2'];
 
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
+                const phraseProgress = Math.max(0, Math.min(1, _i / alignment.phonemes.length));
+                const tomPitch = tomPitches[Math.floor(phraseProgress * tomPitches.length) % tomPitches.length];
+
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
-                const ph = p.phoneme.toUpperCase().replace(/[0-9]/g, '');
+
+                // Extract stress before stripping numbers
+                const rawPhoneme = p.phoneme.toUpperCase();
+                const stressMatch = rawPhoneme.match(/[0-2]/);
+                if (stressMatch) {
+                    currentStress = parseInt(stressMatch[0], 10);
+                }
+
+                let baseVel = 0.6;
+                if (currentStress === 1) baseVel = 1.0;
+                else if (currentStress === 2) baseVel = 0.85;
+
+                const jitter = (Math.random() * 0.2) - 0.1; // +/- 10%
+                const finalVel = Math.max(0, Math.min(1, baseVel + jitter));
+
+                const ph = rawPhoneme.replace(/[0-9]/g, '');
                 const isVowel = ['AA','AE','AH','AO','AW','AY','EH','ER','EY','IH','IY','OW','OY','UH','UW'].includes(ph);
                 const isSnare = ['B','D','G','CH','JH','K','P','T'].includes(ph);
                 const isHat = ['F','S','SH','TH','V','Z','ZH'].includes(ph);
@@ -197,7 +218,7 @@ export function useLyricHandlers(deps: {
                                         newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
                                         const ghostVel = 0.4;
-                                        newSnare.steps[fillStep] = { note: 'C4', velocity: ghostVel, length: 1 };
+                                        newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: 1 };
                                         if (Math.random() < ghostVel) {
                                             newCH.steps[fillStep] = null;
                                         }
@@ -212,8 +233,8 @@ export function useLyricHandlers(deps: {
                         if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: dur };
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
-                            const ghostVel = 0.4;
-                            newSnare.steps[stepIdx - 1] = { note: 'C4', velocity: ghostVel, length: 1 };
+                            const ghostVel = finalVel * 0.4;
+                            newSnare.steps[stepIdx - 1] = { note: tomPitch, velocity: ghostVel, length: 1 };
                             if (Math.random() < ghostVel && stepIdx - 1 < newCH.steps.length) {
                                 newCH.steps[stepIdx - 1] = null;
                             }
