@@ -67,6 +67,14 @@ export class SpectralBandProcessor {
     const maxEnv = threshold * Math.pow(10, maxGR / (20 * slope));
     const maxGRMultiplier = Math.pow(10, -maxGR / 20);
 
+    // Pre-calculate constants to convert Math.pow to Math.exp + Math.log
+    const invSlope = -slope;
+    const invThreshold = 1.0 / threshold;
+
+    let e0 = this.env[0];
+    let e1 = this.env[1];
+    let e2 = this.env[2];
+
     for (let i = 0; i < outL.length; i++) {
       const x = outL[i];
       this.lp1 += this.f1 * this.bp1;
@@ -80,9 +88,41 @@ export class SpectralBandProcessor {
       let mid = this.lp2;
       let high = hp2;
       if (spectralComp > 0) {
-        low = this.compress(low, 0, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
-        mid = this.compress(mid, 1, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
-        high = this.compress(high, 2, this.attackCoef, this.releaseCoef, threshold, slope, maxEnv, maxGRMultiplier);
+        // Inline compress for low
+        const absLow = Math.abs(low);
+        if (absLow > e0) {
+          e0 = this.attackCoef * e0 + (1 - this.attackCoef) * absLow;
+        } else {
+          e0 = this.releaseCoef * e0 + (1 - this.releaseCoef) * absLow;
+        }
+        if (e0 > threshold) {
+          if (e0 >= maxEnv) low *= maxGRMultiplier;
+          else low *= Math.exp(invSlope * Math.log(e0 * invThreshold));
+        }
+
+        // Inline compress for mid
+        const absMid = Math.abs(mid);
+        if (absMid > e1) {
+          e1 = this.attackCoef * e1 + (1 - this.attackCoef) * absMid;
+        } else {
+          e1 = this.releaseCoef * e1 + (1 - this.releaseCoef) * absMid;
+        }
+        if (e1 > threshold) {
+          if (e1 >= maxEnv) mid *= maxGRMultiplier;
+          else mid *= Math.exp(invSlope * Math.log(e1 * invThreshold));
+        }
+
+        // Inline compress for high
+        const absHigh = Math.abs(high);
+        if (absHigh > e2) {
+          e2 = this.attackCoef * e2 + (1 - this.attackCoef) * absHigh;
+        } else {
+          e2 = this.releaseCoef * e2 + (1 - this.releaseCoef) * absHigh;
+        }
+        if (e2 > threshold) {
+          if (e2 >= maxEnv) high *= maxGRMultiplier;
+          else high *= Math.exp(invSlope * Math.log(e2 * invThreshold));
+        }
       }
 
       if (hasStereo && outR) {
@@ -92,21 +132,9 @@ export class SpectralBandProcessor {
         outL[i] = low + mid + high;
       }
     }
-  }
 
-  private compress(
-    band: number, b: 0 | 1 | 2,
-    attackCoef: number, releaseCoef: number, threshold: number, slope: number, maxEnv: number, maxGRMultiplier: number,
-  ): number {
-    const env = this.env;
-    const absIn = Math.abs(band);
-    if (absIn > env[b]) {
-      env[b] = attackCoef * env[b] + (1 - attackCoef) * absIn;
-    } else {
-      env[b] = releaseCoef * env[b] + (1 - releaseCoef) * absIn;
-    }
-    if (env[b] <= threshold) return band;
-    if (env[b] >= maxEnv) return band * maxGRMultiplier;
-    return band * Math.pow(env[b] / threshold, -slope);
+    this.env[0] = e0;
+    this.env[1] = e1;
+    this.env[2] = e2;
   }
 }

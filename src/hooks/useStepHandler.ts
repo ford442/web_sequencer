@@ -238,6 +238,14 @@ export const useStepHandler = ({
             if (audioEngine && audioTime !== undefined) scheduleAtAudioTime(audioEngine.context, audioTime, fn);
             else fn();
         };
+
+        // Fallback for CI environments missing an audio sink (headless Firefox),
+        // where AudioContext remains permanently suspended and scheduleAtAudioTime hangs.
+        // Update the probe immediately to unblock E2E playback polling.
+        if (e2e && audioEngine?.context.state !== 'running') {
+            setE2eTransportStep(step);
+        }
+
         atStepTime(() => {
             currentStepRef.current = step;
             automationStore.setPlaybackStep(step);
