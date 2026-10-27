@@ -1,6 +1,8 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
+- [ ] Explore mapping pitch contour to tom-tom or melodic percussive elements
 - [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - [x] What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore dynamically linking step lengths to phoneme duration.
@@ -243,6 +245,12 @@
   - Updated `handleTextToDrums` to assign a `length` of `2` to kick drum steps when mapping dark vowels (`'AA','AO','OW','UH','UW','AW'`).
   - Updated open hi-hat mapping to dynamically calculate `length` based on the phoneme's duration (`p.end - p.start`).
 - Velocity Check: Expanding the data mapped from the phoneme alignment to include duration and phoneme class characteristics adds a new layer of musicality to the auto-generated drum patterns. The logic is simple but highly effective at creating more varied and expressive rhythms. Added a new idea to the Innovation Lab.
+
+- Completed "Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`".
+  - Updated `handleTextToDrums` to calculate a `phonemeDurSec` and normalize it roughly between 0.05s and 0.3s.
+  - Mapped this normalized duration to a dynamic velocity between 0.6 and 1.0 (longer duration = harder hit).
+  - Applied this humanized velocity to the Kick, Snare, Open Hat, and Closed Hat sequence generations, replacing the hardcoded `1` values.
+- Velocity Check: Hooking into the phoneme duration to control velocity directly translates the natural cadence and pacing of speech into the generated drum patterns, instantly making them feel more dynamic and less robotic, all without requiring complex DSP.
 
 - Completed "What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?"
   - Modified `handleTextToDrums` in `useLyricHandlers.ts`.
