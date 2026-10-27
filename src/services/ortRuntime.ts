@@ -1,9 +1,10 @@
 // Single owner of the `onnxruntime-web` module and of `ort.env`.
 //
-// Three consumers need ONNX Runtime — Supertonic (TTS), HybridNeuralPipeline
-// (neural vocoder) and CtcForcedAligner (forced alignment). `ort.env` is a
-// process-wide singleton, so when each of them wrote it from its own init path
-// the last writer silently won for all three, and whichever consumer ran first
+// Two consumers need ONNX Runtime — Supertonic (TTS) and CtcForcedAligner
+// (forced alignment); the experimental HybridNeuralPipeline was a third until it
+// was deleted unreached. `ort.env` is a process-wide singleton, so when each of
+// them wrote it from its own init path the last writer silently won for all of
+// them, and whichever consumer ran first
 // decided the wasm URL and thread count for the rest. That is the bug this
 // module exists to remove: `configureOrt()` is the only code in the tree that
 // assigns `ort.env.wasm.*`, it runs exactly once, and every consumer reaches

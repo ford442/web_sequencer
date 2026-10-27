@@ -15,8 +15,8 @@
  * This is the one -ffast-math translation unit in the native build. That is
  * safe here and nowhere near a voice: there is no recursive filter state, the
  * accumulate is a single multiply-add per element (so reassociation cannot
- * reorder anything across samples), and the peak is a max-reduction whose
- * vectorisation is exactly what fast-math buys. With gain == 1 the result is
+ * reorder anything across samples), and the peak is a max-reduction written
+ * with explicit f32x4.pmax (see mix_bus_peak). With gain == 1 the result is
  * bit-identical to the JS `dst[i] += src[i]` fallback.
  * See docs/wasm/BUILD_NOTES.md#mix-bus.
  *
@@ -25,6 +25,7 @@
  */
 
 #include <emscripten/emscripten.h>
+#include <wasm_simd128.h>
 
 namespace {
 
@@ -65,15 +66,28 @@ EMSCRIPTEN_KEEPALIVE void mix_bus_accumulate(int n, float gain) {
     }
 }
 
-/** max |acc[i]| over the first n frames of the block. */
+/**
+ * max |acc[i]| over the first n frames of the block.
+ *
+ * Written with f32x4.pmax, which is exactly the JS reference's
+ * `if (a > peak) peak = a` (a NaN sample is skipped) and lowers to one maxps.
+ * Left to the compiler, -ffast-math turns the comparison into f32x4.max, whose
+ * NaN-propagating lowering made the -O3 -flto build ~30 % slower than the old
+ * scalar loop (BUILD_NOTES#mix-bus).
+ */
 EMSCRIPTEN_KEEPALIVE float mix_bus_peak(int n) {
     const int frames = clampFrames(n);
-    float peak = 0.0f;
-    for (int i = 0; i < frames; i++) {
-        const float a = __builtin_fabsf(g_acc[i]);
-        peak = a > peak ? a : peak;
+    v128_t peak = wasm_f32x4_splat(0.0f);
+    int i = 0;
+    for (; i + 4 <= frames; i += 4) {
+        peak = wasm_f32x4_pmax(peak, wasm_f32x4_abs(wasm_v128_load(&g_acc[i])));
     }
-    return peak;
+    for (; i < frames; i++) {
+        peak = wasm_f32x4_pmax(peak, wasm_f32x4_abs(wasm_f32x4_splat(g_acc[i])));
+    }
+    peak = wasm_f32x4_pmax(peak, wasm_i32x4_shuffle(peak, peak, 2, 3, 0, 1));
+    peak = wasm_f32x4_pmax(peak, wasm_i32x4_shuffle(peak, peak, 1, 0, 3, 2));
+    return wasm_f32x4_extract_lane(peak, 0);
 }
 
 } // extern "C"

@@ -5,6 +5,9 @@
  * notes stay in place). Double-click a lane — or its + button — to add a clip
  * of the track's current slot.
  *
+ * The focused clip's own automation lanes (#1494) are edited below the
+ * inspector, in clip-local steps.
+ *
  * Edits preview locally and commit once on release, so a drag is one undo
  * step. The playhead follows the worklet step via `arrangementPlayhead`,
  * never React state.
@@ -17,6 +20,7 @@ import { addClip, arrangementEnd, clipEnd, lastClipEnd, removeClip, setArrangeme
 import { arrangementPlayhead } from '../arrangement/playhead';
 import { trackLoopLength, transportGrid, type SongMeter } from '../utils/songMeter';
 import { SONG_MODE_TRACKS } from '../utils/songModeEditing';
+import { ClipLanePanel } from './ClipLanePanel';
 
 export type ArrangementZoom = 'bar' | '4bars';
 
@@ -280,8 +284,8 @@ export const ArrangementView = memo(function ArrangementView({
                     + BAR
                 </button>
                 <div className="flex-1" />
-                <button type="button" onClick={onUndo} disabled={!canUndo} aria-label="Undo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}>UNDO</button>
-                <button type="button" onClick={onRedo} disabled={!canRedo} aria-label="Redo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}>REDO</button>
+                <button type="button" onClick={onUndo} disabled={!canUndo} aria-label="Undo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">UNDO</span></button>
+                <button type="button" onClick={onRedo} disabled={!canRedo} aria-label="Redo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">REDO</span></button>
                 <button
                     type="button"
                     onClick={() => onSetIsSongModeActive(!isSongModeActive)}
@@ -359,7 +363,7 @@ export const ArrangementView = memo(function ArrangementView({
                                             tabIndex={0}
                                             data-clip-id={clip.id}
                                             aria-pressed={isSelected}
-                                            aria-label={`${row.label} clip, pattern ${clip.patternSlot + 1}, at ${position(clip.startStep, stepsPerBar, stepsPerBeat)}, ${bars(clip.lengthSteps, stepsPerBar)}${clip.loop ? '' : ', one-shot'}`}
+                                            aria-label={`${row.label} clip, pattern ${clip.patternSlot + 1}, at ${position(clip.startStep, stepsPerBar, stepsPerBeat)}, ${bars(clip.lengthSteps, stepsPerBar)}${clip.loop ? '' : ', one-shot'}${clip.lanes?.length ? ', automated' : ''}`}
                                             className={`absolute top-[3px] bottom-[3px] rounded-[4px] border overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${isSelected ? 'ring-1 ring-white/70' : ''}`}
                                             style={{
                                                 left: clip.startStep * pxPerStep,
@@ -377,7 +381,7 @@ export const ArrangementView = memo(function ArrangementView({
                                             onFocus={() => setSelectedId(clip.id)}
                                         >
                                             <span className="absolute left-1.5 top-0.5 font-mono text-[10px] font-bold text-white/90 pointer-events-none">
-                                                P{clip.patternSlot + 1}{clip.loop ? '' : ' ▸'}
+                                                P{clip.patternSlot + 1}{clip.loop ? '' : ' ▸'}{clip.lanes?.length ? ' ∿' : ''}
                                             </span>
                                             {marks.map((s) => (
                                                 <span key={s} className="absolute inset-y-0 w-px bg-white/25 pointer-events-none" style={{ left: s * pxPerStep }} />
@@ -462,6 +466,7 @@ export const ArrangementView = memo(function ArrangementView({
                     <span>Double-click a lane or press + to add a clip · drag to move · drag edges to trim · arrows move, Shift+arrows resize, L loop, Del delete</span>
                 )}
             </div>
+            {selected && <ClipLanePanel key={selected.id} clip={selected} onEdit={onEdit} />}
         </section>
     );
 });

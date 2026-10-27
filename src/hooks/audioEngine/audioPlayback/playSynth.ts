@@ -118,13 +118,14 @@ export function createPlaySynth(
     // === HOISTED NOTE PROCESSING ===
 
     const noteStr = Array.isArray(note) ? note[0] : note;
-    if (!noteStr) {
+    const midi = noteToMidi(noteStr);
+    // No note, or a name that does not parse: silent, never MIDI 0.
+    if (midi === null) {
       return;
     }
     if (track) {
       pulseExpressionLed(SYNTH_TRACK_TO_LED[track], noteStr);
     }
-    const midi = noteToMidi(noteStr);
     // TUNE (module pitch offset, semitones) applies to the engine-driven voices.
     // The VoiceManager path applies it itself from params, so it is not used there.
     const engineMidi = transposeMidi(midi, getPitchOffsetSemitones(effectiveParams));
@@ -299,8 +300,8 @@ export function createPlaySynth(
             );
           }
           for (const name of noteNames) {
-            if (!name) continue;
             const noteMidi = noteToMidi(name);
+            if (noteMidi === null) continue;
             macroManager.noteOn(macroPart, noteMidi, noteVelocity, noteTime, { timbre, slide });
             // Always released: a slid note keeps sounding only through the
             // mono legato in the engine, never by leaving a gate open.

@@ -80,6 +80,7 @@ export function createNoteOnSampler(
     const fineTune = params.fineTune ?? 0;
 
     const targetMidi = noteToMidi(note);
+    if (targetMidi === null) return null; // not a note name: never sounds
     const source = context.createBufferSource();
 
     let playbackBuffer: AudioBuffer;

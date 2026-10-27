@@ -13,6 +13,7 @@ interface PasteTabPanelProps {
   hasErrors: boolean;
   isValid: boolean;
   parsedData: AISongData | null;
+  importWarnings: string[];
   isDragging: boolean;
   droppedFiles: DroppedFile[];
   showFixSuccess: boolean;
@@ -36,6 +37,7 @@ export const PasteTabPanel = React.memo(function PasteTabPanel({
   hasErrors,
   isValid,
   parsedData,
+  importWarnings,
   isDragging,
   droppedFiles,
   showFixSuccess,
@@ -138,6 +140,7 @@ export const PasteTabPanel = React.memo(function PasteTabPanel({
       {isValid && parsedData && (
         <ValidationSuccessDisplay
           parsedData={parsedData}
+          importWarnings={importWarnings}
           parsedTracksElements={parsedTracksElements}
           parsedAutomationLanesList={parsedAutomationLanesList}
         />

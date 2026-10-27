@@ -18,7 +18,10 @@ export const EngineDegradationBanner = memo(function EngineDegradationBanner() {
             aria-label="Engine degradation warnings"
         >
             <div className="max-w-[1000px] mx-auto flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-1" role="status" aria-live="polite">
+                <div className="flex flex-col gap-1">
+                    <span role="status" aria-live="polite" className="sr-only">
+                        {issues.map(i => `${i.status === 'recovering' ? 'Retrying' : 'Warning'} ${i.subsystem}: ${i.message}`).join('. ')}
+                    </span>
                     {issues.map((issue) => (
                         <div key={issue.id} className="flex flex-wrap items-center gap-2">
                             <span className="font-bold uppercase tracking-wider text-amber-300">

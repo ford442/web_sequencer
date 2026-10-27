@@ -24,7 +24,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         (KnobGPUContext as unknown as { __resetForTests: () => void }).__resetForTests();
         // Mock RequestAnimationFrame
         frameCallbacks = [];
-        requestAnimationFrameMock = vi.fn((cb) => {
+        requestAnimationFrameMock = vi.fn((cb: FrameRequestCallback) => {
             frameCallbacks.push(cb);
             return frameCallbacks.length - 1;
         });

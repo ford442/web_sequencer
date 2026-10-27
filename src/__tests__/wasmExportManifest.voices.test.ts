@@ -75,7 +75,7 @@ describe('generated hyphonNativeExports.ts (#1344)', () => {
     });
 
     it('types every export the manifest declares', () => {
-        const generated = read('src/audio-worklets/hyphonNativeExports.ts');
+        const generated = read('src/shared/rt/hyphonNativeExports.ts');
         const missing = [...manifest.required, ...manifest.optional].filter(
             (n) => !new RegExp(`^  ${n}\\??\\(`, 'm').test(generated),
         );

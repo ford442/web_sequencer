@@ -52,6 +52,9 @@ export function createNoteOnSynth(
   >,
 ): NoteOnSynthFn {
   return (params, note, time, track) => {
+    // Not a note name: no voice plays it (never MIDI 0).
+    const noteMidi = noteToMidi(note);
+    if (noteMidi === null) return null;
     const now = time || context.currentTime;
 
     if (track) {
@@ -60,7 +63,7 @@ export function createNoteOnSynth(
 
     if (track === "bass2") {
       if (refs.open303ManagerRef.current?.isBass2Ready()) {
-        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
+        const midi = transposeMidi(noteMidi, getPitchOffsetSemitones(params));
         triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass2Drive(params.drive || 0);
@@ -87,7 +90,7 @@ export function createNoteOnSynth(
           params,
           params.waveform === "303-sqr" ? "sqr" : "saw",
         );
-        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
+        const midi = transposeMidi(noteMidi, getPitchOffsetSemitones(params));
         triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.open303ManagerRef.current.setBass1Drive(params.drive || 0);
@@ -113,7 +116,7 @@ export function createNoteOnSynth(
           params,
           params.waveform === "303-sqr" ? "sqr" : "saw",
         );
-        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
+        const midi = transposeMidi(noteMidi, getPitchOffsetSemitones(params));
         const t0 = performance.now();
         refs.open303ManagerRef.current.setLead303Drive(params.drive || 0);
         refs.open303ManagerRef.current.noteOnLead303(midi, 100);
@@ -137,7 +140,7 @@ export function createNoteOnSynth(
           params,
           prophecyWaveTypeNoteOn,
         );
-        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
+        const midi = transposeMidi(noteMidi, getPitchOffsetSemitones(params));
         triggerInteractiveBass(context, refs, now, INTERACTIVE_303_VELOCITY);
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartB(midi, 100);
@@ -159,7 +162,7 @@ export function createNoteOnSynth(
           params,
           prophecyWaveTypeNoteOn,
         );
-        const midi = transposeMidi(noteToMidi(note), getPitchOffsetSemitones(params));
+        const midi = transposeMidi(noteMidi, getPitchOffsetSemitones(params));
         const t0 = performance.now();
         refs.prophecyManagerRef.current.noteOnPartA(midi, 100);
         const t1 = performance.now();
@@ -181,7 +184,7 @@ export function createNoteOnSynth(
       const macroManager = refs.macroManagerRef?.current;
       if (macroManager?.canPlay(track, macroEngine)) {
         // Untransposed: TUNE is the engine's native transpose (applyParams).
-        const midi = noteToMidi(note);
+        const midi = noteMidi;
         const at = time || undefined;
         macroManager.applyParams(track, params, macroEngine, at);
         if (track === "partB") {

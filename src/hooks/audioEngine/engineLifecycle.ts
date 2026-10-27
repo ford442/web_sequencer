@@ -18,6 +18,7 @@ import { VoiceManager } from '../../engines/VoiceManager';
 import { MultisampleGenerator } from '../../engines/MultisampleGenerator';
 import { DEFAULT_DRUM_KIT } from '../../constants';
 import { PhonemeBufferPool } from '../../services/PhonemeBufferPool';
+import { loadLiveVowelLibrary } from '../../services/vowelLibraryService';
 import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor, stopGlitchMonitor } from '../../utils/workletPerfBridge';
@@ -294,8 +295,9 @@ export async function initializeAudioContextAndEngines(
 
     loadingProgressStore.startStep('wavFiles');
     const [sawBuf, sqrBuf] = await Promise.all([
-        loadWavBuffer(context, './assets/saw.wav'),
-        loadWavBuffer(context, './assets/square.wav')
+        // Committed at public/saw.wav and public/square.wav (public/assets/ is gitignored).
+        loadWavBuffer(context, 'saw.wav'),
+        loadWavBuffer(context, 'square.wav')
     ]);
     refs.wavSawBufferRef.current = sawBuf;
     refs.wavSqrBufferRef.current = sqrBuf;
@@ -384,6 +386,9 @@ export async function initializeAudioContextAndEngines(
             // Pre-cache logic
         }
         loadingProgressStore.completeStep('singingVoice');
+        // V2 vowel pack, in the background: notes stay TTS until it is ready,
+        // and a missing pack is reported in the HUD rather than thrown.
+        void loadLiveVowelLibrary(context);
     } catch (e) {
         try { engineTelemetry.registerResolution('singingVoice','js','failed to init: ' + String(e)); } catch (err) { /* noop */ }
         console.warn('SingingVoiceManager failed to init:', e);

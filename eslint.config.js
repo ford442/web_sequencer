@@ -169,6 +169,42 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'error',
     },
   },
+  // AudioWorklet code and the real-time code it shares with the main thread run
+  // in AudioWorkletGlobalScope, which has none of these. tsc -b already rejects
+  // them (src/audio-worklets/tsconfig.json has no DOM lib); this is the backstop
+  // should a file ever fall outside that project, or a lib/types edit re-admit DOM.
+  {
+    files: ['src/audio-worklets/**/*.ts', 'src/shared/rt/**/*.ts'],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...[
+          'window',
+          'document',
+          'self',
+          'navigator',
+          'localStorage',
+          'sessionStorage',
+          'fetch',
+          'XMLHttpRequest',
+          'setTimeout',
+          'clearTimeout',
+          'setInterval',
+          'clearInterval',
+          'requestAnimationFrame',
+          'cancelAnimationFrame',
+          'queueMicrotask',
+          'performance',
+          'AudioContext',
+          'Worker',
+        ].map((name) => ({
+          name,
+          message: `\`${name}\` does not exist in AudioWorkletGlobalScope (docs/wasm/BUILD_NOTES.md#worklet-global-scope).`,
+        })),
+      ],
+    },
+  },
   // `ESLINT_RATCHET=1` (scripts/lint-ratchet.mjs) — every rule this file keeps
   // 'off' is switched to 'error' so its violations can be counted and compared
   // against eslint-baseline.json. Any NEW 'off' entry above is picked up

@@ -11,6 +11,9 @@ import { createEmptyMeasure } from '@/utils/songModeEditing';
 import { SessionLaunchEngine } from '@/session/SessionLaunchEngine';
 import { createDefaultSessionDocument } from '@/session/defaults';
 import { secondsPerStep } from '@/session/quantize';
+import { automationStore } from '../../stores/automationStore';
+import { resolveLaneTimeline, resolveOpen303ParamSteps } from '@/audio/automation/laneResolver';
+import type { UnifiedAutomationLane } from '../../types';
 
 /** The linear player (#1342): Song Mode playback reads arrangement clips. */
 
@@ -187,5 +190,49 @@ describe('useStepHandler — arrangement (linear player)', () => {
     expect(kicks).toEqual([0, 18]);
     expect(withSession.setIsSongModeActive).toHaveBeenCalledWith(false);
     expect(session.playingSlot('kick')).toBe(1);
+  });
+
+  it('plays a clip-local filter sweep live, matches the offline resolver, and the next clip does not inherit it (#1494)', () => {
+    transportMixStore.applyMeter(resolveSongMeter({ stepCount: 16 }));
+    const engine = makeEngine();
+    const lane = (id: string, points: Array<[number, number]>): UnifiedAutomationLane => ({
+      id, target: 'synthA', parameter: 'filterCutoff', name: 'Cutoff',
+      points: points.map(([step, value]) => ({ step, value })),
+      interpolation: 'linear', source: 'manual', scope: 'song', enabled: true,
+    });
+    const songLane = lane('song', [[0, 0.2]]);
+    automationStore.addLane(songLane);
+    try {
+      let arr = placeClip(createArrangement(32), {
+        id: 'a', track: 'partA', patternSlot: 0, startStep: 0, lengthSteps: 16, loop: true,
+        lanes: [lane('clip', [[0, 0], [15, 0.75]])],
+      });
+      arr = placeClip(arr, { id: 'b', track: 'partA', patternSlot: 0, startStep: 16, lengthSteps: 16, loop: true });
+      const options = makeOptions(engine, arr, [kickSeq([])]);
+      // A note on every step of partA's pattern.
+      options.trackStorageRef.current.partA = [{ steps: Array.from({ length: 16 }, () => ({ note: 'C3', velocity: 1, length: 1 })) }];
+      const { result } = renderHook(() => useStepHandler(options as never));
+      const cutoffs: Array<number | undefined> = [];
+      for (let abs = 0; abs < 32; abs++) {
+        const before = engine.playSynth.mock.calls.length;
+        const time = 1 + abs * secondsPerStep(120);
+        engine.context.currentTime = time;
+        result.current.onStep(abs % 16, time, abs);
+        const call = engine.playSynth.mock.calls.slice(before).find((c) => c[6] === 'partA');
+        cutoffs.push(call?.[8]?.filterCutoff);
+      }
+      expect(cutoffs[0]).toBe(0);
+      expect(cutoffs[5]).toBeCloseTo(0.25);
+      expect(cutoffs[15]).toBeCloseTo(0.75);
+      expect(cutoffs.slice(16)).toEqual(Array(16).fill(0.2));
+
+      const offline = resolveOpen303ParamSteps(
+        resolveLaneTimeline([songLane], { totalSteps: 32, stepCount: 16, songMode: true, arrangement: arr }),
+        'synthA',
+      ).map((p) => p?.cutoff);
+      expect(offline).toEqual(cutoffs);
+    } finally {
+      automationStore.removeLane(songLane.id);
+    }
   });
 });

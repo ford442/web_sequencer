@@ -34,9 +34,9 @@ High-level architecture (big picture)
   - AssemblyScript (assembly/ -> produces `src/wasm/*.wasm`) — oscillators, freezer, FFT, export helpers
   - Rust (rust-audio/) — **bench crate only**, not built or shipped (#1294)
   - Emscripten C++ (emscripten/ -> `public/hyphon_native.js`, `rubberband.wasm`) — Rubberband, pyodide glue, native code
-  - JC-303 submodule (jc303_wasm/) — TB-303 clone; builds to `public/jc303.*`
+  - JC-303 submodule (jc303_wasm/) — TB-303 clone; its rosic DSP is compiled into `hyphon_native`
 - Other runtimes: WebGPU (voice designer / GPU DSP), Pyodide (Python DSP/TTS), ONNX Runtime Web for TTS, and standard Web Audio for the final audio graph.
-- Build outputs (generated): `src/wasm/`, `public/hyphon_native.js`, `public/jc303_*`. These are build artifacts — expect them to be missing on a fresh checkout.
+- Build outputs (generated): `src/wasm/`, `public/hyphon_native.js`. These are build artifacts — expect them to be missing on a fresh checkout.
 
 Important runtime & build notes
 
@@ -68,7 +68,7 @@ Places to look first when debugging audio/backends
 AI-assistant / repo docs to fuse into Copilot behavior
 
 - `README.md` — quick start and major scripts (includes TTS model notes and quick commands).
-- `AGENTS.md` / `claude.md` — contain the "Four Worlds" rule, SharedArrayBuffer/COOP+COEP requirement, and detailed build boundaries. Copilot sessions should respect those build-world boundaries and prefer touching TypeScript only unless explicitly asked to rebuild native/WASM pieces.
+- `AGENTS.md` / `CLAUDE.md` — contain the "Four Worlds" rule, SharedArrayBuffer/COOP+COEP requirement, and detailed build boundaries. Copilot sessions should respect those build-world boundaries and prefer touching TypeScript only unless explicitly asked to rebuild native/WASM pieces.
 
 Practical tips for Copilot sessions (do this first)
 

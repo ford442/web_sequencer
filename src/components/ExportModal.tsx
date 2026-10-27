@@ -16,6 +16,7 @@ import {
 } from '../utils/audioContextPolicy';
 import type { WavBitDepth } from '../utils/audioExport';
 import type { RenderSynthEngines } from '../utils/renderAudio';
+import type { StemVocalInput } from '../utils/stemExportVocal';
 import { resolveSongTimeline } from '../utils/songTimeline';
 import {
     OFFLINE_VOCAL_GAP_LABELS,
@@ -50,6 +51,8 @@ export interface ExportModalProps {
     preferredSampleRate?: number;
     /** Live HARM state; harmony layers cannot be bounced yet. */
     harmonizerActive?: boolean;
+    /** Alignments + tuning for stretch banks, rendered through the offline Rubber Band host. */
+    vocal?: StemVocalInput;
 }
 
 type ExportPhase = 'idle' | 'exporting' | 'done' | 'cancelled' | 'error';
@@ -101,6 +104,7 @@ export const ExportModal = React.memo(function ExportModal({
     sampleBuffers,
     preferredSampleRate,
     harmonizerActive = false,
+    vocal,
 }: ExportModalProps) {
     const [phase, setPhase] = useState<ExportPhase>('idle');
     const [progress, setProgress] = useState(0);
@@ -186,6 +190,7 @@ export const ExportModal = React.memo(function ExportModal({
                     engines,
                     sampleBuffers,
                     harmonizerActive,
+                    vocal,
                     stepCount: transportMixStore.meterRef.current.stepCount,
                     trackLengths: transportMixStore.meterRef.current.trackLengths,
                 },
@@ -233,6 +238,7 @@ export const ExportModal = React.memo(function ExportModal({
         engines,
         sampleBuffers,
         harmonizerActive,
+        vocal,
         onShowToast,
         onClose,
     ]);
@@ -353,14 +359,14 @@ export const ExportModal = React.memo(function ExportModal({
                     {vocalOffline.length > 0 && (
                         <div
                             role="note"
-                            aria-label="Vocal FX freeze unsupported"
+                            aria-label="Not in the sampler bounce"
                             className="rounded-md border border-amber-700/50 bg-amber-950/30 px-3 py-2 space-y-1"
                         >
                             <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                                Vocal FX freeze unsupported
+                                Not in the sampler bounce
                             </p>
                             <p className="text-[10px] text-amber-200/80">
-                                Sampler stems are rendered dry. The live vocal chain on these banks is not in the bounce:
+                                Stretch banks render through Rubber Band offline. These live layers are not in the bounce:
                             </p>
                             <ul className="flex flex-wrap gap-1">
                                 {vocalOffline.map((r) => (

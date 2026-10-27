@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate src/audio-worklets/hyphonNativeExports.ts — the typed surface of
+ * Generate src/shared/rt/hyphonNativeExports.ts — the typed surface of
  * hyphon_native.wasm (#1344 P4).
  *
  * Inputs, so nothing here is a hand-kept list:
@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const OUTPUT = 'src/audio-worklets/hyphonNativeExports.ts';
+export const OUTPUT = 'src/shared/rt/hyphonNativeExports.ts';
 
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 

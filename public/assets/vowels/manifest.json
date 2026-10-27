@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "generator": "scripts/generate-vowel-pack.mjs",
+  "sampleRate": 48000,
+  "samples": [
+    {
+      "vowel": "ah",
+      "file": "ah.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "ee",
+      "file": "ee.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "eh",
+      "file": "eh.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "oh",
+      "file": "oh.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "oo",
+      "file": "oo.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "ih",
+      "file": "ih.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    },
+    {
+      "vowel": "uh",
+      "file": "uh.wav",
+      "midiNote": 60.0442,
+      "f0Hz": 262.2951,
+      "loopStart": 7320,
+      "loopEnd": 33489
+    }
+  ]
+}

@@ -31,10 +31,11 @@ function mockAudioGraph() {
       exponentialRampToValueAtTime: vi.fn(),
     },
   };
+  const createOscillator = vi.fn(() => osc);
   const context = {
     currentTime: 0,
     sampleRate: 48000,
-    createOscillator: vi.fn(() => osc),
+    createOscillator,
     createGain: vi.fn(() => gain),
     createBiquadFilter: vi.fn(() => ({
       type: 'bandpass',
@@ -50,7 +51,7 @@ function mockAudioGraph() {
     })),
   } as unknown as AudioContext;
   const masterGain = { connect: vi.fn() } as unknown as GainNode;
-  return { context, masterGain, osc };
+  return { context, masterGain, osc, createOscillator };
 }
 
 describe('DrumKitPresets', () => {
@@ -112,9 +113,9 @@ describe('DrumKitEngine', () => {
 
   it('Web Audio fallback creates oscillators per kick hit', () => {
     const engine = new DrumKitEngine('808');
-    const { context, masterGain } = mockAudioGraph();
+    const { context, masterGain, createOscillator } = mockAudioGraph();
     engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 0);
-    expect(context.createOscillator).toHaveBeenCalled();
+    expect(createOscillator).toHaveBeenCalled();
     expect(engine.isWorkletReady).toBe(false);
   });
 
@@ -125,9 +126,9 @@ describe('DrumKitEngine', () => {
     (engine as unknown as { workletNode: { port: { postMessage: typeof postMessage } } }).workletNode = {
       port: { postMessage },
     };
-    const { context, masterGain } = mockAudioGraph();
+    const { context, masterGain, createOscillator } = mockAudioGraph();
     engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 1.25);
-    expect(context.createOscillator).not.toHaveBeenCalled();
+    expect(createOscillator).not.toHaveBeenCalled();
     expect(postMessage).toHaveBeenCalledWith({
       type: 'trigger',
       data: {
@@ -159,11 +160,12 @@ describe('DrumKitEngine', () => {
     const engine = new DrumKitEngine('808');
     const { context, masterGain } = mockAudioGraph();
     const merger = { connect: vi.fn() };
-    Object.assign(context, { createChannelMerger: vi.fn(() => merger) });
+    const createChannelMerger = vi.fn(() => merger);
+    Object.assign(context, { createChannelMerger });
     engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 0);
-    expect(context.createChannelMerger).not.toHaveBeenCalled();
+    expect(createChannelMerger).not.toHaveBeenCalled();
     engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 0, 0.5);
-    expect(context.createChannelMerger).toHaveBeenCalledWith(2);
+    expect(createChannelMerger).toHaveBeenCalledWith(2);
     expect(merger.connect).toHaveBeenCalledWith(masterGain);
   });
 

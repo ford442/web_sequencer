@@ -162,7 +162,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
                     if (stepData.sliceIndex !== undefined) {
                         sliceIdx = stepData.sliceIndex;
                     } else if (stepData.note) {
-                        sliceIdx = noteToMidi(stepData.note) - 60;
+                        const noteMidi = noteToMidi(stepData.note);
+                        if (noteMidi !== null) sliceIdx = noteMidi - 60;
                     }
                     if (sliceIdx >= 0 && alignment.phonemes[sliceIdx]) {
                         phonemeLabel = alignment.phonemes[sliceIdx].phoneme;

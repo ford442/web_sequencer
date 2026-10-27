@@ -66,7 +66,9 @@ export function collapseHyphonStepsTo16(steps: (Note | null)[]): (Note | null)[]
 }
 
 export function hyphonNoteToTb303Step(note: Note | null, index: number): Tb303Step {
-  if (!note) {
+  const midi = note ? noteToMidi(note.note) : null;
+  // No step, or a name that does not parse: a rest, never MIDI 0.
+  if (!note || midi === null) {
     return {
       index,
       note: -1,
@@ -78,7 +80,6 @@ export function hyphonNoteToTb303Step(note: Note | null, index: number): Tb303St
     };
   }
 
-  const midi = noteToMidi(note.note);
   const noteNum = midi % 12;
   const octave = Math.max(1, Math.min(5, Math.floor(midi / 12) - 1));
 

@@ -116,8 +116,10 @@ export class WamHost {
         continue;
       }
       for (const note of list) {
+        const midi = noteToMidi(note);
+        if (midi === null) continue;
         const event: Wam2NoteEvent = {
-          midi: noteToMidi(note),
+          midi,
           velocity,
           time,
           durationSeconds,

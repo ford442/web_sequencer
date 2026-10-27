@@ -46,6 +46,13 @@ export interface SamplerBankParams {
   choir?: number;
   glitchChance?: number;
   dynamicChops?: boolean;
+  /**
+   * V2 concatenative hybrid: notes of at least `minNoteDurationMs` crossfade
+   * from TTS into the nearest vowel sample (stretch mode). Default off.
+   */
+  useVowelSamplesOnLongNotes?: boolean;
+  /** Gate for `useVowelSamplesOnLongNotes`; default 500 ms. */
+  minNoteDurationMs?: number;
   freeze?: number;
   portamentoType?: 'linear' | 'exponential';
   freezeLfoRate?: number;

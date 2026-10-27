@@ -19,6 +19,11 @@ package-lock.json
 
 # TTS Models (large files - download separately)
 assets/
+# ...except the generated vowel pack (scripts/generate-vowel-pack.mjs, ~0.5 MB).
+# A directory must be re-included before a path below it can be.
+!public/assets/
+public/assets/*
+!public/assets/vowels/
 public/assets/onnx/*.onnx
 public/assets/onnx/voice_styles/
 public/oscillators.wasm

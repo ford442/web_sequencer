@@ -7,7 +7,7 @@ import { BassEnvelopeFollower } from '../rubberband/bassEnvelopeFollower';
 import { DrumDuckEnvelope } from '../rubberband/drumDuckEnvelope';
 import { EffectsControlMixin } from '../../engines/singing-voice/effectsControl';
 import type { SingingVoiceHost } from '../../engines/singing-voice/host';
-import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../utils/sidechainTriggerRing';
+import { BASS_TRIGGER_STRIDE, DRUM_TRIGGER_STRIDE, createSidechainRing } from '../../shared/rt/sidechainTriggerRing';
 
 type Posted = Record<string, unknown>;
 type ProcessorInstance = {
@@ -23,14 +23,16 @@ vi.mock('../rubberband-lib.js', () => ({
 
 class FakeStretcher {
   reset() {}
-  setPitchScale(p: number) {}
-  setTimeRatio(r: number) {}
+  lastPitchScale = 1;
+  lastTimeRatio = 1;
+  setPitchScale(p: number) { this.lastPitchScale = p; }
+  setTimeRatio(r: number) { this.lastTimeRatio = r; }
   getTimeRatio() { return 1; }
   getPitchScale() { return 1; }
   getSamplesRequired() { return 0; }
-  process() {}
+  process(_c: Float32Array[], _n: number, _f: boolean) {}
   available() { return 0; }
-  retrieve() { return 0; }
+  retrieve(_c: Float32Array[], _n: number) { return 0; }
 }
 
 function stretcherOnlyModule(): Record<string, unknown> {

@@ -23,7 +23,7 @@ import {
     renderSynthPattern,
     type PatternRenderEngines,
 } from './patternRenderer';
-import { stepDurationSeconds } from './songTimeline';
+import { resolveArrangementTimeline, stepDurationSeconds } from './songTimeline';
 import {
     bounceBuffersThroughOfflineGraph,
     type OfflineGraphReport,
@@ -141,7 +141,27 @@ export async function renderAISongPreview(
         throw new AISongPreviewError(`Cannot preview this song: ${detail}`);
     }
 
-    const song: SavedSongData = converted.song;
+    return renderSongPreview(converted.song, options, primaryAITracks(data).sampler ?? []);
+}
+
+/** A sampler bank the preview cannot render, with where its audio comes from. */
+export interface PreviewSamplerBank {
+    bankIndex: number;
+    ttsText?: string;
+    sampleUrl?: string;
+}
+
+/**
+ * Render the first bars of a converted song. A song that carries an
+ * arrangement with clips is previewed off the linear timeline — gaps,
+ * one-shot tails and clip-local lanes (#1494) included — exactly as live
+ * playback and stem export walk it. Otherwise the primary pattern loops.
+ */
+export async function renderSongPreview(
+    song: SavedSongData,
+    options: AISongPreviewOptions = {},
+    samplerBanks: readonly PreviewSamplerBank[] = [],
+): Promise<AISongPreviewResult> {
     const pattern: Pattern = song.pattern;
     const tempo = song.tempo;
     const bars = Math.max(1, options.bars ?? DEFAULT_PREVIEW_BARS);
@@ -181,25 +201,36 @@ export async function renderAISongPreview(
         }
     };
 
+    const arrangement = song.arrangement?.clips.length ? song.arrangement : undefined;
+    const timeline = arrangement
+        ? resolveArrangementTimeline(arrangement, song.trackStorage as Parameters<typeof resolveArrangementTimeline>[1], {
+            stepCount: song.stepCount,
+            trackLengths: song.trackLengths,
+        })
+        : null;
+    const source = (track: 'partA' | 'partB' | 'bass2' | 'kick' | 'snare' | 'closedHat' | 'openHat') =>
+        takeSteps(timeline ? timeline.sequences[track] : pattern[track], steps);
+
     const synthTracks: Array<{ slot: Open303LaneTarget; sequence: PartSequence; params: SynthParams; waveform: string }> = [
-        { slot: 'synthA', sequence: takeSteps(pattern.partA, steps), params: song.params.synthA, waveform: song.params.synthA.waveform },
-        { slot: 'synthB', sequence: takeSteps(pattern.partB, steps), params: song.params.synthB, waveform: song.params.synthB.waveform },
+        { slot: 'synthA', sequence: source('partA'), params: song.params.synthA, waveform: song.params.synthA.waveform },
+        { slot: 'synthB', sequence: source('partB'), params: song.params.synthB, waveform: song.params.synthB.waveform },
     ];
     // bass2 is optional on a saved song: a preview of a song without it plays
     // the other tracks rather than failing.
     if (song.params.bass2) {
         synthTracks.push({
             slot: 'bass2',
-            sequence: takeSteps(pattern.bass2, steps),
+            sequence: source('bass2'),
             params: bass2ToSynthParams(song.params.bass2),
             waveform: song.params.bass2.waveform,
         });
     }
 
-    // The song's automation lanes, as live playback plays them in pattern mode.
+    // The song's automation lanes, as live playback plays them: pattern mode,
+    // or the linear player with clip lanes over the song lanes.
     const automation = resolveSynthLaneAutomation(
         song.automationLanes ?? [],
-        { totalSteps: steps, stepCount: song.stepCount ?? NUM_STEPS, songMode: false },
+        { totalSteps: steps, stepCount: song.stepCount ?? NUM_STEPS, songMode: !!arrangement, arrangement },
         synthTracks.map((track) => ({ target: track.slot, waveform: track.waveform })),
     );
 
@@ -216,7 +247,7 @@ export async function renderAISongPreview(
 
     const drumTracks = ['kick', 'snare', 'closedHat', 'openHat'] as const;
     for (const drum of drumTracks) {
-        const sequence = takeSteps(pattern[drum], steps);
+        const sequence = source(drum);
         await renderTrack(drum, sequence, () =>
             renderDrumPattern(drum, song.params[drum], {
                 ...renderOpts,
@@ -226,7 +257,7 @@ export async function renderAISongPreview(
         );
     }
 
-    for (const bank of primaryAITracks(data).sampler ?? []) {
+    for (const bank of samplerBanks) {
         const source = bank.ttsText
             ? ('tts-not-rendered' as const)
             : ('sample-not-loaded' as const);

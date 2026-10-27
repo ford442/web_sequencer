@@ -4,7 +4,6 @@
  *   1. emscripten/wasm_memory_budget.json  — the source of truth
  *   2. emscripten/build.sh                 — reads (1) for -s INITIAL_MEMORY / MAXIMUM_MEMORY
  *   3. hyphonNativeImports.ts              — allocates the imported WebAssembly.Memory
- *   4. tools/build_jc303_omp.sh + tools/jc303_cmake/CMakeLists.txt — standalone JC-303
  *
  * If (3) drops below (1) the worklet cannot instantiate the module at all; if it
  * sits far above, mobile Safari and low-RAM Chromebooks fail the shared allocation.
@@ -49,20 +48,11 @@ const budget = JSON.parse(
         stackSizeMb: number;
     };
     assemblyScript: Record<string, number | string[]>;
-    standaloneJc303: {
-        initialMemoryMb: number;
-        maximumMemoryMb: number;
-        stackSizeMbRelease: number;
-        stackSizeMbDebug: number;
-        pthreadPoolSize: number;
-    };
 };
 
 const buildSh = readFileSync(join(REPO_ROOT, 'emscripten/build.sh'), 'utf8');
 const rubberbandSh = readFileSync(join(REPO_ROOT, 'emscripten/build_rubberband.sh'), 'utf8');
 const mixBusSh = readFileSync(join(REPO_ROOT, 'emscripten/build_mix_bus.sh'), 'utf8');
-const jc303BuildSh = readFileSync(join(REPO_ROOT, 'tools/build_jc303_omp.sh'), 'utf8');
-const jc303Cmake = readFileSync(join(REPO_ROOT, 'tools/jc303_cmake/CMakeLists.txt'), 'utf8');
 const packageJson = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
     scripts: Record<string, string>;
 };
@@ -162,36 +152,6 @@ describe('hyphon_native single-threaded (st) memory budget', () => {
         expect(stLink).not.toMatch(/-pthread\b|USE_PTHREADS|PTHREAD_POOL_SIZE|pyodide_bootstrap/);
         expect(buildSh).toContain('hyphon_native.st.js');
         expect(buildSh).toContain('hyphon_wasm_export_map.st.json');
-    });
-});
-
-describe('standalone JC-303 memory budget', () => {
-    it('declares the shipped 16 / 256 / 4/2 contract', () => {
-        expect(budget.standaloneJc303.initialMemoryMb).toBe(16);
-        expect(budget.standaloneJc303.maximumMemoryMb).toBe(256);
-        expect(budget.standaloneJc303.stackSizeMbRelease).toBe(4);
-        expect(budget.standaloneJc303.stackSizeMbDebug).toBe(2);
-        expect(budget.standaloneJc303.pthreadPoolSize).toBe(4);
-    });
-
-    it('build script reads the budget JSON and passes -DJC303_*', () => {
-        expect(jc303BuildSh).toContain('wasm_memory_budget.json');
-        expect(jc303BuildSh).toContain('standaloneJc303.initialMemoryMb');
-        expect(jc303BuildSh).toContain('-DJC303_INITIAL_MEMORY=');
-        expect(jc303BuildSh).toContain('-DJC303_MAXIMUM_MEMORY=');
-        expect(jc303BuildSh).toContain('-DJC303_STACK_SIZE=');
-        expect(jc303BuildSh).toContain('tools/jc303_cmake');
-        expect(jc303BuildSh).not.toMatch(/Stack size: 32MB/);
-        expect(jc303BuildSh).not.toMatch(/src\/wasm\/jc303-single\.wasm/);
-    });
-
-    it('Hyphon CMake overlay uses cache vars and has no memory byte literals', () => {
-        expect(jc303Cmake).toContain('${JC303_INITIAL_MEMORY}');
-        expect(jc303Cmake).toContain('${JC303_MAXIMUM_MEMORY}');
-        expect(jc303Cmake).toContain('${JC303_STACK_SIZE}');
-        expect(jc303Cmake).not.toMatch(/INITIAL_MEMORY=\d+/);
-        expect(jc303Cmake).not.toMatch(/STACK_SIZE=\d+/);
-        expect(jc303Cmake).not.toMatch(/16777216|4194304|2097152|67108864|33554432/);
     });
 });
 

@@ -236,7 +236,9 @@ function macroNotes(sequence: PartSequence, stepDur: number, fxHits: Hit[] | nul
     const notes: OfflineMacroNote[] = [];
     if (fxHits) {
         for (const hit of fxHits) {
-            notes.push({ midi: noteToMidi(hit.note), velocity: hit.velocity, startSeconds: hit.start * stepDur, durationSeconds: hit.length * stepDur });
+            const midi = noteToMidi(hit.note);
+            if (midi === null) continue;
+            notes.push({ midi, velocity: hit.velocity, startSeconds: hit.start * stepDur, durationSeconds: hit.length * stepDur });
         }
         return notes;
     }
@@ -245,8 +247,9 @@ function macroNotes(sequence: PartSequence, stepDur: number, fxHits: Hit[] | nul
         const durationSeconds = (step.length ?? 1) * stepDur;
         const timbre = step.timbre !== undefined ? step.timbre - 0.5 : undefined;
         for (const name of [step.note, ...(step.chord ?? [])]) {
-            if (!name) continue;
-            notes.push({ midi: noteToMidi(name), velocity: step.velocity ?? 0.8, startSeconds: i * stepDur, durationSeconds, slide: !!step.slide, timbre });
+            const midi = noteToMidi(name);
+            if (midi === null) continue; // not a note name: never sounds
+            notes.push({ midi, velocity: step.velocity ?? 0.8, startSeconds: i * stepDur, durationSeconds, slide: !!step.slide, timbre });
         }
     });
     return notes;
@@ -379,11 +382,12 @@ export async function renderSamplerBankPattern(
     const hits: Hit[] = noteFxHits(sequence, noteFx) ?? sequence.steps.flatMap((note, step) =>
         note ? [{ start: step, length: note.length ?? 1, note: note.note, velocity: note.velocity ?? 1 }] : [],
     );
-    const rootFreq = getTunedFrequency('C4', '12-TET', 'C');
+    const rootFreq = getTunedFrequency('C4', '12-TET', 'C') as number;
     for (const hit of hits) {
         throwIfAborted(signal);
         const time = hit.start * stepDur;
         const noteFreq = getTunedFrequency(hit.note, '12-TET', 'C');
+        if (noteFreq === null) continue; // not a note name: never sounds
         const playbackRate = (noteFreq / rootFreq) * bankParams.playbackSpeed;
 
         const source = offlineCtx.createBufferSource();

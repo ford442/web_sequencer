@@ -26,8 +26,25 @@ import type { AutomationTarget, UnifiedAutomationLane } from '../types';
 // ⚡ Bolt: Helper to retrieve the automation store value efficiently using O(1) cache to reduce GC.
 // Resolved like the scheduler and the offline renders (laneResolver, #1384):
 // enabled, in scope for the playing pattern, first lane with a value wins.
-const getAutomationValue = (target: AutomationTarget, param: string, step: number, patternIndex: number, songStep?: number): number | undefined =>
-    resolveParamAtStep(automationStore.getLanesForParam(target, param), step, patternIndex, songStep) ?? undefined;
+// `layered`: this step's clip lanes ahead of the song lanes (#1494), or null
+// when no sounding clip has lanes (then the O(1) per-param cache is read).
+const getAutomationValue = (
+    target: AutomationTarget,
+    param: string,
+    step: number,
+    patternIndex: number,
+    songStep: number | undefined,
+    layered: readonly UnifiedAutomationLane[] | null,
+): number | undefined => {
+    if (!layered) return resolveParamAtStep(automationStore.getLanesForParam(target, param), step, patternIndex, songStep) ?? undefined;
+    for (let i = 0; i < layered.length; i++) {
+        const lane = layered[i];
+        if (lane.target !== target || lane.parameter !== param || !isLaneActive(lane, patternIndex)) continue;
+        const value = resolveLaneValue(lane, laneReadStep(lane, step, songStep));
+        if (value !== null) return value;
+    }
+    return undefined;
+};
 
 
 
@@ -38,7 +55,7 @@ const getAutomationValue = (target: AutomationTarget, param: string, step: numbe
 import { isE2eMode, recordE2eDrumHit, setE2eTransportStep, setE2eSessionState } from '../e2e/probe';
 import { scheduleAtAudioTime } from '../midi/clock/scheduleAtAudioTime';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
-import { isLaneActive, laneReadStep, resolveParamAtStep } from '../audio/automation/laneResolver';
+import { isLaneActive, laneReadStep, resolveLaneValue, resolveParamAtStep } from '../audio/automation/laneResolver';
 import { TICKS_PER_BAR } from '../importers/rbs/types';
 import {
     playbackHealthMonitor,
@@ -49,7 +66,7 @@ import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngin
 import { getWamHost } from '../audio/wam';
 import type { Arrangement } from '../types';
 import { arrangementEnd } from '../arrangement/model';
-import { createArrangementFrame, resolveArrangementFrame, type ArrangementFrame } from '../arrangement/playback';
+import { createArrangementFrame, layerClipLanes, resolveArrangementFrame, type ArrangementFrame } from '../arrangement/playback';
 import { arrangementPlayhead } from '../arrangement/playhead';
 import { transportPlayhead } from '../sequencer/transportPlayhead';
 import { groupSimultaneous } from '../sequencer/noteFx/chain';
@@ -79,15 +96,16 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     const numInversions = Math.round(inversionVal * maxInversions);
     if (numInversions === 0) return notes;
 
-    // Fill + convert in one pass (no .map allocation)
+    // Fill + convert in one pass (no .map allocation). Names that do not
+    // parse never sound, so they drop out of the voicing.
+    let count = 0;
     _midiScratch.length = len;
-    if (isArray) {
-        for (let i = 0; i < len; i++) {
-            _midiScratch[i] = noteToMidi((notes as string[])[i]);
-        }
-    } else {
-        _midiScratch[0] = noteToMidi(notes as string);
+    for (let i = 0; i < len; i++) {
+        const midi = noteToMidi((notes as string[])[i]);
+        if (midi !== null) _midiScratch[count++] = midi;
     }
+    _midiScratch.length = count;
+    if (count === 0) return notes;
 
     // Sort ascending in place
     _midiScratch.sort((a, b) => a - b);
@@ -95,15 +113,15 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     // Rotate without shift() — O(n) total instead of O(n²)
     for (let inv = 0; inv < numInversions; inv++) {
         const lowest = _midiScratch[0];
-        for (let i = 0; i < len - 1; i++) {
+        for (let i = 0; i < count - 1; i++) {
             _midiScratch[i] = _midiScratch[i + 1];
         }
-        _midiScratch[len - 1] = lowest + 12;
+        _midiScratch[count - 1] = lowest + 12;
     }
 
     // Convert back — return a fresh array so callers can keep it
-    _noteScratch.length = len;
-    for (let i = 0; i < len; i++) {
+    _noteScratch.length = count;
+    for (let i = 0; i < count; i++) {
         _noteScratch[i] = midiToNote(_midiScratch[i]);
     }
     return _noteScratch;
@@ -238,6 +256,14 @@ export const useStepHandler = ({
             if (audioEngine && audioTime !== undefined) scheduleAtAudioTime(audioEngine.context, audioTime, fn);
             else fn();
         };
+
+        // Fallback for CI environments missing an audio sink (headless Firefox),
+        // where AudioContext remains permanently suspended and scheduleAtAudioTime hangs.
+        // Update the probe immediately to unblock E2E playback polling.
+        if (e2e && audioEngine?.context.state !== 'running') {
+            setE2eTransportStep(step);
+        }
+
         atStepTime(() => {
             currentStepRef.current = step;
             automationStore.setPlaybackStep(step);
@@ -452,6 +478,11 @@ export const useStepHandler = ({
 
         // Song position song-timeline lanes are read at (linear player only).
         const laneSongStep = arrangementSteps ? songPosRef.current : undefined;
+        // Clip-local lanes (#1494): the sounding clips' lanes go ahead of the
+        // song lanes, the same layering the offline renders apply.
+        const songLanes = automationStore.getState().lanes;
+        const layeredLanes = arrangementSteps ? layerClipLanes(songLanes, arrangementRef.current, laneSongStep) : songLanes;
+        const clipLayer = layeredLanes !== songLanes ? layeredLanes : null;
 
         const p = activePattern;
         const stepTime = 60 / tempo / 4;
@@ -515,11 +546,11 @@ export const useStepHandler = ({
             // Unified automation lanes (recorded + imported RBS) for filter cutoff/resonance on this synth track
             // These override per-step; values are already 0-1 normalized (playSynth scales to Hz/Q)
             const targetForLane: 'synthA' | 'synthB' = trackKey === 'partA' ? 'synthA' : 'synthB';
-            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step, lanePatternIndex(), laneSongStep);
+            const cutoffVal = getAutomationValue(targetForLane, 'filterCutoff', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (cutoffVal !== undefined) noteParams.filterCutoff = cutoffVal;
-            const resVal = getAutomationValue(targetForLane, 'filterResonance', step, lanePatternIndex(), laneSongStep);
+            const resVal = getAutomationValue(targetForLane, 'filterResonance', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (resVal !== undefined) noteParams.filterResonance = resVal;
-            const driveVal = getAutomationValue(targetForLane, 'drive', step, lanePatternIndex(), laneSongStep);
+            const driveVal = getAutomationValue(targetForLane, 'drive', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (driveVal !== undefined) noteParams.drive = driveVal;
             return noteParams;
         };
@@ -558,7 +589,7 @@ export const useStepHandler = ({
                     noteParams.velocity = head.velocity;
                     const slideFrom = head.slide && lastFreqRef.current[trackKey] > 0 ? lastFreqRef.current[trackKey] : undefined;
                     playSynthNotes(trackKey, params, notes, fxTime(head, tStep), head.length, head.velocity, slideFrom, noteParams);
-                    lastFreqRef.current[trackKey] = tunedNoteToFrequency(midiToNote(head.pitch), currentScale);
+                    lastFreqRef.current[trackKey] = tunedNoteToFrequency(midiToNote(head.pitch), currentScale) ?? 0;
                 }
                 return;
             }
@@ -587,8 +618,8 @@ export const useStepHandler = ({
             const noteParams = buildSynthNoteParams(trackKey, stepData, tStep, true);
             playSynthNotes(trackKey, params, notes, time, stepData.length, stepData.velocity ?? 1, slideFrom, noteParams);
 
-            // Update last frequency for future slides
-            lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale);
+            // Update last frequency for future slides (0 = no slide source)
+            lastFreqRef.current[trackKey] = tunedNoteToFrequency(stepData.note, currentScale) ?? 0;
         };
 
         // === Bass 2 (TB-303) ===
@@ -614,11 +645,11 @@ export const useStepHandler = ({
         const bass2NoteParamsFor = (stepData: Note): SynthNoteParams => {
             const bass2NoteParams: SynthNoteParams = {};
             if (stepData.drive !== undefined) bass2NoteParams.drive = stepData.drive;
-            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step, lanePatternIndex(), laneSongStep);
+            const b2Cutoff = getAutomationValue('bass2', 'filterCutoff', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (b2Cutoff !== undefined) bass2NoteParams.filterCutoff = b2Cutoff;
-            const b2Res = getAutomationValue('bass2', 'filterResonance', step, lanePatternIndex(), laneSongStep);
+            const b2Res = getAutomationValue('bass2', 'filterResonance', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (b2Res !== undefined) bass2NoteParams.filterResonance = b2Res;
-            const b2Drive = getAutomationValue('bass2', 'drive', step, lanePatternIndex(), laneSongStep);
+            const b2Drive = getAutomationValue('bass2', 'drive', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (b2Drive !== undefined) bass2NoteParams.drive = b2Drive;
             return bass2NoteParams;
         };
@@ -724,11 +755,11 @@ export const useStepHandler = ({
             bankParams.lockToSequencer = voiceParams.lockToSequencer;
 
             // Sampler track automation (filter, volume) from lanes - complements the Voice Designer ramping below
-            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step, lanePatternIndex(), laneSongStep);
+            const sampCutoff = getAutomationValue('sampler', 'filterCutoff', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (sampCutoff !== undefined) (bankParams as any).filterCutoff = Math.max(20, sampCutoff * 20000);
-            const sampRes = getAutomationValue('sampler', 'filterResonance', step, lanePatternIndex(), laneSongStep);
+            const sampRes = getAutomationValue('sampler', 'filterResonance', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (sampRes !== undefined) (bankParams as any).filterResonance = sampRes * 20;
-            const sampVol = getAutomationValue('sampler', 'volume', step, lanePatternIndex(), laneSongStep);
+            const sampVol = getAutomationValue('sampler', 'volume', step, lanePatternIndex(), laneSongStep, clipLayer);
             if (sampVol !== undefined) (bankParams as any).volume = sampVol;
             return bankParams as SamplerBankParams;
         };
@@ -817,7 +848,9 @@ export const useStepHandler = ({
             const bankParams = buildBankParams(bankIdx, stepData.pan);
             audioEngine.playSampler(bankParams, finalNotes, time, stepData.length, stepTime, { ...stepData, slideFromMidi, slideFromFormant }, currentScale);
 
-            lastSamplerMidiRef.current[bankIdx] = noteToMidi(stepData.note);
+            const samplerMidi = noteToMidi(stepData.note);
+            if (samplerMidi !== null) lastSamplerMidiRef.current[bankIdx] = samplerMidi;
+            else delete lastSamplerMidiRef.current[bankIdx]; // no slide source
             lastSamplerFormantRef.current[bankIdx] = stepData.formantShift !== undefined ? stepData.formantShift : (voiceParams.formantShift || 0);
         }
 
@@ -834,7 +867,7 @@ export const useStepHandler = ({
         const playbackEnabled = autoState.playbackEnabled;
         if (playbackEnabled && audioEngine) {
             const automationPatternIndex = lanePatternIndex();
-            const lanes = autoState.lanes;
+            const lanes = clipLayer ?? autoState.lanes;
             const rampDuration = Math.max(0.01, stepTime * 0.85);
 
             // Collect live values for UI display (keyed "target:parameter")
@@ -864,9 +897,11 @@ export const useStepHandler = ({
                 const normVal = automationStore.getValueAtStep(lane, laneReadStep(lane, step, laneSongStep));
                 if (normVal === null) continue;
 
-                // Track for UI automation indicators
+                // Track for UI automation indicators. The first lane with a
+                // value wins its parameter (a clip lane ahead of a song lane).
                 const cacheKey = `${lane.target}:${lane.parameter}`;
-                if (liveValues[cacheKey] === undefined) _liveValuesKeys.push(cacheKey);
+                if (liveValues[cacheKey] !== undefined) continue;
+                _liveValuesKeys.push(cacheKey);
                 liveValues[cacheKey] = normVal;
                 hasLiveValues = true;
 
@@ -916,8 +951,9 @@ export const useStepHandler = ({
                     const normVal = automationStore.getValueAtStep(lane, laneReadStep(lane, step, laneSongStep));
                     if (normVal === null) continue;
                     const cacheKey = `${lane.target}:${lane.parameter}`;
-                if (liveValues[cacheKey] === undefined) _liveValuesKeys.push(cacheKey);
-                liveValues[cacheKey] = normVal;
+                    if (liveValues[cacheKey] !== undefined) continue;
+                    _liveValuesKeys.push(cacheKey);
+                    liveValues[cacheKey] = normVal;
                     hasLiveValues = true;
                 }
             }

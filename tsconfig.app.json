@@ -31,5 +31,16 @@
   },
   "include": [
     "src"
+  ],
+  // Worklet sources and the shared real-time code have their own projects
+  // (src/audio-worklets/tsconfig.json: no DOM; src/shared/rt/tsconfig.json:
+  // ES2022 only). Their tests stay here, and so does anything the main thread
+  // imports from them, which is why @types/audioworklet's globals (picked up
+  // from node_modules/@types) are visible in this program too.
+  "exclude": [
+    "src/audio-worklets/*.ts",
+    "src/audio-worklets/open303/*.ts",
+    "src/audio-worklets/rubberband/*.ts",
+    "src/shared/rt/*.ts"
   ]
 }

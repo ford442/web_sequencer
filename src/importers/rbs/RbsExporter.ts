@@ -7,7 +7,9 @@
 import type { HyphonAutomationLane, HyphonSong, RbsTrakEvent } from './types';
 import type { PartSequence, ResolvedTrakEvent, SavedSongData, UnifiedAutomationLane } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
-import { resolveTrakEventKind } from './trakControllers';
+import { isTrakPatternSelectEvent, resolveTrakEventKind } from './trakControllers';
+import { bakeArrangementForRbs } from './arrangementBake';
+import { normalizeArrangement } from '../../arrangement/model';
 import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 import { buildIffRbsFile } from './iffBuilder';
 import { swingPercentToRbsShuffle } from './shuffle';
@@ -71,6 +73,8 @@ export class RbsExporter {
     };
     const arrangement = song.songArrangement;
     const isSongExport = opts.mode === 'song' && arrangement?.mode === 'song';
+
+    if (isSongExport && arrangement?.exportWarnings?.length) warnings.push(...arrangement.exportWarnings);
 
     if (opts.mode === 'song' && !isSongExport) {
       warnings.push('Song-mode export requested but no song arrangement present — writing pattern mode.');
@@ -371,7 +375,30 @@ export function hyphonSongFromSavedData(
     pcfFilter: data.pcfFilter,
   };
 
-  if (ts && structure.length > 0) {
+  // The song is the arrangement timeline (#1494): bake it, so trims, gaps
+  // and one-shot tails export as they play, rather than the projection.
+  const timeline = isSong ? normalizeArrangement(data.arrangement) : null;
+  if (ts && timeline && timeline.clips.length > 0) {
+    const baked = bakeArrangementForRbs(timeline, ts as Parameters<typeof bakeArrangementForRbs>[1], {
+      stepCount: meter.stepCount,
+      trackLengths: meter.trackLengths,
+    });
+    const measures = baked.songStructure.length;
+    // Pattern selects in preserved TRAK events name the old slots; the baked
+    // structure supplies its own. Knob moves are kept.
+    const paramEvents = trakEvents?.filter(
+      (ev) => !isTrakPatternSelectEvent(ev.trackIndex, ev.controllerId, ev.eventKind),
+    );
+    song.songArrangement = {
+      mode: 'song',
+      trackStorage: baked.trackStorage,
+      songStructure: baked.songStructure,
+      loopStart: data.rbsLoopStart != null ? Math.min(data.rbsLoopStart, measures - 1) : undefined,
+      loopEnd: data.rbsLoopEnd != null ? Math.min(data.rbsLoopEnd, measures) : undefined,
+      ...(paramEvents?.length ? { trakParamEvents: paramEvents } : {}),
+      exportWarnings: baked.warnings,
+    };
+  } else if (ts && structure.length > 0) {
     song.songArrangement = {
       mode: isSong ? 'song' : 'pattern',
       trackStorage: {

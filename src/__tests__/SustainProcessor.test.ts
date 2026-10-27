@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the imports that would be used by the processor
-vi.mock('../utils/ringBuffer', () => ({
+vi.mock('../shared/rt/ringBuffer', () => ({
     RingBuffer: vi.fn().mockImplementation(() => ({
         push: vi.fn(),
         pull: vi.fn(),

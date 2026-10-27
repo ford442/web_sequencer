@@ -1,4 +1,4 @@
-import { SidechainRingReader, BASS_TRIGGER_STRIDE } from "../../utils/sidechainTriggerRing";
+import { SidechainRingReader, BASS_TRIGGER_STRIDE } from "../../shared/rt/sidechainTriggerRing";
 
 /** Attack ramp to the note's velocity; an instant step made the grain size jump audibly. */
 export const BASS_ENV_ATTACK_SECONDS = 0.01;
@@ -10,7 +10,7 @@ export const BASS_ENV_RELEASE_SECONDS = 0.1;
  * (GranularEngine.initGrain / rb_fx: size *= 1 - env * bassEnvDepth).
  *
  * Triggers arrive through a sidechain trigger ring of [time, velocity 0..1,
- * duration s] events (see utils/sidechainTriggerRing.ts), so dense bass lines
+ * duration s] events (see shared/rt/sidechainTriggerRing.ts), so dense bass lines
  * written ahead of the audio clock are not lost. Per block: linear attack to
  * the velocity, hold for the note's duration, exponential release.
  */

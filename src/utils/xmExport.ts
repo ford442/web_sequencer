@@ -12,7 +12,7 @@ import {
     createModule, createInstrument, createSample, addSampleToInstrument,
     XMWriter, LoopType
 } from './xm_save_lib/index';
-import type { PartSequence, Pattern, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, TrackKey } from '../types';
+import type { Arrangement, PartSequence, Pattern, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams, TrackKey } from '../types';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines } from './renderAudio';
 import { resolveExportSampleRate, type SampleRatePref } from './audioContextPolicy';
 import type { TrackLengths } from './songMeter';
@@ -487,6 +487,8 @@ export interface XmExportOptions {
     stepCount?: number;
     /** Per-track loop lengths, tiled into each pattern like live playback. */
     trackLengths?: TrackLengths;
+    /** Linear arrangement (#1494): with clips, the module walks its timeline. */
+    arrangement?: Arrangement;
 }
 
 /** Outcome of an XM export. The file is always written; `truncationMessage` is
@@ -759,6 +761,7 @@ export const buildSongXM = async (
         currentPattern,
         stepCount: options.stepCount,
         trackLengths: options.trackLengths,
+        arrangement: options.arrangement,
     });
     mod.patterns.push(...patterns);
 

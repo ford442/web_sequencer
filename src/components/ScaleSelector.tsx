@@ -54,33 +54,36 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = memo(({ currentScale,
             {isActive && (
                 <fieldset className="flex items-center gap-1.5">
                     <legend className="sr-only">Scale Configuration</legend>
+                    <label htmlFor="scale-root" className="sr-only">Root note</label>
                     <select
+                        id="scale-root"
                         value={currentScale!.root}
                         onChange={handleRootChange}
                         className="bg-gray-800 text-cyan-400 text-[10px] font-mono border border-gray-600 rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-cyan-500"
-                        aria-label="Root note"
                     >
                         {NOTES.map(note => (
                             <option key={note} value={note}>{note}</option>
                         ))}
                     </select>
 
+                    <label htmlFor="scale-type" className="sr-only">Scale type</label>
                     <select
+                        id="scale-type"
                         value={currentScale!.scale}
                         onChange={handleScaleChange}
                         className="bg-gray-800 text-cyan-400 text-[10px] font-mono border border-gray-600 rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-cyan-500"
-                        aria-label="Scale type"
                     >
                         {SCALE_NAMES.map(name => (
                             <option key={name} value={name}>{name}</option>
                         ))}
                     </select>
 
+                    <label htmlFor="scale-tuning" className="sr-only">Tuning System</label>
                     <select
+                        id="scale-tuning"
                         value={currentScale!.tuning || '12-TET'}
                         onChange={handleTuningChange}
                         className="bg-gray-800 text-cyan-400 text-[10px] font-mono border border-gray-600 rounded px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] focus-visible:ring-cyan-500"
-                        aria-label="Tuning System"
                     >
                         {TUNING_NAMES.map(tuning => (
                             <option key={tuning} value={tuning}>{tuning}</option>

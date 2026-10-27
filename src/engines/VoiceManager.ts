@@ -103,10 +103,14 @@ export class Voice implements PoolableVoice {
             this.cleanupTimer = null;
         }
 
+        const noteFreq = tunedNoteToFrequency(note, tuning);
+        // Not a note name: play nothing rather than a wrong pitch.
+        if (noteFreq === null) return;
+
         const now = time;
         // Module TUNE knob (semitones) transposes the sounding pitch.
         const pitchSemis = getPitchOffsetSemitones(params);
-        const freq = transposeFrequency(tunedNoteToFrequency(note, tuning), pitchSemis);
+        const freq = transposeFrequency(noteFreq, pitchSemis);
         // Slide source frequencies are computed from the untransposed note, so
         // shift them by the same amount to keep glides in tune.
         const slideFrom = slideFromFreq !== undefined

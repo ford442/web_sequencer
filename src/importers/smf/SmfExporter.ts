@@ -145,7 +145,7 @@ function noteEventsForSequence(
     const pitches = gmNoteOverride != null ? [gmNoteOverride] : (step.chord && step.chord.length > 0 ? step.chord : [step.note]).map((n) => noteToMidi(n));
 
     for (const midi of pitches) {
-      if (midi < 0 || midi > 127) continue;
+      if (midi === null || midi < 0 || midi > 127) continue;
       events.push({ tick: startTick, order: 1, bytes: [0x90 | channel, midi, velocity] });
       events.push({ tick: endTick, order: 0, bytes: [0x80 | channel, midi, 0] });
     }

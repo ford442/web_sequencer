@@ -15,15 +15,8 @@
 
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from './hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeInitData, type HyphonNativeSession } from './hyphonNativeSession';
-import type { HyphonNativeExports, VoiceHandle, WasmPtr } from './hyphonNativeExports';
+import type { HyphonNativeExports, VoiceHandle, WasmPtr } from '../shared/rt/hyphonNativeExports';
 import { WorkletPerfReporter } from './workletPerfReporter';
-
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-declare const currentFrame: number | undefined;
-declare const sampleRate: number | undefined;
 
 const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
 
@@ -43,8 +36,8 @@ const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
-    readonly prefix: NativeVoicePrefix;
-    readonly handle: VoiceHandle;
+    prefix: NativeVoicePrefix;
+    handle: VoiceHandle;
 }
 
 type PushEvent = (h: VoiceHandle, frame: number, type: number, target: number, value: number,
@@ -82,8 +75,8 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
     }
 
     /** The session's exports, typed. Only meaningful once a session is attached. */
-    protected get x(): HyphonNativeExports {
-        return (this.native?.exports ?? {}) as HyphonNativeExports;
+    protected get x(): HyphonNativeExports & Record<string, (...args: never[]) => unknown> {
+        return (this.native?.exports ?? {}) as HyphonNativeExports & Record<string, (...args: never[]) => unknown>;
     }
 
     // ── Session ──────────────────────────────────────────────────────────────
@@ -167,7 +160,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         a2 = 0,
         a3 = 0,
     ): boolean {
-        const push = this.x[VOICE_EXPORT_NAMES[voice.prefix].pushEvent] as PushEvent | undefined;
+        const push = (this.x as any)[VOICE_EXPORT_NAMES[voice.prefix].pushEvent] as PushEvent | undefined;
         if (!push) return false;
         if (push(voice.handle, frame, type, target, value, a0, a1, a2, a3) === 1) return true;
         if (this.droppedEvents++ < MAX_LOGGED_ERRORS) {
@@ -178,12 +171,12 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
 
     /** Drop the notes and triggers `voice` still holds for later frames; params still land. */
     protected cancelNotes(voice: NativeVoiceRef): void {
-        (this.x[VOICE_EXPORT_NAMES[voice.prefix].cancelNotes] as HandleCall | undefined)?.(voice.handle);
+        ((this.x as any)[VOICE_EXPORT_NAMES[voice.prefix].cancelNotes] as HandleCall | undefined)?.(voice.handle);
     }
 
     /** Apply everything `voice` holds now — before it stops being rendered. */
     protected flushEvents(voice: NativeVoiceRef): void {
-        (this.x[VOICE_EXPORT_NAMES[voice.prefix].flush] as HandleCall | undefined)?.(voice.handle);
+        ((this.x as any)[VOICE_EXPORT_NAMES[voice.prefix].flush] as HandleCall | undefined)?.(voice.handle);
     }
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -199,7 +192,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         right: Float32Array | undefined,
         gain = 1,
     ): boolean {
-        const render = this.x[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
+        const render = (this.x as any)[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
         const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
         return this.copyOut(ptr, frames, left, right, gain, VOICE_EXPORT_NAMES[voice.prefix].render);
     }
@@ -217,7 +210,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         right: Float32Array | undefined,
         gain = 1,
     ): boolean {
-        const render = this.x[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
+        const render = (this.x as any)[VOICE_EXPORT_NAMES[voice.prefix].render] as Render | undefined;
         const ptr = render ? render(voice.handle, this.blockFrame, frames) : 0;
         this.refreshHeap();
         const heap = this.heap;

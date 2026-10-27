@@ -2,14 +2,6 @@
 // Pattern Controlled Filter (PCF) AudioWorklet Processor
 // Implements ReBirth-style pattern-driven filter modulation as a real-time audio effect.
 
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-
-declare function registerProcessor(name: string, processorCtor: new () => AudioWorkletProcessor): void;
-declare const sampleRate: number;
-
 /** Clamp a value to the [0, 1] range. */
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
 /** Clamp a value to the [0, 127] MIDI range. */
@@ -89,6 +81,8 @@ class PcfProcessor extends AudioWorkletProcessor {
     // Envelope state for decay
     private envelopeLevel = 0;
     private envelopeDecayRate = 0;
+    private envelopeBlockDecay = 1;
+    private lastBlockSize = 0;
 
     // Smoothing for cutoff changes (avoid zipper noise)
     private targetCutoffHz = 1000;
@@ -107,9 +101,14 @@ class PcfProcessor extends AudioWorkletProcessor {
     private automationResonanceMidi = -1; // -1 means no override (0-127)
     private automationEnvAmountNorm = -1; // -1 means no override (0-1)
 
+    // Cached invariant math for the hot path
+    private baseHz = 20;
+    private readonly maxHz = 20 * Math.pow(1000, 1); // midiToHz(127)
+
     constructor() {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
+        this.baseHz = this.midiToHz(this.baseCutoff);
         this.updateSamplesPerStep();
         this.updateSmoothingCoeff();
         this.updateEnvelopeDecayRate();
@@ -122,7 +121,10 @@ class PcfProcessor extends AudioWorkletProcessor {
         switch (type) {
             case 'set-params': {
                 if (data.filterType !== undefined) this.filterType = data.filterType;
-                if (data.cutoff !== undefined) this.baseCutoff = clampMidi(data.cutoff);
+                if (data.cutoff !== undefined) {
+                    this.baseCutoff = clampMidi(data.cutoff);
+                    this.baseHz = this.midiToHz(this.baseCutoff);
+                }
                 if (data.resonance !== undefined) this.resonance = clampMidi(data.resonance);
                 if (data.envAmount !== undefined) this.envAmount = clampMidi(data.envAmount);
                 if (data.decay !== undefined) {
@@ -228,6 +230,15 @@ class PcfProcessor extends AudioWorkletProcessor {
         const decayTimeSamples = (decayTimeMs / 1000) * sampleRate;
         // Exponential decay rate per sample
         this.envelopeDecayRate = Math.exp(-1 / decayTimeSamples);
+        // Force refresh of the block decay rate on next process
+        this.lastBlockSize = 0;
+    }
+
+    private refreshEnvelopeBlockDecay(blockSize: number): void {
+        if (blockSize !== this.lastBlockSize) {
+            this.lastBlockSize = blockSize;
+            this.envelopeBlockDecay = Math.pow(this.envelopeDecayRate, blockSize);
+        }
     }
 
     /**
@@ -331,17 +342,16 @@ class PcfProcessor extends AudioWorkletProcessor {
         }
 
         // Apply envelope decay for block duration
-        this.envelopeLevel *= Math.pow(this.envelopeDecayRate, blockSize);
+        this.refreshEnvelopeBlockDecay(blockSize);
+        this.envelopeLevel *= this.envelopeBlockDecay;
 
         // Calculate target cutoff for this block
         let targetHz: number;
         if (this.automationCutoffHz >= 0) {
             targetHz = this.automationCutoffHz;
         } else {
-            const baseHz = this.midiToHz(this.baseCutoff);
-            const maxHz = this.midiToHz(127);
-            const modRange = (maxHz - baseHz) * this.envelopeLevel;
-            targetHz = baseHz + modRange;
+            const modRange = (this.maxHz - this.baseHz) * this.envelopeLevel;
+            targetHz = this.baseHz + modRange;
         }
 
         // Smooth cutoff and recompute coefficients once per block

@@ -48,13 +48,12 @@
 |--------|----------|--------------|---------|
 | AssemblyScript | TypeScript-like | `src/wasm/*.wasm` | Oscillators (the one WASM wavetable engine — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`), track freezer, FFT, audio export, XM export |
 | Emscripten | C++ | `public/hyphon_native{,.st}.{js,wasm}` | Open303 + JC303 dual-engine wrappers, HighFid303, Prophecy formant engine, analog drum kit, macro (Plaits) voices (pthread + single-threaded profiles) |
-| JC-303 | C++ (JUCE) | `public/jc303.*` | Legacy standalone TB-303-compatible wasm variants |
 | WebGPU | WGSL/TypeScript | Runtime | GPU-accelerated DSP (voice designer, scope) |
 | Web Audio | TypeScript | Native | Primary audio graph, scheduling, effects |
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
 - **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`, `emscripten/macro_wrapper.cpp` (see `emscripten/build.sh`)
-- **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it; `pnpm run gen:native-types` derives `src/audio-worklets/hyphonNativeExports.ts` from it). The 303 / Prophecy / drum worklets extend `NativeVoiceProcessor` and push every note, trigger and param as an event on its own frame. See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
+- **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it; `pnpm run gen:native-types` derives `src/shared/rt/hyphonNativeExports.ts` from it). The 303 / Prophecy / drum worklets extend `NativeVoiceProcessor` and push every note, trigger and param as an event on its own frame. See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
 - **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
 - **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
 - **Current routing**:
@@ -140,11 +139,11 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   │   └── xm_save_lib/          # XM file format library
 │   ├── stores/                   # State stores
 │   │   └── loadingProgressStore.ts
-│   ├── audio-worklets/           # AudioWorklet processors
+│   ├── audio-worklets/           # AudioWorklet processors (own tsconfig: ES2022 + @types/audioworklet, no DOM)
+│   ├── shared/rt/                # Real-time code shared by main thread + worklets (ES2022-only tsconfig)
 │   │   ├── sustain-processor.ts  # Sample sustain/loop/stretch
 │   │   ├── open303-processor.ts  # TB-303 audio worklet
-│   │   ├── rubberband-processor.ts
-│   │   └── artifact-detector-processor.ts
+│   │   └── rubberband-processor.ts
 │   ├── workers/                  # Web Workers
 │   │   └── renderer.worker.ts    # Offline audio rendering
 │   ├── types.ts                  # TypeScript type definitions
@@ -169,9 +168,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── toolchain_env.sh          # Sourced by every em++ script; refuses any other emcc
 │   ├── rubberband_wrapper.cpp    # Rubberband C++ interface
 │   └── pre.js / rubberband-pre.js
-├── jc303_wasm/                   # TB-303 clone (git submodule)
-│   ├── CMakeLists.txt            # JUCE-based CMake project
-│   └── wasm/                     # CMake-based build
+├── jc303_wasm/                   # TB-303 clone (git submodule) — only src/dsp/open303 is compiled, into hyphon_native
 ├── rubberband/                   # Rubberband library source (in-repo, not submodule)
 ├── third_party/                  # Pinned DSP submodules: eurorack (Plaits) + stmlib — macro voices
 ├── Supertonic-Voice-Mixer/       # Python TTS tools
@@ -181,15 +178,11 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── audio-worklets/           # Copied worklet files
 │   ├── hyphon_native{,.st}.{js,wasm}  # Emscripten output (pthread workers are inlined)
 │   ├── rubberband.wasm           # Rubberband binary
-│   ├── jc303_worklet.js          # JC-303 worklet
-│   ├── jc303-single.js           # JC-303 single-threaded loader
-│   ├── jc303-single-worklet.js   # JC-303 single-threaded worklet
 │   ├── pyodide.js                # Pyodide loader stub
 │   ├── saw.wav / square.wav      # Native WAV oscillators
 │   └── assets/                   # Additional static assets
 ├── tests/                        # Playwright E2E tests (~2 spec files)
 ├── tools/                        # Build scripts
-│   ├── build_jc303_omp.sh        # JC-303 builder (threaded + single)
 │   └── render_hyphon_native_parity.mjs  # Render / heap gate for the built voice wasm
 ├── web/                          # Legacy/alternate web build (TTS ONNX demo)
 │   ├── package.json
@@ -226,7 +219,7 @@ pnpm run lint:strict
 
 ### WASM Builds (Individual)
 ```bash
-# Build all AssemblyScript + Rust + JC-303 WASM modules
+# Build all AssemblyScript WASM modules
 pnpm run build:wasm
 
 # Build specific AssemblyScript modules
@@ -235,9 +228,6 @@ pnpm run build:wasm:freezer        # Track freezer / rendering
 pnpm run build:wasm:fft            # FFT DSP
 pnpm run build:wasm:audioexport    # WAV export DSP
 pnpm run build:wasm:xmexport       # XM export DSP
-
-# Build JC-303 (requires Emscripten, git submodule)
-pnpm run build:wasm:jc303
 
 # Build Emscripten/Rubberband
 pnpm run build:emcc
@@ -257,6 +247,10 @@ pnpm run build                  # alias of build:release
 ```
 
 ### Testing
+Before opening a PR, `pnpm run lint:ratchet` must exit 0, and `eslint-baseline.json` may only go down.
+
+`pnpm lint` also runs the dead-code gate (`scripts/knip-ratchet.mjs`, config `knip.json`): a module that no production entry reaches — `src/main.tsx` and everything it imports, lazily or as a `?worker&url` worklet / worker, plus `scripts/**` and `tools/**` — fails lint. A test import does not count. Delete it or wire it in; `knip-baseline.json` only lists orphans that predate the gate and may only shrink (`pnpm run lint:knip:update`).
+
 ```bash
 # Run unit tests (default PR gate — hermetic, no WASM build)
 pnpm run test:unit
@@ -352,11 +346,8 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
 - **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
 
-### 4. JC-303 World (`/jc303_wasm`)
-- **Build**: `bash tools/build_jc303_omp.sh debug both`
-- **Output**: `public/jc303.*` and `public/jc303_worklet.js`
-- **Requires**: Git submodule initialized (`git submodule update --init jc303_wasm`)
-- Produces both **threaded** (plain pthreads — no OpenMP) and **single-threaded** variants
+### 4. JC-303 (no standalone world)
+- JC303 runs inside `hyphon_native` (`emscripten/jc303_wrapper.cpp`, rosic DSP from the `jc303_wasm` submodule). The standalone `public/jc303*` build is retired and `scripts/check-release-dist.mjs` fails a `dist/` that ships one. See `docs/wasm/BUILD_NOTES.md#standalone-jc-303-memory-budget`.
 
 ---
 
@@ -374,7 +365,7 @@ server: {
 }
 ```
 
-**If deploying to a new environment, these headers MUST be set or the app will fail to load.** The JC-303 threaded variant and the Emscripten native module both require this.
+**If deploying to a new environment, these headers MUST be set or the app will fail to load.** The pthread profile of the Emscripten native module requires this.
 
 ---
 
@@ -534,7 +525,7 @@ Located in `.github/workflows/`:
 
 2. **Diagnostic Build & Test** (`debug_build.yml`)
    - Triggers on push/PR to `main`/`master` and `workflow_dispatch`
-   - Builds full Emscripten + JC-303 WASM modules
+   - Builds the full Emscripten WASM modules
    - Builds the Vite app and uploads `dist/` artifacts
 
 3. **Playwright E2E** (`playwright-e2e.yml`)
@@ -555,7 +546,7 @@ Located in `.github/workflows/`:
 
 ### VPS Storage (Primary)
 - **Client**: `src/services/CloudStorage.ts`
-- **Base URL**: `https://storage.noahcohn.com:8000`
+- **Base URL**: `https://storage.noahcohn.com` (nginx on 443; do not use `:8000`, it is plain HTTP and fails with `ERR_SSL_PROTOCOL_ERROR`)
 - Provides REST API for songs, patterns, banks, samples
 - Endpoints:
   - `GET /api/songs` — List songs (with optional `?type=` and `?search=`)
@@ -666,7 +657,7 @@ interface Note {
 
 2. **AudioContext suspended**: Browsers require user interaction before the audio context can resume. The `useAudioEngine` hook handles this, and the UI has an explicit "Start Audio" overlay (`StartOverlay`).
 
-3. **SharedArrayBuffer errors**: Server headers must include COOP/COEP. Check the browser console for specific errors. The single-threaded JC-303 variant does not require these headers.
+3. **SharedArrayBuffer errors**: Server headers must include COOP/COEP. Check the browser console for specific errors. The single-threaded `hyphon_native.st` profile does not require these headers.
 
 4. **Emscripten build failures**: The em++ scripts need exactly the version in `emscripten/toolchain.json` and say so (`❌ Emscripten X is required`) when they find another. They accept a matching `emcc` on `PATH`, then `$HYPHON_EMSDK`, then the usual `emsdk_env.sh` locations.
 
@@ -700,7 +691,7 @@ WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchai
 After `pnpm install`, with Emscripten sourced:
 
 ```bash
-pnpm run build:native    # AssemblyScript + Rust + JC-303 + hyphon_native (~2 min)
+pnpm run build:native    # AssemblyScript + hyphon_native + Rubber Band + mix bus (~2 min)
 ```
 
 Re-run `pnpm run build:native:changed` after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources. `pnpm run check:native` / `dev:fast` fail closed and print the targeted command when stamps or outputs are stale.

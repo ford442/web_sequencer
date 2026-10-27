@@ -82,10 +82,21 @@ export function noteStart(step: number, note: Note): number {
     return step + mt;
 }
 
-/** Pitches of every voice on a step: root first, then chord tones in order. */
+/**
+ * Pitches of every voice on a step: root first, then chord tones in order.
+ * A name that does not parse is not a voice (it never sounds), so it is left
+ * out; an edit that rewrites the step drops it.
+ */
 export function stepPitches(note: Note): number[] {
-    const out = [noteToMidi(note.note)];
-    if (note.chord) for (const tone of note.chord) out.push(noteToMidi(tone));
+    const out: number[] = [];
+    const root = noteToMidi(note.note);
+    if (root !== null) out.push(root);
+    if (note.chord) {
+        for (const tone of note.chord) {
+            const midi = noteToMidi(tone);
+            if (midi !== null) out.push(midi);
+        }
+    }
     return out;
 }
 

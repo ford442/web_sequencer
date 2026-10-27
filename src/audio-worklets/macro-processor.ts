@@ -8,10 +8,8 @@
 // The voice renders planar stereo: left at the buffer, right one stride on.
 
 import { formatMissingWasmExports, hasMacroApi, MACRO_REQUIRED_WASM_EXPORTS } from './hyphonNativeImports';
-import { VoiceEvent } from './hyphonNativeExports';
+import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
-
-declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
 
 /** Fields the port messages carry; each message type reads a few of them. */
 interface MacroMessageData {

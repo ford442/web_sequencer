@@ -50,7 +50,7 @@ export interface FormantShifterConfig {
     /** Base formant frequencies for the source voice */
     sourceFormants?: FormantFrequencies;
     /** Audio context for creating filter nodes */
-    audioContext: AudioContext;
+    audioContext: BaseAudioContext;
 }
 
 /** Formant shift specification */
@@ -87,7 +87,7 @@ export const VOICE_FORMANTS: Record<VoiceCharacter, FormantFrequencies> = {
  * 4. Real-time formant adjustment via Web Audio API
  */
 export class FormantShifter {
-    private audioContext: AudioContext;
+    private audioContext: BaseAudioContext;
     private filterNodes: BiquadFilterNode[] = [];
     private sourceFormants: FormantFrequencies;
     private currentShift: FormantShift | null = null;

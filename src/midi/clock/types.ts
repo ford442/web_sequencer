@@ -1,5 +1,18 @@
 /** MIDI clock sync modes for Hyphon transport. */
 
+// Clock constants live in src/shared/rt/clock.ts so the clock worklet can use
+// them too; re-exported here for the main-thread callers.
+export {
+  AUDIO_SCHEDULE_LOOKAHEAD_MS,
+  BPM_MAX,
+  BPM_MIN,
+  HOLDOVER_BEAT_PERIODS,
+  HOLDOVER_STOP_BEATS,
+  MIDI_PPQN,
+  MIDI_TICKS_PER_STEP,
+  STEP_LOOKAHEAD_MS,
+} from '../../shared/rt/clock';
+
 export type TransportSyncMode = 'internal' | 'master' | 'slave';
 
 export type TransportSyncState =
@@ -8,14 +21,6 @@ export type TransportSyncState =
   | 'holdover'
   | 'degraded'
   | 'armed';
-
-export const MIDI_PPQN = 24;
-/**
- * Hyphon sequencer steps are always 16th notes → 6 MIDI clock ticks per step,
- * for every time signature (the meter changes steps-per-bar, not step size).
- * A pattern spans `stepCount * 6` ticks: 16 steps = 96, 32 steps = 192.
- */
-export const MIDI_TICKS_PER_STEP = 6;
 
 export interface TransportSyncTelemetry {
   mode: TransportSyncMode;
@@ -55,27 +60,3 @@ export interface TransportClockOptions {
   inputDeviceId?: string | null;
   outputDeviceId?: string | null;
 }
-
-export const BPM_MIN = 30;
-export const BPM_MAX = 300;
-
-/** Small lookahead so Web Audio events stay in the future (ms). */
-export const AUDIO_SCHEDULE_LOOKAHEAD_MS = 8;
-
-/**
- * How early the internal clock posts a step (ms) — #1344 P5. The step keeps
- * its exact audioTime; posting it early lets the main thread schedule the
- * step's notes before their frame is rendered, so the voice worklets apply
- * them on that sample rather than at the next block after the message round
- * trip. It must cover main-thread latency (React work, GC); a step that still
- * arrives late plays at the start of the next block, as before. Everything
- * decided per step happens this much early: the playhead is deferred back to
- * the step's time (scheduleAtAudioTime), a step edited inside the window plays
- * from its next pass.
- */
-export const STEP_LOOKAHEAD_MS = 40;
-
-/** Holdover after clock loss: multiples of estimated beat period. */
-export const HOLDOVER_BEAT_PERIODS = 2;
-/** After holdover, stop if still no clock for this many beats. */
-export const HOLDOVER_STOP_BEATS = 4;

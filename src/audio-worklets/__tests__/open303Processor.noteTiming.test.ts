@@ -44,7 +44,7 @@ const registered = new Map<string, VoiceCtor>();
 type Call = { fn: string; h: number; args: number[] };
 
 /** The AudioWorkletGlobalScope members the processor reads, faked on globalThis. */
-const g = globalThis as {
+const g = globalThis as unknown as {
   currentFrame?: number;
   sampleRate?: number;
   AudioWorkletProcessor?: new () => { port: FakePort };

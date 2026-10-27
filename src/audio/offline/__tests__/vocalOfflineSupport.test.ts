@@ -7,33 +7,35 @@ const seq = (...steps: PartSequence['steps']): PartSequence => ({ steps });
 const note = (extra: object = {}) => ({ note: 'C4', velocity: 1, ...extra });
 
 describe('describeOfflineVocalSupport', () => {
-  it('flags a stretch bank with notes as needing the live Rubber Band chain', () => {
-    expect(describeOfflineVocalSupport({ sampler: [bank({ mode: 'stretch' })], sequences: [seq(note())] }))
-      .toEqual([{ bank: 0, sampleName: 'voice', gaps: ['rubber-band'] }]);
+  it('reports nothing for a stretch bank the offline Rubber Band host rendered', () => {
+    expect(describeOfflineVocalSupport({ sampler: [bank({ mode: 'stretch', spectralComp: 0.5 })], sequences: [seq(note())] }))
+      .toEqual([]);
   });
 
-  it('adds vocal FX from bank params or per-step params, and phoneme edits', () => {
+  it('reports a stretch bank the host could not load, with the reason and what is missing', () => {
     const reports = describeOfflineVocalSupport({
       sampler: [bank({ mode: 'stretch', spectralComp: 0.5 }), bank({ mode: 'stretch' }), bank({ mode: 'stretch', downsample: 4 })],
       sequences: [
         seq(note()),
         seq(null, note({ vocalChorus: 0.3, phonemes: [{ id: 'x', symbol: 'AA', start: 0, end: 1, pitchBend: 0 }] })),
-        seq(note()),
+        seq(note({ phonemeDelayAmount: 0.2 })),
       ],
+      unsupported: new Map([[0, 'rubberband.wasm unavailable'], [1, 'x'], [2, 'y']]),
     });
     expect(reports.map((r) => r.gaps)).toEqual([
       ['rubber-band', 'vocal-fx'],
       ['rubber-band', 'vocal-fx', 'phoneme-edits'],
       ['rubber-band', 'vocal-fx'],
     ]);
+    expect(reports[0].unsupportedReason).toBe('rubberband.wasm unavailable');
   });
 
-  it('flags the phoneme delay as vocal FX the offline bounce does not render', () => {
-    const reports = describeOfflineVocalSupport({
-      sampler: [bank({ mode: 'stretch', phonemeDelayAmount: 0.4 }), bank({ mode: 'stretch' })],
-      sequences: [seq(note()), seq(note({ phonemeDelayAmount: 0.2 }))],
-    });
-    expect(reports.map((r) => r.gaps)).toEqual([['rubber-band', 'vocal-fx'], ['rubber-band', 'vocal-fx']]);
+  it('flags a note FX chain on a stretch bank, which the host does not play', () => {
+    expect(describeOfflineVocalSupport({
+      sampler: [bank({ mode: 'stretch' }), bank({ mode: 'loop' })],
+      sequences: [seq(note()), seq(note())],
+      noteFxBanks: new Set([0, 1]),
+    })).toEqual([{ bank: 0, sampleName: 'voice', gaps: ['note-fx'] }]);
   });
 
   it('flags HARM on any bank that plays, and ignores silent or loop-only banks', () => {
@@ -51,9 +53,14 @@ describe('describeOfflineVocalSupport', () => {
 });
 
 describe('formatOfflineVocalWarning', () => {
-  it('names the unsupported banks and features, or returns null', () => {
+  it('says an unsupported bank was left out, not rendered dry, and lists partial gaps', () => {
     expect(formatOfflineVocalWarning([])).toBeNull();
-    expect(formatOfflineVocalWarning([{ bank: 2, sampleName: 'v', gaps: ['rubber-band', 'harmonizer'] }]))
-      .toBe('Vocal FX freeze unsupported: sampler stems are dry and do not match what you hear — bank 3 (stretch / formant pitch, HARM layers).');
+    expect(formatOfflineVocalWarning([
+      { bank: 2, sampleName: 'v', gaps: ['rubber-band'], unsupportedReason: 'Rubber Band did not load offline: timeout' },
+      { bank: 4, sampleName: 'v', gaps: ['harmonizer'] },
+    ])).toBe(
+      'Vocal freeze unsupported, stem left out rather than rendered dry: bank 3 (Rubber Band did not load offline: timeout).'
+      + ' Not in the sampler bounce: bank 5 (HARM layers).',
+    );
   });
 });

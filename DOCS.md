@@ -9,7 +9,7 @@ Single entry point for all **live** Hyphon documentation. Historical planning sc
 | Audience | Read first |
 |----------|------------|
 | New contributors | [README.md](README.md) → [AGENTS.md](AGENTS.md) |
-| AI agents (Claude, Copilot, Jules) | [AGENTS.md](AGENTS.md) → [claude.md](claude.md) |
+| AI agents (Claude, Copilot, Jules) | [AGENTS.md](AGENTS.md) → [CLAUDE.md](CLAUDE.md) |
 | Architecture deep-dive | [docs/DEVELOPER_CONTEXT.md](docs/DEVELOPER_CONTEXT.md) |
 | Subsystem docs by topic | [docs/README.md](docs/README.md) (mirrors tables below) |
 
@@ -24,7 +24,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [README.md](README.md) | Project overview, features, quick-start, TTS model setup |
 | [AGENTS.md](AGENTS.md) | Agent guide: architecture, Four Worlds build rule, commands, pitfalls |
 | [CHANGELOG.md](CHANGELOG.md) | Release and feature changelog |
-| [claude.md](claude.md) | Claude-specific dev guide: stack, structure, debugging |
+| [CLAUDE.md](CLAUDE.md) | Claude-specific dev guide: stack, structure, debugging |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Licence notices of vendored code compiled into the build (Plaits / stmlib, MIT); ships in `dist/` |
 | [DOCS.md](DOCS.md) | This index |
 
@@ -42,6 +42,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |
 | [docs/automation.md](docs/automation.md) | Automation scheduler + RBS import architecture |
 | [docs/ai-song-format.md](docs/ai-song-format.md) | AI song JSON schema (`AISongData` v1.0 / v1.1 song mode): required fields, patterns + song rows, ignored fields, examples |
+| [docs/ai-song-agent-brief.md](docs/ai-song-agent-brief.md) | Prompt-ready (≤150 lines) spec for agents writing `AISongData`: tracks, idioms, audible lanes, limits, a validated example, the render command. Pairs with [docs/schemas/ai-song.schema.json](docs/schemas/ai-song.schema.json) (generated; `pnpm run check:ai-song-schema`) |
 | [docs/ai-song-render.md](docs/ai-song-render.md) | `pnpm run ai-song:render`: render an AI song headless, `report.json` metrics + exit codes, the `window.__HYPHON_AGENT__` hook |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |

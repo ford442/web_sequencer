@@ -241,7 +241,7 @@ Listening / spectrogram review of committed baselines:
 | `scripts/303_metrics_cli.py` | JSON metrics CLI for Vitest / CI |
 | `scripts/benchmark_offline303.mjs` | Offline render wall-time + GPU telemetry JSON |
 | `src/utils/tb303AuthenticityMetrics.ts` | TS WAV helpers + threshold constants |
-| `src/utils/tb303MetricsRunner.ts` | Python CLI bridge for exact rFFT parity |
+| `src/test/helpers/tb303MetricsRunner.ts` | Python CLI bridge for exact rFFT parity |
 | `src/__tests__/TB303SpectrogramQuality.test.ts` | Phase-5 spectrogram-diff gates |
 | `src/__tests__/Offline303Stress.test.ts` | Concurrent offline render stress |
 | `tests/highfid-engine-matrix.spec.ts` | Playwright cross-browser high-fid matrix |

@@ -5,7 +5,7 @@ import {
   SidechainRingWriter,
   createSidechainRing,
   isSidechainRing,
-} from '../sidechainTriggerRing';
+} from '../../shared/rt/sidechainTriggerRing';
 
 const ev = (time: number, velocity = 1, duration = 0.1) => [time, velocity, duration];
 
@@ -31,7 +31,7 @@ describe('sidechain trigger ring', () => {
     for (let now = 0.95; now < 1.5; now += block) {
       if (reader.poll(now, out) > 0) fired.push(out[0]);
     }
-    expect(fired).toEqual(times.map((t) => expect.closeTo(t, 9)));
+    expect(fired).toEqual(times.map((t): unknown => expect.closeTo(t, 9)));
     expect(reader.dropped).toBe(0);
     expect(reader.pendingEvents).toBe(0);
   });

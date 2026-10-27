@@ -10,7 +10,7 @@ import {
   type AISongData, type AIImportResultType, type AIAutomationTarget,
   type AIInterpolationMode, type AITrackData, type AISamplerBankData,
   type AIHarmonizerConfig, type AIPhonemePainterConfig, type AIUploadResultType,
-  type AISongTracks, type AISongTrackName
+  type AISongTracks, type AISongTrackName, type AIAutomationLane
 } from './types';
 import type { SongMeasure } from '../../types/songMode';
 import { AI_TRACK_TO_TRACK_KEY, hasSongBlock, resolveSongBlock, type ResolvedAISongBlock } from './songBlock';
@@ -51,8 +51,21 @@ export function isValidNote(note: string): boolean {
  * }
  * ```
  */
+/** Options for {@link AISongImporter.convert}. */
+export interface AIImportOptions {
+  /**
+   * Fail with a `VALIDATION_ERROR` on the first warning instead of importing
+   * with it: a dropped note, a lane nothing plays, an ignored harmonizer. For
+   * a caller that cannot hear the result (the headless render CLI, an agent).
+   * The error's `field` is the path of the offending input.
+   */
+  strict?: boolean;
+}
+
 export class AISongImporter {
   private warnings: string[] = [];
+  /** `warnings[i]` is about the input at `warningFields[i]` (strict mode reports it). */
+  private warningFields: string[] = [];
   private mappedParams: Array<{ source: string; target: string; value: unknown }> = [];
 
   /**
@@ -61,8 +74,9 @@ export class AISongImporter {
    * @param aiSong - The AI-generated song data
    * @returns AIImportResultType with converted song or error details
    */
-  convert(aiSong: AISongData): AIImportResultType {
+  convert(aiSong: AISongData, options: AIImportOptions = {}): AIImportResultType {
     this.warnings = [];
+    this.warningFields = [];
     this.mappedParams = [];
 
     // Validate input
@@ -71,6 +85,30 @@ export class AISongImporter {
       return { success: false, error: validation.error };
     }
 
+    const result = this.convertValidated(aiSong);
+    if (options.strict && result.success && this.warnings.length > 0) {
+      const extra = this.warnings.length - 1;
+      return {
+        success: false,
+        error: {
+          type: 'VALIDATION_ERROR',
+          field: this.warningFields[0],
+          message: extra > 0
+            ? `${this.warnings[0]} (and ${extra} more warning${extra === 1 ? '' : 's'}: ${this.warningFields.slice(1).join(', ')})`
+            : this.warnings[0],
+        },
+      };
+    }
+    return result;
+  }
+
+  /** Record a recoverable problem with the input at `field`. */
+  private warn(field: string, message: string): void {
+    this.warnings.push(message);
+    this.warningFields.push(field);
+  }
+
+  private convertValidated(aiSong: AISongData): AIImportResultType {
     try {
       if (hasSongBlock(aiSong)) {
         return this.convertSongBlock(aiSong, resolveSongBlock(aiSong));
@@ -87,7 +125,7 @@ export class AISongImporter {
 
       // Convert automation lanes into the unified store format
       const automationLanes = this.buildAutomationLanes(aiSong);
-      this.warnUnplayedLanes(automationLanes);
+      this.warnUnplayedLanes(aiSong);
 
       // Build SavedSongData
       const song: SavedSongData = {
@@ -139,7 +177,7 @@ export class AISongImporter {
   private convertSongBlock(aiSong: AISongData, block: ResolvedAISongBlock): AIImportResultType {
     const steps = block.stepCount;
     for (const id of block.unusedPatterns) {
-      this.warnings.push(`patterns.${id} is never played by song — skipped.`);
+      this.warn(`patterns.${id}`, `patterns.${id} is never played by song — skipped.`);
     }
 
     const label = (id: string) => (aiSong.patterns ? `patterns.${id}.` : '');
@@ -165,7 +203,7 @@ export class AISongImporter {
         const tracks = block.patterns[id].tracks;
         if (tracks[track] === undefined) {
           if (aiSong.song) {
-            this.warnings.push(`song plays pattern ${id} on ${track}, but pattern ${id} has no ${track} track — silent.`);
+            this.warn(`patterns.${id}.tracks.${track}`, `song plays pattern ${id} on ${track}, but pattern ${id} has no ${track} track — silent.`);
           }
           return;
         }
@@ -177,11 +215,14 @@ export class AISongImporter {
 
     const firstTracks = (track: AISongTrackName): AISongTracks =>
       block.slots[track].length > 0 ? block.patterns[block.slots[track][0]].tracks : {};
+    const firstPath = (track: AISongTrackName): string =>
+      block.slots[track].length > 0 ? `${label(block.slots[track][0])}tracks.${track}` : `tracks.${track}`;
     const params = this.convertParams(
       { synthA: firstTracks('synthA').synthA, synthB: firstTracks('synthB').synthB, bass2: firstTracks('bass2').bass2 },
       this.collectSamplerBanks(block),
+      { synthA: firstPath('synthA'), synthB: firstPath('synthB'), bass2: firstPath('bass2'), sampler: 'patterns.*.tracks.sampler' },
     );
-    const trackParamStorage = this.buildTrackParamStorage(block, params);
+    const trackParamStorage = this.buildTrackParamStorage(block, params, label);
 
     const songStructure: SongMeasure[] = block.measures.map((measure) => {
       const row = {} as SongMeasure;
@@ -190,9 +231,9 @@ export class AISongImporter {
     });
 
     const tiled = tilePatternAutomation(block);
-    this.warnings.push(...tiled.warnings);
+    for (const issue of tiled.issues) this.warn(issue.field, issue.message);
     const automationLanes = [...this.buildAutomationLanes(aiSong), ...this.buildTiledLanes(tiled.lanes)];
-    this.warnUnplayedLanes(automationLanes);
+    this.warnUnplayedLanes(aiSong, block);
 
     const song: SavedSongData = {
       // v4: the song meter is written. The arrangement (v5) is derived from
@@ -251,6 +292,7 @@ export class AISongImporter {
   private buildTrackParamStorage(
     block: ResolvedAISongBlock,
     params: SavedSongData['params'],
+    label: (id: string) => string,
   ): SavedSongData['trackParamStorage'] | undefined {
     const empty = () => Array<null>(MAX_TRACK_PATTERN_SLOTS).fill(null);
     const storage: NonNullable<SavedSongData['trackParamStorage']> = {
@@ -263,9 +305,9 @@ export class AISongImporter {
       ids.forEach((id, slot) => {
         const data = block.patterns[id].tracks[track];
         if (track === 'bass2') {
-          storage.bass2[slot] = slot > 0 && data?.params ? this.mapBass2Params(data) : { ...params.bass2! };
+          storage.bass2[slot] = slot > 0 && data?.params ? this.mapBass2Params(data, `${label(id)}tracks.bass2`) : { ...params.bass2! };
         } else {
-          storage[track][slot] = slot > 0 && data?.params ? this.mapSynthParams(data) : { ...params[track] };
+          storage[track][slot] = slot > 0 && data?.params ? this.mapSynthParams(data, `${label(id)}tracks.${track}`) : { ...params[track] };
         }
       });
       written = true;
@@ -275,17 +317,25 @@ export class AISongImporter {
 
   /**
    * Validation accepts lanes live playback never dispatches (drums, sampler,
-   * `pitch`, …). They still import, but say so: an author expecting to hear a
-   * kick-decay sweep should not have to discover by ear that nothing moved.
+   * `pitch`, …). They still import and stay in `song.automationLanes` so
+   * nothing is lost when routing lands, but say so: an author expecting to
+   * hear a kick-decay sweep should not have to discover by ear that nothing
+   * moved. Read from the source lanes so each warning names its own path; a
+   * lane with no value on any step is not stored and is not reported.
    */
-  private warnUnplayedLanes(lanes: UnifiedAutomationLane[]): void {
-    const seen = new Set<string>();
-    for (const lane of lanes) {
-      const key = `${lane.target}.${lane.parameter}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const gap = laneDispatchGap(lane.target, lane.parameter);
-      if (gap) this.warnings.push(`automation ${key} is saved but never plays: ${gap}.`);
+  private warnUnplayedLanes(aiSong: AISongData, block?: ResolvedAISongBlock): void {
+    const check = (lane: AIAutomationLane, path: string): void => {
+      if (!lane.steps.some((value) => value !== null)) return;
+      const gap = laneDispatchGap(lane.target as AutomationTarget, lane.parameter);
+      if (gap) {
+        this.warn(path, `${path} ${lane.target}.${lane.parameter} is saved but never plays: ${gap}.`);
+      }
+    };
+    aiSong.automation?.forEach((lane, i) => check(lane, `automation[${i}]`));
+    if (!block) return;
+    for (const [id, pattern] of Object.entries(block.patterns)) {
+      if (block.unusedPatterns.includes(id)) continue;
+      pattern.automation?.forEach((lane, i) => check(lane, `patterns.${id}.automation[${i}]`));
     }
   }
 
@@ -319,17 +369,20 @@ export class AISongImporter {
    * @param label - Prefix for warning paths (`patterns.B.` in a v1.1 song)
    */
   private convertPattern(tracks: AISongTracks, numSteps: number, label = ''): Pattern {
+    const path = (track: AISongTrackName) => `${label}tracks.${track}`;
+    this.warnIgnoredFeatures(tracks, path);
+
     // Convert synth tracks
     const partA = tracks.synthA
-      ? this.convertAITrack(tracks.synthA, numSteps, `${label}synthA`)
+      ? this.convertAITrack(tracks.synthA, numSteps, `${label}synthA`, path('synthA'))
       : { steps: Array(numSteps).fill(null) };
 
     const partB = tracks.synthB
-      ? this.convertAITrack(tracks.synthB, numSteps, `${label}synthB`)
+      ? this.convertAITrack(tracks.synthB, numSteps, `${label}synthB`, path('synthB'))
       : { steps: Array(numSteps).fill(null) };
 
     const bass2 = tracks.bass2
-      ? this.convertAITrack(tracks.bass2, numSteps, `${label}bass2`)
+      ? this.convertAITrack(tracks.bass2, numSteps, `${label}bass2`, path('bass2'))
       : { steps: Array(numSteps).fill(null) };
 
     // Convert drum tracks
@@ -339,25 +392,45 @@ export class AISongImporter {
     const openHat = this.convertDrumPattern(tracks.openHat, numSteps, 'A#2');
 
     // Convert sampler to PartSequence[] for Pattern
-    const sampler = this.convertSamplerToSequences(tracks.sampler, numSteps);
+    const sampler = this.convertSamplerToSequences(tracks.sampler, numSteps, path('sampler'));
 
     return { partA, partB, bass2, kick, snare, closedHat, openHat, sampler };
   }
 
   /**
+   * `harmonizer` and `phonemePainter` pass validation but nothing attaches
+   * them to the song, so an enabled one would never be heard. A disabled one
+   * asks for nothing.
+   */
+  private warnIgnoredFeatures(tracks: AISongTracks, path: (track: AISongTrackName) => string): void {
+    for (const track of ['synthA', 'synthB', 'bass2'] as const) {
+      if (tracks[track]?.harmonizer?.enabled) {
+        const field = `${path(track)}.harmonizer`;
+        this.warn(field, `${field} is ignored: the importer does not attach harmonizer settings to the song.`);
+      }
+    }
+    tracks.sampler?.forEach((bank, i) => {
+      if (bank.phonemePainter?.enabled) {
+        const field = `${path('sampler')}[${i}].phonemePainter`;
+        this.warn(field, `${field} is ignored: the importer does not attach phoneme painter settings to the song.`);
+      }
+    });
+  }
+
+  /**
    * Convert AI track data to PartSequence
    */
-  private convertAITrack(trackData: AITrackData, numSteps: number, trackName: string): PartSequence {
+  private convertAITrack(trackData: AITrackData, numSteps: number, trackName: string, path: string): PartSequence {
     const steps: (Note | null)[] = Array(numSteps).fill(null);
 
-    for (const event of trackData.notes) {
+    for (const [i, event] of trackData.notes.entries()) {
       if (event.step < 0 || event.step >= numSteps) {
-        this.warnings.push(`Note step ${event.step} out of range in ${trackName}`);
+        this.warn(`${path}.notes[${i}].step`, `Note step ${event.step} out of range in ${trackName}`);
         continue;
       }
 
       if (!isValidNote(event.note)) {
-        this.warnings.push(`Invalid note "${event.note}" in ${trackName}`);
+        this.warn(`${path}.notes[${i}].note`, `Invalid note "${event.note}" in ${trackName}`);
         continue;
       }
 
@@ -405,7 +478,7 @@ export class AISongImporter {
   /**
    * Convert sampler bank data to PartSequence[] for Pattern
    */
-  private convertSamplerToSequences(banks: AISamplerBankData[] | undefined, numSteps: number): PartSequence[] {
+  private convertSamplerToSequences(banks: AISamplerBankData[] | undefined, numSteps: number, path = 'tracks.sampler'): PartSequence[] {
     // Create 8 sampler sequences (one per bank)
     const sequences: PartSequence[] = Array(8).fill(null).map(() => ({
       steps: Array(numSteps).fill(null) as (Note | null)[]
@@ -415,9 +488,9 @@ export class AISongImporter {
       return sequences;
     }
 
-    for (const bank of banks) {
+    for (const [i, bank] of banks.entries()) {
       if (bank.bankIndex < 0 || bank.bankIndex > 7) {
-        this.warnings.push(`Sampler bank index ${bank.bankIndex} out of range`);
+        this.warn(`${path}[${i}].bankIndex`, `Sampler bank index ${bank.bankIndex} out of range`);
         continue;
       }
 
@@ -442,7 +515,7 @@ export class AISongImporter {
   /**
    * Convert sampler bank data to SamplerParams for SavedSongData['params']
    */
-  private convertSamplerTracks(banks: AISamplerBankData[] | undefined): SamplerParams {
+  private convertSamplerTracks(banks: AISamplerBankData[] | undefined, path = 'tracks.sampler'): SamplerParams {
     const sampler: SamplerParams = Array.from({ length: 8 }, () => ({
       sampleName: 'empty',
       playbackSpeed: 1.0,
@@ -457,9 +530,9 @@ export class AISongImporter {
       return sampler;
     }
 
-    for (const bank of banks) {
+    for (const [i, bank] of banks.entries()) {
       if (bank.bankIndex < 0 || bank.bankIndex > 7) {
-        this.warnings.push(`Sampler bank index ${bank.bankIndex} out of range`);
+        this.warn(`${path}[${i}].bankIndex`, `Sampler bank index ${bank.bankIndex} out of range`);
         continue;
       }
 
@@ -493,7 +566,7 @@ export class AISongImporter {
     delayMix: 0.0
   };
 
-  private mapSynthParams(trackData?: AITrackData): SynthParams {
+  private mapSynthParams(trackData?: AITrackData, path = 'tracks.synthA'): SynthParams {
     const defaultSynth = AISongImporter.DEFAULT_SYNTH;
     if (!trackData?.params) return { ...defaultSynth };
 
@@ -508,14 +581,14 @@ export class AISongImporter {
     // keep the family, take its plainest model, and say so.
     const wf = String(merged.waveform);
     if (wf.startsWith('macro-') && !isMacroWaveform(wf)) {
-      this.warnings.push(`Unknown macro model "${wf}" — using "macro-va".`);
+      this.warn(`${path}.params.waveform`, `Unknown macro model "${wf}" — using "macro-va".`);
       merged.waveform = 'macro-va';
     }
     return merged;
   }
 
-  private mapBass2Params(trackData?: AITrackData): Bass2Params {
-    const synth = this.mapSynthParams(trackData);
+  private mapBass2Params(trackData?: AITrackData, path = 'tracks.bass2'): Bass2Params {
+    const synth = this.mapSynthParams(trackData, path);
     // BASS 2 is a 303 only: a macro model maps through its fallback shape.
     const shape = macroEngineForWaveform(synth.waveform)?.fallback ?? synth.waveform;
     return {
@@ -534,16 +607,20 @@ export class AISongImporter {
   /**
    * Convert AI params to Hyphon params
    */
-  private convertParams(tracks: AISongTracks, samplerBanks = tracks.sampler): SavedSongData['params'] {
+  private convertParams(
+    tracks: AISongTracks,
+    samplerBanks = tracks.sampler,
+    paths: Partial<Record<'synthA' | 'synthB' | 'bass2' | 'sampler', string>> = {},
+  ): SavedSongData['params'] {
     return {
-      synthA: this.mapSynthParams(tracks.synthA),
-      synthB: this.mapSynthParams(tracks.synthB),
-      bass2: this.mapBass2Params(tracks.bass2),
+      synthA: this.mapSynthParams(tracks.synthA, paths.synthA ?? 'tracks.synthA'),
+      synthB: this.mapSynthParams(tracks.synthB, paths.synthB ?? 'tracks.synthB'),
+      bass2: this.mapBass2Params(tracks.bass2, paths.bass2 ?? 'tracks.bass2'),
       kick: { pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 },
       snare: { decay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
       closedHat: { pitch: 10000, decay: 0.1, volume: 0.8 },
       openHat: { pitch: 8000, decay: 0.4, volume: 0.8 },
-      sampler: this.convertSamplerTracks(samplerBanks)
+      sampler: this.convertSamplerTracks(samplerBanks, paths.sampler)
     };
   }
 
@@ -775,7 +852,10 @@ export class AISongImporter {
     );
 
     if (validMappings.length === 0) {
-      this.warnings.push(`Phoneme painter enabled but no valid mappings for bank ${bankData.bankIndex}`);
+      this.warn(
+        `tracks.sampler[${bankData.bankIndex}].phonemePainter.mapping`,
+        `Phoneme painter enabled but no valid mappings for bank ${bankData.bankIndex}`,
+      );
       return null;
     }
 
@@ -934,9 +1014,9 @@ export class AISongImporter {
  * }
  * ```
  */
-export function convertAISong(aiSong: AISongData): AIImportResultType {
+export function convertAISong(aiSong: AISongData, options?: AIImportOptions): AIImportResultType {
   const importer = new AISongImporter();
-  return importer.convert(aiSong);
+  return importer.convert(aiSong, options);
 }
 
 /**
