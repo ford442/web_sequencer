@@ -55,13 +55,9 @@ const loadedContexts = new WeakSet<BaseAudioContext>();
 
 async function ensureRecorder(context: AudioContext): Promise<void> {
     if (loadedContexts.has(context)) return;
-    const url = URL.createObjectURL(new Blob([RECORDER_SOURCE], { type: 'text/javascript' }));
-    try {
-        await context.audioWorklet.addModule(url);
-        loadedContexts.add(context);
-    } finally {
-        URL.revokeObjectURL(url);
-    }
+    const { default: workerUrl } = await import('./worklet/agent-recorder-processor.worker.ts?worker&url');
+    await context.audioWorklet.addModule(workerUrl);
+    loadedContexts.add(context);
 }
 
 /** A call, so TS does not narrow `state` across `await resume()`. */

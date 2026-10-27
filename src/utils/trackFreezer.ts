@@ -98,7 +98,7 @@ function callPyodideFreeze(
 /**
  * Freezes a synth track using Python's offline rendering
  */
-export const freezeSynthTrack = async (
+export const freezeSynthTrack = (
     pyodide: PyodideLike,
     sequence: PartSequence,
     params: SynthParams,
@@ -139,7 +139,7 @@ export const freezeSynthTrack = async (
 /**
  * Freezes a drum track using Python's offline rendering
  */
-export const freezeDrumTrack = async (
+export const freezeDrumTrack = (
     pyodide: PyodideLike,
     sequence: PartSequence,
     params: KickParams | SnareParams | HatParams,

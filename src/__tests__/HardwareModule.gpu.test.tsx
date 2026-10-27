@@ -100,7 +100,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         let unmount: any = () => {};
         let rerender: any;
 
-        await act(async () => {
+        await act(() => {
             const result = render(
                 <HardwareModule
                     title="Test Module"
@@ -115,7 +115,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         });
 
         // Trigger next frame
-        await act(async () => {
+        await act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
@@ -144,7 +144,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
         // Update props
         const newControls = [...mockControls, { id: 'new', label: 'New', x: 0, y: 0, size: 0.1, value: 0 }];
-        await act(async () => {
+        await act(() => {
             rerender(
                 <HardwareModule
                     title="Test Module"
@@ -156,7 +156,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             );
         });
 
-        await act(async () => {
+        await act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
@@ -180,7 +180,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             },
         ];
 
-        await act(async () => {
+        await act(() => {
             render(
                 <HardwareModule
                     title="Test Module"
@@ -192,7 +192,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             );
         });
 
-        await act(async () => {
+        await act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
