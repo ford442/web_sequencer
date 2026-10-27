@@ -53,7 +53,7 @@ export interface SingingVoice extends SingingVoicePublic {}
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class SingingVoice implements SingingVoicePublic {
-  audioContext: AudioContext;
+  audioContext: BaseAudioContext;
   workletNode: AudioWorkletNode | null = null;
   detachWorkletPerf: (() => void) | null = null;
   config: SingingVoiceConfig;
@@ -105,7 +105,7 @@ export class SingingVoice implements SingingVoicePublic {
   isActive: boolean = false;
   currentPitch: number | null = null;
 
-  constructor(audioContext: AudioContext, config: SingingVoiceConfig = {}) {
+  constructor(audioContext: BaseAudioContext, config: SingingVoiceConfig = {}) {
     this.audioContext = audioContext;
     this.config = {
       useHighQuality: config.useHighQuality ?? false,
@@ -119,6 +119,7 @@ export class SingingVoice implements SingingVoicePublic {
       enableCtcAlignment: config.enableCtcAlignment ?? config.enablePhonemeStretching ?? false,
       drumSidechainSAB: config.drumSidechainSAB,
       bassSidechainSAB: config.bassSidechainSAB,
+      offline: config.offline ?? false,
     };
 
     // Initialize phoneme aligner if enabled

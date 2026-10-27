@@ -7,11 +7,15 @@ import { resolveExpressiveness } from "./expressiveness";
 import { releaseStretchFxRouting, wireStretchFxRouting } from "./samplerStretchFx";
 import { performanceBudget } from "../../../utils/performanceBudget";
 import type { PlaySamplerVoiceFn, SamplerPlaybackRefs } from "./types";
+import type { ConcatenativeHybrid } from "../../../engines/rubberband/ConcatenativeHybrid";
+import { connectVowelCrossfade, planVowelLayer, type VowelLayerRole } from "./vowelLayer";
 
+/** `context` is the live AudioContext, or the OfflineAudioContext of a vocal freeze. */
 export function createPlaySamplerVoice(
-  context: AudioContext,
+  context: BaseAudioContext,
   tempo: number,
   refs: SamplerPlaybackRefs,
+  vowelHybrid: () => ConcatenativeHybrid | null = () => null,
 ): PlaySamplerVoiceFn {
   return (
     params,
@@ -191,7 +195,7 @@ export function createPlaySamplerVoice(
       const manager = refs.singingVoiceManagerRef.current;
       const alignment = refs.vocalAlignmentsRef.current.get(params.sampleName);
 
-      const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true) => {
+      const triggerVoice = (noteStr: string, voice: SingingVoice, pitchOffset: number, overrideTime?: number, overrideDuration?: number, destination?: AudioNode, isNewBank: boolean = true, layer?: VowelLayerRole) => {
         const noteStrMidi = noteToMidi(noteStr);
         const noteStrHz = tunedNoteToFrequency(noteStr, tuning ?? null);
         // Not a note name: the voice stays silent (never MIDI 0).
@@ -254,7 +258,9 @@ export function createPlaySamplerVoice(
         );
         strip.updateDelaySend(delaySendAmount, triggerTime);
 
-        voice.connectOutput(voiceEntry);
+        voice.connectOutput(layer ? connectVowelCrossfade(context, layer, triggerTime, voiceEntry) : voiceEntry);
+        const vowel = layer?.role === "vowel" ? layer.plan : null;
+        const rootMidi = vowel?.rootMidi ?? 60;
 
         // Apply Timbre Modulation (Formant Shift)
         const baseShift = params.formantShift || 0;
@@ -415,11 +421,11 @@ export function createPlaySamplerVoice(
 
         // Load buffer only if the voice doesn't already have it
         if (isNewBank) {
-          voice.loadBuffer(buffer.getChannelData(0));
+          voice.loadBuffer(vowel?.buffer ?? buffer.getChannelData(0));
         }
 
         // CHECK FOR SLICE TRIGGER MODE
-        if (params.sliceMode === 'phoneme' && alignment) {
+        if (params.sliceMode === 'phoneme' && alignment && !vowel) {
           let sliceIndex = -1;
           let pitchRatio = 1.0;
 
@@ -456,7 +462,7 @@ export function createPlaySamplerVoice(
         }
 
         // 1. Calculate Time Ratio
-        const timeRatio = targetDuration / originalDuration;
+        const timeRatio = vowel?.timeRatio ?? targetDuration / originalDuration;
         voice.setTimeRatio(timeRatio, triggerTime);
 
         // 2. Pitch Shift (with offset for harmonizer and slide support)
@@ -465,22 +471,24 @@ export function createPlaySamplerVoice(
 
         if (noteParams?.slideFromMidi !== undefined) {
           const startMidi = noteParams.slideFromMidi + pitchOffsetSemitones;
-          voice.setPitchFromMidi(startMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+          voice.setPitchFromMidi(startMidi + pitchOffset, rootMidi, triggerTime, undefined, undefined, tuning);
           // Glide over half the target duration or a minimum of 0.15s, bounded by actual duration
           const glideDuration = Math.min(Math.max(targetDuration * 0.5, 0.15), targetDuration);
 
           if (noteParams?.slideType === 'exponential' || params.portamentoType === 'exponential') {
-            voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+            voice.exponentialRampPitchFromMidi(targetMidi + pitchOffset, rootMidi, triggerTime + glideDuration, undefined, undefined, tuning);
           } else {
-            voice.linearRampPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime + glideDuration, undefined, undefined, tuning);
+            voice.linearRampPitchFromMidi(targetMidi + pitchOffset, rootMidi, triggerTime + glideDuration, undefined, undefined, tuning);
           }
         } else {
-          voice.setPitchFromMidi(targetMidi + pitchOffset, 60, triggerTime, undefined, undefined, tuning);
+          voice.setPitchFromMidi(targetMidi + pitchOffset, rootMidi, triggerTime, undefined, undefined, tuning);
         }
 
         // 3. Phoneme Awareness: alignment + the step's painter edits
         // (pitch bend, volume, elasticity, …) from the Phoneme Painter
-        if (alignment) {
+        // The vowel loop has no phonemes: drop the voice's last phrase timing.
+        if (vowel) voice.clearPhonemeData();
+        else if (alignment) {
           voice.setAlignment(alignment);
           voice.sendPhonemeDataToWorklet(targetDuration, noteParams?.phonemes);
         }
@@ -520,8 +528,14 @@ export function createPlaySamplerVoice(
       const runVoices = (noteStr: string, timeOffset: number, duration: number) => {
         const t = actualTime + timeOffset;
 
+        const midi = noteToMidi(noteStr);
+        const plan = planVowelLayer(vowelHybrid(), params, duration, midi === null ? null : midi + pitchOffsetSemitones, alignment);
         const mainVoiceData = manager.acquireVoiceForBank(params.sampleName);
-                triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank);
+        // Fade the TTS out only when the loop has a voice of its own.
+        const vowelVoice = plan ? manager.acquireVoiceForBank(plan.bufferKey) : null;
+        const layered = vowelVoice && vowelVoice.index !== mainVoiceData.index ? plan : null;
+        triggerVoice(noteStr, mainVoiceData.voice, 0, t, duration, undefined, mainVoiceData.isNewBank, layered ? { plan: layered, role: "tts" } : undefined);
+        if (layered) triggerVoice(noteStr, vowelVoice!.voice, 0, t, duration, undefined, vowelVoice!.isNewBank, { plan: layered, role: "vowel" });
 
         const effectiveChoir = noteParams?.choir !== undefined ? noteParams.choir : (params.choir || 0);
 

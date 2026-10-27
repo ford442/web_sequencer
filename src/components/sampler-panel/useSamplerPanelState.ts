@@ -166,6 +166,12 @@ export function useSamplerPanelState({
     else updateParamRef.current('dynamicChops', newVal);
   }, [activeBankIdx, currentParams.dynamicChops, onParamChange]);
 
+  const handleVowelSamplesToggle = useCallback(() => {
+    const newVal = !currentParams.useVowelSamplesOnLongNotes;
+    if (onParamChange) onParamChange(activeBankIdx, 'useVowelSamplesOnLongNotes', newVal);
+    else updateParamRef.current('useVowelSamplesOnLongNotes', newVal);
+  }, [activeBankIdx, currentParams.useVowelSamplesOnLongNotes, onParamChange]);
+
   useEffect(() => {
     if (audioEngine?.setSustainMode && currentParams.mode) {
       audioEngine.setSustainMode(currentParams.mode);
@@ -401,6 +407,7 @@ export function useSamplerPanelState({
     handleGrainSizeChange,
     handleSliceModeToggle,
     handleDynamicChopsToggle,
+    handleVowelSamplesToggle,
     loadBufferToBank,
     currentTtsText,
     setCurrentTtsText,

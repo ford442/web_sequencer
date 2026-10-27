@@ -47,6 +47,15 @@ export interface AgentRenderResult {
     engineIssues: DegradationIssue[];
 }
 
+export interface AgentSampleLoadResult {
+    /** Sampler bank the phrase went into (the active bank, as the panel's file picker). */
+    bank: number;
+    sampleRate: number;
+    seconds: number;
+    /** A phoneme alignment exists for the bank after loading. */
+    aligned: boolean;
+}
+
 export type AgentExportResult =
     | { ok: true; filename: string; base64: string; warnings: string[] }
     | { ok: false; error: string; warnings: string[] };
@@ -78,6 +87,8 @@ export interface HyphonAgentApi {
     exportMidi: () => Promise<AgentExportResult>;
     exportXm: () => Promise<AgentExportResult>;
     captureLive: (options?: AgentCaptureOptions) => Promise<AgentCaptureResult>;
+    /** Load a WAV into the active sampler bank, like the sampler panel's file picker. */
+    loadSamplerPhrase: (wavBase64: string) => Promise<AgentSampleLoadResult>;
 }
 
 declare global {
@@ -153,6 +164,10 @@ function stemInput(s: AppState): StemExportInput {
         },
         sampleBuffers: s.sampleBuffers,
         harmonizerActive: s.isHarmonizeActive,
+        vocal: {
+            alignments: s.sampler.map((_, bank) => s.audioEngine?.getAlignment?.(bank) ?? null),
+            tuning: s.currentScale,
+        },
         stepCount: meter.stepCount,
         trackLengths: meter.trackLengths,
     };
@@ -227,6 +242,20 @@ export function createAgentApi(store: Store): HyphonAgentApi {
                 .map((e) => ({ path: e.path, base64: bytesToBase64(e.data) }));
             const engineIssues = engineDegradationStore.getIssues().filter((issue) => issue.status === 'active');
             return { files, report, metadata, engineIssues };
+        },
+
+        async loadSamplerPhrase(wavBase64) {
+            const s = state();
+            const context = s.audioEngine?.context;
+            if (!context) throw new Error('audio engine is not initialised');
+            const bytes = Uint8Array.from(atob(wavBase64), (c) => c.charCodeAt(0));
+            const buffer = await context.decodeAudioData(bytes.buffer);
+            const bank = s.activeSamplerBank;
+            await s.handleLoadSample(`bank_${bank}`, buffer);
+            // prepareVocal runs after the load resolves; give it its commit.
+            await waitForCommit(store);
+            const aligned = !!state().audioEngine?.getAlignment?.(bank);
+            return { bank, sampleRate: buffer.sampleRate, seconds: buffer.duration, aligned };
         },
 
         exportRbs: () => fileResult(() => state().buildRbsExport()),

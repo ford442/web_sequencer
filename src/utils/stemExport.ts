@@ -14,11 +14,11 @@ import { describeOfflineVocalSupport, type OfflineVocalBankReport } from '../aud
 import {
     bass2ToSynthParams,
     renderDrumPattern,
-    renderSamplerBankPattern,
     renderSynthPattern,
     type PatternRenderEngines,
 } from './patternRenderer';
 import { createZipBlob } from './zipStore';
+import { renderSamplerBankStem, type StemVocalInput } from './stemExportVocal';
 import {
     bounceBuffersThroughOfflineGraph,
     type OfflineGraphReport,
@@ -133,8 +133,9 @@ export interface StemExportReport {
     /** Null unless the master went through the offline patch-bay graph. */
     offlineGraph: OfflineGraphReport | null;
     /**
-     * Sampler banks whose live vocal chain (Rubber Band, vocal FX, phoneme
-     * edits, HARM) the dry bank stems do not contain. Empty when none.
+     * Sampler banks whose live sound the bank stems do not contain: HARM, a
+     * note FX chain on a stretch bank, or a stretch bank the offline Rubber
+     * Band host could not load (its stem is left out). Empty when none.
      */
     vocalOffline: OfflineVocalBankReport[];
     /** Which engine summed the stems, and why it fell back if it did. */
@@ -197,6 +198,8 @@ export interface StemExportInput {
     sampleBuffers?: (AudioBuffer | null)[];
     /** Live HARM state: harmony layers exist only in the realtime graph. */
     harmonizerActive?: boolean;
+    /** Alignments and vowel pack for stretch banks (offline Rubber Band host). */
+    vocal?: StemVocalInput;
     /** Per-track note FX chains (#1345). Defaults to the live note FX store. */
     noteFx?: SongNoteFx;
     /**
@@ -387,6 +390,8 @@ export async function renderStemFiles(
     );
 
     const stems = new Map<StemId, AudioBuffer>();
+    /** Stretch banks the offline vocal host could not render: no stem, never dry. */
+    const vocalUnsupported = new Map<number, string>();
     const totalStages = STEM_RENDER_ORDER.length;
 
     // The dry master is built as the stems arrive (#1341): each audible stem
@@ -473,17 +478,24 @@ export async function renderStemFiles(
                     if (id.startsWith('sampler-bank-')) {
                         const bankIndex = Number(id.replace('sampler-bank-', '')) - 1;
                         audible = isAudible('sampler');
-                        buffer = audible
-                            ? await renderSamplerBankPattern(
-                                  timeline.sequences.sampler[bankIndex],
-                                  input.sampleBuffers?.[bankIndex] ?? null,
-                                  input.params.sampler[bankIndex],
-                                  input.tempo,
+                        const bankStem = audible
+                            ? await renderSamplerBankStem({
+                                  bankIndex,
+                                  sequence: timeline.sequences.sampler[bankIndex],
+                                  sampleBuffer: input.sampleBuffers?.[bankIndex] ?? null,
+                                  params: input.params.sampler[bankIndex],
+                                  tempo: input.tempo,
                                   sampleRate,
                                   signal,
-                                  noteFxFor('sampler', bankIndex),
-                              )
-                            : silentBuffer(targetLength, sampleRate);
+                                  noteFx: noteFxFor('sampler', bankIndex),
+                                  vocal: input.vocal,
+                              })
+                            : { kind: 'rendered' as const, buffer: silentBuffer(targetLength, sampleRate) };
+                        if (bankStem.kind === 'unsupported') {
+                            vocalUnsupported.set(bankIndex, bankStem.reason);
+                            continue;
+                        }
+                        buffer = bankStem.buffer;
                     } else {
                         const mixed = await masterMix.finish();
                         dryMaster = { engine: mixed.engine, peaks: mixed.peaks };
@@ -579,6 +591,8 @@ export async function renderStemFiles(
               sampler: input.params.sampler,
               sequences: timeline.sequences.sampler,
               harmonizerActive: input.harmonizerActive,
+              unsupported: vocalUnsupported,
+              noteFxBanks: new Set(input.params.sampler.flatMap((_, bank) => (noteFxFor('sampler', bank) ? [bank] : []))),
           })
         : [];
 
@@ -598,7 +612,7 @@ export async function renderStemFiles(
          * Null for a dry-exclusive export, which never builds an offline graph.
          */
         offlineGraph,
-        /** Sampler banks rendered dry although the live vocal chain colours them (#1273). */
+        /** Sampler banks the bounce does not match, and stretch banks left out (#1273). */
         vocalOffline,
         /** Engine that summed the dry stems (#1341) and the dry master's sample peaks. */
         mixBus: mixBusReport,

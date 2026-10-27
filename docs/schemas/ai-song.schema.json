@@ -787,6 +787,14 @@
             "dynamicChops": {
               "type": "boolean"
             },
+            "useVowelSamplesOnLongNotes": {
+              "type": "boolean",
+              "description": "V2 concatenative hybrid: notes of at least `minNoteDurationMs` crossfade from TTS into the nearest vowel sample (stretch mode). Default off."
+            },
+            "minNoteDurationMs": {
+              "type": "number",
+              "description": "Gate for `useVowelSamplesOnLongNotes`; default 500 ms."
+            },
             "freeze": {
               "type": "number"
             },

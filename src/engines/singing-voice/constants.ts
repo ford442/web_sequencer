@@ -83,4 +83,9 @@ export interface SingingVoiceConfig {
   drumSidechainSAB?: SharedArrayBuffer;
   /** Cross-engine shared array buffer for bass envelope follower sidechaining */
   bassSidechainSAB?: SharedArrayBuffer;
+  /**
+   * Voice lives in an OfflineAudioContext (the vocal freeze host): skip the
+   * live perf bridge, the HUD's vocal-FX row and performance-budget control.
+   */
+  offline?: boolean;
 }
