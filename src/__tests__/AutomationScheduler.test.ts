@@ -831,7 +831,7 @@ function makeFullyAttachedScheduler() {
 
 describe('ROUTED_AUTOMATION — the importer and the scheduler share one list', () => {
   const routed = Object.entries(ROUTED_AUTOMATION).flatMap(([target, entry]) =>
-    entry!.parameters.map((parameter) => [target, parameter] as const));
+    entry.parameters.map((parameter) => [target, parameter] as const));
 
   it('lists the targets the scheduler switch routes', () => {
     expect(Object.keys(ROUTED_AUTOMATION).sort()).toEqual(['bass2', 'master', 'synthA', 'synthB']);

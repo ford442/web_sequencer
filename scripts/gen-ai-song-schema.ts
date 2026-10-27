@@ -28,7 +28,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = join(ROOT, 'docs/schemas/ai-song.schema.json');
 const NOTE_PATTERN = '^[A-G][#b]?[0-8]$'; // isValidNote() in AISongImporter.ts
 
-type Json = Record<string, any>;
+type Json = Record<string, unknown>;
+
+/** Walk `path` through nested objects of the generated schema; throws when a step is missing. */
+function sub(node: Json, ...path: string[]): Json {
+  let cur: unknown = node;
+  for (const key of path) {
+    const next: unknown = typeof cur === 'object' && cur !== null ? (cur as Json)[key] : undefined;
+    if (typeof next !== 'object' || next === null) {
+      throw new Error(`generated schema has no object at ${path.join('.')} (missing "${key}")`);
+    }
+    cur = next;
+  }
+  return cur as Json;
+}
 
 function generate(): string {
   const raw = createGenerator({
@@ -76,42 +89,43 @@ function normalizeDeprecated(node: unknown): void {
 
 /** The constraints the types cannot express. Mirrors `validateAISongData()`. */
 function refine(defs: Json): void {
-  const root = defs.AISongData as Json;
-  const { meta, globals } = root.properties as Json;
+  const rootProps = sub(defs, 'AISongData', 'properties');
+  const meta = sub(rootProps, 'meta', 'properties');
+  const globals = sub(rootProps, 'globals', 'properties');
 
   // meta — validateAISongData(): title ≤ 100, author / generator / prompt non-blank.
-  meta.properties.title.minLength = 1;
-  meta.properties.title.maxLength = 100;
+  sub(meta, 'title').minLength = 1;
+  sub(meta, 'title').maxLength = 100;
   for (const field of ['author', 'generator', 'prompt']) {
-    meta.properties[field].pattern = '\\S';
+    sub(meta, field).pattern = '\\S';
   }
-  meta.properties.version = { enum: [...AI_SONG_FORMAT_VERSIONS] };
+  meta.version = { enum: [...AI_SONG_FORMAT_VERSIONS] };
 
   // globals
-  Object.assign(globals.properties.tempo, { minimum: 30, maximum: 300 });
-  Object.assign(globals.properties.swing, { minimum: 0, maximum: 100 });
-  Object.assign(globals.properties.stepCount, { type: 'integer', minimum: 1, maximum: 64 });
-  Object.assign(globals.properties.timeSignature.items, { type: 'integer', minimum: 1, maximum: 32 });
+  Object.assign(sub(globals, 'tempo'), { minimum: 30, maximum: 300 });
+  Object.assign(sub(globals, 'swing'), { minimum: 0, maximum: 100 });
+  Object.assign(sub(globals, 'stepCount'), { type: 'integer', minimum: 1, maximum: 64 });
+  Object.assign(sub(globals, 'timeSignature', 'items'), { type: 'integer', minimum: 1, maximum: 32 });
 
   // v1.1 song block
-  root.properties.patterns.minProperties = 1;
-  root.properties.patterns.propertyNames = { pattern: '\\S' };
-  root.properties.song.minItems = 1;
+  sub(rootProps, 'patterns').minProperties = 1;
+  sub(rootProps, 'patterns').propertyNames = { pattern: '\\S' };
+  sub(rootProps, 'song').minItems = 1;
 
   // notes
-  const note = defs.AINoteEvent.properties as Json;
-  Object.assign(note.step, { type: 'integer', minimum: 0, maximum: 63 });
-  note.note.pattern = NOTE_PATTERN;
-  Object.assign(note.velocity, { minimum: 0, maximum: 1 });
-  Object.assign(note.length, { minimum: 1 });
+  const note = sub(defs, 'AINoteEvent', 'properties');
+  Object.assign(sub(note, 'step'), { type: 'integer', minimum: 0, maximum: 63 });
+  sub(note, 'note').pattern = NOTE_PATTERN;
+  Object.assign(sub(note, 'velocity'), { minimum: 0, maximum: 1 });
+  Object.assign(sub(note, 'length'), { minimum: 1 });
 
   // sampler banks
-  Object.assign(defs.AISamplerBankData.properties.bankIndex, { type: 'integer', minimum: 0, maximum: 7 });
-  defs.AISongTracks.properties.sampler.maxItems = 8;
+  Object.assign(sub(defs, 'AISamplerBankData', 'properties', 'bankIndex'), { type: 'integer', minimum: 0, maximum: 7 });
+  sub(defs, 'AISongTracks', 'properties', 'sampler').maxItems = 8;
 
   // automation lanes — 0..127 or null, and `parameter` must belong to `target`.
-  const lane = defs.AIAutomationLane as Json;
-  Object.assign(lane.properties.steps, {
+  const lane = sub(defs, 'AIAutomationLane');
+  Object.assign(sub(lane, 'properties', 'steps'), {
     minItems: 1,
     items: { oneOf: [{ type: 'integer', minimum: 0, maximum: 127 }, { type: 'null' }] },
   });

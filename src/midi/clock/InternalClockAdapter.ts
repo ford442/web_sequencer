@@ -32,6 +32,10 @@ export class InternalClockAdapter implements TransportClock {
   private mainThreadNextStep = 0;
   private mainThreadAbsStep = 0;
   private mainThreadNextAt = 0;
+  /** Armed at worklet `start`; fires the main-thread fallback if no step arrives. */
+  private stepWatchdog: ReturnType<typeof setTimeout> | null = null;
+  /** The worklet never answered, so the main-thread timer is the clock source. */
+  private workletUnresponsive = false;
 
   constructor(context: AudioContext, tempo: number, swing: number, steps: number) {
     this.context = context;
@@ -41,7 +45,7 @@ export class InternalClockAdapter implements TransportClock {
   }
 
   async ensureStarted(): Promise<void> {
-    if (this.running && this.clockNode) return;
+    if (this.running && (this.clockNode || this.workletUnresponsive)) return;
     if (this.startPromise) return this.startPromise;
 
     this.startPromise = (async () => {
@@ -55,16 +59,12 @@ export class InternalClockAdapter implements TransportClock {
           'wasm-worklet',
           'clock-processor AudioWorklet skipped on WebKit; using main-thread timer',
         );
-        this.stopMainThreadClock();
-        this.running = true;
-        this.mainThreadNextStep = 0;
-        this.mainThreadAbsStep = 0;
-        this.mainThreadNextAt = this.context.currentTime;
-        this.tickMainThreadClock();
+        this.startMainThreadClock();
         return;
       }
 
       await ensureClockModule(this.context);
+      this.workletUnresponsive = false;
 
       if (this.clockNode) {
         this.clockNode.port.postMessage({ type: 'stop' });
@@ -79,7 +79,13 @@ export class InternalClockAdapter implements TransportClock {
       });
 
       node.port.onmessage = (e: MessageEvent) => {
+        // A node we fell back from may still have a step in flight; the main-thread timer owns the clock now.
+        if (this.clockNode !== node) return;
         if (e.data?.type === 'step') {
+          if (this.stepWatchdog != null) {
+            this.clearStepWatchdog();
+            console.info('[Clock] source: clock-processor AudioWorklet');
+          }
           const { step, audioTime, absStep } = e.data as { step: number; audioTime: number; absStep: number };
           for (const cb of this.stepListeners) cb(step, audioTime, absStep);
         }
@@ -96,6 +102,7 @@ export class InternalClockAdapter implements TransportClock {
       node.connect(this.context.destination);
       this.clockNode = node;
       this.running = true;
+      this.armStepWatchdog(node);
     })().finally(() => {
       this.startPromise = null;
     });
@@ -108,7 +115,9 @@ export class InternalClockAdapter implements TransportClock {
   }
 
   stop(): void {
+    this.clearStepWatchdog();
     this.stopMainThreadClock();
+    this.workletUnresponsive = false;
     if (this.clockNode) {
       this.clockNode.port.postMessage({ type: 'stop' });
       this.clockNode.disconnect();
@@ -136,6 +145,46 @@ export class InternalClockAdapter implements TransportClock {
 
   resync(): void {
     /* Internal clock resets on start/stop only. */
+  }
+
+  /**
+   * Firefox can load and connect the worklet and still never deliver a step
+   * (#1492). One lookahead after `start` the first step is overdue, so drop the
+   * node and run the timer WebKit already uses. This is the only fallback: the
+   * main-thread clock is not a second scheduler, it is the existing one.
+   */
+  private armStepWatchdog(node: AudioWorkletNode): void {
+    this.clearStepWatchdog();
+    this.stepWatchdog = setTimeout(() => {
+      this.stepWatchdog = null;
+      if (this.clockNode !== node) return;
+      logEngineFallback(
+        'clock',
+        'wasm-worklet',
+        `clock-processor posted no step within ${STEP_LOOKAHEAD_MS} ms of start; using main-thread timer`,
+      );
+      node.port.postMessage({ type: 'stop' });
+      node.disconnect();
+      this.clockNode = null;
+      this.workletUnresponsive = true;
+      this.startMainThreadClock();
+    }, STEP_LOOKAHEAD_MS);
+  }
+
+  private clearStepWatchdog(): void {
+    if (this.stepWatchdog != null) {
+      clearTimeout(this.stepWatchdog);
+      this.stepWatchdog = null;
+    }
+  }
+
+  private startMainThreadClock(): void {
+    this.stopMainThreadClock();
+    this.running = true;
+    this.mainThreadNextStep = 0;
+    this.mainThreadAbsStep = 0;
+    this.mainThreadNextAt = this.context.currentTime;
+    this.tickMainThreadClock();
   }
 
   private stepDurationSec(parity: 0 | 1): number {

@@ -196,3 +196,37 @@ Unchanged. Not deployed (`DEPLOY_TOKEN` is the owner's).
 3. Then run `DEPLOY_SMOKE_URL=https://test.1ink.us/hyphon/ pnpm exec playwright test tests/deploy-smoke.spec.ts`, and check that `curl -sI https://test.1ink.us/hyphon/index.html` shows a new `Last-Modified`. The smoke alone passes on the June build.
 4. Issues #1389–#1397: **all nine are already closed** (owner, 2026-10-20 08:12–08:53Z), before any deploy reached the live site. The triage spec passes every check it has on `main` (#1389–#1393, #1395, #1396). #1394 is fixed in code by #1474 and #1397 by #1476. Neither is live until the deploy.
 5. **`go` vs `test`:** `deploy.py` targets neither by name, only the storage endpoint. Every `test.1ink.us` reference is in tests (`deploy-smoke.spec.ts` default) and in `docs/weekly_plan.md`. AGENTS.md names no live host at all. The PROJECT CONTEXT's `go.1ink.us` is the older of the two (March) and is not what `deploy-smoke` checks. They disagree. Whichever is canonical should be written into `deploy.py`'s docstring and AGENTS.md › Deployment.
+
+## 2026-10-26 Release gate, lint ratchet, Firefox clock
+
+Branch `fix/firefox-matrix-2026-10-26` (issue #1492). Verified here: `tsc -b`, `pnpm run lint`, `pnpm run lint:ratchet`, `CI=true pnpm run test:unit` (306 files / 2797 tests passed), `pnpm run build:web`. **Not verified:** any Playwright spec, and a full `pnpm run build` — this session could not build `hyphon_native.wasm` because the `jc303_wasm` submodule was unavailable (see `.swarm-state.md`).
+
+### Release gate classifies worklet chunks by entry
+
+`scripts/check-release-dist.mjs` used to call a chunk an AudioWorklet chunk when its text matched `registerProcessor\s*\(`. `src/agent/liveCapture.ts` keeps its recorder worklet as a Blob-URL source string, so the `AgentBridge` UI chunk matched and failed the self-containment rule; #1468 hid the call with `globalThis['register' + 'Processor']`. The gate now takes the worklet entries from the `?worker&url` imports of `src/audio-worklets/**` and treats a dist chunk as a worklet when it is named `<module>-<hash>.js` and is not the `import()` pointer module (`new URL('<real chunk>', import.meta.url).href`). Self-containment, the "at least 8 worklets" count and the worklet size row use that set. Each entry chunk must also call `registerProcessor(`. The raw `.ts` in `addModule()` check is unchanged, and `liveCapture.ts` has its plain call back. On the current build the old regex flags `AgentBridge-*.js` and the new rule does not; a runtime `import` added to a real worklet chunk exits 1.
+
+### Lint ratchet back to the 2026-10-18 baseline
+
+| Rule | `origin/main` | now | `bff5811` target |
+|---|---:|---:|---:|
+| `no-explicit-any` | 283 | 274 | 274 |
+| `no-unnecessary-type-assertion` | 116 | 109 | 111 |
+| `no-unsafe-argument` | 108 | 105 | 106 |
+| `no-unsafe-assignment` | 303 | 296 | 300 |
+| `no-unsafe-call` | 150 | 147 | 147 |
+| `no-unsafe-member-access` | 480 | 402 | 402 |
+| `no-unsafe-return` | 29 | 25 | 27 |
+| `no-unused-vars` | 425 | 417 | 420 |
+| `require-await` | 67 | 65 | 65 |
+| `unbound-method` | 41 | 37 | 39 |
+
+No `eslint-disable`. Two raised sites remain in `src/importers/ai-song/automation.ts` (one `no-unsafe-argument`, one `no-unused-vars`); importers belong to another lane, so the counts above are met with fixes elsewhere. Clearing that file would lower the baseline further.
+
+### Guards
+
+- `.husky/pre-push` now ends with `pnpm run lint:ratchet`.
+- `.github/workflows/lint-baseline-bank.yml` runs the ratchet on every push to `main`. If it fails with only "counts dropped" it runs `lint:ratchet:update` and opens a `chore(lint): bank ratchet gains from <sha>` PR from a `chore/lint-ratchet-bank-<sha>` branch, closing older bank PRs. A raised count, a missing baseline entry or an ESLint failure leaves `main` red and opens nothing. PRs made with the default `GITHUB_TOKEN` do not start CI; add a `LINT_BANK_TOKEN` secret if the bank PR should run checks.
+
+### Firefox step clock
+
+`InternalClockAdapter` now falls back to the existing main-thread timer when `clock-processor` posts no step within `STEP_LOOKAHEAD_MS` of `start`, logging through `logEngineFallback`. Unit-tested with a fake port that never answers. The Firefox playhead assertion in `tests/rbs-automation.spec.ts` is no longer skipped. Open: the Firefox voice profile (`hyphonNativeVariant.ts`), the REC-dot overlap (#1395) and the WebKit `session-launcher` crash need a browser run on a built `hyphon_native`.

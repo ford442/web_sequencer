@@ -47,7 +47,7 @@ class HyphonAgentRecorder extends AudioWorkletProcessor {
     return true;
   }
 }
-globalThis['register' + 'Processor']('${PROCESSOR_NAME}', HyphonAgentRecorder);
+registerProcessor('${PROCESSOR_NAME}', HyphonAgentRecorder);
 `;
 
 const loadedContexts = new WeakSet<BaseAudioContext>();
