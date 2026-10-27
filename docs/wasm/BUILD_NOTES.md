@@ -792,7 +792,8 @@ stretcher, spread over Rubber Band's many TUs, is where cross-TU inlining pays.
 | Artifact | `-O1` link | `-O3 -flto` | Δ |
 |---|---:|---:|---:|
 | `rubberband.wasm` | 553,042 | 464,544 | −16.0 % |
-| `rubberband-lib.js` (glue, bundled into the worklet chunks) | 199,615 | 103,152 | −48.3 % |
+| `rubberband-lib.js` (glue as emitted) | 199,615 | 103,152 | −48.3 % |
+| `rubberband-processor` worklet chunk (Vite-minified, brotli) | 33,245 | 32,995 | −0.8 % (Vite minified the old glue too) |
 | `mix_bus.wasm` | 730 | 880 | +150 (the explicit SIMD peak) |
 
 <a id="rubberband-memory-growth"></a>
