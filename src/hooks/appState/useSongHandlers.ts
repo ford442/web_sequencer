@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import type { AudioEngine, Pattern, PartSequence, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
+import type { Arrangement, AudioEngine, Pattern, PartSequence, SynthParams, Bass2Params, KickParams, SnareParams, HatParams, SamplerParams } from '../../types'
 import type { TrackKey, SongSnapshot } from '../../constants/appDefaults'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { PyodideLike } from '../../utils/pyodideBuffers'
@@ -11,6 +11,8 @@ export function useSongHandlers(deps: {
     setIsSongModeOpen: React.Dispatch<React.SetStateAction<boolean>>;
     patternRef: React.MutableRefObject<Pattern>;
     songStructureRef: React.MutableRefObject<({ [key in TrackKey]: number | null })[]>;
+    /** Linear arrangement (#1342): XM export walks its timeline (#1494). */
+    arrangementRef: React.MutableRefObject<Arrangement>;
     trackStorageRef: React.MutableRefObject<Record<TrackKey, (PartSequence | PartSequence[] | null)[]>>;
     tempoRef: React.MutableRefObject<number>;
     synthARef: React.MutableRefObject<SynthParams>;
@@ -28,7 +30,7 @@ export function useSongHandlers(deps: {
 }) {
     const {
         songStructure, setSongStructure, setIsSongModeOpen,
-        patternRef, songStructureRef, trackStorageRef, tempoRef,
+        patternRef, songStructureRef, arrangementRef, trackStorageRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
         audioEngine, pyodide, sampleBuffers, showToast,
     } = deps;
@@ -86,9 +88,10 @@ export function useSongHandlers(deps: {
             {
                 stepCount: transportMixStore.meterRef.current.stepCount,
                 trackLengths: transportMixStore.meterRef.current.trackLengths,
+                arrangement: arrangementRef.current,
             },
         );
-    }, [audioEngine, pyodide, sampleBuffers, songStructureRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
+    }, [audioEngine, pyodide, sampleBuffers, songStructureRef, arrangementRef, trackStorageRef, tempoRef, patternRef, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef]);
 
     const handleExportXM = useCallback(() => {
         void Promise.all([buildXmExport(), import('../../utils/xmExport')]).then(([result, { downloadXM }]) => {

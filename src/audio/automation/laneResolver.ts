@@ -14,6 +14,9 @@
  *     interpolated by `interpolateLaneAtStep` — except a `timeline: 'song'`
  *     lane, which Song Mode reads at the song position;
  *   - a point outside [0, 1] is rejected in dev and clamped otherwise;
+ *   - on the linear player, the lanes of the clips sounding on a song step go
+ *     ahead of the song lanes (`layerClipLanes`, #1494), so a clip lane wins
+ *     the steps its clip covers;
  *   - the first lane per `target:parameter` with a value wins that step;
  *   - note FX parameters are not scheduled (the step handler reads them).
  */
@@ -22,6 +25,8 @@ import type { AutomationTarget, UnifiedAutomationLane } from '../../types';
 import { interpolateLaneAtStep } from '../../utils/knobAutomationCurve';
 import { isNoteFxParameter } from '../../sequencer/noteFx/params';
 import { MACRO_AUTOMATION_PARAMS } from '../../engines/MacroParams';
+import type { Arrangement } from '../../types/song';
+import { layerClipLanes } from '../../arrangement/playback';
 
 // ---------------------------------------------------------------------------
 // Engine units
@@ -264,6 +269,12 @@ export interface LaneTimeline {
   stepCount: number;
   /** Song mode: pattern-scoped lanes follow `measure % 8`; otherwise pattern 0. */
   songMode: boolean;
+  /**
+   * Song mode on the linear player: global step `g` is song step `g`, and the
+   * lanes of the clips sounding there are layered over the song lanes (#1494),
+   * exactly as the live step handler layers them.
+   */
+  arrangement?: Arrangement;
 }
 
 /** The pattern step and pattern index the live clock plays at `globalStep`. */
@@ -288,7 +299,8 @@ export function resolveLaneTimeline(
   timeline: LaneTimeline,
 ): ResolvedLaneValue[][] {
   const out: ResolvedLaneValue[][] = [];
-  if (lanes.length === 0) {
+  const hasClipLanes = timeline.songMode && !!timeline.arrangement?.clips.some((c) => c.lanes?.length);
+  if (lanes.length === 0 && !hasClipLanes) {
     for (let g = 0; g < timeline.totalSteps; g++) out.push([]);
     return out;
   }
@@ -300,7 +312,9 @@ export function resolveLaneTimeline(
       active = lanes.filter((lane) => isLaneActive(lane, patternIndex));
       activeByPattern.set(patternIndex, active);
     }
-    out.push(resolveLaneValuesAtStep(active, step, timeline.songMode ? g : undefined));
+    const songStep = timeline.songMode ? g : undefined;
+    const layered = timeline.songMode ? layerClipLanes(active, timeline.arrangement, g) : active;
+    out.push(resolveLaneValuesAtStep(layered, step, songStep));
   }
   return out;
 }

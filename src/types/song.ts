@@ -35,6 +35,13 @@ export interface ArrangementClip {
    * bumps this, so the notes stay where they were. Absent = 0.
    */
   offsetSteps?: number;
+  /**
+   * Clip-local automation (#1494). Same lane shape as the song lanes, but a
+   * point's `step` is the clip-local position: 0 is the clip's left edge and
+   * `lengthSteps` its right edge. Where the clip sounds, a clip lane wins
+   * over a song lane on the same `target:parameter`. Absent = none.
+   */
+  lanes?: UnifiedAutomationLane[];
 }
 
 /**
