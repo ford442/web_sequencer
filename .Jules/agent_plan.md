@@ -6,7 +6,7 @@
 - [x] Explore dynamically linking step lengths to phoneme duration.
 - Velocity Check: Utilizing standard arithmetic to implement dynamic phoneme step lengths within `handleTextToDrums` allowed translating phonetic rhythm onto generated drum loops effectively without affecting core Sequencer or TTS DSP architecture.
 - [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
-- [ ] Explore mapping pitch contour to tom-tom or melodic percussive elements
+- [x] Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing.
 - [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
 - [x] What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
@@ -37,7 +37,6 @@
 ## Innovation Lab
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore dynamically linking step lengths to phoneme duration.
-- Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing.
 - Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
@@ -45,6 +44,8 @@
 - Explore mapping lyric text sentiment to default scale
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
+- Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
+- Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
@@ -259,3 +260,8 @@
   - Modified `handleTextToDrums` in `useLyricHandlers.ts`.
   - Ghost snares generated during consecutive consonant fills and preceding organic triggers are now assigned a descending pitch contour from `['G3', 'E3', 'C3', 'A2', 'G2', 'E2']` based on the normalized phrase progress.
 - Velocity Check: Converting the static 'C4' ghost snare into a dynamic, phrase-aware melodic tom sweep was computationally cheap (just a progress calculation and a modulo array lookup) but significantly increases the musicality of the auto-generated rhythm. Added new ideas to the Innovation Lab.
+
+- Completed "Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing."
+  - In `handleTextToDrums`, replaced static hi-hat rolls between consonant gaps with Euclidean polyrhythms E(k, n).
+  - The number of hits `k` is dynamically calculated based on the gap size `n` and `consecutiveConsonants` using standard Euclidean integer math (`((j - 1) * hits) % gapSize < hits`).
+- Velocity Check: By using simple modulo arithmetic in the text parser, we inject complex, evolving polyrhythms into generated drums with zero additional DSP overhead. The generated drum patterns are now far more organic and less rigid, achieving the "Solidify and Innovate" dual mandate perfectly. Added new Euclidean mapping ideas to the Innovation Lab.
