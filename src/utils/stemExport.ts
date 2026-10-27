@@ -367,12 +367,18 @@ export async function renderStemFiles(
     };
 
     // Automation lanes (#1384): resolved onto the timeline exactly as the live
-    // scheduler plays them, measure by measure.
+    // scheduler plays them, measure by measure — clip lanes (#1494) layered
+    // over the song lanes on the steps their clips cover.
     const automationLanes = input.automationLanes
         ?? (automationStore.getState().playbackEnabled ? automationStore.exportLanes() : []);
     const automation = resolveSynthLaneAutomation(
         automationLanes,
-        { totalSteps: timeline.totalSteps, stepCount: input.stepCount ?? NUM_STEPS, songMode: useSongMode },
+        {
+            totalSteps: timeline.totalSteps,
+            stepCount: input.stepCount ?? NUM_STEPS,
+            songMode: useSongMode,
+            arrangement: useSongMode ? input.arrangement : undefined,
+        },
         [
             { target: 'synthA', waveform: input.params.synthA.waveform ?? '' },
             { target: 'synthB', waveform: input.params.synthB.waveform ?? '' },

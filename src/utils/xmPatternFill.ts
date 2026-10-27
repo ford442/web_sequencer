@@ -6,8 +6,9 @@
 
 import { createPattern, noteNameToValue } from './xm_save_lib/index';
 import type { XMPattern } from './xm_save_lib/index';
-import type { PartSequence, Pattern, TrackKey } from '../types';
+import type { Arrangement, PartSequence, Pattern, TrackKey } from '../types';
 import { tilePartSequence, type TrackLengths } from './songMeter';
+import { resolveArrangementTimeline } from './songTimeline';
 
 /** Default rows per XM pattern (one 32-step Hyphon pattern); the export uses the song `stepCount`. */
 export const XM_PATTERN_ROWS = 32;
@@ -235,6 +236,12 @@ export interface XmSongPatternsInput {
     stepCount?: number;
     /** Per-track loop lengths, tiled into each pattern like live playback. */
     trackLengths?: TrackLengths;
+    /**
+     * Linear arrangement (#1494). With clips, the module walks
+     * `resolveArrangementTimeline` — gaps and one-shot tails are rests, a
+     * trimmed clip stops where it stops — instead of the Song Mode projection.
+     */
+    arrangement?: Arrangement;
 }
 
 export interface XmSongPatterns {
@@ -250,6 +257,7 @@ export interface XmSongPatterns {
  * — so steps stored past a track's loop are not played live and not exported.
  */
 export const buildXmSongPatterns = (input: XmSongPatternsInput): XmSongPatterns => {
+    if (input.arrangement?.clips.length) return buildXmArrangementPatterns(input, input.arrangement);
     const { songStructure, trackStorage, currentPattern } = input;
     const patternRows = input.stepCount ?? XM_PATTERN_ROWS;
     const fit = (trackKey: TrackKey, seq: PartSequence): PartSequence =>
@@ -321,3 +329,43 @@ export const buildXmSongPatterns = (input: XmSongPatternsInput): XmSongPatterns 
 
     return { patterns, patternOrderTable, truncation };
 };
+
+/** Every track the exporter knows how to place, sampler included. */
+const XM_EXPORT_TRACKS: TrackKey[] = [...(Object.keys(XM_TRACK_MAP) as Exclude<TrackKey, 'sampler'>[]), 'sampler'];
+
+function sliceSequence(seq: PartSequence, from: number, rows: number): PartSequence {
+    return { steps: seq.steps.slice(from, from + rows) };
+}
+
+/**
+ * One XM pattern per measure of the arrangement timeline, in order. The last
+ * measure is as long as what is left of the song, so the module ends at the
+ * last clip's end like every other export.
+ */
+function buildXmArrangementPatterns(input: XmSongPatternsInput, arrangement: Arrangement): XmSongPatterns {
+    const stepCount = input.stepCount ?? XM_PATTERN_ROWS;
+    const timeline = resolveArrangementTimeline(arrangement, input.trackStorage, {
+        stepCount,
+        trackLengths: input.trackLengths,
+    });
+    const patterns: XMPattern[] = [];
+    const patternOrderTable: number[] = [];
+    const truncation = createTruncationReport();
+    let from = 0;
+    timeline.measureStepCounts.forEach((rows, m) => {
+        const xmPat = createPattern(rows, XM_CHANNEL_COUNT);
+        for (const trackKey of XM_EXPORT_TRACKS) {
+            if (trackKey === 'sampler') {
+                timeline.sequences.sampler.forEach((seq, idx) => {
+                    fillPatternFromSequence(xmPat, sliceSequence(seq, from, rows), 'sampler', idx, m, truncation);
+                });
+            } else {
+                fillPatternFromSequence(xmPat, sliceSequence(timeline.sequences[trackKey], from, rows), trackKey, 0, m, truncation);
+            }
+        }
+        patterns.push(xmPat);
+        patternOrderTable.push(m);
+        from += rows;
+    });
+    return { patterns, patternOrderTable, truncation };
+}

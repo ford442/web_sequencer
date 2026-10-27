@@ -665,6 +665,8 @@ export interface HyphonSong {
     trakEvents?: RbsTrakEvent[];
     /** Sub-step knob automation events (paramChange only — excludes pattern select). */
     trakParamEvents?: RbsTrakEvent[];
+    /** Export-time notes from baking the arrangement timeline (#1494). */
+    exportWarnings?: string[];
     /** Per-slot TB-303 knob params from DEVL pattern banks (song-mode pattern recall). */
     trackParamStorage?: {
       synthA: (Partial<SynthParams> | null)[];

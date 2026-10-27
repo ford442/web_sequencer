@@ -5,6 +5,7 @@
 import { TRACK_KEYS } from '@/constants';
 import type { TrackKey } from '@/constants/appDefaults';
 import type { Arrangement, ArrangementClip } from '@/types/song';
+import type { UnifiedAutomationLane } from '@/types/automation';
 import { trackLoopLength, type SongMeter } from '@/utils/songMeter';
 import { clipEnd } from './model';
 
@@ -92,4 +93,68 @@ export function resolveArrangementFrame(
         }
     }
     return frame;
+}
+
+// ---------------------------------------------------------------------------
+// Clip-local automation (#1494): one layered lane list per song step
+// ---------------------------------------------------------------------------
+
+// Clips are immutable values, so each clip's song-timeline lanes are built once.
+const songLaneCache = new WeakMap<ArrangementClip, UnifiedAutomationLane[]>();
+
+/**
+ * A clip's lanes on the song timeline: points moved to `startStep + local`,
+ * read at the song position (`timeline: 'song'`), in scope for every pattern.
+ */
+export function clipLanesOnSongTimeline(clip: ArrangementClip): UnifiedAutomationLane[] {
+    let out = songLaneCache.get(clip);
+    if (!out) {
+        out = (clip.lanes ?? []).map((lane) => ({
+            ...lane,
+            scope: 'song' as const,
+            patternIndex: undefined,
+            timeline: 'song' as const,
+            points: lane.points.map((p) => ({ ...p, step: clip.startStep + p.step })),
+        }));
+        songLaneCache.set(clip, out);
+    }
+    return out;
+}
+
+// One-entry memo: consecutive steps usually sit in the same clips, so the
+// layered list is rebuilt only when a clip boundary or the song lanes change.
+let memoSong: readonly UnifiedAutomationLane[] | null = null;
+let memoClips: ArrangementClip[] = [];
+let memoOut: UnifiedAutomationLane[] = [];
+const scratchClips: ArrangementClip[] = [];
+
+/**
+ * The lanes that play at `songStep`: the lanes of every clip sounding there,
+ * then `songLanes`. Returns `songLanes` itself when no sounding clip has
+ * lanes (no allocation on the common path).
+ */
+export function layerClipLanes<T extends readonly UnifiedAutomationLane[]>(
+    songLanes: T,
+    arrangement: Arrangement | null | undefined,
+    songStep: number | undefined,
+): T | UnifiedAutomationLane[] {
+    if (!arrangement || songStep === undefined || songStep < 0) return songLanes;
+    scratchClips.length = 0;
+    for (let i = 0; i < TRACK_KEYS.length; i++) {
+        const clip = clipAt(arrangement, TRACK_KEYS[i], songStep);
+        if (clip?.lanes?.length) scratchClips.push(clip);
+    }
+    if (scratchClips.length === 0) return songLanes;
+
+    let same = memoSong === songLanes && memoClips.length === scratchClips.length;
+    for (let i = 0; same && i < scratchClips.length; i++) same = memoClips[i] === scratchClips[i];
+    if (same) return memoOut;
+
+    const out: UnifiedAutomationLane[] = [];
+    for (const clip of scratchClips) out.push(...clipLanesOnSongTimeline(clip));
+    out.push(...songLanes);
+    memoSong = songLanes;
+    memoClips = scratchClips.slice();
+    memoOut = out;
+    return out;
 }

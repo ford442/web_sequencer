@@ -621,7 +621,7 @@ export function useAppState() {
         buildXmExport,
     } = useSongHandlers({
         songStructure, setSongStructure, setIsSongModeOpen,
-        patternRef, songStructureRef, trackStorageRef, tempoRef,
+        patternRef, songStructureRef, arrangementRef, trackStorageRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
         audioEngine, pyodide, sampleBuffers, showToast,
     });
