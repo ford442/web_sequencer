@@ -2,7 +2,7 @@
 
 ## Active Backlog
 - [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
-- What if we map vowel brightness/formant to open hi-hat decay time?
+- [x] What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore dynamically linking step lengths to phoneme duration.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer. (Global clock processor makes per-track non-linear swing mathematically problematic for polyrhythm alignment).
@@ -30,6 +30,9 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
+- What if we dynamically map the formants of mid-vowels to a phaser effect sweep in the granular engine?
+
 - Explore dynamically linking step lengths to phoneme duration.
 - Explore mapping lyric text sentiment to default scale
 - Explore adding a humanize function to drum velocities based on phoneme intensity
@@ -140,7 +143,13 @@
 - Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
 - Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.
 
+- Velocity Check: Mapping vowel brightness to open hi-hat length in `handleTextToDrums` is a very computationally cheap and purely functional way to add groove dynamics to text-to-drum generation without touching AudioWorklets or core DSP.
+
 ## Architecture Review
+- Completed "What if we map vowel brightness/formant to open hi-hat decay time?"
+- Checked the `isVowel` branch of `handleTextToDrums`, grouped vowels by brightness based on formants (Bright: IY, IH, EY, EH, AE; Mid: AH, ER, AW, AY, OY; Dark: AA, AO, OW, UH, UW). Triggered Open Hi-Hats on the same step as bright or mid vowels and mapped the brightness to `length` (3 or 2 respectively).
+- Velocity Check: Mapping vowel brightness to open hi-hat length in `handleTextToDrums` is a very computationally cheap and purely functional way to add groove dynamics to text-to-drum generation without touching AudioWorklets or core DSP.
+
 - Velocity Check: Modifying `handleTextToDrums` in `useLyricHandlers.ts` to implement gap fills was straightforward, as it just involves maintaining loop state (tracking consecutive consonants and last step index) and filling gaps in step sequences without requiring complex audio graph additions.
 - Completed "Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.". Implemented `timeToStep` utilizing the `swingPercentToClock` util, ensuring that syllable mapping correctly snaps to the swung grid instead of the straight grid.
 - Velocity Check: Utilizing standard arithmetic to implement swing logic rather than relying on complex clock-processor polling enabled instant mapping directly in the UI handler.

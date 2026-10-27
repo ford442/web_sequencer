@@ -193,6 +193,13 @@ export function useLyricHandlers(deps: {
                         const isDarkVowel = ['AA','AO','OW','UH','UW','AW'].includes(ph);
                         newKick.steps[stepIdx] = { note: 'C4', velocity: finalVel, length: isDarkVowel ? 2 : 1 };
                     }
+                    if (stepIdx >= 0 && stepIdx < newOH.steps.length) {
+                        const isBrightVowel = ['IY','IH','EY','EH','AE'].includes(ph);
+                        const isMidVowel = ['AH','ER','AW','AY','OY'].includes(ph);
+                        if (isBrightVowel || isMidVowel) {
+                            newOH.steps[stepIdx] = { note: 'C4', velocity: finalVel * 0.7, length: isBrightVowel ? 3 : 2 };
+                        }
+                    }
                 } else {
                     consecutiveConsonants++;
 
