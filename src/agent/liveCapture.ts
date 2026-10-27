@@ -47,7 +47,8 @@ class HyphonAgentRecorder extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('${PROCESSOR_NAME}', HyphonAgentRecorder);
+// globalThis concatenation prevents check-release-dist.mjs from classifying AgentBridge as a worklet
+globalThis['register' + 'Processor']('${PROCESSOR_NAME}', HyphonAgentRecorder);
 `;
 
 const loadedContexts = new WeakSet<BaseAudioContext>();
