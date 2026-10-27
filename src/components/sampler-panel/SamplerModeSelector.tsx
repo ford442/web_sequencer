@@ -12,6 +12,7 @@ interface SamplerModeSelectorProps {
   onGrainSizeChange: (size: number) => void;
   onSliceModeToggle: () => void;
   onDynamicChopsToggle: () => void;
+  onVowelSamplesToggle: () => void;
 }
 
 export const SamplerModeSelector = React.memo(function SamplerModeSelector({
@@ -22,6 +23,7 @@ export const SamplerModeSelector = React.memo(function SamplerModeSelector({
   onGrainSizeChange,
   onSliceModeToggle,
   onDynamicChopsToggle,
+  onVowelSamplesToggle,
 }: SamplerModeSelectorProps) {
   return (
     <div className="bg-gray-800/30 p-1.5 rounded">
@@ -102,6 +104,23 @@ export const SamplerModeSelector = React.memo(function SamplerModeSelector({
                 {currentParams.dynamicChops ? 'CHOPS ON' : 'CHOPS OFF'}
               </button>
             )}
+          </div>
+          <div className="flex gap-1 items-center">
+            <span className="text-[9px] text-gray-500 w-10">Vowels:</span>
+            <button type="button"
+              aria-label="Use vowel samples on long notes"
+              aria-pressed={!!currentParams.useVowelSamplesOnLongNotes}
+              onClick={onVowelSamplesToggle}
+              disabled={currentParams.sliceMode === 'phoneme'}
+              className={`flex-1 h-5 text-[9px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:opacity-40 ${
+                currentParams.useVowelSamplesOnLongNotes
+                  ? 'bg-purple-600 border-purple-400 text-white'
+                  : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+              }`}
+              title={`Notes of ${currentParams.minNoteDurationMs ?? 500} ms or longer crossfade from TTS into a vowel sample (the phrase's last vowel; "ah" without an alignment). Not in phoneme slice mode.`}
+            >
+              {currentParams.useVowelSamplesOnLongNotes ? 'LONG NOTES: SAMPLED' : 'LONG NOTES: TTS'}
+            </button>
           </div>
         </div>
       )}

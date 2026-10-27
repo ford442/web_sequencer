@@ -12,6 +12,8 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/__tests__/trackFreezer.integration.test.ts',
   'src/__tests__/nativeVocalFx.integration.test.ts',
   'src/__tests__/phonemeElasticity.integration.test.ts',
+  // V2: the vocal chain at the live rate vs the export rate, real rubberband.wasm.
+  'src/__tests__/vocalFreezeParity.integration.test.ts',
   'src/__tests__/mixBus.integration.test.ts',
   // #1344: the worklets on the real hyphon_native.st.wasm — needs the native build.
   'src/audio-worklets/__tests__/voiceTiming.realWasm.test.ts',

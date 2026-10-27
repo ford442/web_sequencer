@@ -43,6 +43,7 @@ import { useProjectAutosave } from './useProjectAutosave'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { loadingProgressStore } from '../stores/loadingProgressStore'
+import { reportTtsAvailability } from '../services/ttsAvailability'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
@@ -185,7 +186,7 @@ export function useAppState() {
         }
         loadingProgressStore.startStep('ttsEngine');
         void SupertonicService.getInstance().init().then(() => {
-            loadingProgressStore.completeStep('ttsEngine');
+            reportTtsAvailability(SupertonicService.getInstance().getUnavailableReason());
         }).catch((e: unknown) => {
             console.warn('Supertonic TTS failed to init:', e);
             loadingProgressStore.failStep(

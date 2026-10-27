@@ -28,17 +28,16 @@ function props(overrides: Partial<ExportModalProps> = {}): ExportModalProps {
   };
 }
 
-describe('ExportModal vocal FX badge (#1273)', () => {
-  it('says vocal FX freeze is unsupported for banks the bounce renders dry', () => {
+describe('ExportModal vocal bounce badge (#1273)', () => {
+  it('lists the live-only layers of a stretch bank; Rubber Band and phoneme edits are bounced', () => {
     render(<ExportModal {...props({ harmonizerActive: true })} />);
-    const note = screen.getByRole('note', { name: 'Vocal FX freeze unsupported' });
-    expect(within(note).getByText(/Bank 1: stretch \/ formant pitch · phoneme edits · HARM layers/)).toBeInTheDocument();
+    const note = screen.getByRole('note', { name: 'Not in the sampler bounce' });
+    expect(within(note).getByText('Bank 1: HARM layers')).toBeInTheDocument();
+    expect(within(note).queryByText(/stretch \/ formant pitch|phoneme edits/)).toBeNull();
   });
 
-  it('stays quiet when no bank depends on the live vocal chain', () => {
-    const p = props();
-    p.params.sampler[0] = { ...p.params.sampler[0], mode: 'loop' };
-    render(<ExportModal {...p} />);
-    expect(screen.queryByRole('note', { name: 'Vocal FX freeze unsupported' })).toBeNull();
+  it('stays quiet when a stretch bank renders through the offline Rubber Band host', () => {
+    render(<ExportModal {...props()} />);
+    expect(screen.queryByRole('note', { name: 'Not in the sampler bounce' })).toBeNull();
   });
 });

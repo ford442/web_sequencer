@@ -41,6 +41,7 @@ import type { AudioContextCreation } from './audioEngine/audioContextFactory';
 import { setAudioEngineReinitHandler } from './audioEngine/audioEngineReinit';
 import { buildAudioEngine } from './audioEngine/engineApiBuilder';
 import { createPlaySamplerVoice } from './audioEngine/samplerPlayback/playSamplerVoice';
+import { getLiveVowelHybrid } from '../services/vowelLibraryService';
 import {
     createNoteOffSampler,
     createNoteOnSampler,
@@ -305,7 +306,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 nextSamplerNoteId,
                 activeSamplerNotes,
             };
-            const playSamplerVoice = createPlaySamplerVoice(context, tempo, samplerPlaybackRefs);
+            const playSamplerVoice = createPlaySamplerVoice(context, tempo, samplerPlaybackRefs, getLiveVowelHybrid);
             const playSampler = createPlaySampler(playSamplerVoice, samplerPlaybackRefs);
             const noteOnSampler = createNoteOnSampler(context, samplerPlaybackRefs);
             const noteOffSampler = createNoteOffSampler(context, samplerPlaybackRefs);

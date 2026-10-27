@@ -95,7 +95,7 @@ export const WorkletSetupMixin = {
           this.workletNode!.port.onmessage = null;
           if (type === "READY") {
             const ready = event.data as { fxBackend?: string; fxReason?: string };
-            recordVocalFxBackend(
+            if (!this.config.offline) recordVocalFxBackend(
               { backend: ready.fxBackend === "native" ? "native" : "ts", reason: ready.fxReason },
               fxOverride === "ts",
             );
@@ -110,6 +110,8 @@ export const WorkletSetupMixin = {
       });
 
       console.log("SingingVoice: AudioWorklet initialized successfully");
+      // An offline (freeze) voice is not part of the live engine's telemetry.
+      if (this.config.offline) return;
       this.detachWorkletPerf = attachWorkletPerf(this.workletNode, 'rubberband');
       // Mid-session native FX failures switch the worklet to the TS chain.
       this.workletNode.port.addEventListener("message", (event: MessageEvent) => {

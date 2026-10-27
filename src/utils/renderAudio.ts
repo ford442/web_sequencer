@@ -12,6 +12,7 @@ import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/creat
 import { macroEngineForWaveform } from '@/engines/MacroParams';
 import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
 import { noteToMidi } from '@/utils/musicTheory';
+import { fetchPublicArrayBuffer } from '@/utils/publicAsset';
 
 type PyodideResultProxy = {
     toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
@@ -168,12 +169,11 @@ export async function renderSynthToBuffer(
     // Handle Sample-Based Waveforms
     else if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
         const bufferSource = offlineCtx.createBufferSource();
-        const url = params.waveform === 'wav-saw' ? './assets/saw.wav' : './assets/square.wav';
+        const url = params.waveform === 'wav-saw' ? 'saw.wav' : 'square.wav';
         const rootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
 
         try {
-            const response = await fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
+            const arrayBuffer = await fetchPublicArrayBuffer(url);
             const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
 
             bufferSource.buffer = audioBuffer;

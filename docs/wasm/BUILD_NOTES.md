@@ -284,6 +284,27 @@ Each has exactly one imported-memory contract, and no script carries memory
 literals — every one reads the budget JSON. `src/__tests__/wasmMemoryBudget.test.ts`
 enforces both.
 
+<a id="offline-vocal-host"></a>
+### Offline vocal host: a second Rubber Band instance (V2)
+
+Freeze and stem export of a stretch-mode sampler bank
+(`src/audio/offline/vocal/offlineVocalHost.ts`) host Rubber Band the way live
+does: `SingingVoiceManager` voices on the export's `OfflineAudioContext`, each
+loading the same `RubberBandProcessor` worklet and sent the same `INIT_WASM`
+with the `rubberband.wasm` bytes. That is a separate AudioWorkletGlobalScope,
+so every offline voice has **its own module instance and heap** — not the live
+voices' and never `hyphon_native`'s. Nothing about the build changed:
+`emscripten/build.sh` has no Rubber Band sources and
+`tools/check_wasm_export_map.mjs` still finds no `rubberband` export in
+`hyphon_native.wasm`. If the module cannot load offline the bank is reported
+unsupported and its stem is left out, never replaced by the dry phrase. WebKit
+is reported unsupported up front, as the live engine skips the worklet there.
+
+It is not in `src/workers/renderer.worker.ts`: browsers do not run an
+`AudioWorklet` (and Chromium no `OfflineAudioContext`) inside a dedicated
+worker, and the live processor is a worklet. The offline context's worklet
+thread is already off the main thread.
+
 `build_rubberband.sh` also grew the things it was missing: an `emsdk_env.sh`
 search matching `build.sh`, the correct repo-root source path (it used to look
 for `emscripten/rubberband/`, which does not exist), release/debug profiles, and

@@ -249,7 +249,18 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         if (data && data.sharedBuffer) {
           this.phonemeData = new Float32Array(data.sharedBuffer);
           this.phonemeRatios = data.ratios || null;
+        } else if ((data as { sharedBuffer?: SharedArrayBuffer | null } | undefined)?.sharedBuffer === null) {
+          // clearPhonemeData(): the next buffer (a vowel loop) has no phonemes.
+          this.phonemeData = null;
+          this.phonemeRatios = null;
         }
+        break;
+
+      case 'SYNC':
+        // Messages are handled in order: answering this one means every earlier
+        // message (loadBuffer, noteOn, ...) has been applied. The offline vocal
+        // host waits on it before letting a suspended render resume.
+        this.port.postMessage({ type: 'SYNCED', id: (data as { id?: number } | undefined)?.id ?? 0 });
         break;
 
       case 'noteOn': {

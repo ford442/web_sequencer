@@ -9,7 +9,7 @@ const stripCache = new WeakMap<SingingVoice, VoiceFXStrip>();
 const driveCache = new WeakMap<SingingVoice, StretchDriveNode>();
 const stripMainWired = new WeakMap<SingingVoice, boolean>();
 
-export function getStretchFxStrip(voice: SingingVoice, context: AudioContext): VoiceFXStrip {
+export function getStretchFxStrip(voice: SingingVoice, context: BaseAudioContext): VoiceFXStrip {
   let strip = stripCache.get(voice);
   if (!strip) {
     strip = new VoiceFXStrip(context);
@@ -54,7 +54,7 @@ export interface StretchFxRouting {
  */
 export function wireStretchFxRouting(
   voice: SingingVoice,
-  context: AudioContext,
+  context: BaseAudioContext,
   mainDest: AudioNode,
   reverbNode: ConvolverNode | null,
   delayNode: DelayNode | null,
