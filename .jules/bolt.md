@@ -50,13 +50,16 @@
 ## 2025-01-22 - Avoid Unmeasurable Micro-Optimizations in AudioWorklets
 **Learning:** Replacing a single `Math.pow()` or `midiToHz(127)` inside `process()` with a cached variable in `PcfProcessor` was rejected because it is a negligible micro-optimization (saving a single O(1) operation every 128 samples). Furthermore, hardcoding `midiToHz(127)` as exactly 20000 instead of computing the true frequency caused an auditory regression.
 **Action:** Do not submit PRs for micro-optimizations that have no measurable gain, especially if they risk altering exact math. Only optimize continuous allocations or expensive operations inside the per-sample inner loop, not operations that happen once per 128-sample block unless they are measurably slow.
-<<<<<<< HEAD
-=======
 ## 2025-03-03 - [Cache Invariant Transcendental Math in AudioWorklets]
 **Learning:** In AudioWorklet DSP modules, variables like envelope multipliers and cutoff frequencies are often calculated using `Math.exp()` and `Math.pow()` inside the `process()` hot path every quantum (128 samples). In `pcf-processor.ts`, `envelopeDecayRate` and `baseCutoff` values were being repeatedly used in `Math.pow` calculations on every block.
 **Action:** Extracted these calculations by caching the block decay multiplier (updating it only when `blockSize` or the rate parameter changes) and pre-calculating the static `baseHz` mapped from `baseCutoff` on parameter change. This totally eliminated `Math.pow` calls per-block on the hot path without altering the math.
->>>>>>> c4f2143 (feat(ai-song): `pnpm run ai-song:render` — agents render and check their own songs (#1386) (#1467))
-
 ## 2025-03-03 - Extract array property accesses from DSP inner loops
 **Learning:** In AudioWorklet DSP hot paths (per-sample inner loops), accessing object properties from arrays (e.g. `this.fastEnv[channel]`) adds unnecessary overhead. Extracting them to local variables outside the inner loop eliminates O(N) array property lookups per quantum on the hot path, resulting in measurable performance improvements in effects like `TransientExtractor`, `SubHarmonicsEffect`, and `ToneFilters`.
 **Action:** Extract array state variables to local variables before the inner loop, update them within the loop, and write them back to the array afterwards in hot loop AudioWorklets to reduce overhead.
+
+## 2024-10-26 - Math.pow vs Math.exp + Math.log in AudioWorklets
+**Learning:** In V8, `Math.pow(x, y)` with fractional exponents inside hot DSP loops is extremely slow compared to `Math.exp(y * Math.log(x))`. Microbenchmarks show the latter is nearly twice as fast.
+**Action:** When working on AudioWorklet `process` methods or heavily used inner DSP loops, avoid `Math.pow` for fractional exponents and use pre-computed inverse constants with `Math.exp(Math.log())` instead.
+## 2024-03-03 - [Object Allocation in AudioWorklet process()]
+**Learning:** Returning array literals from helper functions inside the audio-thread `process()` inner-loops (like `renderedVoices()` yielding new `NativeVoiceRef` objects on every call) creates large garbage collection overhead. Since audio blocks are processed very frequently, small objects created per block quickly result in garbage collection pauses which disrupt audio output.
+**Action:** Instead of recreating intermediate structs, explicitly maintain and mutate pre-allocated class properties (e.g. tracking index counts into a fixed array of pre-allocated objects).
