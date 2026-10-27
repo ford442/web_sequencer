@@ -14,13 +14,13 @@ export class PhonemeToneFilter {
         const minFc = 200;
         const maxFc = 10000;
         const clampedVol = Math.max(0.0, Math.min(1.0, phonemeVolume));
-        const brightness = Math.pow(clampedVol, 0.7);
+        const brightness = clampedVol > 0 ? Math.exp(0.7 * Math.log(clampedVol)) : 0.0;
         const targetFc = minFc + (maxFc - minFc) * (phonemeFilterMod * brightness);
 
         // Smooth fc over time to prevent zippering
         const r = 0.99;
         const n = outputChannel.length;
-        const rN = Math.pow(r, n);
+        const rN = Math.exp(n * Math.log(r));
         const fcStart = this.lastCutoffHz * r + targetFc * (1 - r);
         const fcEnd = this.lastCutoffHz * rN + targetFc * (1 - rN);
         const costhStart = 2.0 - Math.cos(2.0 * Math.PI * fcStart / sampleRate);
@@ -111,7 +111,8 @@ export class SyllableVolumeFilter {
 
     const amount = volFilterMod * (0.25 + 0.75 * isVowel);
     // Log scale mapping from 400Hz to 8000Hz based on clamped phonemeVolume
-    const targetCutoff = 400 * Math.pow(8000 / 400, Math.min(1.0, Math.max(0.0, phonemeVolume)) * amount);
+    // 8000 / 400 = 20. Math.log(20) ~ 2.995732273553991
+    const targetCutoff = 400 * Math.exp(Math.min(1.0, Math.max(0.0, phonemeVolume)) * amount * 2.995732273553991);
 
     // Smooth target -> cutoffState at block rate using a fixed ~10ms time constant
     const dt = 1.0 / sampleRate;

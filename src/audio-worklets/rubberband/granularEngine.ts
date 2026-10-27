@@ -291,7 +291,8 @@ export class GranularEngine {
     let cutoff = 20000; // default bypassed
     if (p.hasPhonemeContext && p.phonemeVolume < 1.0) {
       // Map volume [0, 1] to cutoff frequency [200, 20000] exponentially
-      cutoff = 200 * Math.pow(100, p.phonemeVolume);
+      // Math.log(100) ~ 4.605170185988092
+      cutoff = 200 * Math.exp(p.phonemeVolume * 4.605170185988092);
     }
 
     // 1-pole IIR lowpass coefficients
