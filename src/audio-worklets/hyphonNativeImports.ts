@@ -4,6 +4,8 @@
 // minified (env.memory, emscripten_resize_heap, …); the single-letter aliases
 // below only matter for an old minified build still sitting in a cache.
 
+import { nowMs } from '../shared/rt/time';
+
 /** WebAssembly page size (64 KiB). */
 const WASM_PAGE_BYTES = 65536;
 
@@ -282,12 +284,7 @@ export interface HyphonNativeImportContext {
   logPrefix?: string;
 }
 
-function getTime(): number {
-  if (typeof performance !== 'undefined' && performance.now) {
-    return performance.now();
-  }
-  return Date.now();
-}
+const getTime = nowMs;
 
 export function createHyphonMemory(
   pages: number | undefined,

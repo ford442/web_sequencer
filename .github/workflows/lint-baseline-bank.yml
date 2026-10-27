@@ -1,0 +1,138 @@
+name: Lint baseline bank
+
+# The lint ratchet (scripts/lint-ratchet.mjs) fails main when a count DROPS
+# without eslint-baseline.json being lowered, so that gains are locked in.
+# This workflow banks them: when main fails the ratchet with ONLY "counts
+# dropped" messages, it lowers the baseline and opens a PR with the diff.
+#
+#   - Any count that went UP leaves main red and opens no PR.
+#   - It never pushes to main; it pushes a chore/lint-ratchet-bank-<sha> branch.
+#   - A newer bank PR supersedes (closes) older open ones, since the baseline
+#     file is a full snapshot.
+#
+# PRs and pushes made with the default GITHUB_TOKEN do not trigger other
+# workflows, so CI will not run on the bank PR. To get CI on it, add a
+# LINT_BANK_TOKEN repository secret (a PAT or GitHub App token with contents
+# and pull-requests write); the workflow uses it when present.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: lint-baseline-bank
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bank:
+    name: Bank ratchet gains
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.LINT_BANK_TOKEN || github.token }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run the lint ratchet
+        id: ratchet
+        run: |
+          set +e
+          pnpm run lint:ratchet 2>&1 | tee "$RUNNER_TEMP/ratchet.log"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "action=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Bank only a clean "counts dropped" failure. "violation counts
+          # increased" is printed instead whenever any rule rose, and exit 2
+          # means ESLint produced no report: both leave main red.
+          if [ "$status" -eq 1 ] \
+            && grep -q 'lint-ratchet: counts dropped' "$RUNNER_TEMP/ratchet.log" \
+            && ! grep -q 'violation counts increased' "$RUNNER_TEMP/ratchet.log"; then
+            echo "action=bank" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "action=fail" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Bank the gains in a PR
+        if: steps.ratchet.outputs.action == 'bank'
+        env:
+          GH_TOKEN: ${{ secrets.LINT_BANK_TOKEN || github.token }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          branch="chore/lint-ratchet-bank-${short}"
+          title="chore(lint): bank ratchet gains from ${short}"
+
+          git show HEAD:eslint-baseline.json > "$RUNNER_TEMP/baseline.before.json"
+          pnpm run lint:ratchet:update
+
+          # The update refuses to raise a count; check the file as well.
+          node - "$RUNNER_TEMP/baseline.before.json" eslint-baseline.json "$RUNNER_TEMP/body.md" <<'NODE'
+          const fs = require('node:fs');
+          const [beforePath, afterPath, bodyPath] = process.argv.slice(2);
+          const before = JSON.parse(fs.readFileSync(beforePath, 'utf8'));
+          const after = JSON.parse(fs.readFileSync(afterPath, 'utf8'));
+          const rows = [];
+          for (const rule of Object.keys(after).sort()) {
+            const was = before[rule] ?? 0;
+            if (after[rule] > was) {
+              console.error(`refusing to bank: ${rule} went up (${was} -> ${after[rule]})`);
+              process.exit(1);
+            }
+            if (after[rule] < was) rows.push(`| \`${rule}\` | ${was} | ${after[rule]} | -${was - after[rule]} |`);
+          }
+          if (rows.length === 0) {
+            console.error('nothing to bank');
+            process.exit(1);
+          }
+          fs.writeFileSync(
+            bodyPath,
+            [
+              `Locks in lint ratchet gains observed on \`main\` at ${process.env.GITHUB_SHA}.`,
+              '',
+              '| Rule | Before | After | Change |',
+              '| --- | ---: | ---: | ---: |',
+              ...rows,
+              '',
+              'Only `eslint-baseline.json` changes, and only downward. Opened by `.github/workflows/lint-baseline-bank.yml`.',
+              '',
+            ].join('\n'),
+          );
+          NODE
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          git add eslint-baseline.json
+          git commit -m "$title"
+          git push origin "$branch"
+
+          gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+
+          # The baseline is a full snapshot, so older open bank PRs are stale.
+          gh pr list --state open --limit 100 --json number,headRefName \
+            --jq ".[] | select(.headRefName | startswith(\"chore/lint-ratchet-bank-\")) | select(.headRefName != \"$branch\") | .number" |
+            while read -r number; do
+              gh pr close "$number" --comment "Superseded by $branch." --delete-branch
+            done

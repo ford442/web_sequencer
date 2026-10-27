@@ -210,6 +210,51 @@ const REQUIRED_WORKLET_PROCESSORS = [
 const distJsFiles = walk(distDir).filter((p) => p.endsWith('.js') && !p.endsWith('.map'));
 const distJsBundle = distJsFiles.map((p) => fs.readFileSync(p, 'utf8')).join('\n');
 
+// ---------------------------------------------------------------------------
+// Which dist chunks are AudioWorklet chunks?
+//
+// By ENTRY, not by content. A worklet chunk is the chunk Vite emits for a
+// module in src/audio-worklets/** that the app imports with `?worker&url`, and
+// it is named `<module>-<hash>.js`. Matching `registerProcessor(` in the chunk
+// text instead flags any chunk that merely CONTAINS that call as a string —
+// src/agent/liveCapture.ts keeps a recorder worklet as a Blob-URL source
+// string, so the AgentBridge UI chunk matched and (rightly, for a real worklet)
+// failed the self-containment check below (#1468 hid the call instead).
+//
+// `import('…?worker&url')` also emits a tiny pointer module with the same
+// `<module>-<hash>.js` name, `new URL('<real chunk>', import.meta.url).href`.
+// It is an ordinary app chunk that exports a string, not a worklet, so it is
+// skipped.
+function workletEntryStems(srcDir) {
+  const stems = new Set();
+  const re = /audio-worklets\/(?:[\w.-]+\/)*([\w.-]+?)\.[cm]?[jt]sx?\?(?:worker&url|url&worker)\b/g;
+  for (const p of walk(srcDir)) {
+    if (!/\.[cm]?[jt]sx?$/.test(p) || /__tests__|\.(?:test|spec)\./.test(p)) continue;
+    for (const m of fs.readFileSync(p, 'utf8').matchAll(re)) stems.add(m[1]);
+  }
+  return stems;
+}
+
+/** `clock-processor-CvqZoyVl.js` -> `clock-processor`; unhashed names pass through. */
+function chunkStem(file) {
+  return /^(.+?)(?:-[A-Za-z0-9_-]{8})?\.js$/.exec(path.basename(file))?.[1] ?? null;
+}
+
+/** The `?worker&url` pointer module: exports a URL built from import.meta.url. */
+function isWorkletUrlPointer(source) {
+  return /import\.meta\.url/.test(source) && !/(^|[^\w.$])registerProcessor\s*\(/.test(source);
+}
+
+function findWorkletChunks(jsFiles, stems) {
+  return jsFiles.filter((p) => {
+    const stem = chunkStem(p);
+    return stem !== null && stems.has(stem) && !isWorkletUrlPointer(fs.readFileSync(p, 'utf8'));
+  });
+}
+
+const WORKLET_ENTRY_STEMS = workletEntryStems(path.join(repoRoot, 'src'));
+const workletChunks = findWorkletChunks(distJsFiles, WORKLET_ENTRY_STEMS);
+
 const missingProcessors = REQUIRED_WORKLET_PROCESSORS.filter(
   (name) => !distJsBundle.includes(name),
 );
@@ -251,17 +296,30 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
 // Emscripten glue's template strings like `import ${e.module}.${e.name}`,
 // which have no from-clause.
 {
-  // The chunk that calls registerProcessor() is the one the worklet loads.
-  const workletChunks = distJsFiles.filter((p) =>
-    /(^|[^\w.$])registerProcessor\s*\(/.test(fs.readFileSync(p, 'utf8')),
-  );
+  if (WORKLET_ENTRY_STEMS.size === 0) {
+    console.error(
+      '[check-release-dist] found no `?worker&url` worklet imports under src/ — ' +
+      'the entry scan is broken, so no chunk could be checked.',
+    );
+    process.exit(1);
+  }
 
   if (workletChunks.length < REQUIRED_WORKLET_PROCESSORS.length) {
     console.error(
       `[check-release-dist] expected at least ${REQUIRED_WORKLET_PROCESSORS.length} worklet chunk(s) ` +
-      `calling registerProcessor(), found ${workletChunks.length}. A worklet was probably inlined ` +
-      'into a shared chunk, which makes it unloadable in a worklet scope.',
+      `emitted for ?worker&url entries in src/audio-worklets/, found ${workletChunks.length}. ` +
+      'A worklet was probably inlined into a shared chunk, which makes it unloadable in a worklet scope.',
     );
+    process.exit(1);
+  }
+
+  // An entry chunk that never registers a processor is not a worklet the app can use.
+  const silent = workletChunks.filter(
+    (p) => !/(^|[^\w.$])registerProcessor\s*\(/.test(fs.readFileSync(p, 'utf8')),
+  );
+  if (silent.length) {
+    console.error('[check-release-dist] worklet entry chunk(s) never call registerProcessor():');
+    for (const p of silent) console.error(`  ${path.relative(distDir, p)}`);
     process.exit(1);
   }
 
@@ -634,9 +692,22 @@ if (rawTsInDist.length) {
   process.exit(1);
 }
 
+// The standalone JC-303 world (public/jc303-{single,threaded}*, the legacy
+// public/jc303.{js,wasm} + jc303_worklet.js) is retired: JC303 runs inside
+// hyphon_native. A stale copy left in public/ would otherwise ship unreferenced.
+// public/osc/jc303.webp is UI art and is not matched.
+{
+  const staleJc303 = walk(distDir).filter((p) => /^jc303.*\.(js|wasm)$/i.test(path.basename(p)));
+  if (staleJc303.length) {
+    console.error('[check-release-dist] dist/ ships retired standalone JC-303 artifacts (delete them from public/):');
+    for (const p of staleJc303) console.error(`  ${path.relative(repoRoot, p)}`);
+    process.exit(1);
+  }
+}
+
 // Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
 // dist/assets/ — the directory Vite's bundler actually controls. Vendored
-// native binaries (hyphon_native*, jc303*, rubberband.wasm, mix_bus.wasm) and the vendored
+// native binaries (hyphon_native*, rubberband.wasm, mix_bus.wasm) and the vendored
 // Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
 // here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by
@@ -797,9 +868,6 @@ if (budget) {
       }
     }
 
-    const workletChunks = distJsFiles.filter((p) =>
-      /(^|[^\w.$])registerProcessor\s*\(/.test(fs.readFileSync(p, 'utf8')),
-    );
     const largestWorklet = workletChunks
       .map((p) => ({ p, size: brotli(p) }))
       .sort((a, b) => b.size - a.size)[0];

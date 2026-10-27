@@ -3,6 +3,8 @@
 // writer of `ort.env` — see src/services/ortRuntime.ts.
 import type * as ort from 'onnxruntime-web';
 import { loadOrt, type Ort } from './ortRuntime';
+import { fetchPublicArrayBuffer, fetchPublicJson, isMissingPublicAsset } from '../utils/publicAsset';
+import { resolvePublicAsset } from '../utils/engineTelemetry';
 
 interface StyleData {
     style_ttl: { data: number[], dims: number[] };
@@ -89,6 +91,7 @@ export class SupertonicService {
     private preloadManifest: boolean[] = new Array(8).fill(false);
     private isPreloading = false;
     private lastTokenDurations: number[] | null = null;
+    private unavailableReason: string | null = null;
 
     private constructor() { }
 
@@ -107,23 +110,13 @@ export class SupertonicService {
 
             console.log("Supertonic: Loading Config...");
 
-            // Helper to handle relative paths correctly in deployment
-            const getAssetUrl = (path: string) => {
-                const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-                return import.meta.env.BASE_URL + cleanPath;
-            };
-
-            const cfgRes = await fetch(getAssetUrl('assets/onnx/tts.json'));
-            if (!cfgRes.ok) {
-                throw new Error(`Failed to load tts.json: ${cfgRes.status} ${cfgRes.statusText}`);
-            }
-            this.cfgs = await cfgRes.json();
-
-            const idxRes = await fetch(getAssetUrl('assets/onnx/unicode_indexer.json'));
-            if (!idxRes.ok) {
-                throw new Error(`Failed to load unicode_indexer.json: ${idxRes.status} ${idxRes.statusText}`);
-            }
-            const indexer = await idxRes.json();
+            // The model files are downloaded separately (download_models.sh) and
+            // gitignored. fetchPublicJson / fetchPublicArrayBuffer turn a missing
+            // file — including the SPA answering with index.html — into a
+            // MissingPublicAssetError, so a clean checkout is "TTS off", not a
+            // JSON parse error.
+            this.cfgs = await fetchPublicJson<TTSConfig>('assets/onnx/tts.json');
+            const indexer = await fetchPublicJson<number[]>('assets/onnx/unicode_indexer.json');
             this.textProcessor = new UnicodeProcessor(indexer);
 
             console.log("Supertonic: Loading Models with WebGPU...");
@@ -137,17 +130,20 @@ export class SupertonicService {
                 graphOptimizationLevel: 'all'
             };
 
-            // Parallel loading is faster than sequential await
+            // Fetch the bytes ourselves so a missing model is detected before
+            // ORT tries to parse an HTML page as protobuf. Parallel is faster.
+            // ORT accepts the model bytes; the bundled type defs only declare the URL overload.
+            const createFromBytes = ort.InferenceSession.create as unknown as
+                (model: Uint8Array, options: unknown) => Promise<ort.InferenceSession>;
+            const load = async (file: string) => createFromBytes(
+                new Uint8Array(await fetchPublicArrayBuffer(`assets/onnx/${file}`)),
+                sessionOptions,
+            );
             const [dp, textEnc, vecEst, vocoder] = await Promise.all([
-                // @ts-ignore - signature mismatch in current type defs
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/duration_predictor.onnx'), sessionOptions),
-                // @ts-ignore
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/text_encoder.onnx'), sessionOptions),
-                // @ts-ignore
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/vector_estimator.onnx'), sessionOptions),
-                // @ts-ignore
-                ort.InferenceSession.create(getAssetUrl('assets/onnx/vocoder.onnx'), sessionOptions)
-
+                load('duration_predictor.onnx'),
+                load('text_encoder.onnx'),
+                load('vector_estimator.onnx'),
+                load('vocoder.onnx'),
             ]);
 
             this.models.dp = dp;
@@ -157,18 +153,30 @@ export class SupertonicService {
 
             // Load Default Style
             try {
-                await this.loadStyle(getAssetUrl('assets/voice_styles/F1.json'));
+                await this.loadStyle(resolvePublicAsset('assets/voice_styles/F1.json'));
                 console.log('✓ Loaded default voice style: F1');
             } catch (e) {
                 console.warn('Could not load default style F1.json', e);
             }
 
             this.isReady = true;
+            this.unavailableReason = null;
             console.log("Supertonic: Ready (WebGPU Enabled)");
         } catch (e) {
-            console.error("❌ Supertonic Init Failed:", e);
             this.isReady = false;
+            if (isMissingPublicAsset(e)) {
+                this.unavailableReason = `${e.message}; run download_models.sh`;
+                console.info(`Supertonic: TTS off — ${this.unavailableReason}`);
+            } else {
+                this.unavailableReason = e instanceof Error ? e.message : String(e);
+                console.error("❌ Supertonic Init Failed:", e);
+            }
         }
+    }
+
+    /** Why TTS is off after `init()`, or null while it is ready (or not tried yet). */
+    getUnavailableReason(): string | null {
+        return this.isReady ? null : this.unavailableReason;
     }
 
     async loadStyle(url: string) {
@@ -176,7 +184,10 @@ export class SupertonicService {
         this.ortMod = ort;
 
         const res = await fetch(url);
-        const json: StyleData = await res.json();
+        if (!res.ok) throw new Error(`Failed to load style ${url}: HTTP ${res.status}`);
+        const text = await res.text();
+        if (text.trimStart().startsWith('<')) throw new Error(`Style ${url} not found (HTML page)`);
+        const json = JSON.parse(text) as StyleData;
 
         const ttlFlat = new Float32Array(json.style_ttl.data.flat(Infinity) as number[]);
         const dpFlat = new Float32Array(json.style_dp.data.flat(Infinity) as number[]);

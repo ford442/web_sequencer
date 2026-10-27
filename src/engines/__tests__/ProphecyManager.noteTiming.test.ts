@@ -20,7 +20,7 @@ const oscillator = vi.hoisted(() => ({
 vi.mock('../ProphecyOscillator', () => ({
   ProphecyOscillator: class {
     isReady = true;
-    init = vi.fn(async () => true);
+    init = vi.fn(() => Promise.resolve(true));
     noteOn = oscillator.noteOn;
     noteOff = oscillator.noteOff;
   },

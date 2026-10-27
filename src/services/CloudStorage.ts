@@ -1,6 +1,6 @@
 // src/services/CloudStorage.ts
 // VPS Storage Manager API Integration
-// Base URL: https://storage.noahcohn.com:8000
+// Base URL: https://storage.noahcohn.com (nginx on 443 proxies /api/ to the backend)
 
 import type { SavedSongData } from '../types';
 
@@ -8,7 +8,9 @@ import type { SavedSongData } from '../types';
 // API CONFIGURATION
 // =============================================================================
 
-export const API_BASE_URL = "https://storage.noahcohn.com:8000";
+// Served through nginx on 443. Port 8000 is the backend's plain-HTTP listener and
+// is not TLS-enabled, so browsers fail it with net::ERR_SSL_PROTOCOL_ERROR.
+export const API_BASE_URL = "https://storage.noahcohn.com";
 export const DEFAULT_TIMEOUT_MS = 15000;
 export const MAX_RETRIES = 3;
 export const INITIAL_RETRY_DELAY_MS = 1000;

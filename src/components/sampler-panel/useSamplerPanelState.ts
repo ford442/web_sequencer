@@ -106,8 +106,8 @@ export function useSamplerPanelState({
         case 'stretchProfile': {
           const node = voice.getSourceNode();
           if (node && 'port' in node) {
-            noteBankStretchProfile(node as AudioWorkletNode, String(value));
-            (node as AudioWorkletNode).port.postMessage({
+            noteBankStretchProfile(node, String(value));
+            node.port.postMessage({
               type: 'setStretchProfile',
               data: { profile: value },
             });
@@ -117,7 +117,7 @@ export function useSamplerPanelState({
         case 'lockToSequencer': {
           const node2 = voice.getSourceNode();
           if (node2 && 'port' in node2) {
-            (node2 as AudioWorkletNode).port.postMessage({
+            node2.port.postMessage({
               type: 'setAutoFollow',
               enabled: value as boolean,
             });
@@ -165,6 +165,12 @@ export function useSamplerPanelState({
     if (onParamChange) onParamChange(activeBankIdx, 'dynamicChops', newVal);
     else updateParamRef.current('dynamicChops', newVal);
   }, [activeBankIdx, currentParams.dynamicChops, onParamChange]);
+
+  const handleVowelSamplesToggle = useCallback(() => {
+    const newVal = !currentParams.useVowelSamplesOnLongNotes;
+    if (onParamChange) onParamChange(activeBankIdx, 'useVowelSamplesOnLongNotes', newVal);
+    else updateParamRef.current('useVowelSamplesOnLongNotes', newVal);
+  }, [activeBankIdx, currentParams.useVowelSamplesOnLongNotes, onParamChange]);
 
   useEffect(() => {
     if (audioEngine?.setSustainMode && currentParams.mode) {
@@ -401,6 +407,7 @@ export function useSamplerPanelState({
     handleGrainSizeChange,
     handleSliceModeToggle,
     handleDynamicChopsToggle,
+    handleVowelSamplesToggle,
     loadBufferToBank,
     currentTtsText,
     setCurrentTtsText,

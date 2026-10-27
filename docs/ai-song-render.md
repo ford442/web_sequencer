@@ -102,9 +102,9 @@ part is buried.
 Strict mode turns every importer warning into an error, so nothing the agent
 wrote is dropped without it being told: a note on step 40, an unparseable
 note name, a pattern the song never plays — and an automation lane live
-playback never dispatches (`automation kick.decay is saved but never plays: the
-scheduler routes no kick lanes.`; see
-[Which lanes actually reach an engine](ai-song-format.md#which-lanes-actually-reach-an-engine)).
+playback never dispatches (`automation[0] kick.decay is saved but never plays:
+the scheduler routes no kick lanes.`) or a harmonizer nothing attaches. Which
+lanes play: [Which lanes actually reach an engine](ai-song-format.md#which-lanes-actually-reach-an-engine).
 `--no-strict` loads the song anyway and lists the warnings.
 
 ## `--engine303`

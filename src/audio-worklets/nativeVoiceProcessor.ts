@@ -15,15 +15,8 @@
 
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from './hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeInitData, type HyphonNativeSession } from './hyphonNativeSession';
-import type { HyphonNativeExports, VoiceHandle, WasmPtr } from './hyphonNativeExports';
+import type { HyphonNativeExports, VoiceHandle, WasmPtr } from '../shared/rt/hyphonNativeExports';
 import { WorkletPerfReporter } from './workletPerfReporter';
-
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
-}
-declare const currentFrame: number | undefined;
-declare const sampleRate: number | undefined;
 
 const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
 
@@ -35,16 +28,16 @@ export type NativeVoicePrefix = (typeof VOICE_PREFIXES)[number];
  * message handler look them up without building a string on the audio thread.
  */
 const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
-    pushEvent: `${p}_push_event`,
-    render: `${p}_render`,
-    cancelNotes: `${p}_cancel_notes`,
-    flush: `${p}_flush`,
-}])) as Record<NativeVoicePrefix, { pushEvent: string; render: string; cancelNotes: string; flush: string }>;
+    pushEvent: `${p}_push_event` as keyof HyphonNativeExports,
+    render: `${p}_render` as keyof HyphonNativeExports,
+    cancelNotes: `${p}_cancel_notes` as keyof HyphonNativeExports,
+    flush: `${p}_flush` as keyof HyphonNativeExports,
+}])) as Record<NativeVoicePrefix, { pushEvent: keyof HyphonNativeExports; render: keyof HyphonNativeExports; cancelNotes: keyof HyphonNativeExports; flush: keyof HyphonNativeExports }>;
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
-    readonly prefix: NativeVoicePrefix;
-    readonly handle: VoiceHandle;
+    prefix: NativeVoicePrefix;
+    handle: VoiceHandle;
 }
 
 type PushEvent = (h: VoiceHandle, frame: number, type: number, target: number, value: number,
@@ -82,8 +75,8 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
     }
 
     /** The session's exports, typed. Only meaningful once a session is attached. */
-    protected get x(): HyphonNativeExports {
-        return (this.native?.exports ?? {}) as HyphonNativeExports;
+    protected get x(): HyphonNativeExports & Record<string, (...args: never[]) => unknown> {
+        return (this.native?.exports ?? {}) as HyphonNativeExports & Record<string, (...args: never[]) => unknown>;
     }
 
     // ── Session ──────────────────────────────────────────────────────────────

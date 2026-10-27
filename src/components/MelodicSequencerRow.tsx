@@ -160,7 +160,8 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
           if (stepData?.pitch !== undefined) {
               pitch = stepData.pitch;
           } else if (stepData?.note) {
-              pitch = noteToMidi(stepData.note);
+              // Display only: an unparseable name draws at the default height.
+              pitch = noteToMidi(stepData.note) ?? 60;
           }
 
           const phonemeIndex = stepData?.sliceIndex; // Use sliceIndex as phoneme index

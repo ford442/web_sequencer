@@ -51,7 +51,7 @@ export interface SingingVoiceMixinMethods {
  * SingingVoice implements this with protected fields.
  */
 export interface SingingVoiceHost extends SingingVoiceMixinMethods {
-  audioContext: AudioContext;
+  audioContext: BaseAudioContext;
   workletNode: AudioWorkletNode | null;
   /** Drops this node's worklet-perf telemetry; set by `initWorklet`. */
   detachWorkletPerf: (() => void) | null;

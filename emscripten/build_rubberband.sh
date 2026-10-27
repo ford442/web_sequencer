@@ -91,8 +91,10 @@ if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3"
     LINK_PROFILE_FLAGS="-O1 -g3 -gsource-map -s ASSERTIONS=2"
 else
-    OPT_FLAGS="-O3 -funroll-loops"
-    LINK_PROFILE_FLAGS="-O1 -s ASSERTIONS=0"
+    # Same release profile as hyphon_native (BUILD_NOTES#wasm-opt): the -O1 link
+    # was the emsdk 3.1.51 wasm-opt workaround, lifted on the 6.0.9 pin.
+    OPT_FLAGS="-O3 -funroll-loops -flto"
+    LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"
 fi
 
 GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"

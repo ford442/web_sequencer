@@ -47,7 +47,7 @@ export class PitchController {
     // Pitch envelope (amount in semitones, envelope 0..1)
     const pitchAmount = param(parameters, 'pitchAmount', 0.0);
     if (pitchAmount !== 0.0 && ctx.pitchEnvelopeValue > 0.0) {
-      finalPitch *= Math.pow(2.0, (pitchAmount * ctx.pitchEnvelopeValue) / 12.0);
+      finalPitch *= Math.exp(((pitchAmount * ctx.pitchEnvelopeValue) / 12.0) * Math.LN2);
     }
 
     // Granular pitch shift, plus its envelope (maps 0..1 to up to 24 st)
@@ -57,14 +57,14 @@ export class PitchController {
       granularPitchShift += 24.0 * grainPitchEnvDepth * ctx.pitchEnvelopeValue;
     }
     if (granularPitchShift !== 0.0) {
-      finalPitch *= Math.pow(2.0, granularPitchShift / 12.0);
+      finalPitch *= Math.exp((granularPitchShift / 12.0) * Math.LN2);
     }
 
     // Phoneme pitch bend and per-phoneme microtonal variance
     if (ctx.playing && ctx.phoneme) {
       const pBend = ctx.phoneme[2];
       if (pBend !== 0.0) {
-        finalPitch *= Math.pow(2.0, pBend / 1200.0);
+        finalPitch *= Math.exp((pBend / 1200.0) * Math.LN2);
       }
 
       const microtonalVariance = param(parameters, 'microtonalVariance', 0.0);
@@ -74,7 +74,7 @@ export class PitchController {
         let variation = Math.sin(phonemeIndex * 12.9898 + 78.233) * 43758.5453;
         variation = variation - Math.floor(variation);
         variation = (variation * 2.0) - 1.0;
-        finalPitch *= Math.pow(2.0, (variation * microtonalVariance) / 1200.0);
+        finalPitch *= Math.exp(((variation * microtonalVariance) / 1200.0) * Math.LN2);
       }
     }
 
@@ -86,7 +86,7 @@ export class PitchController {
       const grainPitchQuantize = param(parameters, 'grainPitchQuantize', 0.0);
       if (grainPitchQuantize > 0.0 && finalPitch > 0.0) {
         const semitones = 12.0 * Math.log2(finalPitch);
-        finalPitch = Math.pow(2.0, (Math.round(semitones / grainPitchQuantize) * grainPitchQuantize) / 12.0);
+        finalPitch = Math.exp(((Math.round(semitones / grainPitchQuantize) * grainPitchQuantize) / 12.0) * Math.LN2);
       }
     }
 
@@ -95,7 +95,7 @@ export class PitchController {
       const detectedFreq = ctx.sampleRate / this.outSmoothedPeriod;
       if (detectedFreq > 20 && detectedFreq < 20000) {
         const nearestMidiNote = Math.round(12.0 * Math.log2(detectedFreq / 440.0) + 69.0);
-        const targetFreq = 440.0 * Math.pow(2.0, (nearestMidiNote - 69.0) / 12.0);
+        const targetFreq = 440.0 * Math.exp(((nearestMidiNote - 69.0) / 12.0) * Math.LN2);
         finalPitch *= (1.0 - autoTune) + (autoTune * (targetFreq / detectedFreq));
       }
     }

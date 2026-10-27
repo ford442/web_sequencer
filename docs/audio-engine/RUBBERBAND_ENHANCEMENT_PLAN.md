@@ -293,6 +293,12 @@ const ttsWorkers = Array(4).fill(new Worker('tts-worker.js'));
 
 Blend TTS with real vocal samples for critical notes.
 
+> **Shipped (V2, 2026-10-27).** `src/engines/rubberband/ConcatenativeHybrid.ts`
+> plans it, the live trigger and the offline vocal host play it. See
+> `docs/tts/VOCAL_WORKSTATION_PLAN.md` → V2. The sketch below is the original
+> design note; the pitch-matching and stretch happen in the Rubber Band worklet,
+> not in a TS crossfade of two buffers.
+
 ### Implementation
 
 ```typescript

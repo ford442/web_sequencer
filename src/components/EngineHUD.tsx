@@ -368,7 +368,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
         : '<span title="Cannot be rendered in an OfflineAudioContext — track freeze is unavailable for this slot" style="color:#fbbf24">no freeze</span>';
       const mounted = slot.status === 'ready' || slot.status === 'bypassed';
       const bypassLabel = slot.status === 'bypassed' ? 'Unbypass' : 'Bypass';
-      const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button>`;
+      const controls = `<button type="button" aria-label="${bypassLabel} slot ${slot.slotId}" class="hud-wam-bypass" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>${bypassLabel}</button><button type="button" aria-label="Restart slot ${slot.slotId}" class="hud-wam-restart" data-slot="${slot.slotId}">Restart</button><button type="button" aria-label="Edit slot ${slot.slotId}" class="hud-wam-edit" data-slot="${slot.slotId}" ${mounted ? '' : 'disabled'}>Edit</button>`;
       return `<div class="row"${err}><div class="badge backend-wam2">wam2</div><div style="flex:1">${slot.slotId}<div style="font-size:10px;opacity:0.7">${slot.packageId}@${slot.version} · ${slot.origin} · ${freeze}</div></div><div class="${cls}" style="min-width:72px;text-align:right">${slot.status}</div><div style="width:48px;text-align:right" title="${slot.cpuPercent == null ? 'no per-slot meter (plugin exposes none)' : 'plugin-reported DSP load'}">${slot.cpuPercent == null ? '—' : `${slot.cpuPercent.toFixed(0)}%`}</div><div style="width:56px;text-align:right">${slot.latencyMs.toFixed(1)}ms</div><div class="hud-wam-actions">${controls}</div></div>`;
     }).join('');
     const coop = runtime.wam2Constraints
@@ -386,6 +386,14 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   container.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+    if (target.classList.contains('hud-wam-edit')) {
+      const slotId = target.getAttribute('data-slot');
+      const host = getWamHost();
+      if (!slotId || !host) return;
+      // The descriptor-driven editor (ADR 0001); lazy so the HUD stays small.
+      void import('./openWam2Editor').then(({ openWam2Editor }) => openWam2Editor(host, slotId));
+      return;
+    }
     if (target.classList.contains('hud-wam-bypass') || target.classList.contains('hud-wam-restart')) {
       const slotId = target.getAttribute('data-slot');
       const host = getWamHost();

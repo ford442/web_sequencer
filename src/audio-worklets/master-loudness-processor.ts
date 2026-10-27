@@ -18,22 +18,6 @@ import type {
     MasterLoudnessCommand,
 } from '../audio/loudness/types';
 
-declare class AudioWorkletProcessor {
-    readonly port: MessagePort;
-    constructor(options?: unknown);
-    process(
-        inputs: Float32Array[][],
-        outputs: Float32Array[][],
-        parameters: Record<string, Float32Array>,
-    ): boolean;
-}
-
-declare function registerProcessor(
-    name: string,
-    processorCtor: new (options?: unknown) => AudioWorkletProcessor,
-): void;
-declare const sampleRate: number;
-
 const DEFAULT_REPORT_HZ = 24;
 const MAX_REPORT_HZ = 30;
 const CHANNEL_COUNT = 2;

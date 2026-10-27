@@ -17,6 +17,9 @@ import { acquireHyphonNativeSession, type HyphonNativeSession } from '../hyphonN
 import { resolveWorkletSampleRate } from '../../utils/workletSampleRate';
 import { SynthState, type SynthStateType, getTime } from './shared';
 
+/** The module lacks the voice API — deterministic, so never retried. */
+class MissingExportsError extends Error {}
+
 export class Open303EngineSession {
     /** Shared per-audio-session instance; this processor only owns handles on it. */
     private native: HyphonNativeSession | null = null;
@@ -195,6 +198,10 @@ export class Open303EngineSession {
                 console.warn(`[Open303] Init attempt ${this.initAttempts} failed:`, errorMsg);
                 this.lastErrorMessage = errorMsg;
 
+                // The same bytes and map fail the same way every time; a retry
+                // only recompiles the module on the audio thread.
+                if (e instanceof MissingExportsError) break;
+
                 // Small delay before retry to let stack/heap settle
                 // Note: AudioWorklet doesn't have setTimeout, so we use a simple spin wait
                 if (this.initAttempts < Open303EngineSession.MAX_INIT_ATTEMPTS) {
@@ -209,7 +216,7 @@ export class Open303EngineSession {
         // All attempts failed
         console.error('[Open303] All initialization attempts failed');
         this.synthState = SynthState.FAILED;
-        this.errorMessage.error = `Failed to initialize after ${Open303EngineSession.MAX_INIT_ATTEMPTS} attempts. Last error: ${this.lastErrorMessage}`;
+        this.errorMessage.error = `Failed to initialize after ${this.initAttempts} attempt(s). Last error: ${this.lastErrorMessage}`;
         this.errorMessage.recoverable = false;
         this.port.postMessage(this.errorMessage);
     }
@@ -239,7 +246,7 @@ export class Open303EngineSession {
         // 4. Verify exports: the open303 voice on the voice core's event API.
         const exports = this.getExports();
         if (!hasOpen303Api(exports)) {
-            throw new Error(
+            throw new MissingExportsError(
                 'Missing required open303_* exports. ' +
                 formatMissingWasmExports(rawExports, [...OPEN303_REQUIRED_WASM_EXPORTS]),
             );

@@ -74,6 +74,7 @@ export const AISongModal = React.memo(function AISongModal({
               hasErrors={modal.hasErrors}
               isValid={modal.isValid}
               parsedData={modal.parsedData}
+              importWarnings={modal.importWarnings}
               isDragging={modal.isDragging}
               droppedFiles={modal.droppedFiles}
               showFixSuccess={modal.showFixSuccess}

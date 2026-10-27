@@ -21,7 +21,7 @@ export const CloudStatus: React.FC = React.memo(() => {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 5000);
 
-            const res = await fetch(API_BASE_URL, { signal: controller.signal });
+            const res = await fetch(`${API_BASE_URL}/api/health`, { signal: controller.signal });
             clearTimeout(timeout);
 
             if (res.ok) {
@@ -114,10 +114,12 @@ export const CloudStatus: React.FC = React.memo(() => {
 
     return (
         <div className="mr-2 min-h-[24px]">
-            <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
                 {statusText}
+            </span>
+            <div aria-hidden="true">
+                {content}
             </div>
-            {content}
         </div>
     );
 });

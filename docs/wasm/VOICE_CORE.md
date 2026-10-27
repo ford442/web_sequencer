@@ -166,7 +166,7 @@ Engine switches in the 303 worklet quiesce the voices that stop rendering:
 `*_cancel_notes`, then `*_flush` (pending params land now instead of replaying
 stale when the engine comes back), then the immediate `*_all_notes_off`.
 
-`src/audio-worklets/hyphonNativeExports.ts` is **generated**
+`src/shared/rt/hyphonNativeExports.ts` is **generated**
 (`pnpm run gen:native-types`, `tools/gen_hyphon_native_types.mjs`) from the
 manifest, the `EMSCRIPTEN_KEEPALIVE` prototypes, the macro and the event enums;
 `wasmExportManifest.voices.test.ts` fails when it is stale.

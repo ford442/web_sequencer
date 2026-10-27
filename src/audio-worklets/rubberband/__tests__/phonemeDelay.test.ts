@@ -118,16 +118,20 @@ describe('PhonemeDelay', () => {
     const [l, r] = render(delay, 3000, 1, 1, () => vowel, (b, i) => (b === 0 && i === 0 ? 1 : b === 1 && i === 5 ? NaN : 0));
     const MIN_NORMAL = 1.1754943508222875e-38;
 
-    let hasNaN = false;
-    let hasDenormal = false;
+    const hasNaN = false;
+    const hasDenormal = false;
 
     for (const ch of [l, r]) {
+      let hasNaN = false;
+      let hasDenormal = false;
       for (let i = 0; i < ch.length; i++) {
         if (i === BLOCK + 5) continue; // the NaN sample itself passes through dry
         const x = ch[i];
         if (!Number.isFinite(x)) hasNaN = true;
         if (x !== 0 && Math.abs(x) < MIN_NORMAL) hasDenormal = true;
       }
+      expect(hasNaN).toBe(false);
+      expect(hasDenormal).toBe(false);
     }
 
     expect(hasNaN).toBe(false);

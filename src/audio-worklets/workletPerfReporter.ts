@@ -3,8 +3,7 @@
  * Throttles metrics to the main thread via MessagePort (~10 Hz).
  */
 
-declare const sampleRate: number;
-declare const currentFrame: number;
+import { nowMs } from '../shared/rt/time';
 
 export const WORKLET_PERF_MSG_TYPE = 'worklet-perf' as const;
 
@@ -53,10 +52,7 @@ export function resetWorkletSampleRateFallbackForTests(): void {
 }
 
 function nowUs(): number {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-    return performance.now() * 1000;
-  }
-  return Date.now() * 1000;
+  return nowMs() * 1000;
 }
 
 export class WorkletPerfReporter {

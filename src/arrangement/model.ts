@@ -12,6 +12,8 @@ import type { Arrangement, ArrangementClip } from '@/types/song';
 import type { SongMeasure, SongStructure } from '@/types/songMode';
 import { createEmptyMeasure } from '@/utils/songModeEditing';
 import { MAX_TRACK_PATTERN_SLOT_INDEX } from '@/utils/trackStorageUtils';
+import type { UnifiedAutomationLane } from '@/types/automation';
+import { normalizeClipLanes, shiftClipLanes } from './clipLanes';
 
 /** Measures a new song's Song Mode grid starts with. */
 export const DEFAULT_ARRANGEMENT_MEASURES = 16;
@@ -69,7 +71,8 @@ export function newClipId(arrangement: Arrangement): string {
 
 /**
  * Remove `[from, to)` from one track's clips: inside clips go, straddling clips
- * are trimmed or split. Head trims bump `offsetSteps` so the notes stay put.
+ * are trimmed or split. Head trims bump `offsetSteps` so the notes stay put,
+ * and shift clip lanes by the same amount so the automation stays put too.
  */
 function cutTrackRange(
     clips: readonly ArrangementClip[],
@@ -99,6 +102,7 @@ function cutTrackRange(
                 lengthSteps: end - to,
                 offsetSteps: offset + (to - start),
             };
+            if (clip.lanes) tail.lanes = shiftClipLanes(clip.lanes, to - start);
             // A split keeps the id on the left half; the right half is new.
             if (start < from) tail.id = nextId();
             out.push(tail);
@@ -141,7 +145,29 @@ export function updateClip(
     const next = { ...clip, ...patch };
     next.startStep = Math.max(0, Math.round(next.startStep));
     next.lengthSteps = Math.max(1, Math.round(next.lengthSteps));
+    // A head trim moves `offsetSteps` and the lane origin together (#1494),
+    // unless the patch brings its own lanes.
+    const headShift = (next.offsetSteps ?? 0) - (clip.offsetSteps ?? 0);
+    if (headShift !== 0 && clip.lanes && patch.lanes === undefined) {
+        next.lanes = shiftClipLanes(clip.lanes, headShift);
+    }
     return placeClip(arrangement, next);
+}
+
+/** Replace a clip's lanes (clip-local steps). One edit, one undo step. */
+export function setClipLanes(
+    arrangement: Arrangement,
+    id: string,
+    lanes: UnifiedAutomationLane[],
+): Arrangement {
+    const index = arrangement.clips.findIndex((c) => c.id === id);
+    if (index < 0) return arrangement;
+    const clip = { ...arrangement.clips[index] };
+    if (lanes.length) clip.lanes = lanes;
+    else delete clip.lanes;
+    const clips = arrangement.clips.slice();
+    clips[index] = clip;
+    return { ...arrangement, clips };
 }
 
 export function removeClip(arrangement: Arrangement, id: string): Arrangement {
@@ -297,6 +323,7 @@ export function normalizeArrangement(raw: unknown): Arrangement | null {
         const lengthSteps = nonNegInt(c.lengthSteps);
         if (!isTrackKey(c.track) || !isSlot(c.patternSlot) || startStep === null || !lengthSteps) continue;
         const offset = nonNegInt(c.offsetSteps);
+        const lanes = normalizeClipLanes(c.lanes);
         valid.push({
             id: typeof c.id === 'string' && c.id ? c.id : '',
             track: c.track,
@@ -305,6 +332,7 @@ export function normalizeArrangement(raw: unknown): Arrangement | null {
             lengthSteps,
             loop: c.loop !== false,
             ...(offset ? { offsetSteps: offset } : {}),
+            ...(lanes ? { lanes } : {}),
         });
     }
     const seen = new Set<string>();

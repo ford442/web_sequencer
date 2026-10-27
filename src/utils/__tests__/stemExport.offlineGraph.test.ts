@@ -72,6 +72,7 @@ vi.mock('../songTimeline', () => ({
 }));
 
 import { exportStemsToZip, type StemExportInput } from '../stemExport';
+import { OfflineVocalUnsupportedError } from '../../audio/offline/vocal/offlineVocalHost';
 import { SAMPLE_RATE_STORAGE_KEY, recordLiveSampleRate } from '../audioContextPolicy';
 
 function fakeBuffer(length: number, sampleRate: number): AudioBuffer {
@@ -112,6 +113,11 @@ function makeInput(): StemExportInput {
             closedHat: {}, openHat: {}, sampler: Array.from({ length: 8 }, () => ({})),
         } as unknown as StemExportInput['params'],
     };
+}
+
+/** sampleName of every bank the dry renderer was asked for. */
+function dryRenderedBanks(): string[] {
+    return renderSamplerBankPattern.mock.calls.map((call: unknown[]) => (call[2] as { sampleName?: string } | undefined)?.sampleName ?? '');
 }
 
 /** metadata.json as the ZIP writer received it. */
@@ -258,20 +264,54 @@ describe('exportStemsToZip sample rate + master routing', () => {
         expect(String(metadata.routingNote)).toContain('no OfflineAudioContext');
     });
 
-    it('reports sampler banks whose live vocal chain the dry stems miss (#1273)', async () => {
+    it('renders a stretch bank through the offline Rubber Band host at the export rate (#1273)', async () => {
+        const alignment = { phonemes: [], sampleRate: 48000, duration: 1, text: 'ah' };
+        timelineSampler.sequences = Array.from({ length: 8 }, (_, bank) => ({
+            steps: bank === 1 ? [{ note: 'C4', velocity: 1 }] : [],
+        }));
+        const input = makeInput();
+        input.params.sampler[1] = { sampleName: 'bank_1', mode: 'stretch', vocalChorus: 0.4 } as never;
+        input.sampleBuffers = [null, fakeBuffer(100, 48000)];
+        input.harmonizerActive = true;
+        const render = vi.fn((req: { sampleRate?: number }) => Promise.resolve(fakeBuffer(44100, req.sampleRate ?? 0)));
+        input.vocal = { alignments: [null, alignment], vowelLibrary: null, render };
+        const onReport = vi.fn();
+
+        await exportStemsToZip(input, { sampleRate: 44100, onReport });
+
+        expect(render).toHaveBeenCalledTimes(1);
+        expect(render.mock.calls[0][0]).toMatchObject({ sampleRate: 44100, alignment, tempo: 120 });
+        expect(dryRenderedBanks()).not.toContain('bank_1');
+        expect(writtenMetadata().stems).toContain('sampler-bank-2');
+        // Rubber Band, vocal FX and phoneme edits are in the bounce; HARM is still live-only.
+        const expected = [{ bank: 1, sampleName: 'bank_1', gaps: ['harmonizer'] }];
+        expect(writtenMetadata().vocalOffline).toEqual(expected);
+        expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ vocalOffline: expected }));
+    });
+
+    it('leaves out a stretch bank the host cannot load instead of shipping it dry', async () => {
         timelineSampler.sequences = Array.from({ length: 8 }, (_, bank) => ({
             steps: bank === 1 ? [{ note: 'C4', velocity: 1, phonemes: [{ id: 'a', symbol: 'AA', start: 0, end: 1, pitchBend: 0, elasticity: 1.3 }] }] : [],
         }));
         const input = makeInput();
         input.params.sampler[1] = { sampleName: 'bank_1', mode: 'stretch', vocalChorus: 0.4 } as never;
-        input.harmonizerActive = true;
-        const onReport = vi.fn();
+        input.sampleBuffers = [null, fakeBuffer(100, 44100)];
+        input.vocal = {
+            vowelLibrary: null,
+            render: () => Promise.reject(new OfflineVocalUnsupportedError('rubberband.wasm unavailable: HTTP 404')),
+        };
 
-        await exportStemsToZip(input, { sampleRate: 44100, onReport });
+        await exportStemsToZip(input, { sampleRate: 44100 });
 
-        const expected = [{ bank: 1, sampleName: 'bank_1', gaps: ['rubber-band', 'vocal-fx', 'phoneme-edits', 'harmonizer'] }];
-        expect(writtenMetadata().vocalOffline).toEqual(expected);
-        expect(onReport).toHaveBeenCalledWith(expect.objectContaining({ vocalOffline: expected }));
+        const metadata = writtenMetadata();
+        expect(metadata.stems).not.toContain('sampler-bank-2');
+        expect(dryRenderedBanks()).not.toContain('bank_1');
+        expect(metadata.vocalOffline).toEqual([{
+            bank: 1,
+            sampleName: 'bank_1',
+            gaps: ['rubber-band', 'vocal-fx', 'phoneme-edits'],
+            unsupportedReason: 'rubberband.wasm unavailable: HTTP 404',
+        }]);
     });
 
     it('reports no vocal gaps when the sampler is muted', async () => {

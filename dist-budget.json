@@ -1,5 +1,5 @@
 {
-  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Mostly scoped to dist/assets/ (the Vite-built JS/CSS/image graph). Of the native binaries outside Vite's bundler only the voice module has rows (`native`, below); jc303*, rubberband.wasm, sample .wav files and the vendored Pyodide runtime (dist/pyodide/) are not budgeted. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
+  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Mostly scoped to dist/assets/ (the Vite-built JS/CSS/image graph). Native binaries outside Vite's bundler have raw-byte rows (`native`, below): the voice module, rubberband.wasm and mix_bus.wasm; sample .wav files and the vendored Pyodide runtime (dist/pyodide/) are not budgeted. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
   "entryChunkMaxBytes": 1650000,
   "imageAssetMaxBytes": 524288,
   "assetsDirMaxBytes": 4500000,
@@ -8,7 +8,7 @@
   ],
   "_procedure": "To raise a budget: change the value in this file in its own reviewed commit, and state in the commit message what grew and why the growth is justified. Never raise a row to make an unrelated PR go green. The compressed rows are the wire cost and are the ones that matter; the raw rows below them are kept because they also bound what a slow device must parse.",
   "compressed": {
-    "_comment": "Brotli-compressed budgets \u2014 the actual wire cost. Measured on the build that introduced them and set ~8% above measured, so the rows ratchet: a real improvement should be banked by lowering the number, not left as slack.",
+    "_comment": "Brotli-compressed budgets — the actual wire cost. Measured on the build that introduced them and set ~8% above measured, so the rows ratchet: a real improvement should be banked by lowering the number, not left as slack.",
     "entryChunkMaxBytes": 262000,
     "vendorReactChunkMaxBytes": 61000,
     "vendorOnnxChunkMaxBytes": 108000,
@@ -16,10 +16,12 @@
     "assetsDirMaxBytes": 890000
   },
   "native": {
-    "_comment": "Raw bytes of the hyphon_native voice module in dist/. Measured on the emcc 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes: 137,625 / 124,088 / 27,010 / 14,509) and set ~5% above, ratcheting like the compressed rows. Under emcc 3.1.51 -O1 these were 215,818 / 195,208 / 99,498 / 84,924. Raised for the macro-* voices (Plaits DSP, 24 models): 134,186 / 121,286 / 26,979 / 15,127 -> 357,536 / 343,980 / 28,427 / 16,575, under the issue's 250 KB go/no-go for the family (docs/audio-engine/macro-voices.md#measurements-p0), set ~5% above.",
+    "_comment": "Raw bytes of the hyphon_native voice module in dist/. Measured on the emcc 6.0.9 -O3 -flto build (docs/wasm/BUILD_NOTES.md#sizes: 137,625 / 124,088 / 27,010 / 14,509) and set ~5% above, ratcheting like the compressed rows. Under emcc 3.1.51 -O1 these were 215,818 / 195,208 / 99,498 / 84,924. Raised for the macro-* voices (Plaits DSP, 24 models): 134,186 / 121,286 / 26,979 / 15,127 -> 357,536 / 343,980 / 28,427 / 16,575, under the issue's 250 KB go/no-go for the family (docs/audio-engine/macro-voices.md#measurements-p0), set ~5% above. The standalone em++ modules got rows when they moved to -O3 -flto (BUILD_NOTES#standalone-link-profiles): rubberband.wasm 464,544 and mix_bus.wasm 880 bytes measured, set ~5% above.",
     "hyphon_native.wasm": 375500,
     "hyphon_native.st.wasm": 361200,
     "hyphon_native.js": 29900,
-    "hyphon_native.st.js": 17400
+    "hyphon_native.st.js": 17400,
+    "rubberband.wasm": 487800,
+    "mix_bus.wasm": 925
   }
 }

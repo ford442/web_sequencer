@@ -12,6 +12,7 @@ import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/creat
 import { macroEngineForWaveform } from '@/engines/MacroParams';
 import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
 import { noteToMidi } from '@/utils/musicTheory';
+import { fetchPublicArrayBuffer } from '@/utils/publicAsset';
 
 type PyodideResultProxy = {
     toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
@@ -71,6 +72,10 @@ export async function renderSynthToBuffer(
     sampleRate: number = resolveExportSampleRate(),
     filterCurve?: SynthFilterCurve,
 ): Promise<AudioBuffer> {
+    const midi = noteToMidi(note);
+    const baseFreq = getTunedFrequency(note, '12-TET', 'C'); // default for offline rendering
+    if (midi === null || baseFreq === null) throw new Error(`renderSynthToBuffer: "${note}" is not a note name`);
+
     // A macro model: one note through the live engine's wasm (mid channel, so
     // XM one-shots stay mono). The gate covers the note; the tail is whatever
     // fits in `duration`. Unavailable → the model's fallback waveform, below.
@@ -79,7 +84,7 @@ export async function renderSynthToBuffer(
         const rendered = await renderMacroBuffer({
             params,
             engine: macroEngine,
-            notes: [{ midi: noteToMidi(note), velocity: 0.8, startSeconds: 0, durationSeconds: duration * 0.8 }],
+            notes: [{ midi, velocity: 0.8, startSeconds: 0, durationSeconds: duration * 0.8 }],
             durationSeconds: duration,
             sampleRate,
         }, 1);
@@ -90,7 +95,6 @@ export async function renderSynthToBuffer(
     const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
 
     const time = 0;
-    const baseFreq = getTunedFrequency(note, '12-TET', 'C'); // default for offline rendering
     // Apply pitch shift from params
     const freqWithPitch = baseFreq * Math.pow(2, params.pitch / 12);
 
@@ -165,12 +169,11 @@ export async function renderSynthToBuffer(
     // Handle Sample-Based Waveforms
     else if (params.waveform === 'wav-saw' || params.waveform === 'wav-sqr') {
         const bufferSource = offlineCtx.createBufferSource();
-        const url = params.waveform === 'wav-saw' ? './assets/saw.wav' : './assets/square.wav';
+        const url = params.waveform === 'wav-saw' ? 'saw.wav' : 'square.wav';
         const rootFreq = params.waveform === 'wav-saw' ? 32.86 : 65.72;
 
         try {
-            const response = await fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
+            const arrayBuffer = await fetchPublicArrayBuffer(url);
             const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
 
             bufferSource.buffer = audioBuffer;

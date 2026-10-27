@@ -15,7 +15,7 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
@@ -44,6 +44,23 @@ const WORKLETS = [
     'RubberBandProcessor',
     'master-loudness-processor',
 ];
+
+/**
+ * The chunk stem Vite emits for each worklet entry (`<module>-<hash>.js`). The gate
+ * classifies chunks by this name, so the fixture must use the real one: the
+ * registered processor name is `RubberBandProcessor`, the module is rubberband-processor.
+ */
+const WORKLET_CHUNK_STEM: Record<string, string> = {
+    'clock-processor': 'clock-processor',
+    'open303-processor': 'open303-processor',
+    'prophecy-processor': 'prophecy-processor',
+    'macro-processor': 'macro-processor',
+    'drumkit-processor': 'drumkit-processor',
+    'sustain-processor': 'sustain-processor',
+    RubberBandProcessor: 'rubberband-processor',
+    'master-loudness-processor': 'master-loudness-processor',
+};
+const workletChunkName = (processor: string, hash = 'AbCd1234') => `${WORKLET_CHUNK_STEM[processor]}-${hash}.js`;
 
 function uleb(value: number): number[] {
     const out: number[] = [];
@@ -110,6 +127,14 @@ interface DistOptions {
     pthreadMarker?: string;
     /** Ship dist/THIRD_PARTY_NOTICES.md (the macro engine's MIT notice). */
     notices?: boolean;
+    /** Extra files under dist/assets/, name -> text. */
+    extraAssets?: Record<string, string>;
+    /** Text appended to a worklet chunk, keyed by processor name. */
+    workletSuffix?: Record<string, string>;
+    /** Processors whose chunk is left out, as if inlined into a shared chunk. */
+    omitWorklets?: readonly string[];
+    /** Extra files at the dist/ root (relative path -> bytes), e.g. a stale public/ copy. */
+    extraRootFiles?: Record<string, string>;
 }
 
 /** Custom section (id 0): ignored by engines, so the module stays valid. */
@@ -125,6 +150,10 @@ function makeDist({
     pthreadPadding = 0,
     pthreadMarker,
     notices = true,
+    extraAssets = {},
+    workletSuffix = {},
+    omitWorklets = [],
+    extraRootFiles = {},
 }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
@@ -138,11 +167,17 @@ function makeDist({
     // in production. check-release-dist.mjs asserts that shape (a worklet scope
     // has no module loader), so the fixture has to have it too.
     for (const worklet of WORKLETS) {
+        if (omitWorklets.includes(worklet)) continue;
         writeFileSync(
-            join(dir, 'assets', `${worklet}.js`),
-            `registerProcessor(${JSON.stringify(worklet)}, class {});\n`,
+            join(dir, 'assets', workletChunkName(worklet)),
+            `registerProcessor(${JSON.stringify(worklet)}, class {});\n${workletSuffix[worklet] ?? ''}`,
         );
     }
+    // A chunk that merely names a processor must still be present for a bundle that omits one.
+    for (const worklet of omitWorklets) {
+        writeFileSync(join(dir, 'assets', 'shared-ZxCvBnM1.js'), `const n = ${JSON.stringify(worklet)};\n`, { flag: 'a' });
+    }
+    for (const [file, text] of Object.entries(extraAssets)) writeFileSync(join(dir, 'assets', file), text);
     writeFileSync(join(dir, 'assets', 'index.js'), 'const app = 1;\n');
     // Minimal PWA shell fixture — unrelated to the WASM export gate this file
     // tests, but check-release-dist.mjs now requires it unconditionally.
@@ -179,6 +214,10 @@ function makeDist({
     );
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
     if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
+    for (const [rel, text] of Object.entries(extraRootFiles)) {
+        mkdirSync(dirname(join(dir, rel)), { recursive: true });
+        writeFileSync(join(dir, rel), text);
+    }
     return dir;
 }
 
@@ -278,6 +317,25 @@ describe('check-release-dist WASM export gate', () => {
         expect(result.output).toContain('hyphon_native.st.wasm is not a single-threaded build');
     });
 
+    it.each(['jc303-single.wasm', 'jc303-threaded-worklet.js', 'jc303.js', 'jc303_worklet.js'])(
+        'rejects a retired standalone JC-303 artifact (%s)',
+        (file) => {
+            const result = runCheck(makeDist({ extraRootFiles: { [file]: '' } }));
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('retired standalone JC-303 artifacts');
+            expect(result.output).toContain(file);
+        },
+    );
+
+    it('keeps the JC-303 UI art (osc/jc303.webp)', () => {
+        // Only the JC-303 gate is under test: a lone dist/osc/ entry trips the
+        // panel-art check for the other engines, so the exit status is not asserted.
+        const result = runCheck(makeDist({ extraRootFiles: { 'osc/jc303.webp': '' } }));
+
+        expect(result.output).not.toContain('retired standalone JC-303');
+    });
+
     it('requires the offline mix bus to ship (#1341)', () => {
         const result = runCheck(makeDist({ mixBus: null }));
 
@@ -306,5 +364,68 @@ describe('check-release-dist WASM export gate', () => {
         expect(result.status).toBe(1);
         expect(result.output).toContain('dist/mix_bus.wasm is not a valid mix bus');
         expect(result.output).toContain('memory can grow');
+    });
+});
+
+describe('check-release-dist worklet classification (#1468)', () => {
+    it('does not treat a chunk that carries an inline worklet source string as a worklet', () => {
+        // src/agent/liveCapture.ts loads its recorder from a Blob URL: the source
+        // is a string, so the AgentBridge UI chunk contains `registerProcessor(`
+        // and an `export`, and is not an AudioWorklet chunk.
+        const dir = makeDist({
+            extraAssets: {
+                'AgentBridge-QwErTy12.js':
+                    'const SRC = `class R extends AudioWorkletProcessor {}\nregisterProcessor(\'hyphon-agent-recorder\', R);`;\n' +
+                    'export { SRC as RECORDER_SOURCE };\n',
+            },
+        });
+        const { status, output } = runCheck(dir);
+        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(status).toBe(0);
+    });
+
+    it('fails a real worklet chunk that keeps a runtime import', () => {
+        const dir = makeDist({ workletSuffix: { 'clock-processor': 'import"./shared-ZxCvBnM1.js";\n' } });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('contain runtime import/export');
+        expect(output).toContain(workletChunkName('clock-processor'));
+    });
+
+    it('fails a real worklet chunk that keeps a runtime export', () => {
+        const dir = makeDist({ workletSuffix: { RubberBandProcessor: 'export{RubberBandProcessor as default};\n' } });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain(workletChunkName('RubberBandProcessor'));
+    });
+
+    it('skips the ?worker&url pointer module that shares a worklet\'s name', () => {
+        // import('…clock-processor.ts?worker&url') emits clock-processor-<hash>.js
+        // holding only `new URL(<real chunk>, import.meta.url).href`.
+        const dir = makeDist({
+            extraAssets: {
+                'clock-processor-ZyXwVu98.js':
+                    `var e=new URL(\`${workletChunkName('clock-processor')}\`,import.meta.url).href;export{e as default};\n`,
+            },
+        });
+        const { status, output } = runCheck(dir);
+        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(status).toBe(0);
+    });
+
+    it('fails when a worklet entry was inlined into a shared chunk', () => {
+        const dir = makeDist({ omitWorklets: ['sustain-processor'] });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('expected at least 8 worklet chunk(s)');
+    });
+
+    it('fails a worklet entry chunk that never registers a processor', () => {
+        const dir = makeDist();
+        writeFileSync(join(dir, 'assets', workletChunkName('clock-processor')), "const name = 'clock-processor';\n");
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('never call registerProcessor()');
+        expect(output).toContain(workletChunkName('clock-processor'));
     });
 });

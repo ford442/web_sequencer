@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UnifiedAutomationLane } from '../../types';
 import { automationStore } from '../../stores/automationStore';
 import type { PatternAutomation } from '../../audio/offline/offlineLaneAutomation';
+import { createArrangement, placeClip } from '../../arrangement/model';
 
 type RenderFn = (...args: unknown[]) => Promise<unknown>;
 const renderSynthPattern = vi.fn<RenderFn>();
@@ -156,5 +157,20 @@ describe('exportStemsToZip automation lanes', () => {
         automationStore.setPlaybackEnabled(false);
         await exportStemsToZip(input(), { sampleRate: SAMPLE_RATE, useSongMode: false });
         expect(automationOf(0)).toBeUndefined();
+    });
+
+    it('bounces a clip-local sweep on its clip only; the next clip keeps the song lane (#1494)', async () => {
+        let arrangement = placeClip(createArrangement(32), {
+            id: 'a', track: 'partA', patternSlot: 0, startStep: 0, lengthSteps: 16, loop: true,
+            lanes: [lane({ id: 'clip', points: [{ step: 0, value: 0 }, { step: 15, value: 0.75 }] })],
+        });
+        arrangement = placeClip(arrangement, { id: 'b', track: 'partA', patternSlot: 0, startStep: 16, lengthSteps: 16, loop: true });
+        const song = lane({ id: 'song', points: [{ step: 0, value: 0.5 }] });
+        await exportStemsToZip({ ...input([song]), arrangement }, { sampleRate: SAMPLE_RATE, useSongMode: true });
+
+        const cutoff = automationOf(0)!.filterCutoff!;
+        expect(cutoff[0]).toBe(20);
+        expect(cutoff[15]).toBe(0.75 * 8000);
+        expect(cutoff.slice(16)).toEqual(Array(16).fill(0.5 * 8000));
     });
 });

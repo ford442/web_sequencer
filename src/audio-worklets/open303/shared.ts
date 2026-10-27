@@ -1,6 +1,8 @@
 // src/audio-worklets/open303/shared.ts
 // Small pieces shared across the open303-processor.ts split.
 
+import { nowMs } from '../../shared/rt/time';
+
 /** DSP engine families this processor can route a block to. */
 export type EngineFamily = 'open303' | 'jc303' | 'highfid';
 
@@ -15,10 +17,5 @@ export const SynthState = {
 
 export type SynthStateType = typeof SynthState[keyof typeof SynthState];
 
-/** Safe performance.now() wrapper for contexts where performance is not defined. */
-export function getTime(): number {
-    if (typeof performance !== 'undefined' && performance.now) {
-        return performance.now();
-    }
-    return Date.now();
-}
+/** performance.now() where the scope has it, else Date.now() (see shared/rt/time). */
+export const getTime = nowMs;

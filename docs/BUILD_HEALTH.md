@@ -101,3 +101,132 @@ Supersedes the toolchain notes above: the emsdk pin is **6.0.9**, in `emscripten
 - Rubber Band on 6.x needed `HEAPF32` / `HEAPF64` in `EXPORTED_RUNTIME_METHODS`; without them `nativeVocalFx` / `phonemeElasticity` fail ("Rubber Band glue does not expose HEAPF32").
 - Debug profile on 6.x: the glue wraps exports in `createExportWrapper(...)`; both export-map parsers now accept it (it extracted 0 exports before).
 
+
+## 2026-10-19 whole-stack run
+
+Run 2026-10-20 (UTC) in a fresh cloud container, Node 22.22.0, pnpm 12.3.4. **Base: `origin/main` `3dee74a`**, not a CI-green fix branch: `pnpm exec tsc -b --pretty false` exits **2** on `main` (the same 7 errors the 10-19 Fix First listed: `nativeVoiceProcessor.ts` ×5 TS7053, `rubberbandProcessor.fxBackend.test.ts` ×2 TS2416), and there is no `fix/ci-green-2026-10-19` branch on the remote (only `fix/ci-green-2026-10-12`). No application code was changed.
+
+### 1. Toolchain
+
+| Command | Outcome |
+|---|---|
+| `git submodule update --init --recursive` | exit 0, 14.6 s (`jc303_wasm`, `third_party/eurorack` + nested, `third_party/stmlib`) |
+| `emcc --version` | none on PATH → installed the pin into `$HOME/emsdk` (`./emsdk install 6.0.9 && ./emsdk activate 6.0.9`): `emcc … 6.0.9 (4e42238…)`, matches `emscripten/toolchain.json`. The build scripts report `Using Emscripten 6.0.9 (pin 6.0.9, from PATH)` |
+
+### 2. Install + Pyodide
+
+| Command | Outcome |
+|---|---|
+| `pnpm install --frozen-lockfile` | exit 0. On a cold store the `wasm-pack` postinstall fails behind the sandbox proxy (GitHub release download → HTTP 405); `--ignore-scripts` works around it. `wasm-pack` is bench-only, so nothing the release needs depends on it |
+| `pnpm run vendor:pyodide` | exit 0, v0.26.1 + numpy / scipy / openblas → `public/pyodide/` 76 MB |
+
+### 3. `pnpm run build`
+
+**Exit 2 after 183 s.** Stage by stage:
+
+| Stage | Outcome |
+|---|---|
+| `build:native` | ✅ all 9 worlds rebuilt (as-oscillators, as-freezer, as-fft, as-audioexport, as-xmexport, jc303, emcc, rubberband, mixbus). Warnings: em++ `-pthread + ALLOW_MEMORY_GROWTH may run non-wasm code slowly` ×3, clang++ `treating 'c' input as 'c++'` ×3, `wasm-opt: no passes specified` ×1 (mix bus). `mix_bus.wasm` check OK (no imports, fixed memory, ABI 1) |
+| export-map check | ✅ `91 exports (54 required, 37 optional present)` |
+| `tsc -b` | ❌ the 7 errors above. **The release build stops here** |
+
+To exercise the rest of the pipeline the remaining stages were run by hand on the same tree:
+
+| Stage | Outcome |
+|---|---|
+| `vite build` | ✅ 6.0 s. Warnings: `new URL("rubberband-lib.wasm", import.meta.url) doesn't exist at build time` (expected, resolved at runtime), `Some chunks are larger than 500 kB` (entry `index-*.js` 1,053,229 B raw) |
+| `write-native-manifest.mjs` | ✅ |
+| `check-release-dist.mjs` | ❌ **exit 1**: `AudioWorklet chunk(s) contain runtime import/export … assets/AgentBridge-*.js (import, export)`. **False positive.** `src/agent/liveCapture.ts` (#1467) keeps its recorder worklet as a source *string* and loads it from a Blob URL. The gate's `registerProcessor\s*\(` regex matches inside that string, so it classifies the whole `AgentBridge` chunk as a worklet. The real worklet chunks are self-contained. **With `tsc` fixed, every `pnpm run build` and every `deploy.py` (which re-runs the gate) still fails until the gate or `liveCapture.ts` changes** |
+
+Sizes (measured by hand, since the gate exits before its budget table):
+
+| Item | Value | Budget |
+|---|---|---|
+| `dist/` total | 105 MB, 95 files (`dist/pyodide/` 76 MB, `dist/assets/` 27 MB) | — |
+| Largest worklet chunk | `rubberband-processor-*.js` 117,946 B raw / **33,049 B brotli** | 36,000 brotli ✅ |
+| Entry chunk | 223,926 B brotli | 262,000 ✅ |
+| `dist/assets/` excluding wasm | 827,813 B brotli | 890,000 ✅ |
+| `hyphon_native.wasm` / `.st.wasm` | 358,066 / 344,510 B | 375,500 / 361,200 ✅ |
+
+Tracked files the build dirtied: **`public/hyphon_wasm_export_map{,.st}.json` were not dirtied** (byte-identical after the rebuild). **`src/audio-worklets/rubberband-lib.js` was**: 50+/50−, made up of the `--pre-js` include path (`/root/web_sequencer-toolchain/…` → this checkout's path) and a reordering of the emitted `invoke_*` trampolines. Not committed.
+
+### 4. `python deploy.py --dry-run`
+
+- Plain `--dry-run`: **exit 1**. It re-runs the release gate, hits the false positive above, and stops (`not uploading`).
+- `--dry-run --skip-checks`: **95 files, 31.9 MB archive**. `--include-sourcemaps` gives the same 31.9 MB, because the release build emits no maps (`HYPHON_SOURCEMAP` unset). A `HYPHON_SOURCEMAP=1` build zipped the same way: **34.9 MB** (42 `.map` files).
+- **Target:** `deploy.py` no longer names `test.1ink.us` or `go.1ink.us`. It POSTs to `DEPLOY_ENDPOINT`, default `https://storage.noahcohn.com/api/deploy/web-sequencer/bundle`, and the server decides the folder. The 06-01 note above ("prints `test.1ink.us/hyphon`") is out of date. Which host serves the result is not visible from this repo.
+
+### 5. Serve + Playwright (Chromium)
+
+`pnpm exec vite preview --host 127.0.0.1 --port 5173 --strictPort`: COOP `same-origin`, COEP `require-corp`, and **`crossOriginIsolated === true`** in the page. The installed `@playwright/test` wants Chromium build 1200 and the container has 1194, so the runs used a throwaway config that only sets `executablePath: /opt/pw-browsers/chromium` (not committed).
+
+| Spec | Result |
+|---|---|
+| `tests/drumkit-native.spec.ts` | ✅ 1/1 |
+| `tests/live-issue-triage.spec.ts` | ✅ 7/7: #1389, #1390, #1391, #1392, #1393, #1395, #1396 all pass |
+| `tests/deploy-smoke.spec.ts` | ⏭ skipped (it needs `DEPLOY_SMOKE_URL`). With `DEPLOY_SMOKE_URL=http://127.0.0.1:5173/`: ✅. With `DEPLOY_SMOKE_URL=https://test.1ink.us/hyphon/` (the live **June** build): ✅ too, so a green smoke after a deploy does not prove the new build is live; also check that `Last-Modified` changed |
+
+Boot console (INITIALIZE SYSTEM → kick on step 1 → PLAY; `AudioContext` `running`):
+
+```
+[warning] Failed to create WebGPU Context Provider            (×3, expected: no GPU in sandbox)
+[error]   [EngineFallback] webgpu: requested "webgpu" → JS fallback (requestAdapter() returned null …)   (expected)
+[warning] [Hyphon Engine Warning] "webgpu" engine could not load …                                  (expected)
+[warning] [BackendRegistry] oscillator backend fell back WebGPU → WASM OSC                          (expected)
+[error]   Failed to load ./assets/saw.wav EncodingError: Unable to decode audio data                 FINDING
+[error]   Failed to load ./assets/square.wav EncodingError: Unable to decode audio data              FINDING
+[error]   ❌ Supertonic Init Failed: SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON   FINDING
+```
+
+No 404 on a worklet, no LinkError, no missing export. **Root cause of the three findings** (already noted on 10-13, not explained then): `public/assets/` is gitignored (`.gitignore:21 assets/`), but `engineLifecycle.ts:298` and `renderAudio.ts:168` fetch `./assets/{saw,square}.wav`, and `Supertonic.ts` fetches `assets/onnx/*` and `assets/voice_styles/*`. The repo ships `saw.wav` / `square.wav` at `public/` root. In a clean checkout those paths do not exist, and the preview server's SPA fallback answers them with `index.html`. On `test.1ink.us/hyphon/` all of them answer 200 (`audio/x-wav`, JSON), so production has the files, either from the owner's local `public/assets/` or left over on the server. **A dist built from a clean checkout is therefore not the dist that ships.** Before deploying, confirm that the owner's `public/assets/` is populated, or that the server keeps files the zip leaves out.
+
+### 6. Live site (fetched 2026-10-20)
+
+| URL | `Last-Modified` | COOP/COEP |
+|---|---|---|
+| `https://go.1ink.us/hyphon/index.html` | Fri, 06 Mar 2026 12:59:17 GMT | same-origin / require-corp |
+| `https://test.1ink.us/hyphon/index.html` | Mon, 15 Jun 2026 06:53:49 GMT | same-origin / require-corp |
+
+Unchanged. Not deployed (`DEPLOY_TOKEN` is the owner's).
+
+### 7. For the owner
+
+1. Make the build pass first. As of `3dee74a`, `pnpm run build` fails at `tsc` (7 errors), and with that fixed it fails at the release gate's `AgentBridge` false positive. `deploy.py` refuses the dist for the same reason unless given `--skip-checks`.
+2. Then run `DEPLOY_TOKEN=… pnpm run deploy` from a checkout whose `public/assets/` holds `saw.wav`, `square.wav`, `onnx/` and `voice_styles/` (see §5).
+3. Then run `DEPLOY_SMOKE_URL=https://test.1ink.us/hyphon/ pnpm exec playwright test tests/deploy-smoke.spec.ts`, and check that `curl -sI https://test.1ink.us/hyphon/index.html` shows a new `Last-Modified`. The smoke alone passes on the June build.
+4. Issues #1389–#1397: **all nine are already closed** (owner, 2026-10-20 08:12–08:53Z), before any deploy reached the live site. The triage spec passes every check it has on `main` (#1389–#1393, #1395, #1396). #1394 is fixed in code by #1474 and #1397 by #1476. Neither is live until the deploy.
+5. **`go` vs `test`:** `deploy.py` targets neither by name, only the storage endpoint. Every `test.1ink.us` reference is in tests (`deploy-smoke.spec.ts` default) and in `docs/weekly_plan.md`. AGENTS.md names no live host at all. The PROJECT CONTEXT's `go.1ink.us` is the older of the two (March) and is not what `deploy-smoke` checks. They disagree. Whichever is canonical should be written into `deploy.py`'s docstring and AGENTS.md › Deployment.
+
+## 2026-10-26 Release gate, lint ratchet, Firefox clock
+
+Branch `fix/firefox-matrix-2026-10-26` (issue #1492). Verified here: `tsc -b`, `pnpm run lint`, `pnpm run lint:ratchet`, `CI=true pnpm run test:unit` (306 files / 2797 tests passed), `pnpm run build:web`. **Not verified:** any Playwright spec, and a full `pnpm run build` — this session could not build `hyphon_native.wasm` because the `jc303_wasm` submodule was unavailable (see `.swarm-state.md`).
+
+### Release gate classifies worklet chunks by entry
+
+`scripts/check-release-dist.mjs` used to call a chunk an AudioWorklet chunk when its text matched `registerProcessor\s*\(`. `src/agent/liveCapture.ts` keeps its recorder worklet as a Blob-URL source string, so the `AgentBridge` UI chunk matched and failed the self-containment rule; #1468 hid the call with `globalThis['register' + 'Processor']`. The gate now takes the worklet entries from the `?worker&url` imports of `src/audio-worklets/**` and treats a dist chunk as a worklet when it is named `<module>-<hash>.js` and is not the `import()` pointer module (`new URL('<real chunk>', import.meta.url).href`). Self-containment, the "at least 8 worklets" count and the worklet size row use that set. Each entry chunk must also call `registerProcessor(`. The raw `.ts` in `addModule()` check is unchanged, and `liveCapture.ts` has its plain call back. On the current build the old regex flags `AgentBridge-*.js` and the new rule does not; a runtime `import` added to a real worklet chunk exits 1.
+
+### Lint ratchet back to the 2026-10-18 baseline
+
+| Rule | `origin/main` | now | `bff5811` target |
+|---|---:|---:|---:|
+| `no-explicit-any` | 283 | 274 | 274 |
+| `no-unnecessary-type-assertion` | 116 | 109 | 111 |
+| `no-unsafe-argument` | 108 | 105 | 106 |
+| `no-unsafe-assignment` | 303 | 296 | 300 |
+| `no-unsafe-call` | 150 | 147 | 147 |
+| `no-unsafe-member-access` | 480 | 402 | 402 |
+| `no-unsafe-return` | 29 | 25 | 27 |
+| `no-unused-vars` | 425 | 417 | 420 |
+| `require-await` | 67 | 65 | 65 |
+| `unbound-method` | 41 | 37 | 39 |
+
+No `eslint-disable`. Two raised sites remain in `src/importers/ai-song/automation.ts` (one `no-unsafe-argument`, one `no-unused-vars`); importers belong to another lane, so the counts above are met with fixes elsewhere. Clearing that file would lower the baseline further.
+
+### Guards
+
+- `.husky/pre-push` now ends with `pnpm run lint:ratchet`.
+- `.github/workflows/lint-baseline-bank.yml` runs the ratchet on every push to `main`. If it fails with only "counts dropped" it runs `lint:ratchet:update` and opens a `chore(lint): bank ratchet gains from <sha>` PR from a `chore/lint-ratchet-bank-<sha>` branch, closing older bank PRs. A raised count, a missing baseline entry or an ESLint failure leaves `main` red and opens nothing. PRs made with the default `GITHUB_TOKEN` do not start CI; add a `LINT_BANK_TOKEN` secret if the bank PR should run checks.
+
+### Firefox step clock
+
+`InternalClockAdapter` now falls back to the existing main-thread timer when `clock-processor` posts no step within `STEP_LOOKAHEAD_MS` of `start`, logging through `logEngineFallback`. Unit-tested with a fake port that never answers. The Firefox playhead assertion in `tests/rbs-automation.spec.ts` is no longer skipped. Open: the Firefox voice profile (`hyphonNativeVariant.ts`), the REC-dot overlap (#1395) and the WebKit `session-launcher` crash need a browser run on a built `hyphon_native`.

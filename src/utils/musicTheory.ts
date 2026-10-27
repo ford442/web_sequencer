@@ -3,14 +3,49 @@
 
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-export const noteToMidi = (note: string): number => {
-    if (!note) return 0;
-    const match = note.match(/([A-G]#?)(\d+)/);
-    if (!match) return 0;
-    const noteName = match[1];
-    const octave = parseInt(match[2], 10);
-    const noteIndex = NOTES.indexOf(noteName);
-    return (octave + 1) * 12 + noteIndex;
+/** Semitone offset of each natural letter from C. */
+const LETTER_SEMITONES: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+/** Semitones each accidental symbol adds. `x` / `𝄪` are double sharp, `𝄫` double flat. */
+const ACCIDENTAL_SEMITONES: Record<string, number> = {
+    '#': 1, '♯': 1, 'x': 2, '𝄪': 2,
+    'b': -1, '♭': -1, '𝄫': -2,
+};
+
+/** Letter, a run of accidentals, then an octave from -1 to 9. */
+const NOTE_NAME_RE = /^([A-G])((?:#|♯|x|𝄪|b|♭|𝄫)*)(-1|[0-9])$/u;
+
+/** Lowest and highest key number a name can spell: C-1 and B9. */
+export const MIN_NOTE_MIDI = 0;
+export const MAX_NOTE_MIDI = 131;
+
+/**
+ * Parse a scientific-pitch note name ("C4", "Eb3", "F##3", "Fx3", "C-1") to
+ * its MIDI key number. Sharps, flats and doubles (in ASCII or Unicode) fold
+ * to the same number, so `noteToMidi('Eb3') === noteToMidi('D#3')`.
+ *
+ * Returns `null` for anything that is not a note name, and for an enharmonic
+ * spelling that lands outside C-1..B9 (`Cb-1`, `B#9`). It never returns 0 for
+ * garbage: 0 means the name really was C-1. Callers decide what an invalid
+ * name means for them (skip the note, keep the old value) — it must not play.
+ */
+export const noteToMidi = (note: string | null | undefined): number | null => {
+    if (typeof note !== 'string') return null;
+    const match = NOTE_NAME_RE.exec(note.trim());
+    if (!match) return null;
+    let semitone = LETTER_SEMITONES[match[1]];
+    for (const symbol of match[2]) semitone += ACCIDENTAL_SEMITONES[symbol];
+    const midi = (parseInt(match[3], 10) + 1) * 12 + semitone;
+    return midi >= MIN_NOTE_MIDI && midi <= MAX_NOTE_MIDI ? midi : null;
+};
+
+/** True when `note` parses as a note name (see {@link noteToMidi}). */
+export const isNoteName = (note: string | null | undefined): note is string => noteToMidi(note) !== null;
+
+/** Respell a note name with sharps ("Eb3" → "D#3"); `null` when it does not parse. */
+export const normalizeNoteName = (note: string | null | undefined): string | null => {
+    const midi = noteToMidi(note);
+    return midi === null ? null : midiToNote(midi);
 };
 
 export const midiToNote = (midi: number): string => {
@@ -61,14 +96,14 @@ export const TUNING_NAMES = Object.keys(TUNING_SYSTEMS);
 
 /**
  * Convert a note + scale definition into a frequency (Hz) with microtonal support.
+ * `null` when `note` is not a note name (see {@link noteToMidi}).
  */
 export const tunedNoteToFrequency = (
     note: string,
     definition: ScaleDefinition | null = null
-): number => {
-    if (!note) return 440;
-
+): number | null => {
     const midi = noteToMidi(note);
+    if (midi === null) return null;
     if (!definition?.tuning || definition.tuning === '12-TET') {
         return 440 * Math.pow(2, (midi - 69) / 12);
     }
@@ -164,7 +199,7 @@ export const nextScaleNote = (
 
 export type TuningSystem = keyof typeof TUNING_SYSTEMS;
 
-export const getTunedFrequency = (note: string, tuningSystem: string, root: string): number => {
+export const getTunedFrequency = (note: string, tuningSystem: string, root: string): number | null => {
     const definition: ScaleDefinition = { root, scale: 'Chromatic', tuning: tuningSystem };
     return tunedNoteToFrequency(note, definition);
 };

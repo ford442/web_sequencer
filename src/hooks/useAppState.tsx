@@ -43,6 +43,7 @@ import { useProjectAutosave } from './useProjectAutosave'
 import { useTTSPreloader } from './useTTSPreloader'
 import { SupertonicService } from '../services/Supertonic'
 import { loadingProgressStore } from '../stores/loadingProgressStore'
+import { reportTtsAvailability } from '../services/ttsAvailability'
 import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
@@ -163,7 +164,18 @@ export function useAppState() {
             await Promise.race([
                 initializeAudio(),
                 new Promise<void>((resolve) => {
-                    window.setTimeout(resolve, 45_000);
+                    window.setTimeout(() => {
+                        // Say so: a hung init step otherwise looks like a booted
+                        // engine that never plays (#1492).
+                        const { isLoading, currentStep } = loadingProgressStore.getState();
+                        if (isLoading) {
+                            console.warn(
+                                `[Boot] audio engine init still pending after 45 s (step: ${currentStep ?? 'unknown'}); ` +
+                                'showing the UI anyway — playback waits for the engine',
+                            );
+                        }
+                        resolve();
+                    }, 45_000);
                 }),
             ]);
         } catch (e) {
@@ -174,7 +186,7 @@ export function useAppState() {
         }
         loadingProgressStore.startStep('ttsEngine');
         void SupertonicService.getInstance().init().then(() => {
-            loadingProgressStore.completeStep('ttsEngine');
+            reportTtsAvailability(SupertonicService.getInstance().getUnavailableReason());
         }).catch((e: unknown) => {
             console.warn('Supertonic TTS failed to init:', e);
             loadingProgressStore.failStep(
@@ -610,7 +622,7 @@ export function useAppState() {
         buildXmExport,
     } = useSongHandlers({
         songStructure, setSongStructure, setIsSongModeOpen,
-        patternRef, songStructureRef, trackStorageRef, tempoRef,
+        patternRef, songStructureRef, arrangementRef, trackStorageRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
         audioEngine, pyodide, sampleBuffers, showToast,
     });

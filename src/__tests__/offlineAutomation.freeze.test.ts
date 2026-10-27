@@ -16,6 +16,8 @@ import fullSong from '../../test-fixtures/ai-song/full.json';
 import { convertAISong, type AISongData } from '../importers/ai-song';
 import { render303FreezeOffline, type Offline303PatternData } from '../audio/OfflineRenderer';
 import { resolveOffline303Automation } from '../audio/offline/offlineLaneAutomation';
+import { renderOffline303Pattern } from '../audio/offline/OfflineOpen303Engine';
+import { renderOfflineHighFid303Pattern } from '../audio/offline/OfflineHighFid303Engine';
 import type { UnifiedAutomationLane } from '../types';
 
 const SAMPLE_RATE = 44100;
@@ -95,6 +97,20 @@ describe('render303FreezeOffline — automation lanes (#1384)', () => {
             expect(Math.max(...settled) / Math.min(...settled)).toBeLessThan(1.25);
         });
     }
+
+    it('paramSteps is plain data: a job cloned across the worker boundary renders the same samples', () => {
+        // Offline303Renderer.worker receives the pattern by postMessage (structured clone).
+        const job = pattern(automation.paramSteps);
+        const cloned = structuredClone(job);
+        expect(cloned.paramSteps).toEqual(job.paramSteps);
+        const opts = { sampleRate: SAMPLE_RATE };
+        const fromClone = renderOffline303Pattern('stock-open303', cloned, opts);
+        expect(fromClone).toEqual(renderOffline303Pattern('stock-open303', job, opts));
+        // The clone still carries the automation: it is not the static render.
+        expect(fromClone).not.toEqual(renderOffline303Pattern('stock-open303', pattern(), opts));
+        expect(renderOfflineHighFid303Pattern(cloned, opts))
+            .toEqual(renderOfflineHighFid303Pattern(job, opts));
+    });
 
     it('a lane-free song resolves to no paramSteps (the job is the old static one)', () => {
         const none = resolveOffline303Automation([], { totalSteps: STEPS, stepCount: STEPS, songMode: false }, 'synthA');

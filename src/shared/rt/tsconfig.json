@@ -1,0 +1,24 @@
+{
+  // Real-time code shared by the main thread and the AudioWorklets: ES2022 only,
+  // no DOM lib and no @types/audioworklet, so it type-checks in both worlds and
+  // can lean on neither. Also compiled as part of both of their programs.
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../../node_modules/.tmp/tsconfig.shared-rt.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022"],
+    "types": [],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["./*.ts"]
+}

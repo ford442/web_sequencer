@@ -6,10 +6,8 @@
 // Each trigger carries its hit's pan; the kit renders planar stereo.
 
 import { DRUMKIT_REQUIRED_WASM_EXPORTS, formatMissingWasmExports, hasDrumkitApi } from './hyphonNativeImports';
-import { DrumkitEvent, VoiceEvent } from './hyphonNativeExports';
+import { DrumkitEvent, VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
-
-declare function registerProcessor(name: string, processorCtor: new () => NativeVoiceProcessor): void;
 
 /** Fields the port messages carry; each message type reads a few of them. */
 interface DrumkitMessageData {

@@ -19,6 +19,20 @@ describe('LiveKeyboard', () => {
     expect(onStop).toHaveBeenCalled();
   });
 
+  test('note LED lights in the note color while held and goes dark on release', () => {
+    const { getByTestId } = render(<LiveKeyboard onPlayNote={vi.fn()} onStopNote={vi.fn()} activeTrackColor="#fff" />);
+    const led = getByTestId('keyboard-note-led');
+    expect(led.getAttribute('aria-label')).toBe('Note LED: off');
+
+    fireEvent.keyDown(window, { code: 'F8' });
+    expect(led.getAttribute('aria-label')).toBe('Note LED: C5');
+    expect(led.style.boxShadow).not.toBe('');
+
+    fireEvent.keyUp(window, { code: 'F8' });
+    expect(led.getAttribute('aria-label')).toBe('Note LED: off');
+    expect(led.style.boxShadow).toBe('');
+  });
+
   test('calls onPlayNote and onStopNote on mouse events', () => {
     const onPlay = vi.fn();
     const onStop = vi.fn();

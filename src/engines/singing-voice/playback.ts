@@ -545,6 +545,15 @@ export const PlaybackMixin = {
   },
 
   /**
+   * Drop the phrase timing the worklet holds, so a buffer without phonemes
+   * (a vowel loop) is not stretched by the last phrase's per-phoneme ratios.
+   */
+  clearPhonemeData(this: SingingVoiceHost): void {
+    this.lastAlignment = null;
+    this.workletNode?.port.postMessage({ type: "setPhonemeData", data: { sharedBuffer: null, ratios: null } });
+  },
+
+  /**
    * Connect the output of this voice to an audio destination.
    * If formant shifting is enabled, routes through the formant shifter first.
    *

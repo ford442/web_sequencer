@@ -167,7 +167,7 @@ Per-slot CPU is reported as `number | null`, and **null means "no meter", not "f
 
 ### Generic editor
 
-`src/components/Wam2GenericEditor.tsx` builds controls from the descriptor, so a package needs no UI of its own to be usable or automatable. Automation goes through the existing lane path (`target: 'wam'`, `parameter: 'slotId/paramId'`) — no second router.
+`src/components/Wam2GenericEditor.tsx` builds controls from the descriptor, so a package needs no UI of its own to be usable or automatable. It opens from the Engine HUD's per-slot **Edit** button (`src/components/Wam2EditorPanel.tsx`). Automation goes through the existing lane path (`target: 'wam'`, `parameter: 'slotId/paramId'`) — no second router.
 
 ## Consequences
 

@@ -43,7 +43,7 @@ describe('convertAgentSong', () => {
         expect(song).toBeNull();
         expect(report.ok).toBe(false);
         expect(report.warnings).toEqual([
-            'automation kick.decay is saved but never plays: the scheduler routes no kick lanes.',
+            'automation[0] kick.decay is saved but never plays: the scheduler routes no kick lanes.',
         ]);
         expect(report.errors).toEqual([`strict: ${report.warnings[0]}`]);
     });

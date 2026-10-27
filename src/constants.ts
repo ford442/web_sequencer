@@ -232,20 +232,21 @@ const noteFrequencies: { [key: string]: number } = {
   'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25, 'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99, 'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
 };
 
-export const noteToFrequency = (note: string): number => {
+/** Hz for a note name (flats and doubles accepted); `null` when it is not a note name. */
+export const noteToFrequency = (note: string): number | null => {
   const table = noteFrequencies[note];
   if (table) return table;
-  // Outside the C2-B5 table (e.g. the live keyboard shifted up or down an
-  // octave): derive from MIDI rather than silently collapsing to A4.
+  // Outside the C2-B5 table (the live keyboard shifted up or down an octave,
+  // or a flat spelling like "Eb3"): derive from MIDI.
   const midi = noteToMidi(note);
-  if (midi > 0) return 440.00 * Math.pow(2, (midi - 69) / 12);
-  return 440.00;
+  if (midi === null) return null;
+  return 440.00 * Math.pow(2, (midi - 69) / 12);
 };
 
 
-export const tunedNoteToFrequency = (note: string, tuning: ScaleDefinition | null = null): number => {
+export const tunedNoteToFrequency = (note: string, tuning: ScaleDefinition | null = null): number | null => {
   const baseMidi = noteToMidi(note);
-  if (!baseMidi) return noteToFrequency(note);
+  if (baseMidi === null) return null;
 
   if (!tuning || !tuning.tuning || tuning.tuning === '12-TET') {
     // Return standard lookup to avoid math precision issues for 12-TET if possible,

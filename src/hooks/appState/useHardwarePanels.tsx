@@ -59,6 +59,15 @@ function highFidExtraProps(
     };
 }
 
+/**
+ * Width of the oscillator-selector overlay on the SYNTH A / B panels. The
+ * overlay used to size to its content (nine family buttons on one wrapped
+ * row, ~520px at the 968px rack) and so covered the knobs under it. Capped to
+ * a right-hand column; `getSynthControls` keeps its knobs left of it (ATK–REL,
+ * CUTOFF…MODE) or below it (GATE, LEVEL, DLY).
+ */
+const SYNTH_OVERLAY_COLUMN = 'w-[27%] min-w-[220px]'
+
 export function useHardwarePanels(deps: {
     synthA: SynthParams;
     synthB: SynthParams;
@@ -145,8 +154,8 @@ export function useHardwarePanels(deps: {
         };
 
         return (
-            <div className={`absolute top-4 right-6 pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
-                <div className="pointer-events-auto flex flex-col items-end gap-2 w-fit">
+            <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
+                <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
                 <OscillatorTypeSelector
                     type={currentTypeA}
                     onChange={handleSynthATypeChange}
@@ -234,8 +243,8 @@ export function useHardwarePanels(deps: {
         };
 
         return (
-            <div className={`absolute top-4 right-6 pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
-                <div className="pointer-events-auto flex flex-col items-end gap-2 w-fit">
+            <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
+                <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
                 <OscillatorTypeSelector
                     type={currentTypeB}
                     onChange={handleSynthBTypeChange}

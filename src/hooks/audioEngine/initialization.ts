@@ -1,14 +1,12 @@
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
+import { fetchPublicArrayBuffer } from '../../utils/publicAsset';
 
+/** Decode a WAV under `public/` (e.g. `saw.wav`); null, with the reason logged, when it is missing. */
 export async function loadWavBuffer(context: AudioContext, url: string): Promise<AudioBuffer | null> {
     try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await fetchPublicArrayBuffer(url);
         const decoded = await context.decodeAudioData(arrayBuffer);
         return ensureBufferMatchesContext(decoded, context);
     } catch (error) {

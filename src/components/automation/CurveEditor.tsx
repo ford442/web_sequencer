@@ -31,6 +31,12 @@ export interface CurveEditorProps {
   height?: number;
   /** Whether the editor is read-only */
   readOnly?: boolean;
+  /**
+   * Where edits go. Absent: the song lane in `automationStore`. The
+   * arrangement passes its own, so a clip lane edit (#1494) is one
+   * arrangement undo step. Points arrive sorted by step.
+   */
+  onChangePoints?: (points: AutomationLanePoint[]) => void;
 }
 
 /** Padding around the drawing area */
@@ -86,6 +92,7 @@ export const CurveEditor = memo(({
   width = 600,
   height = 150,
   readOnly = false,
+  onChangePoints,
 }: CurveEditorProps) => {
   // Default to the song's pattern length so lanes span the steps that actually play.
   const stepCount = useTransportMixStore((s) => s.stepCount);
@@ -115,6 +122,12 @@ export const CurveEditor = memo(({
   const toY = useCallback((value: number) => PAD.top + drawHeight * (1 - value), [drawHeight]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const commitPoints = useCallback((points: AutomationLanePoint[]) => {
+    if (!lane) return;
+    if (onChangePoints) onChangePoints([...points].sort((a, b) => a.step - b.step));
+    else automationStore.updateLanePoints(lane.id, points);
+  }, [lane, onChangePoints]);
 
   useWebGPUCurveEditor(
     canvasRef,
@@ -180,7 +193,7 @@ export const CurveEditor = memo(({
     if (e.button === 2 && lane) {
       // Right-click: remove point
       const newPoints = localPoints.filter((_, i) => i !== idx);
-      automationStore.updateLanePoints(lane.id, newPoints);
+      commitPoints(newPoints);
       return;
     }
     setDraggingIdx(idx);
@@ -189,7 +202,7 @@ export const CurveEditor = memo(({
     if (svgRef.current) {
         svgRef.current.setPointerCapture(e.pointerId);
     }
-  }, [readOnly, lane, localPoints]);
+  }, [readOnly, lane, localPoints, commitPoints]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (draggingIdx === null || !lane || readOnly) return;
@@ -208,7 +221,7 @@ export const CurveEditor = memo(({
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (draggingIdx !== null && lane) {
         // Flush to global store
-        automationStore.updateLanePoints(lane.id, localPoints);
+        commitPoints(localPoints);
     }
     setDraggingIdx(null);
 
@@ -216,7 +229,7 @@ export const CurveEditor = memo(({
     if (svgRef.current && svgRef.current.hasPointerCapture(e.pointerId)) {
         svgRef.current.releasePointerCapture(e.pointerId);
     }
-  }, [draggingIdx, lane, localPoints]);
+  }, [draggingIdx, lane, localPoints, commitPoints]);
 
   const handleSvgClick = useCallback((e: React.MouseEvent) => {
     if (readOnly || !lane) return;
@@ -228,8 +241,8 @@ export const CurveEditor = memo(({
       step: coords.step,
       value: coords.value,
     };
-    automationStore.updateLanePoints(lane.id, [...localPoints, newPoint]);
-  }, [readOnly, lane, fromSvgCoords, localPoints]);
+    commitPoints([...localPoints, newPoint]);
+  }, [readOnly, lane, fromSvgCoords, localPoints, commitPoints]);
 
   if (!lane) {
     return (
@@ -315,19 +328,19 @@ export const CurveEditor = memo(({
               if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
                 const newPoints = localPoints.filter((_, i) => i !== idx);
-                automationStore.updateLanePoints(lane.id, newPoints);
+                commitPoints(newPoints);
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.min(1, point.value + 0.05) }; commitPoints(newPoints);
               } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, value: Math.max(0, point.value - 0.05) }; commitPoints(newPoints);
               } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.max(0, point.step - 0.25) }; commitPoints(newPoints);
               } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; automationStore.updateLanePoints(lane.id, newPoints);
+                const newPoints = [...localPoints]; newPoints[idx] = { ...point, step: Math.min(totalSteps || 16, point.step + 0.25) }; commitPoints(newPoints);
               }
             }}
           >

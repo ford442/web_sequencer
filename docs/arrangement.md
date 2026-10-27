@@ -21,6 +21,7 @@ interface ArrangementClip {
   lengthSteps: number;   // shorter than the pattern = trim, longer = loop
   loop: boolean;         // false = play the pattern once, then rest
   offsetSteps?: number;  // pattern step at the left edge (head trim), default 0
+  lanes?: UnifiedAutomationLane[]; // clip-local automation (#1494), steps 0..lengthSteps
 }
 interface Arrangement { clips: ArrangementClip[]; lengthSteps: number /* loop point */ }
 ```
@@ -52,7 +53,7 @@ exactly like Song Mode did.
 
 - `songMeasureRef` is `floor(songStep / stepCount)`. It drives the Song Mode
   highlight, RBS TRAK scheduling and `scope: 'pattern'` automation, as before.
-- Automation lanes stay **song-global** in v1. Clip-local automation is a follow-up.
+- Automation: see [Clip-local automation](#clip-local-automation-1494).
 - The playhead is published through `arrangementPlayhead`
   (`src/arrangement/playhead.ts`). The ARR view moves it imperatively, never
   through React state.
@@ -63,6 +64,33 @@ The same rules as Song Mode vs Session (see [session-launcher.md](session-launch
 The arrangement *is* the linear player behind the `LOOP SONG` toggle. Arming
 it stops session clips. A live clip, scene, MIDI or gamepad launch preempts it
 at the quantized boundary.
+
+## Clip-local automation (#1494)
+
+A clip can carry its own lanes (`ArrangementClip.lanes`): the same
+`UnifiedAutomationLane` shape as the song lanes, but a point's `step` is
+**clip-local** — `0` is the clip's left edge, `lengthSteps` its right edge.
+
+- **Layering.** `layerClipLanes(songLanes, arrangement, songStep)`
+  (`src/arrangement/playback.ts`) puts the lanes of every clip sounding at
+  `songStep` ahead of the song lanes. The resolver's "first lane per
+  `target:parameter` with a value wins" rule then gives the clip value on the
+  steps the clip covers and leaves the song lane alone everywhere else. A clip
+  lane with no points, or disabled, falls through to the song lane.
+- **One resolver.** `useStepHandler` (per-note overrides, the scheduler, the
+  knob live values) and `resolveLaneTimeline` (stems, song preview, anything on
+  `offlineLaneAutomation`) both call it with the same song step, so a bounce
+  plays the value the live clock played. Lanes the offline master cannot render
+  (PCF) are still reported, not bypassed.
+- **Editing.** The focused clip's lanes are edited under the ARR inspector
+  (`ClipLanePanel`, using the existing `CurveEditor`), in clip-local steps.
+  Moving a clip moves its lanes. A head trim shifts `offsetSteps` and the lane
+  origin together (`updateClip`); a split shifts the right half's lanes, and the
+  overlap rule trims a clip without touching its lanes. Each lane edit is one
+  arrangement value, so one undo step on the stack Song Mode shares.
+- **Persistence.** Optional field, still `SavedSongData` v5.
+  `normalizeArrangement` keeps valid lanes (bad points dropped, points sorted);
+  a v5 file without clip lanes loads unchanged.
 
 ## Song Mode compatibility
 
@@ -91,8 +119,18 @@ at the quantized boundary.
 `resolveSongTimeline(..., arrangement)` walks clips
 (`resolveArrangementTimeline`). Gaps and the tail of a one-shot clip are rests,
 the same as live playback. Callers that only pass a `songStructure` get it
-migrated first. Stem export and SMF export pass the arrangement. XM and `.rbs`
-still read the projection.
+migrated first. Every export walks the timeline (#1494):
+
+- **Stems, SMF, song preview** pass the arrangement; stems and the preview also
+  layer clip lanes onto their automation.
+- **XM** (`buildXmSongPatterns({ arrangement })`): one XM pattern per measure
+  of the timeline; the last pattern is as long as what is left of the song.
+- **`.rbs`** (`bakeArrangementForRbs`): each measure of the timeline becomes one
+  pattern per ReBirth device (TB-303 #1, TB-303 #2, drums); identical measures
+  share a slot. A measure with nothing playing on a device selects an empty
+  pattern, so gaps stay rests. More than 32 distinct bars on one device is
+  reported and the song is cut there. Imported
+  TRAK pattern selects are replaced by the baked ones; knob moves are kept.
 
 ## Capture
 
@@ -117,18 +155,22 @@ Finishing a capture replaces the arrangement (one undo step) and opens ARR.
 
 ## Tests
 
-- Model / playback: `src/arrangement/__tests__/`
+- Model / playback / clip lanes: `src/arrangement/__tests__/`
+- Clip lanes on export: `src/__tests__/arrangementExport.test.ts` (XM, `.rbs`),
+  `src/utils/__tests__/stemExport.automation.test.ts`,
+  `src/utils/__tests__/clipLanes.preview.test.ts`
 - Linear player: `src/hooks/__tests__/useStepHandler.arrangement.test.ts`
 - Save/load: `src/hooks/__tests__/useSongStorage.arrangement.test.ts`
 - Capture: `src/session/__tests__/captureArrangement.test.ts`
 - Export: `src/__tests__/songTimeline.test.ts`
 - View: `src/components/__tests__/ArrangementView.test.tsx`. Render budget:
   `src/__tests__/appRenderBudget.test.tsx`
-- E2E: `tests/arrangement.spec.ts`. The `?e2e=1` probe logs drum triggers with
+- E2E: `tests/arrangement.spec.ts`, `tests/arrangement-clip-lanes.spec.ts`
+  (draw a clip lane, play, the automated CUTOFF control moves). The `?e2e=1` probe logs drum triggers with
   their song step in `window.__HYPHON_E2E_DRUM_HITS__`.
 
 ## Not in v1
 
-Clip-local automation, XM/RBS export from clips, per-clip meter changes, clip
+Per-clip meter changes, clip
 colours and names, an ARR button in the mobile dock, Ableton Link, and
 multi-user editing.

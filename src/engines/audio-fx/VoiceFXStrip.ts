@@ -1,5 +1,5 @@
 export class VoiceFXStrip {
-    private context: AudioContext;
+    private context: BaseAudioContext;
     public input: GainNode;
     public output: GainNode;
 
@@ -31,7 +31,7 @@ export class VoiceFXStrip {
     // Delay Send
     private delayGain: GainNode;
 
-    constructor(context: AudioContext) {
+    constructor(context: BaseAudioContext) {
         this.context = context;
         this.input = context.createGain();
         this.output = context.createGain();

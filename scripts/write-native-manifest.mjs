@@ -59,9 +59,8 @@ function artifactMeta(rel, world) {
   if (isHyphonSt(world, rel)) return { threaded: false, requiresCoopCoep: false };
   const threaded =
     world.world === 'emcc' ||
-    rel.includes('threaded') ||
     (world.world === 'assemblyscript' && rel.includes('oscillators'));
-  const requiresCoopCoep = world.world === 'emcc' || rel.includes('threaded');
+  const requiresCoopCoep = world.world === 'emcc';
   return { threaded, requiresCoopCoep };
 }
 
@@ -100,14 +99,6 @@ function memoryFor(world, budget, rel) {
       pthreadPoolSize: 0,
     };
   }
-  if (world.world === 'jc303') {
-    return {
-      initialMb: budget.standaloneJc303.initialMemoryMb,
-      maximumMb: budget.standaloneJc303.maximumMemoryMb,
-      stackMb: budget.standaloneJc303.stackSizeMbRelease,
-      pthreadPoolSize: rel.includes('threaded') ? budget.standaloneJc303.pthreadPoolSize : 0,
-    };
-  }
   return null;
 }
 
@@ -115,7 +106,7 @@ function linkFlagsFor(world, rel) {
   if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
   const flags = ['ALLOW_MEMORY_GROWTH=1'];
   if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', ...flags];
-  if (world.world === 'emcc' || rel.includes('threaded')) flags.unshift('-pthread');
+  if (world.world === 'emcc') flags.unshift('-pthread');
   return flags;
 }
 
