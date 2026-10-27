@@ -233,7 +233,9 @@ async function sustainSession(injectGrowth: boolean): Promise<Session> {
 }
 
 function expectBitIdentical(reference: Session, grown: Session): void {
-  const budget = JSON.parse(readFileSync(join(repoRoot(), 'emscripten/wasm_memory_budget.json'), 'utf8'));
+  const budget = JSON.parse(readFileSync(join(repoRoot(), 'emscripten/wasm_memory_budget.json'), 'utf8')) as {
+    rubberband: { initialMemoryMb: number };
+  };
   const initialBytes = budget.rubberband.initialMemoryMb * 1024 * 1024;
   expect(reference.module.HEAPF32.buffer.byteLength, 'reference session must not grow').toBe(initialBytes);
   expect(grown.module.HEAPF32.buffer.byteLength).toBeGreaterThan(initialBytes);

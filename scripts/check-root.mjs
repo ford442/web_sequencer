@@ -79,6 +79,9 @@ const ALLOWED_ROOT_FILES = new Set([
   'vite.config.ts',
   'eslint.config.js',
   'eslint-baseline.json',
+  // Dead-code gate: knip config and the shrink-only orphan baseline (scripts/knip-ratchet.mjs).
+  'knip.json',
+  'knip-baseline.json',
   'postcss.config.js',
   'tailwind.config.js',
   'playwright.config.ts',

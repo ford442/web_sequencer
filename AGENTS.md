@@ -142,8 +142,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── audio-worklets/           # AudioWorklet processors
 │   │   ├── sustain-processor.ts  # Sample sustain/loop/stretch
 │   │   ├── open303-processor.ts  # TB-303 audio worklet
-│   │   ├── rubberband-processor.ts
-│   │   └── artifact-detector-processor.ts
+│   │   └── rubberband-processor.ts
 │   ├── workers/                  # Web Workers
 │   │   └── renderer.worker.ts    # Offline audio rendering
 │   ├── types.ts                  # TypeScript type definitions
@@ -248,6 +247,8 @@ pnpm run build                  # alias of build:release
 
 ### Testing
 Before opening a PR, `pnpm run lint:ratchet` must exit 0, and `eslint-baseline.json` may only go down.
+
+`pnpm lint` also runs the dead-code gate (`scripts/knip-ratchet.mjs`, config `knip.json`): a module that no production entry reaches — `src/main.tsx` and everything it imports, lazily or as a `?worker&url` worklet / worker, plus `scripts/**` and `tools/**` — fails lint. A test import does not count. Delete it or wire it in; `knip-baseline.json` only lists orphans that predate the gate and may only shrink (`pnpm run lint:knip:update`).
 
 ```bash
 # Run unit tests (default PR gate — hermetic, no WASM build)

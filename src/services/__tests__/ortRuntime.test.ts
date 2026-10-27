@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * `ort.env` is a process-wide singleton. Supertonic, HybridNeuralPipeline and
- * CtcForcedAligner each used to write it from their own init path, so the
- * consumer that happened to initialise first decided the wasm URL and thread
- * count for all three — an order-dependent global that nothing tested.
+ * `ort.env` is a process-wide singleton. Supertonic and CtcForcedAligner (and
+ * the since-deleted HybridNeuralPipeline) each used to write it from their own
+ * init path, so the consumer that happened to initialise first decided the wasm
+ * URL and thread count for all of them — an order-dependent global that nothing
+ * tested.
  *
  * These tests pin the invariant that replaced it: exactly one writer, and a
  * result that does not depend on which consumer got there first.
