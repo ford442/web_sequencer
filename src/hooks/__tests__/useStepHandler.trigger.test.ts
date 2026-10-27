@@ -103,11 +103,11 @@ describe('useStepHandler trigger dispatch', () => {
 
     result.current.onStep(0, 1.0);
 
-    const synthTracks = engine.playSynth.mock.calls.map((c) => c[6]);
+    const synthTracks = engine.playSynth.mock.calls.map((c): unknown => c[6]);
     expect(synthTracks).toEqual(expect.arrayContaining(['partA', 'partB', 'bass2']));
     expect(synthTracks).toHaveLength(3);
 
-    const drums = engine.playDrum.mock.calls.map((c) => c[0]);
+    const drums = engine.playDrum.mock.calls.map((c): unknown => c[0]);
     // openHat armed on this step suppresses closedHat by design.
     expect(drums).toEqual(expect.arrayContaining(['kick', 'snare', 'openHat']));
 
@@ -122,7 +122,7 @@ describe('useStepHandler trigger dispatch', () => {
 
     result.current.onStep(0, 1.0);
 
-    const noteFor = (sound: string) => engine.playDrum.mock.calls.find((c) => c[0] === sound)?.[5];
+    const noteFor = (sound: string): unknown => engine.playDrum.mock.calls.find((c) => c[0] === sound)?.[5];
     expect(noteFor('snare')).toEqual({ note: 'C3', pan: -0.6 });
     expect(noteFor('kick')).toBe('C3');
   });

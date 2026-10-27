@@ -8,11 +8,16 @@ function makeNode() {
 }
 
 // Private on the class; the tests drive the same path evaluate() takes.
+type BudgetSteps = {
+  applyDegradation(step: 'granular-quality', budget: number): void;
+  recoverDegradation(step: 'granular-quality', budget: number): void;
+};
+const budgetSteps = performanceBudget as unknown as BudgetSteps;
 function degrade(): void {
-  (performanceBudget as any).applyDegradation('granular-quality', 90);
+  budgetSteps.applyDegradation('granular-quality', 90);
 }
 function recover(): void {
-  (performanceBudget as any).recoverDegradation('granular-quality', 50);
+  budgetSteps.recoverDegradation('granular-quality', 50);
 }
 
 describe('rubberband degrade/recover keeps the bank stretch profile', () => {

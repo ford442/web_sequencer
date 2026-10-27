@@ -163,7 +163,18 @@ export function useAppState() {
             await Promise.race([
                 initializeAudio(),
                 new Promise<void>((resolve) => {
-                    window.setTimeout(resolve, 45_000);
+                    window.setTimeout(() => {
+                        // Say so: a hung init step otherwise looks like a booted
+                        // engine that never plays (#1492).
+                        const { isLoading, currentStep } = loadingProgressStore.getState();
+                        if (isLoading) {
+                            console.warn(
+                                `[Boot] audio engine init still pending after 45 s (step: ${currentStep ?? 'unknown'}); ` +
+                                'showing the UI anyway — playback waits for the engine',
+                            );
+                        }
+                        resolve();
+                    }, 45_000);
                 }),
             ]);
         } catch (e) {

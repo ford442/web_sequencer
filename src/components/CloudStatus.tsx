@@ -114,10 +114,12 @@ export const CloudStatus: React.FC = React.memo(() => {
 
     return (
         <div className="mr-2 min-h-[24px]">
-            <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
                 {statusText}
+            </span>
+            <div aria-hidden="true">
+                {content}
             </div>
-            {content}
         </div>
     );
 });

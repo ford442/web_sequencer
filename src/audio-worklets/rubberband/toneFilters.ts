@@ -124,10 +124,17 @@ export class SyllableVolumeFilter {
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];
       if (!outCh) continue;
+
+      // ⚡ Bolt: Extract state to local variables outside the inner loop to
+      // eliminate O(N) array property lookups per quantum on the hot path.
+      let lp = this.lp[channel];
+
       for (let i = 0; i < outCh.length; i++) {
-        this.lp[channel] = this.lp[channel] + alpha * (outCh[i] - this.lp[channel]);
-        outCh[i] = this.lp[channel];
+        lp = lp + alpha * (outCh[i] - lp);
+        outCh[i] = lp;
       }
+
+      this.lp[channel] = lp;
     }
   }
 }

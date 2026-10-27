@@ -1,8 +1,15 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore dynamically linking step lengths to phoneme duration.
+- Velocity Check: Utilizing standard arithmetic to implement dynamic phoneme step lengths within `handleTextToDrums` allowed translating phonetic rhythm onto generated drum loops effectively without affecting core Sequencer or TTS DSP architecture.
+- [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
+- [ ] Explore mapping pitch contour to tom-tom or melodic percussive elements
+- [x] What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?
+- [x] What if we map vowel brightness/formant to open hi-hat decay time?
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
-- Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
+- [rejected] Explore non-linear swing patterns for generative polyrhythms in the step sequencer. (Global clock processor makes per-track non-linear swing mathematically problematic for polyrhythm alignment).
+- [x] Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`.
 - [x] Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
 - [x] Explore mapping the dry/wet vocoder mix dynamically to lyric stress via the Lyric Track
 - [x] Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.
@@ -26,8 +33,14 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore generating evolving polyrhythmic Euclidean drum sequences from consonant clusters during text parsing.
+- Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
 - What if we map vowel brightness/formant to open hi-hat decay time?
-- Explore dynamically linking step lengths to phoneme duration.
+- Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
+- What if we dynamically map the formants of mid-vowels to a phaser effect sweep in the granular engine?
+- Explore mapping lyric text sentiment to default scale
+- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
+- Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
@@ -74,7 +87,6 @@
 - [x] Explore non-linear mapping for the envelope follower driving ducking in the granular engine
 - [x] Explore transient extraction filters for TTS consonants to enhance percussive speech clarity.
 - [x] Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity.
-- Explore dynamic time-warping using spectral flux: use spectral changes to drive granular density.
 - Explore dynamic granular "time-smearing" by modulating grain position with a chaotic LFO specifically during unvoiced consonants to create a diffuse whisper effect.
 - Completed "Explore using a noise generator for unvoiced vocoder consonants." I modified the `VocoderEffect` class in the `RubberBandProcessor` to no longer skip unvoiced consonants (`isVowel <= 0`). Instead, it uses a lightweight LCG pseudo-random noise generator to produce white noise, which is then shaped by a simple 1-pole high-pass filter (to remove low-end rumble). This noise is amplitude-modulated by the original unvoiced consonant's envelope, allowing the vocoder effect to seamlessly articulate sibilants and plosives without requiring additional complex carrier waves. Added "Explore a dynamic threshold for vocoder consonant noise based on phoneme intensity." to the Innovation Lab.
 - Velocity Check: Expanding the vocoder to include unvoiced consonants using a simple LCG random number generator avoids the overhead of reading from a noise buffer or using `Math.random()`, keeping the hot path highly optimized.
@@ -132,7 +144,13 @@
 - Completed "What if we modulate the granular window size using an envelope follower driven by the root synth bass?". Added `bassSidechainSAB` to the `SingingVoiceManager` to route triggers from the bass engine into the `RubberBandProcessor`. The `BassEnvelopeFollower` tracks the bass note's duration and modulates `baseGrainSize`, creating a sidechain windowing effect.
 - Velocity Check: Passing a simple `[triggerTime, velocity, duration]` tuple through a SharedArrayBuffer was clean and kept the audio thread unblocked. Reusing the structure of the existing `DrumDuckEnvelope` sped up implementation.
 
+- Velocity Check: Mapping vowel brightness to open hi-hat length in `handleTextToDrums` is a very computationally cheap and purely functional way to add groove dynamics to text-to-drum generation without touching AudioWorklets or core DSP.
+
 ## Architecture Review
+- Completed "What if we map vowel brightness/formant to open hi-hat decay time?"
+- Checked the `isVowel` branch of `handleTextToDrums`, grouped vowels by brightness based on formants (Bright: IY, IH, EY, EH, AE; Mid: AH, ER, AW, AY, OY; Dark: AA, AO, OW, UH, UW). Triggered Open Hi-Hats on the same step as bright or mid vowels and mapped the brightness to `length` (3 or 2 respectively).
+- Velocity Check: Mapping vowel brightness to open hi-hat length in `handleTextToDrums` is a very computationally cheap and purely functional way to add groove dynamics to text-to-drum generation without touching AudioWorklets or core DSP.
+
 - Velocity Check: Modifying `handleTextToDrums` in `useLyricHandlers.ts` to implement gap fills was straightforward, as it just involves maintaining loop state (tracking consecutive consonants and last step index) and filling gaps in step sequences without requiring complex audio graph additions.
 - Completed "Swing-aware syllable onsets: Make lyric-track phoneme onsets follow the song's swing and stepsPerBar.". Implemented `timeToStep` utilizing the `swingPercentToClock` util, ensuring that syllable mapping correctly snaps to the swung grid instead of the straight grid.
 - Velocity Check: Utilizing standard arithmetic to implement swing logic rather than relying on complex clock-processor polling enabled instant mapping directly in the UI handler.
@@ -221,3 +239,19 @@
   - In `handleTextToDrums`, updated the gap-filling logic for multiple consecutive consonants and the preceding-step ghost snare injection.
   - When a ghost snare is inserted, the overlapping closed hi-hat step is now randomly skipped (nulled) with a probability equal to the ghost snare's velocity.
 - Velocity Check: Utilizing standard `Math.random()` scaled by the ghost snare velocity effectively creates a probabilistic "choke" effect without requiring heavy AudioWorklet DSP changes, keeping the drum patterns organic and less rigid on intense fills. Added a new idea to the Innovation Lab.
+
+- Completed "Map vowel brightness to kick length (boomier for dark vowels) and fricative duration to open hi-hat length in `handleTextToDrums`".
+  - Updated `handleTextToDrums` to assign a `length` of `2` to kick drum steps when mapping dark vowels (`'AA','AO','OW','UH','UW','AW'`).
+  - Updated open hi-hat mapping to dynamically calculate `length` based on the phoneme's duration (`p.end - p.start`).
+- Velocity Check: Expanding the data mapped from the phoneme alignment to include duration and phoneme class characteristics adds a new layer of musicality to the auto-generated drum patterns. The logic is simple but highly effective at creating more varied and expressive rhythms. Added a new idea to the Innovation Lab.
+
+- Completed "Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`".
+  - Updated `handleTextToDrums` to calculate a `phonemeDurSec` and normalize it roughly between 0.05s and 0.3s.
+  - Mapped this normalized duration to a dynamic velocity between 0.6 and 1.0 (longer duration = harder hit).
+  - Applied this humanized velocity to the Kick, Snare, Open Hat, and Closed Hat sequence generations, replacing the hardcoded `1` values.
+- Velocity Check: Hooking into the phoneme duration to control velocity directly translates the natural cadence and pacing of speech into the generated drum patterns, instantly making them feel more dynamic and less robotic, all without requiring complex DSP.
+
+- Completed "What if we mapped the pitch contour of the spoken text to tom-tom pitches during drum fills?"
+  - Modified `handleTextToDrums` in `useLyricHandlers.ts`.
+  - Ghost snares generated during consecutive consonant fills and preceding organic triggers are now assigned a descending pitch contour from `['G3', 'E3', 'C3', 'A2', 'G2', 'E2']` based on the normalized phrase progress.
+- Velocity Check: Converting the static 'C4' ghost snare into a dynamic, phrase-aware melodic tom sweep was computationally cheap (just a progress calculation and a modulo array lookup) but significantly increases the musicality of the auto-generated rhythm. Added new ideas to the Innovation Lab.

@@ -144,8 +144,8 @@ export const SessionLauncher = memo(function SessionLauncher({
             </select>
           </label>
           <span className="text-[10px] font-mono text-gray-500" aria-live="polite">{queuedHint}</span>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onUndo} disabled={!canUndo} aria-label="Undo session edit">UNDO</button>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onRedo} disabled={!canRedo} aria-label="Redo session edit">REDO</button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onUndo} disabled={!canUndo} aria-label="Undo session edit"><span aria-hidden="true">UNDO</span></button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onRedo} disabled={!canRedo} aria-label="Redo session edit"><span aria-hidden="true">REDO</span></button>
           <button
             type="button"
             className={`h-7 px-2 text-[10px] font-orbitron border rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isCapturing ? 'bg-red-700 text-white border-red-400' : 'border-zinc-700 text-gray-300 hover:bg-zinc-800'}`}
@@ -153,9 +153,9 @@ export const SessionLauncher = memo(function SessionLauncher({
             aria-label={isCapturing ? 'Stop capturing launches into the arrangement' : 'Capture launches into the arrangement'}
             onClick={() => (isCapturing ? onFinishCapture() : onBeginCapture())}
           >
-            {isCapturing ? 'CAPTURING' : 'CAPTURE'}
+            <span aria-hidden="true">{isCapturing ? 'CAPTURING' : 'CAPTURE'}</span>
           </button>
-          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onStopAll} aria-label="Stop all clips">STOP</button>
+          <button type="button" className="h-7 px-2 text-[10px] font-orbitron border border-zinc-700 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-zinc-800 disabled:opacity-50" onClick={onStopAll} aria-label="Stop all clips"><span aria-hidden="true">STOP</span></button>
           <button type="button" className="h-7 w-7 text-gray-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded" onClick={onClose} aria-label="Close Session Launcher" title="Close Session Launcher"><span aria-hidden="true">✕</span></button>
         </header>
 

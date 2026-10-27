@@ -82,19 +82,25 @@ export const WorkletSetupMixin = {
       // on a MessagePort. addEventListener alone does NOT start delivery.
       await new Promise<void>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
+          this.workletNode!.port.onmessage = null;
           reject(new Error("timeout"));
         }, 5000);
         const handler = (event: MessageEvent) => {
+          const type = (event.data as { type?: string } | null)?.type;
+          // process() runs while INIT_WASM is still compiling, so a perf report
+          // can arrive before READY. Settling only on READY / ERROR keeps it from
+          // leaving this wait (and SingingVoiceManager.init) pending forever.
+          if (type !== "READY" && type !== "ERROR") return;
           clearTimeout(timeoutId);
           this.workletNode!.port.onmessage = null;
-          if (event.data.type === "READY") {
+          if (type === "READY") {
             const ready = event.data as { fxBackend?: string; fxReason?: string };
             recordVocalFxBackend(
               { backend: ready.fxBackend === "native" ? "native" : "ts", reason: ready.fxReason },
               fxOverride === "ts",
             );
             resolve();
-          } else if (event.data.type === "ERROR") {
+          } else {
             reject(
               new Error(event.data.error || "Worklet initialization failed"),
             );

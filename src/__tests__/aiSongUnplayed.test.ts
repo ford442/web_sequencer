@@ -92,8 +92,8 @@ describe('AI song importer — lanes nothing plays', () => {
   it('stays quiet for every routed target/parameter the AI vocabulary has', () => {
     for (const [target, entry] of Object.entries(ROUTED_AUTOMATION)) {
       const valid = VALID_PARAMETERS_BY_TARGET[target as keyof typeof VALID_PARAMETERS_BY_TARGET] ?? [];
-      for (const parameter of valid.filter((p) => entry!.parameters.includes(p))) {
-        if (entry!.unattached) continue;
+      for (const parameter of valid.filter((p) => entry.parameters.includes(p))) {
+        if (entry.unattached) continue;
         const result = convertAISong(withLanes(lane(target, parameter)));
         expect(result.success && result.report.warnings, `${target}.${parameter}`).toEqual([]);
       }
@@ -269,7 +269,7 @@ describe('an imported swing reaches the transport clock', () => {
   });
 
   it('defaults to straight (50) when the song has none', () => {
-    const { swing: _, ...globals } = base.globals;
+    const globals = Object.fromEntries(Object.entries(base.globals).filter(([key]) => key !== 'swing'));
     const result = convertAISong({ ...base, globals } as AISongData);
     if (!result.success) throw new Error(JSON.stringify(result.error));
     expect(resolveSongMeter(result.song).swing).toBe(50);

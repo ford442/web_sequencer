@@ -106,8 +106,8 @@ export function useSamplerPanelState({
         case 'stretchProfile': {
           const node = voice.getSourceNode();
           if (node && 'port' in node) {
-            noteBankStretchProfile(node as AudioWorkletNode, String(value));
-            (node as AudioWorkletNode).port.postMessage({
+            noteBankStretchProfile(node, String(value));
+            node.port.postMessage({
               type: 'setStretchProfile',
               data: { profile: value },
             });
@@ -117,7 +117,7 @@ export function useSamplerPanelState({
         case 'lockToSequencer': {
           const node2 = voice.getSourceNode();
           if (node2 && 'port' in node2) {
-            (node2 as AudioWorkletNode).port.postMessage({
+            node2.port.postMessage({
               type: 'setAutoFollow',
               enabled: value as boolean,
             });

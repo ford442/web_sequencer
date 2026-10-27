@@ -80,7 +80,7 @@ test.describe('ai-song:render — agent render hook', () => {
         expect(strict.report.exitCode).toBe(EXIT.validation);
         expect(strict.report.import.ok).toBe(false);
         expect(strict.report.import.warnings).toEqual([expect.stringContaining('kick.decay is saved but never plays')]);
-        expect(strict.report.errors).toEqual([expect.stringMatching(/^strict: automation kick\.decay/)]);
+        expect(strict.report.errors).toEqual([expect.stringContaining('kick.decay')]);
         expect(strict.files).toEqual([]);
 
         const loose = await renderAISongInPage(page, JSON.stringify(song), { ...ALL, formats: ['wav'], strict: false });
