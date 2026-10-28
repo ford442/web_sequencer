@@ -100,7 +100,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         let unmount: any = () => {};
         let rerender: any;
 
-        await act(() => {
+        act(() => {
             const result = render(
                 <HardwareModule
                     title="Test Module"
@@ -115,7 +115,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
         });
 
         // Trigger next frame
-        await act(() => {
+        act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
@@ -126,8 +126,8 @@ describe('HardwareModule - WebGPU Optimization', () => {
         });
 
         // Initial render: writeBuffer(buffer, 0, buf)
-        const firstCall = mockWriteBuffer.mock.calls[0];
-        const writtenData = firstCall[2];
+        const firstCall = mockWriteBuffer.mock.calls[0] as any[];
+        const writtenData = firstCall[2] as Float32Array;
         expect(writtenData).toBeInstanceOf(Float32Array);
         expect(writtenData.length).toBe(4); // 4 floats: time, value, width, height
 
@@ -144,7 +144,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
         // Update props
         const newControls = [...mockControls, { id: 'new', label: 'New', x: 0, y: 0, size: 0.1, value: 0 }];
-        await act(() => {
+        act(() => {
             rerender(
                 <HardwareModule
                     title="Test Module"
@@ -156,7 +156,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             );
         });
 
-        await act(() => {
+        act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
@@ -180,7 +180,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             },
         ];
 
-        await act(() => {
+        act(() => {
             render(
                 <HardwareModule
                     title="Test Module"
@@ -192,7 +192,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
             );
         });
 
-        await act(() => {
+        act(() => {
             const cb = frameCallbacks.shift();
             if (cb) cb(performance.now());
         });
