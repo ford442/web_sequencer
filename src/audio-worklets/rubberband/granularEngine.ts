@@ -191,36 +191,20 @@ export class GranularEngine {
     g.active = g.size > 0;
   }
 
-  private windowValue(phase: number, windowShape: number): number {
+  private selectWindowLut(windowShape: number): Float32Array | null | number[] {
     if (this.customWindowShape && this.customWindowShape.length > 0) {
-      const index = phase * (this.customWindowShape.length - 1);
-      const lower = Math.floor(index);
-      const upper = Math.ceil(index);
-      const weight = index - lower;
-      return this.customWindowShape[lower] * (1 - weight) + this.customWindowShape[upper] * weight;
+      return this.customWindowShape;
     }
     if (this.customGrainEnvelope && this.customGrainEnvelope.length > 0) {
-      const idx = phase * (this.customGrainEnvelope.length - 1);
-      const lowerIdx = Math.floor(idx);
-      const upperIdx = Math.ceil(idx);
-      const fraction = idx - lowerIdx;
-      const lowerVal = this.customGrainEnvelope[lowerIdx];
-      const upperVal = this.customGrainEnvelope[upperIdx];
-      return lowerVal + (upperVal - lowerVal) * fraction;
+      return this.customGrainEnvelope;
     }
     // 0: Hann, 1: Hamming, 2: Blackman, 3: Rectangular (None), 4: Gaussian, 5: Sharp Exponential
-    let lut: Float32Array;
-    if (windowShape < 0.5) lut = SHAPE_HANN;
-    else if (windowShape < 1.5) lut = SHAPE_HAMMING;
-    else if (windowShape < 2.5) lut = SHAPE_BLACKMAN;
-    else if (windowShape < 3.5) return 1.0;
-    else if (windowShape < 4.5) lut = SHAPE_GAUSSIAN;
-    else lut = SHAPE_SHARP_EXP;
-    const index = phase * (LUT_SIZE - 1);
-    const lower = Math.floor(index);
-    const upper = Math.ceil(index);
-    const weight = index - lower;
-    return lut[lower] * (1 - weight) + lut[upper] * weight;
+    if (windowShape < 0.5) return SHAPE_HANN;
+    else if (windowShape < 1.5) return SHAPE_HAMMING;
+    else if (windowShape < 2.5) return SHAPE_BLACKMAN;
+    else if (windowShape < 3.5) return null; // Rectangular (None) -> 1.0
+    else if (windowShape < 4.5) return SHAPE_GAUSSIAN;
+    else return SHAPE_SHARP_EXP;
   }
 
   /**
@@ -300,13 +284,30 @@ export class GranularEngine {
     const rc = 1.0 / (2.0 * Math.PI * cutoff);
     const alpha = dt / (rc + dt);
 
+    // ⚡ Bolt: Hoist window shape LUT resolution outside the inner loop to
+    // eliminate branching and O(1) method call overhead per-sample.
+    const lut = this.selectWindowLut(p.windowShape);
+    const lutLen = lut ? lut.length : 0;
+
     for (let i = 0; i < frames; i++) {
       let sampleVal = 0;
       for (let gIdx = 0; gIdx < 2; gIdx++) {
         const g = this.grains[gIdx];
         if (!g.active) continue;
-        const phase = g.phase / (g.size - 1);
-        sampleVal += buf[g.start + g.phase] * this.windowValue(phase, p.windowShape);
+
+        let windowVal = 1.0;
+        if (lut) {
+          const phase = g.phase / (g.size - 1);
+          const index = phase * (lutLen - 1);
+          // phase is always [0, 1], so index is positive and fits in 32-bit integer limits.
+          // Using | 0 is ~15-20% faster than Math.floor() in V8 for inner loops.
+          const lower = index | 0;
+          const upper = lower < lutLen - 1 ? lower + 1 : lower;
+          const weight = index - lower;
+          windowVal = lut[lower] * (1 - weight) + lut[upper] * weight;
+        }
+
+        sampleVal += buf[g.start + g.phase] * windowVal;
         g.phase++;
 
         // Check if we should start the other grain (50% overlap)

@@ -63,3 +63,7 @@
 ## 2024-03-03 - [Object Allocation in AudioWorklet process()]
 **Learning:** Returning array literals from helper functions inside the audio-thread `process()` inner-loops (like `renderedVoices()` yielding new `NativeVoiceRef` objects on every call) creates large garbage collection overhead. Since audio blocks are processed very frequently, small objects created per block quickly result in garbage collection pauses which disrupt audio output.
 **Action:** Instead of recreating intermediate structs, explicitly maintain and mutate pre-allocated class properties (e.g. tracking index counts into a fixed array of pre-allocated objects).
+
+## 2025-03-03 - Inline LUT Interpolation and Drop Math.floor/Math.ceil in AudioWorklet Inner Loops
+**Learning:** In the `GranularEngine` inner DSP loop (`renderGrains`), V8 is bogged down by repeated `O(1)` method calls, branching logic (to select the window shape), and expensive `Math.floor()` / `Math.ceil()` operations evaluated once per sample per active grain. Just replacing `Math.floor` with `| 0` is a micro-optimization that leaves bigger overheads untouched.
+**Action:** Hoisted the LUT resolution (`selectWindowLut`) outside of the per-sample loop to eliminate branching and method calls inside the hot path. Inlined the interpolation calculation directly into the loop, and replaced `Math.floor(index)` with `index | 0` alongside dropping `Math.ceil` by using `lower + 1`. This safely and substantially tightens the critical rendering loop.
