@@ -176,26 +176,53 @@ function vowelPackAt(rate: number): VowelLibrary {
   return library;
 }
 
-/** f0 (Hz) of `signal` by normalised autocorrelation over 80–1000 Hz. */
+/** f0 (Hz) of `signal` by YIN-style difference function over 80–1000 Hz. */
 function pitchHz(signal: Float32Array, rate: number): number {
-  let best = 0;
-  let bestLag = 0;
-  for (let lag = Math.floor(rate / 1000); lag <= Math.ceil(rate / 80); lag++) {
-    let num = 0;
-    let a = 0;
-    let b = 0;
-    for (let i = 0; i + lag < signal.length; i++) {
-      num += signal[i] * signal[i + lag];
-      a += signal[i] * signal[i];
-      b += signal[i + lag] * signal[i + lag];
+  const minLag = Math.floor(rate / 1000);
+  const maxLag = Math.ceil(rate / 80);
+  const windowSize = Math.floor(rate / 40);
+
+  const diffs = new Float32Array(maxLag + 1);
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let diff = 0;
+    for (let i = 0; i < windowSize; i++) {
+        const delta = signal[i] - signal[i + lag];
+        diff += delta * delta;
     }
-    const r = num / Math.sqrt(a * b + 1e-12);
-    if (r > best) {
-      best = r;
-      bestLag = lag;
+    diffs[lag] = diff;
+  }
+
+  let runningSum = 0;
+  let bestT = -1;
+  const threshold = 0.1;
+
+  for (let tau = minLag; tau <= maxLag; tau++) {
+    runningSum += diffs[tau];
+    const cmndf = diffs[tau] * (tau - minLag + 1) / runningSum;
+
+    if (cmndf < threshold) {
+        while (tau + 1 <= maxLag && diffs[tau + 1] < diffs[tau]) {
+            tau++;
+        }
+        bestT = tau;
+        break;
     }
   }
-  return rate / bestLag;
+
+  if (bestT === -1) {
+      let minCmndf = Infinity;
+      runningSum = 0;
+      for (let tau = minLag; tau <= maxLag; tau++) {
+        runningSum += diffs[tau];
+        const cmndf = diffs[tau] * (tau - minLag + 1) / runningSum;
+        if (cmndf < minCmndf) {
+            minCmndf = cmndf;
+            bestT = tau;
+        }
+      }
+  }
+
+  return rate / bestT;
 }
 
 describe('vocal freeze parity: live rate vs export rate', () => {
