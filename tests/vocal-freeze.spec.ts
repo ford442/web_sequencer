@@ -16,7 +16,7 @@ import { parseWav } from '../src/agent/audioMetrics';
  */
 
 const SONG = {
-    meta: { title: 'Vocal freeze', author: 'e2e', version: '1.0', createdAt: '2026-10-27T00:00:00Z', generator: 'e2e', tags: ['e2e'] },
+    meta: { title: 'Vocal freeze', author: 'e2e', version: '1.0', createdAt: '2026-10-27T00:00:00Z', prompt: 'e2e prompt', generator: 'e2e', tags: ['e2e'] },
     globals: { tempo: 120 },
     tracks: {
         sampler: [{
