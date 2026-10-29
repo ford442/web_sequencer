@@ -3,9 +3,12 @@
 ## Active Backlog
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
-- Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
+- [x] Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
+- Velocity Check: Mapping lyric text sentiment using basic keyword analysis into an open hi-hat probability enables dynamically generated rhythmic textures. Using `Math.random() < openHatProb` during Euclidean fills elegantly replaces a closed hat with an open hat based on emotional intent, directly connecting text meaning to rhythm without DSP overhead.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
 - Explore non-linear swing patterns for generative polyrhythms in the step sequencer.
+- Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
+- What if we dynamically map the formants of mid-vowels to a phaser effect sweep in the granular engine?
 - [x] Explore dynamically linking step lengths to phoneme duration.
 - Velocity Check: Utilizing standard arithmetic to implement dynamic phoneme step lengths within `handleTextToDrums` allowed translating phonetic rhythm onto generated drum loops effectively without affecting core Sequencer or TTS DSP architecture.
 - [x] Explore adding a humanize function to drum velocities based on phoneme duration in `handleTextToDrums`
@@ -40,10 +43,8 @@
 ## Innovation Lab
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore dynamically linking step lengths to phoneme duration.
-- Explore modulating synthesizer wave shapes using speech fricative noise intensity as an envelope follower.
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
-- What if we dynamically map the formants of mid-vowels to a phaser effect sweep in the granular engine?
 - Explore mapping lyric text sentiment to default scale
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - [x] Explore randomizing granular jitter based on note velocity.

@@ -128,6 +128,21 @@ export function useLyricHandlers(deps: {
             newCH.steps = Array<Note | null>(chSteps).fill(null);
             newOH.steps = Array<Note | null>(ohSteps).fill(null);
 
+            // Calculate basic text sentiment to determine probability of open vs closed hats in fills
+            const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+            const posWords = ['love', 'happy', 'good', 'great', 'joy', 'beautiful', 'bright', 'shine', 'smile', 'dance'];
+            const negWords = ['hate', 'sad', 'bad', 'dark', 'pain', 'cry', 'angry', 'lost', 'alone', 'cold'];
+            let sentimentScore = 0;
+            words.forEach(w => {
+                if (posWords.includes(w)) sentimentScore++;
+                if (negWords.includes(w)) sentimentScore--;
+            });
+            // Normalize sentiment to a probability for open hats (more positive = more open hats)
+            // base prob: 0.1. Sentiment adds/removes up to 0.4.
+            const maxScore = Math.max(1, words.length * 0.2); // Expected max score based on word count
+            const normalizedSentiment = Math.max(-1, Math.min(1, sentimentScore / maxScore));
+            const openHatProb = Math.max(0, Math.min(0.8, 0.2 + (normalizedSentiment * 0.4)));
+
             let consecutiveConsonants = 0;
             let lastConsonantStep = -1;
             let currentStress = 0;
@@ -206,7 +221,11 @@ export function useLyricHandlers(deps: {
                                 if (isEuclideanHit) {
                                     // Escalating velocity for the evolving sequence
                                     const vel = 0.3 + (0.7 * (j / gapSize));
-                                    newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    if (Math.random() < openHatProb && fillStep >= 0 && fillStep < newOH.steps.length) {
+                                        newOH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    } else {
+                                        newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    }
                                 }
 
                                 // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
