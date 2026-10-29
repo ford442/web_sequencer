@@ -40,7 +40,8 @@ test('ARR: draw a clip lane, play, playhead and the automated control move', asy
         const seen: number[] = [];
         (window as Window & { __CUTOFF_SEEN__?: number[] }).__CUTOFF_SEEN__ = seen;
         const record = () => {
-            const knob = document.querySelector('[role="slider"][aria-label="CUTOFF (automated)"]');
+            const knobs = Array.from(document.querySelectorAll('[role="slider"]'));
+            const knob = knobs.find((k) => /CUTOFF.*automated/i.test(k.getAttribute('aria-label') || ''));
             const v = Number(knob?.getAttribute('aria-valuenow'));
             if (knob && Number.isFinite(v) && seen[seen.length - 1] !== v) seen.push(v);
         };
@@ -61,7 +62,7 @@ test('ARR: draw a clip lane, play, playhead and the automated control move', asy
         })
         .toBeGreaterThanOrEqual(10);
 
-    const automated = page.getByRole('slider', { name: 'CUTOFF (automated)' }).first();
+    const automated = page.getByRole('slider', { name: /CUTOFF.*automated/i }).first();
     await expect(automated).toBeAttached();
     await expect
         .poll(

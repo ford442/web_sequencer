@@ -352,16 +352,16 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                 <fieldset className="bg-gray-800/50 p-3 rounded-lg border border-gray-700">
                                     <legend className="block text-xs text-gray-400 font-mono mb-2 uppercase">What are you saving?</legend>
                                     <div className="flex gap-4">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save full song"/>
+                                        <label htmlFor="utype-song" className="flex items-center gap-2 cursor-pointer">
+                                            <input id="utype-song" type="radio" name="utype" checked={uploadType === 'song'} onChange={() => setUploadType('song')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" />
                                             <span className="text-sm text-gray-300">Full Song</span>
                                         </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save pattern bank"/>
+                                        <label htmlFor="utype-bank" className="flex items-center gap-2 cursor-pointer">
+                                            <input id="utype-bank" type="radio" name="utype" checked={uploadType === 'bank'} onChange={() => setUploadType('bank')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" />
                                             <span className="text-sm text-gray-300">Pattern Bank</span>
                                         </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" aria-label="Save current pattern"/>
+                                        <label htmlFor="utype-pattern" className="flex items-center gap-2 cursor-pointer">
+                                            <input id="utype-pattern" type="radio" name="utype" checked={uploadType === 'pattern'} onChange={() => setUploadType('pattern')} className="accent-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500" />
                                             <span className="text-sm text-gray-300">Current Pattern</span>
                                         </label>
                                     </div>
