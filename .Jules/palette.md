@@ -20,3 +20,6 @@
 ## YYYY-MM-DD - Better tooltips on disabled controls
 **Learning:** Native `title` tooltips often fail to render on HTML elements with the `disabled` attribute depending on the browser.
 **Action:** When users need to know *why* a button is disabled, prefer `aria-disabled` + a no-op click handler (with manual styling like `opacity-60 cursor-not-allowed`) rather than native `disabled`. This ensures the explanatory `title` (or a custom tooltip) remains accessible on mouse hover.
+## 2024-10-29 - Automation Lane Accessibility Fixes
+**Learning:** `aria-selected` is invalid on `role="listitem"` and requires the `listbox`/`option` pattern. Also, nested interactive controls in rows can have their keyboard events swallowed by the row unless the row’s `onKeyDown` handler explicitly checks `if (e.target !== e.currentTarget) return;`. Furthermore, toggle buttons need `role="switch"` and `aria-checked` to convey state accurately, rather than just changing the `aria-label` text. Finally, visually hidden text (`sr-only`) is necessary to make icon-only badges accessible since `title` attributes are unreliable for screen readers.
+**Action:** Applied these fixes to `src/components/automation/AutomationLaneList.tsx` and created a new unit test to cover the `listbox` pattern, `switch` toggles, and the keyboard event bubbling issue.
