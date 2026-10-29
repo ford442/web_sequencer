@@ -49,7 +49,7 @@ const LaneRow = memo(({
 
   return (
     <div
-      role="listitem"
+      role="option"
       aria-selected={isSelected}
       tabIndex={0}
       className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
@@ -57,6 +57,7 @@ const LaneRow = memo(({
       }`}
       onClick={() => onSelect(lane.id)}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onSelect(lane.id);
@@ -65,6 +66,8 @@ const LaneRow = memo(({
     >
       {/* Enable/Disable toggle */}
       <button type="button"
+        role="switch"
+        aria-checked={lane.enabled}
         aria-label={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
         title={`${lane.enabled ? 'Disable' : 'Enable'} lane ${lane.name}`}
         className={`w-4 h-4 rounded-sm border flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1d24] ${
@@ -82,9 +85,9 @@ const LaneRow = memo(({
           <span>{lane.parameter}</span>
           <span>·</span>
           <span>{pointCount}pts</span>
-          {hasSubStep && <span className="text-amber-400" title="Sub-step resolution">⬡</span>}
-          {hasAccent && <span className="text-red-400" title="Has accent flags">A</span>}
-          {hasSlide && <span className="text-green-400" title="Has slide flags">S</span>}
+          {hasSubStep && <span className="text-amber-400" title="Sub-step resolution"><span className="sr-only">sub-step</span>⬡</span>}
+          {hasAccent && <span className="text-red-400" title="Has accent flags"><span className="sr-only">accent</span>A</span>}
+          {hasSlide && <span className="text-green-400" title="Has slide flags"><span className="sr-only">slide</span>S</span>}
         </div>
       </div>
 
@@ -187,7 +190,7 @@ export const AutomationLaneList = memo(({ selectedLaneId, onSelectLane }: Automa
   }
 
   return (
-    <div role="list" aria-label="Automation Lanes" className="flex flex-col gap-1 p-1 max-h-64 overflow-y-auto">
+    <div role="listbox" aria-label="Automation Lanes" className="flex flex-col gap-1 p-1 max-h-64 overflow-y-auto">
       {state.lanes.map((lane) => (
         <LaneRow
           key={lane.id}
