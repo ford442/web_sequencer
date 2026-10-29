@@ -191,11 +191,17 @@ export function useLyricHandlers(deps: {
                         // Calculate number of hits based on consonant density
                         const hits = Math.max(1, Math.floor(gapSize * (0.3 + (consecutiveConsonants * 0.15) % 0.6)));
 
+                        // Shift the phase of the polyrhythm dynamically based on the current swing percentage.
+                        // 50 swing = straight (0 shift), > 50 = shift forward, < 50 = shift backward.
+                        const swingShift = Math.round(((meter.swing - 50) / 25) * gapSize);
+
                         for (let j = 1; j <= gapSize; j++) {
                             const fillStep = lastConsonantStep + j;
                             if (fillStep >= 0 && fillStep < newCH.steps.length) {
-                                // Euclidean Rhythm E(k, n): ((j - 1) * hits) % gapSize < hits
-                                const isEuclideanHit = ((j - 1) * hits) % gapSize < hits;
+                                // Euclidean Rhythm E(k, n): ((j - 1 + shift) * hits) % gapSize < hits
+                                // We add gapSize before modulo to handle negative swingShifts cleanly.
+                                const phaseShiftedIndex = j - 1 + swingShift;
+                                const isEuclideanHit = ((((phaseShiftedIndex % gapSize) + gapSize) % gapSize) * hits) % gapSize < hits;
 
                                 if (isEuclideanHit) {
                                     // Escalating velocity for the evolving sequence
