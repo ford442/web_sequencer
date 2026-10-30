@@ -75,7 +75,7 @@ export class BassEnvelopeFollower {
       this.cachedBlockFrames = blockFrames;
       this.cachedReleaseSeconds = this.releaseSeconds;
       const releaseFrames = Math.max(1, sampleRate * this.releaseSeconds);
-      this.cachedReleaseMultPow = Math.pow(Math.exp(-1.0 / releaseFrames), blockFrames);
+      this.cachedReleaseMultPow = Math.exp(-blockFrames / releaseFrames);
     }
 
     if (this.attacking) {

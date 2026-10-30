@@ -64,8 +64,8 @@ export class SpectralBandProcessor {
     // grDb = 20 * (1 - 1/ratio) * log10(env/threshold)
     // gain = 10^(-grDb/20) = (env/threshold)^(-slope)
     const slope = 1.0 - 1.0 / ratio;
-    const maxEnv = threshold * Math.pow(10, maxGR / (20 * slope));
-    const maxGRMultiplier = Math.pow(10, -maxGR / 20);
+    const maxEnv = threshold * Math.exp((maxGR / (20 * slope)) * Math.LN10);
+    const maxGRMultiplier = Math.exp((-maxGR / 20) * Math.LN10);
 
     // Pre-calculate constants to convert Math.pow to Math.exp + Math.log
     const invSlope = -slope;
