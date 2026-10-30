@@ -150,7 +150,7 @@ export const KnobOverlay = memo(({
                     : valueDisplay}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={Math.round(value * 100)}
+                aria-valuenow={Math.round((isAutomated ? automatedValue : value) * 100)}
                 aria-description={isAutomated ? 'This parameter is currently driven by an automation lane' : undefined}
                 tabIndex={0}
                 className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white pointer-events-none"
