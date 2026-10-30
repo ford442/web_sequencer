@@ -252,7 +252,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-green-400 bg-zinc-900 border border-green-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot save while importing AI song" : "Save to JSON"}
                 >
-                    <span aria-hidden="true">💾</span> SAVE
+                    <span aria-hidden="true">💾 SAVE</span>
                 </button>
                 <button type="button"
                     onClick={importSongFromFile} 
@@ -261,7 +261,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-blue-400 bg-zinc-900 border border-blue-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot load while importing AI song" : "Load from JSON"}
                 >
-                    <span aria-hidden="true">📂</span> LOAD
+                    <span aria-hidden="true">📂 LOAD</span>
                 </button>
                 <HelpTip topicId="rbs-import" position="top">
                 <button type="button"
@@ -271,7 +271,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-amber-400 bg-zinc-900 border border-amber-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot import while importing AI song" : "Import ReBirth RB-338 file"}
                 >
-                    <span aria-hidden="true">🎹</span> Import .rbs
+                    <span aria-hidden="true">🎹 Import .rbs</span>
                 </button>
                 </HelpTip>
                 <button type="button"
@@ -281,7 +281,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
-                    <span aria-hidden="true">💾</span> Export .rbs
+                    <span aria-hidden="true">💾 Export .rbs</span>
                 </button>
                 <HelpTip topicId="smf-import" position="top">
                 <button type="button"
@@ -291,7 +291,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot import while importing AI song" : "Import Standard MIDI File"}
                 >
-                    <span aria-hidden="true">🎼</span> Import .mid
+                    <span aria-hidden="true">🎼 Import .mid</span>
                 </button>
                 </HelpTip>
                 <button type="button"
@@ -301,7 +301,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-teal-400 bg-zinc-900 border border-teal-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as Standard MIDI file"}
                 >
-                    <span aria-hidden="true">💾</span> Export .mid
+                    <span aria-hidden="true">💾 Export .mid</span>
                 </button>
                 <button type="button"
                     onClick={() => setIsExportModalOpen(true)}
@@ -310,7 +310,7 @@ export const BottomBar = memo(function BottomBar({
                     className={`h-6 px-2 text-[10px] font-bold text-cyan-400 bg-zinc-900 border border-cyan-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-950/30 hover:scale-105 active:scale-95'}`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export dry stems (WAV ZIP)"}
                 >
-                    <span aria-hidden="true">🎚</span> Export Stems
+                    <span aria-hidden="true">🎚 Export Stems</span>
                 </button>
                 <button type="button"
                     onClick={() => !isImportingAISong && setIsAISongModalOpen(true)}
@@ -349,7 +349,7 @@ export const BottomBar = memo(function BottomBar({
                     title={isImportingAISong ? "Importing AI song..." : "Cloud Library"}
                     aria-label="Open Cloud Library"
                 >
-                    <span aria-hidden="true">☁️</span> CLOUD
+                    <span aria-hidden="true">☁️ CLOUD</span>
                 </button>
             </div>
 
@@ -362,7 +362,7 @@ export const BottomBar = memo(function BottomBar({
                         title="Auto-Mix Assistant (AI Panning & Leveling)"
                         aria-label="Auto-Mix Assistant"
                     >
-                        <span aria-hidden="true">✨</span> AUTO-MIX
+                        <span aria-hidden="true">✨ AUTO-MIX</span>
                     </button>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 min-w-[60px]">
@@ -430,7 +430,7 @@ export const BottomBar = memo(function BottomBar({
                     title="Tape Stop (Escape)"
                     aria-label="Trigger Tape Stop Effect"
                 >
-                    Tape Stop
+                    <span aria-hidden="true">Tape Stop</span>
                 </button>
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />
