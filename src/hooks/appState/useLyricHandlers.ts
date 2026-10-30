@@ -208,7 +208,7 @@ export function useLyricHandlers(deps: {
                         let bassHitsInGap = 0;
                         for (let j = 1; j <= gapSize; j++) {
                             const fillStep = lastConsonantStep + j;
-                            if (fillStep >= 0 && fillStep < newPattern.bass2.steps.length && newPattern.bass2.steps[fillStep]) {
+                            if (fillStep >= 0 && fillStep < (newPattern.bass2?.steps?.length || 0) && newPattern.bass2?.steps?.[fillStep]) {
                                 bassHitsInGap++;
                             }
                         }
