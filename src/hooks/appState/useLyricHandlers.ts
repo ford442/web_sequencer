@@ -203,8 +203,19 @@ export function useLyricHandlers(deps: {
                     if (consecutiveConsonants >= 2 && lastConsonantStep !== -1 && stepIdx > lastConsonantStep + 1) {
                         // Fill the gap with evolving polyrhythmic Euclidean drum sequences
                         const gapSize = stepIdx - lastConsonantStep - 1;
-                        // Calculate number of hits based on consonant density
-                        const hits = Math.max(1, Math.floor(gapSize * (0.3 + (consecutiveConsonants * 0.15) % 0.6)));
+
+                        // Cross-modulate Euclidean rhythm density with the synth bass envelope
+                        let bassHitsInGap = 0;
+                        for (let j = 1; j <= gapSize; j++) {
+                            const fillStep = lastConsonantStep + j;
+                            if (fillStep >= 0 && fillStep < newPattern.bass2.steps.length && newPattern.bass2.steps[fillStep]) {
+                                bassHitsInGap++;
+                            }
+                        }
+                        const bassModulation = gapSize > 0 ? (bassHitsInGap / gapSize) * 0.4 : 0;
+
+                        // Calculate number of hits based on consonant density + bass density
+                        const hits = Math.max(1, Math.floor(gapSize * (0.3 + ((consecutiveConsonants * 0.15) % 0.6) + bassModulation)));
 
                         // Shift the phase of the polyrhythm dynamically based on the current swing percentage.
                         // 50 swing = straight (0 shift), > 50 = shift forward, < 50 = shift backward.
