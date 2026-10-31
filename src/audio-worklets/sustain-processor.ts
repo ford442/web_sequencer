@@ -368,9 +368,7 @@ class SustainProcessor extends AudioWorkletProcessor {
             }
 
             if (!this.buffer || !this.isPlaying) {
-                for (let channel = 0; channel < output.length; channel++) {
-                    output[channel][i] = 0;
-                }
+                output[0][i] = 0;
                 continue;
             }
 
@@ -413,9 +411,12 @@ class SustainProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            for (let channel = 0; channel < output.length; channel++) {
-                output[channel][i] = sampleValue;
-            }
+            output[0][i] = sampleValue;
+        }
+
+        // Copy to all channels
+        for (let channel = 1; channel < output.length; channel++) {
+            output[channel].set(output[0]);
         }
 
         return true;
