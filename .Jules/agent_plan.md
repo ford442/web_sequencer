@@ -2,7 +2,9 @@
 
 ## Active Backlog
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
-- Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
+- [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
+- Velocity Check: Mapping synth bass sequence density (by counting active bass steps in the consonant gap) to a modulation scalar directly added to the base Euclidean density formula successfully connected the rhythm of the bassline to the auto-generated hi-hat fills without any heavy DSP cross-modulation worklets.
+- Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
 - [x] Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
 - Velocity Check: Mapping lyric text sentiment using basic keyword analysis into an open hi-hat probability enables dynamically generated rhythmic textures. Using `Math.random() < openHatProb` during Euclidean fills elegantly replaces a closed hat with an open hat based on emotional intent, directly connecting text meaning to rhythm without DSP overhead.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
@@ -44,7 +46,6 @@
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore dynamically linking step lengths to phoneme duration.
 - What if we map vowel brightness/formant to open hi-hat decay time?
-- Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
 - Explore mapping lyric text sentiment to default scale
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - [x] Explore randomizing granular jitter based on note velocity.
