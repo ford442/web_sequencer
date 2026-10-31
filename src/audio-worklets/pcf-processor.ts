@@ -6,6 +6,7 @@
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
 /** Clamp a value to the [0, 127] MIDI range. */
 function clampMidi(v: number): number { return v < 0 ? 0 : v > 127 ? 127 : v; }
+const LN1000 = Math.log(1000);
 
 /** Filter types matching ReBirth PCF */
 const PCF_FILTER_LP = 0;
@@ -103,7 +104,7 @@ class PcfProcessor extends AudioWorkletProcessor {
 
     // Cached invariant math for the hot path
     private baseHz = 20;
-    private readonly maxHz = 20 * Math.pow(1000, 1); // midiToHz(127)
+    private readonly maxHz = 20000; // midiToHz(127)
 
     constructor() {
         super();
@@ -197,7 +198,7 @@ class PcfProcessor extends AudioWorkletProcessor {
     private midiToHz(midiValue: number): number {
         // Exponential mapping: 0→20Hz, 127→20000Hz
         const normalized = midiValue / 127;
-        return 20 * Math.pow(1000, normalized);
+        return 20 * Math.exp(normalized * LN1000);
     }
 
     /**
@@ -237,7 +238,7 @@ class PcfProcessor extends AudioWorkletProcessor {
     private refreshEnvelopeBlockDecay(blockSize: number): void {
         if (blockSize !== this.lastBlockSize) {
             this.lastBlockSize = blockSize;
-            this.envelopeBlockDecay = Math.pow(this.envelopeDecayRate, blockSize);
+            this.envelopeBlockDecay = Math.exp(blockSize * Math.log(this.envelopeDecayRate));
         }
     }
 
