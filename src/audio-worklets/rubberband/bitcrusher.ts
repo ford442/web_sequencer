@@ -10,7 +10,7 @@ export class Bitcrusher {
     let steps = 0;
     if (bitcrushAmount > 0) {
       const bits = 16 - (bitcrushAmount * 14);
-      steps = Math.pow(2, bits);
+      steps = Math.exp(bits * Math.LN2);
     }
 
     for (let channel = 0; channel < outputs[0].length; channel++) {

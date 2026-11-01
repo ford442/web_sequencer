@@ -360,7 +360,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                 if (this.arpCounter >= samplesPerStep) {
                     this.arpCounter = 0;
                     const semiTone = this.arpPattern[this.arpStepIndex % this.arpPattern.length];
-                    this.basePitch = Math.pow(2, semiTone / 12.0);
+                    this.basePitch = Math.exp((semiTone / 12.0) * Math.LN2);
                     this.playhead = this.loopStart;
                     this.isPlaying = true;
                     this.arpStepIndex++;
