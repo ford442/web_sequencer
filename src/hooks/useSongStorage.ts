@@ -165,6 +165,10 @@ export interface SongStorageReturn {
     setIsImportingAISong: React.Dispatch<React.SetStateAction<boolean>>;
     setAiImportProgress: React.Dispatch<React.SetStateAction<number>>;
     setAiImportStage: React.Dispatch<React.SetStateAction<AiImportStage>>;
+
+    // Export loading states
+    isExportingRbs: boolean;
+    isExportingSmf: boolean;
 }
 
 export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
@@ -189,6 +193,10 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     const [aiImportProgress, setAiImportProgress] = useState(0);
     const [aiImportStage, setAiImportStage] = useState<AiImportStage>(null);
     const [aiImportError, setAiImportError] = useState<string | null>(null);
+
+    // Export loading states
+    const [isExportingRbs, setIsExportingRbs] = useState(false);
+    const [isExportingSmf, setIsExportingSmf] = useState(false);
 
     // ---- Serialization helpers ----
 
@@ -511,6 +519,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     }, [getSongData, deps.isSongModeActive, deps.trakEventsRef]);
 
     const exportRbsToFile = useCallback(async () => {
+        setIsExportingRbs(true);
         try {
             const result = await buildRbsExport();
             if (!result.success) {
@@ -530,6 +539,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         } catch (err) {
             console.error('RBS export failed:', err);
             showToast('Failed to export .rbs file', 'error');
+        } finally {
+            setIsExportingRbs(false);
         }
     }, [buildRbsExport, showToast]);
 
@@ -557,6 +568,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     }, [getSongData, deps.isSongModeActive]);
 
     const exportSmfToFile = useCallback(async () => {
+        setIsExportingSmf(true);
         try {
             const result = await buildSmfExport();
             if (!result.success) {
@@ -576,6 +588,8 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         } catch (err) {
             console.error('SMF export failed:', err);
             showToast('Failed to export .mid file', 'error');
+        } finally {
+            setIsExportingSmf(false);
         }
     }, [buildSmfExport, showToast]);
 
@@ -961,5 +975,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         setIsImportingAISong,
         setAiImportProgress,
         setAiImportStage,
+        isExportingRbs,
+        isExportingSmf,
     };
 }
