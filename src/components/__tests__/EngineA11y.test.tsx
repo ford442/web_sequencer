@@ -156,7 +156,7 @@ describe('EngineStatusPill – accessibility', () => {
                 bass2={{ label: 'B2' }}
             />
         );
-        const pill = screen.getByText('A:JC303');
+        const pill = screen.getByText('A:JC303').parentElement;
         expect(pill).toHaveAttribute('aria-label');
         expect(pill).toHaveAttribute('title');
     });
