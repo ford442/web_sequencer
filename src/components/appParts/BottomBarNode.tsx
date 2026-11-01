@@ -7,6 +7,7 @@ const BOTTOM_BAR_KEYS = [
     'isLyricTrackVisible', 'setIsLyricTrackVisible',
     'isImportingAISong', 'aiImportStage', 'aiImportProgress',
     'exportSongToFile', 'exportRbsToFile', 'exportSmfToFile', 'importSongFromFile',
+    'isExportingRbs', 'isExportingSmf',
     'setIsRbsImportModalOpen', 'setIsSmfImportModalOpen', 'setIsExportModalOpen',
     'setIsAISongModalOpen', 'setIsCloudLibraryOpen',
     'isAutomationRecording', 'setIsAutomationRecording', 'isPlaying', 'handleAutoMix',
