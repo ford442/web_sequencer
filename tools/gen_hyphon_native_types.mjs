@@ -1,25 +1,35 @@
 #!/usr/bin/env node
 /**
- * Generate src/shared/rt/hyphonNativeExports.ts — the typed surface of
- * hyphon_native.wasm (#1344 P4).
+ * Generate the typed surfaces hyphon_native shares with TypeScript (#1344 P4,
+ * #1497 P1):
+ *
+ *   src/shared/rt/hyphonNativeExports.ts   the wasm exports, typed
+ *   src/shared/rt/eventLayout.ts           the control-plane record: offsets,
+ *                                          type ids, EventWriter / EventReader
+ *   emscripten/core/event_layout.h         the same record for C++: hyphon::Event,
+ *                                          hyphon::EventType, static_asserts
  *
  * Inputs, so nothing here is a hand-kept list:
+ *   emscripten/core/event_schema.json      the record layout and its types
  *   emscripten/wasm_export_manifest.json   which names exist (required / optional)
- *   emscripten/*_wrapper.cpp                their EMSCRIPTEN_KEEPALIVE prototypes
+ *   emscripten/*_wrapper.cpp                their EMSCRIPTEN_KEEPALIVE prototypes,
+ *                                           and the engine-private event enums
  *   emscripten/core/voice_exports.h         the HYPHON_EXPORT_VOICE signatures,
  *                                           expanded for every engine that uses it
- *   emscripten/core/voice.h + wrappers      the event type enums
  *
  * Usage:
- *   node tools/gen_hyphon_native_types.mjs           write the file
- *   node tools/gen_hyphon_native_types.mjs --check   exit 1 if it is stale
+ *   node tools/gen_hyphon_native_types.mjs           write the files
+ *   node tools/gen_hyphon_native_types.mjs --check   exit 1 if any is stale
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const OUTPUT = 'src/shared/rt/hyphonNativeExports.ts';
+export const EXPORTS_OUTPUT = 'src/shared/rt/hyphonNativeExports.ts';
+export const EVENT_SCHEMA = 'emscripten/core/event_schema.json';
+export const EVENT_LAYOUT_TS = 'src/shared/rt/eventLayout.ts';
+export const EVENT_LAYOUT_H = 'emscripten/core/event_layout.h';
 
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
@@ -119,7 +129,402 @@ function formatConst(name, doc, values) {
   return `/** ${doc} */\nexport const ${name} = {\n${body}\n} as const;\n`;
 }
 
-export function generate() {
+// ── Event schema (#1497) ────────────────────────────────────────────────────
+
+/** Field kinds the two emitters know, with their size (= alignment) in bytes. */
+const FIELD_KINDS = {
+  int64: { bytes: 8, cpp: 'int64_t', zero: '0' },
+  uint16: { bytes: 2, cpp: 'uint16_t', zero: '0' },
+  float32: { bytes: 4, cpp: 'float', zero: '0.0f' },
+};
+
+const SYMBOL = /^[A-Z][A-Za-z0-9]*$/;
+const NAME = /^[A-Z][A-Z0-9_]*$/;
+const FIELD = /^[a-z][A-Za-z0-9]*$/;
+
+/**
+ * Reads and validates event_schema.json, and lays the record out: fields in
+ * order at natural alignment, which must come to record.bytes exactly.
+ */
+export function loadEventSchema(text = read(EVENT_SCHEMA)) {
+  const schema = JSON.parse(text);
+  const fail = (msg) => {
+    throw new Error(`${EVENT_SCHEMA}: ${msg}`);
+  };
+  if (!Number.isInteger(schema.version) || schema.version < 1) fail('version must be a positive integer');
+
+  let offset = 0;
+  let maxAlign = 1;
+  const fields = (schema.record?.fields ?? []).map((f) => {
+    const kind = FIELD_KINDS[f.type];
+    if (!kind) fail(`field ${f.name}: unknown type "${f.type}" (known: ${Object.keys(FIELD_KINDS).join(', ')})`);
+    if (!FIELD.test(f.name ?? '')) fail(`field name "${f.name}" is not a lowerCamel identifier`);
+    const count = f.count ?? 1;
+    if (!Number.isInteger(count) || count < 1) fail(`field ${f.name}: count must be a positive integer`);
+    if (offset % kind.bytes !== 0) fail(`field ${f.name} (${f.type}) would sit at byte ${offset}, not ${kind.bytes}-aligned`);
+    const field = { ...f, count, kind, offset, array: f.count !== undefined };
+    offset += kind.bytes * count;
+    maxAlign = Math.max(maxAlign, kind.bytes);
+    return field;
+  });
+  if (fields.length === 0) fail('record.fields is empty');
+  if (offset !== schema.record.bytes) fail(`fields take ${offset} bytes, record.bytes says ${schema.record.bytes}`);
+  if (schema.record.bytes % maxAlign !== 0) fail(`record.bytes is not a multiple of its alignment (${maxAlign})`);
+
+  const types = schema.types ?? [];
+  const base = schema.engineBase;
+  if (!base || !SYMBOL.test(base.symbol ?? '') || !Number.isInteger(base.id)) fail('engineBase needs a symbol and an integer id');
+  const ids = new Set();
+  const symbols = new Set([base.symbol]);
+  for (const t of types) {
+    if (!NAME.test(t.name ?? '')) fail(`type name "${t.name}" is not UPPER_SNAKE`);
+    if (!SYMBOL.test(t.symbol ?? '')) fail(`type ${t.name}: symbol "${t.symbol}" is not PascalCase`);
+    if (!Number.isInteger(t.id) || t.id < 1 || t.id >= base.id) fail(`type ${t.name}: id must be 1..${base.id - 1}`);
+    if (ids.has(t.id)) fail(`type id ${t.id} is used twice`);
+    if (symbols.has(t.symbol)) fail(`type symbol ${t.symbol} is used twice`);
+    ids.add(t.id);
+    symbols.add(t.symbol);
+    const argField = fields.find((f) => f.name === 'args');
+    for (const [i, a] of (t.args ?? []).entries()) {
+      if (!FIELD.test(a.name ?? '')) fail(`type ${t.name}: arg ${i} name "${a.name}" is not lowerCamel`);
+      if (!argField || i >= argField.count) fail(`type ${t.name}: names more arg slots than the record has`);
+    }
+  }
+  for (const list of ['targets', 'expressionDimensions']) {
+    const seen = new Set();
+    for (const e of schema[list] ?? []) {
+      if (!SYMBOL.test(e.symbol ?? '') || !Number.isInteger(e.id)) fail(`${list}: each entry needs a PascalCase symbol and an integer id`);
+      if (seen.has(e.symbol)) fail(`${list}: ${e.symbol} is used twice`);
+      seen.add(e.symbol);
+    }
+  }
+  return { ...schema, fields, types, base, bytes: schema.record.bytes };
+}
+
+/** hyphon::EventType as C++ enumerator → value, for the wrappers' `hyphon::k…` expressions. */
+function eventTypeScope(schema) {
+  const scope = Object.fromEntries(schema.types.map((t) => [`k${t.symbol}`, t.id]));
+  scope[`k${schema.base.symbol}`] = schema.base.id;
+  return scope;
+}
+
+const hex = (v) => (v >= 0x100 ? `0x${v.toString(16)}` : String(v));
+const hexUpper = (v) => (v >= 0x100 ? `0x${v.toString(16).toUpperCase()}` : String(v));
+const pad = (s, n) => s + ' '.repeat(Math.max(0, n - s.length));
+
+/** The JS parameter names of a record: scalars by field name, arrays as a0..aN. */
+function recordParams(schema) {
+  return schema.fields.flatMap((f) =>
+    f.array ? Array.from({ length: f.count }, (_, i) => ({ field: f, name: `${f.name[0]}${i}`, index: i })) : [{ field: f, name: f.name, index: 0 }],
+  );
+}
+
+/** Index expression of a param in the typed view its kind uses. */
+function viewIndex(p, recordWords) {
+  const k = p.field.kind;
+  const elem = k.bytes === 8 ? 4 : k.bytes; // int64 is written as two int32 words
+  const at = p.field.offset / elem + p.index * (k.bytes / elem);
+  const base = k.bytes === 2 ? 'h' : 'w';
+  return { base, at, recordWords };
+}
+
+export function generateEventLayoutTs(schema = loadEventSchema()) {
+  const params = recordParams(schema);
+  const words = schema.bytes / 4;
+  const halves = schema.bytes / 2;
+  if (!Number.isInteger(Math.log2(words))) throw new Error(`${EVENT_SCHEMA}: record.bytes must be a power of two`);
+  const wordShift = Math.log2(words);
+  const halfShift = Math.log2(halves);
+
+  const offsetDocs = schema.fields
+    .map((f) => `  /** ${f.type}${f.array ? `[${f.count}]` : ''}: ${f.doc} */\n  ${f.name}: ${f.offset},`)
+    .join('\n');
+  const typeLines = schema.types
+    .map((t) => `  /** ${t.name}: ${t.doc} */\n  ${t.symbol}: ${hex(t.id)},`)
+    .concat(`  /** ${schema.base.doc} */\n  ${schema.base.symbol}: ${hex(schema.base.id)},`)
+    .join('\n');
+  const names = schema.types.map((t) => `  ${t.id}: '${t.name}',`).join('\n');
+  const argLines = schema.types
+    .filter((t) => t.args?.length)
+    .map((t) => `  ${t.symbol}: {\n${t.args.map((a, i) => `    /** ${a.doc} */\n    ${a.name}: ${i},`).join('\n')}\n  },`)
+    .join('\n');
+  const enumBlock = (list) => (schema[list] ?? []).map((e) => `  /** ${e.doc} */\n  ${e.symbol}: ${hex(e.id)},`).join('\n');
+  const cancelled = schema.types.filter((t) => t.cancelledByStop);
+  const cancelExpr = cancelled.length ? cancelled.map((t) => `type === ${t.id}`).join(' || ') : 'false';
+
+  const fieldIndex = params.map((p, i) => `  ${p.name}: ${i},`).join('\n');
+  const sig = params.map((p) => (p.field.array ? `${p.name} = 0` : `${p.name}: number`));
+  sig.unshift('slot: number');
+  // One emitter per access style: positional args / EventRecord fields, or a
+  // Float64Array of fields (EventField order).
+  const accessors = (src, dst) => {
+    const writes = [];
+    const reads = [];
+    params.forEach((p, i) => {
+      const { base, at } = viewIndex(p, words);
+      const idx = (n) => `${base}${n === 0 ? '' : ` + ${n}`}`;
+      const from = src(p, i);
+      const to = dst(p, i);
+      if (p.field.type === 'int64') {
+        // A Float64Array element is read once, into a local.
+        const v = p.name;
+        if (from !== p.name) writes.push(`    const ${v} = ${from};`);
+        writes.push(
+          `    const hi = Math.floor(${v} / TWO_32);`,
+          `    this.i32[${idx(at)}] = ${v} - hi * TWO_32;`,
+          `    this.i32[${idx(at + 1)}] = hi;`,
+        );
+        reads.push(`    ${to} = this.i32[${idx(at + 1)}] * TWO_32 + (this.i32[${idx(at)}] >>> 0);`);
+      } else {
+        const view = p.field.type === 'uint16' ? 'u16' : 'f32';
+        writes.push(`    this.${view}[${idx(at)}] = ${from};`);
+        reads.push(`    ${to} = this.${view}[${idx(at)}];`);
+      }
+    });
+    return { writes, reads };
+  };
+  const named = accessors((p) => p.name, (p) => `out.${p.name}`);
+  const indexed = accessors((_, i) => `fields[${i}]`, (_, i) => `out[${i}]`);
+  const writes = named.writes;
+  const reads = named.reads;
+  const frameField = schema.fields.find((f) => f.name === 'frame' && f.type === 'int64');
+  const typeField = schema.fields.find((f) => f.name === 'type' && f.type === 'uint16');
+  if (!frameField || !typeField) throw new Error(`${EVENT_SCHEMA}: the record needs an int64 frame and a uint16 type`);
+  const usesHalves = params.some((p) => p.field.type === 'uint16');
+
+  return [
+    '// GENERATED by tools/gen_hyphon_native_types.mjs — do not edit.',
+    `// Source: ${EVENT_SCHEMA}. Regenerate: pnpm run gen:native-types`,
+    '//',
+    '// The real-time control-plane record (#1497): its layout, type ids and a',
+    '// typed, allocation-free writer and reader. hyphon::Event',
+    `// (${EVENT_LAYOUT_H}) is generated from the same schema, so the two`,
+    '// sides cannot drift. Shared real-time code: ES2022 only.',
+    '',
+    `/** ${EVENT_SCHEMA} version. */`,
+    `export const EVENT_SCHEMA_VERSION = ${schema.version};`,
+    '/** Bytes per record (sizeof(hyphon::Event)). */',
+    `export const EVENT_BYTES = ${schema.bytes};`,
+    '',
+    '/** Byte offset of each field in a record. */',
+    'export const EventOffset = {',
+    offsetDocs,
+    '} as const;',
+    '',
+    '/** hyphon::EventType. Ids are wire format. */',
+    'export const EventType = {',
+    typeLines,
+    '} as const;',
+    '',
+    '/** Record name of each EventType id, for logs and telemetry. */',
+    'export const EVENT_TYPE_NAMES: Readonly<Record<number, string>> = {',
+    names,
+    '};',
+    '',
+    '/** Named arg slots: `EventArg.<Type>.<name>` indexes args (a0..a3). */',
+    'export const EventArg = {',
+    argLines,
+    '} as const;',
+    '',
+    '/** Special `target` values. */',
+    'export const EventTargetId = {',
+    enumBlock('targets'),
+    '} as const;',
+    '',
+    '/** NOTE_EXPRESSION dimensions (`EventArg.NoteExpression.dimension`). */',
+    'export const ExpressionDimension = {',
+    enumBlock('expressionDimensions'),
+    '} as const;',
+    '',
+    '/** Types a transport stop or a mute cancels: anything that starts or ends a sound. */',
+    'export function isNoteEventType(type: number): boolean {',
+    `  return ${cancelExpr};`,
+    '}',
+    '',
+    '/** One decoded record. Reuse one instance: reading into it allocates nothing. */',
+    'export interface EventRecord {',
+    ...params.map((p) => `  ${p.name}: number;`),
+    '}',
+    '',
+    '/** A record as an EventRecord: fine off the audio path. Storing a double into a field boxes it. */',
+    'export function createEventRecord(): EventRecord {',
+    `  return { ${params.map((p) => `${p.name}: 0`).join(', ')} };`,
+    '}',
+    '',
+    '/**',
+    ' * Index of each field in a Float64Array record (createEventFields). Typed-array',
+    ' * elements hold doubles unboxed, so staging or decoding a record this way',
+    ' * allocates nothing, whatever the JIT inlines: use it on hot paths.',
+    ' */',
+    'export const EventField = {',
+    fieldIndex,
+    '} as const;',
+    '',
+    `export const EVENT_FIELD_COUNT = ${params.length};`,
+    '',
+    'export function createEventFields(): Float64Array {',
+    `  return new Float64Array(${params.length});`,
+    '}',
+    '',
+    'const TWO_32 = 4294967296;',
+    '// wasm memory is little-endian; typed arrays use the platform order.',
+    'const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;',
+    '',
+    '/**',
+    ' * Typed views over `capacity` consecutive records from `byteOffset` (8-aligned)',
+    ' * of an ArrayBuffer, a SharedArrayBuffer or a wasm memory buffer.',
+    ' */',
+    'export class EventViews {',
+    '  readonly capacity: number;',
+    '  readonly i32: Int32Array;',
+    '  readonly u16: Uint16Array;',
+    '  readonly f32: Float32Array;',
+    '',
+    `  constructor(buffer: ArrayBufferLike, byteOffset = 0, capacity = Math.floor((buffer.byteLength - byteOffset) / ${schema.bytes})) {`,
+    "    if (!LITTLE_ENDIAN) throw new Error('event records are little-endian (wasm byte order)');",
+    '    if (byteOffset % 8 !== 0) throw new Error(`event records must start 8-aligned (byteOffset ${byteOffset})`);',
+    `    if (!Number.isInteger(capacity) || capacity < 0 || byteOffset + capacity * ${schema.bytes} > buffer.byteLength) {`,
+    '      throw new Error(`${capacity} event records do not fit at byte ${byteOffset} of ${buffer.byteLength}`);',
+    '    }',
+    '    this.capacity = capacity;',
+    `    this.i32 = new Int32Array(buffer, byteOffset, capacity * ${words});`,
+    `    this.u16 = new Uint16Array(buffer, byteOffset, capacity * ${halves});`,
+    `    this.f32 = new Float32Array(buffer, byteOffset, capacity * ${words});`,
+    '  }',
+    '',
+    '  /**',
+    '   * Copies record `from` of `source` — the int32 words of another run of',
+    '   * records, such as another EventViews.i32 — into `slot`, bit for bit.',
+    '   */',
+    '  copyFrom(slot: number, source: Int32Array, from: number): void {',
+    `    const w = slot << ${wordShift};`,
+    `    const s = from << ${wordShift};`,
+    `    for (let i = 0; i < ${words}; i++) this.i32[w + i] = source[s + i];`,
+    '  }',
+    '}',
+    '',
+    '/** Writes records. `frame` must be an integer (|frame| < 2^53); NaN writes 0, the next block. */',
+    'export class EventWriter extends EventViews {',
+    `  write(${sig.join(', ')}): void {`,
+    `    const w = slot << ${wordShift};`,
+    ...(usesHalves ? [`    const h = slot << ${halfShift};`] : []),
+    ...writes,
+    '  }',
+    '',
+    '  /** write() from a Float64Array record (EventField order). */',
+    '  writeFrom(slot: number, fields: Float64Array): void {',
+    `    const w = slot << ${wordShift};`,
+    ...(usesHalves ? [`    const h = slot << ${halfShift};`] : []),
+    ...indexed.writes,
+    '  }',
+    '}',
+    '',
+    '/** Reads records into an EventRecord. */',
+    'export class EventReader extends EventViews {',
+    '  read(slot: number, out: EventRecord): EventRecord {',
+    `    const w = slot << ${wordShift};`,
+    ...(usesHalves ? [`    const h = slot << ${halfShift};`] : []),
+    ...reads,
+    '    return out;',
+    '  }',
+    '',
+    '  /** read() into a Float64Array record (EventField order): allocates nothing. */',
+    '  readInto(slot: number, out: Float64Array): void {',
+    `    const w = slot << ${wordShift};`,
+    ...(usesHalves ? [`    const h = slot << ${halfShift};`] : []),
+    ...indexed.reads,
+    '  }',
+    '',
+    '  frameAt(slot: number): number {',
+    `    const w = slot << ${wordShift};`,
+    `    return this.i32[w + ${frameField.offset / 4 + 1}] * TWO_32 + (this.i32[w${frameField.offset ? ` + ${frameField.offset / 4}` : ''}] >>> 0);`,
+    '  }',
+    '',
+    '  typeAt(slot: number): number {',
+    `    return this.u16[(slot << ${halfShift}) + ${typeField.offset / 2}];`,
+    '  }',
+    '}',
+    '',
+  ].join('\n');
+}
+
+export function generateEventLayoutH(schema = loadEventSchema()) {
+  const typeRows = schema.types.map((t) => [`k${t.symbol}`, hexUpper(t.id), `${t.name}: ${t.doc}`]);
+  typeRows.push([`k${schema.base.symbol}`, hexUpper(schema.base.id), schema.base.doc]);
+  const width = Math.max(...typeRows.map(([n]) => n.length));
+  const enumBody = typeRows.map(([n, v, d]) => `    ${pad(n, width)} = ${pad(`${v},`, 6)} // ${d}`).join('\n');
+  const dims = schema.expressionDimensions ?? [];
+  const dimWidth = Math.max(0, ...dims.map((e) => `kExpression${e.symbol}`.length));
+  const dimBody = dims.map((e) => `    ${pad(`kExpression${e.symbol}`, dimWidth)} = ${pad(`${hexUpper(e.id)},`, 6)} // ${e.doc}`).join('\n');
+  const targets = (schema.targets ?? []).map((e) => `constexpr uint16_t kTarget${e.symbol} = 0x${e.id.toString(16).toUpperCase()};  // ${e.doc}`);
+  const args = schema.types.flatMap((t) =>
+    (t.args ?? []).map((a, i) => `constexpr int k${t.symbol}Arg${a.name[0].toUpperCase()}${a.name.slice(1)} = ${i};  // ${t.name}: ${a.doc}`),
+  );
+  const fieldWidth = Math.max(...schema.fields.map((f) => f.kind.cpp.length));
+  const nameWidth = Math.max(...schema.fields.map((f) => (f.array ? `${f.name}[${f.count}]` : f.name).length));
+  const fieldLines = schema.fields.map((f) => {
+    const decl = f.array ? `${f.name}[${f.count}]` : f.name;
+    const init = f.array ? `{${Array(f.count).fill(f.kind.zero).join(', ')}}` : f.kind.zero;
+    return `    ${pad(f.kind.cpp, fieldWidth)} ${pad(decl, nameWidth)} = ${init};  // ${f.doc}`;
+  });
+  const offsetAsserts = schema.fields.map(
+    (f) => `static_assert(offsetof(Event, ${f.name}) == ${f.offset}, "Event::${f.name} moved: regenerate from ${EVENT_SCHEMA}");`,
+  );
+  const cancelled = schema.types.filter((t) => t.cancelledByStop);
+  const cancelExpr = cancelled.length ? cancelled.map((t) => `type == k${t.symbol}`).join(' || ') : 'false';
+
+  return [
+    '// GENERATED by tools/gen_hyphon_native_types.mjs — do not edit.',
+    `// Source: ${EVENT_SCHEMA}. Regenerate: pnpm run gen:native-types`,
+    '//',
+    '// The real-time control-plane record (#1497): hyphon::Event, the event type',
+    `// ids and the named arg slots. ${EVENT_LAYOUT_TS} is generated from`,
+    '// the same schema, so the JS writers and this struct cannot drift.',
+    '#pragma once',
+    '',
+    '#include <cstddef>',
+    '#include <cstdint>',
+    '#include <type_traits>',
+    '',
+    'namespace hyphon {',
+    '',
+    `constexpr uint32_t kEventSchemaVersion = ${schema.version};`,
+    `constexpr size_t kEventBytes = ${schema.bytes};`,
+    '',
+    'enum EventType : uint16_t {',
+    enumBody,
+    '};',
+    '',
+    '/** NOTE_EXPRESSION dimension, in args[kNoteExpressionArgDimension]. */',
+    'enum ExpressionDimension : uint16_t {',
+    dimBody,
+    '};',
+    '',
+    ...targets,
+    '',
+    '// Named arg slots: Event::args[k<Type>Arg<Name>].',
+    ...args,
+    '',
+    'struct Event {',
+    ...fieldLines,
+    '};',
+    `static_assert(sizeof(Event) == kEventBytes, "Event layout is shared with the JS side (${EVENT_SCHEMA})");`,
+    ...offsetAsserts,
+    'static_assert(std::is_trivially_copyable<Event>::value, "Event is copied by value through the ring");',
+    '',
+    '/** Types a stop / mute cancels: anything that starts or ends a sound. */',
+    'constexpr bool isNoteEventType(uint16_t type) {',
+    `    return ${cancelExpr};`,
+    '}',
+    '',
+    '}  // namespace hyphon',
+    '',
+  ].join('\n');
+}
+
+// ── hyphonNativeExports.ts ──────────────────────────────────────────────────
+
+export function generate(schema = loadEventSchema()) {
   const manifest = JSON.parse(read('emscripten/wasm_export_manifest.json'));
   const sources = wrapperSources();
   const protos = new Map(BUILTIN);
@@ -139,8 +544,7 @@ export function generate() {
   for (const name of manifest.required) emit(name, false);
   for (const name of manifest.optional) emit(name, true);
 
-  const voiceH = read('emscripten/core/voice.h');
-  const eventType = parseEnum(voiceH, 'EventType', {});
+  const eventType = eventTypeScope(schema);
   const engineEnums = [];
   for (const { file, text } of sources) {
     for (const m of text.matchAll(/enum\s+(\w+Event)\s*:\s*uint16_t\s*\{/g)) {
@@ -152,7 +556,8 @@ export function generate() {
     '// GENERATED by tools/gen_hyphon_native_types.mjs — do not edit.',
     '// Source: emscripten/wasm_export_manifest.json, the EMSCRIPTEN_KEEPALIVE',
     '// prototypes in emscripten/*_wrapper.cpp and emscripten/core/voice_exports.h,',
-    '// and the event enums. Regenerate: pnpm run gen:native-types',
+    `// ${EVENT_SCHEMA} and the engine event enums.`,
+    '// Regenerate: pnpm run gen:native-types',
     '',
     '/** Byte address in hyphon_native linear memory (wasm32). */',
     'export type WasmPtr = number;',
@@ -164,7 +569,9 @@ export function generate() {
     ...lines,
     '}',
     '',
-    formatConst('VoiceEvent', 'hyphon::EventType (emscripten/core/voice.h).', stripK(eventType)),
+    `/** hyphon::EventType, from ${EVENT_SCHEMA} (see eventLayout.ts). */`,
+    "export { EventType as VoiceEvent } from './eventLayout';",
+    '',
     ...engineEnums.map(({ file, name, values }) => {
       const engine = name.replace(/Event$/, '');
       return formatConst(name, `Engine-private event types (${file}).`, stripK(values, engine));
@@ -172,18 +579,36 @@ export function generate() {
   ].join('\n');
 }
 
+/** Every generated file and its expected content. */
+export function generatedFiles() {
+  const schema = loadEventSchema();
+  return [
+    { rel: EVENT_LAYOUT_TS, text: generateEventLayoutTs(schema) },
+    { rel: EVENT_LAYOUT_H, text: generateEventLayoutH(schema) },
+    { rel: EXPORTS_OUTPUT, text: generate(schema) },
+  ];
+}
+
+/** Paths whose committed content differs from what the generator writes. */
+export function staleGeneratedFiles() {
+  return generatedFiles()
+    .filter(({ rel, text }) => {
+      const target = path.join(REPO_ROOT, rel);
+      return !fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== text;
+    })
+    .map(({ rel }) => rel);
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const next = generate();
-  const target = path.join(REPO_ROOT, OUTPUT);
   if (process.argv.includes('--check')) {
-    const current = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
-    if (current !== next) {
-      console.error(`${OUTPUT} is stale — run: pnpm run gen:native-types`);
-      process.exit(1);
-    }
-    console.log(`${OUTPUT} is up to date.`);
+    const stale = staleGeneratedFiles();
+    for (const rel of stale) console.error(`${rel} is stale — run: pnpm run gen:native-types`);
+    if (stale.length) process.exit(1);
+    for (const { rel } of generatedFiles()) console.log(`${rel} is up to date.`);
   } else {
-    fs.writeFileSync(target, next);
-    console.log(`wrote ${OUTPUT}`);
+    for (const { rel, text } of generatedFiles()) {
+      fs.writeFileSync(path.join(REPO_ROOT, rel), text);
+      console.log(`wrote ${rel}`);
+    }
   }
 }

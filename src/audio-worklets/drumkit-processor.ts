@@ -4,6 +4,8 @@
 // Triggers are pushed into the voice's native event ring and start on their
 // own frame — the same clock the 303 and Prophecy voices use (#1344 P4).
 // Each trigger carries its hit's pan; the kit renders planar stereo.
+// Live hits arrive as control-plane records (#1497) from DrumKitEngine's
+// EventBus route; the 'trigger' message stays for tools and tests.
 
 import { DRUMKIT_REQUIRED_WASM_EXPORTS, formatMissingWasmExports, hasDrumkitApi } from './hyphonNativeImports';
 import { DrumkitEvent, VoiceEvent } from '../shared/rt/hyphonNativeExports';
@@ -28,6 +30,8 @@ interface DrumkitInitData {
     isThreaded: boolean;
     memoryPages?: number;
     exportMap?: Record<string, string>;
+    /** EngineEventSink.transport of the main thread's EventBus route. */
+    events?: unknown;
 }
 
 class DrumkitProcessor extends NativeVoiceProcessor {
@@ -42,6 +46,7 @@ class DrumkitProcessor extends NativeVoiceProcessor {
     }
 
     private async handleMessage(event: MessageEvent): Promise<void> {
+        if (this.receiveEvents(event.data)) return;
         const { type, data } = event.data as { type: string; data?: unknown };
 
         if (type === 'init-wasm') {
@@ -82,7 +87,9 @@ class DrumkitProcessor extends NativeVoiceProcessor {
                 }
                 break;
             case 'allNotesOff':
-                // Transport stop: drop pending hits; ringing ones decay.
+                // Transport stop: drop pending hits, including the ones still
+                // in the inbox; ringing ones decay.
+                this.drainEvents(voice);
                 this.cancelNotes(voice);
                 break;
             case 'choke-open-hat':
@@ -96,6 +103,7 @@ class DrumkitProcessor extends NativeVoiceProcessor {
     private async initializeWasm(data: DrumkitInitData): Promise<void> {
         if (this.initializing || this.voice) return;
         this.initializing = true;
+        this.attachEventInbox(data.events);
         let handle = 0;
         try {
             const native = await this.attachSession(
@@ -169,6 +177,7 @@ class DrumkitProcessor extends NativeVoiceProcessor {
 
         this.perf.beginProcess(frames);
         try {
+            this.drainEvents(voice);
             this.renderVoiceStereo(voice, frames, NativeVoiceProcessor.MAX_BLOCK_FRAMES, left, right);
         } catch (e) {
             this.processFailed(e, left, right);

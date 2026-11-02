@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
+import { frameAtTime } from '../../shared/rt/audioClock';
+import { MessageEventSink, RingEventSink, type EngineEventSink } from '../../shared/rt/eventTransport';
+import { DrumkitEvent, VoiceEvent } from '../../shared/rt/hyphonNativeExports';
 
 /**
  * #1344 acceptance, end to end in Node: the real worklet bundles
@@ -75,7 +78,8 @@ afterEach(() => {
   resetHyphonNativeSessionForTests();
 });
 
-async function bootVoices(rate = SAMPLE_RATE) {
+/** `drumEvents`: the control-plane transport for the drum kit (EngineEventSink.transport, #1497). */
+async function bootVoices(rate = SAMPLE_RATE, drumEvents?: unknown) {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const wasm = readFileSync(WASM);
   const init = () => ({
@@ -88,14 +92,15 @@ async function bootVoices(rate = SAMPLE_RATE) {
       exportMap: JSON.parse(readFileSync(MAP, 'utf8')) as Record<string, string>,
     },
   });
-  const make = async (name: string) => {
+  const make = async (name: string, events?: unknown) => {
     const v = new (registered.get(name)!)();
-    await v.port.deliver(init());
+    const message = init();
+    await v.port.deliver(events === undefined ? message : { ...message, data: { ...message.data, events } });
     expect(v.port.posted.map((m) => m.type), `${name}: ${JSON.stringify(v.port.posted)}`).toContain('ready');
     return v;
   };
   return {
-    drums: await make('drumkit-processor'),
+    drums: await make('drumkit-processor', drumEvents),
     bass: await make('open303-processor'),
     lead: await make('prophecy-processor'),
   };
@@ -155,6 +160,35 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
     // Every voice sounds on the event's own sample, at every in-block offset.
     expect(lag).toEqual({ kick: [0, 0, 0, 0], bass: [0, 0, 0, 0], lead: [0, 0, 0, 0] });
   });
+
+  it.each(['message', 'ring'] as const)(
+    'a kick sent as control-plane records (%s transport) is sample-identical to the trigger message (#1497)',
+    async (kind) => {
+      const start = SAMPLE_RATE * 2;
+      const at = start + 2 * BLOCK + 37; // mid-block
+      const audioTime = at / SAMPLE_RATE;
+
+      const legacy = await bootVoices();
+      await legacy.drums.port.deliver({ type: 'trigger', data: { voice: 0, velocity: 1, a: 50, b: 0.6, c: 0.6, d: 1, pan: 0, audioTime } });
+      const [viaMessage] = renderAll([legacy.drums], start, 8);
+      resetHyphonNativeSessionForTests();
+
+      // What DrumKitEngine.play sends: a pan, then the trigger, on the hit's frame.
+      const posted: unknown[] = [];
+      const sink: EngineEventSink =
+        kind === 'ring' ? new RingEventSink() : new MessageEventSink({ postMessage: (m) => posted.push(m) });
+      const { drums } = await bootVoices(SAMPLE_RATE, sink.transport);
+      const frame = frameAtTime(audioTime, SAMPLE_RATE);
+      sink.push(frame, DrumkitEvent.SetPan, 0, 0);
+      sink.push(frame, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+      sink.flush();
+      for (const m of posted) await drums.port.deliver(m);
+      const [viaBus] = renderAll([drums], start, 8);
+
+      expect(firstNonZero(viaBus)).toBe(at - start);
+      expect(firstDifference(viaBus, viaMessage)).toBe(-1);
+    },
+  );
 
   it('a 303 noteOff waits for its frame: the gate closes on the step boundary, not on arrival', async () => {
     // jc303 (rosic) has an amp envelope that releases on noteOff: a gate that

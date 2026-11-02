@@ -171,6 +171,135 @@ stale when the engine comes back), then the immediate `*_all_notes_off`.
 manifest, the `EMSCRIPTEN_KEEPALIVE` prototypes, the macro and the event enums;
 `wasmExportManifest.voices.test.ts` fails when it is stale.
 
+## Control plane
+
+Issue #1497. The main thread drives the voices with frame-stamped records
+instead of a port message per note, param or trigger. Every producer writes the
+same 32-byte `hyphon::Event`, the layout the C++ ring already consumes.
+
+**Status (P1).** The schema, the generator, the transport and the bus are in.
+Drum triggers are the first producer on them. The other voices, automation,
+mutes, MIDI input and telemetry move over in P2–P5.
+
+### One schema, two languages
+
+`emscripten/core/event_schema.json` defines the record fields (laid out at
+natural alignment, 32 bytes), the type ids, the named arg slots, the special
+targets and the `NOTE_EXPRESSION` dimensions. `tools/gen_hyphon_native_types.mjs`
+(`pnpm run gen:native-types`) generates:
+
+| File | What it holds |
+|---|---|
+| `emscripten/core/event_layout.h` | `hyphon::Event`, `EventType`, `ExpressionDimension`, `kTargetAll`, `k<Type>Arg<Name>`, `isNoteEventType`, and `static_assert`s on the size and every offset. `voice.h` includes it. |
+| `src/shared/rt/eventLayout.ts` | `EVENT_BYTES`, `EventOffset`, `EventType`, `EventArg`, `EventTargetId`, `ExpressionDimension`, `isNoteEventType`, `EventWriter` / `EventReader` (typed-array stores), and `EventField` / `createEventFields()`, the Float64Array form of a record (`writeFrom` / `readInto`). |
+| `src/shared/rt/hyphonNativeExports.ts` | still the export surface. `VoiceEvent` is now `EventType` re-exported. |
+
+`pnpm run check:native-types` (part of `pnpm lint`) and `pnpm run check:exports`
+fail when a generated file is stale. `check:exports` runs that check before it
+looks for WASM artifacts, so it runs on source-only jobs too. Type ids are wire
+format: add new ones, never renumber.
+
+| Type | Id | target | value | args |
+|---|---|---|---|---|
+| `NOTE_ON` | 1 | MIDI note | velocity | engine-defined |
+| `NOTE_OFF` | 2 | MIDI note | | |
+| `ALL_NOTES_OFF` | 3 | | | |
+| `PARAM_SET` (`kParam`) | 4 | param id | value | |
+| `TRIGGER` | 5 | pad / voice | velocity | engine-defined |
+| `PARAM_RAMP` | 6 | param id | end value | `frames` |
+| `MUTE` | 7 | pad / voice, or `kTargetAll` | 1 mute, 0 unmute | |
+| `NOTE_EXPRESSION` | 8 | note id (the NOTE_ON's MIDI note) | dimension's value | `dimension` |
+
+Types 6–8 are defined but no engine handles them yet (P3, P4); an engine's
+`apply` ignores a type it does not know. Engine-private types start at
+`kEngine` (0x100), as before.
+
+### Transport
+
+```
+producer ─► EventBus route ─► EngineEventSink
+                                ├─ RingEventSink    SAB event ring ───────────────► EventInbox.pop
+                                └─ MessageEventSink one batch per tick ─► receive ─► local ring ─► pop
+```
+
+- **`src/shared/rt/eventRing.ts`**: an SPSC ring of records in a
+  SharedArrayBuffer (a 128-byte header, then power-of-two slots). A full ring
+  refuses the newest record and counts it in `dropped`. It never overwrites an
+  unread one, which is `hyphon::EventRing`'s policy too. It also tracks a
+  high-water mark.
+- **`src/shared/rt/eventTransport.ts`**: `EngineEventSink` (`push`, `flush`,
+  `transport`), its two implementations, and the worklet's `EventInbox`.
+  - `RingEventSink` is used where the pthread profile is on
+    (`artifact.sharedMemory`: crossOriginIsolated, not WebKit).
+  - `MessageEventSink` stages records and posts one transferred buffer per
+    `flush()`. A full stage flushes early instead of dropping.
+  - The inbox drains both kinds the same way. Batches land in a local ring with
+    the same order and overflow policy.
+- **`src/audio/controlPlane/EventBus.ts`**: the main-thread hub. It owns each
+  route's one writer. Message routes flush in a microtask after the first push
+  of a task. A producer whose next port message must arrive after its records
+  (a transport stop) calls `flush(route)` first. A hot producer fills
+  `bus.stage` (a Float64Array at `EventField` indices) and calls
+  `commit(route)` instead of `push(…)`.
+- **`src/shared/rt/audioClock.ts`**: `frameAtTime(audioTime, sampleRate)`, the
+  one conversion. It is `Math.round(t * rate)`, with missing or past times
+  mapped to frame 0 (the next block). It matches `hyphon::frameAt` and
+  `NativeVoiceProcessor.frameAt`.
+
+`NativeVoiceProcessor` gains `attachEventInbox(transport)` (called at init,
+before the first await), `receiveEvents(data)` (first in `onmessage`) and
+`drainEvents(voice)`. `drainEvents` moves the inbox into the voice's native
+ring, at block start and before a cancel, so a stop also drops what the bus had
+queued. It decodes with `popInto` and passes the fields straight to
+`*_push_event`. P2 replaces that copy with a ring inside `hyphon_native` memory.
+
+### Allocation
+
+The transport allocates nothing per record. The JavaScript at either end can,
+because of how V8 handles doubles:
+
+- A double passed as a function argument is boxed (a 16-byte heap number)
+  wherever V8 does not inline the call.
+- A double stored into an object field is boxed as well.
+
+So `push(route, frame, type, target, 0.37)` and `pop(record)` can allocate per
+record. `stage` + `commit(route)` and `popInto(Float64Array)` keep every value
+in typed arrays and never box one. Use them on hot paths: `DrumKitEngine` and
+`NativeVoiceProcessor` do. `push` and `pop` are fine for integer records, tools
+and tests.
+
+`src/audio/controlPlane/__tests__/eventBus.perf.test.ts` measures this in a
+child `node --expose-gc` on a Vite build of its probe, because vitest's module
+transform keeps V8 from optimising the loop. Over 100k drum and automation
+records with computed doubles, the heap grew by:
+
+| Path | Heap growth |
+|---|---|
+| staged, through the ring and `popInto` | 3.3 KB (budget 64 KB) |
+| integer records through `push` | 0.3–20 KB |
+| the same double records through positional `push` | 0.2–0.7 MB (reported, not budgeted) |
+
+The postMessage fallback allocates one transferred buffer per flush (per tick)
+by design.
+
+### Drums on the bus
+
+`DrumKitEngine` opens a route when its worklet is created and sends
+`sink.transport` in `init-wasm`. Each hit is two records on the hit's frame: a
+`kDrumkitSetPan`, then a `kTrigger` (the trigger latches the pan). Neither is a
+port message. `cancelPending` flushes the route before it posts `allNotesOff`.
+The worklet drains the inbox, then cancels, so a hit staged for a batch cannot
+outlive the stop. The `trigger` message still works for tools and tests. It
+goes in P5.
+
+Tests: `src/shared/rt/__tests__/` (layout bytes, int64 frames, FIFO,
+wrap-around of slots and of the uint32 counts, overflow, a real `MessagePort`),
+`src/audio/controlPlane/__tests__/EventBus.test.ts` and its perf-tier
+allocation test, the drum cases in
+`voiceProcessors.events.test.ts`, and, in `voiceTiming.realWasm.test.ts`, a
+kick through each transport that is sample-identical to the `trigger` message
+on the real wasm.
+
 ## Real-time rules
 
 - No allocation after `init`. `NativeVoice::process` returns `nullptr` (counted

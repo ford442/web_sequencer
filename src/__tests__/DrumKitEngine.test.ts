@@ -11,6 +11,10 @@ vi.mock('@/utils/engineTelemetry', async (importOriginal) => {
 });
 
 import { DrumKitEngine, drumPanGains } from '@/engines/DrumKitEngine';
+import { EventBus } from '@/audio/controlPlane/EventBus';
+import { createEventRecord, type EventRecord } from '@/shared/rt/eventLayout';
+import { EVENT_BATCH_MESSAGE, EventInbox, MessageEventSink, RingEventSink } from '@/shared/rt/eventTransport';
+import { DrumkitEvent, VoiceEvent } from '@/shared/rt/hyphonNativeExports';
 import { DRUM_KIT_PRESETS, getDrumKitDefaults, PRESET_808, PRESET_909 } from '@/engines/DrumKitPresets';
 
 function mockAudioGraph() {
@@ -119,41 +123,91 @@ describe('DrumKitEngine', () => {
     expect(engine.isWorkletReady).toBe(false);
   });
 
-  it('worklet path does not create oscillators per hit', () => {
-    const engine = new DrumKitEngine('808');
+  /**
+   * A kit whose worklet is "ready" on a bus of our own (#1497): hits go out as
+   * control-plane records, read back here through the worklet's inbox.
+   */
+  function workletKit(kind: 'message' | 'ring') {
+    const bus = new EventBus({ autoFlush: false });
+    const engine = new DrumKitEngine('808', bus);
     const postMessage = vi.fn();
-    (engine as unknown as { wasmReady: boolean; workletNode: { port: { postMessage: typeof postMessage } } }).wasmReady = true;
-    (engine as unknown as { workletNode: { port: { postMessage: typeof postMessage } } }).workletNode = {
-      port: { postMessage },
-    };
-    const { context, masterGain, createOscillator } = mockAudioGraph();
-    engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 1.25);
-    expect(createOscillator).not.toHaveBeenCalled();
-    expect(postMessage).toHaveBeenCalledWith({
-      type: 'trigger',
-      data: {
-        voice: 0,
-        velocity: 1,
-        a: PRESET_808.kick.pitch,
-        b: PRESET_808.kick.decay,
-        c: PRESET_808.kick.tone,
-        d: PRESET_808.kick.volume,
-        pan: 0,
-        audioTime: 1.25,
-      },
+    const port = { postMessage };
+    const sink = kind === 'ring' ? new RingEventSink(16) : new MessageEventSink(port, 16);
+    const inbox = new EventInbox(sink.transport);
+    Object.assign(engine, {
+      wasmReady: true,
+      workletNode: { port },
+      eventRoute: bus.open(sink),
+      audioContext: { sampleRate: 48000 },
     });
-  });
+    /** Deliver what was posted to the worklet, then drain its inbox. */
+    const received = () => {
+      bus.flushAll();
+      for (const [msg] of postMessage.mock.calls) inbox.receive(msg);
+      postMessage.mockClear();
+      const out: EventRecord[] = [];
+      for (let e = createEventRecord(); inbox.pop(e); e = createEventRecord()) out.push(e);
+      return out;
+    };
+    return { engine, postMessage, received };
+  }
+
+  it.each(['message', 'ring'] as const)(
+    'worklet path (%s transport): a hit is a pan + trigger record on its frame, no oscillators',
+    (kind) => {
+      const { engine, received } = workletKit(kind);
+      const { context, masterGain, createOscillator } = mockAudioGraph();
+      engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 1.25);
+      expect(createOscillator).not.toHaveBeenCalled();
+      const f = Math.fround;
+      expect(received()).toEqual([
+        { frame: 60000, type: DrumkitEvent.SetPan, target: 0, value: 0, a0: 0, a1: 0, a2: 0, a3: 0 },
+        {
+          frame: 60000,
+          type: VoiceEvent.Trigger,
+          target: 0,
+          value: 1,
+          a0: f(PRESET_808.kick.pitch),
+          a1: f(PRESET_808.kick.decay),
+          a2: f(PRESET_808.kick.tone),
+          a3: f(PRESET_808.kick.volume),
+        },
+      ]);
+    },
+  );
 
   it('a hit carries its pan to the worklet: the step pan overrides the sound\'s own', () => {
-    const engine = new DrumKitEngine('808');
-    const postMessage = vi.fn();
-    Object.assign(engine, { wasmReady: true, workletNode: { port: { postMessage } } });
+    const { engine, received } = workletKit('message');
     const { context, masterGain } = mockAudioGraph();
     const panned = { ...PRESET_808.closedHat, pan: 0.25 };
     engine.play(context, masterGain, null, 'closedHat', panned, 1);
     engine.play(context, masterGain, null, 'closedHat', panned, 2, -1);
-    const pans = postMessage.mock.calls.map((c) => (c[0] as { data: { pan: number } }).data.pan);
+    const pans = received().filter((e) => e.type === DrumkitEvent.SetPan).map((e) => e.value);
     expect(pans).toEqual([0.25, -1]);
+  });
+
+  it('message transport: one batch per flush, and a stop flushes staged hits ahead of itself', () => {
+    const { engine, postMessage } = workletKit('message');
+    const { context, masterGain } = mockAudioGraph();
+    engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 1);
+    engine.play(context, masterGain, null, 'snare', PRESET_808.snare, 1);
+    expect(postMessage).not.toHaveBeenCalled(); // staged, not posted per hit
+    engine.cancelPending();
+    expect(postMessage.mock.calls.map(([m]) => (m as { type: string }).type)).toEqual([
+      EVENT_BATCH_MESSAGE,
+      'allNotesOff',
+    ]);
+    expect((postMessage.mock.calls[0][0] as { count: number }).count).toBe(4);
+  });
+
+  it('dispose closes the route: later hits go nowhere', () => {
+    const { engine, received } = workletKit('ring');
+    const { context, masterGain } = mockAudioGraph();
+    Object.assign(engine, { workletNode: null });
+    engine.dispose();
+    Object.assign(engine, { wasmReady: true, workletNode: { port: { postMessage: vi.fn() } } });
+    engine.play(context, masterGain, null, 'kick', PRESET_808.kick, 1);
+    expect(received()).toEqual([]);
   });
 
   it('fallback: a panned hit goes through a two-gain merger; a centred one connects straight', () => {

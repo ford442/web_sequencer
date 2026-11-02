@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "The real-time control-plane record (#1497): the one definition of the 32-byte",
+    "event the main thread, the worklets and hyphon_native exchange. Do not",
+    "hand-edit what is derived from it: tools/gen_hyphon_native_types.mjs writes",
+    "emscripten/core/event_layout.h and src/shared/rt/eventLayout.ts (pnpm run",
+    "gen:native-types), and check:exports / pnpm lint fail when either is stale.",
+    "",
+    "record.fields are laid out in order at their natural alignment; the generator",
+    "refuses a layout that does not come to record.bytes. types[].symbol names the",
+    "type in both languages: k<symbol> in C++ (hyphon::EventType), EventType.<symbol>",
+    "in TypeScript. types[].args names the arg slots a type defines; a type without",
+    "it leaves all four to the engine. Ids are wire format: never renumber one."
+  ],
+  "version": 1,
+  "record": {
+    "bytes": 32,
+    "fields": [
+      { "name": "frame", "type": "int64", "doc": "absolute frame on the AudioContext clock; 0 (or past) = the next block" },
+      { "name": "type", "type": "uint16", "doc": "EventType, or an engine-private type at or above kEngine" },
+      { "name": "target", "type": "uint16", "doc": "what the type addresses: note, param id, pad, note id" },
+      { "name": "value", "type": "float32", "doc": "the type's main operand" },
+      { "name": "args", "type": "float32", "count": 4, "doc": "named per type (EventArg in TS, k<Type>Arg<Name> in C++), else engine-defined" }
+    ]
+  },
+  "types": [
+    {
+      "name": "NOTE_ON",
+      "symbol": "NoteOn",
+      "id": 1,
+      "cancelledByStop": true,
+      "doc": "target = MIDI note, value = velocity (engine's scale); args engine-defined"
+    },
+    {
+      "name": "NOTE_OFF",
+      "symbol": "NoteOff",
+      "id": 2,
+      "cancelledByStop": true,
+      "doc": "target = MIDI note"
+    },
+    {
+      "name": "ALL_NOTES_OFF",
+      "symbol": "AllNotesOff",
+      "id": 3,
+      "doc": "release every held note on this frame (MIDI All Notes Off, not a reset)"
+    },
+    {
+      "name": "PARAM_SET",
+      "symbol": "Param",
+      "id": 4,
+      "doc": "target = engine param id, value = new value"
+    },
+    {
+      "name": "TRIGGER",
+      "symbol": "Trigger",
+      "id": 5,
+      "cancelledByStop": true,
+      "doc": "target = pad / voice, value = velocity; args engine-defined"
+    },
+    {
+      "name": "PARAM_RAMP",
+      "symbol": "ParamRamp",
+      "id": 6,
+      "doc": "target = engine param id, value = end value: a linear ramp from the param's value on this frame",
+      "args": [
+        { "name": "frames", "doc": "ramp length in frames; 0 = a step, as PARAM_SET" }
+      ]
+    },
+    {
+      "name": "MUTE",
+      "symbol": "Mute",
+      "id": 7,
+      "doc": "target = pad / voice, or kTargetAll; value = 1 mute, 0 unmute. A mute drops that target's scheduled notes and triggers"
+    },
+    {
+      "name": "NOTE_EXPRESSION",
+      "symbol": "NoteExpression",
+      "id": 8,
+      "doc": "target = note id (the MIDI note of the NOTE_ON it shapes, as MIDI 2.0 per-note controllers address it), value = the dimension's value",
+      "args": [
+        { "name": "dimension", "doc": "ExpressionDimension" }
+      ]
+    }
+  ],
+  "engineBase": {
+    "symbol": "Engine",
+    "id": 256,
+    "doc": "first engine-private type (e.g. the drum kit's hat choke)"
+  },
+  "targets": [
+    { "symbol": "All", "id": 65535, "doc": "every pad / voice of the engine (MUTE)" }
+  ],
+  "expressionDimensions": [
+    { "symbol": "PitchBend", "id": 0, "doc": "semitones from the note's pitch" },
+    { "symbol": "Pressure", "id": 1, "doc": "0..1 (channel / poly aftertouch)" },
+    { "symbol": "Timbre", "id": 2, "doc": "0..1 (MPE CC74)" }
+  ]
+}

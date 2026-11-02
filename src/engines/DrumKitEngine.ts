@@ -1,10 +1,12 @@
 /**
  * Drum Kit Engine
  *
- * Message façade for analog 808/909 drums. Live hits go to `drumkit-processor`
- * (one `drumkit_*` voice on the audio session's shared hyphon_native instance).
- * If the worklet/WASM path fails, the existing Web Audio oscillator kit remains
- * the fallback (HUD reason, non-silent).
+ * Façade for analog 808/909 drums. Live hits go to `drumkit-processor` (one
+ * `drumkit_*` voice on the audio session's shared hyphon_native instance) as
+ * frame-stamped control-plane records on the kit's EventBus route (#1497): a
+ * SharedArrayBuffer ring on the pthread profile, one batched message per tick
+ * elsewhere. If the worklet/WASM path fails, the existing Web Audio oscillator
+ * kit remains the fallback (HUD reason, non-silent).
  */
 
 import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '@/types';
@@ -24,6 +26,11 @@ import {
 } from '@/audio-worklets/hyphonNativeImports';
 import { resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 import { registerE2eAudioTap } from '@/e2e/probe';
+import { engineEventBus, type EventBus, type EventRoute } from '@/audio/controlPlane/EventBus';
+import { frameAtTime } from '@/shared/rt/audioClock';
+import { EventField } from '@/shared/rt/eventLayout';
+import { createEngineEventSink } from '@/shared/rt/eventTransport';
+import { DrumkitEvent, VoiceEvent } from '@/shared/rt/hyphonNativeExports';
 
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
 
@@ -51,11 +58,15 @@ export class DrumKitEngine {
   private output: AudioNode | null = null;
   private wasmReady = false;
   private workletNodesCreated = 0;
+  /** The worklet's control-plane route on `bus`; 0 while there is no worklet. */
+  private eventRoute: EventRoute = 0;
+  private readonly bus: EventBus;
   fallbackReason: string | null = null;
 
-  constructor(kitType: DrumKitType = '808') {
+  constructor(kitType: DrumKitType = '808', bus: EventBus = engineEventBus) {
     this._kitType = kitType;
     this._character = KIT_CHARACTER[kitType];
+    this.bus = bus;
   }
 
   get kitType(): DrumKitType {
@@ -172,6 +183,8 @@ export class DrumKitEngine {
     exportMap: Record<string, string> = {},
     artifact: HyphonNativeArtifact = resolveHyphonNativeArtifact(audioContext).artifact,
   ): Promise<boolean> {
+    // Hits are stamped with frames on this context's clock.
+    this.audioContext = audioContext;
     try {
       await audioContext.audioWorklet.addModule(workletUrl);
 
@@ -179,6 +192,11 @@ export class DrumKitEngine {
         outputChannelCount: [2],
       });
       this.workletNodesCreated += 1;
+
+      // Hits travel as records: a SharedArrayBuffer ring where the profile
+      // shares memory with the worklet, batched messages where it does not.
+      const sink = createEngineEventSink(this.workletNode.port, { ring: artifact.sharedMemory });
+      this.eventRoute = this.bus.open(sink);
 
       // Same profile as every other voice on this context: they share one instance.
       this.workletNode.port.postMessage({
@@ -190,6 +208,7 @@ export class DrumKitEngine {
           variant: artifact.threading,
           memoryPages: artifact.minMemoryPages,
           exportMap,
+          events: sink.transport,
         },
       });
 
@@ -246,8 +265,8 @@ export class DrumKitEngine {
   }
 
   /**
-   * Play a drum sound. Worklet path posts a trigger at `audioTime`; fallback
-   * allocates Web Audio oscillators (legacy kit). `pan` (-1..1, the step's)
+   * Play a drum sound. Worklet path queues a trigger on the frame of `time`;
+   * fallback allocates Web Audio oscillators (legacy kit). `pan` (-1..1, the step's)
    * overrides the sound's own `params.pan`; both paths use drumPanGains().
    */
   play(
@@ -275,6 +294,8 @@ export class DrumKitEngine {
    */
   cancelPending(): void {
     if (this.wasmReady && this.workletNode) {
+      // Hits staged for a batch must reach the worklet before the stop does.
+      this.bus.flush(this.eventRoute);
       this.workletNode.port.postMessage({ type: 'allNotesOff' });
     }
   }
@@ -314,10 +335,24 @@ export class DrumKitEngine {
       c = p.volume;
       d = 0;
     }
-    this.workletNode!.port.postMessage({
-      type: 'trigger',
-      data: { voice, velocity: 1, a, b, c, d, pan, audioTime },
-    });
+    const frame = frameAtTime(audioTime, this.audioContext?.sampleRate ?? 48000);
+    // Same frame, pan first: the trigger latches it. Staged in place, so the
+    // hit's doubles are never boxed on their way into the ring.
+    const s = this.bus.stage;
+    s[EventField.frame] = frame;
+    s[EventField.type] = DrumkitEvent.SetPan;
+    s[EventField.target] = voice;
+    s[EventField.value] = pan;
+    this.bus.commit(this.eventRoute);
+    s[EventField.frame] = frame;
+    s[EventField.type] = VoiceEvent.Trigger;
+    s[EventField.target] = voice;
+    s[EventField.value] = 1;
+    s[EventField.a0] = a;
+    s[EventField.a1] = b;
+    s[EventField.a2] = c;
+    s[EventField.a3] = d;
+    this.bus.commit(this.eventRoute);
   }
 
   private useFallback(reason: string, err?: unknown): void {
@@ -334,6 +369,8 @@ export class DrumKitEngine {
   }
 
   private cleanupWorklet(): void {
+    this.bus.close(this.eventRoute);
+    this.eventRoute = 0;
     if (this.workletNode) {
       // The kit's voice lives on the shared instance: hand the handle back.
       this.workletNode.port.postMessage({ type: 'dispose' });
