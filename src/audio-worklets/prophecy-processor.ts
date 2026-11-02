@@ -2,11 +2,16 @@
 // AudioWorklet processor for the Korg Prophecy formant synthesis engine.
 // Drives one prophecy_* voice (prophecy_wrapper.cpp) on the audio session's
 // shared hyphon_native instance (see hyphonNativeSession.ts). Notes and params
-// are pushed into the voice's native event ring and land on their own frame
-// (#1344 P4 — they used to apply whenever the message arrived).
+// land on their own frame (#1344 P4 — they used to apply whenever the message
+// arrived). They arrive as control-plane records from ProphecyOscillator's
+// EventBus route (#1497 P2): batched messages, drained into the voice at block
+// start, until the voice is ready; then, on the pthread build, written by the
+// main thread straight into the voice's own native ring, which the ready
+// message offers. The note / param messages stay for tools and tests.
 
 import { formatMissingWasmExports, hasProphecyApi } from './hyphonNativeImports';
 import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
+import type { RingTransport } from '../shared/rt/eventTransport';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
 
 /** Fields the port messages carry; each message type reads a few of them. */
@@ -25,13 +30,20 @@ interface ProphecyInitData {
     variant?: string;
     memoryPages?: number;
     exportMap?: Record<string, string>;
+    /** EngineEventSink.transport of the main thread's EventBus route. */
+    events?: unknown;
 }
 
 class ProphecyProcessor extends NativeVoiceProcessor {
     private voice: NativeVoiceRef | null = null;
     private initializing = false;
 
-    private readonly readyMessage: { type: 'ready'; heap: unknown } = { type: 'ready', heap: undefined };
+    /** `events`: the voice's native ring, for the main thread to write in place. */
+    private readonly readyMessage: { type: 'ready'; heap: unknown; events: RingTransport | undefined } = {
+        type: 'ready',
+        heap: undefined,
+        events: undefined,
+    };
     private readonly errorMessage = { type: 'error' as const, error: '' };
 
     constructor() {
@@ -42,6 +54,7 @@ class ProphecyProcessor extends NativeVoiceProcessor {
     // ── Message handler ───────────────────────────────────────────────────────
 
     private async handleMessage(event: MessageEvent): Promise<void> {
+        if (this.receiveEvents(event.data)) return;
         const { type, data } = event.data as { type: string; data?: unknown };
 
         if (type === 'init-wasm') {
@@ -69,8 +82,10 @@ class ProphecyProcessor extends NativeVoiceProcessor {
                 }
                 break;
             case 'allNotesOff':
-                // Stop: drop what is still scheduled, then silence what sounds —
-                // the hard reset the part has always had.
+                // Stop: drop what is still scheduled — the inbox's records
+                // included — then silence what sounds: the hard reset the part
+                // has always had.
+                this.drainEvents(voice);
                 this.cancelNotes(voice);
                 this.x.prophecy_all_notes_off(voice.handle);
                 break;
@@ -89,6 +104,8 @@ class ProphecyProcessor extends NativeVoiceProcessor {
     private async initializeWasm(data: ProphecyInitData): Promise<void> {
         if (this.initializing || this.voice) return;
         this.initializing = true;
+        // Before the first await: a batch that follows init-wasm must find it.
+        this.attachEventInbox(data.events);
         let handle = 0;
         try {
             // Compile/allocate/instantiate happens once per audio session; the
@@ -122,6 +139,7 @@ class ProphecyProcessor extends NativeVoiceProcessor {
             this.voice = { prefix: 'prophecy', handle };
             console.log(`[Prophecy] Engine ready: handle=${handle}, sr=${this.rateHz}`);
             this.readyMessage.heap = native.stats;
+            this.readyMessage.events = this.voiceRingTransport(this.voice) ?? undefined;
             this.port.postMessage(this.readyMessage);
         } catch (e: unknown) {
             if (handle) this.x.prophecy_destroy(handle);
@@ -169,6 +187,7 @@ class ProphecyProcessor extends NativeVoiceProcessor {
 
         this.perf.beginProcess(frames);
         try {
+            this.drainEvents(voice);
             this.renderVoice(voice, frames, left, right);
         } catch (e) {
             this.processFailed(e, left, right);

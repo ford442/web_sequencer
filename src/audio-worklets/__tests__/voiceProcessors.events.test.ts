@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from '../hyphonNativeImports';
-import { MessageEventSink, RingEventSink, type EngineEventSink } from '../../shared/rt/eventTransport';
+import { EVENT_RING_HEADER_BYTES, EventRingReader, formatEventRing } from '../../shared/rt/eventRing';
+import { MessageEventSink, RingEventSink, type EngineEventSink, type RingTransport } from '../../shared/rt/eventTransport';
 import { DrumkitEvent, VoiceEvent } from '../../shared/rt/hyphonNativeExports';
 
 /**
@@ -62,14 +63,20 @@ describe('voice processors on the event API', () => {
   let instantiations: number;
   let live: Set<number>;
 
-  const initData = () => ({
+  /** Where the fake hyphon_native lays out each handle's inbox ring, as the C++ constructor would. */
+  const RING_BASE = 32768;
+  const ringAt = (h: number) => RING_BASE + h * 1024;
+  /** The fake's `*_event_inbox` result: the voice's ring, or a stale build's garbage. */
+  let inboxPointer: (h: number) => number;
+
+  const initData = (isThreaded = false) => ({
     type: 'init-wasm',
-    data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: false, memoryPages: 256, exportMap: {} },
+    data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded, memoryPages: 256, exportMap: {} },
   });
 
-  async function boot(name: 'prophecy-processor' | 'drumkit-processor') {
+  async function boot(name: 'prophecy-processor' | 'drumkit-processor', isThreaded = false) {
     const voice = new (registered.get(name)!)();
-    await voice.port.deliver(initData());
+    await voice.port.deliver(initData(isThreaded));
     expect(voice.port.posted.map((m) => m.type)).toContain('ready');
     return voice;
   }
@@ -86,6 +93,7 @@ describe('voice processors on the event API', () => {
     calls = [];
     instantiations = 0;
     live = new Set();
+    inboxPointer = ringAt;
     const RealMemory = WebAssembly.Memory;
     let memory: WebAssembly.Memory;
     vi.spyOn(WebAssembly, 'Memory').mockImplementation(function (desc: WebAssembly.MemoryDescriptor) {
@@ -105,8 +113,10 @@ describe('voice processors on the event API', () => {
         [`${api}_create`]: () => {
           const h = nextHandle++;
           live.add(h);
+          formatEventRing(memory.buffer, ringAt(h), 16);
           return h;
         },
+        [`${api}_event_inbox`]: (h: number) => inboxPointer(h),
         [`${api}_destroy`]: (h: number) => live.delete(h),
         [`${api}_init`]: record(`${api}_init`),
         [`${api}_push_event`]: record(`${api}_push_event`),
@@ -267,6 +277,69 @@ describe('voice processors on the event API', () => {
       ]);
     },
   );
+
+  it.each(['message', 'ring'] as const)(
+    'prophecy (%s transport): bus notes and params reach the voice at block start; a stop record rides behind them',
+    async (kind) => {
+      const posted: unknown[] = [];
+      const sink: EngineEventSink =
+        kind === 'ring' ? new RingEventSink(16) : new MessageEventSink({ postMessage: (m) => posted.push(m) }, 16);
+      const voice = new (registered.get('prophecy-processor')!)();
+      const init = initData();
+      await voice.port.deliver({ ...init, data: { ...init.data, events: sink.transport } });
+      const h = calls.find((c) => c.fn === 'prophecy_init')!.h;
+      calls = [];
+      sink.push(88200, VoiceEvent.NoteOn, 57, 100);
+      sink.push(0, VoiceEvent.Param, 1, 0.4);
+      sink.push(0, VoiceEvent.CancelNotes, 0, 0);
+      sink.push(0, VoiceEvent.AllNotesOff, 0, 0);
+      sink.flush();
+      for (const m of posted.splice(0)) await voice.port.deliver(m);
+      expect(calls).toEqual([]);
+      render(voice, 88192);
+      const f = Math.fround;
+      expect(calls).toEqual([
+        { fn: 'prophecy_push_event', h, args: [88200, 1, 57, 100, 0, 0, 0, 0] },
+        { fn: 'prophecy_push_event', h, args: [0, 4, 1, f(0.4), 0, 0, 0, 0] },
+        { fn: 'prophecy_push_event', h, args: [0, VoiceEvent.CancelNotes, 0, 0, 0, 0, 0, 0] },
+        { fn: 'prophecy_push_event', h, args: [0, VoiceEvent.AllNotesOff, 0, 0, 0, 0, 0, 0] },
+        { fn: 'prophecy_render', h, args: [88192, BLOCK] },
+      ]);
+    },
+  );
+
+  it.each(['drumkit-processor', 'prophecy-processor'] as const)(
+    '%s on shared memory: ready offers the voice\'s own ring, which the main thread then writes in place',
+    async (name) => {
+      const voice = await boot(name, true);
+      const prefix = name === 'drumkit-processor' ? 'drumkit' : 'prophecy';
+      const h = calls.find((c) => c.fn === `${prefix}_init`)!.h;
+      const ready = voice.port.posted.find((m) => m.type === 'ready') as unknown as { events?: RingTransport };
+      expect(ready.events?.kind).toBe('ring');
+      expect(ready.events?.buffer).toBeInstanceOf(SharedArrayBuffer);
+      expect(ready.events?.byteOffset).toBe(ringAt(h));
+
+      // The main thread's side: a sink on the offered ring.
+      const sink = new RingEventSink(ready.events!);
+      sink.push(44100, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+      calls = [];
+      render(voice, 44032);
+      // Nothing moves through JS: the native voice takes the record from its ring.
+      expect(calls).toEqual([{ fn: `${prefix}_render`, h, args: [44032, BLOCK] }]);
+      const native = new EventRingReader(ready.events!.buffer, ringAt(h));
+      expect(native.size).toBe(1);
+    },
+  );
+
+  it('single-threaded memory, or a stale build: the ready message offers no ring', async () => {
+    const st = await boot('drumkit-processor');
+    expect((st.port.posted.find((m) => m.type === 'ready') as unknown as { events?: unknown }).events).toBeUndefined();
+
+    resetHyphonNativeSessionForTests();
+    inboxPointer = (h) => ringAt(h) + EVENT_RING_HEADER_BYTES; // not where a ring was laid out
+    const stale = await boot('prophecy-processor', true);
+    expect((stale.port.posted.find((m) => m.type === 'ready') as unknown as { events?: unknown }).events).toBeUndefined();
+  });
 
   it('the drum kit joins the shared instance and hands its handle back on dispose', async () => {
     const lead = await boot('prophecy-processor');

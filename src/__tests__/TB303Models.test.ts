@@ -13,6 +13,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { OPEN303_PARAM_IDS } from '../audio-worklets/open303/shared';
+import { EventType } from '../shared/rt/eventLayout';
+import { postedRecords } from '../test/helpers/controlPlaneRecords';
 import {
     TB303_MODELS,
     getTB303Model,
@@ -239,6 +242,8 @@ describe('Open303Oscillator.setModel303()', () => {
         const fakeNode = { port: fakePort } as unknown as AudioWorkletNode;
         (oscillator as any).workletNode = fakeNode;
         (oscillator as any).isReady = true;
+        // The route init opens; params travel on it as records (#1497 P2).
+        (oscillator as any).events.open(fakePort, { sampleRate: 48000, sharedMemory: false, voiceRing: false });
     });
 
     it('posts set-303-model with the engine-family fallback hint and re-pushes params', () => {
@@ -248,8 +253,8 @@ describe('Open303Oscillator.setModel303()', () => {
             type: 'set-303-model',
             data: { model: 'experimental-01', engine: 'open303', oversample: 1 },
         });
-        expect(mockPostMessage.mock.calls.some(
-            (call) => call[0]?.type === 'param' && call[0]?.data?.func === 'jc303_setCutoff',
+        expect(postedRecords(mockPostMessage).some(
+            (e) => e.type === EventType.Param && e.target === OPEN303_PARAM_IDS.setCutoff,
         )).toBe(true);
     });
 

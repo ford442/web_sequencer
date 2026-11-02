@@ -68,6 +68,20 @@ export class EventBus {
     return this.sinks.length - 1;
   }
 
+  /**
+   * Move an open route onto another sink: its worklet offered a better
+   * transport, such as the voice's own ring in hyphon_native memory (#1497 P2).
+   * The old sink flushes first, so what it staged still reaches the worklet,
+   * and the new sink becomes the route's only writer. False for a closed route.
+   */
+  rebind(route: EventRoute, sink: EngineEventSink): boolean {
+    const old = route > 0 ? this.sinks[route] : null;
+    if (!old) return false;
+    old.flush();
+    this.sinks[route] = sink;
+    return true;
+  }
+
   /** Flush what the route still stages, then forget it. Closing twice is harmless. */
   close(route: EventRoute): void {
     const sink = route > 0 ? this.sinks[route] : null;

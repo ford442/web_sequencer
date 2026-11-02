@@ -49,11 +49,13 @@ export interface HyphonNativeExports {
   prophecy_push_event(h: VoiceHandle, frame: number, type: number, target: number, value: number, a0: number, a1: number, a2: number, a3: number): number;
   prophecy_render(h: VoiceHandle, blockStartFrame: number, frames: number): WasmPtr;
   prophecy_cancel_notes(h: VoiceHandle): void;
+  prophecy_event_inbox(h: VoiceHandle): WasmPtr;
   drumkit_create(): VoiceHandle;
   drumkit_destroy(h: VoiceHandle): void;
   drumkit_init(h: VoiceHandle, sampleRate: number, maxFrames: number): number;
   drumkit_push_event(h: VoiceHandle, frame: number, type: number, target: number, value: number, a0: number, a1: number, a2: number, a3: number): number;
   drumkit_render(h: VoiceHandle, blockStartFrame: number, frames: number): WasmPtr;
+  drumkit_event_inbox(h: VoiceHandle): WasmPtr;
   macro_create(): VoiceHandle;
   macro_destroy(h: VoiceHandle): void;
   macro_init(h: VoiceHandle, sampleRate: number, maxFrames: number): number;
@@ -68,10 +70,12 @@ export interface HyphonNativeExports {
   open303_note_on?(handle: VoiceHandle, midiNote: number, velocity: number): void;
   open303_note_off?(handle: VoiceHandle, midiNote: number): void;
   open303_process?(handle: VoiceHandle, outputPtr: WasmPtr, numFrames: number): void;
+  open303_event_inbox?(h: VoiceHandle): WasmPtr;
   jc303_init_handle?(handle: VoiceHandle, sr: number, bs: number): number;
   jc303_note_on?(h: VoiceHandle, note: number, vel: number): void;
   jc303_note_off?(h: VoiceHandle, note: number): void;
   jc303_process_handle?(handle: VoiceHandle, numFrames: number): WasmPtr;
+  jc303_event_inbox?(h: VoiceHandle): WasmPtr;
   highfid303_create?(): VoiceHandle;
   highfid303_destroy?(h: VoiceHandle): void;
   highfid303_init?(h: VoiceHandle, sampleRate: number, maxFrames: number): number;
@@ -87,6 +91,7 @@ export interface HyphonNativeExports {
   highfid303_render?(h: VoiceHandle, blockStartFrame: number, frames: number): WasmPtr;
   highfid303_cancel_notes?(h: VoiceHandle): void;
   highfid303_flush?(h: VoiceHandle): void;
+  highfid303_event_inbox?(h: VoiceHandle): WasmPtr;
   prophecy_flush?(h: VoiceHandle): void;
   prophecy_note_on?(handle: VoiceHandle, midiNote: number, velocity: number): void;
   prophecy_note_off?(handle: VoiceHandle, midiNote: number): void;
@@ -102,6 +107,7 @@ export interface HyphonNativeExports {
   macro_note_off?(handle: VoiceHandle, midiNote: number): void;
   macro_process?(handle: VoiceHandle, numFrames: number): WasmPtr;
   macro_active_voices?(handle: VoiceHandle): number;
+  macro_event_inbox?(h: VoiceHandle): WasmPtr;
 }
 
 /** hyphon::EventType, from emscripten/core/event_schema.json (see eventLayout.ts). */
