@@ -129,9 +129,9 @@ describe('EngineStatusPill', () => {
                 bass2={defaultVoice({ label: 'B2' })}
             />
         );
-        const pill = screen.getByText('A:JC303');
+        const pill = screen.getByText('A:JC303').parentElement;
         expect(pill).toHaveAttribute('aria-label');
-        expect(pill.getAttribute('aria-label')).toMatch(/JC303/i);
+        expect(pill!.getAttribute('aria-label')).toMatch(/JC303/i);
     });
 
     it('each pill has a descriptive title tooltip', () => {
@@ -142,9 +142,9 @@ describe('EngineStatusPill', () => {
                 bass2={defaultVoice({ label: 'B2' })}
             />
         );
-        const pill = screen.getByText('A:PROPHECY');
+        const pill = screen.getByText('A:PROPHECY').parentElement;
         expect(pill).toHaveAttribute('title');
-        expect(pill.getAttribute('title')).toMatch(/Prophecy/i);
+        expect(pill!.getAttribute('title')).toMatch(/Prophecy/i);
     });
 
     it('container has descriptive aria-label', () => {

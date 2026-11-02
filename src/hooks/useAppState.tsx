@@ -634,6 +634,7 @@ export function useAppState() {
         handleAISongImport, loadImportedAISong, handleRbsImport, handleSmfImport,
         isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
         setIsImportingAISong, setAiImportStage, setAiImportProgress,
+        isExportingRbs, isExportingSmf,
     } = useSongStorage({
         patternRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
@@ -897,6 +898,8 @@ export function useAppState() {
         setIsImportingAISong,
         setAiImportStage,
         setAiImportProgress,
+        isExportingRbs,
+        isExportingSmf,
         patternRef,
         songStructureRef,
         isSongModeActiveRef,
