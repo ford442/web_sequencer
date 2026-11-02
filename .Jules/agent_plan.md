@@ -1,6 +1,10 @@
 # Agent Plan
 
 ## Active Backlog
+- [x] Explore using polyrhythmic modulation to control open hi-hat decay time
+- Velocity Check: Modulating the open hi-hat decay length using simple polyrhythmic math directly inside `handleTextToDrums` perfectly achieves the dual mandate of "Solidify and Innovate". It integrates tight organic breathing into the generated Euclidean hi-hat rolls without introducing heavy AudioWorklet DSP overhead or compromising core sequencer architecture.
+- Explore mapping lyric text sentiment to default scale
+- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
 - Velocity Check: Mapping synth bass sequence density (by counting active bass steps in the consonant gap) to a modulation scalar directly added to the base Euclidean density formula successfully connected the rhythm of the bassline to the auto-generated hi-hat fills without any heavy DSP cross-modulation worklets.
@@ -46,8 +50,6 @@
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore dynamically linking step lengths to phoneme duration.
 - What if we map vowel brightness/formant to open hi-hat decay time?
-- Explore mapping lyric text sentiment to default scale
-- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - [x] Explore randomizing granular jitter based on note velocity.
 - [x] Explore assigning microtonal pitch variations per phoneme step.
 - [x] Explore dynamic spatialization routing per phoneme (e.g. consonants panned differently than vowels or delay sends driven by phoneme intensity).
@@ -271,3 +273,8 @@
   - In `handleTextToDrums`, updated the Euclidean polyrhythm generator to accept a `swingShift` derived from `meter.swing`.
   - The formula `((meter.swing - 50) / 25) * gapSize` shifts the phase index `j - 1` forward or backward depending on the swing amount before modulo.
 - Velocity Check: Passing the global `swing` scalar into the Euclidean polyrhythm generator creates dynamic, swing-aware fills directly from the lyric mapper. This avoids complex re-calculations in the DSP audio graph while increasing rhythmic cohesion across patterns. Added "Explore using polyrhythmic modulation to control open hi-hat decay time" to the Innovation Lab.
+
+- Completed "Explore using polyrhythmic modulation to control open hi-hat decay time"
+  - In `handleTextToDrums`, added polyrhythmic mathematical modulation to compute the open hi-hat step length dynamically (between 1 and 4 steps).
+  - Derived the open hi-hat decay factor from the Euclidean phase shifted index and sequence hit density to create dynamic "breathing" and "tightening" hi-hat rolls within text-generated patterns.
+- Velocity Check: This simple functional mapping within the text-to-drums loop elegantly injects sophisticated organic variation without touching real-time audio constraints. Added "Explore modulating the kick drum fundamental pitch based on text sentiment" to the Innovation Lab.
