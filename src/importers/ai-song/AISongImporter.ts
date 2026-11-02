@@ -18,6 +18,7 @@ import { tilePatternAutomation, type TiledAutomationLane } from './automation';
 import { createEmptyTrackStorage, deriveActiveTrackSlotsFromStructure } from '../../utils/trackStorageUtils';
 import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 import { laneDispatchGap } from '../../audio/automation/laneResolver';
+import { NOTE_NAME_REGEX, noteToMidi } from '../../utils/musicTheory';
 
 /** Time signature applied when a song does not declare one. */
 const DEFAULT_TIME_SIGNATURE: [number, number] = [4, 4];
@@ -25,8 +26,16 @@ const DEFAULT_TIME_SIGNATURE: [number, number] = [4, 4];
 /** Swing applied when a song does not declare one (50 = straight). */
 const DEFAULT_SWING = 50;
 
+/**
+ * Whether the AI song format takes `note`. The pattern is the parser's own
+ * (`NOTE_NAME_SOURCE`, which `docs/schemas/ai-song.schema.json` and the
+ * co-producer's `edit_pattern` schema carry too), plus the one thing a pattern
+ * cannot say — the pitch is MIDI 0..127 — so a name that passes here is a name
+ * `noteToMidi` turns into a pitch, never into silence or MIDI 0. Strict about
+ * whitespace (the song stores the string as written); the parser alone trims.
+ */
 export function isValidNote(note: string): boolean {
-  return /^[A-G][#b]?[0-8]$/.test(note);
+  return NOTE_NAME_REGEX.test(note) && noteToMidi(note) !== null;
 }
 
 /**

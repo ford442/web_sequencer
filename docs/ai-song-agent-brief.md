@@ -14,7 +14,7 @@ Paste this into a prompt. Return **one JSON object, no prose**, that validates a
 | `sampler` | Up to 8 banks. A bank names a sample but loads no audio at import | Leave it out unless asked |
 
 A note is `{ "step": 0-31, "note": "C2", "velocity": 0-1, "length": steps, "accent": bool, "slide": bool }`.
-Note names match `^[A-G][#b]?[0-8]$`: uppercase letter, optional `#` or `b`, octave 0-8 (`F#3`, `Bb1`; not `c4`, `C9`, `Bbb2`).
+Note names: uppercase letter, at most one accidental (`#`, `b`, or doubled `##`/`bb`/`x`), octave -1 to 9, pitch C-1 to G9 (`F#3`, `Bb1`, `Fx3`; not `c4`, `C#b4`, `G#9`). `Eb3` and `D#3` sound the same.
 One note per step; a later one replaces it. 16-entry drum arrays repeat to fill 32 steps.
 
 303 voice ids go in `params.model303` (default `stock-open303`; `jc303`, `rebirth-2.0`,

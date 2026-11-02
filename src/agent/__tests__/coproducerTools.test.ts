@@ -21,6 +21,7 @@ import { COPRODUCER_TOOLS, runCoproducerTool, unrenderedLanes } from '../coprodu
 import { SYNTH_WAVEFORMS, LANE_PARAMETERS } from '../coproducer/knobs';
 import { TOOL_INPUT_SCHEMAS } from '../coproducer/toolSchemas';
 import { bytesToBase64 } from '../agentSong';
+import { NOTE_NAME_SOURCE } from '../../utils/musicTheory';
 
 const ROOT = process.cwd();
 const aiSchema = JSON.parse(readFileSync(resolve(ROOT, 'docs/schemas/ai-song.schema.json'), 'utf8')) as {
@@ -166,7 +167,7 @@ describe('tool definitions', () => {
         // The ranges strict mode drops are still told to the model.
         const editSchema = JSON.stringify(COPRODUCER_TOOLS.find((t) => t.name === 'edit_pattern')!.input_schema);
         expect(editSchema).toContain('0–31');
-        expect(editSchema).toContain('matches /^[A-G][#b]?[0-8]$/');
+        expect(editSchema).toContain(`matches /${NOTE_NAME_SOURCE}/`);
     });
 
     it('gives import_song the AI song schema itself (not strict: its patterns map is open-keyed)', () => {
@@ -290,6 +291,23 @@ describe('edit_pattern', () => {
         await run(host, 'edit_pattern', { track: 'bass2', slot: 3, edits: [{ step: 0, action: 'set', note: 'C1' }] });
         expect(host.song.pattern).toBe(live);
         expect(((host.song.trackStorage.bass2 as PartSequence[])[3]).steps[0]?.note).toBe('C1');
+    });
+
+    it('takes flats, doubles and the whole MIDI range, and refuses a name that would sound nowhere', async () => {
+        const host = hostFor(songOf(minimal));
+        const set = (step: number, note: string) => run(host, 'edit_pattern', { track: 'synthA', slot: 0, edits: [{ step, action: 'set', note }] });
+        for (const [step, note] of [[1, 'Eb3'], [2, 'Fx3'], [3, 'C-1'], [4, 'G9']] as const) {
+            expect((await set(step, note)).isError, note).toBe(false);
+        }
+        expect(host.song.pattern.partA.steps.slice(1, 5).map((n) => n?.note)).toEqual(['Eb3', 'Fx3', 'C-1', 'G9']);
+        // Spelled fine, so the schema pattern passes it — but it is above MIDI 127 and would play as nothing.
+        const before = host.song;
+        for (const note of ['G#9', 'A9', 'Cb-1']) {
+            const { body, isError } = await set(5, note);
+            expect(isError, note).toBe(true);
+            expect(body.error, note).toMatch(new RegExp(`edits\\[0\\]\\.note "${note}" .*C-1–G9`));
+        }
+        expect(host.song).toBe(before);
     });
 
     it('needs a bank on the sampler and refuses steps past the pattern', async () => {

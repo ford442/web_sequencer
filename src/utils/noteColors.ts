@@ -2,7 +2,7 @@
 // @note-for-ai: UI utility for note color mapping - not a migration candidate.
 // Called infrequently, UI-only, no performance bottleneck.
 
-import { normalizeNoteName } from './musicTheory';
+import { NOTES, parseNoteName } from './musicTheory';
 
 // Base hues for the 12 chromatic notes (0-360 degrees)
 // C = Red (0), G = Blue (240), etc. - Standard-ish association or custom cycle
@@ -22,14 +22,12 @@ const NOTE_HUES: Record<string, number> = {
 };
 
 export const getNoteColor = (note: string, trackKey?: string): string => {
-    // Parse note string "C#4" -> noteName "C#", octave 4 (flats respell: "Db4" -> "C#4")
-    const match = (normalizeNoteName(note) ?? note).match(/^([A-G]#?)(\d)$/);
-    if (!match) return '#8fa394'; // Default grey for unknown/invalid
+    // The sounding pitch decides the colour, so "Db4" is "C#4" and "Cb4" is "B3".
+    const parsed = parseNoteName(note);
+    if (!parsed) return '#8fa394'; // Default grey for unknown/invalid
 
-    const [_, noteName, octaveStr] = match;
-    const octave = parseInt(octaveStr, 10);
-
-    const hue = NOTE_HUES[noteName];
+    const octave = parsed.octave;
+    const hue = NOTE_HUES[NOTES[parsed.pitchClass]];
 
     // Lightness varies by octave
     // Octave 2 = Darker (40%)

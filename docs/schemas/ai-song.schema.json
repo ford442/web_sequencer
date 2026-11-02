@@ -331,7 +331,7 @@
         },
         "note": {
           "type": "string",
-          "pattern": "^[A-G][#b]?[0-8]$"
+          "pattern": "^([A-G])(#{1,2}|x|b{1,2}|♯{1,2}|♭{1,2}|𝄪|𝄫)?(-1|[0-9])$"
         },
         "velocity": {
           "type": "number",
