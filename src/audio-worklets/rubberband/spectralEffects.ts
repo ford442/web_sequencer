@@ -64,8 +64,8 @@ export class SpectralBandProcessor {
     // grDb = 20 * (1 - 1/ratio) * log10(env/threshold)
     // gain = 10^(-grDb/20) = (env/threshold)^(-slope)
     const slope = 1.0 - 1.0 / ratio;
-    const maxEnv = threshold * Math.pow(10, maxGR / (20 * slope));
-    const maxGRMultiplier = Math.pow(10, -maxGR / 20);
+    const maxEnv = threshold * Math.exp((maxGR / (20 * slope)) * Math.LN10);
+    const maxGRMultiplier = Math.exp((-maxGR / 20) * Math.LN10);
 
     // Pre-calculate constants to convert Math.pow to Math.exp + Math.log
     const invSlope = -slope;
@@ -75,66 +75,62 @@ export class SpectralBandProcessor {
     let e1 = this.env[1];
     let e2 = this.env[2];
 
-    for (let i = 0; i < outL.length; i++) {
-      const x = outL[i];
-      this.lp1 += this.f1 * this.bp1;
-      const hp1 = x - this.lp1 - q * this.bp1;
-      this.bp1 += this.f1 * hp1;
-      this.lp2 += this.f2 * this.bp2;
-      const hp2 = hp1 - this.lp2 - q * this.bp2;
-      this.bp2 += this.f2 * hp2;
+    let lp1 = this.lp1, bp1 = this.bp1, lp2 = this.lp2, bp2 = this.bp2;
+    const f1 = this.f1, f2 = this.f2;
+    const attackCoef = this.attackCoef, releaseCoef = this.releaseCoef;
+    const envHasThreshold = spectralComp > 0;
+    const outL_ref = outL, outR_ref = outR;
+    const outRLen = outL.length;
+    const hasR = hasStereo && outR_ref;
+    const gl0 = grainPanL[0], gl1 = grainPanL[1], gl2 = grainPanL[2];
+    const gr0 = grainPanR[0], gr1 = grainPanR[1], gr2 = grainPanR[2];
 
-      let low = this.lp1;
-      let mid = this.lp2;
+    for (let i = 0; i < outRLen; i++) {
+      const x = outL_ref[i];
+      lp1 += f1 * bp1;
+      const hp1 = x - lp1 - q * bp1;
+      bp1 += f1 * hp1;
+      lp2 += f2 * bp2;
+      const hp2 = hp1 - lp2 - q * bp2;
+      bp2 += f2 * hp2;
+
+      let low = lp1;
+      let mid = lp2;
       let high = hp2;
-      if (spectralComp > 0) {
+      if (envHasThreshold) {
         // Inline compress for low
         const absLow = Math.abs(low);
-        if (absLow > e0) {
-          e0 = this.attackCoef * e0 + (1 - this.attackCoef) * absLow;
-        } else {
-          e0 = this.releaseCoef * e0 + (1 - this.releaseCoef) * absLow;
-        }
+        e0 = absLow > e0 ? attackCoef * e0 + (1 - attackCoef) * absLow : releaseCoef * e0 + (1 - releaseCoef) * absLow;
         if (e0 > threshold) {
-          if (e0 >= maxEnv) low *= maxGRMultiplier;
-          else low *= Math.exp(invSlope * Math.log(e0 * invThreshold));
+          low *= e0 >= maxEnv ? maxGRMultiplier : Math.exp(invSlope * Math.log(e0 * invThreshold));
         }
 
         // Inline compress for mid
         const absMid = Math.abs(mid);
-        if (absMid > e1) {
-          e1 = this.attackCoef * e1 + (1 - this.attackCoef) * absMid;
-        } else {
-          e1 = this.releaseCoef * e1 + (1 - this.releaseCoef) * absMid;
-        }
+        e1 = absMid > e1 ? attackCoef * e1 + (1 - attackCoef) * absMid : releaseCoef * e1 + (1 - releaseCoef) * absMid;
         if (e1 > threshold) {
-          if (e1 >= maxEnv) mid *= maxGRMultiplier;
-          else mid *= Math.exp(invSlope * Math.log(e1 * invThreshold));
+          mid *= e1 >= maxEnv ? maxGRMultiplier : Math.exp(invSlope * Math.log(e1 * invThreshold));
         }
 
         // Inline compress for high
         const absHigh = Math.abs(high);
-        if (absHigh > e2) {
-          e2 = this.attackCoef * e2 + (1 - this.attackCoef) * absHigh;
-        } else {
-          e2 = this.releaseCoef * e2 + (1 - this.releaseCoef) * absHigh;
-        }
+        e2 = absHigh > e2 ? attackCoef * e2 + (1 - attackCoef) * absHigh : releaseCoef * e2 + (1 - releaseCoef) * absHigh;
         if (e2 > threshold) {
-          if (e2 >= maxEnv) high *= maxGRMultiplier;
-          else high *= Math.exp(invSlope * Math.log(e2 * invThreshold));
+          high *= e2 >= maxEnv ? maxGRMultiplier : Math.exp(invSlope * Math.log(e2 * invThreshold));
         }
       }
 
-      if (hasStereo && outR) {
-        outL[i] = low * grainPanL[0] + mid * grainPanL[1] + high * grainPanL[2];
-        outR[i] = low * grainPanR[0] + mid * grainPanR[1] + high * grainPanR[2];
+      if (hasR) {
+        outL_ref[i] = low * gl0 + mid * gl1 + high * gl2;
+        outR_ref![i] = low * gr0 + mid * gr1 + high * gr2;
       } else {
-        outL[i] = low + mid + high;
+        outL_ref[i] = low + mid + high;
       }
     }
 
     this.env[0] = e0;
     this.env[1] = e1;
     this.env[2] = e2;
+    this.lp1 = lp1; this.bp1 = bp1; this.lp2 = lp2; this.bp2 = bp2;
   }
 }

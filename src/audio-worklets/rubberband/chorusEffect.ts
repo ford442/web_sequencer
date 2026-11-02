@@ -20,22 +20,28 @@ export class VocalChorusEffect {
     const lfoRate = 0.6; // Hz
     const lfoPhaseInc = (2.0 * Math.PI * lfoRate) / fs;
 
+    // ⚡ Bolt: Extract state to local variables outside the inner loop to
+    // eliminate O(N) array property lookups per quantum on the hot path.
+    let lfoPhase = this.lfoPhase;
+    let writePtr = this.writePtr;
+    const buffers = this.buffer;
+
     for (let i = 0; i < outputs[0][0].length; i++) {
-      this.lfoPhase += lfoPhaseInc;
-      if (this.lfoPhase > 2.0 * Math.PI) {
-        this.lfoPhase -= 2.0 * Math.PI;
+      lfoPhase += lfoPhaseInc;
+      if (lfoPhase > 2.0 * Math.PI) {
+        lfoPhase -= 2.0 * Math.PI;
       }
 
-      const lfoVal = Math.sin(this.lfoPhase);
+      const lfoVal = Math.sin(lfoPhase);
 
       for (let channel = 0; channel < outputs[0].length; channel++) {
         const outCh = outputs[0][channel];
         if (!outCh) continue;
 
-        const buf = this.buffer[channel];
+        const buf = buffers[channel];
 
         const dry = outCh[i];
-        buf[this.writePtr] = dry;
+        buf[writePtr] = dry;
 
         // Tap 1: ~12ms, Tap 2: ~18ms
         const delay1Ms = 12.0 + (lfoVal * 3.0 * vocalChorusAmount);
@@ -44,8 +50,8 @@ export class VocalChorusEffect {
         const delay1Frames = delay1Ms * 0.001 * fs;
         const delay2Frames = delay2Ms * 0.001 * fs;
 
-        let readPtr1 = this.writePtr - Math.floor(delay1Frames);
-        let readPtr2 = this.writePtr - Math.floor(delay2Frames);
+        let readPtr1 = writePtr - Math.floor(delay1Frames);
+        let readPtr2 = writePtr - Math.floor(delay2Frames);
 
         if (readPtr1 < 0) readPtr1 += bufferSize;
         if (readPtr2 < 0) readPtr2 += bufferSize;
@@ -70,10 +76,13 @@ export class VocalChorusEffect {
         outCh[i] = (dry * dryGain) + (mixedWet * wetGain);
       }
 
-      this.writePtr++;
-      if (this.writePtr >= bufferSize) {
-        this.writePtr = 0;
+      writePtr++;
+      if (writePtr >= bufferSize) {
+        writePtr = 0;
       }
     }
+
+    this.lfoPhase = lfoPhase;
+    this.writePtr = writePtr;
   }
 }

@@ -5,23 +5,23 @@ import { resetWebGpuProbe } from './backends/webgpuProbe';
 
 // Types for mocking
 type MockGPUDevice = {
-  createShaderModule: any;
-  createBindGroupLayout: any;
-  createPipelineLayout: any;
-  createComputePipeline: any;
-  createBuffer: any;
-  createBindGroup: any;
-  createCommandEncoder: any;
+  createShaderModule: ReturnType<typeof vi.fn>;
+  createBindGroupLayout: ReturnType<typeof vi.fn>;
+  createPipelineLayout: ReturnType<typeof vi.fn>;
+  createComputePipeline: ReturnType<typeof vi.fn>;
+  createBuffer: ReturnType<typeof vi.fn>;
+  createBindGroup: ReturnType<typeof vi.fn>;
+  createCommandEncoder: ReturnType<typeof vi.fn>;
   queue: {
-    writeBuffer: any;
-    submit: any;
+    writeBuffer: ReturnType<typeof vi.fn>;
+    submit: ReturnType<typeof vi.fn>;
   };
 };
 
 describe('WebGpuOscillator', () => {
   let engine: WebGpuOscillator;
   let mockDevice: MockGPUDevice;
-  let mockAdapter: any;
+  let mockAdapter: Record<string, unknown>;
 
   beforeEach(() => {
     resetWebGpuProbe();
@@ -90,7 +90,7 @@ describe('WebGpuOscillator', () => {
     await engine.init();
 
     expect(global.navigator.gpu.requestAdapter).toHaveBeenCalled();
-    expect(mockAdapter.requestDevice).toHaveBeenCalled();
+    expect((mockAdapter.requestDevice as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
     expect(mockDevice.createShaderModule).toHaveBeenCalled();
     expect(mockDevice.createComputePipeline).toHaveBeenCalled();
     expect(engine.isSupported).toBe(true);

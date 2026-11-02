@@ -115,7 +115,7 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
                         aria-label={`${prefix}${d.subsystem} degraded: ${d.reason}.`}
                         className={`text-[7px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-amber-950/90 text-amber-300 border-amber-500/60 hover:bg-amber-900/90 touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-amber-500 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                     >
-                        {d.status === 'recovering' ? '…' : '!'} {d.subsystem}:{d.activeBackend}
+                        <span aria-hidden="true">{d.status === 'recovering' ? '…' : '!'} {d.subsystem}:{d.activeBackend}</span>
                     </button>
                 );
             })}
@@ -126,7 +126,7 @@ export const EngineStatusPill: React.FC<EngineStatusPillProps> = memo(({
                     title={pill.title}
                     aria-label={pill.title}
                 >
-                    {pill.label}:{pill.engine}
+                    <span aria-hidden="true">{pill.label}:{pill.engine}</span>
                 </span>
             ))}
         </div>

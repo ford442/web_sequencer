@@ -128,6 +128,21 @@ export function useLyricHandlers(deps: {
             newCH.steps = Array<Note | null>(chSteps).fill(null);
             newOH.steps = Array<Note | null>(ohSteps).fill(null);
 
+            // Calculate basic text sentiment to determine probability of open vs closed hats in fills
+            const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+            const posWords = ['love', 'happy', 'good', 'great', 'joy', 'beautiful', 'bright', 'shine', 'smile', 'dance'];
+            const negWords = ['hate', 'sad', 'bad', 'dark', 'pain', 'cry', 'angry', 'lost', 'alone', 'cold'];
+            let sentimentScore = 0;
+            words.forEach(w => {
+                if (posWords.includes(w)) sentimentScore++;
+                if (negWords.includes(w)) sentimentScore--;
+            });
+            // Normalize sentiment to a probability for open hats (more positive = more open hats)
+            // base prob: 0.1. Sentiment adds/removes up to 0.4.
+            const maxScore = Math.max(1, words.length * 0.2); // Expected max score based on word count
+            const normalizedSentiment = Math.max(-1, Math.min(1, sentimentScore / maxScore));
+            const openHatProb = Math.max(0, Math.min(0.8, 0.2 + (normalizedSentiment * 0.4)));
+
             let consecutiveConsonants = 0;
             let lastConsonantStep = -1;
             let currentStress = 0;
@@ -188,19 +203,40 @@ export function useLyricHandlers(deps: {
                     if (consecutiveConsonants >= 2 && lastConsonantStep !== -1 && stepIdx > lastConsonantStep + 1) {
                         // Fill the gap with evolving polyrhythmic Euclidean drum sequences
                         const gapSize = stepIdx - lastConsonantStep - 1;
-                        // Calculate number of hits based on consonant density
-                        const hits = Math.max(1, Math.floor(gapSize * (0.3 + (consecutiveConsonants * 0.15) % 0.6)));
+
+                        // Cross-modulate Euclidean rhythm density with the synth bass envelope
+                        let bassHitsInGap = 0;
+                        for (let j = 1; j <= gapSize; j++) {
+                            const fillStep = lastConsonantStep + j;
+                            if (fillStep >= 0 && fillStep < (newPattern.bass2?.steps?.length || 0) && newPattern.bass2?.steps?.[fillStep]) {
+                                bassHitsInGap++;
+                            }
+                        }
+                        const bassModulation = gapSize > 0 ? (bassHitsInGap / gapSize) * 0.4 : 0;
+
+                        // Calculate number of hits based on consonant density + bass density
+                        const hits = Math.max(1, Math.floor(gapSize * (0.3 + ((consecutiveConsonants * 0.15) % 0.6) + bassModulation)));
+
+                        // Shift the phase of the polyrhythm dynamically based on the current swing percentage.
+                        // 50 swing = straight (0 shift), > 50 = shift forward, < 50 = shift backward.
+                        const swingShift = Math.round(((meter.swing - 50) / 25) * gapSize);
 
                         for (let j = 1; j <= gapSize; j++) {
                             const fillStep = lastConsonantStep + j;
                             if (fillStep >= 0 && fillStep < newCH.steps.length) {
-                                // Euclidean Rhythm E(k, n): ((j - 1) * hits) % gapSize < hits
-                                const isEuclideanHit = ((j - 1) * hits) % gapSize < hits;
+                                // Euclidean Rhythm E(k, n): ((j - 1 + shift) * hits) % gapSize < hits
+                                // We add gapSize before modulo to handle negative swingShifts cleanly.
+                                const phaseShiftedIndex = j - 1 + swingShift;
+                                const isEuclideanHit = ((((phaseShiftedIndex % gapSize) + gapSize) % gapSize) * hits) % gapSize < hits;
 
                                 if (isEuclideanHit) {
                                     // Escalating velocity for the evolving sequence
                                     const vel = 0.3 + (0.7 * (j / gapSize));
-                                    newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    if (Math.random() < openHatProb && fillStep >= 0 && fillStep < newOH.steps.length) {
+                                        newOH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    } else {
+                                        newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                    }
                                 }
 
                                 // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
