@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Co-producer, phase 1: the open song as an AI song, and the agent's tools
+- **`exportAISong()`**, the inverse of the AI song importer: the open song as `AISongData` v1.0 / v1.1, with patterns named after their slot (`slot3`). Pattern-local lanes come back as pattern-local lanes, and anything the format cannot carry is reported in `losses`, not dropped. Importing the export plays the same song, and exporting again gives the same JSON. Every fixture and fast-check generators of strict-valid songs are held to it.
+- **Seven tools as pure functions over the song, with no SDK yet**: `get_song`, `import_song`, `edit_pattern`, `set_params` (knobs, lanes that play live, tempo, swing), `arrange`, `render_and_measure` and `export`. Every input is validated in `run` by ajv validators precompiled at build time (`pnpm run gen:coproducer-validators`; the runtime ships no ajv). A bad input is an error result, never a throw. Each edit is one undo step labelled `Co-producer: …` and answers with a compact diff.
+- **On the agent hook**: `window.__HYPHON_AGENT__.exportAISong()` and `.coproducer` (`tools` / `run` / `history` / `undo` / `downloads`). Live-pattern edits go through the piano roll's commit. See [coproducer.md](docs/coproducer.md).
+
 ### Real-time control plane, phase 2: the main thread writes a voice's own ring; 303 and Prophecy on the bus (#1497)
 - **One ring layout for both languages**: the event ring's header joins `emscripten/core/event_schema.json`, and `hyphon::EventRing` now uses the same bytes as `src/shared/rt/eventRing.ts` (generated `EventRingHeader`, with `static_assert`s on every word). A ring can sit at any offset of a buffer.
 - **No copy on the pthread build**: each native voice has an inbox ring, and `prefix_event_inbox` returns its address. The drum and Prophecy worklets offer it in their `ready` message. The engine's route then writes records straight into hyphon_native's shared memory, and the C++ voice takes them at block start. Before the voice is ready, and on the single-threaded build, records go as one batched message per tick.
