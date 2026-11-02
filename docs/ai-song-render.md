@@ -131,6 +131,8 @@ build never loads otherwise). Source: [`src/agent/agentApi.ts`](../src/agent/age
 | `renderMix({ stems?, bitDepth? })` | WAVs as base64 (`stems/master.wav` …), the stem report, `metadata.json`, active engine fallbacks |
 | `exportRbs()` / `exportMidi()` / `exportXm()` | `{ ok, filename, base64, warnings }` or `{ ok: false, error }` |
 | `captureLive({ track?, seconds? })` | Plays the song in real time and records a tap: a 303 track's voice output (`open303-lead303` / `-bass1` / `-bass2`), the native drum kit for a drum track, else the track's monitor or the master. Base64 WAV + the tap used |
+| `exportAISong({ meta? })` | The open song as `AISongData` (the inverse of `importAISong`), plus `losses`: what the format could not carry |
+| `coproducer.run(name, input)` / `.tools()` / `.undo()` | The co-producer's tools on the open song; see [coproducer.md](coproducer.md) |
 
 The CLI's driver, [`scripts/ai-song-render/render.ts`](../scripts/ai-song-render/render.ts),
 is shared with the Playwright spec, and the metrics are

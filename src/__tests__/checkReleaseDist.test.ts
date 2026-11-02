@@ -367,6 +367,47 @@ describe('check-release-dist WASM export gate', () => {
     });
 });
 
+describe('check-release-dist agent hook chunk', () => {
+    const BUDGET = (JSON.parse(readFileSync(join(ROOT, 'dist-budget.json'), 'utf8')) as {
+        compressed: { agentHookChunkMaxBytes: number };
+    }).compressed.agentHookChunkMaxBytes;
+    /** Pseudo-random text: brotli can only take it to ~0.8 of its length, so 2× the row is over it. */
+    const incompressible = (bytes: number) => {
+        let x = 0x9e3779b9;
+        let out = '';
+        while (out.length < bytes) {
+            x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+            out += String.fromCharCode(0x21 + ((x >>> 0) % 90));
+        }
+        return `const blob = ${JSON.stringify(out)};\nexport { blob };\n`;
+    };
+
+    it('passes a lazy agent chunk within its row', () => {
+        const { status, output } = runCheck(makeDist({ extraAssets: { 'AgentBridge-QwErTy12.js': 'export const api = 1;\n' } }));
+        expect(output).toMatch(/agent hook chunk +[\d,]+ B \/ +[\d,]+ B {2}assets\/AgentBridge-QwErTy12\.js\n/);
+        expect(status).toBe(0);
+    });
+
+    it('fails an agent chunk over dist-budget.json#compressed.agentHookChunkMaxBytes', () => {
+        const { status, output } = runCheck(makeDist({ extraAssets: { 'AgentBridge-QwErTy12.js': incompressible(BUDGET * 2) } }));
+        expect(status).toBe(1);
+        expect(output).toMatch(/agent hook chunk \(assets\/AgentBridge-QwErTy12\.js\) is [\d,]+ B brotli, over budget/);
+    });
+
+    it('fails when the entry imports the agent chunk statically', () => {
+        const dir = makeDist({
+            extraAssets: {
+                'AgentBridge-QwErTy12.js': 'export const api = 1;\n',
+                'main-AbCd1234.js': 'import"./AgentBridge-QwErTy12.js";\nconst app = 1;\n',
+            },
+            extraRootFiles: { 'index.html': '<script type="module" crossorigin src="./assets/main-AbCd1234.js"></script>' },
+        });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('agent hook chunk (assets/AgentBridge-QwErTy12.js) is reachable from the entry chunk by static import');
+    });
+});
+
 describe('check-release-dist worklet classification (#1468)', () => {
     it('does not treat a chunk that carries an inline worklet source string as a worklet', () => {
         // src/agent/liveCapture.ts loads its recorder from a Blob URL: the source

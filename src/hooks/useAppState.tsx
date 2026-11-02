@@ -902,6 +902,8 @@ export function useAppState() {
         isExportingSmf,
         patternRef,
         songStructureRef,
+        // Per-slot 303 knobs (`trackParamStorage`) and other .rbs / AI song extras; the agent hook reads and writes them.
+        rbsArrangementExtrasRef,
         isSongModeActiveRef,
         currentScaleRef,
         trackStorageRef,

@@ -29,6 +29,63 @@ export function isValidNote(note: string): boolean {
   return /^[A-G][#b]?[0-8]$/.test(note);
 }
 
+/**
+ * What the importer fills in for anything a song leaves out. Exported so the
+ * inverse (`exportAISong`) can leave out exactly what would be filled back in.
+ */
+
+/** Every synth part starts from these; a track's `params` override them. */
+export const AI_SONG_DEFAULT_SYNTH: Readonly<SynthParams> = Object.freeze({
+  waveform: '303-saw',
+  pitch: 0,
+  filterCutoff: 3000,
+  filterResonance: 8,
+  filterMode: 1,
+  attack: 0.01,
+  decay: 0.3,
+  sustain: 0.5,
+  release: 0.3,
+  length: 0.25,
+  volume: 0.9,
+  delayTime: 0.3,
+  delayFeedback: 0.2,
+  delayMix: 0.0
+});
+
+/** BASS 2 knobs a song cannot set (`Bass2Params` has them; the AI format does not). */
+export const AI_SONG_BASS2_FIXED = Object.freeze({ accent: 0.7, envMod: 0.5 });
+
+/** Voice settings of a sampler bank before the song's `params` apply. */
+export const AI_SONG_DEFAULT_SAMPLER_BANK = Object.freeze({
+  sampleName: 'empty',
+  playbackSpeed: 1.0,
+  volume: 1.0,
+  filterCutoff: 20000,
+  filterResonance: 0,
+  drive: 0,
+  delaySend: 0
+});
+
+/** Drum knobs: the AI format has none, so every imported song gets these. */
+export const AI_SONG_DRUM_PARAMS = Object.freeze({
+  kick: Object.freeze({ pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 }),
+  snare: Object.freeze({ decay: 0.3, tone: 250, noise: 3000, volume: 0.9 }),
+  closedHat: Object.freeze({ pitch: 10000, decay: 0.1, volume: 0.8 }),
+  openHat: Object.freeze({ pitch: 8000, decay: 0.4, volume: 0.8 }),
+});
+
+/** The note a drum hit is stored with (`true` in a drum array). */
+export const AI_SONG_DRUM_NOTES = Object.freeze({
+  kick: 'C2', snare: 'D2', closedHat: 'F#2', openHat: 'A#2',
+} as const);
+
+/** Velocity / length of a note event that leaves them out. */
+export const AI_SONG_DEFAULT_VELOCITY = 0.8;
+export const AI_SONG_DEFAULT_LENGTH = 1;
+/** `Note.timbre` of an accented / unaccented melodic note. */
+export const AI_SONG_ACCENT_TIMBRE = 1.0;
+export const AI_SONG_PLAIN_TIMBRE = 0.5;
+
 // ============================================================================
 // CONVERTER CLASS
 // ============================================================================
@@ -386,10 +443,10 @@ export class AISongImporter {
       : { steps: Array(numSteps).fill(null) };
 
     // Convert drum tracks
-    const kick = this.convertDrumPattern(tracks.kick, numSteps, 'C2');
-    const snare = this.convertDrumPattern(tracks.snare, numSteps, 'D2');
-    const closedHat = this.convertDrumPattern(tracks.closedHat, numSteps, 'F#2');
-    const openHat = this.convertDrumPattern(tracks.openHat, numSteps, 'A#2');
+    const kick = this.convertDrumPattern(tracks.kick, numSteps, AI_SONG_DRUM_NOTES.kick);
+    const snare = this.convertDrumPattern(tracks.snare, numSteps, AI_SONG_DRUM_NOTES.snare);
+    const closedHat = this.convertDrumPattern(tracks.closedHat, numSteps, AI_SONG_DRUM_NOTES.closedHat);
+    const openHat = this.convertDrumPattern(tracks.openHat, numSteps, AI_SONG_DRUM_NOTES.openHat);
 
     // Convert sampler to PartSequence[] for Pattern
     const sampler = this.convertSamplerToSequences(tracks.sampler, numSteps, path('sampler'));
@@ -436,10 +493,10 @@ export class AISongImporter {
 
       steps[event.step] = {
         note: event.note,
-        velocity: event.velocity ?? 0.8,
-        length: event.length ?? 1,
+        velocity: event.velocity ?? AI_SONG_DEFAULT_VELOCITY,
+        length: event.length ?? AI_SONG_DEFAULT_LENGTH,
         slide: event.slide,
-        timbre: event.accent ? 1.0 : 0.5
+        timbre: event.accent ? AI_SONG_ACCENT_TIMBRE : AI_SONG_PLAIN_TIMBRE
       };
     }
 
@@ -500,8 +557,8 @@ export class AISongImporter {
         if (event.step >= 0 && event.step < numSteps) {
           steps[event.step] = {
             note: event.note,
-            velocity: event.velocity ?? 0.8,
-            length: event.length ?? 1
+            velocity: event.velocity ?? AI_SONG_DEFAULT_VELOCITY,
+            length: event.length ?? AI_SONG_DEFAULT_LENGTH
           };
         }
       }
@@ -516,15 +573,7 @@ export class AISongImporter {
    * Convert sampler bank data to SamplerParams for SavedSongData['params']
    */
   private convertSamplerTracks(banks: AISamplerBankData[] | undefined, path = 'tracks.sampler'): SamplerParams {
-    const sampler: SamplerParams = Array.from({ length: 8 }, () => ({
-      sampleName: 'empty',
-      playbackSpeed: 1.0,
-      volume: 1.0,
-      filterCutoff: 20000,
-      filterResonance: 0,
-      drive: 0,
-      delaySend: 0
-    }));
+    const sampler: SamplerParams = Array.from({ length: 8 }, () => ({ ...AI_SONG_DEFAULT_SAMPLER_BANK }));
 
     if (!banks) {
       return sampler;
@@ -548,26 +597,8 @@ export class AISongImporter {
     return sampler;
   }
 
-  /** Importer defaults every synth part starts from. */
-  private static readonly DEFAULT_SYNTH: SynthParams = {
-    waveform: '303-saw',
-    pitch: 0,
-    filterCutoff: 3000,
-    filterResonance: 8,
-    filterMode: 1,
-    attack: 0.01,
-    decay: 0.3,
-    sustain: 0.5,
-    release: 0.3,
-    length: 0.25,
-    volume: 0.9,
-    delayTime: 0.3,
-    delayFeedback: 0.2,
-    delayMix: 0.0
-  };
-
   private mapSynthParams(trackData?: AITrackData, path = 'tracks.synthA'): SynthParams {
-    const defaultSynth = AISongImporter.DEFAULT_SYNTH;
+    const defaultSynth = AI_SONG_DEFAULT_SYNTH;
     if (!trackData?.params) return { ...defaultSynth };
 
     this.mappedParams.push({
@@ -598,8 +629,8 @@ export class AISongImporter {
       resonance: synth.filterResonance,
       filterMode: synth.filterMode ?? 1,
       decay: synth.decay,
-      accent: 0.7,
-      envMod: 0.5,
+      accent: AI_SONG_BASS2_FIXED.accent,
+      envMod: AI_SONG_BASS2_FIXED.envMod,
       volume: synth.volume
     };
   }
@@ -616,10 +647,10 @@ export class AISongImporter {
       synthA: this.mapSynthParams(tracks.synthA, paths.synthA ?? 'tracks.synthA'),
       synthB: this.mapSynthParams(tracks.synthB, paths.synthB ?? 'tracks.synthB'),
       bass2: this.mapBass2Params(tracks.bass2, paths.bass2 ?? 'tracks.bass2'),
-      kick: { pitch: 60, decay: 0.4, tone: 0.6, volume: 1.0 },
-      snare: { decay: 0.3, tone: 250, noise: 3000, volume: 0.9 },
-      closedHat: { pitch: 10000, decay: 0.1, volume: 0.8 },
-      openHat: { pitch: 8000, decay: 0.4, volume: 0.8 },
+      kick: { ...AI_SONG_DRUM_PARAMS.kick },
+      snare: { ...AI_SONG_DRUM_PARAMS.snare },
+      closedHat: { ...AI_SONG_DRUM_PARAMS.closedHat },
+      openHat: { ...AI_SONG_DRUM_PARAMS.openHat },
       sampler: this.convertSamplerTracks(samplerBanks, paths.sampler)
     };
   }
