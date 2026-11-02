@@ -469,6 +469,16 @@ export function useAppState() {
     }, [tempo, session.sessionClockRef]);
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
 
+    // Master PCF pattern: restart on play, freeze on stop, follow the tempo.
+    const pcfEffect = audioEngine?.pcfEffect ?? null;
+    const pcfPlayingRef = useRef(false);
+    useEffect(() => {
+        if (!pcfEffect) return;
+        const started = schedPlaying && !pcfPlayingRef.current;
+        pcfPlayingRef.current = schedPlaying;
+        pcfEffect.setTransport(schedPlaying, tempo, started ? 0 : undefined);
+    }, [schedPlaying, tempo, pcfEffect]);
+
     useEffect(() => {
         if (!schedPlaying) {
             songMeasureRef.current = 0;

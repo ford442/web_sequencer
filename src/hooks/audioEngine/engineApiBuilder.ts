@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react';
+import { getMasterPcf } from '../../audio/pcf/masterPcf';
 import type { HarmonizerConfig } from '../../engines/Harmonizer';
 import type { AudioEngine, PartSequence, SynthParams, TrackAnalysers } from '../../types';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
@@ -121,6 +122,7 @@ export function buildAudioEngine(
         webGpuEngine: refs.gpuEngineRef.current,
         wasmEngine: refs.wasmEngineRef.current,
         open303Engine: refs.open303ManagerRef.current,
+        pcfEffect: getMasterPcf(),
         singingVoice: undefined,
         playSynth,
         playDrum,

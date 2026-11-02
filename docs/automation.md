@@ -43,8 +43,11 @@ track's notes and its knob automation always land on the same voice.
 
 ## Master lanes
 
-The scheduler's `master` target only reaches `PcfEffect`: `pcfCutoff`,
-`pcfResonance` and `pcfEnvAmount`. The importer therefore does not emit
+The scheduler's `master` target only reaches the master PCF (`PcfEffect`, the
+`masterPcf` patch-bay node between Master Pan and the limiter — see
+[audio-engine/master-pcf.md](audio-engine/master-pcf.md)): `pcfCutoff`,
+`pcfResonance` and `pcfEnvAmount`. A cutoff lane engages the filter on its own,
+so default RBS imports (lanes, no `pcfFilter`) are audible. The importer therefore does not emit
 `master.tempo`, `master.swing`, `master.volume` or `master.drumPcfModulation`
 lanes — there is no audio-clock endpoint for them, and they would schedule into
 a no-op. Tempo/swing are applied from `song.tempo` / `song.swing`, and the raw
@@ -92,9 +95,10 @@ What a renderer cannot play is reported, never dropped: `StemExportReport.automa
 - `volume`, `envMod`, `accent`, `drive` on the stem path — the stem renderer
   plays a filtered oscillator with no stage for them (not even the knob value).
 - Macro voices' filter lanes.
-- **Master PCF lanes.** Live, `AutomationScheduler` routes them to
-  `audioEngine.pcfEffect`, but nothing constructs a `PcfEffect`, so live
-  playback does not play them either. Offline matches that.
+- **Master PCF lanes** on a render without the master chain: per-track stems,
+  the dry-exclusive master stem, the 303 freeze. The live-patch master stem and
+  the AI preview *do* play them, through an offline `masterPcf` stage fed by
+  `resolveMasterPcfTimeline` ([master-pcf.md](audio-engine/master-pcf.md#offline-stems-ai-preview)).
 - XM export: instruments are one-shot samples, which cannot carry automation.
 
 Unrouted targets (drums, sampler, `filterMode`, `waveform`, `pitch`, delay) are

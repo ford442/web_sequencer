@@ -81,7 +81,7 @@ Linear layout from offset `0x00`: `RB338` header → TB-303 A/B → drums → PC
 - **TB-303 steps** → `Note` on `partA` / `partB` / `bass2` (per `RbsImportOptions`).
 - **16→32 expansion**: each ReBirth 16th becomes two Hyphon 32nds; **ties extend `Note.length` without placing a second trigger** on tied sub-steps.
 - **Slides** → `Note.slide` + `length: 2`; **accents** → higher velocity on the first sub-step + optional automation lane.
-- **PCF** (0–127 per step) → filter-cutoff automation lanes (`convertPcfToAutomation`) or `pcfFilter` when `importPcfAsFilter`.
+- **PCF** (0–127 per step) → filter-cutoff automation lanes (`convertPcfToAutomation`) or `pcfFilter` when `importPcfAsFilter`. Master PCF knob automation becomes `master.pcf*` lanes; both those and `pcfFilter` play through the master-bus `masterPcf` stage ([master-pcf.md](master-pcf.md)).
 - **808 / 909** → `params.drumKit` and kit-specific kick/snare/hat tone ranges consumed by `DrumKitEngine`.
 - **Automation lanes** use `target` + `parameter` strings that must match `SynthParams` keys (synth targets) or master-bus names understood by `AutomationScheduler`.
 - **TRAK events** use **per-track controller IDs** (`trakControllers.ts`, rbs.h). Pattern select on TB-303 #1 is ctrl `0x01` (not the legacy automation enum `0x02`). `AutomationScheduler.scheduleFromTrakEvents` maps `(trackIndex, ctrlId)` pairs; pattern-select events feed `songStructure` only.

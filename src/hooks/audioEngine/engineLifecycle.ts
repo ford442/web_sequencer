@@ -36,6 +36,8 @@ import {
     getMasterLoudnessStage,
     setMasterLoudnessStage,
 } from '../../audio/loudness';
+import { createMasterPcf, createPcfLaneWatcher, masterPcfPorts, getMasterPcf, setMasterPcf } from '../../audio/pcf/masterPcf';
+import { automationStore } from '../../stores/automationStore';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
@@ -106,6 +108,9 @@ export interface EngineLifecycleResult {
     masterBusInput: WaveShaperNode;
 }
 
+/** Unsubscribes the live master PCF from the automation store (one engine at a time). */
+let stopPcfLaneWatch: (() => void) | null = null;
+
 export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
@@ -147,6 +152,15 @@ export async function initializeAudioContextAndEngines(
     // load the graph is compiled without it and playback continues unmetered.
     const loudnessStage = await createMasterLoudnessStage(context);
     setMasterLoudnessStage(loudnessStage);
+    // Master PCF (ReBirth pattern filter) — the `masterPcf` patch-bay node,
+    // post-pan / pre-limiter. Also a worklet, so it is built before compiling.
+    const masterPcf = await createMasterPcf(context);
+    setMasterPcf(masterPcf);
+    if (masterPcf) {
+        const watchLanes = createPcfLaneWatcher(masterPcf);
+        stopPcfLaneWatch?.();
+        stopPcfLaneWatch = automationStore.subscribe((state) => watchLanes(state.lanes, state.playbackEnabled));
+    }
     // The patch bay edits this controller's config; the engine compiles it.
     // Until a song load supplies a saved patch, it holds the stock preset.
     // A song loaded before the engine started may already have published a
@@ -157,6 +171,7 @@ export async function initializeAudioContextAndEngines(
 
     const { masterBusInput, graph } = buildClassicElectribeGraph(context, refs, {
         masterLimiterNode: loudnessStage?.node ?? null,
+        masterPcf: masterPcfPorts(masterPcf),
         patchController,
     });
     const wamHost = new WamHost(context);
@@ -455,6 +470,12 @@ export async function teardownAudioEngine(
     safely('loudness', () => {
         getMasterLoudnessStage()?.dispose();
         setMasterLoudnessStage(null);
+    });
+    safely('pcf', () => {
+        stopPcfLaneWatch?.();
+        stopPcfLaneWatch = null;
+        getMasterPcf()?.dispose();
+        setMasterPcf(null);
     });
     safely('wam', () => setWamHost(null));
     stopGlitchMonitor();

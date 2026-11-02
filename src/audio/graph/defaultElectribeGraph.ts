@@ -64,6 +64,21 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
             config: { pan: 0 },
         },
         {
+            // ReBirth-style Pattern Controlled Filter (`PcfEffect`). The
+            // AutomationScheduler sends master `pcfCutoff` / `pcfResonance` /
+            // `pcfEnvAmount` lanes here; an imported song's `pcfFilter`
+            // settings load into it. Post-pan and pre-limiter, so it filters
+            // the whole mix — drums and choir included, which enter at
+            // `masterGain` — and the limiter still catches resonant peaks.
+            // Transparent until a song engages it. Compiled only when the
+            // host supplies the worklet; otherwise its edges are bridged.
+            id: 'masterPcf',
+            label: 'PCF',
+            fixed: true,
+            factory: 'masterPcf',
+            role: 'masterPcf',
+        },
+        {
             // True-peak limiter + BS.1770 meter. Last insert before the
             // destination so it protects (and measures) everything upstream,
             // including the choir buses that bypass the master FX chain.
@@ -192,7 +207,8 @@ export const CLASSIC_ELECTRIBE_GRAPH: AudioGraphConfig = {
         { from: 'sidechainGain', to: 'masterCompressor' },
         { from: 'masterCompressor', to: 'masterGain' },
         { from: 'masterGain', to: 'masterPanner' },
-        { from: 'masterPanner', to: 'masterLimiter' },
+        { from: 'masterPanner', to: 'masterPcf' },
+        { from: 'masterPcf', to: 'masterLimiter' },
         { from: 'masterLimiter', to: 'destination' },
 
         // Passive master analyser tap (read-only)
@@ -232,6 +248,19 @@ export const MASTER_CHAIN_ORDER_WITH_LIMITER: readonly string[] = [
     'masterCompressor',
     'masterGain',
     'masterPanner',
+    'masterLimiter',
+    'destination',
+];
+
+/** Ordered master-chain node ids with both host-supplied stages compiled in. */
+export const MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER: readonly string[] = [
+    'masterSaturation',
+    'bassSidechainEQ',
+    'sidechainGain',
+    'masterCompressor',
+    'masterGain',
+    'masterPanner',
+    'masterPcf',
     'masterLimiter',
     'destination',
 ];

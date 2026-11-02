@@ -29,6 +29,22 @@ const FILTER_TYPE_MAP: Record<string, number> = {
     'hp': 2,
 };
 
+/**
+ * One timed automation change (context seconds) for offline renders, where
+ * port messages cannot be timed against the render clock.
+ */
+export interface PcfTimelineEvent {
+    time: number;
+    cutoffHz?: number | null;
+    resonanceMidi?: number | null;
+    envAmountNorm?: number | null;
+}
+
+export interface PcfInitOptions {
+    timeline?: readonly PcfTimelineEvent[];
+    transport?: { playing: boolean; bpm: number };
+}
+
 /** PCF parameters exposed for UI/automation */
 export interface PcfParams {
     enabled: boolean;
@@ -44,7 +60,7 @@ export interface PcfParams {
  * Insert it between a source and destination to apply pattern-controlled filtering.
  */
 export class PcfEffect {
-    private audioContext: AudioContext;
+    private audioContext: BaseAudioContext;
     private workletNode: AudioWorkletNode | null = null;
     private inputGain: GainNode;
     private outputGain: GainNode;
@@ -59,7 +75,8 @@ export class PcfEffect {
     private _decay = 40;
     private _pattern: number[] = Array.from({ length: 16 }, () => 0);
 
-    constructor(audioContext: AudioContext) {
+    /** Works on a live `AudioContext` and on an `OfflineAudioContext`. */
+    constructor(audioContext: BaseAudioContext) {
         this.audioContext = audioContext;
         // Create pass-through gain nodes for connection points
         this.inputGain = audioContext.createGain();
@@ -100,6 +117,19 @@ export class PcfEffect {
         };
     }
 
+    /**
+     * Current pattern-PCF state as `PcfSettings` — what an offline render
+     * loads to match the live master. `target` is all-on: the master PCF
+     * filters the whole mix.
+     */
+    get settings(): PcfSettings {
+        return {
+            ...this.params,
+            pattern: [...this._pattern],
+            target: { tb303A: true, tb303B: true, drums: true },
+        };
+    }
+
     /** Current pattern */
     get pattern(): number[] {
         return [...this._pattern];
@@ -108,8 +138,15 @@ export class PcfEffect {
     /**
      * Initialize the PCF AudioWorklet processor.
      * Must be called before the effect will process audio.
+     *
+     * Options are for the offline render path, where a port message would
+     * land at an arbitrary point of the render; they travel as
+     * `processorOptions`, so they are in place before the first block.
+     * @param options.timeline  Timed automation the processor applies on its own clock.
+     * @param options.transport Start the pattern PCF stepping at this tempo from t=0.
      */
-    async init(): Promise<void> {
+    async init(options: PcfInitOptions = {}): Promise<void> {
+        const { timeline, transport } = options;
         if (this.initialized) return;
 
         try {
@@ -121,6 +158,13 @@ export class PcfEffect {
                 outputChannelCount: [2],
                 channelCount: 2,
                 channelCountMode: 'explicit',
+                processorOptions: {
+                    enabled: this._enabled,
+                    params: this.paramsMessage(),
+                    pattern: this._pattern,
+                    timeline: timeline ? [...timeline] : [],
+                    ...(transport ? { transport } : {}),
+                },
             });
 
             // Rewire: input → worklet → output (replacing direct pass-through)
@@ -226,6 +270,17 @@ export class PcfEffect {
     }
 
     /**
+     * Back to a transparent master insert: pattern PCF off, every automation
+     * override cleared. Called when a song is loaded, so one song's PCF
+     * settings or last automated cutoff never colour the next.
+     */
+    reset(): void {
+        this._enabled = false;
+        this.sendMessage('set-enabled', false);
+        this.sendMessage('set-automation', { cutoffHz: null, resonanceMidi: null, envAmountNorm: null });
+    }
+
+    /**
      * Enable or disable the effect.
      */
     setEnabled(enabled: boolean): void {
@@ -250,14 +305,18 @@ export class PcfEffect {
 
     private syncAllParams(): void {
         this.sendMessage('set-enabled', this._enabled);
-        this.sendMessage('set-params', {
+        this.sendMessage('set-params', this.paramsMessage());
+        this.sendMessage('set-pattern', this._pattern);
+    }
+
+    private paramsMessage() {
+        return {
             filterType: FILTER_TYPE_MAP[this._filterType] ?? 0,
             cutoff: this._cutoff,
             resonance: this._resonance,
             envAmount: this._envAmount,
             decay: this._decay,
-        });
-        this.sendMessage('set-pattern', this._pattern);
+        };
     }
 
     private sendMessage(type: string, data: unknown): void {

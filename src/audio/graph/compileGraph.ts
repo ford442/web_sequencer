@@ -44,6 +44,14 @@ export interface CompileGraphOptions {
      */
     createMasterLimiterNode?: (context: BaseAudioContext) => AudioNode | null;
     /**
+     * Supplies the master PCF's ports (`PcfEffect.input` / `.output`).
+     *
+     * Like the limiter it is an AudioWorklet whose module loads before the
+     * graph compiles, so the host builds it. Returning `null` (the default)
+     * bridges `masterPanner` straight to the limiter.
+     */
+    createMasterPcf?: (context: BaseAudioContext) => GraphPortPair | null;
+    /**
      * Builds the socket a first-party engine (`open303Voice`, `drumkitVoice`,
      * …) attaches to. The default makes a plain port pair; the engine plugs its
      * worklet output in after it boots. Returning `null` omits the node and its
@@ -62,6 +70,7 @@ export interface CompileGraphOptions {
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
+    createMasterPcf: () => null,
     createEngineVoice: defaultEngineVoiceProvider,
     validate: true,
     createReverbImpulse: (context, preset) => {
@@ -186,6 +195,12 @@ function createNode(
         }
         case 'masterLimiter':
             return options.createMasterLimiterNode(context);
+        case 'masterPcf': {
+            const pair = options.createMasterPcf(context);
+            if (!pair) return null;
+            ports.set(id, pair);
+            return pair.output;
+        }
         case 'destination':
             return context.destination;
         case 'wamInstrumentSlot':
@@ -304,7 +319,9 @@ export function compileAudioGraph(
         .map((spec) => spec.id)
         .filter((id) => !present.has(id) && id !== 'destination');
     // The limiter's edges may outlive its spec in a hand-cut subgraph.
-    if (!present.has('masterLimiter') && !absent.includes('masterLimiter')) absent.push('masterLimiter');
+    for (const hostStage of ['masterPcf', 'masterLimiter']) {
+        if (!present.has(hostStage) && !absent.includes(hostStage)) absent.push(hostStage);
+    }
     const edges = bridgeAbsentNodes(config.edges, absent);
 
     for (const edge of edges) {
@@ -382,6 +399,7 @@ export function extractMasterChainConnections(
     log: readonly GraphConnectionRecord[],
 ): Array<{ from: string; to: string }> {
     const masterIds = new Set([
+        'masterPcf',
         'masterLimiter',
         'masterSaturation',
         'bassSidechainEQ',
