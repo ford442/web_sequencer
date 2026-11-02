@@ -360,7 +360,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                 if (this.arpCounter >= samplesPerStep) {
                     this.arpCounter = 0;
                     const semiTone = this.arpPattern[this.arpStepIndex % this.arpPattern.length];
-                    this.basePitch = Math.pow(2, semiTone / 12.0);
+                    this.basePitch = Math.exp((semiTone / 12.0) * Math.LN2);
                     this.playhead = this.loopStart;
                     this.isPlaying = true;
                     this.arpStepIndex++;
@@ -368,9 +368,7 @@ class SustainProcessor extends AudioWorkletProcessor {
             }
 
             if (!this.buffer || !this.isPlaying) {
-                for (let channel = 0; channel < output.length; channel++) {
-                    output[channel][i] = 0;
-                }
+                output[0][i] = 0;
                 continue;
             }
 
@@ -413,9 +411,12 @@ class SustainProcessor extends AudioWorkletProcessor {
                 }
             }
 
-            for (let channel = 0; channel < output.length; channel++) {
-                output[channel][i] = sampleValue;
-            }
+            output[0][i] = sampleValue;
+        }
+
+        // Copy to all channels
+        for (let channel = 1; channel < output.length; channel++) {
+            output[channel].set(output[0]);
         }
 
         return true;

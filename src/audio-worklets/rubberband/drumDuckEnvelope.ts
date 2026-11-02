@@ -49,8 +49,7 @@ export class DrumDuckEnvelope {
       // Note: we can't update cachedSampleRate here because applyMasterDuck relies on it changing.
       // applyMasterDuck handles its own caching check for sampleRate vs this.cachedSampleRate.
       const releaseFrames = Math.max(1, sampleRate * drumDecay);
-      const releaseMult = Math.exp(-1.0 / releaseFrames);
-      this.cachedReleaseMultPow = Math.pow(releaseMult, blockFrames);
+      this.cachedReleaseMultPow = Math.exp(-blockFrames / releaseFrames);
     }
 
     if (!(drumDuckDepth > 0 && sidechain)) {
