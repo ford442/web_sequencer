@@ -5,6 +5,7 @@ import {
   EventRingWriter,
   createEventRing,
   eventRingBytes,
+  formatEventRing,
   isEventRing,
 } from '../eventRing';
 import {
@@ -15,6 +16,9 @@ import {
   EventReader,
   EventType,
   EventWriter,
+  EVENT_RING_MAGIC,
+  EVENT_SCHEMA_VERSION,
+  EventRingWord,
   createEventFields,
   createEventRecord,
   isNoteEventType,
@@ -184,5 +188,72 @@ describe('event ring', () => {
     expect(popAll(reader)).toEqual([
       { frame: 2 ** 35, type: 8, target: 61, value: -0.75, a0: 2, a1: 0, a2: 0, a3: 9 },
     ]);
+  });
+});
+
+describe('event ring at an offset (#1497 P2: a voice\'s ring inside hyphon_native memory)', () => {
+  /** A "wasm memory" with a ring laid out mid-buffer, guard bytes all around. */
+  function inMemory(byteOffset: number, capacity: number) {
+    const memory = new SharedArrayBuffer(byteOffset + eventRingBytes(capacity) + 256);
+    new Uint8Array(memory).fill(0xa5);
+    formatEventRing(memory, byteOffset, capacity);
+    return memory;
+  }
+
+  it('the header words come from the schema: the layout hyphon::EventRingHeader asserts', () => {
+    expect(EVENT_RING_HEADER_BYTES).toBe(128);
+    expect(EventRingWord).toEqual({ write: 0, dropped: 1, highWater: 2, read: 16, magic: 24, version: 25, capacity: 26 });
+    expect(EVENT_RING_MAGIC).toBe(0x31564548); // 'HEV1'
+    const header = new Int32Array(createEventRing(8), 0, 32);
+    expect([header[24], header[25], header[26]]).toEqual([EVENT_RING_MAGIC, EVENT_SCHEMA_VERSION, 8]);
+  });
+
+  it('formatEventRing lays a ring out where the C++ constructor would, and nowhere else', () => {
+    const memory = inMemory(4096, 8);
+    expect(isEventRing(memory, 4096)).toBe(true);
+    expect(isEventRing(memory)).toBe(false); // offset 0 holds no ring
+    const bytes = new Uint8Array(memory);
+    expect(bytes[4095]).toBe(0xa5);
+    expect(bytes[4096 + eventRingBytes(8)]).toBe(0xa5);
+    expect(() => formatEventRing(memory, 4100, 8)).toThrow(/does not fit/); // not 8-aligned
+    expect(() => formatEventRing(memory, memory.byteLength - 64, 8)).toThrow(/does not fit/);
+    expect(() => formatEventRing(memory, 0, 3)).toThrow(/power of two/);
+  });
+
+  it('isEventRing at an offset: the ring must fit the buffer and sit 8-aligned', () => {
+    const memory = inMemory(1024, 4);
+    expect(isEventRing(memory, 1024)).toBe(true);
+    expect(isEventRing(memory, 1028)).toBe(false);
+    expect(isEventRing(memory, -8)).toBe(false);
+    expect(isEventRing(memory, 1.5)).toBe(false);
+    expect(isEventRing(memory, memory.byteLength)).toBe(false);
+    // A capacity that would run past the end of the buffer.
+    new Int32Array(memory, 1024, 32)[EventRingWord.capacity] = 1 << 20;
+    expect(isEventRing(memory, 1024)).toBe(false);
+  });
+
+  it('a writer and a reader at an offset are FIFO across wrap-around and touch only the ring', () => {
+    const memory = inMemory(2048, 4);
+    const writer = new EventRingWriter(memory, 2048);
+    const reader = new EventRingReader(memory, 2048);
+    expect([writer.byteOffset, writer.capacity]).toEqual([2048, 4]);
+    const frames: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      writer.push(2 ** 33 + i, EventType.Param, i, 0.5, 1, 2, 3, 4);
+      for (const e of popAll(reader)) frames.push(e.frame - 2 ** 33);
+    }
+    expect(frames).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const bytes = new Uint8Array(memory);
+    expect(bytes.subarray(0, 2048).every((b) => b === 0xa5)).toBe(true);
+    expect(bytes.subarray(2048 + eventRingBytes(4)).every((b) => b === 0xa5)).toBe(true);
+    // The counts sit where the C++ consumer reads them.
+    const header = new Int32Array(memory, 2048, 32);
+    expect([header[EventRingWord.write], header[EventRingWord.read]]).toEqual([10, 10]);
+  });
+
+  it('a writer refuses a buffer offset that holds no ring', () => {
+    const memory = inMemory(1024, 4);
+    expect(() => new EventRingWriter(memory, 0)).toThrow(/not an event ring/);
+    expect(() => new EventRingReader(memory, 1032)).toThrow(/not an event ring/);
   });
 });

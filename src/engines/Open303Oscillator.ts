@@ -31,6 +31,8 @@ import {
     type HyphonNativeArtifact,
 } from '../audio-worklets/hyphonNativeImports';
 import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
+import { VoiceEventRoute } from '../audio/controlPlane/VoiceEventRoute';
+import { OPEN303_PARAM_IDS } from '../audio-worklets/open303/shared';
 // Open303 DSP lives inside hyphon_native (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93), built as a pthread and a single-threaded module;
 // resolveHyphonNativeArtifact picks one per audio context.
@@ -75,6 +77,7 @@ export class Open303Oscillator {
     );
     /** Cleanup for the worklet status listener (live high-fid fallbacks). */
     private detachStatusListener: (() => void) | null = null;
+    private readonly events = new VoiceEventRoute(); // notes, params, stops as records (#1497 P2)
     public isReady: boolean = false;
     public isFallback: boolean = false;
 
@@ -217,6 +220,7 @@ export class Open303Oscillator {
                     variant,
                     memoryPages: artifact.minMemoryPages,
                     exportMap,
+                    events: this.events.open(this.workletNode.port, { sampleRate: audioContext.sampleRate, sharedMemory: isThreaded, voiceRing: false }),
                 }
             });
 
@@ -326,7 +330,7 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity, audioTime } });
+            this.events.noteOn(midiNote, velocity, audioTime);
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
@@ -348,7 +352,7 @@ export class Open303Oscillator {
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         } else if (this.workletNode) {
             const t0 = performance.now();
-            this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
+            this.events.noteOff(midiNote, audioTime);
             const t1 = performance.now();
             try { engineTelemetry.recordLatency('jc303', t1 - t0); } catch (_) {}
         }
@@ -364,7 +368,7 @@ export class Open303Oscillator {
         if (this.isFallback && this.fallbackSynth) {
             this.fallbackSynth.allNotesOff();
         } else if (this.workletNode) {
-            this.workletNode.port.postMessage({ type: 'allNotesOff' });
+            this.events.stop(true);
         }
     }
 
@@ -422,8 +426,8 @@ export class Open303Oscillator {
                 case 'setVolume': this.fallbackSynth.setVolume(value); break;
                 // envMod, accent, filterMode not implemented in fallback
             }
-        } else if (this.workletNode) {
-            this.workletNode.port.postMessage({ type: 'param', data: { func: `jc303_${func}`, value, audioTime } });
+        } else if (this.workletNode && OPEN303_PARAM_IDS[func] !== undefined) {
+            this.events.param(OPEN303_PARAM_IDS[func], value, audioTime);
         }
     }
 
@@ -662,6 +666,7 @@ export class Open303Oscillator {
         this.liveHighFid.detach();
         this.detachPerf?.();
         this.detachPerf = null;
+        this.events.close();
         if (this.workletNode) {
             // hyphon_native is shared by every voice in the audio session: ask the
             // processor to destroy its handles before the port goes away.

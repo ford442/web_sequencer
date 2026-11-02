@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { loadEventSchema } from '../../tools/gen_hyphon_native_types.mjs';
-import { EVENT_BYTES, EventOffset, EventType } from '../shared/rt/eventLayout';
+import { EVENT_BYTES, EVENT_RING_HEADER_BYTES, EVENT_RING_MAGIC, EventOffset, EventRingWord, EventType } from '../shared/rt/eventLayout';
 
 /**
  * #1344: emscripten/wasm_export_manifest.json is the one list of hyphon_native's
@@ -45,7 +45,7 @@ function exportedFunctions(...args: string[]): string[] {
 
 describe('hyphon_native export manifest (#1344)', () => {
     it('reads the macro\'s generic export set', () => {
-        expect(macroSuffixes()).toEqual(['create', 'destroy', 'init', 'push_event', 'render', 'cancel_notes', 'flush']);
+        expect(macroSuffixes()).toEqual(['create', 'destroy', 'init', 'push_event', 'render', 'cancel_notes', 'flush', 'event_inbox']);
     });
 
     it('declares every export HYPHON_EXPORT_VOICE generates', () => {
@@ -89,6 +89,7 @@ describe('control-plane record, generated from emscripten/core/event_schema.json
     interface SchemaJson {
         record: { bytes: number; fields: Array<{ name: string; type: string; count?: number }> };
         types: Array<{ id: number; args?: Array<{ name: string; doc: string }> }>;
+        ring: { headerBytes: number; magic: string; words: Array<{ name: string; index: number; atomic?: boolean }> };
     }
     const schemaText = read('emscripten/core/event_schema.json');
     const edit = (fn: (schema: SchemaJson) => void) => {
@@ -139,5 +140,30 @@ describe('control-plane record, generated from emscripten/core/event_schema.json
         expect(() => loadEventSchema(edit((s) => {
             s.types[0].args = ['a', 'b', 'c', 'd', 'e'].map((name) => ({ name, doc: '' }));
         }))).toThrow(/more arg slots/);
+    });
+
+    it('the ring header (#1497 P2): C++ asserts every word where the TS ring reads and writes it', () => {
+        const header = read('emscripten/core/event_layout.h');
+        expect(header).toContain(`constexpr size_t kEventRingHeaderBytes = ${EVENT_RING_HEADER_BYTES};`);
+        expect(header).toContain(`constexpr uint32_t kEventRingMagic = 0x${EVENT_RING_MAGIC.toString(16).toUpperCase()};`);
+        const asserted = Object.fromEntries(
+            [...header.matchAll(/offsetof\(EventRingHeader, (\w+)\) == (\d+)/g)].map((m) => [m[1], Number(m[2]) / 4]),
+        );
+        expect(asserted).toEqual(EventRingWord);
+        expect(header).toContain('static_assert(sizeof(EventRingHeader) == kEventRingHeaderBytes');
+        // The C++ ring is header + records: what eventRing.ts addresses at an offset.
+        expect(read('emscripten/core/voice.h')).toContain('sizeof(EventRing<2>) == kEventRingHeaderBytes + 2 * kEventBytes');
+    });
+
+    it('refuses a ring header the two sides could not share', () => {
+        const words = (s: SchemaJson) => s.ring.words;
+        expect(() => loadEventSchema(edit((s) => { s.ring.headerBytes = 96; }))).toThrow(/multiple of 64/);
+        expect(() => loadEventSchema(edit((s) => { s.ring.magic = 'HEV'; }))).toThrow(/4 printable/);
+        expect(() => loadEventSchema(edit((s) => { s.ring.words = words(s).filter((w) => w.name !== 'read'); }))).toThrow(/needs "read"/);
+        expect(() => loadEventSchema(edit((s) => { words(s).find((w) => w.name === 'read')!.index = 3; }))).toThrow(/different 64-byte lines/);
+        expect(() => loadEventSchema(edit((s) => { words(s).find((w) => w.name === 'magic')!.index = 1; }))).toThrow(/used twice/);
+        expect(() => loadEventSchema(edit((s) => { words(s).find((w) => w.name === 'write')!.atomic = false; }))).toThrow(/must be atomic/);
+        expect(() => loadEventSchema(edit((s) => { words(s).find((w) => w.name === 'capacity')!.index = 32; }))).toThrow(/index must be/);
+        expect(loadEventSchema(schemaText).ring.magicValue).toBe(EVENT_RING_MAGIC);
     });
 });

@@ -8,6 +8,10 @@
  *     sample, whatever the block alignment (the #1344 acceptance, core level)
  *   - EventRing is FIFO, refuses rather than overwrites when full, and holds
  *     up under a real two-thread producer/consumer
+ *   - its bytes are the layout src/shared/rt/eventRing.ts writes in place: a
+ *     JS-style writer's records pop back intact (#1497 P2), the voice's inbox
+ *     ring lands on frames like its own ring, and kCancelNotes drops exactly
+ *     the notes queued before it
  *   - VoiceSlots handles resolve in O(1) and go stale on destroy, even after
  *     the slot is reused
  *   - NativeVoice::process neither allocates nor grows its buffer
@@ -24,6 +28,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
 
 #include "../core/voice.h"
@@ -392,6 +397,139 @@ void testRingThreads() {
     check(inOrder, "200k events arrive complete and in order (refused pushes retried)");
 }
 
+// ── The ring as the JS side sees it (#1497 P2) ──────────────────────────────
+
+uint32_t headerWord(const unsigned char* bytes, size_t offset) {
+    uint32_t v;
+    std::memcpy(&v, bytes + offset, sizeof v);
+    return v;
+}
+
+void setHeaderWord(unsigned char* bytes, size_t offset, uint32_t v) {
+    std::memcpy(bytes + offset, &v, sizeof v);
+}
+
+/**
+ * Pushes `e` the way src/shared/rt/eventRing.ts does from the main thread:
+ * plain stores of the record's bytes at the generated offsets, then the write
+ * count. Nothing here goes through EventRing's own methods.
+ */
+template <uint32_t N>
+bool pushLikeJs(EventRing<N>& ring, const Event& e) {
+    auto* bytes = static_cast<unsigned char*>(ring.data());
+    const uint32_t w = headerWord(bytes, offsetof(EventRingHeader, write));
+    const uint32_t r = headerWord(bytes, offsetof(EventRingHeader, read));
+    const uint32_t capacity = headerWord(bytes, offsetof(EventRingHeader, capacity));
+    if (w - r >= capacity) {
+        setHeaderWord(bytes, offsetof(EventRingHeader, dropped), headerWord(bytes, offsetof(EventRingHeader, dropped)) + 1);
+        return false;
+    }
+    unsigned char* slot = bytes + kEventRingHeaderBytes + (w & (capacity - 1)) * kEventBytes;
+    std::memcpy(slot + offsetof(Event, frame), &e.frame, sizeof e.frame);
+    std::memcpy(slot + offsetof(Event, type), &e.type, sizeof e.type);
+    std::memcpy(slot + offsetof(Event, target), &e.target, sizeof e.target);
+    std::memcpy(slot + offsetof(Event, value), &e.value, sizeof e.value);
+    std::memcpy(slot + offsetof(Event, args), e.args, sizeof e.args);
+    setHeaderWord(bytes, offsetof(EventRingHeader, write), w + 1);
+    return true;
+}
+
+Event cancelNotes() {
+    Event e;
+    e.type = kCancelNotes;
+    return e;
+}
+
+void testRingLayout() {
+    std::printf("EventRing: the layout JS writes in place\n");
+    EventRing<8> ring;
+    auto* bytes = static_cast<unsigned char*>(ring.data());
+    check(headerWord(bytes, offsetof(EventRingHeader, magic)) == kEventRingMagic &&
+              headerWord(bytes, offsetof(EventRingHeader, version)) == kEventSchemaVersion &&
+              headerWord(bytes, offsetof(EventRingHeader, capacity)) == 8,
+          "a new ring carries the magic, schema version and capacity eventRing.ts checks");
+    check(reinterpret_cast<uintptr_t>(bytes) % 64 == 0, "the header starts on a cache line");
+
+    Event e;
+    e.frame = (int64_t{1} << 34) + 3;  // needs both int32 words
+    e.type = kParam;
+    e.target = 7;
+    e.value = 0.25f;
+    e.args[3] = -1.5f;
+    bool fifo = true;
+    for (int i = 0; i < 20; ++i) {  // wraps the slots
+        e.target = static_cast<uint16_t>(i);
+        fifo = fifo && pushLikeJs(ring, e);
+        Event out;
+        fifo = fifo && ring.pop(out) && out.frame == e.frame && out.type == kParam && out.target == i &&
+               out.value == 0.25f && out.args[3] == -1.5f && out.args[0] == 0.0f;
+    }
+    check(fifo, "records a JS-style writer stores pop back field for field, across wrap-around");
+    check(headerWord(bytes, offsetof(EventRingHeader, read)) == 20, "pop publishes the read count JS reads");
+
+    for (int i = 0; i < 8; ++i) pushLikeJs(ring, noteOn(i));
+    check(!pushLikeJs(ring, noteOn(8)) && ring.dropped() == 1, "a full ring refuses the JS producer as well");
+    Event out;
+    check(ring.pop(out) && out.frame == 0, "and keeps the oldest record");
+
+    EventRing<4> own;
+    own.push(noteOn(1));
+    own.push(noteOn(2));
+    check(own.highWater() == 2 && headerWord(static_cast<unsigned char*>(own.data()), offsetof(EventRingHeader, highWater)) == 2,
+          "push keeps the high-water mark in the shared header");
+}
+
+void testCancelNotesRecord() {
+    std::printf("kCancelNotes: a stop ordered with the notes around it\n");
+    ProbeVoice v;
+    v.init(48000.0f, BLOCK);
+    v.engine.frame = 0;
+    // Already scheduled in an earlier block, through the voice's own ring.
+    v.push(noteOn(1000, 40));
+    v.process(0, BLOCK);
+    // The main thread's inbox: a note and a param ahead of the stop, then a
+    // note for after it — a stop and a restart in one task.
+    pushLikeJs(v.inbox, noteOn(600, 41));
+    pushLikeJs(v.inbox, param(600, 0.5f));
+    pushLikeJs(v.inbox, cancelNotes());
+    pushLikeJs(v.inbox, noteOn(800, 42));
+    int64_t onsets[8];
+    const int n = renderOnsets(v, BLOCK, 10, BLOCK, onsets);
+    check(n == 1 && onsets[0] == 800, "only the note pushed after the stop sounds");
+    check(v.engine.count == 2 && v.engine.type[0] == kParam && v.engine.atFrame[0] == 600,
+          "the param queued before it still lands, on its frame");
+    check(v.schedule.cancels() == 1 && v.stats.applied == 2, "the record itself is never applied to the engine");
+}
+
+void testInbox() {
+    std::printf("NativeVoice: the inbox ring\n");
+    ProbeVoice v;
+    v.init(48000.0f, BLOCK);
+    const int64_t s = 48000;
+    pushLikeJs(v.inbox, noteOn(s + 300));
+    v.push(noteOn(s + 37));
+    pushLikeJs(v.inbox, noteOn(s + 128));
+    int64_t onsets[8];
+    const int n = renderOnsets(v, s, 4, BLOCK, onsets);
+    check(n == 3 && onsets[0] == s + 37 && onsets[1] == s + 128 && onsets[2] == s + 300,
+          "inbox and ring events share one schedule and land on their own frames");
+
+    // Same frame from both rings: the inbox first.
+    ProbeVoice w;
+    w.init(48000.0f, BLOCK);
+    w.engine.frame = 0;
+    w.push(param(50, 0.75f));
+    pushLikeJs(w.inbox, param(50, 0.25f));
+    w.process(0, BLOCK);
+    check(w.engine.level == 0.75f, "on one frame the inbox applies before the voice's own ring");
+
+    pushLikeJs(w.inbox, noteOn(1000));
+    w.cancelPendingNotes();
+    pushLikeJs(w.inbox, param(1000, 0.1f));
+    w.flush();
+    check(w.schedule.size() == 0 && w.engine.level == 0.1f, "cancel and flush take the inbox too");
+}
+
 struct Tagged {
     int id;
     static int destroyed;
@@ -519,6 +657,9 @@ int main() {
     testMonoNoteEngine();
     testRing();
     testRingThreads();
+    testRingLayout();
+    testCancelNotesRecord();
+    testInbox();
     testSlots();
     testBufferAndOverrun();
     testNoAllocation();

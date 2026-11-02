@@ -13,10 +13,18 @@
  *   uintptr_t prefix_render(uintptr_t h, double blockStartFrame, int frames)  float*, 0 on error
  *   void      prefix_cancel_notes(uintptr_t h)
  *   void      prefix_flush(uintptr_t h)                                       apply all pending now
+ *   uintptr_t prefix_event_inbox(uintptr_t h)                                 the voice's inbox ring, 0 on error
  *
  * plus `prefix_voice(h)`, a static accessor the engine's own exports use.
  * Frames cross the JS boundary as doubles (exact to 2^53): an int64 would be a
  * BigInt under WASM_BIGINT.
+ *
+ * prefix_event_inbox (#1497 P2) is the address of NativeVoice::inbox, an
+ * EventRing laid out as src/shared/rt/eventRing.ts expects. On the pthread
+ * build the worklet hands it, with the shared memory, to the main thread,
+ * whose EventBus route then writes records into it in place; render, cancel
+ * and flush take them from there. The address is fixed for the handle's life
+ * (slots live in static storage), so close the route before destroying it.
  *
  * Every name above must be listed in emscripten/wasm_export_manifest.json;
  * src/__tests__/wasmExportManifest.voices.test.ts checks that for each use
@@ -69,5 +77,9 @@
     }                                                                                         \
     EMSCRIPTEN_KEEPALIVE void prefix##_flush(uintptr_t h) {                                   \
         if (VoiceType* v = prefix##_voice(h)) v->flush();                                     \
+    }                                                                                         \
+    EMSCRIPTEN_KEEPALIVE uintptr_t prefix##_event_inbox(uintptr_t h) {                        \
+        VoiceType* v = prefix##_voice(h);                                                     \
+        return v ? reinterpret_cast<uintptr_t>(v->inbox.data()) : 0;                          \
     }                                                                                         \
     }  // extern "C"

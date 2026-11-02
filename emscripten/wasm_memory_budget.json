@@ -26,7 +26,10 @@
       "state + 16 KB engine RAM (plaits.cc's shared_buffer) and a 33 KB resampler",
       "table. Same heap tool with SYNTH A + SYNTH B on macro, 16 voices sounding:",
       "static + stack 8.99 → 9.21 MB, voice heap 1.79 → 2.18 MB, peak 10.78 → 11.39 MB",
-      "of the 32 MB initial memory. No change to these numbers needed."
+      "of the 32 MB initial memory. No change to these numbers needed.",
+      "2026-11-02, #1497 P2: every voice slot gains an inbox EventRing (the ring the main",
+      "thread writes in place): 72 slots, +0.57 MB of zero-initialised static data, inside",
+      "the initial memory of both profiles. No change to these numbers needed."
     ],
     "initialMemoryMb": 32,
     "maximumMemoryMb": 1024,
@@ -50,7 +53,9 @@
       "static + stack 1.99 → 2.21 MB, voice heap 1.81 → 2.11 MB, peak 3.80 → 4.32 MB —",
       "still under 30 % of the 16 MB initial memory.",
       "2026-10-19, stereo drum kit (per-hit pan, planar 2 x maxFrames buffer): voice",
-      "heap 2.11 → 2.13 MB, peak 4.32 → 4.34 MB."
+      "heap 2.11 → 2.13 MB, peak 4.32 → 4.34 MB.",
+      "2026-11-02, #1497 P2: the same +0.57 MB of static inbox rings (unused here: the",
+      "memory is not shared, so routes stay on batched messages) — still well inside 16 MB."
     ],
     "initialMemoryMb": 16,
     "maximumMemoryMb": 512,

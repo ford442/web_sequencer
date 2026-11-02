@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createStopAllNotes } from '../audioPlayback/noteControls';
 import { DrumKitEngine } from '../../../engines/DrumKitEngine';
+import type { VoiceEventRoute } from '@/audio/controlPlane/VoiceEventRoute';
+import { EventType } from '@/shared/rt/eventLayout';
+import { postedRecords, postedTypes } from '@/test/helpers/controlPlaneRecords';
 
 /**
  * #1344 P5: the clock posts steps STEP_LOOKAHEAD_MS early, so at STOP the
@@ -39,10 +42,18 @@ describe('stopAllNotes with steps posted ahead', () => {
     const engine = new DrumKitEngine('808');
     const postMessage = vi.fn();
     engine.cancelPending(); // no worklet yet — nothing to do, no throw
-    const internals = engine as unknown as { wasmReady: boolean; workletNode: { port: { postMessage: typeof postMessage } } };
+    const port = { postMessage };
+    const internals = engine as unknown as {
+      wasmReady: boolean;
+      workletNode: { port: typeof port };
+      events: VoiceEventRoute;
+    };
     internals.wasmReady = true;
-    internals.workletNode = { port: { postMessage } };
+    internals.workletNode = { port };
+    internals.events.open(port, { sampleRate: 48000, sharedMemory: false, voiceRing: true });
     engine.cancelPending();
-    expect(postMessage).toHaveBeenCalledWith({ type: 'allNotesOff' });
+    // A CANCEL_NOTES record on the kit's route (#1497 P2), not a port message.
+    expect(postedRecords(postMessage).map((e) => e.type)).toEqual([EventType.CancelNotes]);
+    expect(postedTypes(postMessage)).toEqual([]);
   });
 });

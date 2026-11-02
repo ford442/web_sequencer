@@ -8,10 +8,12 @@ import {
   createEngineEventSink,
   createEventInbox,
   isEventBatchMessage,
+  parseRingTransport,
   type EngineEventSink,
   type EventPort,
+  type RingTransport,
 } from '../eventTransport';
-import { createEventRing } from '../eventRing';
+import { EventRingReader, createEventRing, eventRingBytes, formatEventRing } from '../eventRing';
 import { EVENT_BYTES, EventType, createEventRecord, type EventRecord } from '../eventLayout';
 import { frameAtTime } from '../audioClock';
 
@@ -191,5 +193,48 @@ describe('frameAtTime', () => {
     expect(frameAtTime(1.25, 48000)).toBe(60000);
     expect(frameAtTime(1 / 3, 44100)).toBe(14700);
     for (const t of [0, -1, Number.NaN, Infinity, undefined, '1']) expect(frameAtTime(t, 48000)).toBe(0);
+  });
+});
+
+describe('a ring in place (#1497 P2: the voice\'s own ring in hyphon_native memory)', () => {
+  function voiceRing(byteOffset = 8192, capacity = 8): RingTransport {
+    const memory = new SharedArrayBuffer(byteOffset + eventRingBytes(capacity) + 4096);
+    formatEventRing(memory, byteOffset, capacity);
+    return { kind: 'ring', buffer: memory, byteOffset };
+  }
+
+  it('parseRingTransport accepts a ring at its offset and nothing else', () => {
+    const ring = voiceRing();
+    expect(parseRingTransport(ring)).toEqual(ring);
+    expect(parseRingTransport({ kind: 'ring', buffer: createEventRing(4) })).toMatchObject({ byteOffset: 0 });
+    expect(parseRingTransport({ ...ring, byteOffset: 0 })).toBeNull(); // no ring there
+    expect(parseRingTransport({ ...ring, byteOffset: '8192' })).toBeNull();
+    expect(parseRingTransport({ kind: 'ring', buffer: createEventRing(4, false) })).toBeNull(); // a port would copy it
+    expect(parseRingTransport({ kind: 'message', capacity: 8 })).toBeNull();
+    expect(parseRingTransport(undefined)).toBeNull();
+  });
+
+  it('RingEventSink on an offered ring writes it in place, and posts nothing', () => {
+    const ring = voiceRing();
+    const sink = new RingEventSink(ring);
+    expect(sink.transport).toEqual(ring);
+    expect(sink.needsFlush).toBe(false);
+    sink.push(48000, EventType.Trigger, 2, 1, 400, 0.1, 0.7, 0);
+    sink.pushFrom(new Float64Array([48100, EventType.CancelNotes, 0, 0, 0, 0, 0, 0]));
+    // The voice's consumer side, over the same memory.
+    const native = new EventRingReader(ring.buffer, ring.byteOffset);
+    const out = createEventRecord();
+    expect(native.pop(out)).toBe(true);
+    expect(out).toMatchObject({ frame: 48000, type: EventType.Trigger, target: 2, a0: 400 });
+    expect(native.pop(out)).toBe(true);
+    expect(out.type).toBe(EventType.CancelNotes);
+  });
+
+  it('createEventInbox reads a ring at its offset', () => {
+    const ring = voiceRing(1024, 4);
+    const inbox = createEventInbox(ring)!;
+    expect(inbox.kind).toBe('ring');
+    new RingEventSink(ring).push(5, EventType.NoteOn, 60, 1);
+    expect(drain(inbox).map((e) => e.frame)).toEqual([5]);
   });
 });

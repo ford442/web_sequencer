@@ -124,4 +124,23 @@ describe('EventBus', () => {
     for (let i = 0; i < 5; i++) bus.push(route, i, EventType.Trigger, 0, 1);
     expect(bus.dropped(route)).toBe(3);
   });
+
+  it('rebind moves a route onto another sink: what the old one staged goes first (#1497 P2)', () => {
+    const bus = new EventBus({ autoFlush: false });
+    const { route, postMessage } = messageRoute(bus);
+    bus.push(route, 10, EventType.Trigger, 0, 1);
+    const ring = new RingEventSink(4);
+    expect(bus.rebind(route, ring)).toBe(true);
+    expect(batchCounts(postMessage)).toEqual([1]); // flushed on the way out
+    bus.push(route, 20, EventType.Trigger, 0, 1);
+    bus.flushAll();
+    expect(batchCounts(postMessage)).toEqual([1]); // the new sink posts nothing
+    expect(bus.transport(route)).toBe(ring.transport);
+    const inbox = new EventInbox(ring.transport);
+    const out = createEventFields();
+    expect(inbox.popInto(out) && out[EventField.frame]).toBe(20);
+    expect(bus.rebind(0, ring)).toBe(false);
+    bus.close(route);
+    expect(bus.rebind(route, ring)).toBe(false);
+  });
 });

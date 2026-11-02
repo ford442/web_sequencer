@@ -2,10 +2,12 @@
 // Source: emscripten/core/event_schema.json. Regenerate: pnpm run gen:native-types
 //
 // The real-time control-plane record (#1497): hyphon::Event, the event type
-// ids and the named arg slots. src/shared/rt/eventLayout.ts is generated from
-// the same schema, so the JS writers and this struct cannot drift.
+// ids, the named arg slots and the event ring header. The JS side
+// (src/shared/rt/eventLayout.ts) is generated from the same schema, so the JS
+// writers and these structs cannot drift.
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -24,6 +26,7 @@ enum EventType : uint16_t {
     kParamRamp      = 6,     // PARAM_RAMP: target = engine param id, value = end value: a linear ramp from the param's value on this frame
     kMute           = 7,     // MUTE: target = pad / voice, or kTargetAll; value = 1 mute, 0 unmute. A mute drops that target's scheduled notes and triggers
     kNoteExpression = 8,     // NOTE_EXPRESSION: target = note id (the MIDI note of the NOTE_ON it shapes, as MIDI 2.0 per-note controllers address it), value = the dimension's value
+    kCancelNotes    = 9,     // CANCEL_NOTES: drop the NOTE_ON / NOTE_OFF / TRIGGER events queued before this record, when the voice takes it from its ring (not on a frame): a transport stop. Params still land
     kEngine         = 0x100, // first engine-private type (e.g. the drum kit's hat choke)
 };
 
@@ -59,5 +62,44 @@ static_assert(std::is_trivially_copyable<Event>::value, "Event is copied by valu
 constexpr bool isNoteEventType(uint16_t type) {
     return type == kNoteOn || type == kNoteOff || type == kTrigger;
 }
+
+// ── Event ring header ─────────────────────────────────────────────────────
+
+constexpr size_t kEventRingHeaderBytes = 128;
+constexpr uint32_t kEventRingMagic = 0x31564548;  // 'HEV1', little-endian
+
+/**
+ * The first kEventRingHeaderBytes of a hyphon::EventRing, the records after
+ * it. The JS side reads and writes these words in place (eventRing.ts), so
+ * a producer on the main thread can fill a voice's ring inside hyphon_native
+ * memory with no copy and no message.
+ */
+struct alignas(64) EventRingHeader {
+    std::atomic<uint32_t> write{0};          // producer: records written; uint32, wraps
+    std::atomic<uint32_t> dropped{0};        // producer: pushes refused because the ring was full
+    std::atomic<uint32_t> highWater{0};      // producer: most records ever unread at once
+    uint32_t pad3_[13] = {};
+    std::atomic<uint32_t> read{0};           // consumer: records read; uint32, wraps
+    uint32_t pad17_[7] = {};
+    uint32_t magic = kEventRingMagic;        // ring.magic, little-endian, once the ring is laid out
+    uint32_t version = kEventSchemaVersion;  // schema version of the records
+    uint32_t capacity = 0;                   // records the ring holds; a power of two
+    uint32_t pad27_[5] = {};
+};
+static_assert(sizeof(EventRingHeader) == kEventRingHeaderBytes, "the ring header is shared with the JS side (emscripten/core/event_schema.json)");
+static_assert(std::is_standard_layout<EventRingHeader>::value, "offsetof needs a standard-layout header");
+static_assert(sizeof(std::atomic<uint32_t>) == 4, "a ring count is one plain 32-bit word to the JS side");
+// The single-threaded wasm build has no atomics feature and lowers these to
+// plain loads and stores; where threads exist, JS Atomics need the same word.
+#if defined(__EMSCRIPTEN_PTHREADS__) || !defined(__EMSCRIPTEN__)
+static_assert(std::atomic<uint32_t>::is_always_lock_free, "JS Atomics and the C++ ring must share a lock-free word");
+#endif
+static_assert(offsetof(EventRingHeader, write) == 0, "EventRingHeader::write moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, dropped) == 4, "EventRingHeader::dropped moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, highWater) == 8, "EventRingHeader::highWater moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, read) == 64, "EventRingHeader::read moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, magic) == 96, "EventRingHeader::magic moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, version) == 100, "EventRingHeader::version moved: regenerate from emscripten/core/event_schema.json");
+static_assert(offsetof(EventRingHeader, capacity) == 104, "EventRingHeader::capacity moved: regenerate from emscripten/core/event_schema.json");
 
 }  // namespace hyphon

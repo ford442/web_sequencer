@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
+import { EventType } from '../shared/rt/eventLayout';
+import { postedRecords, postedTypes } from '../test/helpers/controlPlaneRecords';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
 import {
@@ -155,45 +157,64 @@ describe('Open303 Oscillator', () => {
         }));
     });
 
-    it('should send noteOn messages', async () => {
+    // #1497 P2: notes and params travel as records on the part's route —
+    // batched messages here, where the page shares no memory with the worklet.
+    it('sends a noteOn as a NOTE_ON record on its frame, not a message', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
-        engine.noteOn(60, 100);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'noteOn',
-            data: { note: 60, velocity: 100 }
-        });
+        engine.noteOn(60, 100, 1);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.frame, e.type, e.target, e.value])).toEqual([
+            [44100, EventType.NoteOn, 60, 100],
+        ]);
+        expect(postedTypes(mockWorkletNode.port.postMessage)).toEqual([]);
     });
 
-    it('should send noteOff messages', async () => {
+    it('sends a noteOff as a NOTE_OFF record', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
         engine.noteOff(60);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'noteOff',
-            data: { note: 60 }
-        });
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.frame, e.type, e.target])).toEqual([
+            [0, EventType.NoteOff, 60],
+        ]);
     });
 
-    it('should send param updates', async () => {
+    it('sends param updates as PARAM_SET records with the Open303Param id', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
         engine.setCutoff(0.5);
         engine.setFilterMode(1);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'param',
-            data: { func: 'jc303_setCutoff', value: 0.5 }
-        });
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'param',
-            data: { func: 'jc303_setFilterMode', value: 1 }
-        });
+        engine.setParam('setNotAParam', 1);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.type, e.target, e.value])).toEqual([
+            [EventType.Param, 2, 0.5], // OPEN303_CUTOFF
+            [EventType.Param, 8, 1],   // OPEN303_FILTER_MODE
+        ]);
+    });
+
+    it('a stop is CANCEL_NOTES + ALL_NOTES_OFF behind the notes it cancels', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+        mockWorkletNode.port.postMessage.mockClear();
+
+        engine.noteOn(36, 100, 2);
+        engine.allNotesOff();
+        engine.noteOn(38, 100, 2.5);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => e.type)).toEqual([
+            EventType.NoteOn, EventType.CancelNotes, EventType.AllNotesOff, EventType.NoteOn,
+        ]);
+        expect(postedTypes(mockWorkletNode.port.postMessage)).toEqual([]);
+    });
+
+    it('init hands the worklet its route\'s transport', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+        const init = mockWorkletNode.port.postMessage.mock.calls.find(([m]: [{ type: string }]) => m.type === 'init-wasm')[0];
+        expect(init.data.events).toEqual({ kind: 'message', capacity: 256 });
     });
 
     it('should handle initialization failure gracefully', async () => {
