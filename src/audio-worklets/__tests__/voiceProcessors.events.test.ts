@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from '../hyphonNativeImports';
+import { MessageEventSink, RingEventSink, type EngineEventSink } from '../../shared/rt/eventTransport';
+import { DrumkitEvent, VoiceEvent } from '../../shared/rt/hyphonNativeExports';
 
 /**
  * #1344 P4: prophecy-processor and drumkit-processor on NativeVoiceProcessor.
@@ -206,6 +208,65 @@ describe('voice processors on the event API', () => {
       expect(calls).toEqual([{ fn: 'drumkit_render', h, args: [frame, BLOCK] }]);
     }
   });
+
+  /** A drum kit booted with a control-plane route (#1497); `deliver` posts the sink's batches. */
+  async function bootWithBus(kind: 'message' | 'ring') {
+    const posted: unknown[] = [];
+    const sink: EngineEventSink =
+      kind === 'ring' ? new RingEventSink(16) : new MessageEventSink({ postMessage: (m) => posted.push(m) }, 16);
+    const voice = new (registered.get('drumkit-processor')!)();
+    const init = initData();
+    await voice.port.deliver({ ...init, data: { ...init.data, events: sink.transport } });
+    expect(voice.port.posted.map((m) => m.type)).toContain('ready');
+    const deliver = async () => {
+      sink.flush();
+      for (const m of posted.splice(0)) await voice.port.deliver(m);
+    };
+    return { voice, sink, deliver, h: calls.find((c) => c.fn === 'drumkit_init')!.h };
+  }
+
+  it.each(['message', 'ring'] as const)(
+    'drumkit (%s transport): bus records reach the voice at block start, in push order',
+    async (kind) => {
+      const { voice, sink, deliver, h } = await bootWithBus(kind);
+      calls = [];
+      sink.push(44120, DrumkitEvent.SetPan, 2, -0.5);
+      sink.push(44120, VoiceEvent.Trigger, 2, 1, 400, 0.1, 0.7, 0);
+      // Earlier frame, pushed later: the native schedule sorts, the transport keeps order.
+      sink.push(44100, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+      await deliver();
+      expect(calls).toEqual([]); // nothing reaches the voice before its block
+
+      render(voice, 44032);
+      const f = Math.fround;
+      expect(calls).toEqual([
+        { fn: 'drumkit_push_event', h, args: [44120, 0x102, 2, -0.5, 0, 0, 0, 0] },
+        { fn: 'drumkit_push_event', h, args: [44120, 5, 2, 1, 400, f(0.1), f(0.7), 0] },
+        { fn: 'drumkit_push_event', h, args: [44100, 5, 0, 1, 50, f(0.6), f(0.6), 1] },
+        { fn: 'drumkit_render', h, args: [44032, BLOCK] },
+      ]);
+
+      // Drained: the next block pushes nothing.
+      calls = [];
+      render(voice, 44032 + BLOCK);
+      expect(calls).toEqual([{ fn: 'drumkit_render', h, args: [44032 + BLOCK, BLOCK] }]);
+    },
+  );
+
+  it.each(['message', 'ring'] as const)(
+    'drumkit (%s transport): a stop moves queued records into the voice first, so its cancel drops them too',
+    async (kind) => {
+      const { voice, sink, deliver, h } = await bootWithBus(kind);
+      calls = [];
+      sink.push(48000, VoiceEvent.Trigger, 0, 1, 50, 0.5, 0.5, 1);
+      await deliver();
+      await voice.port.deliver({ type: 'allNotesOff', data: {} });
+      expect(calls).toEqual([
+        { fn: 'drumkit_push_event', h, args: [48000, 5, 0, 1, 50, 0.5, 0.5, 1] },
+        { fn: 'drumkit_cancel_notes', h, args: [] },
+      ]);
+    },
+  );
 
   it('the drum kit joins the shared instance and hands its handle back on dispose', async () => {
     const lead = await boot('prophecy-processor');

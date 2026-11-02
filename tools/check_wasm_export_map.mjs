@@ -4,6 +4,10 @@
  * surface in emscripten/wasm_export_manifest.json.
  *
  * Checks:
+ *   0. The generated sources are current (always, even without WASM artifacts):
+ *      src/shared/rt/hyphonNativeExports.ts and the control-plane record from
+ *      emscripten/core/event_schema.json — emscripten/core/event_layout.h and
+ *      src/shared/rt/eventLayout.ts (#1497). Fixed by `pnpm run gen:native-types`.
  *   1. Every `required` export is present in the map (worklets would break otherwise).
  *   2. No export is present that is in neither `required` nor `optional` (export bloat).
  *   3. Minified names are unique — two logical exports mapping to the same symbol
@@ -26,6 +30,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from './extract_wasm_export_map.mjs';
+import { staleGeneratedFiles } from './gen_hyphon_native_types.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,6 +56,16 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv);
+
+// Source-only drift check first: it needs no build, so it runs on every job.
+const stale = staleGeneratedFiles();
+if (stale.length) {
+  console.error('[export-map] FAILED\n');
+  for (const rel of stale) {
+    console.error(`- ${rel} is stale against its sources — run: pnpm run gen:native-types\n`);
+  }
+  process.exit(1);
+}
 
 if (!fs.existsSync(args.map)) {
   console.warn(

@@ -913,7 +913,9 @@ imports, wherever it lives — fails `tsc -b`. ESLint's `no-restricted-globals` 
 
 `src/shared/rt/` holds what both sides use and so must assume neither global set:
 `ringBuffer.ts`, `sidechainTriggerRing.ts`, the generated `hyphonNativeExports.ts`
-(`pnpm run gen:native-types` writes it there), `clock.ts` (the transport clock
+and `eventLayout.ts` (`pnpm run gen:native-types` writes both there), the control
+plane's `eventRing.ts`, `eventTransport.ts` and `audioClock.ts`
+([VOICE_CORE.md#control-plane](VOICE_CORE.md#control-plane)), `clock.ts` (the transport clock
 constants, re-exported by `src/midi/clock/types.ts`, plus the clock worklet's
 message protocol) and `time.ts` (`nowMs()`, the one `performance.now()`-or-`Date.now()`
 lookup the worklets used to repeat). Other modules a worklet imports (the loudness

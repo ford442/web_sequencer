@@ -7,6 +7,7 @@
  * this header is the one copy they port onto (#1344 P3).
  *
  *   Event              one timed message: frame, type, target, value, 4 args
+ *                      (event_layout.h, generated from event_schema.json)
  *   EventRing          SPSC transport, preallocated; the producer may live on
  *                      another thread
  *   EventSchedule      frame-sorted pending events: producers post out of
@@ -53,32 +54,18 @@
 #include <type_traits>
 #include <utility>
 
+#include "event_layout.h"
+
 namespace hyphon {
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
-enum EventType : uint16_t {
-    kNoteOn      = 1,  // target = MIDI note, value = velocity (engine's scale)
-    kNoteOff     = 2,  // target = MIDI note
-    kAllNotesOff = 3,
-    kParam       = 4,  // target = engine param id, value = new value
-    kTrigger     = 5,  // target = pad / voice, value = velocity, args engine-defined
-    kEngine      = 0x100,  // first engine-private type (e.g. a hat choke)
-};
-
-struct Event {
-    int64_t  frame  = 0;  // absolute frame on the AudioContext clock
-    uint16_t type   = 0;  // EventType
-    uint16_t target = 0;
-    float    value  = 0.0f;
-    float    args[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-};
-static_assert(sizeof(Event) == 32, "Event layout is shared with the JS side");
-static_assert(std::is_trivially_copyable<Event>::value, "Event is copied by value through the ring");
+// Event, EventType and the named arg slots come from event_layout.h, generated
+// from event_schema.json together with the TypeScript writer (#1497).
 
 /** True for events a stop / mute cancels: anything that starts or ends a sound. */
 inline bool isNoteEvent(const Event& e) {
-    return e.type == kNoteOn || e.type == kNoteOff || e.type == kTrigger;
+    return isNoteEventType(e.type);
 }
 
 /** audioTime (seconds) → absolute frame. Exact for times a worklet produces. */

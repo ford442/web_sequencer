@@ -12,10 +12,16 @@
 //     voice's native event ring; the engine applies it on that exact sample
 //   - prefix_render(handle, blockStartFrame, frames) + copy to the outputs
 //   - per-block perf reporting and bounded error logging
+//   - the control-plane inbox (#1497): records an EventBus route sends, over
+//     a SharedArrayBuffer ring or batched messages, drained into the voice at
+//     block start
 
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from './hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeInitData, type HyphonNativeSession } from './hyphonNativeSession';
 import type { HyphonNativeExports, VoiceHandle, WasmPtr } from '../shared/rt/hyphonNativeExports';
+import { frameAtTime } from '../shared/rt/audioClock';
+import { createEventFields } from '../shared/rt/eventLayout';
+import { createEventInbox, type EventInbox } from '../shared/rt/eventTransport';
 import { WorkletPerfReporter } from './workletPerfReporter';
 
 const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
@@ -65,6 +71,9 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
     private renderErrors = 0;
     private processErrors = 0;
     private droppedEvents = 0;
+    private inbox: EventInbox | null = null;
+    /** One decoded record (EventField order): typed storage, so draining allocates nothing. */
+    private readonly inboxFields = createEventFields();
     private readonly heapMessage: { type: 'hyphon-heap'; data: unknown } = { type: 'hyphon-heap', data: undefined };
 
     protected constructor(perfName: string, logPrefix: string) {
@@ -134,9 +143,7 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
      * zero or already past lands on the first frame of the next block.
      */
     protected frameAt(audioTime: unknown): number {
-        return typeof audioTime === 'number' && audioTime > 0 && Number.isFinite(audioTime)
-            ? Math.round(audioTime * this.rateHz)
-            : 0;
+        return frameAtTime(audioTime, this.rateHz);
     }
 
     /** Fix the first frame of the block process() is about to render. */
@@ -144,6 +151,47 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
         this.blockFrame = typeof currentFrame === 'number' ? currentFrame : this.nextFallbackFrame;
         this.nextFallbackFrame = this.blockFrame + frames;
         return this.blockFrame;
+    }
+
+    // ── Control-plane inbox (#1497) ──────────────────────────────────────────
+
+    /**
+     * Build the inbox for the transport the main thread's EventBus route sent
+     * (EngineEventSink.transport) with the init message. Call it before the
+     * first await, so a batch that follows the init message finds it. False,
+     * with no inbox, when `transport` is missing or malformed.
+     */
+    protected attachEventInbox(transport: unknown): boolean {
+        this.inbox = createEventInbox(transport);
+        return this.inbox !== null;
+    }
+
+    /** Port hook, first in onmessage: true when `data` was an event batch, now queued. */
+    protected receiveEvents(data: unknown): boolean {
+        return this.inbox?.receive(data) ?? false;
+    }
+
+    /**
+     * Move every record the inbox holds into `voice`'s native event ring, in
+     * the order they were pushed. At block start, and before a cancel, so that
+     * a stop also drops what the bus had queued. Returns how many moved.
+     */
+    protected drainEvents(voice: NativeVoiceRef): number {
+        const inbox = this.inbox;
+        if (!inbox || inbox.size === 0) return 0;
+        const exports: Record<string, unknown> = this.x;
+        const push = exports[VOICE_EXPORT_NAMES[voice.prefix].pushEvent] as PushEvent | undefined;
+        if (!push) return 0;
+        // Fields go from typed arrays straight into the wasm call, never boxed.
+        const f = this.inboxFields;
+        let moved = 0;
+        while (inbox.popInto(f)) {
+            if (push(voice.handle, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]) !== 1 && this.droppedEvents++ < MAX_LOGGED_ERRORS) {
+                console.warn(`${this.logPrefix} ${voice.prefix} event ring full — dropped event type ${f[1]}`);
+            }
+            moved++;
+        }
+        return moved;
     }
 
     // ── Events ───────────────────────────────────────────────────────────────

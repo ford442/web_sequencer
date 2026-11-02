@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { loadEventSchema } from '../../tools/gen_hyphon_native_types.mjs';
+import { EVENT_BYTES, EventOffset, EventType } from '../shared/rt/eventLayout';
 
 /**
  * #1344: emscripten/wasm_export_manifest.json is the one list of hyphon_native's
@@ -71,7 +73,7 @@ describe('generated hyphonNativeExports.ts (#1344)', () => {
             cwd: repoRoot,
             encoding: 'utf8',
         });
-        expect(out).toContain('up to date');
+        expect(out).toContain('src/shared/rt/hyphonNativeExports.ts is up to date');
     });
 
     it('types every export the manifest declares', () => {
@@ -80,5 +82,62 @@ describe('generated hyphonNativeExports.ts (#1344)', () => {
             (n) => !new RegExp(`^  ${n}\\??\\(`, 'm').test(generated),
         );
         expect(missing).toEqual([]);
+    });
+});
+
+describe('control-plane record, generated from emscripten/core/event_schema.json (#1497)', () => {
+    interface SchemaJson {
+        record: { bytes: number; fields: Array<{ name: string; type: string; count?: number }> };
+        types: Array<{ id: number; args?: Array<{ name: string; doc: string }> }>;
+    }
+    const schemaText = read('emscripten/core/event_schema.json');
+    const edit = (fn: (schema: SchemaJson) => void) => {
+        const schema = JSON.parse(schemaText) as SchemaJson;
+        fn(schema);
+        return JSON.stringify(schema);
+    };
+
+    it('the drift check covers both layouts', () => {
+        const out = execFileSync('node', ['tools/gen_hyphon_native_types.mjs', '--check'], { cwd: repoRoot, encoding: 'utf8' });
+        expect(out).toContain('src/shared/rt/eventLayout.ts is up to date');
+        expect(out).toContain('emscripten/core/event_layout.h is up to date');
+    });
+
+    it('check:exports runs the drift check even without WASM artifacts', () => {
+        expect(read('tools/check_wasm_export_map.mjs')).toMatch(/staleGeneratedFiles\(\)/);
+        const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
+        expect(pkg.scripts.lint).toContain('check:native-types');
+    });
+
+    it('the C++ header asserts the size and offsets the TS writer uses', () => {
+        const header = read('emscripten/core/event_layout.h');
+        expect(header).toContain(`constexpr size_t kEventBytes = ${EVENT_BYTES};`);
+        expect(header).toContain('static_assert(sizeof(Event) == kEventBytes');
+        const asserted = Object.fromEntries(
+            [...header.matchAll(/offsetof\(Event, (\w+)\) == (\d+)/g)].map((m) => [m[1], Number(m[2])]),
+        );
+        expect(asserted).toEqual(EventOffset);
+        for (const [symbol, id] of Object.entries(EventType)) {
+            expect(header).toMatch(new RegExp(`k${symbol}\\s+= ${id >= 0x100 ? `0x${id.toString(16).toUpperCase()}` : id},`));
+        }
+        expect(read('emscripten/core/voice.h')).toContain('#include "event_layout.h"');
+    });
+
+    it('lays fields out at natural alignment and refuses a layout that is not 32 bytes', () => {
+        expect(loadEventSchema(schemaText).fields.map((f) => [f.name, f.offset])).toEqual([
+            ['frame', 0], ['type', 8], ['target', 10], ['value', 12], ['args', 16],
+        ]);
+        expect(() => loadEventSchema(edit((s) => { s.record.bytes = 40; }))).toThrow(/take 32 bytes/);
+        // A uint16 first pushes the int64 frame off its 8-byte alignment.
+        expect(() => loadEventSchema(edit((s) => { s.record.fields.unshift(s.record.fields.splice(1, 1)[0]); }))).toThrow(/not 8-aligned/);
+        expect(() => loadEventSchema(edit((s) => { s.record.fields[3].type = 'float16'; }))).toThrow(/unknown type/);
+    });
+
+    it('refuses duplicate or out-of-range type ids and arg slots the record does not have', () => {
+        expect(() => loadEventSchema(edit((s) => { s.types[1].id = 1; }))).toThrow(/used twice/);
+        expect(() => loadEventSchema(edit((s) => { s.types[0].id = 256; }))).toThrow(/id must be/);
+        expect(() => loadEventSchema(edit((s) => {
+            s.types[0].args = ['a', 'b', 'c', 'd', 'e'].map((name) => ({ name, doc: '' }));
+        }))).toThrow(/more arg slots/);
     });
 });
