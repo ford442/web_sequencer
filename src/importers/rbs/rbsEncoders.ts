@@ -65,10 +65,15 @@ export function collapseHyphonStepsTo16(steps: (Note | null)[]): (Note | null)[]
   return out;
 }
 
-export function hyphonNoteToTb303Step(note: Note | null, index: number): Tb303Step {
+/**
+ * A step that is empty, or whose name is not a note, is written as a rest
+ * (`note: -1`), never as note 0. A non-blank name that does not parse is added
+ * to `skipped` (`name → steps`) so the export can say it left the note out.
+ */
+export function hyphonNoteToTb303Step(note: Note | null, index: number, skipped?: Map<string, number>): Tb303Step {
   const midi = note ? noteToMidi(note.note) : null;
-  // No step, or a name that does not parse: a rest, never MIDI 0.
   if (!note || midi === null) {
+    if (note && skipped && note.note && note.note.trim() !== '') skipped.set(note.note, (skipped.get(note.note) ?? 0) + 1);
     return {
       index,
       note: -1,
@@ -97,9 +102,10 @@ export function hyphonNoteToTb303Step(note: Note | null, index: number): Tb303St
 export function partSequenceToTb303Steps(
   seq: PartSequence,
   collapse32: boolean,
+  skipped?: Map<string, number>,
 ): Tb303Step[] {
   const raw = collapse32 ? collapseHyphonStepsTo16(seq.steps) : seq.steps.slice(0, 16);
-  return raw.map((note, index) => hyphonNoteToTb303Step(note, index));
+  return raw.map((note, index) => hyphonNoteToTb303Step(note, index, skipped));
 }
 
 export function partSequenceToDrumBooleans(

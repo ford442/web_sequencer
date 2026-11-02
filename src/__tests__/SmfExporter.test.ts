@@ -131,6 +131,31 @@ describe('SmfExporter', () => {
     expect(notesSorted[1].startTick).toBe(32 * ticksPerStep);
   });
 
+  it('writes a flat at its pitch, leaves out a name that is not a note, and says so', () => {
+    const steps = Array(16).fill(null) as Array<{ note: string; velocity: number; chord?: string[] } | null>;
+    steps[0] = { note: 'Eb3', velocity: 0.8 };                          // 51
+    steps[2] = { note: 'Hb4', velocity: 0.8 };                          // not a note
+    steps[4] = { note: 'C4', velocity: 0.8, chord: ['C4', 'Fb4', 'G#9'] }; // 60, 64, and above 127
+    steps[6] = { note: '', velocity: 0.8 };                             // no note: a rest, not an error
+    const pattern: Pattern = { ...EMPTY_PATTERN, partA: { steps } };
+
+    const result = new SmfExporter().exportToBytes(
+      { songStructure: [], trackStorage: createEmptyTrackStorage(), currentPattern: pattern, tempo: 120 },
+      { useSongMode: false },
+    );
+    expect(result.success).toBe(true);
+    if (!result.success || !result.bytes) return;
+
+    const parsed = parseSmfBytes(result.bytes, { filename: 'bad-names.mid' });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    // Never a note 0 for a name that does not parse.
+    expect(parsed.data.notes.map((n) => n.note).sort((a, b) => a - b)).toEqual([51, 60, 64]);
+    expect(result.warnings.filter((w) => w.includes('not a note'))).toEqual([
+      '2 notes were left out because the name is not a note ("Hb4", "G#9").',
+    ]);
+  });
+
   it('reports a warning instead of producing an empty file when every track is empty', () => {
     const exporter = new SmfExporter();
     const result = exporter.exportToBytes(

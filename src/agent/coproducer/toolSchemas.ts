@@ -17,6 +17,7 @@
  */
 
 import aiSongSchema from '../../../docs/schemas/ai-song.schema.json';
+import { NOTE_NAME_SOURCE } from '../../utils/musicTheory';
 import {
     ALL_KNOB_NAMES,
     ALL_LANE_PARAMETERS,
@@ -70,7 +71,7 @@ const EDIT_PATTERN_INPUT: JsonSchema = {
                         enum: ['set', 'update', 'clear'],
                         description: 'set: place or replace the note on the step. update: change fields of the note already there. clear: remove it.',
                     },
-                    note: { type: 'string', pattern: '^[A-G][#b]?[0-8]$', description: 'Note name, e.g. C3, F#2, Bb1. Needed by set on melodic tracks and the sampler; ignored on drums.' },
+                    note: { type: 'string', pattern: NOTE_NAME_SOURCE, description: 'Note name, e.g. C3, F#2, Bb1. Needed by set on melodic tracks and the sampler; ignored on drums.' },
                     velocity: { type: 'number', minimum: 0, maximum: 1 },
                     length: { type: 'number', minimum: 1, maximum: 64, description: 'Steps; a longer note clears the steps it covers.' },
                     accent: { type: 'boolean', description: 'Melodic tracks.' },

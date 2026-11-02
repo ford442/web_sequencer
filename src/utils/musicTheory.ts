@@ -6,37 +6,100 @@ export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 /** Semitone offset of each natural letter from C. */
 const LETTER_SEMITONES: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
-/** Semitones each accidental symbol adds. `x` / `𝄪` are double sharp, `𝄫` double flat. */
+/**
+ * Semitones each accidental spelling adds, keyed by the whole accidental the
+ * grammar allows: one or two of the same sign, or one double-sign glyph.
+ * (`x` / `𝄪` double sharp, `𝄫` double flat.) A lookup, not a loop, so parsing
+ * a name allocates nothing beyond the regex match.
+ */
 const ACCIDENTAL_SEMITONES: Record<string, number> = {
-    '#': 1, '♯': 1, 'x': 2, '𝄪': 2,
-    'b': -1, '♭': -1, '𝄫': -2,
+    '#': 1, '##': 2, 'x': 2,
+    '♯': 1, '♯♯': 2, '𝄪': 2,
+    'b': -1, 'bb': -2,
+    '♭': -1, '♭♭': -2, '𝄫': -2,
 };
 
-/** Letter, a run of accidentals, then an octave from -1 to 9. */
-const NOTE_NAME_RE = /^([A-G])((?:#|♯|x|𝄪|b|♭|𝄫)*)(-1|[0-9])$/u;
+/**
+ * The one note-name grammar: an uppercase letter, at most one accidental (a
+ * single or doubled sign of one kind, or a double-sign glyph), then an octave
+ * from -1 to 9. No flags and no whitespace, so the same source string is the
+ * AI-song validator, its JSON Schema `pattern` and the co-producer tool
+ * schema — a name the file formats call valid is a name this module parses.
+ * It is valid with and without the `u` flag (ajv compiles patterns with it).
+ *
+ * The grammar cannot say that the sounding pitch must be 0..127 (`G#9` is
+ * spelled fine and sounds above the MIDI range); {@link noteToMidi} adds that.
+ */
+export const NOTE_NAME_SOURCE = '^([A-G])(#{1,2}|x|b{1,2}|♯{1,2}|♭{1,2}|𝄪|𝄫)?(-1|[0-9])$';
+export const NOTE_NAME_REGEX = new RegExp(NOTE_NAME_SOURCE, 'u');
 
-/** Lowest and highest key number a name can spell: C-1 and B9. */
+/** Lowest and highest key number a name can sound: C-1 and G9 (a MIDI data byte). */
 export const MIN_NOTE_MIDI = 0;
-export const MAX_NOTE_MIDI = 131;
+export const MAX_NOTE_MIDI = 127;
 
 /**
  * Parse a scientific-pitch note name ("C4", "Eb3", "F##3", "Fx3", "C-1") to
- * its MIDI key number. Sharps, flats and doubles (in ASCII or Unicode) fold
- * to the same number, so `noteToMidi('Eb3') === noteToMidi('D#3')`.
+ * its MIDI key number (C4 = 60). Sharps, flats and doubles (in ASCII or
+ * Unicode) fold to the same number, so `noteToMidi('Eb3') === noteToMidi('D#3')`.
+ * Surrounding whitespace is ignored; the letter must be uppercase.
  *
- * Returns `null` for anything that is not a note name, and for an enharmonic
- * spelling that lands outside C-1..B9 (`Cb-1`, `B#9`). It never returns 0 for
- * garbage: 0 means the name really was C-1. Callers decide what an invalid
- * name means for them (skip the note, keep the old value) — it must not play.
+ * Returns `null` for anything that is not a note name, and for a spelling
+ * whose pitch is outside C-1..G9 (`Cb-1`, `G#9`, `B9`) — rejected, never
+ * clamped, because clamping would transpose the note without a word. It never
+ * returns 0 for garbage: 0 means the name really was C-1. Callers decide what
+ * an invalid name means for them (skip the note, report it) — it must not play.
+ *
+ * Hot path: one regex exec and table lookups, no other allocation. Boundary
+ * code that wants the parts uses {@link parseNoteName}.
  */
 export const noteToMidi = (note: string | null | undefined): number | null => {
     if (typeof note !== 'string') return null;
-    const match = NOTE_NAME_RE.exec(note.trim());
-    if (!match) return null;
-    let semitone = LETTER_SEMITONES[match[1]];
-    for (const symbol of match[2]) semitone += ACCIDENTAL_SEMITONES[symbol];
-    const midi = (parseInt(match[3], 10) + 1) * 12 + semitone;
+    const match = NOTE_NAME_REGEX.exec(note.trim());
+    if (match === null) return null;
+    const octave = match[3] === '-1' ? -1 : match[3].charCodeAt(0) - 48;
+    const accidental = match[2];
+    const midi = (octave + 1) * 12 + LETTER_SEMITONES[match[1]] + (accidental === undefined ? 0 : ACCIDENTAL_SEMITONES[accidental]);
     return midi >= MIN_NOTE_MIDI && midi <= MAX_NOTE_MIDI ? midi : null;
+};
+
+/** A note name taken apart. `octave` is that of the sounding pitch: `Cb4` is B3. */
+export interface ParsedNoteName {
+    /** 0 (C) .. 11 (B) of the sounding pitch. */
+    pitchClass: number;
+    /** -1..9, 4 for middle C. */
+    octave: number;
+    /** 0..127. */
+    midi: number;
+}
+
+/**
+ * {@link noteToMidi}, with the parts. For code that colours, labels or
+ * reports a name; it allocates, so the per-step playback paths use
+ * `noteToMidi` and only need a number.
+ */
+export const parseNoteName = (note: string | null | undefined): ParsedNoteName | null => {
+    const midi = noteToMidi(note);
+    return midi === null ? null : { pitchClass: midi % 12, octave: Math.floor(midi / 12) - 1, midi };
+};
+
+/**
+ * One export-warning line for the names an exporter had to leave out, from
+ * `name → how many steps carried it`; `null` when there were none. The caller
+ * counts only non-blank names: a blank name is a rest, not a bad note.
+ */
+export const summarizeInvalidNoteNames = (counts: ReadonlyMap<string, number>): string | null => {
+    let total = 0;
+    for (const n of counts.values()) total += n;
+    if (total === 0) return null;
+    const shown: string[] = [];
+    for (const [name, n] of counts) {
+        if (shown.length === 5) {
+            shown.push('…');
+            break;
+        }
+        shown.push(`${JSON.stringify(name.length > 24 ? `${name.slice(0, 24)}…` : name)}${n > 1 ? ` ×${n}` : ''}`);
+    }
+    return `${total} ${total === 1 ? 'note was' : 'notes were'} left out because the name is not a note (${shown.join(', ')}).`;
 };
 
 /** True when `note` parses as a note name (see {@link noteToMidi}). */

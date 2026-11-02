@@ -14,6 +14,7 @@ import { MAX_TRACK_PATTERN_SLOTS } from '../../constants';
 import { buildIffRbsFile } from './iffBuilder';
 import { swingPercentToRbsShuffle } from './shuffle';
 import { resolveSongMeter } from '../../utils/songMeter';
+import { summarizeInvalidNoteNames } from '../../utils/musicTheory';
 import {
   buildDrumPatternFromHyphon,
   buildDrumPatternsFromTrackStorage,
@@ -53,6 +54,8 @@ export class RbsExporter {
   exportToBytes(song: HyphonSong, options?: Partial<RbsExportOptions>): { bytes: Uint8Array; warnings: string[] } {
     const opts = { ...this.options, ...options };
     const warnings = collectExportWarnings(song);
+    /** Step names the TB-303 encoder had to leave out as rests (`name → steps`). */
+    const skippedNotes = new Map<string, number>();
 
     if (opts.versionTarget === '1.5') {
       warnings.push('v1.5 export uses IFF DEVL with a single TB-303 device.');
@@ -106,13 +109,13 @@ export class RbsExporter {
 
       tb303ASteps = arrangement.trackStorage.partA
         .slice(0, exportSlots)
-        .map((seq) => partSequenceToTb303Steps(fit(seq), collapse));
+        .map((seq) => partSequenceToTb303Steps(fit(seq), collapse, skippedNotes));
 
       const partBSource = opts.tb303BSource === 'bass2' ? arrangement.trackStorage.bass2 : arrangement.trackStorage.partB;
       tb303BSteps = include303B
         ? partBSource
           .slice(0, exportSlots)
-          .map((seq) => partSequenceToTb303Steps(fit(seq), collapse))
+          .map((seq) => partSequenceToTb303Steps(fit(seq), collapse, skippedNotes))
         : undefined;
 
       const ts = arrangement.trackStorage;
@@ -131,8 +134,8 @@ export class RbsExporter {
     } else {
       const partA = this.resolvePartSequence(song, opts.tb303ASource);
       const partB = this.resolvePartSequence(song, opts.tb303BSource);
-      tb303ASteps = partSequenceToTb303Steps(fit(partA), collapse);
-      tb303BSteps = include303B ? partSequenceToTb303Steps(fit(partB), collapse) : undefined;
+      tb303ASteps = partSequenceToTb303Steps(fit(partA), collapse, skippedNotes);
+      tb303BSteps = include303B ? partSequenceToTb303Steps(fit(partB), collapse, skippedNotes) : undefined;
       drumPattern = buildDrumPatternFromHyphon(
         {
           ...song.pattern,
@@ -223,6 +226,9 @@ export class RbsExporter {
       },
       trakTracks,
     });
+
+    const skippedWarning = summarizeInvalidNoteNames(skippedNotes);
+    if (skippedWarning) warnings.push(skippedWarning);
 
     return { bytes, warnings };
   }

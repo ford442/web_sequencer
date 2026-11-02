@@ -5,6 +5,11 @@ import {
     midiToNote,
     isNoteName,
     normalizeNoteName,
+    parseNoteName,
+    NOTE_NAME_SOURCE,
+    NOTE_NAME_REGEX,
+    MIN_NOTE_MIDI,
+    MAX_NOTE_MIDI,
     tunedNoteToFrequency,
     SCALE_INTERVALS,
     SCALE_NAMES,
@@ -126,7 +131,8 @@ describe('musicTheory - Scale utilities', () => {
             ['Fx3', 55],
             ['Ebb4', 62],
             ['C-1', 0],
-            ['B9', 131],
+            ['G9', 127],
+            ['F#9', 126],
             ['C4', 60],
             ['A4', 69],
             ['C#4', 61],
@@ -150,7 +156,13 @@ describe('musicTheory - Scale utilities', () => {
         });
 
         it.each([
-            'nope', '', 'H4', 'C', '4', 'c4', 'C10', 'C-2', 'C4.5', 'C#', 'Cb-1', 'B#9', 'C 4', 'C4x', 'Eb3 kick',
+            'nope', '', 'H4', 'C', '4', 'c4', 'bb3', 'C10', 'C-2', 'C4.5', 'C#', 'Cb-1', 'C 4', 'C4x', 'Eb3 kick',
+            // Above G9: spelled fine, sounds outside the MIDI range. Rejected, not clamped.
+            'G#9', 'Ab9', 'A9', 'B9', 'B#9',
+            // More than one accidental, or two kinds: not a note name.
+            'C#b4', 'Cb#4', 'C###4', 'Cbbb4', 'E##########4', 'Cx#4', 'C𝄪𝄪4', 'C♯♭4', 'C#♯4',
+            // Case: the letter is uppercase, an accidental `b` is lowercase.
+            'EB3', 'eb3',
         ])('rejects %j with null, never 0', (name) => {
             expect(noteToMidi(name)).toBeNull();
             expect(isNoteName(name)).toBe(false);
@@ -167,13 +179,93 @@ describe('musicTheory - Scale utilities', () => {
         });
 
         it('round-trips through midiToNote as the sharp spelling', () => {
-            for (let midi = 0; midi <= 131; midi++) {
+            for (let midi = MIN_NOTE_MIDI; midi <= MAX_NOTE_MIDI; midi++) {
                 expect(noteToMidi(midiToNote(midi))).toBe(midi);
             }
             expect(normalizeNoteName('Eb3')).toBe('D#3');
             expect(normalizeNoteName('Fx3')).toBe('G3');
             expect(normalizeNoteName('C#4')).toBe('C#4');
             expect(normalizeNoteName('nope')).toBeNull();
+        });
+    });
+
+    describe('parseNoteName', () => {
+        it.each([
+            // name, pitchClass, octave of the sounding pitch, midi
+            ['C4', 0, 4, 60],
+            ['Cb4', 11, 3, 59],   // spelled octave 4, sounds in octave 3
+            ['B#3', 0, 4, 60],    // spelled octave 3, sounds in octave 4
+            ['Eb3', 3, 3, 51],
+            ['F##3', 7, 3, 55],
+            ['C-1', 0, -1, 0],
+            ['G9', 7, 9, 127],
+        ])('%s → pitchClass %i, octave %i, midi %i', (name, pitchClass, octave, midi) => {
+            expect(parseNoteName(name)).toEqual({ pitchClass, octave, midi });
+        });
+
+        it('agrees with noteToMidi on every name, and is null exactly when it is', () => {
+            for (const name of ['Eb3', 'Bb4', 'nope', '', 'G#9', 'c4', ' A4 ']) {
+                expect(parseNoteName(name)?.midi ?? null).toBe(noteToMidi(name));
+            }
+            expect(parseNoteName(undefined)).toBeNull();
+            expect(parseNoteName(null)).toBeNull();
+        });
+    });
+
+    describe('the grammar', () => {
+        // An oracle that shares no code with the parser: every spelling the
+        // grammar names, its pitch worked out by hand.
+        const LETTERS: Array<[string, number]> = [['C', 0], ['D', 2], ['E', 4], ['F', 5], ['G', 7], ['A', 9], ['B', 11]];
+        const ACCIDENTALS: Array<[string, number]> = [
+            ['', 0],
+            ['#', 1], ['##', 2], ['x', 2], ['♯', 1], ['♯♯', 2], ['𝄪', 2],
+            ['b', -1], ['bb', -2], ['♭', -1], ['♭♭', -2], ['𝄫', -2],
+        ];
+        const OCTAVES = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+        it('every spelling parses to its hand-computed pitch, or null outside 0..127', () => {
+            let spelled = 0;
+            let sounded = 0;
+            for (const [letter, base] of LETTERS) {
+                for (const [accidental, shift] of ACCIDENTALS) {
+                    for (const octave of OCTAVES) {
+                        const name = `${letter}${accidental}${octave}`;
+                        const expected = (octave + 1) * 12 + base + shift;
+                        const inRange = expected >= 0 && expected <= 127;
+                        spelled++;
+                        if (inRange) sounded++;
+                        expect(noteToMidi(name), name).toBe(inRange ? expected : null);
+                        // The pattern alone accepts every spelling; the range is the parser's.
+                        expect(NOTE_NAME_REGEX.test(name), name).toBe(true);
+                    }
+                }
+            }
+            expect(spelled).toBe(7 * 12 * 11);
+            expect(sounded).toBeGreaterThan(0);
+        });
+
+        it('the source is one string that means the same with and without the u flag', () => {
+            const plain = new RegExp(NOTE_NAME_SOURCE);
+            for (const letter of ['A', 'C', 'G', 'H', 'c']) {
+                for (const accidental of ['', '#', '##', '###', 'x', 'b', 'bb', 'bbb', '♯', '♭', '𝄪', '𝄫', '𝄪𝄪', '#b', 'xx']) {
+                    for (const octave of ['-2', '-1', '0', '9', '10', '']) {
+                        const name = `${letter}${accidental}${octave}`;
+                        expect(plain.test(name), name).toBe(NOTE_NAME_REGEX.test(name));
+                    }
+                }
+            }
+        });
+
+        it('has no whitespace tolerance of its own: the parser trims, the pattern does not', () => {
+            expect(NOTE_NAME_REGEX.test(' Eb3')).toBe(false);
+            expect(noteToMidi(' Eb3 ')).toBe(51);
+        });
+
+        it('exposes the MIDI range it enforces', () => {
+            expect(MIN_NOTE_MIDI).toBe(0);
+            expect(MAX_NOTE_MIDI).toBe(127);
+            expect(noteToMidi(midiToNote(MAX_NOTE_MIDI))).toBe(127);
+            expect(noteToMidi(midiToNote(MAX_NOTE_MIDI + 1))).toBeNull(); // G#9
         });
     });
 

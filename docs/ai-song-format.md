@@ -130,7 +130,7 @@ song's `patterns`.
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `step` | `number` | ✅ | 0–31. Out of range → warning, event skipped |
-| `note` | `string` | ✅ | `^[A-G][#b]?[0-8]$` — `"C4"`, `"F#3"`, `"Bb2"`. Invalid → warning, event skipped |
+| `note` | `string` | ✅ | Uppercase letter `A`–`G`, at most one accidental (`#`, `##`, `x`, `b`, `bb`, or `♯` `♭` `𝄪` `𝄫`), octave `-1`–`9` (C4 = middle C = MIDI 60): `"C4"`, `"F#3"`, `"Bb2"`, `"Fx3"`, `"C-1"`. The pitch must be MIDI 0–127 (`C-1`–`G9`), so `"G#9"` is refused. Flats and sharps of one pitch (`Eb3`, `D#3`) sound the same; the song keeps the spelling you wrote. The pattern is the parser's own, `NOTE_NAME_SOURCE` in `src/utils/musicTheory.ts`. Invalid → warning, event skipped |
 | `velocity` | `number` | — | 0–1. Default `0.8` |
 | `length` | `number` | — | In steps. Default `1` |
 | `accent` | `boolean` | — | Sets the note's `timbre` to `1.0` (vs `0.5`) |

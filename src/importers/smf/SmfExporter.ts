@@ -14,7 +14,7 @@ import type { Arrangement, Pattern, PartSequence, Note } from '../../types';
 import type { TrackKey } from '../../constants/appDefaults';
 import { resolveSongTimeline } from '../../utils/songTimeline';
 import { normalizeArrangement } from '../../arrangement/model';
-import { noteToMidi, ticksPerStep, DEFAULT_TIME_SIGNATURE, type TimeSignature } from '../../utils/musicTheory';
+import { noteToMidi, summarizeInvalidNoteNames, ticksPerStep, DEFAULT_TIME_SIGNATURE, type TimeSignature } from '../../utils/musicTheory';
 import { resolveSongMeter, type TrackLengths } from '../../utils/songMeter';
 import { DEFAULT_PPQ } from './SmfParser';
 
@@ -127,10 +127,16 @@ function writeChunk(id: string, body: ByteWriter): ByteWriter {
   return out;
 }
 
+/**
+ * `skipped` collects `name → steps` for every non-blank name that is not a
+ * note: those voices are left out of the file (never written as note 0) and
+ * the export says so. A blank name is no note on that voice — a rest.
+ */
 function noteEventsForSequence(
   steps: (Note | null)[],
   channel: number,
   gmNoteOverride?: number,
+  skipped?: Map<string, number>,
 ): RawMidiEvent[] {
   const events: RawMidiEvent[] = [];
   for (let i = 0; i < steps.length; i++) {
@@ -142,10 +148,18 @@ function noteEventsForSequence(
     const endTick = startTick + Math.round(lengthSteps * TICKS_PER_STEP);
     const velocity = Math.max(1, Math.min(127, Math.round((step.velocity ?? 1) * 127)));
 
-    const pitches = gmNoteOverride != null ? [gmNoteOverride] : (step.chord && step.chord.length > 0 ? step.chord : [step.note]).map((n) => noteToMidi(n));
+    const pitches: number[] = [];
+    if (gmNoteOverride != null) {
+      pitches.push(gmNoteOverride);
+    } else {
+      for (const name of step.chord && step.chord.length > 0 ? step.chord : [step.note]) {
+        const midi = noteToMidi(name); // 0..127, or null
+        if (midi !== null) pitches.push(midi);
+        else if (skipped && name && name.trim() !== '') skipped.set(name, (skipped.get(name) ?? 0) + 1);
+      }
+    }
 
     for (const midi of pitches) {
-      if (midi === null || midi < 0 || midi > 127) continue;
       events.push({ tick: startTick, order: 1, bytes: [0x90 | channel, midi, velocity] });
       events.push({ tick: endTick, order: 0, bytes: [0x80 | channel, midi, 0] });
     }
@@ -199,11 +213,12 @@ export class SmfExporter {
         : resolveSongTimeline([], input.trackStorage, input.currentPattern, false, meter);
 
       const noteTrackChunks: ByteWriter[] = [];
+      const skippedNotes = new Map<string, number>();
 
       (['partA', 'partB', 'bass2'] as const).forEach((key) => {
         const seq = timeline.sequences[key];
         if (!seq.steps.some((s) => s !== null)) return;
-        const events = noteEventsForSequence(seq.steps, TRACK_CHANNEL[key]);
+        const events = noteEventsForSequence(seq.steps, TRACK_CHANNEL[key], undefined, skippedNotes);
         noteTrackChunks.push(buildNoteTrack(key, TRACK_CHANNEL[key], events));
       });
 
@@ -219,13 +234,15 @@ export class SmfExporter {
       timeline.sequences.sampler.forEach((seq, bank) => {
         if (!seq.steps.some((s) => s !== null)) return;
         const channel = samplerChannel(bank);
-        const events = noteEventsForSequence(seq.steps, channel);
+        const events = noteEventsForSequence(seq.steps, channel, undefined, skippedNotes);
         noteTrackChunks.push(buildNoteTrack(`sampler ${bank}`, channel, events));
       });
 
       if (noteTrackChunks.length === 0) {
         warnings.push('Nothing to export — every track is empty.');
       }
+      const skippedWarning = summarizeInvalidNoteNames(skippedNotes);
+      if (skippedWarning) warnings.push(skippedWarning);
 
       const [numerator, denominator] = input.timeSignature ?? DEFAULT_TIME_SIGNATURE;
       const conductor = buildConductorTrack(input.tempo, numerator, denominator);

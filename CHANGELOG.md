@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### One note-name grammar for the parser, the AI song format and the agent (#1493)
+- **One pattern**: `NOTE_NAME_SOURCE` in `musicTheory.ts` is the AI-song validator (`isValidNote`), the generated `docs/schemas/ai-song.schema.json` pattern and the co-producer's `edit_pattern` schema. A name the file formats call valid is a name `noteToMidi` turns into a pitch. The AI format now takes what the parser takes: a flat or sharp, a doubled one (`##`, `bb`, `x`, `𝄪`, `𝄫`, `♯`, `♭`), and octaves -1 to 9 (`Eb3`, `Fx3`, `C-1`). Strings are stored as written.
+- **Tighter than before**: at most one accidental, of one kind. `C#b4`, `C###4` and `E##########4` used to parse (as 60, 63 and 74); they are not note names now. The pitch must be MIDI 0–127 (`C-1`–`G9`): `G#9`–`B9` used to parse as 128–131, which no MIDI data byte can hold, and are now refused rather than clamped. `edit_pattern` checks the range too, since a pattern cannot.
+- **New**: `parseNoteName()` returns `{ pitchClass, octave, midi }` (the octave of the sounding pitch: `Cb4` is B3) for code that labels or colours a name. `noteColors` uses it, so `C-1` gets a colour and the second regex is gone.
+- **Exports say what they left out**: SMF and RBS export leave a name that is not a note out of the file (no note 0) and add a warning such as `2 notes were left out because the name is not a note ("Hb4", "G#9").` A blank name is a rest and is not counted.
+- **Fix**: a chord inversion counts the voices that sound. A chord with one name that does not parse used to rotate its other voices twice, which transposed it an octave instead of inverting it.
+
 ### Co-producer, phase 1: the open song as an AI song, and the agent's tools
 - **`exportAISong()`**, the inverse of the AI song importer: the open song as `AISongData` v1.0 / v1.1, with patterns named after their slot (`slot3`). Pattern-local lanes come back as pattern-local lanes, and anything the format cannot carry is reported in `losses`, not dropped. Importing the export plays the same song, and exporting again gives the same JSON. Every fixture and fast-check generators of strict-valid songs are held to it.
 - **Seven tools as pure functions over the song, with no SDK yet**: `get_song`, `import_song`, `edit_pattern`, `set_params` (knobs, lanes that play live, tempo, swing), `arrange`, `render_and_measure` and `export`. Every input is validated in `run` by ajv validators precompiled at build time (`pnpm run gen:coproducer-validators`; the runtime ships no ajv). A bad input is an error result, never a throw. Each edit is one undo step labelled `Co-producer: …` and answers with a compact diff.

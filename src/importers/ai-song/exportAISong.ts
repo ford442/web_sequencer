@@ -197,7 +197,7 @@ class Exporter {
   /** The step / note / velocity / length every note event has, or null when the note name is unusable. */
   private noteEvent(step: number, n: Note, where: string): AINoteEvent | null {
     if (typeof n.note !== 'string' || !isValidNote(n.note)) {
-      this.lose(where, `step ${step}: note "${String(n.note)}" is not a note name the AI format takes (C0–B8) — not exported`);
+      this.lose(where, `step ${step}: note "${String(n.note)}" is not a note name the AI format takes (C-1–G9) — not exported`);
       return null;
     }
     const event: AINoteEvent = { step, note: n.note };

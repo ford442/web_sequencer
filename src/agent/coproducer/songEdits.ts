@@ -38,6 +38,7 @@ import {
     AI_SONG_DEFAULT_VELOCITY,
     AI_SONG_DRUM_NOTES,
     AI_SONG_PLAIN_TIMBRE,
+    isValidNote,
 } from '../../importers/ai-song/AISongImporter';
 import { MACRO_AUTOMATION_TARGETS, macroEngineForWaveform } from '../../engines/MacroParams';
 import {
@@ -142,6 +143,10 @@ export function editPattern(song: SavedSongData, input: EditPatternInput): EditR
         if (e.action === 'clear') {
             next[e.step] = null;
             continue;
+        }
+        // The schema pattern spells a note name; it cannot say the pitch must fit MIDI 0..127.
+        if (e.note !== undefined && !isDrumTrack(track) && !isValidNote(e.note)) {
+            return fail(`${at}.note "${e.note}" sounds outside the playable range (C-1–G9)`);
         }
         if (isDrumTrack(track) && (e.note !== undefined || e.accent !== undefined || e.slide !== undefined || e.length !== undefined)) {
             notes.push(`${at}: drum hits take only a velocity; note / length / accent / slide ignored`);

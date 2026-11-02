@@ -92,9 +92,9 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
     const len = isArray ? (notes as string[]).length : 1;
     if (len <= 1) return notes;
 
-    const maxInversions = len - 1;
-    const numInversions = Math.round(inversionVal * maxInversions);
-    if (numInversions === 0) return notes;
+    // Cheap exit before any parsing: the voices that sound are at most `len`,
+    // so no fewer inversions than this can come out of the count below.
+    if (Math.round(inversionVal * (len - 1)) === 0) return notes;
 
     // Fill + convert in one pass (no .map allocation). Names that do not
     // parse never sound, so they drop out of the voicing.
@@ -105,7 +105,13 @@ function applyInversion(notes: string | string[], inversionVal: number): string 
         if (midi !== null) _midiScratch[count++] = midi;
     }
     _midiScratch.length = count;
-    if (count === 0) return notes;
+    if (count <= 1) return notes;
+
+    // An inversion count is a share of the voices that sound: a chord of three
+    // names with one that does not parse has one inversion to give, not two
+    // (two would lift both voices an octave — a transposition, not an inversion).
+    const numInversions = Math.round(inversionVal * (count - 1));
+    if (numInversions === 0) return notes;
 
     // Sort ascending in place
     _midiScratch.sort((a, b) => a - b);
