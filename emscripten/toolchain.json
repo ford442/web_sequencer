@@ -12,7 +12,7 @@
     "  pin any more (BUILD_NOTES#wasm-opt)."
   ],
   "emscripten": {
-    "version": "6.0.9"
+    "version": "6.0.13"
   },
   "pyodide": {
     "$comment": [
