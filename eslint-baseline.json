@@ -2,7 +2,7 @@
   "@typescript-eslint/ban-ts-comment": 30,
   "@typescript-eslint/no-base-to-string": 13,
   "@typescript-eslint/no-duplicate-type-constituents": 0,
-  "@typescript-eslint/no-explicit-any": 269,
+  "@typescript-eslint/no-explicit-any": 259,
   "@typescript-eslint/no-floating-promises": 2,
   "@typescript-eslint/no-misused-promises": 27,
   "@typescript-eslint/no-non-null-asserted-optional-chain": 1,
