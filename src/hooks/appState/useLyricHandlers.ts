@@ -233,7 +233,11 @@ export function useLyricHandlers(deps: {
                                     // Escalating velocity for the evolving sequence
                                     const vel = 0.3 + (0.7 * (j / gapSize));
                                     if (Math.random() < openHatProb && fillStep >= 0 && fillStep < newOH.steps.length) {
-                                        newOH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
+                                        // Polyrhythmic modulation to control open hi-hat decay time:
+                                        // We map the phase shifted index and hit density into a dynamic decay length (1 to 4 steps)
+                                        const polyModulation = 1 + ((phaseShiftedIndex * hits) % gapSize) / gapSize;
+                                        const dynamicDecay = Math.max(1, Math.round(polyModulation * 2));
+                                        newOH.steps[fillStep] = { note: 'C4', velocity: vel, length: dynamicDecay };
                                     } else {
                                         newCH.steps[fillStep] = { note: 'C4', velocity: vel, length: 1 };
                                     }
