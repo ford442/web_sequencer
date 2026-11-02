@@ -6,3 +6,11 @@
 ## 2024-10-27 - Optimize fractional Math.pow with Math.exp in AudioWorklet loops
 **Learning:** In V8, `Math.pow(x, y)` when `y` is fractional or computed dynamically is significantly slower than calculating `Math.exp(y * Math.log(x))`. For constants like base 2 or 10, precomputing `Math.LN2` or `Math.log(10)` makes this even faster (e.g. `Math.pow(2.0, x)` vs `Math.exp(x * Math.LN2)` yields a 2-3x speedup in isolated hot loops).
 **Action:** Replaced `Math.pow` calls used for pitch shifting, cutoff scaling, and phoneme brightness with `Math.exp` based alternatives in `pitchControl.ts`, `toneFilters.ts`, and `granularEngine.ts`.
+
+## 2024-10-30 - Combine Nested Exponential Functions in AudioWorklets
+**Learning:** Simplifying nested exponentiation like `Math.pow(Math.exp(a), b)` to `Math.exp(a * b)` is cleaner and eliminates a redundant heavy math operation in high-frequency audio paths, slightly increasing performance over plain `Math.exp()` conversions.
+**Action:** Replaced nested `Math.pow(Math.exp(...), ...)` calls in envelope followers (e.g. `drumDuckEnvelope.ts`) with a single `Math.exp()` calculation.
+
+## $(date +%Y-%m-%d) - [Optimize AudioWorklet BandSplit Compression]
+**Learning:** In hot loops within AudioWorklets, property accesses (`this.property`) and array lookups (`array[i]`) across many blocks add up to measurable overhead.
+**Action:** Always attempt to extract constants, loop-invariant conditionals, array references, and class properties to local variables outside the inner loop to minimize object property traversal overhead during per-sample high-frequency operations. Keep loop bodies small and tight.

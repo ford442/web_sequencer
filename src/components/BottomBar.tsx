@@ -9,6 +9,7 @@ import { automationStore, useAutomationStore } from '../stores/automationStore'
 import { useSurfaceTexture, type SurfaceTexture } from '../hooks/useSurfaceTexture'
 import { helpDiscoveryStore } from '../stores/helpDiscoveryStore'
 import { HelpTip } from './help/HelpTip'
+import { LoadingButton } from './LoadingButton'
 
 interface BottomBarProps {
     viewMode: 'notes' | 'automation'
@@ -24,6 +25,8 @@ interface BottomBarProps {
     exportRbsToFile: () => void
     exportSmfToFile: () => void
     importSongFromFile: () => void
+    isExportingRbs: boolean
+    isExportingSmf: boolean
     setIsRbsImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsSmfImportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     setIsExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -69,6 +72,8 @@ export const BottomBar = memo(function BottomBar({
     exportRbsToFile,
     exportSmfToFile,
     importSongFromFile,
+    isExportingRbs,
+    isExportingSmf,
     setIsRbsImportModalOpen,
     setIsSmfImportModalOpen,
     setIsExportModalOpen,
@@ -274,15 +279,17 @@ export const BottomBar = memo(function BottomBar({
                     <span aria-hidden="true">🎹 Import .rbs</span>
                 </button>
                 </HelpTip>
-                <button type="button"
+                <LoadingButton
                     onClick={exportRbsToFile}
                     disabled={isImportingAISong}
+                    isLoading={isExportingRbs}
+                    loadingText="Exporting..."
                     aria-label="Export project as ReBirth RB-338 .rbs file"
-                    className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-950/30 hover:scale-105 active:scale-95'}`}
+                    className={`h-6 px-2 text-[10px] font-bold text-orange-400 bg-zinc-900 border border-orange-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:bg-orange-950/30 hover:scale-105 active:scale-95`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as ReBirth RB-338 pattern file"}
                 >
-                    <span aria-hidden="true">💾 Export .rbs</span>
-                </button>
+                    <span aria-hidden="true">💾</span> Export .rbs
+                </LoadingButton>
                 <HelpTip topicId="smf-import" position="top">
                 <button type="button"
                     onClick={() => setIsSmfImportModalOpen(true)}
@@ -294,15 +301,17 @@ export const BottomBar = memo(function BottomBar({
                     <span aria-hidden="true">🎼 Import .mid</span>
                 </button>
                 </HelpTip>
-                <button type="button"
+                <LoadingButton
                     onClick={exportSmfToFile}
                     disabled={isImportingAISong}
+                    isLoading={isExportingSmf}
+                    loadingText="Exporting..."
                     aria-label="Export project as Standard MIDI .mid file"
-                    className={`h-6 px-2 text-[10px] font-bold text-teal-400 bg-zinc-900 border border-teal-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded ${isImportingAISong ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-950/30 hover:scale-105 active:scale-95'}`}
+                    className={`h-6 px-2 text-[10px] font-bold text-teal-400 bg-zinc-900 border border-teal-900/50 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:bg-teal-950/30 hover:scale-105 active:scale-95`}
                     title={isImportingAISong ? "Cannot export while importing AI song" : "Export as Standard MIDI file"}
                 >
-                    <span aria-hidden="true">💾 Export .mid</span>
-                </button>
+                    <span aria-hidden="true">💾</span> Export .mid
+                </LoadingButton>
                 <button type="button"
                     onClick={() => setIsExportModalOpen(true)}
                     disabled={isImportingAISong}

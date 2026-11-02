@@ -68,8 +68,10 @@ for (let i = 0; i < LUT_SIZE; i++) {
   SHAPE_HANN[i] = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
   SHAPE_HAMMING[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * phase);
   SHAPE_BLACKMAN[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * phase) + 0.08 * Math.cos(4 * Math.PI * phase);
-  SHAPE_GAUSSIAN[i] = Math.exp(-0.5 * Math.pow((phase - 0.5) / 0.15, 2));
-  SHAPE_SHARP_EXP[i] = Math.pow(Math.sin(Math.PI * phase), 4);
+  const p = (phase - 0.5) / 0.15;
+  SHAPE_GAUSSIAN[i] = Math.exp(-0.5 * p * p);
+  const s = Math.sin(Math.PI * phase);
+  SHAPE_SHARP_EXP[i] = s * s * s * s;
 }
 
 export class GranularEngine {
