@@ -61,6 +61,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
+| [openrb338-voice.md](docs/audio-engine/openrb338-voice.md) | openrb-338 Vintage / 2.0 voices: optional GPL-3.0-only Rust→WASM module, stub + stock fallback, RBS `tb303Voice`, licence decision |
 | [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](docs/audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
 | [303-A-B-checklist.md](docs/audio-engine/303-A-B-checklist.md) | Manual + automated high-fid A/B checklist (Phase-5) |

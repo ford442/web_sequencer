@@ -326,6 +326,31 @@ describe('RbsImporter', () => {
 // Per-step accent and slide automation lane generation
 // =============================================================================
 
+describe('RbsImporter – tb303Voice option (openrb-338, #1537)', () => {
+  it('defaults to the stock voice on every TB-303 track', () => {
+    const result = new RbsImporter({ tb303BTarget: 'bass2' }).convertToHyphonSong(makeRawData());
+    expect(result.song.params.synthA?.model303).toBe('stock-open303');
+    expect(result.song.params.bass2?.model303).toBe('stock-open303');
+  });
+
+  it('writes the chosen openrb-338 voice to the tracks the A/B targets pick', () => {
+    const result = new RbsImporter({ tb303Voice: 'openrb338-vintage', tb303BTarget: 'bass2' })
+      .convertToHyphonSong(makeRawData());
+    expect(result.song.params.synthA?.model303).toBe('openrb338-vintage');
+    expect(result.song.params.bass2?.model303).toBe('openrb338-vintage');
+    // Legacy mirror stays a field older builds can load.
+    expect(result.song.params.bass2?.engine303).toBe('open303');
+  });
+
+  it("'openrb338-auto' picks Vintage for 1.x files and 2.0 for later ones", () => {
+    const auto = new RbsImporter({ tb303Voice: 'openrb338-auto' });
+    expect(auto.convertToHyphonSong(makeRawData({ version: '1.5' })).song.params.synthA?.model303)
+      .toBe('openrb338-vintage');
+    expect(auto.convertToHyphonSong(makeRawData({ version: '2.0.1' })).song.params.synthA?.model303)
+      .toBe('openrb338-2.0');
+  });
+});
+
 describe('RbsImporter – per-step accent/slide automation lanes', () => {
   it('generates an accent automation lane for synthA when steps have accent', () => {
     const importer = new RbsImporter({ expandTo32Steps: false });

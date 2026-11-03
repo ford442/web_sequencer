@@ -219,6 +219,25 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
     ]);
   });
 
+  it('an openrb-338 voice without its optional module plays stock open303 and says so (#1537)', () => {
+    send('set-engine', { engine: 'jc303' });
+    voice.port.posted.length = 0;
+    send('set-303-model', { model: 'openrb338-2.0', engine: 'openrb338' });
+    const unavailable = voice.port.posted.find((m) => m.type === 'openrb338-unavailable') as
+      | { type: string; data: { model: string; fallbackModel: string } }
+      | undefined;
+    expect(unavailable?.data.model).toBe('openrb338-2.0');
+    expect(unavailable?.data.fallbackModel).toBe('stock-open303');
+
+    calls = [];
+    send('noteOn', { note: 40, velocity: 100, audioTime: 1.2 });
+    render(57600);
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `open303_push_event:${OPEN303}`,
+      `open303_render:${OPEN303}`,
+    ]);
+  });
+
   it('an idle voice gets params immediately, the rendered one on their frame', () => {
     send('set-303-model', { model: 'live-highfid' });
     send('set-303-model', { model: 'stock-open303' });

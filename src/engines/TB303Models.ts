@@ -12,6 +12,11 @@
  *    stay offline-only (freeze / export / multisample, Phase-2+);
  *    `live-highfid` (Phase-L1) runs the same C topology inside the
  *    AudioWorklet at oversample 1 behind a CPU/glitch gate.
+ *  - 'openrb338' family — bit-exact ReBirth 2.01 TB-303 from openrb-338
+ *    (GPL-3.0-only), shipped as a separate optional `openrb338.wasm`, never
+ *    linked into hyphon_native. Until that module is bundled the worklet
+ *    plays Stock Open303 for these voices (see src/audio-worklets/openrb338.ts
+ *    and docs/audio-engine/openrb338-voice.md).
  *
  * This registry is mirrored by `k303Models[]` in emscripten/open303_wrapper.cpp
  * for open303-family coefficient profiles. High-fid engines live in separate
@@ -33,11 +38,18 @@
 import { engineTelemetry } from '../utils/engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { LIVE_HIGHFID_MODEL_ID } from '../audio-worklets/liveHighFid303';
+import {
+  OPENRB338_V2_MODEL_ID,
+  OPENRB338_VINTAGE_MODEL_ID,
+  isOpenrb338Model,
+  isOpenrb338ModuleBundled,
+  openrb338ModeForModel,
+} from '../audio-worklets/openrb338';
 
-export { LIVE_HIGHFID_MODEL_ID };
+export { LIVE_HIGHFID_MODEL_ID, isOpenrb338Model, isOpenrb338ModuleBundled, openrb338ModeForModel };
 
-/** Which WASM API family a model is built on. Matches the legacy Engine303 type (+ highfid). */
-export type Engine303Family = 'open303' | 'jc303' | 'highfid';
+/** Which WASM API family a model is built on. Matches the legacy Engine303 type (+ highfid, openrb338). */
+export type Engine303Family = 'open303' | 'jc303' | 'highfid' | 'openrb338';
 
 /** Legacy persisted mirror — only open303 | jc303 (older song readers). */
 export type LegacyEngine303 = 'open303' | 'jc303';
@@ -51,6 +63,8 @@ export type TB303ModelId =
   | 'raveolution'
   | '1ink303-v1'        // in-house
   | 'experimental-01'  // scratchpad
+  | typeof OPENRB338_VINTAGE_MODEL_ID // openrb-338 bit-exact ReBirth 2.01, Vintage mode
+  | typeof OPENRB338_V2_MODEL_ID      // openrb-338 bit-exact ReBirth 2.01, 2.0 mode
   | 'live-highfid'     // Phase-L1 realtime diode-ladder voice
   | 'highfid-cpu'      // Phase-2 offline diode-ladder reference
   | 'gpu-highfid';     // Phase-3 WGSL offline authenticity tier
@@ -88,6 +102,17 @@ export interface TB303ModelInfo {
    * back via `resolveRealtimeTB303Model`; offline renderers use the id as-is.
    */
   offlineOnly?: boolean;
+  /**
+   * Licence of the DSP when it differs from the project's MIT-licensed 303
+   * engines (e.g. 'GPL-3.0-only' for openrb-338). Shown as a badge.
+   */
+  license?: string;
+  /**
+   * The DSP lives in an optional module that this build may not bundle.
+   * The voice stays selectable and persisted; playback uses Stock Open303
+   * until the module is present (`isTB303ModelModuleBundled`).
+   */
+  optionalModule?: 'openrb338';
 }
 
 /**
@@ -160,6 +185,28 @@ export const TB303_MODELS: readonly TB303ModelInfo[] = [
     available: true,
   },
   {
+    id: OPENRB338_VINTAGE_MODEL_ID,
+    label: 'openrb-338 Vintage',
+    shortLabel: 'oRB Vintage',
+    description:
+      'Bit-exact ReBirth 2.01 TB-303 in Vintage (1.x) mode, from openrb-338 (GPL-3.0-only, optional module).',
+    family: 'openrb338',
+    available: true,
+    license: 'GPL-3.0-only',
+    optionalModule: 'openrb338',
+  },
+  {
+    id: OPENRB338_V2_MODEL_ID,
+    label: 'openrb-338 2.0',
+    shortLabel: 'oRB 2.0',
+    description:
+      'Bit-exact ReBirth 2.01 TB-303 in 2.0 mode, from openrb-338 (GPL-3.0-only, optional module).',
+    family: 'openrb338',
+    available: true,
+    license: 'GPL-3.0-only',
+    optionalModule: 'openrb338',
+  },
+  {
     id: 'live-highfid',
     label: 'Live High-Fidelity',
     shortLabel: 'HiFi Live',
@@ -225,6 +272,17 @@ export function getAvailableTB303Models(opts?: {
   );
 }
 
+/**
+ * Whether the optional module a voice needs is in this build. Voices without
+ * an optional module are always bundled. When false the realtime path plays
+ * Stock Open303 while the persisted id is kept.
+ */
+export function isTB303ModelModuleBundled(id: string | undefined): boolean {
+  const info = getTB303Model(id);
+  if (info?.optionalModule === 'openrb338') return isOpenrb338ModuleBundled();
+  return true;
+}
+
 /** The engine family a model runs on ('open303' for anything unknown). */
 export function tb303ModelFamily(id: string | undefined): Engine303Family {
   return getTB303Model(id)?.family ?? 'open303';
@@ -242,6 +300,7 @@ export function legacyEngine303ForModel(id: string | undefined): LegacyEngine303
 export function stockModelForFamily(family: Engine303Family): TB303ModelId {
   if (family === 'jc303') return 'jc303';
   if (family === 'highfid') return 'highfid-cpu';
+  if (family === 'openrb338') return OPENRB338_VINTAGE_MODEL_ID;
   return 'stock-open303';
 }
 

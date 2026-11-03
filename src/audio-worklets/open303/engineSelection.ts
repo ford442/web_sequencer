@@ -19,8 +19,13 @@ import {
     normalizeHighFidCoefficients,
     type HighFidCoefficients,
 } from '../liveHighFidCoefficients';
+import {
+    OPENRB338_UNAVAILABLE_REASON,
+    isOpenrb338Model,
+    isOpenrb338ModuleBundled,
+} from '../openrb338';
 import type { Open303EngineSession } from './engineSession';
-import type { EngineFamily } from './shared';
+import type { EngineFamily, RequestedEngineFamily } from './shared';
 
 /** Blocks between `live-ab-cpu` reports (~250 ms at 128 frames / 48 kHz). */
 const AB_CPU_REPORT_BLOCKS = 94;
@@ -59,6 +64,7 @@ export class Open303EngineSelection {
     private readonly abChangedMessage = { type: 'live-ab-changed' as const, data: { armed: false } };
     private readonly abCpuMessage = { type: 'live-ab-cpu' as const, data: { stockPercent: 0, highFidPercent: 0 } };
     private readonly highFidUnavailableMessage = { type: 'live-highfid-unavailable' as const, data: { model: '', reason: '', fallbackModel: 'stock-open303' } };
+    private readonly openrb338UnavailableMessage = { type: 'openrb338-unavailable' as const, data: { model: '', reason: '', fallbackModel: 'stock-open303' } };
     private readonly highFidDegradedMessage = { type: 'live-highfid-degraded' as const, data: { reason: '', cpuPercent: 0, underruns: 0, fallbackModel: 'stock-open303', ab: false } };
     private readonly clearAllNotes: () => void;
 
@@ -127,9 +133,14 @@ export class Open303EngineSelection {
      *  sent by Open303Oscillator (mirrored TS registry). */
     setModel(
         model: string,
-        fallbackEngine?: EngineFamily,
+        fallbackEngine?: RequestedEngineFamily,
         oversample?: number,
     ): void {
+        if (fallbackEngine === 'openrb338' || isOpenrb338Model(model)) {
+            this.setOpenrb338Model(model);
+            return;
+        }
+
         const entry = this.session.modelRegistry?.get(model);
         const isLiveHighFid = model === LIVE_HIGHFID_MODEL_ID || fallbackEngine === 'highfid';
         const engine: EngineFamily = isLiveHighFid ? 'highfid' : entry?.engine ?? fallbackEngine ?? 'open303';
@@ -181,6 +192,27 @@ export class Open303EngineSelection {
         this.modelChangedMessage.data.model = model;
         this.modelChangedMessage.data.engine = engine;
         this.port.postMessage(this.modelChangedMessage);
+    }
+
+    // ── openrb-338 (optional GPL module, #1537) ──────────────────────────────
+
+    /**
+     * openrb-338 Vintage / 2.0. The module is optional and not bundled yet,
+     * so the voice plays Stock Open303 and the main thread is told why; the
+     * song keeps the openrb id. When the module lands, this is where the
+     * worklet instantiates it (`supportsOpenrb338`) and routes to it.
+     */
+    private setOpenrb338Model(model: string): void {
+        if (!isOpenrb338ModuleBundled()) {
+            this.openrb338UnavailableMessage.data.model = model;
+            this.openrb338UnavailableMessage.data.reason = OPENRB338_UNAVAILABLE_REASON;
+            this.port.postMessage(this.openrb338UnavailableMessage);
+            this.setModel('stock-open303', 'open303');
+            return;
+        }
+        // Unreachable until isOpenrb338ModuleBundled() can return true.
+        console.warn(`[Open303] openrb-338 routing not implemented yet — "${model}" plays stock`);
+        this.setModel('stock-open303', 'open303');
     }
 
     // ── Live high-fid (Phase L1) ─────────────────────────────────────────────
