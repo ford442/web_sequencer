@@ -2,9 +2,11 @@
 
 This directory holds the bit-exact ReBirth 2.01 TB-303 from
 [openrb-338](https://github.com/pingw33n/openrb-338) as a standalone Rust crate, plus a thin
-adapter and a C ABI. It builds to `openrb338.wasm`, a 40 KB module with no imports, for the
+adapter and a C ABI. It builds to `openrb338.wasm`, a 45 KB module with no imports, for the
 `openrb338-vintage` and `openrb338-2.0` voices
-([docs/audio-engine/openrb338-voice.md](../docs/audio-engine/openrb338-voice.md)).
+([docs/audio-engine/openrb338-voice.md](../docs/audio-engine/openrb338-voice.md)). The same
+module carries ReBirth's PCF low-pass for the patch bay's openrb low-pass mode
+([docs/audio-engine/openrb-lowpass.md](../docs/audio-engine/openrb-lowpass.md)).
 
 **Licence: GPL-3.0-only** ([LICENSE](LICENSE)). The build is opt-in, and its output stays in
 `openrb338/pkg/` (gitignored). Nothing copies it into `public/`, and `build:native` does not
@@ -23,11 +25,14 @@ build it.
 | File | What it is |
 |------|-----------|
 | `src/tb303.rs` | Upstream `crates/orb-engine/src/tb303.rs`. Everything from the module doc to the end of `process_vintage` is unchanged, except that `TUNE_TABLE` is `pub(crate)`. The `SongDevice` / `ChannelDevice` impls (the step sequencer and the song hooks) are replaced by inherent `process`, `set_sound_model`, `set_param`, `silence` and `reset`, whose bodies are copied from those impls. |
-| `src/tables.rs` | The TB-303 section of upstream `crates/orb-engine/src/tables/mod.rs` (pitch table, filter table, cutoff smoother) and the mixer's level curve, unchanged. |
+| `src/tables.rs` | The TB-303 section of upstream `crates/orb-engine/src/tables/mod.rs` (pitch table, filter table, cutoff smoother) and the mixer's level curve, unchanged, except that `Q_BASE` is `pub(crate)`. |
+| `src/pcf_lp.rs` | The PCF low-pass table builder of upstream `tables/mod.rs` (band-pass branch removed) and the low-pass path of `crates/orb-engine/src/pcf.rs` (`smooth_cutoff`, `env_index`, `Filter`), unchanged except that `smooth_cutoff` takes an f32 knob. |
+| `src/lowpass.rs` | Hyphon's adapter: the PCF low-pass as a static insert (envelope at rest), Hz/Q to knob positions, the host-rate index shift. |
 | `src/voice.rs` | Hyphon's adapter: MIDI notes to ReBirth step bytes, normalized params to knob positions, block cutting, resampling, output gain. |
 | `src/resample.rs` | 4-point Catmull-Rom converter for hosts that do not run at 44.1 kHz. |
 | `src/ffi.rs` | The C ABI (`Openrb338Exports` in `src/audio-worklets/openrb338.ts`). |
 | `tests/reference.rs`, `tests/scenario/` | Bit-exact checks against upstream `orb-engine` at the same revision (a git dev-dependency). |
+| `tests/lowpass_reference.rs`, `tests/lowpass_cases/` | The same for the low-pass: the table, and upstream's `Pcf` in low-pass mode with its envelope at rest. |
 | `examples/reference_render.rs`, `tools/verify-wasm.mjs` | The same check for the built `.wasm`, through its C ABI. |
 
 The headers of the vendored files state these modifications, as GPL-3.0 section 5(a) requires.
@@ -65,6 +70,10 @@ reference.
   RMS level. It is not bit-exact; see below.
 - **Cost:** about 1–2 µs per 128-frame quantum for one voice in Node (about 0.05 % of real
   time).
+- **PCF low-pass.** The table (8 × 512 × 3) and the smoother are bit-identical to upstream's.
+  At 44.1 kHz the filter matches upstream's `Pcf` (low-pass, amount 0, instant attack, no new
+  step, smoother primed) **bit for bit**, native and wasm, in 4 cases × 4 chunkings, including
+  a 200-move knob ride. About 3 µs per 128-frame quantum per channel.
 
 ## Divergences from ReBirth
 
@@ -84,5 +93,8 @@ reference.
    host has no note to hold over it.
 5. **Slide time** is fixed (ReBirth has no knob for it). The filter-mode and slide-time params
    are ignored.
-6. **Volume.** The output is ReBirth's raw 303 bus times a gain. `volume` 1.0 is ReBirth's
+6. **PCF low-pass** (see [openrb-lowpass.md](../docs/audio-engine/openrb-lowpass.md)): it has
+   no pattern envelope, its smoother starts at the target instead of 0, and other host rates
+   shift the table index instead of resampling. Hz/Q targets pick fractional knobs and rows.
+7. **Volume.** The output is ReBirth's raw 303 bus times a gain. `volume` 1.0 is ReBirth's
    default mixer (channel 100, master 100: ×0.2009, peaks near 0.5). The raw bus peaks near 2.6.

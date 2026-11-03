@@ -10,7 +10,13 @@
 //!
 //! `out_dir/manifest.json` lists the scenarios; `<name>.f32` is upstream's output (mono, 44.1 kHz,
 //! little-endian f32) and `<name>.events.json` the host events as `[frame, kind, a, b]`.
+//!
+//! `out_dir/lowpass/` holds the openrb low-pass cases the same way: `manifest.json` (initial
+//! knobs and the moves as `[block, "f"|"r", value]`), `<name>.in.f32` the input and
+//! `<name>.f32` upstream's PCF output.
 
+#[path = "../tests/lowpass_cases/mod.rs"]
+mod lowpass_cases;
 #[path = "../tests/scenario/mod.rs"]
 mod scenario;
 
@@ -103,4 +109,45 @@ fn main() {
     manifest.push_str("]\n");
     std::fs::write(dir.join("manifest.json"), manifest).expect("write manifest");
     println!("{} scenarios -> {}", all.len(), dir.display());
+    lowpass(&tables, &dir.join("lowpass"));
+}
+
+fn f32_bytes(x: &[f32]) -> Vec<u8> {
+    x.iter().flat_map(|v| v.to_le_bytes()).collect()
+}
+
+/// The openrb low-pass references (`tests/lowpass_cases`).
+fn lowpass(tables: &orb_engine::tables::Tables, dir: &std::path::Path) {
+    use lowpass_cases::{BLOCK, Knob, cases, input, render_upstream};
+    std::fs::create_dir_all(dir).expect("create the lowpass directory");
+    let all = cases();
+    let mut manifest = String::from("[\n");
+    for (k, c) in all.iter().enumerate() {
+        let x = input(c.blocks * BLOCK);
+        let y = render_upstream(tables, c, &x);
+        std::fs::write(dir.join(format!("{}.in.f32", c.name)), f32_bytes(&x)).expect("write");
+        std::fs::write(dir.join(format!("{}.f32", c.name)), f32_bytes(&y)).expect("write");
+        let moves: Vec<String> = c
+            .moves
+            .iter()
+            .map(|&(b, m)| match m {
+                Knob::Frequency(v) => format!("[{b},\"f\",{v}]"),
+                Knob::Resonance(v) => format!("[{b},\"r\",{v}]"),
+            })
+            .collect();
+        let sep = if k + 1 < all.len() { "," } else { "" };
+        writeln!(
+            manifest,
+            "  {{\"name\":\"{}\",\"frames\":{},\"frequency\":{},\"resonance\":{},\"moves\":[{}]}}{sep}",
+            c.name,
+            c.blocks * BLOCK,
+            c.frequency,
+            c.resonance,
+            moves.join(",")
+        )
+        .unwrap();
+    }
+    manifest.push_str("]\n");
+    std::fs::write(dir.join("manifest.json"), manifest).expect("write manifest");
+    println!("{} low-pass cases -> {}", all.len(), dir.display());
 }

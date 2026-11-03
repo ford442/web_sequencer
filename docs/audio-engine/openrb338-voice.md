@@ -109,6 +109,10 @@ the list of changes made to upstream's files.
 | Adapter | `src/voice.rs` | Turns host events into ReBirth step bytes, normalized params into knob positions, blocks into any frame count, 44.1 kHz into the host rate, and applies the output gain. |
 | ABI | `src/ffi.rs` | `#[no_mangle] extern "C"`, handles are 1-based slot numbers (0 = none, bad handles are no-ops), up to 16 voices per instance. |
 
+The module also exports an optional `openrb_lp_*` group: ReBirth's PCF
+low-pass (`src/pcf_lp.rs`, `src/lowpass.rs`), which the patch bay's low-pass
+nodes use in openrb mode. See [openrb-lowpass.md](openrb-lowpass.md).
+
 ```bash
 pnpm run build:wasm:openrb338   # -> openrb338/pkg/openrb338.wasm (gitignored)
 ```

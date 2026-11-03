@@ -28,7 +28,8 @@ describe('node palette', () => {
             frequency: 1e9,
             Q: Number.NaN,
         });
-        expect(node.config).toEqual({ type: 'lowpass', frequency: 18000, Q: 0.7 });
+        // The filter mode defaults to the standard biquad (lowpassMode.ts).
+        expect(node.config).toEqual({ type: 'lowpass', frequency: 18000, Q: 0.7, filterMode: 'rbj' });
         expect(paletteDefaults(lowpass)).toEqual({ frequency: 2000, Q: 0.7 });
         expect(node.fixed).toBeUndefined();
     });

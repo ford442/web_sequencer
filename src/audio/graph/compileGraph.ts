@@ -9,6 +9,12 @@ import {
     type EngineVoiceProvider,
 } from './engineVoices';
 import { edgeKey, validateGraph } from './graphOps';
+import {
+    LowpassModeSwitch,
+    isModalLowpass,
+    normalizeLowpassMode,
+    type OpenrbLowpassProvider,
+} from './lowpassMode';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -59,6 +65,12 @@ export interface CompileGraphOptions {
      */
     createEngineVoice?: EngineVoiceProvider;
     /**
+     * Builds the openrb (ReBirth PCF) branch of a low-pass node whose mode can
+     * switch (`isModalLowpass`). Returning `null` (the default: the opt-in
+     * module is not loaded) leaves the node on its RBJ biquad in every mode.
+     */
+    createOpenrbLowpass?: OpenrbLowpassProvider;
+    /**
      * Reject configs that fail `validateGraph` (cycles, dangling edges,
      * duplicate ids) instead of compiling them. On by default: a user-authored
      * patch must not be able to wire a runaway loop into the audio thread.
@@ -72,6 +84,7 @@ const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     createMasterLimiterNode: () => null,
     createMasterPcf: () => null,
     createEngineVoice: defaultEngineVoiceProvider,
+    createOpenrbLowpass: () => null,
     validate: true,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
@@ -130,6 +143,24 @@ function createNode(
             }
             if (cfg.gain !== undefined) {
                 node.gain.setValueAtTime(cfg.gain, t);
+            }
+            if (isModalLowpass(spec)) {
+                // Both filters in parallel behind an A/B switch, so the mode
+                // can change live; see lowpassMode.ts.
+                const branch = options.createOpenrbLowpass(context, {
+                    nodeId: id,
+                    // Unset values are the BiquadFilterNode defaults.
+                    frequency: cfg.frequency ?? 350,
+                    Q: cfg.Q ?? 1,
+                });
+                const lowpass = new LowpassModeSwitch(
+                    context,
+                    node,
+                    branch,
+                    normalizeLowpassMode(cfg.filterMode),
+                );
+                ports.set(id, { input: lowpass.input, output: lowpass.output, lowpass });
+                return lowpass.output;
             }
             return node;
         }

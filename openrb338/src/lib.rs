@@ -10,10 +10,15 @@
 //!   ReBirth step bytes; Hyphon's normalized 303 params become knob positions 0..127; blocks are
 //!   cut to whatever frame counts the host asks for, and resampled when the host does not run at
 //!   44.1 kHz.
+//! - [`pcf_lp`] and [`lowpass`]: ReBirth's PCF low-pass table and filter (extracted from the
+//!   same revision), and the adapter that runs it as the patch bay's "openrb" low-pass node.
 //! - [`ffi`]: the C ABI `openrb338.wasm` exports (`Openrb338Exports` in
-//!   `src/audio-worklets/openrb338.ts`).
+//!   `src/audio-worklets/openrb338.ts`, `OpenrbLowpassExports` in
+//!   `src/audio-worklets/openrbLowpass.ts`).
 
 pub mod ffi;
+pub mod lowpass;
+pub mod pcf_lp;
 mod resample;
 pub mod tables;
 // The step sequencer's fields and helpers stay in the vendored struct, unused, so the file

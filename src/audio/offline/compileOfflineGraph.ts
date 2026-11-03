@@ -63,6 +63,7 @@ import {
 } from '../../utils/audioContextPolicy';
 import { createOfflineContext, resolveOfflineSpec } from './createOfflineContext';
 import { createMasterPcf, masterPcfPorts } from '../pcf/masterPcf';
+import { createOpenrbLowpassProvider } from '../openrb/openrbLowpassHost';
 import type { PcfTimelineEvent } from '../../engines/PcfEffect';
 import type { PcfSettings } from '../../importers/rbs/types';
 
@@ -198,7 +199,7 @@ export interface CompileOfflineGraphOptions {
     /** Passed through to the shared compiler (reverb impulses, validation). */
     compile?: Pick<
         CompileGraphOptions,
-        'createReverbImpulse' | 'validate' | 'useStereoPanner' | 'createEngineVoice'
+        'createReverbImpulse' | 'validate' | 'useStereoPanner' | 'createEngineVoice' | 'createOpenrbLowpass'
     >;
     /** Injected by tests; production constructs a real `OfflineAudioContext`. */
     contextFactory?: (
@@ -462,8 +463,15 @@ export async function compileOfflineGraph(
           })
         : null;
 
+    // Low-pass nodes in openrb mode render as they play live: the same opt-in
+    // module, or the RBJ biquad when it is not loaded.
+    const openrbLowpass = options.compile?.createOpenrbLowpass
+        ? null
+        : await createOpenrbLowpassProvider(context);
+
     const graph = compileAudioGraph(context, patch, {
         ...options.compile,
+        ...(openrbLowpass ? { createOpenrbLowpass: openrbLowpass } : {}),
         // The limiter is an AudioWorklet; offline it runs as DSP over the
         // rendered mix instead (see `render`), at the same point in the chain.
         createMasterLimiterNode: () => null,

@@ -7,8 +7,10 @@
  * module that talks to an AudioContext.
  */
 
+import { isModalLowpass, normalizeLowpassMode, type LowpassFilterMode } from './lowpassMode';
 import type {
     AudioGraphConfig,
+    BiquadFilterConfig,
     GraphEdgeSpec,
     GraphNodeId,
     GraphNodeSpec,
@@ -26,7 +28,8 @@ export type GraphValidationCode =
     | 'duplicate-edge'
     | 'cycle'
     | 'invalid-gain'
-    | 'no-destination';
+    | 'no-destination'
+    | 'not-lowpass';
 
 export interface GraphValidationIssue {
     code: GraphValidationCode;
@@ -299,6 +302,42 @@ export function setNodePosition(
         node.id === id ? { ...node, position: { ...position } } : node,
     );
     return next;
+}
+
+/**
+ * Set a low-pass node's filter mode (`rbj` / `openrb`). Refused for nodes that
+ * take no mode (`isModalLowpass`): other filter types, and fixed preset filters.
+ */
+export function setLowpassMode(
+    config: AudioGraphConfig,
+    id: GraphNodeId,
+    mode: LowpassFilterMode,
+): GraphEditResult {
+    const node = config.nodes.find((candidate) => candidate.id === id);
+    if (!node) {
+        return {
+            config,
+            rejected: { code: 'unknown-node', message: `No node called "${id}"`, nodes: [id] },
+        };
+    }
+    if (!isModalLowpass(node)) {
+        return {
+            config,
+            rejected: {
+                code: 'not-lowpass',
+                message: `"${node.label ?? id}" is not a low-pass node with a filter mode`,
+                nodes: [id],
+            },
+        };
+    }
+    const next = cloneConfig(config);
+    const filterMode = normalizeLowpassMode(mode);
+    next.nodes = next.nodes.map((candidate) =>
+        candidate.id === id
+            ? { ...candidate, config: { ...(candidate.config as BiquadFilterConfig), filterMode } }
+            : candidate,
+    );
+    return { config: next };
 }
 
 /** Look up an edge, if present. */

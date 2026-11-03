@@ -16,3 +16,12 @@ declare module '*.wasm?url' {
   const url: string;
   export default url;
 }
+
+interface ImportMetaEnv {
+  /**
+   * Opt-in URL of a locally built openrb338.wasm (GPL-3.0-only; see
+   * docs/audio-engine/openrb-lowpass.md). Unset in every published build, so
+   * the patch bay's openrb low-pass mode plays the RBJ biquad.
+   */
+  readonly VITE_OPENRB338_WASM_URL?: string;
+}

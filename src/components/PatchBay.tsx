@@ -15,6 +15,8 @@ import { PatchBayPalette } from './PatchBayPalette';
 import { performanceBudget, BUDGET_OVERLOAD_THRESHOLD } from '../utils/performanceBudget';
 import {
     cablePath,
+    LOWPASS_FILTER_MODES,
+    LOWPASS_MODE_LABELS,
     inputPort,
     layoutGraph,
     outputPort,
@@ -59,6 +61,8 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
         addNode,
         removeNode,
         moveNode,
+        setLowpassMode,
+        lowpassStatus,
         clearRejection,
     } = usePatchBay();
 
@@ -151,6 +155,8 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
     const removableNode = selectedNode
         ? config.nodes.find((node) => node.id === selectedNode && !node.fixed)
         : undefined;
+    // Low-pass nodes A/B between the RBJ biquad and openrb (ReBirth PCF).
+    const lowpass = selectedNode ? lowpassStatus(selectedNode) : null;
 
     return (
         <section className={`hyphon-chrome-panel flex flex-col gap-2 p-3 ${className}`} aria-label="Patch bay">
@@ -366,6 +372,36 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
             )}
 
             <PatchBayPalette config={config} onAdd={addNode} />
+
+            {selectedNode && lowpass && (
+                <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Low-pass filter mode">
+                    <span className="font-mono text-[9px] uppercase text-gray-400">Filter</span>
+                    {LOWPASS_FILTER_MODES.map((mode) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            aria-pressed={lowpass.mode === mode}
+                            onClick={() => setLowpassMode(selectedNode, mode)}
+                            className={`rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
+                                lowpass.mode === mode
+                                    ? 'border-cyan-400/70 bg-cyan-900/40 text-cyan-100'
+                                    : 'border-cyan-500/30 text-gray-300 hover:bg-cyan-900/20'
+                            }`}
+                        >
+                            {LOWPASS_MODE_LABELS[mode]}
+                        </button>
+                    ))}
+                    <span className="font-mono text-[9px] text-gray-500" data-testid="lowpass-status">
+                        {lowpass.mode === 'openrb' && lowpass.active !== 'openrb'
+                            ? `plays RBJ · ${lowpass.reason ?? 'openrb unavailable'} · patch keeps openrb`
+                            : lowpass.active === 'openrb'
+                              ? lowpass.bitExact === false
+                                  ? 'openrb · not bit-exact (context not at 44.1 kHz)'
+                                  : 'openrb · ReBirth PCF low-pass'
+                              : 'RBJ biquad'}
+                    </span>
+                </div>
+            )}
 
             {removableNode && (
                 <div className="flex items-center gap-2">

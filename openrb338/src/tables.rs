@@ -3,7 +3,8 @@
 // Modified for Hyphon (2026-11-03): extracted from openrb-338
 // crates/orb-engine/src/tables/mod.rs at rev 88a1770c645a8d29688f4941ed5672e81d1f8cf7.
 // Only the TB-303 section (pitch table, filter table, cutoff smoother) and the mixer's level
-// curve are kept; every builder below is copied unchanged. The table-dump tests, the store-margin recorder and the other
+// curve are kept; every builder below is copied unchanged. `Q_BASE` is `pub(crate)` so the
+// PCF low-pass builder (`pcf_lp.rs`) reads the same constant upstream's does. The table-dump tests, the store-margin recorder and the other
 // devices' tables are dropped.
 
 //! The TB-303's lookup tables, as the original builds them in ReBirth.dll.
@@ -127,7 +128,7 @@ const FILT_SPAN_EXP: f64 = f64::from_bits(0x3F50_0401_0040_1004);
 const FILT_TOP: f64 = 1023.0;
 /// f32 1.78 widened: 0x10023507 (low) / 0x10023513 (high); the same at 0x100172FB / 0x10017307
 /// (PCF LP) and 0x100175AB / 0x100175B7 (PCF BP).
-const Q_BASE: f64 = f64::from_bits(0x3FFC_7AE1_4000_0000);
+pub(crate) const Q_BASE: f64 = f64::from_bits(0x3FFC_7AE1_4000_0000);
 const C_101539C8: f64 = 0.4;
 const C_101539D8: f64 = 0.52;
 /// f32 1/7.
