@@ -4,7 +4,8 @@
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
 - Velocity Check: Mapping synth bass sequence density (by counting active bass steps in the consonant gap) to a modulation scalar directly added to the base Euclidean density formula successfully connected the rhythm of the bassline to the auto-generated hi-hat fills without any heavy DSP cross-modulation worklets.
-- Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
+- [x] Explore mapping vowel brightness to snare and kick sample variations or filtering via MIDI CC.
+- Velocity Check: Mapping vowel brightness to snare and kick sample variations by selecting different pitches during text-to-drum generation allows the rhythm section to inherently react to the phonetic timbres of speech. This works without additional DSP overhead and immediately makes text-generated drum tracks sound more dynamically cohesive with the voice.
 - [x] Explore mapping lyric text sentiment to a generative probability matrix for open vs closed hi-hats.
 - Velocity Check: Mapping lyric text sentiment using basic keyword analysis into an open hi-hat probability enables dynamically generated rhythmic textures. Using `Math.random() < openHatProb` during Euclidean fills elegantly replaces a closed hat with an open hat based on emotional intent, directly connecting text meaning to rhythm without DSP overhead.
 - [x] Explore using the velocity of generated ghost snares to randomly skip closed hi-hats during drum fills to create more humanized grooves.
@@ -43,6 +44,8 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore using Euclidean rhythms to offset delay taps during consonant transients in the Spatial Router.
+- Explore assigning a random pitch variation to high-velocity drum hits based on consonant stress.
 - What if we map vowel brightness/formant to open hi-hat decay time?
 - Explore dynamically linking step lengths to phoneme duration.
 - What if we map vowel brightness/formant to open hi-hat decay time?
