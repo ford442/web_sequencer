@@ -12,6 +12,10 @@ Because it is a patch-bay node, any source you can cable through a low-pass
 can use either mode: the 303s, Prophecy, the macro voices, the drum kit, the
 sampler, the choir sum, track or master buses.
 
+PCF nodes in the patch bay (the master PCF and placed PCFs) take the same
+mode, with the pattern PCF as the standard branch; see
+[pcf-node.md](pcf-node.md#openrb-mode).
+
 ## Using it
 
 1. In the patch bay, add a **Low-pass** node. The palette has a **Mode**

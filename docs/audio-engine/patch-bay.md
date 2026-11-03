@@ -43,6 +43,8 @@ classic graph is acyclic with the flag and cyclic without it.
 | `engineStrips.ts` | Engine layer of the stock patch (303 strips etc.) + `withEngineVoices` upgrade. |
 | `nodePalette.ts` | What the editor can add, with default parameters. |
 | `lowpassMode.ts` | Low-pass filter modes (RBJ / openrb) and the live A/B switch ([openrb-lowpass.md](openrb-lowpass.md)). |
+| `../pcf/pcfInsert.ts` | PCF nodes (master and placed): live knobs, pattern, mode, transport and lane fan-out ([pcf-node.md](pcf-node.md)). |
+| `components/PatchBayPcfPanel.tsx` | The PCF panel for a selected PCF node. |
 | `components/PatchBay.tsx` | SVG node/cable editor. |
 | `components/PatchBayPalette.tsx` | Add-node strip under the canvas. |
 | `hooks/usePatchBay.ts` | React binding. |
@@ -155,8 +157,10 @@ Electribe, engines included.
 ### Node palette
 
 The editor can add nodes now (`nodePalette.ts` + `PatchBayPalette.tsx`): gain,
-pan, low/high-pass, drive, compressor, delay, each with its one or two
-parameters set before placing. The low-pass also takes a **Mode**, standard
+pan, low/high-pass, PCF, drive, compressor, delay, each with its few
+parameters set before placing. The **PCF** is ReBirth's Pattern Controlled
+Filter as an insert. Its knobs, pattern and mode stay live after placing,
+and it can follow the master PCF lanes ([pcf-node.md](pcf-node.md)). The low-pass also takes a **Mode**, standard
 (RBJ) or openrb / ReBirth, which switches live afterwards for A/B
 comparison ([openrb-lowpass.md](openrb-lowpass.md)). Engine nodes and WAM2 slots are not in the
 palette — an engine voice exists exactly once, and slots belong to the WAM2
@@ -178,9 +182,10 @@ removing a node is staged for the next engine rebuild, as before.
   at their engine nodes and the strip values travel with the patch (see
   [offline-graph.md](offline-graph.md#first-party-engine-nodes-patch-bay-phase-c)).
 - **Live parameter editing of placed nodes.** The palette sets parameters at
-  creation; changing them afterwards is remove + re-add. The one exception
-  is a low-pass node's filter mode (`PatchController.setLowpassMode`), which
-  is an A/B switch between two filters that both already run.
+  creation; changing them afterwards is remove + re-add. The exceptions are a
+  low-pass node's filter mode (`PatchController.setLowpassMode`), an A/B
+  switch between two filters that both already run, and PCF nodes, master and
+  placed (`PatchController.setPcf`, [pcf-node.md](pcf-node.md)).
 - **Patch-bay UI for placing WAM2 inserts.** The graph accepts them on engine
   tracks; the picker is the WAM2 product epic.
 - **Debug poison-after-destroy on native handle maps.** Optional in the epic;

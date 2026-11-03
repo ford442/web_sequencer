@@ -59,6 +59,32 @@ export function getMasterPcf(): PcfEffect | null {
     return current;
 }
 
+type SongPcfFilter = NonNullable<import('../../types/song').SavedSongData['pcfFilter']>;
+
+/**
+ * The `pcfFilter` a song save writes: the song's own (imported) PCF, unless
+ * the user changed the master PCF by hand in the patch bay since the song
+ * loaded — then the master PCF's current state, keeping the song's per-part
+ * `target` when it had one. `undefined` writes none.
+ */
+export function pcfFilterForSave(
+    saved: SongPcfFilter | null | undefined,
+    master: Pick<PcfEffect, 'edited' | 'settings'> | null | undefined,
+): SongPcfFilter | undefined {
+    if (!master?.edited) return saved ?? undefined;
+    const settings = master.settings;
+    return {
+        enabled: settings.enabled,
+        filterType: settings.filterType,
+        cutoff: settings.cutoff,
+        resonance: settings.resonance,
+        envAmount: settings.envAmount,
+        decay: settings.decay,
+        pattern: [...settings.pattern],
+        target: saved?.target ? { ...saved.target } : { ...settings.target },
+    };
+}
+
 interface LaneLike {
     target: string;
     parameter: string;

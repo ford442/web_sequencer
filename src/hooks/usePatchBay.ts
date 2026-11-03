@@ -14,6 +14,8 @@ import {
     type LowpassFilterMode,
     type LowpassModeStatus,
     type PatchController,
+    type PcfNodeEdit,
+    type PcfNodeState,
 } from '../audio/graph';
 
 export interface UsePatchBayResult {
@@ -34,6 +36,10 @@ export interface UsePatchBayResult {
     setLowpassMode: (id: string, mode: LowpassFilterMode) => boolean;
     /** Requested vs. audible mode of a low-pass node; `null` for other nodes. */
     lowpassStatus: (id: string) => LowpassModeStatus | null;
+    /** Edit a PCF node (master or placed): knobs, pattern, lanes, mode. */
+    setPcf: (id: string, edit: PcfNodeEdit) => boolean;
+    /** A PCF node's settings and what it plays; `null` for other nodes. */
+    pcfState: (id: string) => PcfNodeState | null;
     clearRejection: () => void;
 }
 
@@ -80,6 +86,8 @@ export function usePatchBay(): UsePatchBayResult {
             moveNode: (id, position) => controller?.moveNode(id, position),
             setLowpassMode: (id, mode) => run((patch) => patch.setLowpassMode(id, mode)),
             lowpassStatus: (id) => controller?.lowpassStatus(id) ?? null,
+            setPcf: (id, edit) => run((patch) => patch.setPcf(id, edit)),
+            pcfState: (id) => controller?.pcfState(id) ?? null,
             clearRejection: () => setLastRejection(null),
         }),
         [config, controller, needsRebuild, lastRejection, run],

@@ -37,6 +37,7 @@ import type { ProphecyManager } from '../../engines/ProphecyManager';
 import type { MacroManager } from '../../engines/MacroManager';
 import { isMacroAutomationParam } from '../../engines/MacroParams';
 import type { PcfEffect } from '../../engines/PcfEffect';
+import { pcfLaneFanout } from '../pcf/pcfInsert';
 import type { WamHost } from '../wam/WamHost';
 import {
   playbackHealthMonitor,
@@ -462,9 +463,11 @@ export class AutomationScheduler {
     // Same conversion the offline renders use (`pcfLaneOverride`).
     const override = pcfLaneOverride(parameter, value);
     if (!override) return;
-    if (override.cutoffHz !== undefined) pcf.setAutomationCutoff(override.cutoffHz);
-    if (override.resonanceMidi !== undefined) pcf.setAutomationResonance(override.resonanceMidi);
-    if (override.envAmountNorm !== undefined) pcf.setAutomationEnvAmount(override.envAmountNorm);
+    // The master PCF, plus any placed PCF that follows the master lanes.
+    const target = pcfLaneFanout(pcf);
+    if (override.cutoffHz !== undefined) target.setAutomationCutoff(override.cutoffHz);
+    if (override.resonanceMidi !== undefined) target.setAutomationResonance(override.resonanceMidi);
+    if (override.envAmountNorm !== undefined) target.setAutomationEnvAmount(override.envAmountNorm);
   }
 }
 

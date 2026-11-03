@@ -15,6 +15,7 @@ import {
     normalizeLowpassMode,
     type OpenrbLowpassProvider,
 } from './lowpassMode';
+import type { PcfNodeProvider, PcfNodeRequest } from '../pcf/pcfInsert';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -31,6 +32,7 @@ import type {
     GraphNodeRole,
     GraphNodeSpec,
     GraphPortPair,
+    PcfNodeConfig,
     StereoPannerConfig,
     TrackMonitorConfig,
     WaveShaperConfig,
@@ -54,9 +56,16 @@ export interface CompileGraphOptions {
      *
      * Like the limiter it is an AudioWorklet whose module loads before the
      * graph compiles, so the host builds it. Returning `null` (the default)
-     * bridges `masterPanner` straight to the limiter.
+     * bridges `masterPanner` straight to the limiter. The request carries the
+     * node's config (its `filterMode`), for a host that builds a `PcfInsert`.
      */
-    createMasterPcf?: (context: BaseAudioContext) => GraphPortPair | null;
+    createMasterPcf?: (context: BaseAudioContext, request: PcfNodeRequest) => GraphPortPair | null;
+    /**
+     * Builds a PCF the user placed (`pcf` factory; `createPcfNodeProvider`).
+     * Returning `null` (the default) omits the node and bridges its cables, so
+     * a patch with a PCF still plays where the PCF worklet cannot.
+     */
+    createPcfNode?: PcfNodeProvider;
     /**
      * Builds the socket a first-party engine (`open303Voice`, `drumkitVoice`,
      * …) attaches to. The default makes a plain port pair; the engine plugs its
@@ -83,6 +92,7 @@ const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
     createMasterPcf: () => null,
+    createPcfNode: () => null,
     createEngineVoice: defaultEngineVoiceProvider,
     createOpenrbLowpass: () => null,
     validate: true,
@@ -226,8 +236,12 @@ function createNode(
         }
         case 'masterLimiter':
             return options.createMasterLimiterNode(context);
-        case 'masterPcf': {
-            const pair = options.createMasterPcf(context);
+        case 'masterPcf':
+        case 'pcf': {
+            const request = { nodeId: id, config: asConfig<PcfNodeConfig>(config) };
+            const pair = factory === 'masterPcf'
+                ? options.createMasterPcf(context, request)
+                : options.createPcfNode(context, request);
             if (!pair) return null;
             ports.set(id, pair);
             return pair.output;

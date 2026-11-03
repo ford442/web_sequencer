@@ -316,6 +316,73 @@ describe('compileOfflineGraph', () => {
             expect(created).toHaveLength(0);
         });
 
+        it('renders a placed PCF node: it steps at the tempo and plays the lanes it follows', async () => {
+            const { factory } = trackContexts();
+            const timeline = [{ time: 0, cutoffHz: 300 }];
+            const patch = {
+                ...CLASSIC_ELECTRIBE_GRAPH,
+                nodes: [
+                    ...CLASSIC_ELECTRIBE_GRAPH.nodes,
+                    { id: 'pcf-1', factory: 'pcf' as const, config: { followMasterLanes: true, pattern: [127, 0] } },
+                    { id: 'pcf-2', factory: 'pcf' as const, config: { enabled: false } },
+                ],
+                edges: [
+                    ...CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => !(e.from === 'masterPanner' && e.to === 'masterPcf')),
+                    { from: 'masterPanner', to: 'pcf-1' },
+                    { from: 'pcf-1', to: 'pcf-2' },
+                    { from: 'pcf-2', to: 'masterPcf' },
+                ],
+            };
+            const compiled = await compileOfflineGraph({
+                durationSeconds: 1,
+                patch,
+                wam2: null,
+                sampleRatePref: 44100,
+                contextFactory: withWorklet(factory),
+                masterPcf: { timeline, tempo: 125 },
+            });
+            expect(compiled.report.pcfNodes).toEqual([
+                { nodeId: 'pcf-1', status: 'rendered', stepping: true, lanes: true },
+                { nodeId: 'pcf-2', status: 'rendered', stepping: false, lanes: false },
+            ]);
+            // Master + two placed PCFs.
+            expect(created.filter((c) => c.name === 'pcf-processor')).toHaveLength(3);
+            const placed = created.find((c) => (c.options.processorOptions?.pattern as number[] | undefined)?.length === 2);
+            expect(placed?.options.processorOptions).toMatchObject({
+                enabled: true,
+                transport: { playing: true, bpm: 125 },
+                timeline,
+            });
+            const pairs = compiled.graph.connectionLog.map((c) => [c.from, c.to]);
+            expect(pairs).toContainEqual(['masterPanner', 'pcf-1']);
+            expect(pairs).toContainEqual(['pcf-2', 'masterPcf']);
+        });
+
+        it('bridges placed PCF nodes, and says so, when the worklet cannot load', async () => {
+            const { factory } = trackContexts();
+            const patch = {
+                ...CLASSIC_ELECTRIBE_GRAPH,
+                nodes: [...CLASSIC_ELECTRIBE_GRAPH.nodes, { id: 'pcf-1', factory: 'pcf' as const }],
+                edges: [
+                    ...CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => !(e.from === 'masterPanner' && e.to === 'masterPcf')),
+                    { from: 'masterPanner', to: 'pcf-1' },
+                    { from: 'pcf-1', to: 'masterPcf' },
+                ],
+            };
+            const compiled = await compileOfflineGraph({
+                durationSeconds: 1,
+                patch,
+                wam2: null,
+                sampleRatePref: 44100,
+                contextFactory: factory, // no audioWorklet
+            });
+            expect(compiled.report.pcfNodes).toEqual([
+                { nodeId: 'pcf-1', status: 'unavailable', stepping: false, lanes: false },
+            ]);
+            const pairs = compiled.graph.connectionLog.map((c) => [c.from, c.to]);
+            expect(pairs).toContainEqual(['masterPanner', 'destination']);
+        });
+
         it('stays off for a render that gives it nothing to do', async () => {
             const { factory } = trackContexts();
             const compiled = await compileOfflineGraph({

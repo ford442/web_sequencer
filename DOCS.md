@@ -72,6 +72,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [drumkit.md](docs/audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, Web Audio fallback |
 | [macro-voices.md](docs/audio-engine/macro-voices.md) | Macro engine family: 24 Plaits models (MIT), 8-voice polyphony, 48 kHz + resampler, denormal guards, fallback, offline render, presets, measurements |
 | [master-pcf.md](docs/audio-engine/master-pcf.md) | Master-bus ReBirth PCF: graph insertion point, live/offline automation, RBS lanes |
+| [pcf-node.md](docs/audio-engine/pcf-node.md) | PCF as a patch-bay node: placeable PCF inserts, live knobs / pattern / mode panel, master-lane following, openrb mode on a PCF, offline |
 | [master-loudness.md](docs/audio-engine/master-loudness.md) | Master true-peak limiter + BS.1770 LUFS metering (graph placement, accuracy, export) |
 | [patch-bay.md](docs/audio-engine/patch-bay.md) | User-editable audio routing: patch model, live editing, persistence, safety |
 | [offline-graph.md](docs/audio-engine/offline-graph.md) | Offline render of the live patch: freeze / stems / AI preview, export sample rate, WAM2 freeze contract |
