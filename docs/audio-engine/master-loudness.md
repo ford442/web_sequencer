@@ -7,7 +7,7 @@ limiter. Everything is first-party — no runtime DSP dependency, no network use
 ## Where it sits
 
 ```
-… → masterCompressor → masterGain → masterPanner → masterLimiter → destination
+… → masterCompressor → masterGain → masterPanner → masterPcf → masterLimiter → destination
 ```
 
 `masterLimiter` is the last insert before `destination` (`defaultElectribeGraph.ts`),

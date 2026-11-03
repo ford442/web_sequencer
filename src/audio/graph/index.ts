@@ -100,6 +100,11 @@ export interface BuildElectribeGraphOptions {
      * destination exactly as before.
      */
     masterLimiterNode?: AudioNode | null;
+    /**
+     * Master PCF ports (`masterPcfPorts(createMasterPcf(...))`). Omit them and
+     * the chain bridges `masterPanner` straight to the limiter.
+     */
+    masterPcf?: import('./types').GraphPortPair | null;
 }
 
 /**
@@ -111,7 +116,11 @@ export function buildClassicElectribeGraph(
     options: BuildElectribeGraphOptions = {},
 ): BuildElectribeGraphResult {
     const limiterNode = options.masterLimiterNode ?? null;
-    const compileOptions = { createMasterLimiterNode: () => limiterNode };
+    const pcfPorts = options.masterPcf ?? null;
+    const compileOptions = {
+        createMasterLimiterNode: () => limiterNode,
+        createMasterPcf: () => pcfPorts,
+    };
     const controller = options.patchController ?? null;
     const graph = controller
         ? controller.compile(context, compileOptions)
@@ -127,6 +136,7 @@ export {
     CLASSIC_ELECTRIBE_GRAPH,
     MASTER_CHAIN_ORDER,
     MASTER_CHAIN_ORDER_WITH_LIMITER,
+    MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER,
     MASTER_CHAIN_CONNECTIONS,
 } from './defaultElectribeGraph';
 export { compileAudioGraph, extractMasterChainConnections } from './compileGraph';

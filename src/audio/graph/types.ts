@@ -11,6 +11,7 @@ export type GraphNodeRole =
     | 'masterDryInput'
     | 'masterOutput'
     | 'masterLimiter'
+    | 'masterPcf'
     | 'trackBus'
     | 'trackAnalyser'
     | 'auxReturn'
@@ -32,6 +33,9 @@ export type GraphNodeFactory =
     | 'delay'
     | 'trackMonitor'
     | 'masterLimiter'
+    // ReBirth-style Pattern Controlled Filter on the master bus (`PcfEffect`).
+    // Host-supplied like the limiter; bridged when the host supplies none.
+    | 'masterPcf'
     | 'destination'
     | 'wamInstrumentSlot'
     | 'wamTrackInsert'

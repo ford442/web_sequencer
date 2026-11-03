@@ -27,7 +27,7 @@ import {
     validateGraph,
     type GraphValidationIssue,
 } from './graphOps';
-import { graphsEqual, serializeAudioGraph, type SerializedAudioGraph } from './graphSerialization';
+import { graphsEqual, serializeAudioGraph, withMasterPcf, type SerializedAudioGraph } from './graphSerialization';
 import type {
     AudioGraphConfig,
     CompiledAudioGraph,
@@ -267,8 +267,8 @@ export class PatchController {
      */
     compile(context: AudioContext, options?: Parameters<typeof compileAudioGraph>[2]): CompiledAudioGraph {
         // Whatever put this config here (a preset switch, an older song), the
-        // engines need their nodes before they can attach.
-        const upgraded = withEngineVoices(this.config);
+        // engines (and the master PCF) need their nodes before they can attach.
+        const upgraded = withMasterPcf(withEngineVoices(this.config));
         if (upgraded !== this.config) this.commit(upgraded);
         const compiled = compileAudioGraph(context, this.config, options);
         this.attach(context, compiled);

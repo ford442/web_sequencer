@@ -47,6 +47,7 @@ const KNOWN_FACTORIES: ReadonlySet<string> = new Set<GraphNodeFactory>([
     'delay',
     'trackMonitor',
     'masterLimiter',
+    'masterPcf',
     'destination',
     'open303Voice',
     'prophecyVoice',
@@ -61,6 +62,7 @@ const KNOWN_ROLES: ReadonlySet<string> = new Set<GraphNodeRole>([
     'masterDryInput',
     'masterOutput',
     'masterLimiter',
+    'masterPcf',
     'trackBus',
     'trackAnalyser',
     'auxReturn',
@@ -113,6 +115,35 @@ function parseEdge(raw: unknown): GraphEdgeSpec | null {
     }
     if (raw.feedback === true) edge.feedback = true;
     return edge;
+}
+
+/**
+ * Splice the master PCF into a patch saved before it existed: the
+ * `masterPanner → masterLimiter` cable (or `→ destination` on a patch without
+ * the limiter) is rerouted through it. A patch that re-cabled the panner some
+ * other way is left alone — there is no unambiguous place to put it — and its
+ * master PCF lanes stay silent, as they were when it was saved.
+ */
+export function withMasterPcf(config: AudioGraphConfig): AudioGraphConfig {
+    if (config.nodes.some((node) => node.factory === 'masterPcf' || node.id === 'masterPcf')) return config;
+    const hasLimiter = config.nodes.some((node) => node.id === 'masterLimiter');
+    const downstream = hasLimiter ? 'masterLimiter' : 'destination';
+    const cable = config.edges.findIndex((e) => e.from === 'masterPanner' && e.to === downstream);
+    if (cable < 0) return config;
+
+    const edges = [...config.edges];
+    const { gain } = edges[cable];
+    edges.splice(
+        cable,
+        1,
+        gain === undefined ? { from: 'masterPanner', to: 'masterPcf' } : { from: 'masterPanner', to: 'masterPcf', gain },
+        { from: 'masterPcf', to: downstream },
+    );
+    const nodes: GraphNodeSpec[] = [
+        ...config.nodes,
+        { id: 'masterPcf', label: 'PCF', fixed: true, factory: 'masterPcf', role: 'masterPcf' },
+    ];
+    return { ...config, nodes, edges };
 }
 
 /** Parse an untrusted graph object. Returns `null` if it is not usable. */
@@ -184,7 +215,8 @@ export function deserializeAudioGraph(
     // A patch saved before the engines were graph nodes (Phase C) has nowhere
     // for them to attach; the upgrade is additive, so the schema stays at 1.
     const graph = parseAudioGraphConfig(raw.graph);
-    return { presetId, graph: graph ? withEngineVoices(graph) : null };
+    // Likewise for the master PCF stage (additive, same schema).
+    return { presetId, graph: graph ? withMasterPcf(withEngineVoices(graph)) : null };
 }
 
 /** Structural equality — used to decide whether a patch needs storing. */

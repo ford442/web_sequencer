@@ -14,6 +14,11 @@
  * - **Master loudness.** The limiter/meter worklet cannot be instantiated in a
  *   render that has already finished, so the identical DSP runs over the
  *   rendered mix at the same point in the chain (#1095).
+ * - **Master PCF.** The `masterPcf` node (post-pan, pre-limiter) compiles to a
+ *   fresh `PcfEffect` on the offline context when the caller passes
+ *   `masterPcf` — the song's master PCF lanes pre-timed on the render clock
+ *   (`resolveMasterPcfTimeline`) and its imported pattern PCF. Without it, or
+ *   if the worklet cannot load, the node is bridged and the report says so.
  * - **WAM2 slots.** Bundled fixtures declare `offline: 'native'` and are
  *   mounted into the offline context. Everything else is `offline:
  *   'unsupported'` per ADR 0001: the slot is bypassed, the mix continues, and
@@ -57,6 +62,9 @@ import {
     type SampleRatePref,
 } from '../../utils/audioContextPolicy';
 import { createOfflineContext, resolveOfflineSpec } from './createOfflineContext';
+import { createMasterPcf, masterPcfPorts } from '../pcf/masterPcf';
+import type { PcfTimelineEvent } from '../../engines/PcfEffect';
+import type { PcfSettings } from '../../importers/rbs/types';
 
 /** Graph node factories that carry a WAM2 plugin. */
 const WAM_FACTORIES = new Set([
@@ -108,6 +116,12 @@ export interface OfflineGraphReport {
     patchName: string;
     /** Every WAM2 slot in the patch, rendered or bypassed. */
     slots: OfflineGraphSlotReport[];
+    /**
+     * The master PCF stage: `rendered` (a PCF ran in the chain), `unavailable`
+     * (asked for, but the worklet failed to load — bridged), or `off` (not
+     * asked for — bridged, as the stage is transparent on a song without PCF).
+     */
+    masterPcf: 'rendered' | 'unavailable' | 'off';
     /** Every first-party engine node in the patch, filled in by `render()`. */
     engineVoices: OfflineEngineVoiceReport[];
     /** Loudness readings, filled in by `render()`. */
@@ -140,6 +154,20 @@ export interface OfflineGraphLoudnessOptions {
     enabled?: boolean;
 }
 
+export interface OfflineMasterPcfOptions {
+    /** From `resolveMasterPcfTimeline`, on the render clock. */
+    timeline?: readonly PcfTimelineEvent[];
+    /** An imported song's pattern PCF (`pcfFilterToPcfSettings(song.pcfFilter)`). */
+    settings?: PcfSettings | null;
+    /** Tempo the pattern PCF steps at; required for `settings` to move. */
+    tempo?: number;
+}
+
+/** Whether `options` gives the PCF anything to do. */
+export function masterPcfRequested(options: OfflineMasterPcfOptions | null | undefined): boolean {
+    return !!options && ((options.timeline?.length ?? 0) > 0 || !!options.settings?.enabled);
+}
+
 export interface CompileOfflineGraphOptions {
     /** Render length. Rounded up to whole frames. */
     durationSeconds: number;
@@ -161,6 +189,12 @@ export interface CompileOfflineGraphOptions {
      */
     wam2?: Wam2SongPayload | null;
     loudness?: OfflineGraphLoudnessOptions;
+    /**
+     * Run the master PCF stage: the song's master PCF lanes as timed overrides
+     * and/or its imported pattern PCF. Omit for a render with nothing for the
+     * PCF to do — the stage is bridged, which is what a transparent PCF sounds like.
+     */
+    masterPcf?: OfflineMasterPcfOptions | null;
     /** Passed through to the shared compiler (reverb impulses, validation). */
     compile?: Pick<
         CompileGraphOptions,
@@ -416,11 +450,24 @@ export async function compileOfflineGraph(
         sampleRate,
     );
 
+    const pcfOptions = options.masterPcf;
+    const wantsPcf = masterPcfRequested(pcfOptions);
+    const masterPcf = wantsPcf
+        ? await createMasterPcf(context, {
+              timeline: pcfOptions?.timeline,
+              settings: pcfOptions?.settings ?? null,
+              transport: pcfOptions?.settings?.enabled && pcfOptions.tempo
+                  ? { playing: true, bpm: pcfOptions.tempo }
+                  : undefined,
+          })
+        : null;
+
     const graph = compileAudioGraph(context, patch, {
         ...options.compile,
         // The limiter is an AudioWorklet; offline it runs as DSP over the
         // rendered mix instead (see `render`), at the same point in the chain.
         createMasterLimiterNode: () => null,
+        createMasterPcf: () => masterPcfPorts(masterPcf),
     });
 
     const { reports, plugins } = await applyOfflineWamSlots(
@@ -438,6 +485,7 @@ export async function compileOfflineGraph(
         patchId: patch.id,
         patchName: patch.name,
         slots: reports,
+        masterPcf: !wantsPcf ? 'off' : masterPcf && graph.nodes.has('masterPcf') ? 'rendered' : 'unavailable',
         engineVoices: [],
         loudness: null,
     };

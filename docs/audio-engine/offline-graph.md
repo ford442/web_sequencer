@@ -73,6 +73,15 @@ over the rendered mix with the persisted `LimiterSettings`. Same DSP, same place
 in the chain, so the file matches the meters. `enabled: false` / `monitorOnly`
 measure without touching a sample, exactly as they do live.
 
+## Master PCF
+
+`masterPcf` (post-pan, pre-limiter) is an AudioWorklet too, but unlike the
+limiter it runs **inside** the offline graph: `compileOfflineGraph` builds a
+`PcfEffect` on the offline context when the caller passes `masterPcf` (the
+song's PCF lanes pre-timed on the render clock, plus any imported pattern PCF).
+Otherwise it is bridged, which is how a transparent PCF sounds anyway.
+`report.masterPcf` says which happened. See [master-pcf.md](master-pcf.md).
+
 ## WAM2 slots (ADR 0001)
 
 | Package | Offline |
@@ -166,8 +175,10 @@ per-step params: `renderSynthPattern`'s `automation` (filter cutoff and
 resonance, plus decay on 303 voices) and `Offline303PatternData.paramSteps`
 (plain data, so a job crosses the worker boundary unchanged). Nothing is
 scheduled against the `OfflineAudioContext`; the compiler's master bus never
-sees a lane. Each consumer reports the routed lanes it cannot play, master PCF
-among them (live does not play those either). An automated track skips the
+sees a lane, except master PCF lanes. Those are pre-timed onto the offline
+`masterPcf` stage (option `masterPcf`, `report.masterPcf`) by the live-patch
+master stem and the AI preview. See [master-pcf.md](master-pcf.md). Each
+consumer reports the routed lanes it cannot play. An automated track skips the
 Pyodide freezer, which takes one param set per track, and renders per hit.
 Real WebGPU high-fid renders an automated pattern through highfid-cpu. The
 stem renderer's biquad also maps cutoff linearly (`× 8000` Hz), where the 303

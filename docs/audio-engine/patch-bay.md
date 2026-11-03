@@ -84,6 +84,16 @@ never open the patch bay stay small (a stock entry is under 120 bytes, asserted
 by a test). An unknown `schemaVersion` degrades to the preset rather than
 attempting a guess at migration.
 
+## Host-supplied master stages
+
+Two fixed master nodes are AudioWorklets the host builds before compiling and
+passes in: `masterPcf` (ReBirth PCF, post-pan, see [master-pcf.md](master-pcf.md))
+and `masterLimiter` (see [master-loudness.md](master-loudness.md)). When the host
+supplies none, the compiler bridges their cables, so
+`masterPanner → masterPcf → masterLimiter → destination` collapses to whatever
+is present. Patches saved before `masterPcf` existed gain it on load
+(`withMasterPcf`).
+
 ## Offline
 
 The same config compiles into an `OfflineAudioContext` for freeze, stem export
