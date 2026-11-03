@@ -309,7 +309,7 @@ export class GranularEngine {
         let win = 1.0;
         if (!isRectangular) {
           const index = phase * lutMaxIndex;
-          const lower = index | 0;
+          const lower = index < 0 ? 0 : index | 0;
           const upper = lower < lutMaxIndex ? lower + 1 : lower;
           const weight = index - lower;
           win = lut[lower] * (1 - weight) + lut[upper] * weight;
@@ -320,7 +320,7 @@ export class GranularEngine {
 
         // Check if we should start the other grain (50% overlap)
         const otherG = this.grains[gIdx === 0 ? 1 : 0];
-        if (g.phase === (g.size / 2) | 0 && !otherG.active) {
+        if (g.phase === ((g.size / 2) | 0) && !otherG.active) {
           this.initGrain(otherG, p, geo);
         }
 
