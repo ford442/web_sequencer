@@ -88,9 +88,15 @@ test.describe('RBS import E2E', () => {
     // 16 steps), so the attribute legitimately reads 0 on step 0 — that is the
     // intermittent red on chromium / firefox / webkit (CI run 41444674773
     // traces: before 1 → after 0, 2 → 0, before 0). The invariant is: a finite
-    // integer in 0..100 at both samples, and different between them, because the
-    // lane is being scheduled. At the fixture's 128 BPM, 1.5 s is ~12.8 sixteenth
-    // steps, so the two samples always land on steps that read differently.
+    // integer in 0..100 at every sample, and more than one value across the
+    // 1.5 s window, because the lane is being scheduled.
+    //
+    // Why sample through the window rather than compare its two ends: at the
+    // fixture's 128 BPM a bar is 1.875 s, and the two reads' own round trips
+    // stretch a nominal 1.5 s gap (1.73 s measured locally), putting the second
+    // read on the step next to the first — and neighbouring steps can round to
+    // the same value (steps 3 and 4 both read 2; seen locally: 2 → 2). Over the
+    // window the lane covers ~12 steps, i.e. at least five distinct values.
     const cutoffKnob = page.getByRole('slider', { name: /^CUTOFF/i }).first();
     await expect(cutoffKnob).toBeVisible();
 
@@ -104,9 +110,14 @@ test.describe('RBS import E2E', () => {
       return value;
     };
 
-    const before = await readAriaValueNow();
-    await page.waitForTimeout(1500);
-    const after = await readAriaValueNow();
-    expect(after, 'cutoff lane moves the knob between samples').not.toBe(before);
+    const WINDOW_MS = 1500;
+    const SAMPLE_EVERY_MS = 100;
+    const seen = new Set<number>([await readAriaValueNow()]);
+    for (let waited = 0; waited < WINDOW_MS; waited += SAMPLE_EVERY_MS) {
+      await page.waitForTimeout(SAMPLE_EVERY_MS);
+      seen.add(await readAriaValueNow());
+    }
+    expect(seen.size, `cutoff lane moves the knob within ${WINDOW_MS} ms (saw ${[...seen].join(', ')})`)
+      .toBeGreaterThanOrEqual(2);
   });
 });
