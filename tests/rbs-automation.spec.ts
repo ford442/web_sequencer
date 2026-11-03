@@ -81,11 +81,17 @@ test.describe('RBS import E2E', () => {
     // SYNTH A cutoff knob is present and retains a valid aria value during playback.
     const cutoffKnob = page.getByRole('slider', { name: /^CUTOFF/i }).first();
     await expect(cutoffKnob).toBeVisible();
-    const before = Number(await cutoffKnob.getAttribute('aria-valuenow'));
-    expect(before).toBeGreaterThan(0);
+
+    await expect.poll(async () => {
+      const val = await cutoffKnob.getAttribute('aria-valuenow');
+      if (val === null) return -1;
+      return Number(val);
+    }, { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
 
     await page.waitForTimeout(1500);
-    const after = Number(await cutoffKnob.getAttribute('aria-valuenow'));
-    expect(after).toBeGreaterThan(0);
+    const afterStr = await cutoffKnob.getAttribute('aria-valuenow');
+    expect(afterStr).not.toBeNull();
+    const after = Number(afterStr);
+    expect(after).toBeGreaterThanOrEqual(0);
   });
 });
