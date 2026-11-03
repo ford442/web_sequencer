@@ -56,6 +56,11 @@ export interface BiquadFilterConfig {
     frequency?: number;
     Q?: number;
     gain?: number;
+    /**
+     * Low-pass only: `rbj` (the browser biquad, default) or `openrb` (ReBirth's
+     * PCF low-pass from the optional openrb338.wasm). See `lowpassMode.ts`.
+     */
+    filterMode?: import('./lowpassMode').LowpassFilterMode;
 }
 
 export interface DynamicsCompressorConfig {
@@ -180,6 +185,8 @@ export interface GraphPortPair {
     wamSlot?: import('../wam/WamSlotPorts').WamSlotPorts;
     /** Present on first-party engine nodes (`open303Voice`, `drumkitVoice`, …). */
     engineSocket?: import('./engineVoices').EngineVoiceSocket;
+    /** Present on low-pass nodes that take a filter mode (`isModalLowpass`). */
+    lowpass?: import('./lowpassMode').LowpassModeSwitch;
 }
 
 export interface CompiledAudioGraph {

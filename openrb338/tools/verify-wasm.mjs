@@ -10,6 +10,8 @@
 // The reference dir comes from `cargo run --release --example reference_render`. At 44.1 kHz
 // every sample must match bit for bit, whatever the render chunking; at 48 / 96 kHz (resampled)
 // the level must stay within 0.5 dB. Also reports the render cost per 128-frame quantum.
+// The optional low-pass group (`openrb_lp_*`, the patch bay's openrb low-pass) is checked the
+// same way against `<reference dir>/lowpass/`: bit for bit at 44.1 kHz in every chunking.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -132,6 +134,73 @@ for (const sc of manifest) {
   console.log(`ok   ${sc.name.padEnd(22)} ${sc.frames} frames, peak ${peak.toFixed(3)}, bit-exact @44.1k; ${levels.join(', ')}`);
 }
 
+// ---------------------------------------------------------------- low-pass group
+
+const LP_VERSION = 1; // OPENRB_LP_VERSION in src/audio-worklets/openrbLowpass.ts
+const LP_REQUIRED = [
+  'openrb_lp_version', 'openrb_lp_create', 'openrb_lp_destroy', 'openrb_lp_set_param',
+  'openrb_lp_reset', 'openrb_lp_buffer', 'openrb_lp_process', 'openrb_lp_is_bit_exact',
+];
+const LP_FREQUENCY = 0;
+const LP_RESONANCE = 1;
+let lpCases = 0;
+let lpMs = 0;
+let lpSeconds = 0;
+if (LP_REQUIRED.some((name) => typeof x[name] !== 'function') || x.openrb_lp_version() !== LP_VERSION) {
+  failed++;
+  console.log('FAIL: the low-pass group (openrb_lp_*) is missing or has another version');
+} else {
+  const lpDir = join(refDir, 'lowpass');
+  const lpManifest = JSON.parse(readFileSync(join(lpDir, 'manifest.json'), 'utf8'));
+  const f32 = (file) => {
+    const b = readFileSync(join(lpDir, file));
+    return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  };
+  for (const lc of lpManifest) {
+    const input = f32(`${lc.name}.in.f32`);
+    const ref = f32(`${lc.name}.f32`);
+    const refBits = new Uint32Array(ref.buffer);
+    for (const chunks of [[128], [64], [37, 91, 200, 1, 128], [4096]]) {
+      const h = x.openrb_lp_create(44100);
+      const ptr = x.openrb_lp_buffer(h, MAX_FRAMES) >>> 0;
+      x.openrb_lp_set_param(h, LP_FREQUENCY, lc.frequency);
+      x.openrb_lp_set_param(h, LP_RESONANCE, lc.resonance);
+      const out = new Float32Array(lc.frames);
+      let pos = 0;
+      let next = 0;
+      let c = 0;
+      const t0 = performance.now();
+      while (pos < lc.frames) {
+        while (next < lc.moves.length && lc.moves[next][0] * 64 <= pos) {
+          const [, knob, v] = lc.moves[next++];
+          x.openrb_lp_set_param(h, knob === 'f' ? LP_FREQUENCY : LP_RESONANCE, v);
+        }
+        const limit = next < lc.moves.length ? lc.moves[next][0] * 64 : lc.frames;
+        const n = Math.min(chunks[c++ % chunks.length], limit - pos);
+        new Float32Array(x.memory.buffer, ptr, n).set(input.subarray(pos, pos + n));
+        x.openrb_lp_process(h, n);
+        out.set(new Float32Array(x.memory.buffer, ptr, n), pos);
+        pos += n;
+      }
+      if (chunks.length === 1 && chunks[0] === 128) {
+        lpMs += performance.now() - t0;
+        lpSeconds += lc.frames / 44100;
+      }
+      x.openrb_lp_destroy(h);
+      const bits = new Uint32Array(out.buffer);
+      const diff = bits.findIndex((v, i) => v !== refBits[i]);
+      if (diff >= 0) {
+        failed++;
+        console.log(`FAIL lowpass ${lc.name} chunks=${chunks}: sample ${diff} ref ${ref[diff]} wasm ${out[diff]}`);
+      }
+    }
+    lpCases++;
+    console.log(`ok   lowpass ${lc.name.padEnd(14)} ${lc.frames} frames, bit-exact @44.1k`);
+  }
+  const q = (lpSeconds * 44100) / 128;
+  console.log(`low-pass cost: ${((lpMs * 1000) / q).toFixed(2)} µs per 128-frame quantum (one channel)`);
+}
+
 const quanta = (audioSeconds * 44100) / 128;
 const usPerQuantum = (renderMs * 1000) / quanta;
 console.log(
@@ -142,4 +211,6 @@ if (failed) {
   console.log(`${failed} check(s) FAILED`);
   process.exit(1);
 }
-console.log(`PASS: ${manifest.length} scenarios, openrb338.wasm == openrb-338 (native) bit for bit at 44.1 kHz`);
+console.log(
+  `PASS: ${manifest.length} scenarios + ${lpCases} low-pass cases, openrb338.wasm == openrb-338 (native) bit for bit at 44.1 kHz`,
+);

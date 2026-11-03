@@ -11,6 +11,8 @@ import {
     type AudioGraphConfig,
     type GraphNodeSpec,
     type GraphValidationIssue,
+    type LowpassFilterMode,
+    type LowpassModeStatus,
     type PatchController,
 } from '../audio/graph';
 
@@ -28,6 +30,10 @@ export interface UsePatchBayResult {
     addNode: (node: GraphNodeSpec) => boolean;
     removeNode: (id: string) => boolean;
     moveNode: (id: string, position: { x: number; y: number }) => void;
+    /** A/B a low-pass node between RBJ and openrb (live when it is running). */
+    setLowpassMode: (id: string, mode: LowpassFilterMode) => boolean;
+    /** Requested vs. audible mode of a low-pass node; `null` for other nodes. */
+    lowpassStatus: (id: string) => LowpassModeStatus | null;
     clearRejection: () => void;
 }
 
@@ -72,6 +78,8 @@ export function usePatchBay(): UsePatchBayResult {
             addNode: (node) => run((patch) => patch.addNode(node)),
             removeNode: (id) => run((patch) => patch.removeNode(id)),
             moveNode: (id, position) => controller?.moveNode(id, position),
+            setLowpassMode: (id, mode) => run((patch) => patch.setLowpassMode(id, mode)),
+            lowpassStatus: (id) => controller?.lowpassStatus(id) ?? null,
             clearRejection: () => setLastRejection(null),
         }),
         [config, controller, needsRebuild, lastRejection, run],

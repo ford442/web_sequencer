@@ -23,13 +23,22 @@ import {
     removeConnection,
     removeNode,
     setConnectionGain,
+    setLowpassMode,
     setNodePosition,
     validateGraph,
     type GraphValidationIssue,
 } from './graphOps';
+import {
+    OPENRB_UNAVAILABLE_REASON,
+    isModalLowpass,
+    normalizeLowpassMode,
+    type LowpassFilterMode,
+    type LowpassModeStatus,
+} from './lowpassMode';
 import { graphsEqual, serializeAudioGraph, withMasterPcf, type SerializedAudioGraph } from './graphSerialization';
 import type {
     AudioGraphConfig,
+    BiquadFilterConfig,
     CompiledAudioGraph,
     GraphNodeId,
     GraphNodeSpec,
@@ -41,6 +50,8 @@ export interface PatchEditOutcome {
     rejected?: GraphValidationIssue;
     /** True when the change needs an engine rebuild to be heard. */
     requiresRebuild?: boolean;
+    /** For a low-pass mode edit: what is audible now. */
+    lowpass?: LowpassModeStatus;
 }
 
 export type PatchListener = (config: AudioGraphConfig) => void;
@@ -238,6 +249,43 @@ export class PatchController {
         this.pendingRebuild = true;
         this.commit(result.config);
         return { ok: true, requiresRebuild: true };
+    }
+
+    /**
+     * A/B a low-pass node between the RBJ biquad and openrb (ReBirth PCF). Live
+     * — a 20 ms crossfade — when the node is in the running graph; staged for
+     * the next rebuild when it was added since. The mode is saved either way,
+     * so a song keeps `openrb` even on a build that cannot play it.
+     */
+    setLowpassMode(id: GraphNodeId, mode: LowpassFilterMode): PatchEditOutcome {
+        const result = setLowpassMode(this.config, id, mode);
+        if (result.rejected) return { ok: false, rejected: result.rejected };
+        const lowpass = this.compiled?.ports.get(id)?.lowpass;
+        if (!lowpass) this.pendingRebuild = true;
+        this.commit(result.config);
+        if (!lowpass) {
+            return { ok: true, requiresRebuild: true, lowpass: this.lowpassStatus(id) ?? undefined };
+        }
+        return { ok: true, lowpass: lowpass.setMode(normalizeLowpassMode(mode)) };
+    }
+
+    /**
+     * What a low-pass node asks for and what it plays. `null` for nodes that
+     * take no mode. A node not in the running graph (no engine, or added since
+     * the last compile) reports its saved mode with RBJ active.
+     */
+    lowpassStatus(id: GraphNodeId): LowpassModeStatus | null {
+        const node = this.config.nodes.find((candidate) => candidate.id === id);
+        if (!node || !isModalLowpass(node)) return null;
+        const live = this.compiled?.ports.get(id)?.lowpass;
+        if (live) return live.status();
+        return {
+            mode: normalizeLowpassMode((node.config as BiquadFilterConfig | undefined)?.filterMode),
+            active: 'rbj',
+            openrbAvailable: false,
+            reason: this.compiled ? 'added since the engine started — restart to hear it' : OPENRB_UNAVAILABLE_REASON,
+            bitExact: null,
+        };
     }
 
     /** Cosmetic move in the editor canvas. */

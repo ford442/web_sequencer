@@ -105,6 +105,11 @@ export interface BuildElectribeGraphOptions {
      * the chain bridges `masterPanner` straight to the limiter.
      */
     masterPcf?: import('./types').GraphPortPair | null;
+    /**
+     * openrb low-pass branch provider (`createOpenrbLowpassProvider`). Omit it
+     * and low-pass nodes stay on their RBJ biquad in every mode.
+     */
+    createOpenrbLowpass?: import('./lowpassMode').OpenrbLowpassProvider | null;
 }
 
 /**
@@ -117,9 +122,11 @@ export function buildClassicElectribeGraph(
 ): BuildElectribeGraphResult {
     const limiterNode = options.masterLimiterNode ?? null;
     const pcfPorts = options.masterPcf ?? null;
+    const openrbLowpass = options.createOpenrbLowpass ?? null;
     const compileOptions = {
         createMasterLimiterNode: () => limiterNode,
         createMasterPcf: () => pcfPorts,
+        ...(openrbLowpass ? { createOpenrbLowpass: openrbLowpass } : {}),
     };
     const controller = options.patchController ?? null;
     const graph = controller
@@ -150,6 +157,7 @@ export {
     removeConnection,
     removeNode,
     setConnectionGain,
+    setLowpassMode,
     setNodePosition,
     validateGraph,
 } from './graphOps';
@@ -195,8 +203,22 @@ export type {
 } from './engineVoices';
 export { OPEN303_VOICES, open303StripIds, withEngineVoices } from './engineStrips';
 export type { Open303StripIds, Open303VoiceId, MacroVoiceId, ProphecyVoiceId, SamplerVoiceId } from './engineStrips';
-export { NODE_PALETTE, createPaletteNode, paletteDefaults } from './nodePalette';
-export type { PaletteEntry, PaletteParam } from './nodePalette';
+export { NODE_PALETTE, createPaletteNode, paletteChoiceDefaults, paletteDefaults } from './nodePalette';
+export type { PaletteChoice, PaletteEntry, PaletteParam } from './nodePalette';
+export {
+    LOWPASS_FILTER_MODES,
+    LOWPASS_MODE_LABELS,
+    LowpassModeSwitch,
+    isModalLowpass,
+    normalizeLowpassMode,
+} from './lowpassMode';
+export type {
+    LowpassFilterMode,
+    LowpassModeStatus,
+    OpenrbLowpassBranch,
+    OpenrbLowpassProvider,
+    OpenrbLowpassRequest,
+} from './lowpassMode';
 export type { GraphPreset } from './presets';
 export { restorePatchFromSong } from './patchSession';
 export type { PatchRestoreResult } from './patchSession';
