@@ -76,6 +76,7 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | Lines | Module | Status |
 |-------|--------|--------|
 | 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
+| 701 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
 | 756 | `src/engines/rubberband/ArtifactDetector.ts` | justified exception - complex analysis logic |
 | 991 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below |
 | 917 | `src/components/PhonemePainter.tsx` | un-triaged |

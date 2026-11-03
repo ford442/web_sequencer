@@ -12,6 +12,11 @@
  *   resonance and (303) decay in `SynthParams` units, scaled like live
  *   playback scales them.
  *
+ * - **Master PCF** (`compileOfflineGraph` option `masterPcf`): the master
+ *   `pcfCutoff` / `pcfResonance` / `pcfEnvAmount` lanes as timed overrides for
+ *   the offline `masterPcf` node — the live patch's post-pan PCF stage. Only a
+ *   render that bounces through the master chain plays them.
+ *
  * Whatever a renderer cannot play is listed in the report rather than dropped.
  * Only the routed targets are reported: `synthA` / `synthB` / `bass2` and the
  * PCF trio on `master`. Unrouted targets are #1387's.
@@ -23,6 +28,7 @@ import {
   OPEN303_RESONANCE_FULL_SCALE,
   isOpen303LaneTarget,
   open303ParamForLane,
+  pcfLaneOverride,
   resolveLaneTimeline,
   resolveOpen303ParamSteps,
   type LaneTimeline,
@@ -31,6 +37,7 @@ import {
   type ResolvedLaneValue,
 } from '../automation/laneResolver';
 import type { Offline303Params } from './OfflineOpen303Engine';
+import type { PcfTimelineEvent } from '../../engines/PcfEffect';
 import { macroEngineForWaveform } from '../../engines/MacroParams';
 
 /** Cutoff Hz a full-scale per-note override reaches (`playSynth`: `value × 20000`). */
@@ -72,6 +79,20 @@ function laneKey(lane: UnifiedAutomationLane): string {
   return `${lane.target}.${lane.parameter}`;
 }
 
+/**
+ * Move the master PCF lanes of a report from `applied` to `notRendered` — for
+ * a master-chain bounce whose PCF did not run after all.
+ */
+export function withMasterPcfNotRendered(report: OfflineAutomationReport, reason: string): OfflineAutomationReport {
+  const isPcf = (key: string) => key.startsWith('master.') && PCF_PARAMETERS.has(key.slice('master.'.length));
+  const moved = report.applied.filter(isPcf);
+  if (moved.length === 0) return report;
+  return {
+    applied: report.applied.filter((key) => !isPcf(key)),
+    notRendered: [...report.notRendered, ...moved.map((lane) => ({ lane, reason }))].sort((a, b) => a.lane.localeCompare(b.lane)),
+  };
+}
+
 function finishReport(applied: Set<string>, skips: Map<string, string>): OfflineAutomationReport {
   return {
     applied: [...applied].sort(),
@@ -79,8 +100,49 @@ function finishReport(applied: Set<string>, skips: Map<string, string>): Offline
   };
 }
 
-const PCF_SKIP_REASON =
-  'no PCF filter in the master chain — the live PcfEffect is never created either, so live playback does not play it';
+/** Why a render without the master chain does not play the master PCF lanes. */
+export const PCF_DRY_MASTER_SKIP_REASON =
+  'the master PCF is a master-chain stage; this render does not bounce through the master chain (export the master stem through the live patch to hear it)';
+
+/** Why a master-chain bounce did not play them: the offline PCF worklet failed to load. */
+export const PCF_UNAVAILABLE_SKIP_REASON =
+  'the offline master PCF did not run (its worklet failed to load, or the patch has no PCF stage), so the master chain bridged past it';
+
+/**
+ * Master PCF lanes as timed overrides for the offline PCF: one event per step
+ * where a lane plays, at `startTime + g × stepSeconds` — the same step values,
+ * and the same unit conversion, the live scheduler sends `PcfEffect`.
+ */
+export function resolveMasterPcfTimeline(
+  lanes: readonly UnifiedAutomationLane[],
+  timeline: LaneTimeline,
+  stepSeconds: number,
+  startTime = 0,
+): PcfTimelineEvent[] {
+  if (!lanes.some((l) => l.target === 'master' && PCF_PARAMETERS.has(l.parameter))
+    && !timeline.arrangement?.clips.some((c) => c.lanes?.some((l) => l.target === 'master'))) {
+    return [];
+  }
+  const resolved = resolveLaneTimeline(lanes, timeline);
+  const events: PcfTimelineEvent[] = [];
+  const last: Record<string, number | undefined> = {};
+  resolved.forEach((entries, g) => {
+    let event: PcfTimelineEvent | null = null;
+    for (const { lane, value } of entries) {
+      if (lane.target !== 'master') continue;
+      const override = pcfLaneOverride(lane.parameter, value);
+      if (!override) continue;
+      for (const [key, v] of Object.entries(override) as Array<[keyof typeof override, number]>) {
+        if (last[key] === v) continue;
+        last[key] = v;
+        event ??= { time: startTime + g * stepSeconds };
+        event[key] = v;
+      }
+    }
+    if (event) events.push(event);
+  });
+  return events;
+}
 
 // ---------------------------------------------------------------------------
 // 303 freeze / export
@@ -188,15 +250,25 @@ const PATTERN_FIELDS: Partial<Record<Open303LaneParam, 'filterCutoff' | 'filterR
   decay: 'decay',
 };
 
+export interface SynthLaneAutomationOptions {
+  /**
+   * Whether the render bounces through the master chain and so plays the
+   * master PCF lanes (`resolveMasterPcfTimeline`). Default: it does not, and
+   * they are reported as not rendered.
+   */
+  masterPcf?: boolean;
+}
+
 /**
  * Resolve lanes for the pattern renderer's synth voices, and report every
- * routed lane it cannot play (master PCF, params the renderer has no stage for,
- * macro voices).
+ * routed lane it cannot play (master PCF on a dry render, params the renderer
+ * has no stage for, macro voices).
  */
 export function resolveSynthLaneAutomation(
   lanes: readonly UnifiedAutomationLane[],
   timeline: LaneTimeline,
   voices: readonly SynthLaneVoice[],
+  options: SynthLaneAutomationOptions = {},
 ): SynthLaneAutomation {
   const resolved = resolveLaneTimeline(lanes, timeline);
   const applied = new Set<string>();
@@ -205,7 +277,8 @@ export function resolveSynthLaneAutomation(
 
   for (const lane of playedLanes(resolved)) {
     if (lane.target === 'master' && PCF_PARAMETERS.has(lane.parameter)) {
-      skips.set(laneKey(lane), PCF_SKIP_REASON);
+      if (options.masterPcf) applied.add(laneKey(lane));
+      else skips.set(laneKey(lane), PCF_DRY_MASTER_SKIP_REASON);
       continue;
     }
     if (!isOpen303LaneTarget(lane.target)) continue;

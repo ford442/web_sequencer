@@ -10,7 +10,9 @@
     "refuses a layout that does not come to record.bytes. types[].symbol names the",
     "type in both languages: k<symbol> in C++ (hyphon::EventType), EventType.<symbol>",
     "in TypeScript. types[].args names the arg slots a type defines; a type without",
-    "it leaves all four to the engine. Ids are wire format: never renumber one."
+    "it leaves all four to the engine. Ids are wire format: never renumber one.",
+    "ring is the header of the SPSC ring both sides lay records out in: the JS writer",
+    "fills a voice's ring in place inside hyphon_native memory (#1497 P2)."
   ],
   "version": 1,
   "record": {
@@ -80,8 +82,35 @@
       "args": [
         { "name": "dimension", "doc": "ExpressionDimension" }
       ]
+    },
+    {
+      "name": "CANCEL_NOTES",
+      "symbol": "CancelNotes",
+      "id": 9,
+      "doc": "drop the NOTE_ON / NOTE_OFF / TRIGGER events queued before this record, when the voice takes it from its ring (not on a frame): a transport stop. Params still land"
     }
   ],
+  "ring": {
+    "$comment": [
+      "The SPSC ring that carries records between threads (src/shared/rt/eventRing.ts,",
+      "hyphon::EventRing): a header of int32 words, then capacity records from",
+      "headerBytes. words[].index is the int32 slot; atomic words are the counts the",
+      "two ends publish to each other. The producer owns write, dropped and highWater,",
+      "the consumer owns read, which sits on its own 64-byte line. magic, version and",
+      "capacity are written once, by whoever lays the ring out."
+    ],
+    "headerBytes": 128,
+    "magic": "HEV1",
+    "words": [
+      { "name": "write", "index": 0, "atomic": true, "doc": "producer: records written; uint32, wraps" },
+      { "name": "dropped", "index": 1, "atomic": true, "doc": "producer: pushes refused because the ring was full" },
+      { "name": "highWater", "index": 2, "atomic": true, "doc": "producer: most records ever unread at once" },
+      { "name": "read", "index": 16, "atomic": true, "doc": "consumer: records read; uint32, wraps" },
+      { "name": "magic", "index": 24, "doc": "ring.magic, little-endian, once the ring is laid out" },
+      { "name": "version", "index": 25, "doc": "schema version of the records" },
+      { "name": "capacity", "index": 26, "doc": "records the ring holds; a power of two" }
+    ]
+  },
   "engineBase": {
     "symbol": "Engine",
     "id": 256,

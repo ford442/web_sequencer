@@ -15,13 +15,17 @@
 //   - the control-plane inbox (#1497): records an EventBus route sends, over
 //     a SharedArrayBuffer ring or batched messages, drained into the voice at
 //     block start
+//   - the voice's own native ring, offered to the main thread on the pthread
+//     build (#1497 P2): its route then writes records into hyphon_native
+//     memory in place, and the voice takes them itself at block start
 
 import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from './hyphonNativeImports';
 import { acquireHyphonNativeSession, type HyphonNativeInitData, type HyphonNativeSession } from './hyphonNativeSession';
 import type { HyphonNativeExports, VoiceHandle, WasmPtr } from '../shared/rt/hyphonNativeExports';
 import { frameAtTime } from '../shared/rt/audioClock';
 import { createEventFields } from '../shared/rt/eventLayout';
-import { createEventInbox, type EventInbox } from '../shared/rt/eventTransport';
+import { isEventRing } from '../shared/rt/eventRing';
+import { createEventInbox, type EventInbox, type RingTransport } from '../shared/rt/eventTransport';
 import { WorkletPerfReporter } from './workletPerfReporter';
 
 const VOICE_PREFIXES = ['open303', 'jc303', 'highfid303', 'prophecy', 'drumkit', 'macro'] as const;
@@ -38,7 +42,8 @@ const VOICE_EXPORT_NAMES = Object.fromEntries(VOICE_PREFIXES.map((p) => [p, {
     render: `${p}_render` as keyof HyphonNativeExports,
     cancelNotes: `${p}_cancel_notes` as keyof HyphonNativeExports,
     flush: `${p}_flush` as keyof HyphonNativeExports,
-}])) as Record<NativeVoicePrefix, { pushEvent: keyof HyphonNativeExports; render: keyof HyphonNativeExports; cancelNotes: keyof HyphonNativeExports; flush: keyof HyphonNativeExports }>;
+    eventInbox: `${p}_event_inbox` as keyof HyphonNativeExports,
+}])) as Record<NativeVoicePrefix, Record<'pushEvent' | 'render' | 'cancelNotes' | 'flush' | 'eventInbox', keyof HyphonNativeExports>>;
 
 /** One voice: which engine, and its handle on the shared instance. */
 export interface NativeVoiceRef {
@@ -50,6 +55,7 @@ type PushEvent = (h: VoiceHandle, frame: number, type: number, target: number, v
     a0: number, a1: number, a2: number, a3: number) => number;
 type Render = (h: VoiceHandle, blockStartFrame: number, frames: number) => WasmPtr;
 type HandleCall = (h: VoiceHandle) => void;
+type EventInboxCall = (h: VoiceHandle) => WasmPtr;
 
 /** At most this many messages per kind of failure, so a broken voice cannot flood the console. */
 const MAX_LOGGED_ERRORS = 5;
@@ -192,6 +198,33 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
             moved++;
         }
         return moved;
+    }
+
+    /**
+     * Oldest record the inbox holds, into `out` (EventField order), for a
+     * processor that routes records itself rather than to one voice (the 303).
+     * False when there is none.
+     */
+    protected nextEvent(out: Float64Array): boolean {
+        return this.inbox?.popInto(out) ?? false;
+    }
+
+    /**
+     * `voice`'s own native event ring as a transport the main thread can write
+     * in place (#1497 P2): the voice's inbox ring at its address in
+     * hyphon_native's shared memory. Send it in the ready message. Null where
+     * that cannot work — the memory is not shared (the single-threaded build:
+     * a port would copy it), or the build predates prefix_event_inbox.
+     */
+    protected voiceRingTransport(voice: NativeVoiceRef): RingTransport | null {
+        const buffer = this.native?.memory?.buffer;
+        if (typeof SharedArrayBuffer === 'undefined' || !(buffer instanceof SharedArrayBuffer)) return null;
+        const exports: Record<string, unknown> = this.x;
+        const inbox = exports[VOICE_EXPORT_NAMES[voice.prefix].eventInbox] as EventInboxCall | undefined;
+        const byteOffset = typeof inbox === 'function' ? inbox(voice.handle) : 0;
+        // The C++ constructor laid it out; a mismatch means a stale build.
+        if (!byteOffset || !isEventRing(buffer, byteOffset)) return null;
+        return { kind: 'ring', buffer, byteOffset };
     }
 
     // ── Events ───────────────────────────────────────────────────────────────

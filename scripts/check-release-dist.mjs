@@ -868,6 +868,22 @@ if (budget) {
       }
     }
 
+    // The agent hook (`window.__HYPHON_AGENT__`: the co-producer's tools and
+    // their precompiled validators) is a lazy chunk that only `?agent=1` /
+    // `?e2e=1` loads. It has its own row, and it must never join the eager
+    // graph, where every visitor would pay for it.
+    const agentChunk = named('AgentBridge')[0];
+    addRow('agent hook chunk', agentChunk, compressed.agentHookChunkMaxBytes);
+    if (agentChunk) {
+      const key = path.relative(distDir, agentChunk).split(path.sep).join('/');
+      if (eager.has(key)) {
+        failures.push(
+          `agent hook chunk (${key}) is reachable from the entry chunk by static import — ` +
+          'src/agent/AgentBridge.tsx must stay behind the lazy() import in App.tsx',
+        );
+      }
+    }
+
     const largestWorklet = workletChunks
       .map((p) => ({ p, size: brotli(p) }))
       .sort((a, b) => b.size - a.size)[0];

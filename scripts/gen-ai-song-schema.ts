@@ -23,10 +23,10 @@ import {
   VALID_PARAMETERS_BY_TARGET,
 } from '../src/importers/ai-song/automationParameters';
 import { AI_SONG_FORMAT_VERSIONS } from '../src/importers/ai-song/versioning';
+import { NOTE_NAME_SOURCE } from '../src/utils/musicTheory';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = join(ROOT, 'docs/schemas/ai-song.schema.json');
-const NOTE_PATTERN = '^[A-G][#b]?[0-8]$'; // isValidNote() in AISongImporter.ts
 
 type Json = Record<string, unknown>;
 
@@ -115,7 +115,7 @@ function refine(defs: Json): void {
   // notes
   const note = sub(defs, 'AINoteEvent', 'properties');
   Object.assign(sub(note, 'step'), { type: 'integer', minimum: 0, maximum: 63 });
-  sub(note, 'note').pattern = NOTE_PATTERN;
+  sub(note, 'note').pattern = NOTE_NAME_SOURCE; // isValidNote() in AISongImporter.ts
   Object.assign(sub(note, 'velocity'), { minimum: 0, maximum: 1 });
   Object.assign(sub(note, 'length'), { minimum: 1 });
 

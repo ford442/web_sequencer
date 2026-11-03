@@ -48,6 +48,7 @@ import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
+import { broadcastPcfTransport } from '../audio/pcf/pcfInsert';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
 import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
 import { Open303Manager } from '../engines/Open303Manager';
@@ -468,6 +469,17 @@ export function useAppState() {
         session.sessionClockRef.current.tempo = tempo;
     }, [tempo, session.sessionClockRef]);
     useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
+
+    // Master PCF pattern: restart on play, freeze on stop, follow the tempo.
+    const pcfEffect = audioEngine?.pcfEffect ?? null;
+    const pcfPlayingRef = useRef(false);
+    useEffect(() => {
+        if (!pcfEffect) return;
+        const started = schedPlaying && !pcfPlayingRef.current;
+        pcfPlayingRef.current = schedPlaying;
+        // Placed PCF nodes step with the master.
+        broadcastPcfTransport(pcfEffect, schedPlaying, tempo, started ? 0 : undefined);
+    }, [schedPlaying, tempo, pcfEffect]);
 
     useEffect(() => {
         if (!schedPlaying) {
@@ -902,6 +914,8 @@ export function useAppState() {
         isExportingSmf,
         patternRef,
         songStructureRef,
+        // Per-slot 303 knobs (`trackParamStorage`) and other .rbs / AI song extras; the agent hook reads and writes them.
+        rbsArrangementExtrasRef,
         isSongModeActiveRef,
         currentScaleRef,
         trackStorageRef,

@@ -5,10 +5,13 @@
 // own frame — the same clock the 303 and Prophecy voices use (#1344 P4).
 // Each trigger carries its hit's pan; the kit renders planar stereo.
 // Live hits arrive as control-plane records (#1497) from DrumKitEngine's
-// EventBus route; the 'trigger' message stays for tools and tests.
+// EventBus route: batched messages until the kit is ready, then — on the
+// pthread build — straight into the voice's own native ring, which the ready
+// message offers (P2). The 'trigger' message stays for tools and tests.
 
 import { DRUMKIT_REQUIRED_WASM_EXPORTS, formatMissingWasmExports, hasDrumkitApi } from './hyphonNativeImports';
 import { DrumkitEvent, VoiceEvent } from '../shared/rt/hyphonNativeExports';
+import type { RingTransport } from '../shared/rt/eventTransport';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
 
 /** Fields the port messages carry; each message type reads a few of them. */
@@ -37,7 +40,12 @@ interface DrumkitInitData {
 class DrumkitProcessor extends NativeVoiceProcessor {
     private voice: NativeVoiceRef | null = null;
     private initializing = false;
-    private readonly readyMessage: { type: 'ready'; heap: unknown } = { type: 'ready', heap: undefined };
+    /** `events`: the voice's native ring, for the main thread to write in place. */
+    private readonly readyMessage: { type: 'ready'; heap: unknown; events: RingTransport | undefined } = {
+        type: 'ready',
+        heap: undefined,
+        events: undefined,
+    };
     private readonly errorMessage = { type: 'error' as const, error: '' };
 
     constructor() {
@@ -132,6 +140,7 @@ class DrumkitProcessor extends NativeVoiceProcessor {
 
             this.voice = { prefix: 'drumkit', handle };
             this.readyMessage.heap = native.stats;
+            this.readyMessage.events = this.voiceRingTransport(this.voice) ?? undefined;
             this.port.postMessage(this.readyMessage);
         } catch (e: unknown) {
             if (handle) this.x.drumkit_destroy(handle);

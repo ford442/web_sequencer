@@ -15,12 +15,12 @@ and still renders bit-identical to the pre-port wrappers.
 | Piece | What it replaces |
 |-------|------------------|
 | `Event` (32 bytes: `int64` frame, type, target, value, 4 float args) | per-engine `note_on` / `set_param` / `trigger` calls with no time |
-| `EventRing<N>` — SPSC, preallocated, refuses when full | the worklet calling engine exports the moment a message lands |
+| `EventRing<N>` — SPSC, preallocated, refuses when full; the layout JS writes in place (#1497) | the worklet calling engine exports the moment a message lands |
 | `EventSchedule<N>` — frame-sorted, stable | `ParameterQueue` / `DrumTriggerQueue` in TS |
 | `renderSplit` | rendering the whole block, then applying events at the next block |
 | `BlockBuffer` — one 16-byte-aligned buffer, sized at init | four `malloc`'d `outBuf`s that grow inside `*_process` |
 | `VoiceSlots<T, N>` — handle = slot index + generation | `std::unordered_map<uintptr_t, std::unique_ptr<T>>::find` per call |
-| `NativeVoice<Engine>` | everything one handle owns: engine + ring + schedule + buffer + stats |
+| `NativeVoice<Engine>` | everything one handle owns: engine + its ring + the main thread's inbox ring + schedule + buffer + stats |
 | `MonoNoteEngine<Engine>` | the TS rate limiter / stuck-note / portamento-fix logic in open303-processor |
 | `Smoothed` | nothing — no native parameter smoothing existed |
 | `flushDenormal` | nothing — no denormal policy existed |
@@ -87,8 +87,9 @@ generic C API:
 | `myengine_render(h, blockStartFrame, frames)` → `float*` / 0 | sample-accurate |
 | `myengine_cancel_notes(h)` | stop / mute |
 | `myengine_flush(h)` | apply everything pending now (a voice that stops rendering) |
+| `myengine_event_inbox(h)` → `uintptr_t` / 0 | the voice's inbox ring, for the main thread to write in place ([control plane](#control-plane)) |
 
-List those seven names in `emscripten/wasm_export_manifest.json` — `build.sh`
+List those eight names in `emscripten/wasm_export_manifest.json` — `build.sh`
 exports exactly what the manifest declares, and
 `src/__tests__/wasmExportManifest.voices.test.ts` fails if one is missing.
 
@@ -177,21 +178,24 @@ Issue #1497. The main thread drives the voices with frame-stamped records
 instead of a port message per note, param or trigger. Every producer writes the
 same 32-byte `hyphon::Event`, the layout the C++ ring already consumes.
 
-**Status (P1).** The schema, the generator, the transport and the bus are in.
-Drum triggers are the first producer on them. The other voices, automation,
-mutes, MIDI input and telemetry move over in P2–P5.
+**Status (P2).** The schema, the generator, the transport and the bus are in
+(P1). Since P2 the ring layout is shared with C++ too, so on the pthread build
+the main thread writes a voice's own native ring in place. Drum hits, Prophecy
+notes and params, and 303 notes and params go over the bus, and each one's
+transport stop is a record. Automation, mutes, MIDI input and telemetry move
+over in P3–P5.
 
 ### One schema, two languages
 
 `emscripten/core/event_schema.json` defines the record fields (laid out at
 natural alignment, 32 bytes), the type ids, the named arg slots, the special
-targets and the `NOTE_EXPRESSION` dimensions. `tools/gen_hyphon_native_types.mjs`
-(`pnpm run gen:native-types`) generates:
+targets, the `NOTE_EXPRESSION` dimensions and the event ring's header.
+`tools/gen_hyphon_native_types.mjs` (`pnpm run gen:native-types`) generates:
 
 | File | What it holds |
 |---|---|
-| `emscripten/core/event_layout.h` | `hyphon::Event`, `EventType`, `ExpressionDimension`, `kTargetAll`, `k<Type>Arg<Name>`, `isNoteEventType`, and `static_assert`s on the size and every offset. `voice.h` includes it. |
-| `src/shared/rt/eventLayout.ts` | `EVENT_BYTES`, `EventOffset`, `EventType`, `EventArg`, `EventTargetId`, `ExpressionDimension`, `isNoteEventType`, `EventWriter` / `EventReader` (typed-array stores), and `EventField` / `createEventFields()`, the Float64Array form of a record (`writeFrom` / `readInto`). |
+| `emscripten/core/event_layout.h` | `hyphon::Event`, `EventType`, `ExpressionDimension`, `kTargetAll`, `k<Type>Arg<Name>`, `isNoteEventType`, `EventRingHeader`, `kEventRingHeaderBytes`, `kEventRingMagic`, and `static_assert`s on the size and every offset of the record and of the ring header. `voice.h` includes it. |
+| `src/shared/rt/eventLayout.ts` | `EVENT_BYTES`, `EventOffset`, `EventType`, `EventArg`, `EventTargetId`, `ExpressionDimension`, `isNoteEventType`, `EVENT_RING_HEADER_BYTES`, `EVENT_RING_MAGIC`, `EventRingWord` (the header's int32 indices), `EventWriter` / `EventReader` (typed-array stores), and `EventField` / `createEventFields()`, the Float64Array form of a record (`writeFrom` / `readInto`). |
 | `src/shared/rt/hyphonNativeExports.ts` | still the export surface. `VoiceEvent` is now `EventType` re-exported. |
 
 `pnpm run check:native-types` (part of `pnpm lint`) and `pnpm run check:exports`
@@ -209,28 +213,44 @@ format: add new ones, never renumber.
 | `PARAM_RAMP` | 6 | param id | end value | `frames` |
 | `MUTE` | 7 | pad / voice, or `kTargetAll` | 1 mute, 0 unmute | |
 | `NOTE_EXPRESSION` | 8 | note id (the NOTE_ON's MIDI note) | dimension's value | `dimension` |
+| `CANCEL_NOTES` | 9 | | | |
 
 Types 6–8 are defined but no engine handles them yet (P3, P4); an engine's
 `apply` ignores a type it does not know. Engine-private types start at
 `kEngine` (0x100), as before.
 
+`CANCEL_NOTES` is a transport stop. It is not scheduled and has no frame:
+`EventSchedule::absorb` acts on it when it takes the record from a ring. There
+it drops every `NOTE_ON`, `NOTE_OFF` and `TRIGGER` taken before it, whether
+already scheduled or earlier in the same ring. Records after it are kept, and
+params still land. A stop is therefore ordered with the notes around it,
+whatever transport carried them. A stop and a restart in one task keep the
+restart's notes, which a stop sent as a port message could not guarantee: on
+a ring, the restart's notes can be visible before the message is handled.
+
 ### Transport
 
 ```
 producer ─► EventBus route ─► EngineEventSink
-                                ├─ RingEventSink    SAB event ring ───────────────► EventInbox.pop
+                                ├─ RingEventSink    a voice's ring in hyphon_native memory ─────► the C++ voice (absorb)
+                                ├─ RingEventSink    SAB event ring of its own ─────────────────► EventInbox.pop
                                 └─ MessageEventSink one batch per tick ─► receive ─► local ring ─► pop
 ```
 
-- **`src/shared/rt/eventRing.ts`**: an SPSC ring of records in a
-  SharedArrayBuffer (a 128-byte header, then power-of-two slots). A full ring
-  refuses the newest record and counts it in `dropped`. It never overwrites an
-  unread one, which is `hyphon::EventRing`'s policy too. It also tracks a
-  high-water mark.
+- **`src/shared/rt/eventRing.ts`**: an SPSC ring of records (a 128-byte
+  header, then power-of-two slots) at any 8-aligned `byteOffset` of a buffer:
+  a SharedArrayBuffer of its own (`createEventRing`), or `hyphon::EventRing`
+  inside wasm memory. `formatEventRing` lays one out the way the C++
+  constructor does; `isEventRing(buffer, byteOffset)` checks the magic, the
+  schema version and that the ring fits. A full ring refuses the newest record
+  and counts it in `dropped`. It never overwrites an unread one, which is
+  `hyphon::EventRing`'s policy too. It also tracks a high-water mark.
 - **`src/shared/rt/eventTransport.ts`**: `EngineEventSink` (`push`, `flush`,
   `transport`), its two implementations, and the worklet's `EventInbox`.
-  - `RingEventSink` is used where the pthread profile is on
-    (`artifact.sharedMemory`: crossOriginIsolated, not WebKit).
+  - `RingEventSink(capacity)` makes a ring of its own, used where the pthread
+    profile is on (`artifact.sharedMemory`: crossOriginIsolated, not WebKit).
+  - `RingEventSink(ringTransport)` writes an existing ring in place: a
+    `{ kind: 'ring', buffer, byteOffset }` that `parseRingTransport` accepted.
   - `MessageEventSink` stages records and posts one transferred buffer per
     `flush()`. A full stage flushes early instead of dropping.
   - The inbox drains both kinds the same way. Batches land in a local ring with
@@ -238,20 +258,72 @@ producer ─► EventBus route ─► EngineEventSink
 - **`src/audio/controlPlane/EventBus.ts`**: the main-thread hub. It owns each
   route's one writer. Message routes flush in a microtask after the first push
   of a task. A producer whose next port message must arrive after its records
-  (a transport stop) calls `flush(route)` first. A hot producer fills
-  `bus.stage` (a Float64Array at `EventField` indices) and calls
-  `commit(route)` instead of `push(…)`.
+  calls `flush(route)` first. `rebind(route, sink)` moves a route onto another
+  sink and flushes the old one first. A hot producer fills `bus.stage` (a
+  Float64Array at `EventField` indices) and calls `commit(route)` instead of
+  `push(…)`.
+- **`src/audio/controlPlane/VoiceEventRoute.ts`**: one voice worklet's route
+  and the records an engine façade sends: `noteOn`, `noteOff`, `param` (each on
+  the frame of an optional audioTime), `stop(release)` (`CANCEL_NOTES`, then
+  `ALL_NOTES_OFF` on the next block), and `stage` / `commit` for a record of the
+  façade's own. `open(port, { voiceRing })` returns the transport for the init
+  message; `adopt(offer)` takes the voice's ring from the ready message.
 - **`src/shared/rt/audioClock.ts`**: `frameAtTime(audioTime, sampleRate)`, the
   one conversion. It is `Math.round(t * rate)`, with missing or past times
   mapped to frame 0 (the next block). It matches `hyphon::frameAt` and
   `NativeVoiceProcessor.frameAt`.
 
-`NativeVoiceProcessor` gains `attachEventInbox(transport)` (called at init,
-before the first await), `receiveEvents(data)` (first in `onmessage`) and
-`drainEvents(voice)`. `drainEvents` moves the inbox into the voice's native
-ring, at block start and before a cancel, so a stop also drops what the bus had
-queued. It decodes with `popInto` and passes the fields straight to
-`*_push_event`. P2 replaces that copy with a ring inside `hyphon_native` memory.
+`NativeVoiceProcessor` has `attachEventInbox(transport)` (called at init,
+before the first await), `receiveEvents(data)` (first in `onmessage`),
+`drainEvents(voice)`, `nextEvent(out)` and `voiceRingTransport(voice)`.
+`drainEvents` moves the inbox into the voice's native ring, at block start and
+before a cancel. It decodes with `popInto` and passes the fields straight to
+`*_push_event`. `nextEvent` pops one record for a processor that routes records
+itself.
+
+### A voice's ring, written in place (P2)
+
+`hyphon::EventRing` is laid out as `EventRingHeader`, then the records: the
+bytes `eventRing.ts` reads and writes. `NativeVoice` holds two rings, each with
+one producer:
+
+- `ring`, fed by `push()` / `prefix_push_event`: the thread that renders.
+- `inbox`, fed in place from another thread: the main thread's route.
+
+`process`, `cancelPendingNotes` and `flush` take both through
+`absorbPending()`, the inbox first: of the events taken in one pass, an inbox
+event on a frame applies before one from the voice's own ring. `prefix_event_inbox(h)` returns the
+inbox's address. Slots live in static storage, so the address holds for the
+handle's life.
+
+The handshake, for a voice with one native voice per worklet (drums,
+Prophecy):
+
+1. The façade opens its route on batched messages (`voiceRing: true`) and
+   sends that transport in `init-wasm`, so a record sent before the voice
+   exists still arrives. The worklet drains it with `drainEvents`.
+2. Once the voice exists, the worklet puts `voiceRingTransport(voice)` in its
+   `ready` message as `events`: the session memory's SharedArrayBuffer and the
+   inbox's address. It does this only where the memory is shared (the
+   pthread build) and the C++ header checks out with `isEventRing`. A plain
+   ArrayBuffer is never posted: the port would copy the whole heap.
+3. The façade calls `adopt(events)`. The route rebinds to a `RingEventSink` on
+   that ring, flushing what was still batched. From then on every record is
+   written into the C++ ring. The voice takes it at block start, and nothing
+   copies or posts it.
+
+The main thread then keeps a view of the shared memory. Growth does not move
+the static ring, and a SharedArrayBuffer is never detached. Close the route
+(`VoiceEventRoute.close`) before posting `dispose`, so no writer outlives the
+ring: the slot is reused by the next voice. Both façades do this.
+
+The single-threaded build offers nothing, and its routes stay on batched
+messages. A pthread build that predates `prefix_event_inbox` offers nothing
+either.
+
+Memory: one more `EventRing` per voice slot. That is 72 slots of 4.2 KB
+(drum kit) or 8.3 KB, about 0.57 MB of zero-initialised static data inside the
+initial memory of either profile (`wasm_memory_budget.json`).
 
 ### Allocation
 
@@ -264,9 +336,9 @@ because of how V8 handles doubles:
 
 So `push(route, frame, type, target, 0.37)` and `pop(record)` can allocate per
 record. `stage` + `commit(route)` and `popInto(Float64Array)` keep every value
-in typed arrays and never box one. Use them on hot paths: `DrumKitEngine` and
-`NativeVoiceProcessor` do. `push` and `pop` are fine for integer records, tools
-and tests.
+in typed arrays and never box one. Use them on hot paths: `DrumKitEngine`,
+`VoiceEventRoute` and `NativeVoiceProcessor` do. `push` and `pop` are fine for
+integer records, tools and tests.
 
 `src/audio/controlPlane/__tests__/eventBus.perf.test.ts` measures this in a
 child `node --expose-gc` on a Vite build of its probe, because vitest's module
@@ -282,23 +354,53 @@ records with computed doubles, the heap grew by:
 The postMessage fallback allocates one transferred buffer per flush (per tick)
 by design.
 
-### Drums on the bus
+### Voices on the bus
 
-`DrumKitEngine` opens a route when its worklet is created and sends
-`sink.transport` in `init-wasm`. Each hit is two records on the hit's frame: a
-`kDrumkitSetPan`, then a `kTrigger` (the trigger latches the pan). Neither is a
-port message. `cancelPending` flushes the route before it posts `allNotesOff`.
-The worklet drains the inbox, then cancels, so a hit staged for a batch cannot
-outlive the stop. The `trigger` message still works for tools and tests. It
-goes in P5.
+- **Drums** (`DrumKitEngine`, `voiceRing: true`). Each hit is two records on
+  the hit's frame: a `kDrumkitSetPan`, then a `kTrigger` (the trigger latches
+  the pan). `cancelPending` is `stop(false)`: a `CANCEL_NOTES` record, so
+  ringing hits decay.
+- **Prophecy** (`ProphecyOscillator`, `voiceRing: true`). `noteOn` / `noteOff`
+  carry their audioTime's frame. `setParam` is a `PARAM_SET` on frame 0.
+  `allNotesOff` is `stop(true)`: the part's hard reset (`kAllNotesOff` runs
+  the same `allNotesOff()` as `prophecy_all_notes_off`) on the next block.
+  `prophecy-processor` now drains its inbox at block start.
+- **303** (`Open303Oscillator`, `voiceRing: false`). A record's voice depends on
+  the engine selection, A/B and the CPU gate, which `open303-processor` owns,
+  so the route has a ring of its own (pthread) or batches (ST). The processor
+  routes it at block start (`routeEvents`) the way its message would have gone.
+  Notes and a stop's two records go to the voices being rendered, in order, so
+  the voice core drops exactly the notes before the stop. A `PARAM_SET`
+  (target = the `Open303Param` id, `OPEN303_PARAM_IDS`) goes to every 303 voice
+  the processor owns: rendered ones on its frame, idle ones at once. Engine,
+  model and A/B switches are still port messages, and nothing orders them
+  with the records. Before P2 a param reached only the active engine, and the
+  façade re-sent every param after a switch. A block that took those re-sent
+  records before the switch message landed would have left the new engine
+  stale. A note in that quantum still goes to the outgoing engine, whose
+  queued notes a switch drops anyway.
+
+The `trigger`, `noteOn`, `noteOff`, `param`, `set-param` and `allNotesOff`
+messages still work for tools and tests. They go in P5.
 
 Tests: `src/shared/rt/__tests__/` (layout bytes, int64 frames, FIFO,
-wrap-around of slots and of the uint32 counts, overflow, a real `MessagePort`),
-`src/audio/controlPlane/__tests__/EventBus.test.ts` and its perf-tier
-allocation test, the drum cases in
-`voiceProcessors.events.test.ts`, and, in `voiceTiming.realWasm.test.ts`, a
-kick through each transport that is sample-identical to the `trigger` message
-on the real wasm.
+wrap-around of slots and of the uint32 counts, overflow, a real `MessagePort`;
+rings at an offset, `formatEventRing`, `parseRingTransport`, a sink writing a
+ring in place), `src/audio/controlPlane/__tests__/` (`EventBus` including
+`rebind`, `VoiceEventRoute`, and the perf-tier allocation test), the drum and
+Prophecy cases in `voiceProcessors.events.test.ts` (both transports, the ready
+message's ring offer and when there is none), the bus cases in
+`open303Processor.noteTiming.test.ts` (routing, a param that beats an engine
+switch, records before ready), the façade tests (`DrumKitEngine`,
+`ProphecyOscillator`, `Open303Config` and the init handshake), the ring header
+checks in `wasmExportManifest.voices.test.ts`, and in `voice_core_test.cpp` a
+JS-style writer filling `EventRing`, the inbox, and `kCancelNotes`. On the real
+wasm (`voiceTiming.realWasm.test.ts`): a kick through each transport is
+sample-identical to the `trigger` message; records written into a voice's
+ring in wasm memory are sample-identical to `push_event`, and the C++ header
+passes `isEventRing`; `CANCEL_NOTES` drops a queued kick and keeps the one
+after it; and a jc303 note and a Prophecy note sent as records are
+sample-identical to their `noteOn` messages.
 
 ## Real-time rules
 

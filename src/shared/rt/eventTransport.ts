@@ -15,6 +15,12 @@
  * else the message sink batches a tick's records into one postMessage, where
  * there used to be one message per note.
  *
+ * A ring transport can also name a ring inside a bigger shared buffer
+ * (`byteOffset`): a voice's own native ring in hyphon_native's memory, which
+ * its worklet offers once the voice exists (#1497 P2). A RingEventSink on it
+ * writes the voice's ring in place and nothing on the worklet side copies the
+ * records: the C++ voice takes them at block start.
+ *
  * Send `sink.transport` to the worklet once, with the engine's init message,
  * and build the worklet's inbox from it with createEventInbox.
  *
@@ -33,10 +39,19 @@ import {
 /** `type` of the fallback's batch message. */
 export const EVENT_BATCH_MESSAGE = 'hyphon-rt-events';
 
+/**
+ * A ring in shared memory: a SharedArrayBuffer of its own, or a voice's ring
+ * at `byteOffset` of hyphon_native's shared memory (#1497 P2).
+ */
+export interface RingTransport {
+  kind: 'ring';
+  buffer: SharedArrayBuffer;
+  /** Where the ring's header starts in `buffer`; 0 when omitted. */
+  byteOffset?: number;
+}
+
 /** How a worklet receives an engine's records. Structured-cloneable. */
-export type EventTransport =
-  | { kind: 'ring'; buffer: SharedArrayBuffer }
-  | { kind: 'message'; capacity: number };
+export type EventTransport = RingTransport | { kind: 'message'; capacity: number };
 
 /** One flush of the postMessage fallback: `count` records, packed. */
 export interface EventBatchMessage {
@@ -75,17 +90,29 @@ export interface EngineEventSink {
   readonly needsFlush: boolean;
 }
 
-/** Records go straight into a SharedArrayBuffer ring; nothing is posted. */
+/**
+ * Records go straight into a SharedArrayBuffer ring; nothing is posted. Given
+ * a capacity, the sink makes a ring of its own. Given a RingTransport, it
+ * writes that ring in place: a voice's native ring that its worklet offered
+ * (parseRingTransport). The sink is then that ring's one producer.
+ */
 export class RingEventSink implements EngineEventSink {
-  readonly transport: EventTransport;
+  readonly transport: RingTransport;
   readonly needsFlush = false;
   private readonly ring: EventRingWriter;
 
-  constructor(capacity: number = EVENT_RING_DEFAULT_CAPACITY) {
-    const buffer = createEventRing(capacity, true) as SharedArrayBuffer;
-    this.ring = new EventRingWriter(buffer);
-    this.transport = { kind: 'ring', buffer };
+  constructor(ring: number | RingTransport = EVENT_RING_DEFAULT_CAPACITY) {
+    if (typeof ring === 'number') {
+      const buffer = createEventRing(ring, true) as SharedArrayBuffer;
+      this.ring = new EventRingWriter(buffer);
+      this.transport = { kind: 'ring', buffer };
+    } else {
+      const byteOffset = ring.byteOffset ?? 0;
+      this.ring = new EventRingWriter(ring.buffer, byteOffset);
+      this.transport = { kind: 'ring', buffer: ring.buffer, byteOffset };
+    }
   }
+
 
   push(frame: number, type: number, target: number, value: number, a0 = 0, a1 = 0, a2 = 0, a3 = 0): boolean {
     return this.ring.push(frame, type, target, value, a0, a1, a2, a3);
@@ -197,7 +224,7 @@ export class EventInbox {
   constructor(transport: EventTransport) {
     this.kind = transport.kind;
     if (transport.kind === 'ring') {
-      this.reader = new EventRingReader(transport.buffer);
+      this.reader = new EventRingReader(transport.buffer, transport.byteOffset ?? 0);
       this.local = null;
     } else {
       // The worklet drains every block, so a batch's capacity is plenty.
@@ -249,16 +276,30 @@ export class EventInbox {
 }
 
 /**
+ * A ring descriptor that arrived in a port message, checked: a
+ * SharedArrayBuffer holding a ring of this schema version at its byteOffset.
+ * Null for anything else: no descriptor, a plain ArrayBuffer (which a port
+ * would have copied, not shared) or a stale layout.
+ */
+export function parseRingTransport(transport: unknown): RingTransport | null {
+  if (typeof transport !== 'object' || transport === null) return null;
+  const t = transport as { kind?: unknown; buffer?: unknown; byteOffset?: unknown };
+  if (t.kind !== 'ring') return null;
+  if (typeof SharedArrayBuffer === 'undefined' || !(t.buffer instanceof SharedArrayBuffer)) return null;
+  const byteOffset = t.byteOffset === undefined ? 0 : t.byteOffset;
+  if (typeof byteOffset !== 'number' || !isEventRing(t.buffer, byteOffset)) return null;
+  return { kind: 'ring', buffer: t.buffer, byteOffset };
+}
+
+/**
  * An inbox for a transport descriptor that arrived in a port message, or null
  * when `transport` is not one (an old main thread, or no control plane).
  */
 export function createEventInbox(transport: unknown): EventInbox | null {
+  const ring = parseRingTransport(transport);
+  if (ring) return new EventInbox(ring);
   if (typeof transport !== 'object' || transport === null) return null;
-  const t = transport as { kind?: unknown; buffer?: unknown; capacity?: unknown };
-  const shared = typeof SharedArrayBuffer !== 'undefined' && t.buffer instanceof SharedArrayBuffer;
-  if (t.kind === 'ring' && shared && isEventRing(t.buffer)) {
-    return new EventInbox({ kind: 'ring', buffer: t.buffer as SharedArrayBuffer });
-  }
+  const t = transport as { kind?: unknown; capacity?: unknown };
   if (t.kind === 'message' && typeof t.capacity === 'number' && Number.isInteger(t.capacity) && t.capacity >= 1) {
     return new EventInbox({ kind: 'message', capacity: Math.min(t.capacity, 1 << 16) });
   }

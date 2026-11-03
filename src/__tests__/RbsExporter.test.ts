@@ -125,6 +125,53 @@ describe('RbsExporter', () => {
     }
   });
 
+  it('writes a step whose name is not a note as a rest and says it was left out', async () => {
+    const parser = new RbsParser();
+    const sourceParsed = await parser.parseBytes(buildSyntheticIffFile({ includeDevl: true, playMode: 0, trakEvents: [], tempo: 128_000 }));
+    expect(sourceParsed.success).toBe(true);
+    if (!sourceParsed.success) return;
+    const imported = new RbsImporter({ expandTo32Steps: false, tb303BTarget: 'partB' }).convertToHyphonSong(sourceParsed.data);
+    expect(imported.success).toBe(true);
+
+    const steps = Array.from({ length: 16 }, (): { note: string; velocity: number } | null => null);
+    steps[0] = { note: 'Eb3', velocity: 1 };   // a flat: a real note (D#3)
+    steps[1] = { note: 'D#3', velocity: 1 };   // the same pitch, spelled with a sharp
+    steps[2] = { note: 'Hb4', velocity: 1 };   // not a note
+    steps[3] = { note: 'Hb4', velocity: 1 };
+    steps[4] = { note: 'A9', velocity: 1 };    // spelled fine, above G9
+    steps[5] = { note: '', velocity: 1 };      // no note: a rest, not a mistake
+    // steps[6] stays null: the sequencer's own rest
+    const song = { ...imported.song, pattern: { ...imported.song.pattern, partA: { steps } } };
+
+    const { bytes, warnings } = new RbsExporter({ tb303ASource: 'partA', collapse32Steps: false }).exportToBytes(song);
+    const written = extract303PatternsFromDevl(bytes)[0];
+
+    // Eb3 and D#3 are one pitch: same note and octave, and neither is a rest.
+    expect(written[0].note).toBe(written[1].note);
+    expect(written[0].octave).toBe(written[1].octave);
+    expect(written[0].note).toBe(3);
+    expect(written[0].octave).toBe(3);
+    // The bad names are written exactly as the sequencer's empty step is.
+    for (const bad of [2, 3, 4, 5]) expect(written[bad].note, `step ${bad}`).toBe(written[6].note);
+    expect(written[6].note).not.toBe(written[0].note);
+
+    // 3 left out (Hb4 x2, A9); the blank step is a rest, so it is not counted.
+    expect(warnings.filter((w) => w.includes('not a note'))).toEqual([
+      '3 notes were left out because the name is not a note ("Hb4" ×2, "A9").',
+    ]);
+  });
+
+  it('says nothing about notes when every name parses', async () => {
+    const parser = new RbsParser();
+    const sourceParsed = await parser.parseBytes(buildSyntheticIffFile({ includeDevl: true, playMode: 0, trakEvents: [], tempo: 128_000 }));
+    expect(sourceParsed.success).toBe(true);
+    if (!sourceParsed.success) return;
+    const imported = new RbsImporter({ expandTo32Steps: false, tb303BTarget: 'partB' }).convertToHyphonSong(sourceParsed.data);
+    expect(imported.success).toBe(true);
+    const { warnings } = new RbsExporter({ tb303BSource: 'partB', collapse32Steps: true }).exportToBytes(imported.song);
+    expect(warnings.filter((w) => w.includes('not a note'))).toEqual([]);
+  });
+
   it('re-imports exported file without parser errors', async () => {
     const parser = new RbsParser();
     const importer = new RbsImporter();

@@ -38,9 +38,15 @@ import { NUM_STEPS } from '../constants';
 import type { UnifiedAutomationLane } from '../types';
 import { automationStore } from '../stores/automationStore';
 import {
+    PCF_DRY_MASTER_SKIP_REASON,
+    PCF_UNAVAILABLE_SKIP_REASON,
+    resolveMasterPcfTimeline,
     resolveSynthLaneAutomation,
+    withMasterPcfNotRendered,
     type OfflineAutomationReport,
 } from '../audio/offline/offlineLaneAutomation';
+import { getMasterPcf } from '../audio/pcf/masterPcf';
+import type { PcfSettings } from '../importers/rbs/types';
 import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
 import {
     createMixBus,
@@ -207,6 +213,11 @@ export interface StemExportInput {
      * lanes — none while automation playback is off, as live.
      */
     automationLanes?: readonly UnifiedAutomationLane[];
+    /**
+     * Pattern PCF for the live-patch master bounce. Defaults to the live master
+     * PCF's state (an imported song's `pcfFilter`); `null` for none.
+     */
+    pcfSettings?: PcfSettings | null;
 }
 
 export type StemId =
@@ -374,19 +385,22 @@ export async function renderStemFiles(
     // over the song lanes on the steps their clips cover.
     const automationLanes = input.automationLanes
         ?? (automationStore.getState().playbackEnabled ? automationStore.exportLanes() : []);
+    const laneTimeline = {
+        totalSteps: timeline.totalSteps,
+        stepCount: input.stepCount ?? NUM_STEPS,
+        songMode: useSongMode,
+        arrangement: useSongMode ? input.arrangement : undefined,
+    };
     const automation = resolveSynthLaneAutomation(
         automationLanes,
-        {
-            totalSteps: timeline.totalSteps,
-            stepCount: input.stepCount ?? NUM_STEPS,
-            songMode: useSongMode,
-            arrangement: useSongMode ? input.arrangement : undefined,
-        },
+        laneTimeline,
         [
             { target: 'synthA', waveform: input.params.synthA.waveform ?? '' },
             { target: 'synthB', waveform: input.params.synthB.waveform ?? '' },
             { target: 'bass2', waveform: input.params.bass2.waveform ?? '' },
         ],
+        // Master PCF lanes play in the master stem's live-patch bounce only.
+        { masterPcf: masterChain === 'live-patch' },
     );
 
     const stems = new Map<StemId, AudioBuffer>();
@@ -535,13 +549,29 @@ export async function renderStemFiles(
         const drySum = stems.get('master');
         try {
             if (!drySum) throw new Error('no master stem to bounce');
+            const pcfSettings = input.pcfSettings !== undefined
+                ? input.pcfSettings
+                : (getMasterPcf()?.settings ?? null);
             const bounced = await bounceBuffersThroughOfflineGraph({
                 buffers: [drySum],
                 durationSeconds: targetLength / sampleRate,
                 sampleRate,
                 sampleRatePref,
                 liveSampleRate: options.liveSampleRate ?? null,
+                masterPcf: {
+                    // Steps on the same clock the render length is cut from.
+                    timeline: resolveMasterPcfTimeline(
+                        automationLanes,
+                        laneTimeline,
+                        timelineDurationSeconds(timeline.totalSteps, input.tempo) / Math.max(1, timeline.totalSteps),
+                    ),
+                    settings: pcfSettings,
+                    tempo: input.tempo,
+                },
             });
+            if (bounced.report.masterPcf !== 'rendered') {
+                automation.report = withMasterPcfNotRendered(automation.report, PCF_UNAVAILABLE_SKIP_REASON);
+            }
             stems.set('master', alignBufferLength(bounced.buffer, targetLength, sampleRate));
             offlineGraph = bounced.report;
             routing = 'live-patch';
@@ -551,6 +581,7 @@ export async function renderStemFiles(
         } catch (error) {
             if (signal?.aborted) throw error;
             routing = 'dry-exclusive-fallback';
+            automation.report = withMasterPcfNotRendered(automation.report, PCF_DRY_MASTER_SKIP_REASON);
             routingNote =
                 'Live-patch master bounce failed, so the master stem is the dry sum: '
                 + (error instanceof Error ? error.message : String(error));

@@ -4,32 +4,31 @@
 // engine, or the live diode-ladder high-fid voice — and, for live A/B, stock
 // open303 and high-fid side by side.
 //
-// Notes and params are voice-core events (#1344 P4): each message becomes an
-// event on the frame of its audioTime, pushed into the native ring of every
-// voice being rendered, and the engine applies it on that exact sample. The
-// mono-synth rules this worklet used to enforce in TypeScript — retrigger
-// instead of slide, ignore a stale noteOff, release a stuck note after 8 s —
-// run natively on the event frame (hyphon::MonoNoteEngine).
+// Notes and params are voice-core events (#1344 P4): each becomes an event
+// on its frame, pushed into the native ring of every voice being rendered,
+// and the engine applies it on that exact sample. The mono-synth rules this
+// worklet used to enforce in TypeScript — retrigger instead of slide, ignore a
+// stale noteOff, release a stuck note after 8 s — run natively on the event
+// frame (hyphon::MonoNoteEngine).
+//
+// They arrive as control-plane records (#1497 P2) from Open303Oscillator's
+// EventBus route — a SharedArrayBuffer ring on the pthread build, batched
+// messages elsewhere — drained at block start and routed here, because the
+// voice a record goes to depends on the engine selection this worklet owns.
+// The noteOn / noteOff / param / allNotesOff messages stay for tools and tests.
 
+import { EventField, createEventFields } from '../shared/rt/eventLayout';
 import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef, type NativeVoicePrefix } from './nativeVoiceProcessor';
 import { Open303EngineSession } from './open303/engineSession';
 import { Open303EngineSelection } from './open303/engineSelection';
-import { getTime, type EngineFamily } from './open303/shared';
+import { OPEN303_PARAM_IDS, getTime, type RequestedEngineFamily } from './open303/shared';
 
-// Map from jc303_set* message name → Open303Param id. The message protocol
-// predates the native API; every engine shares these ids.
-const JC303_PARAM_MAP: Record<string, number> = {
-    jc303_setWaveform:   0,  // OPEN303_WAVEFORM
-    jc303_setTuning:     1,  // OPEN303_TUNING
-    jc303_setCutoff:     2,  // OPEN303_CUTOFF
-    jc303_setResonance:  3,  // OPEN303_RESONANCE
-    jc303_setEnvMod:     4,  // OPEN303_ENV_MOD
-    jc303_setDecay:      5,  // OPEN303_DECAY
-    jc303_setAccent:     6,  // OPEN303_ACCENT
-    jc303_setVolume:     7,  // OPEN303_VOLUME
-    jc303_setFilterMode: 8,  // OPEN303_FILTER_MODE
-};
+// jc303_set* message name → Open303Param id. The message protocol predates
+// the native API; every engine shares these ids.
+const JC303_PARAM_MAP: Record<string, number> = Object.fromEntries(
+    Object.entries(OPEN303_PARAM_IDS).map(([setter, id]) => [`jc303_${setter}`, id]),
+);
 
 /** Payloads of the L2/L3 configuration messages. */
 interface LiveHighFidMessageData {
@@ -45,9 +44,11 @@ interface Open303MessageData extends LiveHighFidMessageData {
     func?: string;
     value?: number;
     audioTime?: number;
-    engine?: EngineFamily;
+    engine?: RequestedEngineFamily;
     model?: string;
     oversample?: number;
+    /** init-wasm: EngineEventSink.transport of the main thread's EventBus route. */
+    events?: unknown;
 }
 
 class Open303Processor extends NativeVoiceProcessor {
@@ -63,6 +64,8 @@ class Open303Processor extends NativeVoiceProcessor {
     /** Voices rendered this block / param targets (reused, no per-message allocation). */
     private readonly rendered: NativeVoiceRef[] = [];
     private readonly paramTargets: NativeVoiceRef[] = [];
+    /** One bus record being routed (EventField order): typed storage, no allocation. */
+    private readonly record = createEventFields();
 
     constructor() {
         super('open303', '[Open303]');
@@ -70,9 +73,12 @@ class Open303Processor extends NativeVoiceProcessor {
     }
 
     private async handleMessage(event: MessageEvent) {
+        if (this.receiveEvents(event.data)) return;
         const { type, data } = event.data as { type: string; data?: Open303MessageData };
 
         if (type === 'init-wasm') {
+            // Before the first await: a batch that follows init-wasm must find it.
+            this.attachEventInbox(data?.events);
             await this.session.initialize(data, () => {
                 const native = this.session.nativeSession;
                 if (native) this.adoptSession(native, this.session.sampleRateHz);
@@ -120,7 +126,8 @@ class Open303Processor extends NativeVoiceProcessor {
         } else if (type === 'allNotesOff') {
             this.releaseAllNotes();
         } else if (type === 'set-engine' && data?.engine !== undefined) {
-            this.engineSelection.setEngine(data.engine);
+            // set-engine predates the voices registry: only render families.
+            if (data.engine !== 'openrb338') this.engineSelection.setEngine(data.engine);
         } else if (type === 'set-303-model' && data?.model !== undefined) {
             this.engineSelection.setModel(data.model, data.engine, data.oversample);
         } else if (type === 'param' && data?.func !== undefined && data.value !== undefined) {
@@ -174,34 +181,59 @@ class Open303Processor extends NativeVoiceProcessor {
         for (const voice of this.renderedVoices()) this.pushEvent(voice, frame, type, note, velocity);
     }
 
-    /**
-     * Params reach the high-fid voice whenever it exists, and jc303 when it is
-     * the engine or open303 otherwise — so a CPU-gate step-down or an engine
-     * switch lands on a voice already in sync. Voices being rendered get the
-     * param on its frame; idle ones get it now (they are not sounding).
-     */
     private handleParam(func: string, value: number, audioTime: number | undefined): void {
         const paramId = JC303_PARAM_MAP[func];
-        if (paramId === undefined || !this.session.isNativeApi) return;
+        if (paramId !== undefined) this.routeParam(paramId, value, this.frameAt(audioTime));
+    }
+
+    /**
+     * A param reaches every 303 voice this processor owns: the ones being
+     * rendered on its frame, the idle ones now (they are not sounding). So an
+     * engine switch, a CPU-gate step-down or A/B lands on a voice already in
+     * sync — whatever order a switch message and the records around it arrive
+     * in (#1497 P2: records and port messages travel separately).
+     */
+    private routeParam(paramId: number, value: number, frame: number): void {
+        if (!this.session.isNativeApi) return;
 
         const targets = this.paramTargets;
         let count = 0;
         const highFid = this.engineSelection.liveHighFid;
         if (highFid?.isReady) this.updateRef(targets, count++, 'highfid303', highFid.voiceHandle);
-        if (this.engineSelection.activeEngine === 'jc303' && this.session.hasJc303MultiApi) {
-            this.updateRef(targets, count++, 'jc303', this.session.jc303Handle);
-        } else {
-            this.updateRef(targets, count++, 'open303', this.session.instanceHandle);
-        }
+        this.updateRef(targets, count++, 'open303', this.session.instanceHandle);
+        if (this.session.hasJc303MultiApi) this.updateRef(targets, count++, 'jc303', this.session.jc303Handle);
         targets.length = count;
 
-        const frame = this.frameAt(audioTime);
         const rendered = this.renderedVoices();
-        for (const target of targets) {
-            if (rendered.some((v) => v.prefix === target.prefix)) {
-                this.pushEvent(target, frame, VoiceEvent.Param, paramId, value);
-            } else {
-                this.setParamNow(target, paramId, value);
+        for (let t = 0; t < targets.length; t++) {
+            const target = targets[t];
+            let sounding = false;
+            for (let r = 0; r < rendered.length; r++) sounding ||= rendered[r].prefix === target.prefix;
+            if (sounding) this.pushEvent(target, frame, VoiceEvent.Param, paramId, value);
+            else this.setParamNow(target, paramId, value);
+        }
+    }
+
+    /**
+     * The route's records, at block start: each goes where its message would
+     * have. Notes and a stop's CANCEL_NOTES / ALL_NOTES_OFF go to the voices
+     * being rendered, in order, so the voice core drops exactly the notes
+     * queued before the stop; params go to every voice (routeParam).
+     */
+    private routeEvents(): void {
+        const f = this.record;
+        while (this.nextEvent(f)) {
+            const type = f[EventField.type];
+            if (type === VoiceEvent.Param) {
+                this.routeParam(f[EventField.target], f[EventField.value], f[EventField.frame]);
+            } else if (
+                type === VoiceEvent.NoteOn || type === VoiceEvent.NoteOff ||
+                type === VoiceEvent.CancelNotes || type === VoiceEvent.AllNotesOff
+            ) {
+                const voices = this.renderedVoices();
+                for (let i = 0; i < voices.length; i++) {
+                    this.pushEvent(voices[i], f[0], type, f[2], f[3], f[4], f[5], f[6], f[7]);
+                }
             }
         }
     }
@@ -277,6 +309,7 @@ class Open303Processor extends NativeVoiceProcessor {
             if (!this.session.isReady || !this.native) {
                 NativeVoiceProcessor.silence(left, right);
             } else {
+                this.routeEvents();
                 this.renderBlock(outputs, frames, left, right);
             }
         } catch (e) {

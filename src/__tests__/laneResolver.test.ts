@@ -16,7 +16,13 @@ import {
   resolveOpen303ParamSteps,
   resolveParamAtStep,
 } from '../audio/automation/laneResolver';
-import { resolveOffline303Automation, resolveSynthLaneAutomation } from '../audio/offline/offlineLaneAutomation';
+import {
+  resolveMasterPcfTimeline,
+  resolveOffline303Automation,
+  resolveSynthLaneAutomation,
+  withMasterPcfNotRendered,
+} from '../audio/offline/offlineLaneAutomation';
+import { pcfLaneOverride, pcfMidiNormToHz } from '../audio/automation/laneResolver';
 import type { Open303Manager } from '../engines/Open303Manager';
 import type { UnifiedAutomationLane } from '../types';
 
@@ -171,7 +177,7 @@ describe('laneResolver', () => {
     expect(cutoff(31)).toBe(1);
   });
 
-  it('reports master PCF lanes as not rendered — the live chain never builds a PcfEffect', () => {
+  it('reports master PCF lanes as not rendered on a render without the master chain', () => {
     const pcf = lane({ target: 'master', parameter: 'pcfCutoff' });
     const { report } = resolveSynthLaneAutomation(
       [pcf, lane({ target: 'synthB', parameter: 'envMod' })],
@@ -180,6 +186,60 @@ describe('laneResolver', () => {
     );
     expect(report.applied).toEqual([]);
     expect(report.notRendered.map((s) => s.lane)).toEqual(['master.pcfCutoff', 'synthB.envMod']);
+    expect(report.notRendered[0].reason).toMatch(/master chain/);
+  });
+
+  it('reports master PCF lanes as applied when the render runs the master PCF', () => {
+    const pcf = lane({ target: 'master', parameter: 'pcfCutoff' });
+    const { report } = resolveSynthLaneAutomation(
+      [pcf],
+      { totalSteps: 16, stepCount: 16, songMode: false },
+      [],
+      { masterPcf: true },
+    );
+    expect(report.applied).toEqual(['master.pcfCutoff']);
+    expect(report.notRendered).toEqual([]);
+  });
+});
+
+describe('master PCF on the offline clock', () => {
+  it('converts lane values exactly as the live scheduler does', () => {
+    expect(pcfLaneOverride('pcfCutoff', 0)).toEqual({ cutoffHz: 20 });
+    expect(pcfLaneOverride('pcfCutoff', 1)!.cutoffHz).toBeCloseTo(20000);
+    expect(pcfLaneOverride('pcfResonance', 0.5)).toEqual({ resonanceMidi: 63.5 });
+    expect(pcfLaneOverride('pcfEnvAmount', 2)).toEqual({ envAmountNorm: 1 });
+    expect(pcfLaneOverride('filterCutoff', 0.5)).toBeNull();
+  });
+
+  it('times one event per step where a value changes', () => {
+    const events = resolveMasterPcfTimeline(
+      [
+        lane({ target: 'master', parameter: 'pcfCutoff', points: [{ step: 0, value: 0 }, { step: 15, value: 1 }] }),
+        lane({ id: 'r', target: 'master', parameter: 'pcfResonance', points: [{ step: 0, value: 0.5 }, { step: 15, value: 0.5 }] }),
+      ],
+      { totalSteps: 16, stepCount: 16, songMode: false },
+      0.125,
+      1,
+    );
+    expect(events).toHaveLength(16);
+    expect(events[0]).toEqual({ time: 1, cutoffHz: 20, resonanceMidi: 63.5 });
+    // Resonance holds, so later events carry the cutoff only.
+    expect(events[15]).toEqual({ time: 1 + 15 * 0.125, cutoffHz: pcfMidiNormToHz(1) });
+  });
+
+  it('is empty for a song without master PCF lanes', () => {
+    expect(resolveMasterPcfTimeline([lane({})], { totalSteps: 16, stepCount: 16, songMode: false }, 0.125)).toEqual([]);
+  });
+
+  it('moves PCF lanes to not-rendered when the bounce could not run the PCF', () => {
+    const report = withMasterPcfNotRendered(
+      { applied: ['master.pcfCutoff', 'synthA.filterCutoff'], notRendered: [] },
+      'no pcf',
+    );
+    expect(report).toEqual({
+      applied: ['synthA.filterCutoff'],
+      notRendered: [{ lane: 'master.pcfCutoff', reason: 'no pcf' }],
+    });
   });
 });
 
@@ -202,6 +262,11 @@ describe('laneDispatchGap — which lanes live playback ever plays', () => {
         expect(laneDispatchGap('synthA', 'pitch')).toBe('the scheduler has no synthA case for "pitch"');
         expect(laneDispatchGap('bass2', 'macroTimbre')).toBe('the scheduler has no bass2 case for "macroTimbre"');
         expect(laneDispatchGap('master', 'tempo')).toBe('the scheduler has no master case for "tempo"');
-        expect(laneDispatchGap('master', 'pcfCutoff')).toMatch(/PcfEffect/);
+    });
+
+    it('plays the master PCF lanes — the engine builds the masterPcf stage', () => {
+        for (const parameter of ['pcfCutoff', 'pcfResonance', 'pcfEnvAmount']) {
+            expect(laneDispatchGap('master', parameter)).toBeNull();
+        }
     });
 });

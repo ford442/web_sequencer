@@ -4,7 +4,7 @@ import { CLASSIC_ELECTRIBE_GRAPH } from '../defaultElectribeGraph';
 import { EngineVoiceSocket, findEngineVoice, listEngineVoices } from '../engineVoices';
 import { engineLayerEdges, open303StripIds, withEngineVoices } from '../engineStrips';
 import { addConnection, validateGraph } from '../graphOps';
-import { deserializeAudioGraph, serializeAudioGraph } from '../graphSerialization';
+import { deserializeAudioGraph, serializeAudioGraph, withMasterPcf } from '../graphSerialization';
 import { GRAPH_PRESETS, buildPreset } from '../presets';
 import { restorePatchFromSong } from '../patchSession';
 import { getActivePatchController, setActivePatchController } from '../patchRegistry';
@@ -110,6 +110,8 @@ function prePhaseCGraph(): AudioGraphConfig {
         nodes: CLASSIC_ELECTRIBE_GRAPH.nodes.filter((node) => kept(node.id)),
         edges: [
             ...CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => kept(e.from) && kept(e.to)),
+            // Before the master PCF stage the panner fed the limiter directly.
+            { from: 'masterPanner', to: 'masterLimiter' },
             { from: 'choirLeftPanner', to: 'masterGain' },
             { from: 'choirRightPanner', to: 'masterGain' },
             // A user send made before the upgrade must survive it.
@@ -350,6 +352,8 @@ describe('patches saved before Phase C', () => {
         const upgraded = withEngineVoices(old);
 
         for (const node of CLASSIC_ELECTRIBE_GRAPH.nodes) {
+            // The master PCF has its own upgrade (`withMasterPcf`).
+            if (node.id === 'masterPcf') continue;
             expect(upgraded.nodes.some((n) => n.id === node.id)).toBe(true);
         }
         const pairs = upgraded.edges.map((e) => `${e.from}->${e.to}`);
@@ -380,11 +384,35 @@ describe('patches saved before Phase C', () => {
         expect(withEngineVoices(CLASSIC_ELECTRIBE_GRAPH)).toBe(CLASSIC_ELECTRIBE_GRAPH);
     });
 
+    it('splices the master PCF between the panner and the limiter', () => {
+        const upgraded = withMasterPcf(prePhaseCGraph());
+        const pairs = upgraded.edges.map((e) => `${e.from}->${e.to}`);
+        expect(pairs).toContain('masterPanner->masterPcf');
+        expect(pairs).toContain('masterPcf->masterLimiter');
+        expect(pairs).not.toContain('masterPanner->masterLimiter');
+        expect(upgraded.nodes.find((n) => n.id === 'masterPcf')).toMatchObject({ factory: 'masterPcf', fixed: true });
+        expect(validateGraph(upgraded).valid).toBe(true);
+        expect(withMasterPcf(upgraded)).toBe(upgraded);
+        expect(withMasterPcf(CLASSIC_ELECTRIBE_GRAPH)).toBe(CLASSIC_ELECTRIBE_GRAPH);
+    });
+
+    it('leaves a patch alone whose panner was re-cabled elsewhere', () => {
+        const old = prePhaseCGraph();
+        const recabled = {
+            ...old,
+            edges: old.edges.map((e) =>
+                e.from === 'masterPanner' && e.to === 'masterLimiter' ? { from: 'masterPanner', to: 'destination' } : e,
+            ),
+        };
+        expect(withMasterPcf(recabled)).toBe(recabled);
+    });
+
     it('upgrades through song deserialization', () => {
         const stored = serializeAudioGraph(prePhaseCGraph(), true);
         const { graph } = deserializeAudioGraph(JSON.parse(JSON.stringify(stored)), 'classic-electribe');
         expect(graph).not.toBeNull();
         expect(graph!.nodes.some((n) => n.factory === 'open303Voice')).toBe(true);
+        expect(graph!.nodes.some((n) => n.factory === 'masterPcf')).toBe(true);
         expect(() => compileClassic(graph!)).not.toThrow();
     });
 

@@ -165,4 +165,51 @@ describe('PatchBay', () => {
         fireEvent.mouseDown(engineRect!);
         expect(screen.queryByText('Remove node')).not.toBeInTheDocument();
     });
+
+    it('places a PCF from the palette and edits it from its panel', () => {
+        const controller = mountWithController();
+        const { container } = render(<PatchBay />);
+
+        const pcfIndex = [...(screen.getByLabelText('Node type') as HTMLSelectElement).options].findIndex(
+            (option) => option.textContent === 'PCF',
+        );
+        fireEvent.change(screen.getByLabelText('Node type'), { target: { value: String(pcfIndex) } });
+        fireEvent.change(screen.getByLabelText('PCF Mode'), { target: { value: 'openrb' } });
+        fireEvent.click(screen.getByText('Add PCF 1'));
+        expect(controller.getConfig().nodes.find((node) => node.id === 'pcf-1')).toMatchObject({
+            factory: 'pcf',
+            config: { filterMode: 'openrb', enabled: true },
+        });
+
+        const nodeRect = [...container.querySelectorAll('rect')].find(
+            (rect) => rect.nextElementSibling?.textContent === 'PCF 1',
+        );
+        fireEvent.mouseDown(nodeRect!);
+        expect(screen.getByTestId('pcf-panel')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Live PCF Cutoff'), { target: { value: '90' } });
+        fireEvent.click(screen.getByLabelText('Filter type HP'));
+        fireEvent.click(screen.getByLabelText('Follow master PCF lanes'));
+        expect(controller.getConfig().nodes.find((node) => node.id === 'pcf-1')?.config).toMatchObject({
+            cutoff: 90,
+            filterType: 'hp',
+            followMasterLanes: true,
+        });
+        // Not running yet: says why rather than pretending.
+        expect(screen.getByTestId('pcf-mode-status').textContent).toMatch(/plays pattern PCF/);
+    });
+
+    it('shows the master PCF panel, with its song knobs locked while it is not running', () => {
+        mountWithController();
+        const { container } = render(<PatchBay />);
+        const pcfRect = [...container.querySelectorAll('rect')].find(
+            (rect) => rect.nextElementSibling?.textContent === 'PCF',
+        );
+        fireEvent.mouseDown(pcfRect!);
+        expect(screen.getByText('Master PCF')).toBeInTheDocument();
+        expect(screen.getByLabelText('Live PCF Cutoff')).toBeDisabled();
+        // Its mode is patch data, so it stays editable (staged).
+        expect(screen.getByRole('button', { name: 'openrb / ReBirth' })).toBeEnabled();
+        expect(screen.queryByText('Copy master pattern')).not.toBeInTheDocument();
+    });
 });

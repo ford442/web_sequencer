@@ -53,7 +53,7 @@
 
 #### Emscripten dual-303 + Prophecy internals (`hyphon_native.wasm`)
 - **Wrappers compiled together**: `emscripten/open303_wrapper.cpp`, `emscripten/jc303_wrapper.cpp`, `emscripten/prophecy_wrapper.cpp`, `emscripten/drumkit_wrapper.cpp`, `emscripten/macro_wrapper.cpp` (see `emscripten/build.sh`)
-- **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it; `pnpm run gen:native-types` derives `src/shared/rt/hyphonNativeExports.ts` from it). The 303 / Prophecy / drum worklets extend `NativeVoiceProcessor` and push every note, trigger and param as an event on its own frame. The event record itself is generated from `emscripten/core/event_schema.json` into `event_layout.h` and `src/shared/rt/eventLayout.ts`, and drum hits travel as records over the control plane (`EventBus` → SAB ring or batched messages, #1497) rather than one port message each. See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
+- **Shared voice core**: every wrapper sits on `emscripten/core/voice.h` + `voice_exports.h` — O(1) handle slots, one owned output buffer, and a sample-accurate event API (`*_push_event` / `*_render`) next to the immediate one. The export list lives only in `emscripten/wasm_export_manifest.json` (`build.sh` reads it; `pnpm run gen:native-types` derives `src/shared/rt/hyphonNativeExports.ts` from it). The 303 / Prophecy / drum worklets extend `NativeVoiceProcessor` and push every note, trigger and param as an event on its own frame. The event record itself is generated from `emscripten/core/event_schema.json` into `event_layout.h` and `src/shared/rt/eventLayout.ts`, and drum hits, Prophecy notes / params and 303 notes / params travel as records over the control plane (`EventBus` → batched messages, a SAB ring, or — on the pthread build — the voice's own native ring in hyphon_native memory, written in place; #1497) rather than one port message each. A transport stop is a `CANCEL_NOTES` record. See [docs/wasm/VOICE_CORE.md](docs/wasm/VOICE_CORE.md)
 - **303 voice catalog**: `SynthParams.model303` (stable voice id, e.g. `stock-open303`, `experimental-01`) with legacy `engine303` mirror for older songs — see [docs/audio-engine/303-voices.md](docs/audio-engine/303-voices.md)
 - **Per-voice 303 switching**: `model303` flows through `Open303Manager.setBass1Model/setBass2Model/setLead303Model` (and legacy `setBass1Engine/...`) into the `open303-processor` `set-303-model` message path
 - **Current routing**:
@@ -345,6 +345,12 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Build**: `pnpm run build:wasm:mixbus`
 - **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
 - **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
+
+### 3d. openrb-338 World (`/openrb338`): **opt-in, not shipped**
+- **Source**: a standalone Rust crate (not in any workspace) holding openrb-338's bit-exact ReBirth 2.01 TB-303, with an adapter and a C ABI. **GPL-3.0-only**, with its own `LICENSE`. Toolchain pinned in `openrb338/rust-toolchain.toml`.
+- **Build**: `pnpm run build:wasm:openrb338` → `openrb338/pkg/openrb338.wasm` (gitignored, no imports). Not part of `build:native`, and never copied into `public/` until the licence decision says it ships.
+- **Verify**: `pnpm run verify:openrb338` runs the cargo tests and the wasm check against upstream openrb-338, which must match bit for bit at 44.1 kHz.
+- **Never** link it into `hyphon_native` or `rust-audio`. See `docs/audio-engine/openrb338-voice.md`.
 
 ### 4. JC-303 (no standalone world)
 - JC303 runs inside `hyphon_native` (`emscripten/jc303_wrapper.cpp`, rosic DSP from the `jc303_wasm` submodule). The standalone `public/jc303*` build is retired and `scripts/check-release-dist.mjs` fails a `dist/` that ships one. See `docs/wasm/BUILD_NOTES.md#standalone-jc-303-memory-budget`.

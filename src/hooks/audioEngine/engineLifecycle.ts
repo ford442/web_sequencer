@@ -36,6 +36,15 @@ import {
     getMasterLoudnessStage,
     setMasterLoudnessStage,
 } from '../../audio/loudness';
+import { createMasterPcf, createPcfLaneWatcher, getMasterPcf, setMasterPcf } from '../../audio/pcf/masterPcf';
+import {
+    createMasterPcfProvider,
+    createPcfNodeProvider,
+    disposeLivePcfInserts,
+    pcfLaneFanout,
+} from '../../audio/pcf/pcfInsert';
+import { createOpenrbLowpassProvider } from '../../audio/openrb/openrbLowpassHost';
+import { automationStore } from '../../stores/automationStore';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
@@ -106,6 +115,9 @@ export interface EngineLifecycleResult {
     masterBusInput: WaveShaperNode;
 }
 
+/** Unsubscribes the live master PCF from the automation store (one engine at a time). */
+let stopPcfLaneWatch: (() => void) | null = null;
+
 export async function initializeAudioContextAndEngines(
     refs: EngineLifecycleRefs,
     urls: EngineLifecycleUrls,
@@ -147,6 +159,20 @@ export async function initializeAudioContextAndEngines(
     // load the graph is compiled without it and playback continues unmetered.
     const loudnessStage = await createMasterLoudnessStage(context);
     setMasterLoudnessStage(loudnessStage);
+    // Master PCF (ReBirth pattern filter) — the `masterPcf` patch-bay node,
+    // post-pan / pre-limiter. Also a worklet, so it is built before compiling.
+    const masterPcf = await createMasterPcf(context);
+    setMasterPcf(masterPcf);
+    if (masterPcf) {
+        // Placed PCFs that follow the master lanes are cleared with the master.
+        const watchLanes = createPcfLaneWatcher(pcfLaneFanout(masterPcf));
+        stopPcfLaneWatch?.();
+        stopPcfLaneWatch = automationStore.subscribe((state) => watchLanes(state.lanes, state.playbackEnabled));
+    }
+    // openrb low-pass mode (ReBirth PCF filter) for patch-bay low-pass nodes.
+    // Only an opt-in build that serves openrb338.wasm gets a provider; without
+    // one every low-pass node plays its RBJ biquad.
+    const openrbLowpass = await createOpenrbLowpassProvider(context);
     // The patch bay edits this controller's config; the engine compiles it.
     // Until a song load supplies a saved patch, it holds the stock preset.
     // A song loaded before the engine started may already have published a
@@ -157,6 +183,11 @@ export async function initializeAudioContextAndEngines(
 
     const { masterBusInput, graph } = buildClassicElectribeGraph(context, refs, {
         masterLimiterNode: loudnessStage?.node ?? null,
+        // The master PCF and any PCF the user placed: live knobs, the openrb
+        // low-pass mode, the transport and (for followers) the master lanes.
+        createMasterPcf: createMasterPcfProvider(masterPcf, { openrb: openrbLowpass, register: true }),
+        createPcfNode: createPcfNodeProvider({ openrb: openrbLowpass, register: true }),
+        createOpenrbLowpass: openrbLowpass,
         patchController,
     });
     const wamHost = new WamHost(context);
@@ -455,6 +486,13 @@ export async function teardownAudioEngine(
     safely('loudness', () => {
         getMasterLoudnessStage()?.dispose();
         setMasterLoudnessStage(null);
+    });
+    safely('pcf', () => {
+        stopPcfLaneWatch?.();
+        stopPcfLaneWatch = null;
+        disposeLivePcfInserts();
+        getMasterPcf()?.dispose();
+        setMasterPcf(null);
     });
     safely('wam', () => setWamHost(null));
     stopGlitchMonitor();

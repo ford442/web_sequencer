@@ -62,10 +62,23 @@ function makeStereoOutput(len: number): Float32Array[][] {
   return [[new Float32Array(len), new Float32Array(len)]];
 }
 
-function getProcessor(): any {
-  const Ctor = registeredProcessors.get('pcf-processor');
+function getProcessor(options?: unknown): any {
+  const Ctor = registeredProcessors.get('pcf-processor') as (new (o?: unknown) => StubAudioWorkletProcessor) | undefined;
   if (!Ctor) throw new Error('pcf-processor not registered');
-  return new Ctor();
+  return new Ctor(options);
+}
+
+/** Mean absolute output of a white-ish (alternating) signal: high = cutoff open. */
+function hfEnergy(proc: any, blocks = 8, blockSize = 128): number {
+  let sum = 0;
+  for (let b = 0; b < blocks; b++) {
+    const L = new Float32Array(blockSize);
+    for (let i = 0; i < blockSize; i++) L[i] = i % 2 === 0 ? 1 : -1;
+    const out = makeStereoOutput(blockSize);
+    proc.process([[L, L.slice()]], out, {});
+    if (b === blocks - 1) for (let i = 0; i < blockSize; i++) sum += Math.abs(out[0][0][i]);
+  }
+  return sum / blockSize;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +299,55 @@ describe('PcfProcessor', () => {
       // With automation at 15kHz, the impulse should pass through more intact
       // The first sample should be larger with higher cutoff
       expect(Math.abs(output2[0][0][0])).toBeGreaterThan(Math.abs(output1[0][0][0]) * 0.5);
+    });
+  });
+
+  describe('master PCF lanes without the pattern PCF', () => {
+    it('engages the filter on a cutoff override while disabled, and bypasses again when cleared', () => {
+      const proc = getProcessor();
+      proc.port.dispatchMessage({ type: 'set-enabled', data: false });
+      expect(hfEnergy(proc)).toBeCloseTo(1, 5); // bypass: Nyquist tone untouched
+
+      proc.port.dispatchMessage({ type: 'set-automation', data: { cutoffHz: 200 } });
+      expect(hfEnergy(proc, 40)).toBeLessThan(0.05); // low-passed hard
+
+      proc.port.dispatchMessage({ type: 'set-automation', data: { cutoffHz: null } });
+      expect(hfEnergy(proc)).toBeCloseTo(1, 5);
+    });
+
+    it('stays bypassed on a resonance-only override (nothing for it to shape)', () => {
+      const proc = getProcessor();
+      proc.port.dispatchMessage({ type: 'set-enabled', data: false });
+      proc.port.dispatchMessage({ type: 'set-automation', data: { resonanceMidi: 120 } });
+      expect(hfEnergy(proc)).toBeCloseTo(1, 5);
+    });
+  });
+
+  describe('offline timeline (processorOptions)', () => {
+    it('takes its initial state from processorOptions', () => {
+      const proc = getProcessor({ processorOptions: { enabled: false, timeline: [] } });
+      expect(hfEnergy(proc)).toBeCloseTo(1, 5);
+    });
+
+    it('applies each timed override once currentTime reaches it', () => {
+      const g = globalThis as Record<string, unknown>;
+      const blockSeconds = 128 / 44100;
+      const proc = getProcessor({
+        processorOptions: {
+          enabled: false,
+          timeline: [{ time: 10 * blockSeconds, cutoffHz: 200 }, { time: 60 * blockSeconds, cutoffHz: null }],
+        },
+      });
+      try {
+        g.currentTime = 0;
+        expect(hfEnergy(proc, 1)).toBeCloseTo(1, 5); // before the first event: bypass
+        g.currentTime = 10 * blockSeconds;
+        expect(hfEnergy(proc, 40)).toBeLessThan(0.05); // override live
+        g.currentTime = 60 * blockSeconds;
+        expect(hfEnergy(proc, 1)).toBeCloseTo(1, 5); // cleared again
+      } finally {
+        delete g.currentTime;
+      }
     });
   });
 

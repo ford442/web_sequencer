@@ -9,6 +9,7 @@ import React, { memo, useMemo, useState } from 'react';
 import {
     NODE_PALETTE,
     createPaletteNode,
+    paletteChoiceDefaults,
     paletteDefaults,
     type AudioGraphConfig,
     type GraphNodeSpec,
@@ -23,8 +24,12 @@ export const PatchBayPalette: React.FC<PatchBayPaletteProps> = memo(({ config, o
     const [entryIndex, setEntryIndex] = useState(0);
     const entry = NODE_PALETTE[entryIndex];
     const [values, setValues] = useState<Record<string, number>>(() => paletteDefaults(NODE_PALETTE[0]));
+    const [choices, setChoices] = useState<Record<string, string>>(() => paletteChoiceDefaults(NODE_PALETTE[0]));
 
-    const preview = useMemo(() => createPaletteNode(config, entry, values), [config, entry, values]);
+    const preview = useMemo(
+        () => createPaletteNode(config, entry, values, choices),
+        [config, entry, values, choices],
+    );
 
     return (
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Add node">
@@ -36,6 +41,7 @@ export const PatchBayPalette: React.FC<PatchBayPaletteProps> = memo(({ config, o
                         const index = Number(event.target.value);
                         setEntryIndex(index);
                         setValues(paletteDefaults(NODE_PALETTE[index]));
+                        setChoices(paletteChoiceDefaults(NODE_PALETTE[index]));
                     }}
                     aria-label="Node type"
                     className="rounded border border-cyan-500/30 bg-black/40 px-1 py-0.5 font-mono text-[10px] text-gray-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
@@ -69,6 +75,29 @@ export const PatchBayPalette: React.FC<PatchBayPaletteProps> = memo(({ config, o
                     <span className="w-10 text-right text-gray-200">
                         {(values[param.key] ?? param.defaultValue).toFixed(param.step < 1 ? 2 : 0)}
                     </span>
+                </label>
+            ))}
+
+            {(entry.choices ?? []).map((choice) => (
+                <label
+                    key={choice.key}
+                    className="flex items-center gap-1 font-mono text-[9px] uppercase text-gray-400"
+                >
+                    {choice.label}
+                    <select
+                        value={choices[choice.key] ?? choice.defaultValue}
+                        onChange={(event) =>
+                            setChoices((current) => ({ ...current, [choice.key]: event.target.value }))
+                        }
+                        aria-label={`${entry.label} ${choice.label}`}
+                        className="rounded border border-cyan-500/30 bg-black/40 px-1 py-0.5 font-mono text-[10px] text-gray-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                    >
+                        {choice.options.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
                 </label>
             ))}
 

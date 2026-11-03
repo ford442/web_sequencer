@@ -43,6 +43,8 @@ export const EventType = {
   Mute: 7,
   /** NOTE_EXPRESSION: target = note id (the MIDI note of the NOTE_ON it shapes, as MIDI 2.0 per-note controllers address it), value = the dimension's value */
   NoteExpression: 8,
+  /** CANCEL_NOTES: drop the NOTE_ON / NOTE_OFF / TRIGGER events queued before this record, when the voice takes it from its ring (not on a frame): a transport stop. Params still land */
+  CancelNotes: 9,
   /** first engine-private type (e.g. the drum kit's hat choke) */
   Engine: 0x100,
 } as const;
@@ -57,6 +59,7 @@ export const EVENT_TYPE_NAMES: Readonly<Record<number, string>> = {
   6: 'PARAM_RAMP',
   7: 'MUTE',
   8: 'NOTE_EXPRESSION',
+  9: 'CANCEL_NOTES',
 };
 
 /** Named arg slots: `EventArg.<Type>.<name>` indexes args (a0..a3). */
@@ -130,6 +133,33 @@ export const EVENT_FIELD_COUNT = 8;
 export function createEventFields(): Float64Array {
   return new Float64Array(8);
 }
+
+/**
+ * The event ring header (hyphon::EventRingHeader): int32 words, then the
+ * records from EVENT_RING_HEADER_BYTES. eventRing.ts reads and writes it, in a
+ * SharedArrayBuffer of its own or in place inside hyphon_native memory.
+ */
+export const EVENT_RING_HEADER_BYTES = 128;
+/** 'HEV1', little-endian: the magic word of a ring that is laid out. */
+export const EVENT_RING_MAGIC = 0x31564548;
+
+/** Int32 index of each event ring header word. */
+export const EventRingWord = {
+  /** producer: records written; uint32, wraps */
+  write: 0,
+  /** producer: pushes refused because the ring was full */
+  dropped: 1,
+  /** producer: most records ever unread at once */
+  highWater: 2,
+  /** consumer: records read; uint32, wraps */
+  read: 16,
+  /** ring.magic, little-endian, once the ring is laid out */
+  magic: 24,
+  /** schema version of the records */
+  version: 25,
+  /** records the ring holds; a power of two */
+  capacity: 26,
+} as const;
 
 const TWO_32 = 4294967296;
 // wasm memory is little-endian; typed arrays use the platform order.

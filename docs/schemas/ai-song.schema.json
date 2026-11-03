@@ -331,7 +331,7 @@
         },
         "note": {
           "type": "string",
-          "pattern": "^[A-G][#b]?[0-8]$"
+          "pattern": "^([A-G])(#{1,2}|x|b{1,2}|♯{1,2}|♭{1,2}|𝄪|𝄫)?(-1|[0-9])$"
         },
         "velocity": {
           "type": "number",
@@ -505,6 +505,8 @@
         "raveolution",
         "1ink303-v1",
         "experimental-01",
+        "openrb338-vintage",
+        "openrb338-2.0",
         "live-highfid",
         "highfid-cpu",
         "gpu-highfid"

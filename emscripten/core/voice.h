@@ -9,14 +9,14 @@
  *   Event              one timed message: frame, type, target, value, 4 args
  *                      (event_layout.h, generated from event_schema.json)
  *   EventRing          SPSC transport, preallocated; the producer may live on
- *                      another thread
+ *                      another thread, or in JS (the layout is shared, #1497)
  *   EventSchedule      frame-sorted pending events: producers post out of
  *                      order (a note's noteOff goes out before the next note)
  *   renderSplit        renders a block, splitting it at each event's frame
  *   BlockBuffer        one owned, 16-byte-aligned output buffer per instance
  *   VoiceSlots         fixed slot array; handle = index + generation, O(1)
- *   NativeVoice<E>     everything one handle owns: engine + ring + schedule +
- *                      buffer + stats
+ *   NativeVoice<E>     everything one handle owns: engine + rings (its own and
+ *                      the main thread's inbox) + schedule + buffer + stats
  *   Smoothed           one-pole parameter smoother
  *   flushDenormal      zero tiny recursive state (wasm can't set FTZ)
  *
@@ -79,45 +79,67 @@ inline int64_t frameAt(double seconds, double sampleRate) {
  * Lock-free FIFO with a fixed power-of-two capacity. push() is the producer
  * side, pop() the consumer (audio) side; each side may run on its own thread.
  * A full ring refuses the push and counts it — it never overwrites.
+ *
+ * Layout (#1497 P2): an EventRingHeader, then the records — the layout
+ * src/shared/rt/eventRing.ts reads and writes, generated for both from
+ * event_schema.json. A JS producer can therefore fill this ring in place
+ * through a view of hyphon_native's shared memory at data(): it publishes a
+ * record with Atomics.store on `write`, which the acquire load in pop()
+ * pairs with, exactly as push() does.
  */
 template <uint32_t Capacity>
 class EventRing {
     static_assert(Capacity >= 2 && (Capacity & (Capacity - 1)) == 0, "capacity must be a power of two");
 
 public:
+    EventRing() { header_.capacity = Capacity; }
+    EventRing(const EventRing&) = delete;
+    EventRing& operator=(const EventRing&) = delete;
+
     bool push(const Event& e) {
-        const uint32_t w = write_.load(std::memory_order_relaxed);
-        const uint32_t r = read_.load(std::memory_order_acquire);
-        if (w - r == Capacity) {
-            dropped_.fetch_add(1, std::memory_order_relaxed);
+        const uint32_t w = header_.write.load(std::memory_order_relaxed);
+        const uint32_t used = w - header_.read.load(std::memory_order_acquire);
+        if (used >= Capacity) {
+            header_.dropped.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
         slots_[w & (Capacity - 1)] = e;
-        write_.store(w + 1, std::memory_order_release);
+        if (used + 1 > header_.highWater.load(std::memory_order_relaxed)) {
+            header_.highWater.store(used + 1, std::memory_order_relaxed);
+        }
+        header_.write.store(w + 1, std::memory_order_release);
         return true;
     }
 
     bool pop(Event& out) {
-        const uint32_t r = read_.load(std::memory_order_relaxed);
-        const uint32_t w = write_.load(std::memory_order_acquire);
+        const uint32_t r = header_.read.load(std::memory_order_relaxed);
+        const uint32_t w = header_.write.load(std::memory_order_acquire);
         if (r == w) return false;
         out = slots_[r & (Capacity - 1)];
-        read_.store(r + 1, std::memory_order_release);
+        header_.read.store(r + 1, std::memory_order_release);
         return true;
     }
 
     uint32_t size() const {
-        return write_.load(std::memory_order_acquire) - read_.load(std::memory_order_acquire);
+        return header_.write.load(std::memory_order_acquire) - header_.read.load(std::memory_order_acquire);
     }
 
-    uint32_t dropped() const { return dropped_.load(std::memory_order_relaxed); }
+    uint32_t dropped() const { return header_.dropped.load(std::memory_order_relaxed); }
+    uint32_t highWater() const { return header_.highWater.load(std::memory_order_relaxed); }
+
+    /**
+     * The first byte of the shared layout: the header, then the records. The
+     * whole ring, not header_ alone — a writer goes on past the header.
+     */
+    void* data() { return this; }
 
 private:
+    EventRingHeader header_;
     Event slots_[Capacity];
-    alignas(64) std::atomic<uint32_t> write_{0};
-    alignas(64) std::atomic<uint32_t> read_{0};
-    std::atomic<uint32_t> dropped_{0};
 };
+static_assert(sizeof(EventRing<2>) == kEventRingHeaderBytes + 2 * kEventBytes,
+              "records follow the header with no gap (src/shared/rt/eventRing.ts)");
+static_assert(std::is_standard_layout<EventRing<2>>::value, "the ring is read as bytes from JS");
 
 // ── EventSchedule: pending events in frame order ────────────────────────────
 
@@ -144,11 +166,24 @@ public:
         return true;
     }
 
-    /** Moves everything the ring holds into the schedule. Consumer side. */
+    /**
+     * Moves everything the ring holds into the schedule, in ring order.
+     * Consumer side. A kCancelNotes record is not scheduled: it drops the
+     * note events taken before it — from this ring and already scheduled —
+     * and leaves the ones after it alone, so a stop is ordered with the
+     * notes around it whatever thread wrote them.
+     */
     template <uint32_t RingCapacity>
     void absorb(EventRing<RingCapacity>& ring) {
         Event e;
-        while (ring.pop(e)) insert(e);
+        while (ring.pop(e)) {
+            if (e.type == kCancelNotes) {
+                removeIf(isNoteEvent);
+                ++cancels_;
+            } else {
+                insert(e);
+            }
+        }
     }
 
     uint32_t size() const { return count_; }
@@ -176,11 +211,14 @@ public:
 
     void clear() { count_ = 0; }
     uint32_t dropped() const { return dropped_; }
+    /** kCancelNotes records absorb() has applied. */
+    uint32_t cancels() const { return cancels_; }
 
 private:
     Event events_[Capacity];
     uint32_t count_ = 0;
     uint32_t dropped_ = 0;
+    uint32_t cancels_ = 0;
 };
 
 // ── renderSplit ─────────────────────────────────────────────────────────────
@@ -356,7 +394,15 @@ struct NativeVoice {
     static constexpr int kChannels = Channels;
 
     Engine engine;
+    /** Fed by push() / prefix_push_event: the thread that renders, or a host test. */
     EventRing<EventCapacity> ring;
+    /**
+     * Fed in place by a producer on another thread (#1497 P2): the main
+     * thread's EventBus route writes records straight into it through a view
+     * of hyphon_native's shared memory (prefix_event_inbox). One producer
+     * each, so the two rings never share a writer.
+     */
+    EventRing<EventCapacity> inbox;
     EventSchedule<EventCapacity> schedule;
     BlockBuffer buffer;
     VoiceStats stats;
@@ -372,6 +418,17 @@ struct NativeVoice {
     bool push(const Event& e) { return ring.push(e); }
 
     /**
+     * Consumer side: both rings into the schedule — the inbox first, which
+     * the main thread filled before this block began. Of the events taken in
+     * one pass, those on one frame apply inbox first; within a ring, in push
+     * order. One already scheduled by an earlier pass applies before either.
+     */
+    void absorbPending() {
+        schedule.absorb(inbox);
+        schedule.absorb(ring);
+    }
+
+    /**
      * Audio thread: render the block that starts at absolute frame `blockStart`.
      * nullptr when `frames` exceeds what init reserved — the caller outputs
      * silence; growing here would allocate on the audio thread.
@@ -384,14 +441,14 @@ struct NativeVoice {
             ++stats.overruns;
             return nullptr;
         }
-        schedule.absorb(ring);
+        absorbPending();
         renderSplit(engine, schedule, blockStart, out, frames, &stats);
         return out;
     }
 
     /** Stop / mute (consumer side): cancel every pending note and trigger; params still land. */
     void cancelPendingNotes() {
-        schedule.absorb(ring);
+        absorbPending();
         schedule.removeIf(isNoteEvent);
     }
 
@@ -402,7 +459,7 @@ struct NativeVoice {
      * on the first block after it is selected again.
      */
     void flush() {
-        schedule.absorb(ring);
+        absorbPending();
         const uint32_t pending = schedule.size();
         for (uint32_t i = 0; i < pending; ++i) engine.apply(schedule[i]);
         stats.applied += pending;

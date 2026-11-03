@@ -4,6 +4,7 @@ import {
     getAvailableTB303Models,
     isLiveHighFidModel,
     isOfflineOnlyTB303Model,
+    isTB303ModelModuleBundled,
     resolveHighFidModelSelection,
     tb303ModelFamily,
 } from '../engines/TB303Models';
@@ -70,10 +71,11 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
           })
         : null;
 
-    // Themed by engine family (open303 = emerald, jc303 = teal, highfid = amber).
+    // Themed by engine family (open303 = emerald, jc303 = teal, highfid = amber, openrb338 = rose).
     const openActive = 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]';
     const jcActive = 'bg-gradient-to-b from-teal-500 to-teal-600 text-white border-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.5),inset_0_1px_0_rgba(255,255,255,0.2)]';
     const highfidActive = 'bg-gradient-to-b from-amber-500 to-amber-700 text-white border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]';
+    const openrbActive = 'bg-gradient-to-b from-rose-500 to-rose-700 text-white border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.45),inset_0_1px_0_rgba(255,255,255,0.2)]';
     const inactiveStyle = 'bg-gradient-to-b from-zinc-800 to-zinc-900 text-zinc-400 border-zinc-700 hover:text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]';
 
     const badgeColorStyle = accentColor === 'cyan'
@@ -89,7 +91,14 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
         : 'border-pink-500/20';
 
     const familyBadgeLabel =
-        activeFamily === 'jc303' ? 'JC303' : activeFamily === 'highfid' ? 'HIFID' : 'OPEN303';
+        activeFamily === 'jc303'
+            ? 'JC303'
+            : activeFamily === 'highfid'
+              ? 'HIFID'
+              : activeFamily === 'openrb338'
+                ? 'OPENRB'
+                : 'OPEN303';
+    const moduleMissing = !isTB303ModelModuleBundled(model);
     const liveHighFidActive = isLiveHighFidModel(model);
     const familyBadgeAria =
         activeFamily === 'jc303'
@@ -98,7 +107,9 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
               ? liveHighFidActive
                   ? 'High-fidelity live engine family active'
                   : 'High-fidelity offline engine family active'
-              : 'Open303 engine family active';
+              : activeFamily === 'openrb338'
+                ? 'openrb-338 engine family active'
+                : 'Open303 engine family active';
     const familyBadgeTitle =
         activeFamily === 'jc303'
             ? 'Active engine family: authentic rosic::Open303 (jc303)'
@@ -106,7 +117,9 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
               ? liveHighFidActive
                   ? 'Active engine family: live high-fidelity diode ladder (realtime AudioWorklet)'
                   : 'Active engine family: offline high-fidelity (freeze / export / multisample)'
-              : 'Active engine family: custom Open303';
+              : activeFamily === 'openrb338'
+                ? 'Active engine family: openrb-338 bit-exact ReBirth 2.01 TB-303 (GPL-3.0-only, optional module)'
+                : 'Active engine family: custom Open303';
 
     const handleSelect = (id: TB303ModelId) => {
         if (isOfflineOnlyTB303Model(id)) {
@@ -159,13 +172,18 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                         ? jcActive
                         : m.family === 'highfid'
                           ? highfidActive
-                          : openActive;
+                          : m.family === 'openrb338'
+                            ? openrbActive
+                            : openActive;
                 const isLive = isLiveHighFidModel(m.id);
+                const bundled = isTB303ModelModuleBundled(m.id);
                 const tooltip = m.offlineOnly
                     ? `${m.description} (offline only – best for freeze / export / multisample)`
                     : isLive
                       ? `${m.description} (live diode ladder – auto-degrades to Stock Open303 over budget)`
-                      : m.description;
+                      : !bundled
+                        ? `${m.description} (module not bundled in this build – plays Stock Open303; the song keeps this voice)`
+                        : m.description;
                 return (
                     <button
                         type="button"
@@ -190,6 +208,18 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                                 Offline
                             </span>
                         )}
+                        {m.license && (
+                            <span
+                                className={`shrink-0 text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border ${
+                                    isActive
+                                        ? 'bg-black/25 border-white/30 text-white'
+                                        : 'bg-rose-950/80 border-rose-600/50 text-rose-300'
+                                }`}
+                                title={`${m.license}${bundled ? '' : ' · module not bundled'}`}
+                            >
+                                {bundled ? 'GPL' : 'GPL · stub'}
+                            </span>
+                        )}
                         {isLive && (
                             <span
                                 className={`shrink-0 text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 rounded border ${
@@ -211,6 +241,14 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                     role="status"
                 >
                     Live diode ladder · freeze uses highfid-cpu · falls back to Stock Open303 over CPU budget
+                </p>
+            )}
+            {activeFamily === 'openrb338' && moduleMissing && (
+                <p
+                    className="text-[8px] text-rose-300/90 font-mono leading-snug mt-0.5"
+                    role="status"
+                >
+                    openrb-338 module not bundled · plays Stock Open303 · song keeps this voice
                 </p>
             )}
             {liveHighFidActive && onLiveAbChange && (

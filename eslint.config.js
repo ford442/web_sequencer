@@ -76,6 +76,8 @@ export default defineConfig([
     'patch_*.ts',
     'test_perf.ts',
     'scripts/*.mjs',
+    // ajv standalone output (scripts/gen-coproducer-validators.ts), drift-checked by `pnpm lint`.
+    'src/agent/coproducer/generated/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],
