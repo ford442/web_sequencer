@@ -62,14 +62,14 @@ function makeStereoOutput(len: number): Float32Array[][] {
   return [[new Float32Array(len), new Float32Array(len)]];
 }
 
-function getProcessor(options?: unknown): any {
+function getProcessor(options?: unknown): StubAudioWorkletProcessor {
   const Ctor = registeredProcessors.get('pcf-processor') as (new (o?: unknown) => StubAudioWorkletProcessor) | undefined;
   if (!Ctor) throw new Error('pcf-processor not registered');
   return new Ctor(options);
 }
 
 /** Mean absolute output of a white-ish (alternating) signal: high = cutoff open. */
-function hfEnergy(proc: any, blocks = 8, blockSize = 128): number {
+function hfEnergy(proc: StubAudioWorkletProcessor, blocks = 8, blockSize = 128): number {
   let sum = 0;
   for (let b = 0; b < blocks; b++) {
     const L = new Float32Array(blockSize);
