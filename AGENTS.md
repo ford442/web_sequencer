@@ -346,6 +346,12 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
 - **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
 
+### 3d. openrb-338 World (`/openrb338`): **opt-in, not shipped**
+- **Source**: a standalone Rust crate (not in any workspace) holding openrb-338's bit-exact ReBirth 2.01 TB-303, with an adapter and a C ABI. **GPL-3.0-only**, with its own `LICENSE`. Toolchain pinned in `openrb338/rust-toolchain.toml`.
+- **Build**: `pnpm run build:wasm:openrb338` → `openrb338/pkg/openrb338.wasm` (gitignored, no imports). Not part of `build:native`, and never copied into `public/` until the licence decision says it ships.
+- **Verify**: `pnpm run verify:openrb338` runs the cargo tests and the wasm check against upstream openrb-338, which must match bit for bit at 44.1 kHz.
+- **Never** link it into `hyphon_native` or `rust-audio`. See `docs/audio-engine/openrb338-voice.md`.
+
 ### 4. JC-303 (no standalone world)
 - JC303 runs inside `hyphon_native` (`emscripten/jc303_wrapper.cpp`, rosic DSP from the `jc303_wasm` submodule). The standalone `public/jc303*` build is retired and `scripts/check-release-dist.mjs` fails a `dist/` that ships one. See `docs/wasm/BUILD_NOTES.md#standalone-jc-303-memory-budget`.
 

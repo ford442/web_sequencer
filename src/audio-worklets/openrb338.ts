@@ -12,6 +12,10 @@
 // hyphon_native.wasm, so the GPL code stays in its own module (see
 // docs/audio-engine/openrb338-voice.md for the license decision).
 //
+// The module is built by `pnpm run build:wasm:openrb338` (openrb338/, opt-in,
+// output gitignored) and verified bit-exact against openrb-338 by
+// `pnpm run verify:openrb338`.
+//
 // This file is the contract that module must satisfy plus the detection the
 // 303 worklet uses. Until the module ships, `isOpenrb338ModuleBundled()` is
 // false and the worklet plays Stock Open303 for these voices, telling the
@@ -60,18 +64,33 @@ export function openrb338ModeForModel(id: string | undefined): Openrb338Mode | u
 
 /**
  * Exports `openrb338.wasm` must provide (C ABI, `extern "C"` / `#[no_mangle]`
- * from the Rust wrapper crate). Handles are opaque u32 instance ids.
+ * from the `openrb338/` crate, `src/ffi.rs`). Handles are opaque u32 instance
+ * ids (0 = none); the module has no imports, so `instantiate(module, {})`.
+ * Pointers come back as i32: read them with `>>> 0`.
+ *
+ * The core renders 64-sample blocks at 44.1 kHz and takes events at block
+ * boundaries, as ReBirth does. At a 44.1 kHz host the output is openrb-338's,
+ * bit for bit; at any other rate it is resampled. The module also has two
+ * optional exports, which a host probes before using: `openrb303_rest(handle,
+ * note, velocity)` plays a ReBirth rest step, and
+ * `openrb303_is_bit_exact(handle)` reports the 44.1 kHz case. There are also
+ * optional param ids: `64 + ctrl` sets ReBirth knob `ctrl` (2..8) to a raw
+ * byte, and `72` sets the linear output gain. See
+ * docs/audio-engine/openrb338-voice.md (ABI).
  *
  * Params use the shared Open303Param ids (`OPEN303_PARAM_IDS` in
  * open303/shared.ts) with the same normalized ranges the other 303 voices
  * take — cutoff, resonance, env mod, decay, accent, waveform, tuning,
  * volume — so `routeParam` needs no per-voice mapping. The wrapper converts
- * them to ReBirth knob positions (0–127) internally.
+ * them to ReBirth knob positions (`round(v * 127)`) internally; volume 1.0
+ * is ReBirth's default mixer level.
  *
  * Notes follow the hyphon mono-303 convention: a `note_on` while a note is
  * held is a slide (legato) and velocity > 100 is an accent (as
- * ACCENT_VELOCITY_THRESHOLD in open303_wrapper.cpp). Slide time is fixed by
- * the ReBirth model, which has no slide-time knob.
+ * ACCENT_VELOCITY_THRESHOLD in open303_wrapper.cpp). A note_off for another
+ * note while one is held is dropped as stale. MIDI 36 is ReBirth's pitch
+ * origin (C2). Slide time is fixed by the ReBirth model, which has no
+ * slide-time knob.
  */
 export interface Openrb338Exports {
     readonly memory: WebAssembly.Memory;

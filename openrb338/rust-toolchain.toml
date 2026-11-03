@@ -1,0 +1,4 @@
+# Pinned to the toolchain openrb-338 pins at the extracted revision, plus the wasm target.
+[toolchain]
+channel = "1.99.1"
+targets = ["wasm32-unknown-unknown"]

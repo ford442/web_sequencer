@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### openrb-338 TB-303 as a WASM module: extraction spike (#1537)
+- **New world `openrb338/`**: openrb-338's `Tb303` and the tables it reads, extracted into a standalone Rust crate from upstream rev `88a1770`. The DSP code is unchanged. A thin adapter turns MIDI notes, velocity accents, legato slides and the shared normalized 303 params into ReBirth step bytes and knob positions, and a C ABI matches `Openrb338Exports`. It builds to a 40 KB `openrb338.wasm` with no imports. **GPL-3.0-only**, with its own `LICENSE`. The build is opt-in (`pnpm run build:wasm:openrb338`), its output is gitignored, and it is not part of `build:native` or `public/`.
+- **Bit-exact at 44.1 kHz**: `pnpm run verify:openrb338` checks the tables, the native adapter and the wasm module, through its C ABI from Node, against upstream `orb-engine` at the same revision, sample for sample. The check covers 7 scenarios (both sound models, accents, slides, rests, knob sweeps, mode switches, stop) and four render chunkings. Other host rates are resampled and stay within 0.01 dB of the reference level. The cost is about 1–2 µs per 128-frame quantum.
+- **Documented** in [openrb338-voice.md](docs/audio-engine/openrb338-voice.md): the ABI, the divergences (host rate, rest steps, how Hyphon schedules slides) and the integration plan for the `Open303EngineSelection` route. The voices still play Stock Open303 until the worklet loads the module.
+
 ### One note-name grammar for the parser, the AI song format and the agent (#1493)
 - **One pattern**: `NOTE_NAME_SOURCE` in `musicTheory.ts` is the AI-song validator (`isValidNote`), the generated `docs/schemas/ai-song.schema.json` pattern and the co-producer's `edit_pattern` schema. A name the file formats call valid is a name `noteToMidi` turns into a pitch. The AI format now takes what the parser takes: a flat or sharp, a doubled one (`##`, `bb`, `x`, `𝄪`, `𝄫`, `♯`, `♭`), and octaves -1 to 9 (`Eb3`, `Fx3`, `C-1`). Strings are stored as written.
 - **Tighter than before**: at most one accidental, of one kind. `C#b4`, `C###4` and `E##########4` used to parse (as 60, 63 and 74); they are not note names now. The pitch must be MIDI 0–127 (`C-1`–`G9`): `G#9`–`B9` used to parse as 128–131, which no MIDI data byte can hold, and are now refused rather than clamped. `edit_pattern` checks the range too, since a pattern cannot.
