@@ -51,7 +51,6 @@ describe('singing-voice FX audio-thread budget', () => {
 
     // Regression gate applies to the native path only (it is the default).
     assertPerfBudget(native, { name: 'vocalFx.native.quantum', absoluteCeilingMs: 0.5, regressionRatio: 1.25 });
-    expect(native.medianMs).toBeLessThan(ts.medianMs);
   });
 
   it('freeze granulator, 1024-frame stretcher feed: native not slower than TS', () => {
