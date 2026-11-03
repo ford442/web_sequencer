@@ -74,6 +74,8 @@ export class PcfEffect {
     private _envAmount = 60;
     private _decay = 40;
     private _pattern: number[] = Array.from({ length: 16 }, () => 0);
+    private _edited = false;
+    private readonly listeners = new Set<() => void>();
 
     /** Works on a live `AudioContext` and on an `OfflineAudioContext`. */
     constructor(audioContext: BaseAudioContext) {
@@ -128,6 +130,36 @@ export class PcfEffect {
             pattern: [...this._pattern],
             target: { tb303A: true, tb303B: true, drums: true },
         };
+    }
+
+    /**
+     * True once the user changed this PCF by hand (the patch bay's PCF panel)
+     * since the last song load (`loadSettings` / `reset`). Song save keeps the
+     * hand-set master PCF instead of the song's imported `pcfFilter`.
+     */
+    get edited(): boolean {
+        return this._edited;
+    }
+
+    /**
+     * Called after every change to the enabled state, the knobs or the pattern,
+     * whoever made it (song load, RBS import, the patch bay). Returns the
+     * unsubscribe.
+     */
+    subscribe(listener: () => void): () => void {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    }
+
+    private notify(): void {
+        for (const listener of this.listeners) listener();
+    }
+
+    /** Record a hand edit; see {@link edited}. */
+    markEdited(): void {
+        this._edited = true;
     }
 
     /** Current pattern */
@@ -197,6 +229,7 @@ export class PcfEffect {
         this._envAmount = settings.envAmount;
         this._decay = settings.decay;
         this._pattern = [...settings.pattern];
+        this._edited = false;
 
         this.syncAllParams();
     }
@@ -222,6 +255,7 @@ export class PcfEffect {
     setPattern(pattern: number[]): void {
         this._pattern = pattern.slice(0, 32).map(v => Math.max(0, Math.min(127, v)));
         this.sendMessage('set-pattern', this._pattern);
+        this.notify();
     }
 
     /**
@@ -276,8 +310,10 @@ export class PcfEffect {
      */
     reset(): void {
         this._enabled = false;
+        this._edited = false;
         this.sendMessage('set-enabled', false);
         this.sendMessage('set-automation', { cutoffHz: null, resonanceMidi: null, envAmountNorm: null });
+        this.notify();
     }
 
     /**
@@ -286,6 +322,7 @@ export class PcfEffect {
     setEnabled(enabled: boolean): void {
         this._enabled = enabled;
         this.sendMessage('set-enabled', enabled);
+        this.notify();
     }
 
     /**
@@ -299,6 +336,7 @@ export class PcfEffect {
         this.inputGain.disconnect();
         this.outputGain.disconnect();
         this.initialized = false;
+        this.listeners.clear();
     }
 
     // ─── Private ─────────────────────────────────────────────────────────
@@ -307,6 +345,7 @@ export class PcfEffect {
         this.sendMessage('set-enabled', this._enabled);
         this.sendMessage('set-params', this.paramsMessage());
         this.sendMessage('set-pattern', this._pattern);
+        this.notify();
     }
 
     private paramsMessage() {

@@ -36,6 +36,9 @@ export type GraphNodeFactory =
     // ReBirth-style Pattern Controlled Filter on the master bus (`PcfEffect`).
     // Host-supplied like the limiter; bridged when the host supplies none.
     | 'masterPcf'
+    // A PCF the user places in the patch bay (any voice or bus through it).
+    // Host-supplied like `masterPcf`; bridged when the host supplies none.
+    | 'pcf'
     | 'destination'
     | 'wamInstrumentSlot'
     | 'wamTrackInsert'
@@ -60,6 +63,28 @@ export interface BiquadFilterConfig {
      * Low-pass only: `rbj` (the browser biquad, default) or `openrb` (ReBirth's
      * PCF low-pass from the optional openrb338.wasm). See `lowpassMode.ts`.
      */
+    filterMode?: import('./lowpassMode').LowpassFilterMode;
+}
+
+/**
+ * A PCF node's settings (`pcf`, and `filterMode` on `masterPcf`). Knob values
+ * are 0–127 like ReBirth's and `PcfEffect`'s. See `src/audio/pcf/pcfInsert.ts`.
+ *
+ * The master PCF stores only `filterMode` here: its knobs and pattern belong
+ * to the song (`pcfFilter`), which loads them on every song load.
+ */
+export interface PcfNodeConfig {
+    enabled?: boolean;
+    filterType?: 'lp' | 'bp' | 'hp';
+    cutoff?: number;
+    resonance?: number;
+    envAmount?: number;
+    decay?: number;
+    /** 0–127 per step, up to 32 steps; steps with the transport. */
+    pattern?: number[];
+    /** Also play the song's master `pcf*` automation lanes. */
+    followMasterLanes?: boolean;
+    /** `rbj`: the pattern PCF. `openrb`: ReBirth's PCF low-pass (static). */
     filterMode?: import('./lowpassMode').LowpassFilterMode;
 }
 
@@ -124,6 +149,7 @@ export type GraphNodeConfig =
     | DelayConfig
     | TrackMonitorConfig
     | EngineVoiceConfig
+    | PcfNodeConfig
     | Record<string, never>;
 
 export interface GraphNodeSpec {
@@ -187,6 +213,8 @@ export interface GraphPortPair {
     engineSocket?: import('./engineVoices').EngineVoiceSocket;
     /** Present on low-pass nodes that take a filter mode (`isModalLowpass`). */
     lowpass?: import('./lowpassMode').LowpassModeSwitch;
+    /** Present on PCF nodes (`pcf`, `masterPcf`) whose host built a `PcfInsert`. */
+    pcf?: import('../pcf/pcfInsert').PcfInsert;
 }
 
 export interface CompiledAudioGraph {

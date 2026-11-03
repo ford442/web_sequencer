@@ -8,6 +8,7 @@
  */
 
 import { isModalLowpass, normalizeLowpassMode, type LowpassFilterMode } from './lowpassMode';
+import { applyPcfNodeEdit, type PcfNodeEdit } from '../pcf/pcfNodeConfig';
 import type {
     AudioGraphConfig,
     BiquadFilterConfig,
@@ -29,7 +30,8 @@ export type GraphValidationCode =
     | 'cycle'
     | 'invalid-gain'
     | 'no-destination'
-    | 'not-lowpass';
+    | 'not-lowpass'
+    | 'not-pcf';
 
 export interface GraphValidationIssue {
     code: GraphValidationCode;
@@ -337,6 +339,47 @@ export function setLowpassMode(
             ? { ...candidate, config: { ...(candidate.config as BiquadFilterConfig), filterMode } }
             : candidate,
     );
+    return { config: next };
+}
+
+/** True for the PCF factories (`masterPcf`, and the `pcf` nodes users place). */
+export function isPcfNode(spec: Pick<GraphNodeSpec, 'factory'>): boolean {
+    return spec.factory === 'pcf' || spec.factory === 'masterPcf';
+}
+
+/**
+ * Store an edit to a PCF node's settings. A placed PCF (`pcf`) keeps all of
+ * them in its config. The master PCF keeps only `filterMode`: its knobs and
+ * pattern belong to the song (`pcfFilter`), not the patch.
+ */
+export function setPcfNodeConfig(
+    config: AudioGraphConfig,
+    id: GraphNodeId,
+    edit: PcfNodeEdit,
+): GraphEditResult {
+    const node = config.nodes.find((candidate) => candidate.id === id);
+    if (!node) {
+        return {
+            config,
+            rejected: { code: 'unknown-node', message: `No node called "${id}"`, nodes: [id] },
+        };
+    }
+    if (!isPcfNode(node)) {
+        return {
+            config,
+            rejected: { code: 'not-pcf', message: `"${node.label ?? id}" is not a PCF node`, nodes: [id] },
+        };
+    }
+    let nextConfig: GraphNodeSpec['config'];
+    if (node.factory === 'pcf') {
+        nextConfig = applyPcfNodeEdit(node.config, edit);
+    } else if (edit.filterMode !== undefined) {
+        nextConfig = { ...(node.config ?? {}), filterMode: normalizeLowpassMode(edit.filterMode) };
+    } else {
+        return { config };
+    }
+    const next = cloneConfig(config);
+    next.nodes = next.nodes.map((candidate) => (candidate.id === id ? { ...candidate, config: nextConfig } : candidate));
     return { config: next };
 }
 

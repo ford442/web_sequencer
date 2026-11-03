@@ -81,6 +81,11 @@ export interface LowpassModeStatus {
     reason?: string;
     /** For the openrb branch: bit-exact (44.1 kHz) or not; `null` until known. */
     bitExact: boolean | null;
+    /**
+     * Why the standard branch plays although openrb is asked for and available
+     * (a PCF node in band-pass, or bypassed). See {@link LowpassModeSwitch.hold}.
+     */
+    held?: string;
 }
 
 /** Crossfade time for a live A/B switch: a hard cut between two filters clicks. */
@@ -89,36 +94,45 @@ export const LOWPASS_SWITCH_RAMP_SECONDS = 0.02;
 export const OPENRB_UNAVAILABLE_REASON = 'openrb338.wasm not loaded (opt-in GPL build)';
 
 /**
+ * The standard branch: a single node (the RBJ biquad), or a dual-port stage
+ * whose input and output differ (a PCF insert, `PcfEffect.input` / `.output`).
+ */
+export type StandardBranch = AudioNode | { input: AudioNode; output: AudioNode };
+
+/**
  * `input → rbj → rbjLevel → output` and `input → openrb → openrbLevel → output`;
  * exactly one level is 1.
  */
 export class LowpassModeSwitch {
     readonly input: GainNode;
     readonly output: GainNode;
-    readonly rbj: BiquadFilterNode;
+    /** The standard branch's input node (the biquad itself for a low-pass node). */
+    readonly rbj: AudioNode;
     readonly openrb: OpenrbLowpassBranch | null;
     private readonly rbjLevel: GainNode;
     private readonly openrbLevel: GainNode | null;
     private readonly context: BaseAudioContext;
     private mode: LowpassFilterMode;
     private failure: string | null;
+    private heldBy: string | null = null;
 
     constructor(
         context: BaseAudioContext,
-        rbj: BiquadFilterNode,
+        standard: StandardBranch,
         openrb: OpenrbLowpassBranch | null,
         mode: LowpassFilterMode,
     ) {
         this.context = context;
-        this.rbj = rbj;
+        const branch = 'connect' in standard ? { input: standard, output: standard } : standard;
+        this.rbj = branch.input;
         this.openrb = openrb;
         this.mode = mode;
         this.failure = openrb ? null : OPENRB_UNAVAILABLE_REASON;
         this.input = context.createGain();
         this.output = context.createGain();
         this.rbjLevel = context.createGain();
-        this.input.connect(rbj);
-        rbj.connect(this.rbjLevel);
+        this.input.connect(branch.input);
+        branch.output.connect(this.rbjLevel);
         this.rbjLevel.connect(this.output);
         if (openrb) {
             this.openrbLevel = context.createGain();
@@ -137,7 +151,9 @@ export class LowpassModeSwitch {
 
     /** The audible mode: openrb only when asked for and available. */
     get active(): LowpassFilterMode {
-        return this.mode === 'openrb' && this.openrbLevel && this.failure === null ? 'openrb' : 'rbj';
+        return this.mode === 'openrb' && this.openrbLevel && this.failure === null && this.heldBy === null
+            ? 'openrb'
+            : 'rbj';
     }
 
     status(): LowpassModeStatus {
@@ -148,7 +164,21 @@ export class LowpassModeSwitch {
             openrbAvailable,
             ...(openrbAvailable ? {} : { reason: this.failure ?? OPENRB_UNAVAILABLE_REASON }),
             bitExact: this.openrb?.bitExact?.() ?? null,
+            ...(this.heldBy !== null ? { held: this.heldBy } : {}),
         };
+    }
+
+    /**
+     * Keep the standard branch audible whatever the mode, with a reason (`null`
+     * releases it). A PCF node holds it while it is not a low-pass: openrb is
+     * ReBirth's low-pass only. Crossfaded like a mode switch.
+     */
+    hold(reason: string | null, rampSeconds = LOWPASS_SWITCH_RAMP_SECONDS): LowpassModeStatus {
+        if (reason !== this.heldBy) {
+            this.heldBy = reason;
+            this.apply(rampSeconds);
+        }
+        return this.status();
     }
 
     /** Switch modes live, with a short crossfade. */

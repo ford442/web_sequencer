@@ -12,6 +12,7 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { usePatchBay } from '../hooks/usePatchBay';
 import { PatchBayPalette } from './PatchBayPalette';
+import { PatchBayPcfPanel } from './PatchBayPcfPanel';
 import { performanceBudget, BUDGET_OVERLOAD_THRESHOLD } from '../utils/performanceBudget';
 import {
     cablePath,
@@ -63,6 +64,8 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
         moveNode,
         setLowpassMode,
         lowpassStatus,
+        setPcf,
+        pcfState,
         clearRejection,
     } = usePatchBay();
 
@@ -157,6 +160,12 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
         : undefined;
     // Low-pass nodes A/B between the RBJ biquad and openrb (ReBirth PCF).
     const lowpass = selectedNode ? lowpassStatus(selectedNode) : null;
+    // PCF nodes (master or placed) get live knobs, pattern and mode.
+    const pcf = selectedNode ? pcfState(selectedNode) : null;
+    const pcfLabel = selectedNode
+        ? (config.nodes.find((node) => node.id === selectedNode)?.label ?? selectedNode)
+        : '';
+    const masterPattern = pcf && !pcf.master ? (pcfState('masterPcf')?.pattern ?? null) : null;
 
     return (
         <section className={`hyphon-chrome-panel flex flex-col gap-2 p-3 ${className}`} aria-label="Patch bay">
@@ -275,7 +284,11 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
                                     height={NODE_HEIGHT}
                                     rx={6}
                                     fill="#0d1014"
-                                    stroke={node.fixed ? '#22d3ee33' : '#a855f766'}
+                                    stroke={
+                                        node.factory === 'pcf' || node.factory === 'masterPcf'
+                                            ? node.id === selectedNode ? '#fbbf24' : '#f59e0b88'
+                                            : node.fixed ? '#22d3ee33' : '#a855f766'
+                                    }
                                     strokeWidth={1}
                                     style={{ cursor: 'grab' }}
                                     onMouseDown={() => {
@@ -372,6 +385,15 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
             )}
 
             <PatchBayPalette config={config} onAdd={addNode} />
+
+            {selectedNode && pcf && (
+                <PatchBayPcfPanel
+                    state={pcf}
+                    label={pcfLabel}
+                    masterPattern={masterPattern}
+                    onEdit={(edit) => setPcf(selectedNode, edit)}
+                />
+            )}
 
             {selectedNode && lowpass && (
                 <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Low-pass filter mode">

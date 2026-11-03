@@ -10,6 +10,7 @@
  */
 
 import { LOWPASS_FILTER_MODES, LOWPASS_MODE_LABELS } from './lowpassMode';
+import { PCF_NODE_DEFAULTS } from '../pcf/pcfNodeConfig';
 import type { AudioGraphConfig, GraphNodeConfig, GraphNodeFactory, GraphNodeSpec } from './types';
 
 export interface PaletteParam {
@@ -78,6 +79,42 @@ export const NODE_PALETTE: readonly PaletteEntry[] = [
         ],
     },
     {
+        // ReBirth's Pattern Controlled Filter as an insert: cable any voice or
+        // bus through it. Knobs, pattern and mode stay live once placed
+        // (src/audio/pcf/pcfInsert.ts).
+        factory: 'pcf',
+        label: 'PCF',
+        base: {
+            enabled: PCF_NODE_DEFAULTS.enabled,
+            pattern: [...PCF_NODE_DEFAULTS.pattern],
+            followMasterLanes: PCF_NODE_DEFAULTS.followMasterLanes,
+        },
+        params: [
+            { key: 'cutoff', label: 'Cutoff', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.cutoff },
+            { key: 'resonance', label: 'Reso', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.resonance },
+            { key: 'envAmount', label: 'Env', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.envAmount },
+            { key: 'decay', label: 'Decay', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.decay },
+        ],
+        choices: [
+            {
+                key: 'filterType',
+                label: 'Type',
+                options: [
+                    { value: 'lp', label: 'LP' },
+                    { value: 'bp', label: 'BP' },
+                    { value: 'hp', label: 'HP' },
+                ],
+                defaultValue: PCF_NODE_DEFAULTS.filterType,
+            },
+            {
+                key: 'filterMode',
+                label: 'Mode',
+                options: LOWPASS_FILTER_MODES.map((mode) => ({ value: mode, label: LOWPASS_MODE_LABELS[mode] })),
+                defaultValue: PCF_NODE_DEFAULTS.filterMode,
+            },
+        ],
+    },
+    {
         factory: 'waveShaper',
         label: 'Drive',
         params: [{ key: 'drive', label: 'Drive', min: 0, max: 400, step: 1, defaultValue: 50 }],
@@ -143,6 +180,7 @@ export function createPaletteNode(
         id: `${entry.factory}-${n}`,
         factory: entry.factory,
         label: `${entry.label} ${n}`,
-        config: { ...(entry.base ?? {}), ...params, ...choices } as GraphNodeConfig,
+        // Base values are copied, so nodes never share an array (a PCF pattern).
+        config: { ...structuredClone(entry.base ?? {}), ...params, ...choices } as GraphNodeConfig,
     };
 }

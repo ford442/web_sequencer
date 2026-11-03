@@ -48,6 +48,7 @@ import { automationStore } from '../stores/automationStore';
 import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
 import { getWamHost } from '../audio/wam';
 import type { PcfEffect } from '../engines/PcfEffect';
+import { broadcastPcfTransport } from '../audio/pcf/pcfInsert';
 import { resolveRealtimeTB303Model } from '../engines/TB303Models';
 import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
 import { Open303Manager } from '../engines/Open303Manager';
@@ -476,7 +477,8 @@ export function useAppState() {
         if (!pcfEffect) return;
         const started = schedPlaying && !pcfPlayingRef.current;
         pcfPlayingRef.current = schedPlaying;
-        pcfEffect.setTransport(schedPlaying, tempo, started ? 0 : undefined);
+        // Placed PCF nodes step with the master.
+        broadcastPcfTransport(pcfEffect, schedPlaying, tempo, started ? 0 : undefined);
     }, [schedPlaying, tempo, pcfEffect]);
 
     useEffect(() => {

@@ -25,6 +25,8 @@ import {
     setConnectionGain,
     setLowpassMode,
     setNodePosition,
+    setPcfNodeConfig,
+    isPcfNode,
     validateGraph,
     type GraphValidationIssue,
 } from './graphOps';
@@ -36,6 +38,11 @@ import {
     type LowpassModeStatus,
 } from './lowpassMode';
 import { graphsEqual, serializeAudioGraph, withMasterPcf, type SerializedAudioGraph } from './graphSerialization';
+import {
+    normalizePcfNodeConfig,
+    type PcfNodeEdit,
+    type PcfNodeState,
+} from '../pcf/pcfNodeConfig';
 import type {
     AudioGraphConfig,
     BiquadFilterConfig,
@@ -52,6 +59,8 @@ export interface PatchEditOutcome {
     requiresRebuild?: boolean;
     /** For a low-pass mode edit: what is audible now. */
     lowpass?: LowpassModeStatus;
+    /** For a PCF edit: the node as it is now. */
+    pcf?: PcfNodeState;
 }
 
 export type PatchListener = (config: AudioGraphConfig) => void;
@@ -285,6 +294,88 @@ export class PatchController {
             openrbAvailable: false,
             reason: this.compiled ? 'added since the engine started — restart to hear it' : OPENRB_UNAVAILABLE_REASON,
             bitExact: null,
+        };
+    }
+
+    /**
+     * Edit a PCF node — knobs, pattern, master-lane following, filter mode —
+     * live when it is running.
+     *
+     * A placed PCF (`pcf`) saves every setting in the patch, and an edit made
+     * before it is running is staged for the next rebuild. The master PCF saves
+     * only its filter mode; its knobs and pattern act on the running PCF (and
+     * mark it hand-edited, so song save keeps them as the song's `pcfFilter`),
+     * and are refused when the master PCF is not running.
+     */
+    setPcf(id: GraphNodeId, edit: PcfNodeEdit): PatchEditOutcome {
+        const result = setPcfNodeConfig(this.config, id, edit);
+        if (result.rejected) return { ok: false, rejected: result.rejected };
+        const node = this.config.nodes.find((candidate) => candidate.id === id);
+        const live = this.compiled?.ports.get(id)?.pcf;
+        const master = node?.factory === 'masterPcf';
+        const { filterMode: _mode, ...songSettings } = edit;
+        const touchesSong = Object.values(songSettings).some((value) => value !== undefined);
+        if (master && touchesSong && !live) {
+            return {
+                ok: false,
+                rejected: {
+                    code: 'not-pcf',
+                    message: 'The master PCF is not running (no audio engine, or its worklet did not load)',
+                    nodes: [id],
+                },
+            };
+        }
+        if (!live) {
+            this.pendingRebuild = true;
+            this.commit(result.config);
+            return { ok: true, requiresRebuild: true, pcf: this.pcfState(id) ?? undefined };
+        }
+        if (master && touchesSong) live.effect.markEdited();
+        const pcf = live.edit(edit);
+        // Committed even when the config is unchanged (master knobs live on the
+        // running PCF), so subscribers re-read the node's state.
+        this.commit(result.config);
+        return { ok: true, pcf };
+    }
+
+    /**
+     * A PCF node's settings and what it plays; `null` for other nodes. A node
+     * that is not running reports its saved settings.
+     */
+    pcfState(id: GraphNodeId): PcfNodeState | null {
+        const node = this.config.nodes.find((candidate) => candidate.id === id);
+        if (!node || !isPcfNode(node)) return null;
+        const live = this.compiled?.ports.get(id)?.pcf;
+        if (live) return live.state();
+        const saved = normalizePcfNodeConfig(node.config);
+        const master = node.factory === 'masterPcf';
+        const reason = !this.compiled
+            ? 'audio engine not running'
+            : master
+              ? 'the PCF worklet did not load'
+              : 'added since the engine started — restart to hear it';
+        return {
+            nodeId: id,
+            master,
+            live: false,
+            knobs: {
+                enabled: saved.enabled,
+                filterType: saved.filterType,
+                cutoff: saved.cutoff,
+                resonance: saved.resonance,
+                envAmount: saved.envAmount,
+                decay: saved.decay,
+            },
+            pattern: saved.pattern,
+            followMasterLanes: saved.followMasterLanes,
+            mode: {
+                mode: saved.filterMode,
+                active: 'rbj',
+                openrbAvailable: false,
+                reason,
+                bitExact: null,
+            },
+            reason,
         };
     }
 
