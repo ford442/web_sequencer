@@ -78,20 +78,35 @@ test.describe('RBS import E2E', () => {
       }, { timeout: 15_000, intervals: [100, 250, 500] })
       .toBeGreaterThanOrEqual(0);
 
-    // SYNTH A cutoff knob is present and retains a valid aria value during playback.
+    // SYNTH A cutoff knob is present, reports a valid aria value, and moves with
+    // its lane during playback.
+    //
+    // Why not "> 0": since #1522 KnobOverlay reports the *automated* lane value
+    // in aria-valuenow while a lane drives the knob. The fixture's PCF pattern is
+    // [0, 4, 8, …, 60] on TB-303 A, which the importer turns into a
+    // synthA.filterCutoff lane that starts every bar at exactly 0 (0 → 0.081 over
+    // 16 steps), so the attribute legitimately reads 0 on step 0 — that is the
+    // intermittent red on chromium / firefox / webkit (CI run 41444674773
+    // traces: before 1 → after 0, 2 → 0, before 0). The invariant is: a finite
+    // integer in 0..100 at both samples, and different between them, because the
+    // lane is being scheduled. At the fixture's 128 BPM, 1.5 s is ~12.8 sixteenth
+    // steps, so the two samples always land on steps that read differently.
     const cutoffKnob = page.getByRole('slider', { name: /^CUTOFF/i }).first();
     await expect(cutoffKnob).toBeVisible();
 
-    await expect.poll(async () => {
-      const val = await cutoffKnob.getAttribute('aria-valuenow');
-      if (val === null) return -1;
-      return Number(val);
-    }, { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
+    const readAriaValueNow = async (): Promise<number> => {
+      const raw = await cutoffKnob.getAttribute('aria-valuenow');
+      expect(raw, 'aria-valuenow is an integer').toMatch(/^\d+$/);
+      const value = Number(raw);
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(100);
+      return value;
+    };
 
+    const before = await readAriaValueNow();
     await page.waitForTimeout(1500);
-    const afterStr = await cutoffKnob.getAttribute('aria-valuenow');
-    expect(afterStr).not.toBeNull();
-    const after = Number(afterStr);
-    expect(after).toBeGreaterThanOrEqual(0);
+    const after = await readAriaValueNow();
+    expect(after, 'cutoff lane moves the knob between samples').not.toBe(before);
   });
 });
