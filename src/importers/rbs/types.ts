@@ -713,6 +713,14 @@ export interface RbsImportOptions {
   
   /** Which Hyphon track receives TB-303 Pattern B */
   tb303BTarget: 'partA' | 'partB' | 'bass2';
+
+  /**
+   * 303 voice written to the tracks `tb303ATarget` / `tb303BTarget` route the
+   * TB-303s to. Default 'stock' (Stock Open303). 'openrb338-auto' picks the
+   * openrb-338 sound mode from the file version: 1.x → Vintage, 2.x+ → 2.0.
+   * Optional so older callers that build options by hand keep working.
+   */
+  tb303Voice?: RbsTb303Voice;
   
   /** Whether to convert PCF to filter automation */
   convertPcfToAutomation: boolean;
@@ -735,6 +743,9 @@ export interface RbsImportOptions {
   /** Whether to import PCF as per-track filters instead of automation */
   importPcfAsFilter: boolean;
 }
+
+/** RBS import choices for the TB-303 voice (see `RbsImportOptions.tb303Voice`). */
+export type RbsTb303Voice = 'stock' | 'openrb338-auto' | 'openrb338-vintage' | 'openrb338-2.0';
 
 // Import option defaults + TB-303 routing live in importOptions.ts so that
 // trakControllers.ts can use them without an import cycle through this barrel.

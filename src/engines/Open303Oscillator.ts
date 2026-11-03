@@ -617,6 +617,8 @@ export class Open303Oscillator {
                     String(payload.data?.reason ?? 'live high-fid unavailable'),
                     null,
                 );
+            } else if (payload.type === 'openrb338-unavailable') { // GPL module not bundled (#1537): plays stock
+                reportTB303ModelFallback(String(payload.data?.model), 'stock-open303', String(payload.data?.reason), 'openrb338');
             } else if (payload.type === 'live-ab-cpu') {
                 const stock = payload.data?.stockPercent;
                 const highFid = payload.data?.highFidPercent;

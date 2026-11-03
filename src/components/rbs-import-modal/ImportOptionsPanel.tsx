@@ -160,6 +160,27 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
               <option value="bass2">Bass 2 (TB-303)</option>
             </select>
           </div>
+
+          {/* 303 voice — applied to whichever tracks the A/B targets above pick */}
+          <div className="flex items-center justify-between">
+            <span
+              className="text-sm text-gray-400"
+              title="openrb-338 is GPL-3.0-only and ships as an optional module; until it is bundled these voices play Stock Open303 and the song keeps the choice."
+            >
+              TB-303 voice
+            </span>
+            <select
+              value={importOptions.tb303Voice ?? 'stock'}
+              onChange={(e) => updateOption('tb303Voice', e.target.value as NonNullable<RbsImportOptions['tb303Voice']>)}
+              className="bg-gray-800 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus-visible:border-amber-500/50 outline-none"
+              aria-label="TB-303 Voice"
+            >
+              <option value="stock">Stock Open303</option>
+              <option value="openrb338-auto">openrb-338 (mode from file)</option>
+              <option value="openrb338-vintage">openrb-338 Vintage</option>
+              <option value="openrb338-2.0">openrb-338 2.0</option>
+            </select>
+          </div>
         </div>
       )}
     </div>

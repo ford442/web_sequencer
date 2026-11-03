@@ -10,7 +10,7 @@ track without touching the others.
 
 | Term | Meaning |
 |------|---------|
-| **Engine family** | One of the DSP implementations: `open303` (custom synth), `jc303` (authentic `rosic::Open303`), or `highfid` (offline-only diode-ladder — Phase-2/3). |
+| **Engine family** | One of the DSP implementations: `open303` (custom synth), `jc303` (authentic `rosic::Open303`), `highfid` (diode-ladder — live and offline), or `openrb338` (bit-exact ReBirth 2.01 from openrb-338, GPL-3.0-only optional module — [openrb338-voice.md](./openrb338-voice.md)). |
 | **Voice / model** | A named sound character with a stable string id (e.g. `stock-open303`, `experimental-01`). Voices in the `open303` family are *coefficient profiles* applied to the shared DSP topology; `jc303`-family voices run on the rosic engine; `highfid-*` voices are **offline-only** (freeze / export / multisample). |
 
 ## Current catalog
@@ -29,6 +29,8 @@ songs — **never rename** a shipped id.
 | `rebirth-2.0` | ReBirth 2.0 | `open303` | Cleaner/tighter filter than 1.5, punchier accent, snappier envelope | ReBirth RB-338 2.0 *(not a clone)* |
 | `mb33-mkii` | MB33 mkII | `open303` | Boxier digital filter, distinct accent punch, square/saw grit | MAM MB33 mkII *(not a clone)* |
 | `raveolution` | Raveolution 309 | `open303` | Bright harsh self-osc, aggressive resonance, snappy envelope, heavy drive | Quasimidi Raveolution 309 *(not a clone)* |
+| `openrb338-vintage` | openrb-338 Vintage | `openrb338` | Bit-exact ReBirth 2.01 TB-303, Vintage mode — GPL-3.0-only optional module, **plays Stock Open303 until bundled** | ReBirth 2.01 via openrb-338 ([openrb338-voice.md](./openrb338-voice.md)) |
+| `openrb338-2.0` | openrb-338 2.0 | `openrb338` | Bit-exact ReBirth 2.01 TB-303, 2.0 mode — GPL-3.0-only optional module, **plays Stock Open303 until bundled** | ReBirth 2.01 via openrb-338 ([openrb338-voice.md](./openrb338-voice.md)) |
 | `live-highfid` | Live High-Fidelity | `highfid` | Phase-L1 diode ladder in the AudioWorklet @ 1× — **realtime**, auto-degrades to Stock Open303 | TB-303 authenticity tier |
 | `highfid-cpu` | High-Fidelity CPU (offline) | `highfid` | Phase-2 diode-ladder reference @ 4× OS — **offline only** | TB-303 authenticity tier |
 | `gpu-highfid` | GPU High-Fidelity (offline) | `highfid` | Phase-3 WGSL diode-ladder — **offline only**; falls back to CPU without WebGPU | TB-303 authenticity tier |
@@ -37,6 +39,12 @@ songs — **never rename** a shipped id.
 
 Catalogued-but-unshipped voices are hidden from the UI and normalize to the
 stock voice of their family when loaded from a song.
+
+Voices whose DSP lives in an **optional module** (`optionalModule`, today only
+the `openrb338` family) are different: they stay selectable and persisted, show a
+**GPL · stub** pill, and play Stock Open303 while the module is missing — see
+[openrb338-voice.md](./openrb338-voice.md) for the port path and the GPL-3.0-only
+licence decision.
 
 ### ReBirth character voices (`rebirth-338-1.5`, `rebirth-2.0`)
 

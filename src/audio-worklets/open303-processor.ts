@@ -22,7 +22,7 @@ import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef, type NativeVoicePrefix } from './nativeVoiceProcessor';
 import { Open303EngineSession } from './open303/engineSession';
 import { Open303EngineSelection } from './open303/engineSelection';
-import { OPEN303_PARAM_IDS, getTime, type EngineFamily } from './open303/shared';
+import { OPEN303_PARAM_IDS, getTime, type RequestedEngineFamily } from './open303/shared';
 
 // jc303_set* message name → Open303Param id. The message protocol predates
 // the native API; every engine shares these ids.
@@ -44,7 +44,7 @@ interface Open303MessageData extends LiveHighFidMessageData {
     func?: string;
     value?: number;
     audioTime?: number;
-    engine?: EngineFamily;
+    engine?: RequestedEngineFamily;
     model?: string;
     oversample?: number;
     /** init-wasm: EngineEventSink.transport of the main thread's EventBus route. */
@@ -126,7 +126,8 @@ class Open303Processor extends NativeVoiceProcessor {
         } else if (type === 'allNotesOff') {
             this.releaseAllNotes();
         } else if (type === 'set-engine' && data?.engine !== undefined) {
-            this.engineSelection.setEngine(data.engine);
+            // set-engine predates the voices registry: only render families.
+            if (data.engine !== 'openrb338') this.engineSelection.setEngine(data.engine);
         } else if (type === 'set-303-model' && data?.model !== undefined) {
             this.engineSelection.setModel(data.model, data.engine, data.oversample);
         } else if (type === 'param' && data?.func !== undefined && data.value !== undefined) {

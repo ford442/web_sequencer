@@ -24,6 +24,13 @@ export const OPEN303_PARAM_IDS: Readonly<Record<string, number>> = {
 /** DSP engine families this processor can route a block to. */
 export type EngineFamily = 'open303' | 'jc303' | 'highfid';
 
+/**
+ * Families the main thread may *request* in `set-303-model`. `openrb338`
+ * (optional GPL module, #1537) is not a render target yet: the worklet maps
+ * it to stock open303 until the module is bundled.
+ */
+export type RequestedEngineFamily = EngineFamily | 'openrb338';
+
 // Synth state (using const object instead of enum for erasableSyntaxOnly compatibility)
 export const SynthState = {
     UNINITIALIZED: 'uninitialized',

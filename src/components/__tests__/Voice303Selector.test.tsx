@@ -51,6 +51,16 @@ describe('Voice303Selector', () => {
         expect(screen.getByLabelText('Open303 engine family active')).toBeInTheDocument();
     });
 
+    it('lists the openrb-338 voices with a GPL badge and a stock-fallback status (#1537)', () => {
+        const onChange = vi.fn();
+        render(<Voice303Selector model="openrb338-vintage" onChange={onChange} />);
+        expect(screen.getByLabelText('openrb-338 engine family active')).toBeInTheDocument();
+        expect(screen.getAllByText('GPL · stub')).toHaveLength(2);
+        expect(screen.getByText(/openrb-338 module not bundled/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Select openrb-338 2.0 voice' }));
+        expect(onChange).toHaveBeenCalledWith('openrb338-2.0');
+    });
+
     it('shows the JC303 family badge when a jc303-family voice is active', () => {
         render(<Voice303Selector model="jc303" onChange={vi.fn()} />);
         expect(screen.getByLabelText('JC303 engine family active')).toBeInTheDocument();

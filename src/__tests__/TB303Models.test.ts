@@ -27,6 +27,8 @@ import {
     legacyEngine303ForModel,
     tb303ModelFamily,
     stockModelForFamily,
+    isTB303ModelModuleBundled,
+    openrb338ModeForModel,
 } from '../engines/TB303Models';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { Open303Manager } from '../engines/Open303Manager';
@@ -80,6 +82,34 @@ describe('TB303_MODELS registry', () => {
             // "inspired-by" disclaimer surfaced to the user, not a clone claim.
             expect(m!.description.toLowerCase(), id).toContain('not a clone');
         }
+    });
+
+    it('ships the openrb-338 voices as a GPL, optional-module family (#1537)', () => {
+        for (const [id, mode] of [['openrb338-vintage', 'vintage'], ['openrb338-2.0', 'v2']] as const) {
+            const m = getTB303Model(id);
+            expect(m, id).toMatchObject({
+                family: 'openrb338',
+                available: true,
+                license: 'GPL-3.0-only',
+                optionalModule: 'openrb338',
+            });
+            expect(m!.offlineOnly, id).toBeFalsy();
+            expect(openrb338ModeForModel(id)).toBe(mode);
+            // Persisted as-is, so songs keep the voice for when the module ships.
+            expect(normalizeTB303Model(id)).toBe(id);
+            expect(resolveRealtimeTB303Model(id, undefined, { reportFallback: false })).toBe(id);
+            // Older builds read engine303: keep it a field they understand.
+            expect(legacyEngine303ForModel(id)).toBe('open303');
+        }
+        expect(getAvailableTB303Models().map((m) => m.label))
+            .toEqual(expect.arrayContaining(['openrb-338 Vintage', 'openrb-338 2.0']));
+        expect(stockModelForFamily('openrb338')).toBe('openrb338-vintage');
+    });
+
+    it('reports the openrb-338 module as not bundled (stub) and every other voice as bundled', () => {
+        expect(isTB303ModelModuleBundled('openrb338-2.0')).toBe(false);
+        expect(isTB303ModelModuleBundled('stock-open303')).toBe(true);
+        expect(isTB303ModelModuleBundled('jc303')).toBe(true);
     });
 
     it('getAvailableTB303Models returns only available entries', () => {
