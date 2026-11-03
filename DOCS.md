@@ -62,6 +62,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
 | [openrb338-voice.md](docs/audio-engine/openrb338-voice.md) | openrb-338 Vintage / 2.0 voices: optional GPL-3.0-only Rust→WASM module (`openrb338/`, bit-exact at 44.1 kHz), its ABI, verification, divergences and integration plan, stub + stock fallback, RBS `tb303Voice`, licence decision |
+| [openrb338-drums-spike.md](docs/audio-engine/openrb338-drums-spike.md) | Spike: porting openrb-338's TR-808 / TR-909 sample engines (sample loading, voice allocation, timing, measured sample sizes, estimated WASM size, licence/asset notes, recommendation: defer, then engine-only with user-supplied kit) |
 | [openrb-lowpass.md](docs/audio-engine/openrb-lowpass.md) | Patch-bay low-pass filter modes: standard (RBJ) vs openrb / ReBirth PCF low-pass (bit-exact table path from `openrb338.wasm`, opt-in), live A/B switch, Hz/Q mapping, floating-point matching expectations |
 | [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](docs/audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
