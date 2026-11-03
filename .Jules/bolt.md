@@ -13,3 +13,10 @@
 ## 2024-11-02 - Hoisting branch logic and extracting methods in AudioWorklet hot loops
 **Learning:** In AudioWorklet per-sample hot paths, method calls (like `this.windowValue(...)`) and multi-way branch logic (like LUT array selection based on `windowShape` parameter) add up to significant overhead when executed per-sample across thousands of samples per quantum.
 **Action:** Hoist the branch logic (e.g. selecting the correct LUT reference based on windowShape, or determining custom window bounds) outside the inner loop. Inline the core computation (e.g. mathematical interpolation) directly into the sample loop. This reduces overhead more than micro-optimizations inside the method.
+## $(date +%Y-%m-%d) - [Optimize AudioWorklet BandSplit Compression]
+**Learning:** In hot loops within AudioWorklets, property accesses (`this.property`) and array lookups (`array[i]`) across many blocks add up to measurable overhead.
+**Action:** Always attempt to extract constants, loop-invariant conditionals, array references, and class properties to local variables outside the inner loop to minimize object property traversal overhead during per-sample high-frequency operations. Keep loop bodies small and tight.
+
+## $(date +%Y-%m-%d) - [Benchmark AudioWorklet Optimizations Before Changing]
+**Learning:** Some AudioWorklet inner loops look like they run often and are good optimization targets (e.g. `output[ch].set(output[0])` for `master-loudness-processor`), but actually run rarely (only when output channels > 2). Furthermore, not all property extractions yield a significant performance gain, and modifying core AudioWorklet loops blindly based on pattern matching can waste time.
+**Action:** When optimizing AudioWorklet DSP code, always measure the actual performance impact before implementing the change by writing a local benchmark script (e.g., running the processor on a fixed-length input for many blocks and timing it with `console.time()`).

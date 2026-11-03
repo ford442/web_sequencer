@@ -213,54 +213,75 @@ export class TruePeakLimiter {
         const target = this.targetCeilingLinear;
         const capacity = this.dequeCapacity;
 
+        const channelCount = this.channelCount;
+        const detectors = this.detectors;
+        const delayLines = this.delayLines;
+
+        let localDelayWrite = this.delayWrite;
+        let localSampleCounter = this.sampleCounter;
+        let localCurrentGain = this.currentGain;
+        let localMinGainSinceReport = this.minGainSinceReport;
+        let localClippedSinceReport = this.clippedSinceReport;
+
+        const attackCoefficient = this.attackCoefficient;
+        const releaseCoefficient = this.releaseCoefficient;
+        const delayFrames = this.delayFrames;
+        const delayCapacity = this.delayCapacity;
+
         for (let i = 0; i < frames; i += 1) {
             // 1. Detect the inter-sample peak of this input frame (channel-linked).
             let peak = 0;
-            for (let ch = 0; ch < this.channelCount; ch += 1) {
+            for (let ch = 0; ch < channelCount; ch += 1) {
                 const source = input[ch];
                 const raw = source !== undefined ? source[i] : 0;
                 const sample = Number.isFinite(raw) ? raw : 0;
-                const detected = this.detectors[ch].processSample(sample);
+                const detected = detectors[ch].processSample(sample);
                 if (detected > peak) peak = detected;
 
                 // 2. Buffer the (undelayed) sample.
-                this.delayLines[ch][this.delayWrite] = sample;
+                delayLines[ch][localDelayWrite] = sample;
             }
 
             const gainTarget = peak > target ? target / peak : 1;
-            const index = this.sampleCounter;
+            const index = localSampleCounter;
             this.pushSlidingMin(index, gainTarget, capacity);
 
             // 3. The minimum gain over [index - lookahead, index] applies to the
             //    sample leaving the delay line now.
             const windowMin = this.slidingMin(index, capacity);
             const coefficient =
-                windowMin < this.currentGain ? this.attackCoefficient : this.releaseCoefficient;
-            this.currentGain += (windowMin - this.currentGain) * coefficient;
-            if (!Number.isFinite(this.currentGain)) this.currentGain = 1;
-            const gain = this.currentGain < windowMin ? this.currentGain : windowMin;
-            if (gain < this.minGainSinceReport) this.minGainSinceReport = gain;
+                windowMin < localCurrentGain ? attackCoefficient : releaseCoefficient;
+            localCurrentGain += (windowMin - localCurrentGain) * coefficient;
+            if (Number.isNaN(localCurrentGain)) localCurrentGain = 1;
+            const gain = localCurrentGain < windowMin ? localCurrentGain : windowMin;
+            if (gain < localMinGainSinceReport) localMinGainSinceReport = gain;
 
             // 4. Emit the delayed sample with the gain, clamped to the ceiling.
             const readIndex =
-                (this.delayWrite - this.delayFrames + this.delayCapacity) % this.delayCapacity;
-            for (let ch = 0; ch < this.channelCount; ch += 1) {
+                (localDelayWrite - delayFrames + delayCapacity) % delayCapacity;
+            for (let ch = 0; ch < channelCount; ch += 1) {
                 const out = output[ch];
                 if (out === undefined) continue;
-                let value = this.delayLines[ch][readIndex] * gain;
+                let value = delayLines[ch][readIndex] * gain;
                 if (value > ceiling) {
                     value = ceiling;
-                    this.clippedSinceReport = true;
+                    localClippedSinceReport = true;
                 } else if (value < -ceiling) {
                     value = -ceiling;
-                    this.clippedSinceReport = true;
+                    localClippedSinceReport = true;
                 }
                 out[i] = value;
             }
 
-            this.delayWrite = (this.delayWrite + 1) % this.delayCapacity;
-            this.sampleCounter = index + 1;
+            localDelayWrite = (localDelayWrite + 1) % delayCapacity;
+            localSampleCounter = index + 1;
         }
+
+        this.delayWrite = localDelayWrite;
+        this.sampleCounter = localSampleCounter;
+        this.currentGain = localCurrentGain;
+        this.minGainSinceReport = localMinGainSinceReport;
+        this.clippedSinceReport = localClippedSinceReport;
     }
 
     /** Monotonic deque push — keeps indices of increasing gains. */

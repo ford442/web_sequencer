@@ -48,6 +48,7 @@ const KNOWN_FACTORIES: ReadonlySet<string> = new Set<GraphNodeFactory>([
     'trackMonitor',
     'masterLimiter',
     'masterPcf',
+    'pcf',
     'destination',
     'open303Voice',
     'prophecyVoice',

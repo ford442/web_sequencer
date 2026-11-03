@@ -9,6 +9,8 @@
  * now.
  */
 
+import { LOWPASS_FILTER_MODES, LOWPASS_MODE_LABELS } from './lowpassMode';
+import { PCF_NODE_DEFAULTS } from '../pcf/pcfNodeConfig';
 import type { AudioGraphConfig, GraphNodeConfig, GraphNodeFactory, GraphNodeSpec } from './types';
 
 export interface PaletteParam {
@@ -20,12 +22,21 @@ export interface PaletteParam {
     defaultValue: number;
 }
 
+/** A string-valued config field picked from a list (e.g. a low-pass filter mode). */
+export interface PaletteChoice {
+    key: string;
+    label: string;
+    options: readonly { value: string; label: string }[];
+    defaultValue: string;
+}
+
 export interface PaletteEntry {
     factory: GraphNodeFactory;
     label: string;
     /** Fixed config fields that are not user-editable here (e.g. filter type). */
     base?: GraphNodeConfig;
     params: readonly PaletteParam[];
+    choices?: readonly PaletteChoice[];
 }
 
 export const NODE_PALETTE: readonly PaletteEntry[] = [
@@ -47,6 +58,16 @@ export const NODE_PALETTE: readonly PaletteEntry[] = [
             { key: 'frequency', label: 'Cutoff', min: 40, max: 18000, step: 1, defaultValue: 2000 },
             { key: 'Q', label: 'Q', min: 0.1, max: 18, step: 0.1, defaultValue: 0.7 },
         ],
+        // Standard (RBJ) biquad or ReBirth's PCF low-pass; switchable live
+        // afterwards (lowpassMode.ts).
+        choices: [
+            {
+                key: 'filterMode',
+                label: 'Mode',
+                options: LOWPASS_FILTER_MODES.map((mode) => ({ value: mode, label: LOWPASS_MODE_LABELS[mode] })),
+                defaultValue: 'rbj',
+            },
+        ],
     },
     {
         factory: 'biquadFilter',
@@ -55,6 +76,42 @@ export const NODE_PALETTE: readonly PaletteEntry[] = [
         params: [
             { key: 'frequency', label: 'Cutoff', min: 20, max: 8000, step: 1, defaultValue: 120 },
             { key: 'Q', label: 'Q', min: 0.1, max: 18, step: 0.1, defaultValue: 0.7 },
+        ],
+    },
+    {
+        // ReBirth's Pattern Controlled Filter as an insert: cable any voice or
+        // bus through it. Knobs, pattern and mode stay live once placed
+        // (src/audio/pcf/pcfInsert.ts).
+        factory: 'pcf',
+        label: 'PCF',
+        base: {
+            enabled: PCF_NODE_DEFAULTS.enabled,
+            pattern: [...PCF_NODE_DEFAULTS.pattern],
+            followMasterLanes: PCF_NODE_DEFAULTS.followMasterLanes,
+        },
+        params: [
+            { key: 'cutoff', label: 'Cutoff', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.cutoff },
+            { key: 'resonance', label: 'Reso', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.resonance },
+            { key: 'envAmount', label: 'Env', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.envAmount },
+            { key: 'decay', label: 'Decay', min: 0, max: 127, step: 1, defaultValue: PCF_NODE_DEFAULTS.decay },
+        ],
+        choices: [
+            {
+                key: 'filterType',
+                label: 'Type',
+                options: [
+                    { value: 'lp', label: 'LP' },
+                    { value: 'bp', label: 'BP' },
+                    { value: 'hp', label: 'HP' },
+                ],
+                defaultValue: PCF_NODE_DEFAULTS.filterType,
+            },
+            {
+                key: 'filterMode',
+                label: 'Mode',
+                options: LOWPASS_FILTER_MODES.map((mode) => ({ value: mode, label: LOWPASS_MODE_LABELS[mode] })),
+                defaultValue: PCF_NODE_DEFAULTS.filterMode,
+            },
         ],
     },
     {
@@ -88,6 +145,11 @@ export function paletteDefaults(entry: PaletteEntry): Record<string, number> {
     return Object.fromEntries(entry.params.map((param) => [param.key, param.defaultValue]));
 }
 
+/** Default choice values for a palette entry. */
+export function paletteChoiceDefaults(entry: PaletteEntry): Record<string, string> {
+    return Object.fromEntries((entry.choices ?? []).map((choice) => [choice.key, choice.defaultValue]));
+}
+
 /**
  * Build a user node for the patch: a fresh id that cannot collide with the
  * config (`<factory>-<n>`), its label, and the entry's config with each value
@@ -97,6 +159,7 @@ export function createPaletteNode(
     config: AudioGraphConfig,
     entry: PaletteEntry,
     values: Readonly<Record<string, number>> = {},
+    choiceValues: Readonly<Record<string, string>> = {},
 ): GraphNodeSpec {
     const taken = new Set(config.nodes.map((node) => node.id));
     let n = 1;
@@ -106,10 +169,18 @@ export function createPaletteNode(
     for (const param of entry.params) {
         params[param.key] = clamp(values[param.key] ?? param.defaultValue, param);
     }
+    const choices: Record<string, string> = {};
+    for (const choice of entry.choices ?? []) {
+        const picked = choiceValues[choice.key];
+        choices[choice.key] = choice.options.some((option) => option.value === picked)
+            ? (picked as string)
+            : choice.defaultValue;
+    }
     return {
         id: `${entry.factory}-${n}`,
         factory: entry.factory,
         label: `${entry.label} ${n}`,
-        config: { ...(entry.base ?? {}), ...params } as GraphNodeConfig,
+        // Base values are copied, so nodes never share an array (a PCF pattern).
+        config: { ...structuredClone(entry.base ?? {}), ...params, ...choices } as GraphNodeConfig,
     };
 }

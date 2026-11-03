@@ -105,6 +105,22 @@ export interface BuildElectribeGraphOptions {
      * the chain bridges `masterPanner` straight to the limiter.
      */
     masterPcf?: import('./types').GraphPortPair | null;
+    /**
+     * Builds the master PCF stage from its node (`createMasterPcfProvider`), so
+     * the stage gets a mode switch and live knobs. Takes precedence over
+     * `masterPcf`.
+     */
+    createMasterPcf?: import('../pcf/pcfInsert').PcfNodeProvider | null;
+    /**
+     * Builds the PCFs the user placed (`createPcfNodeProvider`). Omit it and
+     * their cables are bridged.
+     */
+    createPcfNode?: import('../pcf/pcfInsert').PcfNodeProvider | null;
+    /**
+     * openrb low-pass branch provider (`createOpenrbLowpassProvider`). Omit it
+     * and low-pass nodes stay on their RBJ biquad in every mode.
+     */
+    createOpenrbLowpass?: import('./lowpassMode').OpenrbLowpassProvider | null;
 }
 
 /**
@@ -117,9 +133,12 @@ export function buildClassicElectribeGraph(
 ): BuildElectribeGraphResult {
     const limiterNode = options.masterLimiterNode ?? null;
     const pcfPorts = options.masterPcf ?? null;
+    const openrbLowpass = options.createOpenrbLowpass ?? null;
     const compileOptions = {
         createMasterLimiterNode: () => limiterNode,
-        createMasterPcf: () => pcfPorts,
+        createMasterPcf: options.createMasterPcf ?? (() => pcfPorts),
+        ...(options.createPcfNode ? { createPcfNode: options.createPcfNode } : {}),
+        ...(openrbLowpass ? { createOpenrbLowpass: openrbLowpass } : {}),
     };
     const controller = options.patchController ?? null;
     const graph = controller
@@ -150,7 +169,10 @@ export {
     removeConnection,
     removeNode,
     setConnectionGain,
+    isPcfNode,
+    setLowpassMode,
     setNodePosition,
+    setPcfNodeConfig,
     validateGraph,
 } from './graphOps';
 export type {
@@ -195,9 +217,30 @@ export type {
 } from './engineVoices';
 export { OPEN303_VOICES, open303StripIds, withEngineVoices } from './engineStrips';
 export type { Open303StripIds, Open303VoiceId, MacroVoiceId, ProphecyVoiceId, SamplerVoiceId } from './engineStrips';
-export { NODE_PALETTE, createPaletteNode, paletteDefaults } from './nodePalette';
-export type { PaletteEntry, PaletteParam } from './nodePalette';
+export { NODE_PALETTE, createPaletteNode, paletteChoiceDefaults, paletteDefaults } from './nodePalette';
+export type { PaletteChoice, PaletteEntry, PaletteParam } from './nodePalette';
+export {
+    LOWPASS_FILTER_MODES,
+    LOWPASS_MODE_LABELS,
+    LowpassModeSwitch,
+    isModalLowpass,
+    normalizeLowpassMode,
+} from './lowpassMode';
+export type {
+    LowpassFilterMode,
+    LowpassModeStatus,
+    OpenrbLowpassBranch,
+    OpenrbLowpassProvider,
+    OpenrbLowpassRequest,
+} from './lowpassMode';
 export type { GraphPreset } from './presets';
+export {
+    PCF_FILTER_TYPES,
+    PCF_NODE_DEFAULTS,
+    pcfKnobToHz,
+    pcfKnobToQ,
+} from '../pcf/pcfNodeConfig';
+export type { PcfKnobs, PcfNodeEdit, PcfNodeState } from '../pcf/pcfNodeConfig';
 export { restorePatchFromSong } from './patchSession';
 export type { PatchRestoreResult } from './patchSession';
 export {
@@ -214,5 +257,6 @@ export type {
     GraphNodeId,
     GraphNodeRole,
     GraphPortPair,
+    PcfNodeConfig,
 } from './types';
 export { assertSafeGraphCycles, GraphCycleError } from './cycleCheck';

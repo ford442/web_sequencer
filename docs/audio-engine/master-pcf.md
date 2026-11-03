@@ -37,6 +37,15 @@ the `masterPanner → masterLimiter` cable, or `→ destination` on a patch with
 the limiter, through the new node. If the user re-cabled the panner some other
 way, the patch is left as it is.
 
+## In the patch bay
+
+Select the **PCF** node to get its panel: on/off, LP / BP / HP, cutoff,
+resonance, env amount, decay, the pattern and the filter mode (pattern PCF or
+openrb / ReBirth low-pass). The controls act on the running master PCF.
+Hand edits are saved as the song's `pcfFilter`; the mode is saved with the
+patch. You can also place more PCFs and cable any voice or bus through them;
+see [pcf-node.md](pcf-node.md).
+
 ## Transparent until a song engages it
 
 The processor bypasses (bit-exact pass-through) unless:
@@ -54,9 +63,10 @@ not engage the filter, because it has no cutoff to shape.
 
 | Source | Path |
 |--------|------|
-| `master.pcf*` lanes | `AutomationScheduler` → `PcfEffect.setAutomation*`. Units come from `pcfLaneOverride` (`laneResolver.ts`): cutoff `20 × 1000^v` Hz, resonance `v × 127`, env amount `v` |
+| `master.pcf*` lanes | `AutomationScheduler` → `pcfLaneFanout` → `PcfEffect.setAutomation*` (and placed PCFs that follow the master lanes). Units come from `pcfLaneOverride` (`laneResolver.ts`): cutoff `20 × 1000^v` Hz, resonance `v × 127`, env amount `v` |
 | Imported `pcfFilter` | `applyPcfFilterToEffect` on song load / RBS import. It calls `reset()` first, so a song without a PCF gets a clean master |
-| Transport | `useAppState` restarts the pattern at step 0 on play, freezes it on stop and follows tempo changes (`setTransport`) |
+| Transport | `useAppState` restarts the pattern at step 0 on play, freezes it on stop and follows tempo changes (`broadcastPcfTransport`, which also steps placed PCF nodes) |
+| Patch bay | The PCF panel (`PatchController.setPcf`); see [pcf-node.md](pcf-node.md) |
 | Lane removal | `createPcfLaneWatcher` (subscribed to `automationStore` in `engineLifecycle`) clears an override when its lane is deleted or disabled, or when automation playback is turned off. Without it, the last automated cutoff would keep filtering the next song |
 
 The live instance is published by `engineLifecycle` (`setMasterPcf`), exposed

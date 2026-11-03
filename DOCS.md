@@ -61,7 +61,8 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
-| [openrb338-voice.md](docs/audio-engine/openrb338-voice.md) | openrb-338 Vintage / 2.0 voices: optional GPL-3.0-only Rust→WASM module, stub + stock fallback, RBS `tb303Voice`, licence decision |
+| [openrb338-voice.md](docs/audio-engine/openrb338-voice.md) | openrb-338 Vintage / 2.0 voices: optional GPL-3.0-only Rust→WASM module (`openrb338/`, bit-exact at 44.1 kHz), its ABI, verification, divergences and integration plan, stub + stock fallback, RBS `tb303Voice`, licence decision |
+| [openrb-lowpass.md](docs/audio-engine/openrb-lowpass.md) | Patch-bay low-pass filter modes: standard (RBJ) vs openrb / ReBirth PCF low-pass (bit-exact table path from `openrb338.wasm`, opt-in), live A/B switch, Hz/Q mapping, floating-point matching expectations |
 | [303-gpu-highfid.md](docs/audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](docs/audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
 | [303-A-B-checklist.md](docs/audio-engine/303-A-B-checklist.md) | Manual + automated high-fid A/B checklist (Phase-5) |
@@ -71,6 +72,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [drumkit.md](docs/audio-engine/drumkit.md) | Analog 808/909 drum kit WASM worklet, C handles, Web Audio fallback |
 | [macro-voices.md](docs/audio-engine/macro-voices.md) | Macro engine family: 24 Plaits models (MIT), 8-voice polyphony, 48 kHz + resampler, denormal guards, fallback, offline render, presets, measurements |
 | [master-pcf.md](docs/audio-engine/master-pcf.md) | Master-bus ReBirth PCF: graph insertion point, live/offline automation, RBS lanes |
+| [pcf-node.md](docs/audio-engine/pcf-node.md) | PCF as a patch-bay node: placeable PCF inserts, live knobs / pattern / mode panel, master-lane following, openrb mode on a PCF, offline |
 | [master-loudness.md](docs/audio-engine/master-loudness.md) | Master true-peak limiter + BS.1770 LUFS metering (graph placement, accuracy, export) |
 | [patch-bay.md](docs/audio-engine/patch-bay.md) | User-editable audio routing: patch model, live editing, persistence, safety |
 | [offline-graph.md](docs/audio-engine/offline-graph.md) | Offline render of the live patch: freeze / stems / AI preview, export sample rate, WAM2 freeze contract |
