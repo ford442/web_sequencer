@@ -14,3 +14,7 @@
 ## $(date +%Y-%m-%d) - [Optimize AudioWorklet BandSplit Compression]
 **Learning:** In hot loops within AudioWorklets, property accesses (`this.property`) and array lookups (`array[i]`) across many blocks add up to measurable overhead.
 **Action:** Always attempt to extract constants, loop-invariant conditionals, array references, and class properties to local variables outside the inner loop to minimize object property traversal overhead during per-sample high-frequency operations. Keep loop bodies small and tight.
+
+## $(date +%Y-%m-%d) - [Benchmark AudioWorklet Optimizations Before Changing]
+**Learning:** Some AudioWorklet inner loops look like they run often and are good optimization targets (e.g. `output[ch].set(output[0])` for `master-loudness-processor`), but actually run rarely (only when output channels > 2). Furthermore, not all property extractions yield a significant performance gain, and modifying core AudioWorklet loops blindly based on pattern matching can waste time.
+**Action:** When optimizing AudioWorklet DSP code, always measure the actual performance impact before implementing the change by writing a local benchmark script (e.g., running the processor on a fixed-length input for many blocks and timing it with `console.time()`).
