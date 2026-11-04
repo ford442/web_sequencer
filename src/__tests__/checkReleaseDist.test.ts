@@ -43,6 +43,8 @@ const WORKLETS = [
     'sustain-processor',
     'RubberBandProcessor',
     'master-loudness-processor',
+    'pcf-processor',
+    'openrb-lowpass-processor',
 ];
 
 /**
@@ -59,6 +61,8 @@ const WORKLET_CHUNK_STEM: Record<string, string> = {
     'sustain-processor': 'sustain-processor',
     RubberBandProcessor: 'rubberband-processor',
     'master-loudness-processor': 'master-loudness-processor',
+    'pcf-processor': 'pcf-processor',
+    'openrb-lowpass-processor': 'openrb-lowpass-processor',
 };
 const workletChunkName = (processor: string, hash = 'AbCd1234') => `${WORKLET_CHUNK_STEM[processor]}-${hash}.js`;
 
@@ -421,7 +425,7 @@ describe('check-release-dist worklet classification (#1468)', () => {
             },
         });
         const { status, output } = runCheck(dir);
-        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(output).toContain(`${WORKLETS.length} worklet chunk(s) are self-contained`);
         expect(status).toBe(0);
     });
 
@@ -450,7 +454,7 @@ describe('check-release-dist worklet classification (#1468)', () => {
             },
         });
         const { status, output } = runCheck(dir);
-        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(output).toContain(`${WORKLETS.length} worklet chunk(s) are self-contained`);
         expect(status).toBe(0);
     });
 
@@ -458,7 +462,31 @@ describe('check-release-dist worklet classification (#1468)', () => {
         const dir = makeDist({ omitWorklets: ['sustain-processor'] });
         const { status, output } = runCheck(dir);
         expect(status).toBe(1);
-        expect(output).toContain('expected at least 8 worklet chunk(s)');
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain('sustain-processor');
+    });
+
+    // The master-bus PCF (#1554) and the openrb low-pass mode (#1561): a bundle
+    // without their chunks plays the mix with the master PCF lanes silent.
+    it.each(['pcf-processor', 'openrb-lowpass-processor'])('fails a bundle whose %s chunk is missing', (worklet) => {
+        const dir = makeDist({ omitWorklets: [worklet] });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain(worklet);
+    });
+
+    it('fails an inlined PCF worklet even when the chunk count still adds up', () => {
+        // An unrelated extra worklet entry keeps the count at the list length,
+        // so only the per-name check can see the PCF went into a shared chunk.
+        const dir = makeDist({
+            omitWorklets: ['pcf-processor'],
+            extraAssets: { [workletChunkName('openrb-lowpass-processor', 'ZzYyXx99')]: "registerProcessor('spare', class {});\n" },
+        });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain('pcf-processor');
     });
 
     it('fails a worklet entry chunk that never registers a processor', () => {
