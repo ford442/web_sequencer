@@ -8,7 +8,7 @@ adapter and a C ABI. It builds to `openrb338.wasm`, a 45 KB module with no impor
 module carries ReBirth's PCF low-pass for the patch bay's openrb low-pass mode
 ([docs/audio-engine/openrb-lowpass.md](../docs/audio-engine/openrb-lowpass.md)).
 
-**Licence: GPL-3.0-only** ([LICENSE](LICENSE)). The build is opt-in, and its output stays in
+**Licence: GPL-3.0-only** ([LICENSE](LICENSE); what that means for shipping Hyphon: [openrb338-licensing.md](../docs/audio-engine/openrb338-licensing.md)). The build is opt-in, and its output stays in
 `openrb338/pkg/` (gitignored). Nothing copies it into `public/`, and `build:native` does not
 build it.
 

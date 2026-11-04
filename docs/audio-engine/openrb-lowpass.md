@@ -35,7 +35,7 @@ saved with `openrb` keeps it on a build that cannot play it.
 ### When openrb is not available
 
 `openrb338.wasm` is GPL-3.0-only, and no published build bundles it (see the
-[licence decision](openrb338-voice.md#licence-decision-gpl-30-only)). Without
+[licence decision](openrb338-licensing.md)). Without
 it, openrb mode plays the RBJ biquad, and the status line says
 *"plays RBJ · openrb338.wasm not loaded (opt-in GPL build) · patch keeps
 openrb"*. Offline renders (freeze, stems, preview) take the same path as live

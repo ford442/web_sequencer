@@ -8,7 +8,7 @@ root of every release bundle (`dist/THIRD_PARTY_NOTICES.md`;
 Other vendored components keep their own licence files in their directories
 (for example `rubberband/`, `jc303_wasm/`). `openrb338/` (openrb-338,
 GPL-3.0-only) is source only: no build bundles it, so it is not listed here
-until one does (docs/audio-engine/openrb338-voice.md).
+until one does (docs/audio-engine/openrb338-licensing.md).
 
 ---
 
