@@ -143,6 +143,9 @@ export function useLyricHandlers(deps: {
             const normalizedSentiment = Math.max(-1, Math.min(1, sentimentScore / maxScore));
             const openHatProb = Math.max(0, Math.min(0.8, 0.2 + (normalizedSentiment * 0.4)));
 
+            // Map sentiment to a pitch offset for the kick drum (-2 to +2 semitones)
+            const kickPitchOffset = Math.round(normalizedSentiment * 2);
+
             let consecutiveConsonants = 0;
             let lastVowelBrightness = 0.5;
             let lastConsonantStep = -1;
@@ -202,7 +205,7 @@ export function useLyricHandlers(deps: {
                         let kickNote = 'C4';
                         if (isBrightVowel) kickNote = 'E4';
                         else if (isDarkVowel) kickNote = 'A3';
-                        newKick.steps[stepIdx] = { note: kickNote, velocity: humanVelocity, length: durationSteps };
+                        newKick.steps[stepIdx] = { note: transposeNote(kickNote, kickPitchOffset), velocity: humanVelocity, length: durationSteps };
                     }
                     if (stepIdx >= 0 && stepIdx < newOH.steps.length) {
                         if (isBrightVowel || isMidVowel) {
@@ -258,7 +261,7 @@ export function useLyricHandlers(deps: {
                                 // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
                                 if (consecutiveConsonants >= 3 && gapSize >= 2) {
                                     if (j % 3 === 0 && fillStep >= 0 && fillStep < newKick.steps.length) {
-                                        newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
+                                        newKick.steps[fillStep] = { note: transposeNote('C4', kickPitchOffset), velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
                                         const ghostVel = 0.4;
                                         newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: 1 };
