@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RbsImporter } from '../importers/rbs/RbsImporter';
 import { DEFAULT_RBS_IMPORT_OPTIONS } from '../importers/rbs/types';
+import { resolveRbsTb303VoiceFieldsFor } from '../importers/rbs/importer/synthParams';
 import type { HyphonAutomationLane, RawRbsData, Tb303Step } from '../importers/rbs/types';
 
 function makeSteps(): Tb303Step[] {
@@ -349,6 +350,36 @@ describe('RbsImporter – tb303Voice option (openrb-338, #1537)', () => {
     expect(auto.convertToHyphonSong(makeRawData({ version: '2.0.1' })).song.params.synthA?.model303)
       .toBe('openrb338-2.0');
   });
+
+  it('lets each TB-303 carry its own openrb-338 mode', () => {
+    const result = new RbsImporter({
+      tb303Voice: 'stock',
+      tb303VoiceA: 'openrb338-vintage',
+      tb303VoiceB: 'openrb338-2.0',
+    }).convertToHyphonSong(makeRawData());
+    expect(result.song.params.synthA?.model303).toBe('openrb338-vintage');
+    expect(result.song.params.synthB?.model303).toBe('openrb338-2.0');
+  });
+
+  it('routes the per-303 voice to BASS 2 with its source 303', () => {
+    const result = new RbsImporter({
+      tb303VoiceA: 'openrb338-2.0',
+      tb303VoiceB: 'openrb338-vintage',
+      tb303BTarget: 'bass2',
+    }).convertToHyphonSong(makeRawData());
+    expect(result.song.params.synthA?.model303).toBe('openrb338-2.0');
+    expect(result.song.params.bass2?.model303).toBe('openrb338-vintage');
+  });
+
+  it("per-303 overrides fall back to the shared voice; 'auto' honours the song vintage flag", () => {
+    const raw = { version: '2.0.1', songData: { glob: { vintage: 1 } } } as unknown as RawRbsData;
+    const opts = { tb303Voice: 'openrb338-auto', tb303VoiceB: 'openrb338-2.0' } as const;
+    expect(resolveRbsTb303VoiceFieldsFor(opts, raw, 'A').model303).toBe('openrb338-vintage');
+    expect(resolveRbsTb303VoiceFieldsFor(opts, raw, 'B').model303).toBe('openrb338-2.0');
+    expect(resolveRbsTb303VoiceFieldsFor(opts, { version: '2.0.1' } as RawRbsData, 'A').model303)
+      .toBe('openrb338-2.0');
+  });
+
 });
 
 describe('RbsImporter – per-step accent/slide automation lanes', () => {

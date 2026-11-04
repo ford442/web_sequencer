@@ -258,6 +258,54 @@ modal as **TB-303 voice**.
 The default stays `stock` until the module ships, so a fresh import never
 selects a voice that silently falls back.
 
+### Per-303 mode (two openrb-338 303s)
+
+ReBirth has two independent 303s. `RbsImportOptions.tb303VoiceA` and
+`tb303VoiceB` override `tb303Voice` for one TB-303 each (undefined = inherit),
+so a song can load with, for example, 303 A in Vintage and 303 B in 2.0. The
+import modal shows them as **TB-303 A voice** / **TB-303 B voice** ("Same as
+above" = inherit). Each override follows its 303's data to wherever
+`tb303ATarget` / `tb303BTarget` sends it, including BASS 2 and the song-mode
+per-slot params (`resolveRbsTb303VoiceFieldsFor` in
+`src/importers/rbs/importer/synthParams.ts`).
+
+`openrb338-auto` resolves per 303: Vintage when the file is 1.x
+(`isV15SubsetVersion`) **or** the song's GLOB vintage byte (`0x1ea`) is
+exactly 1, otherwise 2.0. ReBirth stores that flag once per song, not per 303,
+so to give the two 303s different modes from one file, set the per-303
+override explicitly.
+
+After import, `Voice303Selector` shows a **Mode: Vintage / 2.0** toggle
+whenever an openrb-338 voice is active. It switches between the two voice ids
+on that track only, so SYNTH A, SYNTH B and BASS 2 each keep their own mode.
+
+**Running both at once.** Each 303 track has its own worklet and its own
+openrb-338 handle (`openrb303_create` per track; up to 16 voices per module
+instance), and the mode is per handle (`openrb303_set_mode`). Two 303s in
+different modes share no state. The tables are read-only and built once per
+module instance.
+
+### Timing and control-rate differences from ReBirth
+
+- **Control rate.** The core takes note, mode and knob changes at 64-sample
+  block boundaries at 44.1 kHz (≈1.45 ms), as ReBirth does. Hyphon sequences
+  at sample-accurate offsets inside a 128-frame quantum, so an event can land
+  up to one 64-sample block late compared with other Hyphon voices — the same
+  quantization ReBirth applies, not the sample accuracy of Stock Open303.
+- **Mode switch.** A mode change takes effect at the next block for the
+  engine and at the next note event for the amp constants (ReBirth msg 36), so
+  toggling Vintage / 2.0 on a held note is not instantaneous.
+- **Sample rate.** Bit-exact only at 44.1 kHz; at 48 / 96 kHz the output is
+  resampled (see Verification), adding a little latency and dropping bit
+  exactness.
+- **Sequencer timing.** Step timing, shuffle and tempo come from Hyphon's
+  sequencer, not ReBirth's tick clock, so groove matches ReBirth's to the
+  sequencer's resolution, not to the tick.
+- **Automation.** Imported knob automation is applied at Hyphon's automation
+  rate and then quantized to the 64-sample block, so fast tweaks are smoothed
+  slightly differently from ReBirth's per-tick knob messages.
+- **Slide time / filter mode** are ignored (ReBirth has neither).
+
 ## Licence decision (GPL-3.0-only)
 
 *Engineering decision record, not legal advice. The repository owner makes

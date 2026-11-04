@@ -1,5 +1,6 @@
 import type {
   RawRbsData, HyphonSong, DetailedParameterMapping, Tb303PatternA, RbsTb303Voice,
+  RbsImportOptions,
 } from '../types';
 import type {
   SynthParams, KickParams, SnareParams, HatParams, Bass2Params, Waveform,
@@ -38,19 +39,37 @@ const RBS_TB303_VOICE_FIELDS: RbsTb303VoiceFields = DEFAULT_TB303_VOICE_FIELDS;
 export function resolveRbsTb303VoiceFields(
   voice: RbsTb303Voice | undefined,
   fileVersion: string | undefined,
+  songVintageFlag?: number,
 ): RbsTb303VoiceFields {
   let model: TB303ModelId;
   switch (voice) {
     case 'openrb338-vintage': model = 'openrb338-vintage'; break;
     case 'openrb338-2.0': model = 'openrb338-2.0'; break;
     case 'openrb338-auto':
-      model = fileVersion && isV15SubsetVersion(fileVersion) ? 'openrb338-vintage' : 'openrb338-2.0';
+      model = (fileVersion && isV15SubsetVersion(fileVersion)) || songVintageFlag === 1
+        ? 'openrb338-vintage'
+        : 'openrb338-2.0';
       break;
     case 'stock':
     default:
       return RBS_TB303_VOICE_FIELDS;
   }
   return { model303: model, engine303: legacyEngine303ForModel(model) };
+}
+
+/**
+ * Voice fields for one source TB-303 (A or B). The per-303 option
+ * (`tb303VoiceA` / `tb303VoiceB`) wins over the shared `tb303Voice`, so both
+ * 303s can carry independent openrb-338 modes. The voice follows the 303's
+ * data to whichever track its target routes it to.
+ */
+export function resolveRbsTb303VoiceFieldsFor(
+  options: Pick<RbsImportOptions, 'tb303Voice' | 'tb303VoiceA' | 'tb303VoiceB'>,
+  raw: Pick<RawRbsData, 'version' | 'songData'>,
+  which: 'A' | 'B',
+): RbsTb303VoiceFields {
+  const voice = (which === 'A' ? options.tb303VoiceA : options.tb303VoiceB) ?? options.tb303Voice;
+  return resolveRbsTb303VoiceFields(voice, raw.version, raw.songData?.glob?.vintage);
 }
 
 /** Convert TB-303 params to Bass2Params (Open303 format). */
@@ -244,7 +263,8 @@ export function convertSynthParams(
   mappings: DetailedParameterMapping[],
 ): HyphonSong['params'] {
   // Follows the TB-303 data to whichever tracks tb303ATarget / tb303BTarget pick.
-  const voiceFields = resolveRbsTb303VoiceFields(ctx.options.tb303Voice, raw.version);
+  const voiceFieldsA = resolveRbsTb303VoiceFieldsFor(ctx.options, raw, 'A');
+  const voiceFieldsB = resolveRbsTb303VoiceFieldsFor(ctx.options, raw, 'B');
   const map303ToSynthParams = (
     tb303: {
       cutoff: number;
@@ -256,6 +276,7 @@ export function convertSynthParams(
       slideTime?: number;
     },
     sourceName: string,
+    voiceFields: RbsTb303VoiceFields,
   ): SynthParams => {
     const waveform: Waveform = tb303.waveform === 0 ? '303-saw' : '303-sqr';
     const cutoffHz = convertCutoffToHz(tb303.cutoff);
@@ -336,12 +357,12 @@ export function convertSynthParams(
     };
   };
 
-  const synthA = map303ToSynthParams(raw.tb303PatternA, 'TB-303A');
-  const synthB = map303ToSynthParams(raw.tb303PatternB, 'TB-303B');
+  const synthA = map303ToSynthParams(raw.tb303PatternA, 'TB-303A', voiceFieldsA);
+  const synthB = map303ToSynthParams(raw.tb303PatternB, 'TB-303B', voiceFieldsB);
 
   const bass2Params: Bass2Params | undefined =
-    ctx.options.tb303ATarget === 'bass2' ? convertToBass2Params(raw.tb303PatternA, 'TB-303A', mappings, voiceFields) :
-      ctx.options.tb303BTarget === 'bass2' ? convertToBass2Params(raw.tb303PatternB, 'TB-303B', mappings, voiceFields) :
+    ctx.options.tb303ATarget === 'bass2' ? convertToBass2Params(raw.tb303PatternA, 'TB-303A', mappings, voiceFieldsA) :
+      ctx.options.tb303BTarget === 'bass2' ? convertToBass2Params(raw.tb303PatternB, 'TB-303B', mappings, voiceFieldsB) :
         undefined;
 
   let drumKit = resolveDrumKitType(ctx, raw);

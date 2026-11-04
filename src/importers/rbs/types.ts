@@ -721,6 +721,14 @@ export interface RbsImportOptions {
    * Optional so older callers that build options by hand keep working.
    */
   tb303Voice?: RbsTb303Voice;
+
+  /**
+   * Per-303 voice overrides. When set, they replace `tb303Voice` for that
+   * TB-303 only, so 303 A and 303 B can use different openrb-338 modes
+   * (e.g. A = Vintage, B = 2.0). Undefined = inherit `tb303Voice`.
+   */
+  tb303VoiceA?: RbsTb303Voice;
+  tb303VoiceB?: RbsTb303Voice;
   
   /** Whether to convert PCF to filter automation */
   convertPcfToAutomation: boolean;

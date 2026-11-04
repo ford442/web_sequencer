@@ -8,6 +8,11 @@ import {
     resolveHighFidModelSelection,
     tb303ModelFamily,
 } from '../engines/TB303Models';
+import {
+    OPENRB338_V2_MODEL_ID,
+    OPENRB338_VINTAGE_MODEL_ID,
+    openrb338ModeForModel,
+} from '../audio-worklets/openrb338';
 import { getBrowserCapabilities } from '../utils/engineTelemetry';
 import type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficients';
 import { DEFAULT_LIVE_AB_MIX, type LiveAbSettings } from '../engines/LiveHighFidAbPair';
@@ -242,6 +247,38 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                 >
                     Live diode ladder · freeze uses highfid-cpu · falls back to Stock Open303 over CPU budget
                 </p>
+            )}
+            {activeFamily === 'openrb338' && (
+                <div
+                    className="flex items-center gap-1 mt-0.5"
+                    role="radiogroup"
+                    aria-label="openrb-338 sound mode"
+                >
+                    <span className="text-[8px] font-mono uppercase tracking-wider text-rose-300/80 mr-auto">
+                        Mode
+                    </span>
+                    {([
+                        [OPENRB338_VINTAGE_MODEL_ID, 'vintage', 'Vintage'],
+                        [OPENRB338_V2_MODEL_ID, 'v2', '2.0'],
+                    ] as const).map(([id, mode, label]) => {
+                        const checked = openrb338ModeForModel(model) === mode;
+                        return (
+                            <button
+                                type="button"
+                                key={id}
+                                role="radio"
+                                aria-checked={checked}
+                                aria-label={`openrb-338 ${label} mode`}
+                                onClick={() => { if (!checked) handleSelect(id); }}
+                                className={`px-2 py-0.5 text-[8px] font-bold rounded border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
+                                    checked ? openrbActive : inactiveStyle
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
+                </div>
             )}
             {activeFamily === 'openrb338' && moduleMissing && (
                 <p

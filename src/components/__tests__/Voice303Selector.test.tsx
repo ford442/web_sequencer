@@ -6,6 +6,19 @@ import { engineDegradationStore } from '../../stores/engineDegradationStore';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
 describe('Voice303Selector', () => {
+    it('shows a Vintage / 2.0 mode toggle only for openrb-338 voices', () => {
+        const onChange = vi.fn();
+        const { rerender } = render(<Voice303Selector model="stock-open303" onChange={onChange} />);
+        expect(screen.queryByRole('radiogroup', { name: 'openrb-338 sound mode' })).toBeNull();
+        rerender(<Voice303Selector model="openrb338-vintage" onChange={onChange} />);
+        expect(screen.getByRole('radio', { name: 'openrb-338 Vintage mode' })).toHaveAttribute('aria-checked', 'true');
+        fireEvent.click(screen.getByRole('radio', { name: 'openrb-338 2.0 mode' }));
+        expect(onChange).toHaveBeenCalledWith('openrb338-2.0');
+        onChange.mockClear();
+        fireEvent.click(screen.getByRole('radio', { name: 'openrb-338 Vintage mode' }));
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
     it('renders one button per available voice including offline high-fid', () => {
         render(<Voice303Selector model="stock-open303" onChange={vi.fn()} gpuAvailable />);
         for (const m of getAvailableTB303Models({ includeOfflineOnly: true })) {
