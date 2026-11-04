@@ -418,8 +418,8 @@ struct Open303Engine {
         const float k      = resonance * profile.resFeedback;
         const float filtered = filter.process(osc, freqHz, k, srEff);
 
-        // --- Output gain ---
-        float gain = volume;
+        // --- VCA: envLevel starts at 0, so the voice is silent until noteOn ---
+        float gain = volume * envLevel;
         if (accented) gain *= (1.0f + accent * profile.accentGainBoost);
         return filtered * gain;
     }
