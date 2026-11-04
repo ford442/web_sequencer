@@ -181,6 +181,31 @@ export const ImportOptionsPanel: React.FC<ImportOptionsPanelProps> = React.memo(
               <option value="openrb338-2.0">openrb-338 2.0</option>
             </select>
           </div>
+
+          {/* Per-303 overrides — independent openrb-338 mode for each TB-303 */}
+          {(['A', 'B'] as const).map((which) => {
+            const key = which === 'A' ? 'tb303VoiceA' : 'tb303VoiceB';
+            return (
+              <div key={which} className="flex items-center justify-between pl-3">
+                <span className="text-xs text-gray-500">TB-303 {which} voice</span>
+                <select
+                  value={importOptions[key] ?? 'inherit'}
+                  onChange={(e) => updateOption(
+                    key,
+                    (e.target.value === 'inherit' ? undefined : e.target.value) as RbsImportOptions[typeof key],
+                  )}
+                  className="bg-gray-800 text-gray-300 text-xs rounded px-2 py-1 border border-gray-700 focus-visible:border-amber-500/50 outline-none"
+                  aria-label={`TB-303 ${which} Voice`}
+                >
+                  <option value="inherit">Same as above</option>
+                  <option value="stock">Stock Open303</option>
+                  <option value="openrb338-auto">openrb-338 (mode from file)</option>
+                  <option value="openrb338-vintage">openrb-338 Vintage</option>
+                  <option value="openrb338-2.0">openrb-338 2.0</option>
+                </select>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
