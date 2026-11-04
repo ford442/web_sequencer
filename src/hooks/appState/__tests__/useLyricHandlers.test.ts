@@ -1,0 +1,84 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useLyricHandlers } from '../useLyricHandlers';
+import { SupertonicService } from '../../../services/Supertonic';
+
+vi.mock('../../../services/Supertonic', () => ({
+    SupertonicService: {
+        getInstance: vi.fn()
+    }
+}));
+
+vi.mock('../../../utils/resampleAudioBuffer', () => ({
+    ensureBufferMatchesContext: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../../../stores/transportMixStore', () => ({
+    transportMixStore: {
+        getSnapshot: vi.fn().mockReturnValue({ swing: 50, stepCount: 16, tracks: { kick: { loopLength: 16 }, snare: { loopLength: 16 }, closedHat: { loopLength: 16 }, openHat: { loopLength: 16 } }, trackLengths: {} })
+    }
+}));
+
+describe('useLyricHandlers', () => {
+    let deps;
+    let mockSupertonic;
+
+    beforeEach(() => {
+        mockSupertonic = {
+            generate: vi.fn().mockResolvedValue(new Float32Array()),
+            getOutputSampleRate: vi.fn().mockReturnValue(44100),
+            getLastTokenDurations: vi.fn().mockReturnValue([]),
+            isReady: true,
+            currentStyle: {},
+            textProcessor: {},
+            cfgs: {}
+        };
+        (SupertonicService.getInstance as any).mockReturnValue(mockSupertonic);
+
+        deps = {
+            audioEngine: {
+                context: { createBuffer: vi.fn().mockReturnValue({ getChannelData: vi.fn().mockReturnValue({ set: vi.fn() }) }) },
+                prepareVocal: vi.fn(),
+                getAlignment: vi.fn().mockReturnValue({ phonemes: [{ phoneme: 'AH', start: 0, end: 1 }] })
+            },
+            patternRef: { current: { kick: { steps: [] }, snare: { steps: [] }, closedHat: { steps: [] }, openHat: { steps: [] }, sampler: [] } },
+            tempoRef: { current: 120 },
+            activeSamplerBankRef: { current: 0 },
+            samplerRef: { current: [] },
+            setPattern: vi.fn(),
+            setSampler: vi.fn(),
+            setTtsPhrases: vi.fn(),
+            setIsGenerating: vi.fn(),
+            setIsLyricTrackVisible: vi.fn(),
+            ttsPhrases: [],
+            activeSamplerBank: 0,
+            handleLoadSample: vi.fn().mockResolvedValue(undefined),
+            updateStorageForTrack: vi.fn(),
+            showToast: vi.fn(),
+            setActiveAlignment: vi.fn(),
+            currentScale: null,
+            setCurrentScale: vi.fn(),
+        };
+    });
+
+    it('sets Minor scale on negative sentiment when currentScale is null', async () => {
+        const { result } = renderHook(() => useLyricHandlers(deps as any));
+
+        await act(async () => {
+            await result.current.handleTextToDrums('I hate this cold dark pain');
+        });
+
+        expect(deps.setCurrentScale).toHaveBeenCalledWith({ root: 'C', scale: 'Minor', tuning: '12-TET' });
+    });
+
+    it('does not set scale on negative sentiment when currentScale is already set', async () => {
+        deps.currentScale = { root: 'D', scale: 'Major', tuning: '12-TET' };
+        const { result } = renderHook(() => useLyricHandlers(deps as any));
+
+        await act(async () => {
+            await result.current.handleTextToDrums('I hate this cold dark pain');
+        });
+
+        expect(deps.setCurrentScale).not.toHaveBeenCalled();
+    });
+});
