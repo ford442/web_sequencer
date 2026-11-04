@@ -599,7 +599,7 @@ export function useAppState() {
         audioEngine, patternRef, tempoRef, activeSamplerBankRef, samplerRef,
         setPattern, setSampler, setTtsPhrases, setIsGenerating, setIsLyricTrackVisible,
         ttsPhrases, activeSamplerBank, handleLoadSample, updateStorageForTrack, showToast,
-        setActiveAlignment,
+        setActiveAlignment, currentScale, setCurrentScale,
     });
 
     const {

@@ -8,6 +8,7 @@ import { updateSamplerRange } from './patternUpdates'
 import { transportMixStore } from '../../stores/transportMixStore'
 import { padSteps, trackLoopLength } from '../../utils/songMeter'
 import { MAX_NOTE_MIDI, MIN_NOTE_MIDI, midiToNote, noteToMidi, swingPercentToClock } from '../../utils/musicTheory'
+import { analyzeLyricSentiment } from './lyricSentiment'
 
 
 const timeToStep = (time: number, tempo: number, swingPercent: number): number => {
@@ -58,12 +59,14 @@ export function useLyricHandlers(deps: {
     updateStorageForTrack: (track: TrackKey, sequence: PartSequence | PartSequence[]) => void;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     setActiveAlignment: React.Dispatch<React.SetStateAction<AlignmentResult | null>>;
+    currentScale: import('../../utils/musicTheory').ScaleDefinition | null;
+    setCurrentScale: React.Dispatch<React.SetStateAction<import('../../utils/musicTheory').ScaleDefinition | null>>;
 }) {
     const {
         audioEngine, patternRef, tempoRef, activeSamplerBankRef, samplerRef,
         setPattern, setSampler, setTtsPhrases, setIsGenerating, setIsLyricTrackVisible,
         ttsPhrases, activeSamplerBank, handleLoadSample, updateStorageForTrack, showToast,
-        setActiveAlignment,
+        setActiveAlignment, currentScale, setCurrentScale,
     } = deps;
 
     const handleTtsPhraseChange = useCallback((newPhrases: string[]) => {
@@ -129,22 +132,24 @@ export function useLyricHandlers(deps: {
             newOH.steps = Array<Note | null>(ohSteps).fill(null);
 
             // Calculate basic text sentiment to determine probability of open vs closed hats in fills
-            const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-            const posWords = ['love', 'happy', 'good', 'great', 'joy', 'beautiful', 'bright', 'shine', 'smile', 'dance'];
-            const negWords = ['hate', 'sad', 'bad', 'dark', 'pain', 'cry', 'angry', 'lost', 'alone', 'cold'];
-            let sentimentScore = 0;
-            words.forEach(w => {
-                if (posWords.includes(w)) sentimentScore++;
-                if (negWords.includes(w)) sentimentScore--;
-            });
-            // Normalize sentiment to a probability for open hats (more positive = more open hats)
+            const sentiment = analyzeLyricSentiment(text);
+            const normalizedSentiment = sentiment.normalized;
             // base prob: 0.1. Sentiment adds/removes up to 0.4.
-            const maxScore = Math.max(1, words.length * 0.2); // Expected max score based on word count
-            const normalizedSentiment = Math.max(-1, Math.min(1, sentimentScore / maxScore));
             const openHatProb = Math.max(0, Math.min(0.8, 0.2 + (normalizedSentiment * 0.4)));
 
             // Map sentiment to a pitch offset for the kick drum (-2 to +2 semitones)
             const kickPitchOffset = Math.round(normalizedSentiment * 2);
+
+            // Map lyric text sentiment to default scale if not touched by user
+            if (!currentScale) {
+                if (normalizedSentiment > 0.1) {
+                    setCurrentScale({ root: 'C', scale: 'Major', tuning: '12-TET' });
+                    showToast('Mapped positive lyric sentiment to C Major scale', 'info');
+                } else if (normalizedSentiment < -0.1) {
+                    setCurrentScale({ root: 'C', scale: 'Minor', tuning: '12-TET' });
+                    showToast('Mapped negative lyric sentiment to C Minor scale', 'info');
+                }
+            }
 
             let consecutiveConsonants = 0;
             let lastVowelBrightness = 0.5;
@@ -315,7 +320,7 @@ export function useLyricHandlers(deps: {
             console.error(e);
             showToast("Failed to generate drums.", "error");
         }
-    }, [handleGenerateTTS, audioEngine, patternRef, tempoRef, activeSamplerBankRef, updateStorageForTrack, showToast, setPattern, setIsLyricTrackVisible]);
+    }, [handleGenerateTTS, audioEngine, patternRef, tempoRef, activeSamplerBankRef, updateStorageForTrack, showToast, setPattern, setIsLyricTrackVisible, currentScale, setCurrentScale]);
 
     const handleLyricApply = useCallback(async (text: string) => {
         try {

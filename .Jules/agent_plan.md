@@ -5,7 +5,8 @@
 - Velocity Check: Modulating the kick drum fundamental pitch using a semitone offset derived from text sentiment creates organic sub-bass movement connected to emotional context without incurring any heavy DSP cost inside the text-to-drums loop.
 - [x] Explore using polyrhythmic modulation to control open hi-hat decay time
 - Velocity Check: Modulating the open hi-hat decay length using simple polyrhythmic math directly inside `handleTextToDrums` perfectly achieves the dual mandate of "Solidify and Innovate". It integrates tight organic breathing into the generated Euclidean hi-hat rolls without introducing heavy AudioWorklet DSP overhead or compromising core sequencer architecture.
-- Explore mapping lyric text sentiment to default scale
+- [x] Explore mapping lyric text sentiment to default scale
+- Velocity Check: Mapping lyric text sentiment to the default scale dynamically aligns the generative track context with the user's emotional intent without touching realtime DSP overhead.
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
 - Explore cross-modulating lyric phrase length with tom-tom decay time to create space for dense syllables.
 - Explore mapping the vocal tract length parameter (formant shift) to a delay line feedback scalar to simulate acoustic reflection.
