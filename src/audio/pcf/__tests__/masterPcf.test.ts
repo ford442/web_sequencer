@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createMasterPcf, createPcfLaneWatcher, getMasterPcf, masterPcfPorts, setMasterPcf } from '../masterPcf';
+import {
+    MASTER_PCF_DEGRADATION_ID,
+    createMasterPcf,
+    createPcfLaneWatcher,
+    getMasterPcf,
+    masterPcfPorts,
+    setMasterPcf,
+} from '../masterPcf';
 import { PcfEffect } from '../../../engines/PcfEffect';
+import { engineDegradationStore } from '../../../stores/engineDegradationStore';
 
 function stubPcf() {
     return {
@@ -40,6 +48,26 @@ describe('createPcfLaneWatcher', () => {
         expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(undefined);
     });
 
+    it('treats a cutoff lane parked at 0 as no lane, and clears its override', () => {
+        const pcf = stubPcf();
+        const watch = createPcfLaneWatcher(pcf);
+        const at = (...values: number[]) => values.map((value, step) => ({ step, value }));
+        watch([lane('pcfCutoff', { points: at(0.2, 0.8) })]);
+        expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
+        // The song's lane gets parked at the bottom: it would be a 20 Hz low-pass of the mix.
+        watch([lane('pcfCutoff', { points: at(0, 0, 0) })]);
+        expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(undefined);
+        // A sweep that only touches 0 is automation.
+        watch([lane('pcfCutoff', { points: at(0, 0.5) })]);
+        watch([lane('pcfCutoff', { points: at(0, 0.5) })]);
+        expect(pcf.setAutomationCutoff).toHaveBeenCalledTimes(1);
+        // Only cutoff parks: resonance / env amount at 0 are ordinary values.
+        watch([lane('pcfResonance', { points: at(0) }), lane('pcfEnvAmount', { points: at(0) })]);
+        watch([lane('pcfResonance', { points: at(0) }), lane('pcfEnvAmount', { points: at(0) })]);
+        expect(pcf.setAutomationResonance).not.toHaveBeenCalled();
+        expect(pcf.setAutomationEnvAmount).not.toHaveBeenCalled();
+    });
+
     it('ignores lanes on other targets', () => {
         const pcf = stubPcf();
         const watch = createPcfLaneWatcher(pcf);
@@ -71,6 +99,31 @@ describe('createMasterPcf', () => {
         expect(warn).toHaveBeenCalled();
         warn.mockRestore();
         error.mockRestore();
+    });
+
+    it('reports a worklet that fails to load to the degradation store, with the reason', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        engineDegradationStore.clear(MASTER_PCF_DEGRADATION_ID);
+        try {
+            await createMasterPcf(fakeContext(() => Promise.reject(new Error('addModule: 404'))));
+            expect(engineDegradationStore.getIssue(MASTER_PCF_DEGRADATION_ID)).toMatchObject({
+                subsystem: 'master-pcf',
+                category: 'worklet',
+                status: 'active',
+                reason: 'addModule: 404',
+                activeBackend: 'bypass',
+            });
+        } finally {
+            engineDegradationStore.clear(MASTER_PCF_DEGRADATION_ID);
+            vi.restoreAllMocks();
+        }
+    });
+
+    it('reports nothing for a context without AudioWorklet (offline renders without one)', async () => {
+        engineDegradationStore.clear(MASTER_PCF_DEGRADATION_ID);
+        await createMasterPcf({} as BaseAudioContext);
+        expect(engineDegradationStore.getIssue(MASTER_PCF_DEGRADATION_ID)).toBeUndefined();
     });
 
     it('builds a transparent PCF whose ports the graph wires in', async () => {

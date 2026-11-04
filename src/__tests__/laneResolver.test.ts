@@ -22,7 +22,7 @@ import {
   resolveSynthLaneAutomation,
   withMasterPcfNotRendered,
 } from '../audio/offline/offlineLaneAutomation';
-import { pcfLaneOverride, pcfMidiNormToHz } from '../audio/automation/laneResolver';
+import { isParkedPcfCutoffLane, pcfLaneOverride, pcfMidiNormToHz } from '../audio/automation/laneResolver';
 import type { Open303Manager } from '../engines/Open303Manager';
 import type { UnifiedAutomationLane } from '../types';
 
@@ -229,6 +229,22 @@ describe('master PCF on the offline clock', () => {
 
   it('is empty for a song without master PCF lanes', () => {
     expect(resolveMasterPcfTimeline([lane({})], { totalSteps: 16, stepCount: 16, songMode: false }, 0.125)).toEqual([]);
+  });
+
+  it('plays a cutoff lane parked at 0 as no lane, on the offline clock too', () => {
+    const timeline = { totalSteps: 16, stepCount: 16, songMode: false };
+    const parked = lane({ target: 'master', parameter: 'pcfCutoff', points: [{ step: 0, value: 0 }, { step: 15, value: 0 }] });
+    expect(isParkedPcfCutoffLane(parked)).toBe(true);
+    expect(resolveMasterPcfTimeline([parked], timeline, 0.125)).toEqual([]);
+    expect(resolveLaneValuesAtStep([parked], 3)).toEqual([]);
+    // It does not shadow a later lane on the same parameter.
+    const live = lane({ id: 'b', target: 'master', parameter: 'pcfCutoff', points: [{ step: 0, value: 0.5 }] });
+    expect(resolveLaneValuesAtStep([parked, live], 3)).toEqual([{ lane: live, value: 0.5 }]);
+    // Not parked: a sweep through 0, other PCF params at 0, other targets, an empty lane.
+    expect(isParkedPcfCutoffLane(lane({ target: 'master', parameter: 'pcfCutoff' }))).toBe(false);
+    expect(isParkedPcfCutoffLane(lane({ target: 'master', parameter: 'pcfResonance', points: [{ step: 0, value: 0 }] }))).toBe(false);
+    expect(isParkedPcfCutoffLane(lane({ target: 'synthA', parameter: 'pcfCutoff', points: [{ step: 0, value: 0 }] }))).toBe(false);
+    expect(isParkedPcfCutoffLane(lane({ target: 'master', parameter: 'pcfCutoff', points: [] }))).toBe(false);
   });
 
   it('moves PCF lanes to not-rendered when the bounce could not run the PCF', () => {

@@ -31,6 +31,18 @@ passes nothing, the compiler bridges `masterPanner → masterLimiter` and
 playback continues. The master PCF lanes are then silent, as they were before
 the stage existed.
 
+A worklet that fails to load is also reported to `engineDegradationStore`
+(id `master-pcf`, subsystem `master-pcf`, category `worklet`, with the load
+error as the reason), so the degradation banner says the master PCF lanes and
+the song PCF will not play. A placed PCF node that fails reports as
+`pcf-node:<nodeId>` and passes audio through. A context with no
+`audioWorklet` at all (some offline contexts) returns `null` without a report.
+
+The release gate (`scripts/check-release-dist.mjs`) requires both
+`pcf-processor` and `openrb-lowpass-processor` to be registered by a worklet
+entry chunk of their own, so a build that drops either chunk, or inlines it
+into a shared app chunk, fails.
+
 Patches saved before the stage existed are upgraded on load (`withMasterPcf`,
 in `deserializeAudioGraph` and `PatchController.compile`). The upgrade reroutes
 the `masterPanner → masterLimiter` cable, or `→ destination` on a patch without
@@ -58,6 +70,36 @@ The processor bypasses (bit-exact pass-through) unless:
 The second case is what makes the default RBS import audible: it emits the
 lanes but no `pcfFilter`. A resonance or env-amount override on its own does
 not engage the filter, because it has no cutoff to shape.
+
+### A cutoff lane parked at 0 plays as no lane
+
+Lane value 0 is 20 Hz (`pcfMidiNormToHz(0)`). A `master.pcfCutoff` lane whose
+**every** point is 0 would therefore be a 20 Hz low-pass of the entire mix,
+and nothing on screen would say so: the master analyser and meters tap
+`masterGain`, upstream of the panner, the PCF and the limiter, so they keep
+moving. So such a lane is treated as no lane (`isParkedPcfCutoffLane`,
+`laneResolver.ts`):
+
+- `resolveLaneValuesAtStep` skips it, so neither the live scheduler nor the
+  offline timeline (`resolveMasterPcfTimeline`) sends it. A later lane on the
+  same parameter still plays.
+- `createPcfLaneWatcher` counts it as absent and clears the cutoff override,
+  so a lane edited down to all-zero releases the mix at once.
+
+A lane that only passes through 0 on its way somewhere else is automation and
+plays as written, 20 Hz included. Only cutoff parks: resonance or env amount at
+0 are ordinary values. Raw TRAK events (`scheduleFromTrakEvents`) are single
+controller moves, not lanes, and are not affected.
+
+Lane-only drive (no `pcfFilter`) uses the processor's default resonance, 40
+(Q ≈ 9.8), so a cutoff sweep carries a resonant peak at the cutoff. ReBirth's
+resting PCF resonance has not been measured yet; until it is, 40 stays.
+
+### One curve, three copies
+
+The worklet cannot import, so its `midiToHz` / `midiToQ` repeat
+`pcfMidiNormToHz` (lanes) and `pcfKnobToHz` / `pcfKnobToQ` (patch-bay knobs).
+`PcfProcessor.test.ts` asserts they agree at 0, ¼, ½, ¾ and 1 to 1e-9.
 
 ## What drives it (live)
 
@@ -93,11 +135,32 @@ before the first block. The processor applies each event once the render's
 | Stem export, `masterChain: 'live-patch'` | Played in the master stem (the per-track stems stay dry). The pattern PCF comes from `StemExportInput.pcfSettings`, which defaults to the live master PCF's state |
 | Stem export, `'dry-exclusive'` (library default) | Not played. The lanes are reported in `automation.notRendered` |
 | AI song preview | Played; the pattern PCF comes from `song.pcfFilter` |
-| Track freeze, XM export | Not played. Neither runs the master chain with song automation |
+| Track freeze, XM export | Not played, by design. Freeze (`freezeThroughPatch`) passes no `masterPcf`, and neither runs the master chain with song automation, so a frozen track is always pre-PCF |
+
+Live and offline differ in one structural way. Live, the master PCF node is
+always in the chain once its worklet loads, bypassed (bit-exact) until a song
+engages it. Offline, the stage exists only when the render asks for it
+(`masterPcf` option); otherwise the panner feeds the limiter directly. Both
+give the same samples when nothing engages the PCF: `PcfProcessor.test.ts`
+checks that a render with no master PCF lanes, with lanes only on other
+targets, or with a cutoff lane parked at 0 is identical to its input.
 
 `OfflineGraphReport.masterPcf` is `rendered`, `unavailable` (requested but the
 worklet failed, or the patch has no PCF node, so the stage was bridged and the
 lanes move to `notRendered`), or `off` (nothing for it to do).
+
+## Known gaps
+
+- **A song loaded before the engine starts loses its pattern PCF.**
+  `applyPcfFilterToEffect` returns `false` when there is no `pcfEffect` yet,
+  and `engineLifecycle` builds the master PCF without settings. The song's
+  `pcfFilter` is kept in `rbsArrangementExtrasRef` (for saving), which the
+  lifecycle cannot see. Lanes are unaffected: they reach the PCF through the
+  automation store once the engine runs.
+- `MASTER_CHAIN_ORDER` / `MASTER_CHAIN_CONNECTIONS` in
+  `defaultElectribeGraph.ts` still describe the chain without the optional
+  worklet stages (`masterPanner → destination`); the full chain is the
+  `_WITH_PCF_AND_LIMITER` constant.
 
 ## Files
 

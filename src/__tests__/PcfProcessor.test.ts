@@ -427,6 +427,140 @@ describe('PcfProcessor', () => {
     });
   });
 
+  describe('one cutoff curve (main thread and worklet)', () => {
+    // Worklet scope cannot import, so the processor keeps its own copy of the
+    // curves. They must not drift from the main-thread ones the lanes and the
+    // patch-bay knobs use.
+    const points = [0, 0.25, 0.5, 0.75, 1];
+    const relClose = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1e-9 * Math.max(1, Math.abs(b)));
+
+    it('maps cutoff the same way: pcfMidiNormToHz, pcfKnobToHz and the worklet', async () => {
+      const { pcfMidiNormToHz } = await import('../audio/automation/laneResolver');
+      const { pcfKnobToHz } = await import('../audio/pcf/pcfNodeConfig');
+      const proc = getProcessor() as unknown as { midiToHz(midi: number): number };
+      for (const v of points) {
+        relClose(proc.midiToHz(v * 127), pcfMidiNormToHz(v));
+        relClose(pcfKnobToHz(v * 127), pcfMidiNormToHz(v));
+      }
+      expect(pcfMidiNormToHz(0)).toBe(20);
+      relClose(pcfMidiNormToHz(1), 20000);
+    });
+
+    it('maps resonance the same way: pcfKnobToQ and the worklet', async () => {
+      const { pcfKnobToQ } = await import('../audio/pcf/pcfNodeConfig');
+      const proc = getProcessor() as unknown as { midiToQ(midi: number): number };
+      for (const v of points) relClose(proc.midiToQ(v * 127), pcfKnobToQ(v * 127));
+    });
+  });
+
+  describe('master pcfCutoff lane through the offline timeline resolver', () => {
+    const sr = 44100;
+    const block = 128;
+    const stepSeconds = (block * 4) / sr; // 4 render quanta per step keeps the test fast
+    const stepCount = 16;
+    const bars = 2;
+
+    function noise(len: number, seed: number): Float32Array {
+      const out = new Float32Array(len);
+      let s = seed >>> 0;
+      for (let i = 0; i < len; i++) {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        out[i] = s / 2 ** 31 - 1;
+      }
+      return out;
+    }
+
+    function spectralCentroid(x: Float32Array): number {
+      const n = x.length;
+      let num = 0;
+      let den = 0;
+      for (let k = 1; k < n / 2; k++) {
+        let re = 0;
+        let im = 0;
+        for (let t = 0; t < n; t++) {
+          const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / (n - 1));
+          const a = (-2 * Math.PI * k * t) / n;
+          re += x[t] * w * Math.cos(a);
+          im += x[t] * w * Math.sin(a);
+        }
+        const p = re * re + im * im;
+        num += p * ((k * sr) / n);
+        den += p;
+      }
+      return num / den;
+    }
+
+    /** Song-timeline master lane: `closed` for bar 1, `open` for bar 2. */
+    function songLane(parameter: string, closed: number, open: number): import('../types').UnifiedAutomationLane {
+      return {
+        id: `master-${parameter}`,
+        target: 'master',
+        parameter,
+        name: parameter,
+        points: [
+          { step: 0, value: closed },
+          { step: stepCount - 1, value: closed },
+          { step: stepCount, value: open },
+          { step: 2 * stepCount - 1, value: open },
+        ],
+        interpolation: 'step',
+        source: 'rbs',
+        scope: 'song',
+        timeline: 'song',
+        enabled: true,
+      };
+    }
+
+    /** Render `src` through a processor built as `compileOfflineGraph` builds the master PCF. */
+    async function renderThroughLanes(lanes: import('../types').UnifiedAutomationLane[], src: Float32Array) {
+      const { resolveMasterPcfTimeline } = await import('../audio/offline/offlineLaneAutomation');
+      const timeline = resolveMasterPcfTimeline(lanes, { totalSteps: bars * stepCount, stepCount, songMode: true }, stepSeconds);
+      // Pattern PCF off, as on an RBS import whose PCF only moves through lanes.
+      const proc = getProcessor({ processorOptions: { enabled: false, timeline } });
+      const g = globalThis as Record<string, unknown>;
+      const out = new Float32Array(src.length);
+      try {
+        for (let b = 0; b < src.length / block; b++) {
+          g.currentTime = (b * block) / sr;
+          const inL = src.subarray(b * block, (b + 1) * block);
+          const o = makeStereoOutput(block);
+          proc.process([[inL, inL.slice()]], o, {});
+          out.set(o[0][0], b * block);
+        }
+      } finally {
+        delete g.currentTime;
+      }
+      return { out, timeline };
+    }
+
+    const barSamples = Math.round(stepCount * stepSeconds * sr);
+    const lastOfBar = (x: Float32Array, bar: number) => x.subarray((bar + 1) * barSamples - 1024, (bar + 1) * barSamples);
+
+    it('darkens the closed bar and opens the open bar (centroid ratio > 20)', async () => {
+      const src = noise(bars * barSamples, 1535);
+      const { out, timeline } = await renderThroughLanes([songLane('pcfCutoff', 0.15, 0.85)], src);
+      expect(timeline.map((e) => e.time)).toEqual([0, stepCount * stepSeconds]);
+      const closed = spectralCentroid(lastOfBar(out, 0));
+      const open = spectralCentroid(lastOfBar(out, 1));
+      const dry = spectralCentroid(lastOfBar(src, 1));
+      // Measured: closed ≈ 68 Hz (cutoff ≈ 56 Hz), open ≈ 6.9 kHz (cutoff ≈ 7.1 kHz),
+      // dry ≈ 11.2 kHz: a ratio of ≈ 100. 20 leaves room for a smoother or a Q change.
+      expect(closed).toBeLessThan(200);
+      expect(open).toBeLessThan(dry);
+      expect(open / closed).toBeGreaterThan(20);
+    });
+
+    it('leaves the mix bit-identical without master PCF lanes, or with the cutoff parked at 0', async () => {
+      const src = noise(bars * barSamples, 1562);
+      const otherTarget: import('../types').UnifiedAutomationLane = { ...songLane('filterCutoff', 0.1, 0.9), target: 'synthA' };
+      for (const lanes of [[], [otherTarget], [songLane('pcfCutoff', 0, 0)]]) {
+        const { out, timeline } = await renderThroughLanes(lanes, src);
+        expect(timeline).toEqual([]);
+        expect(out).toEqual(src);
+      }
+    });
+  });
+
   describe('process() return value', () => {
     it('always returns true (keep-alive)', () => {
       const proc = getProcessor();
