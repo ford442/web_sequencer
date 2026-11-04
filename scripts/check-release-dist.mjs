@@ -207,6 +207,8 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'master-loudness-processor',
   // Master-bus PCF (#1554): without it, RBS master PCF lanes are silent again.
   'pcf-processor',
+  // The patch bay's openrb low-pass mode (#1561), also the PCF node's openrb branch.
+  'openrb-lowpass-processor',
 ];
 
 const distJsFiles = walk(distDir).filter((p) => p.endsWith('.js') && !p.endsWith('.map'));
@@ -303,6 +305,23 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
       '[check-release-dist] found no `?worker&url` worklet imports under src/ — ' +
       'the entry scan is broken, so no chunk could be checked.',
     );
+    process.exit(1);
+  }
+
+  // Each required processor must be registered by a worklet entry chunk of its
+  // own. The name being somewhere in dist/ (checked above) is not enough: a
+  // worklet inlined into a shared app chunk still carries its name there, and
+  // the count below only notices when fewer chunks than required names remain.
+  const workletChunkText = workletChunks.map((p) => fs.readFileSync(p, 'utf8'));
+  const notInWorkletChunk = REQUIRED_WORKLET_PROCESSORS.filter(
+    (name) => !workletChunkText.some((text) => text.includes(name)),
+  );
+  if (notInWorkletChunk.length) {
+    console.error(
+      '[check-release-dist] required worklet processor(s) not registered by any worklet entry chunk ' +
+      '(inlined into a shared chunk, so unloadable in a worklet scope):',
+    );
+    for (const name of notInWorkletChunk) console.error(`  ${name}`);
     process.exit(1);
   }
 

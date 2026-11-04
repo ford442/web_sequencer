@@ -49,6 +49,10 @@ export class VocoderEffect {
     const minPeriod = this.minPeriod;
     const maxPeriod = this.maxPeriod;
 
+    const isUnvoiced = isVowel <= 0;
+    const safeIntensity = Math.max(0.01, phonemeIntensity);
+    const noiseThreshold = 0.005 / safeIntensity;
+
     for (let channel = 0; channel < outputs[0].length; channel++) {
       const outCh = outputs[0][channel];
       if (!outCh) continue;
@@ -114,13 +118,7 @@ export class VocoderEffect {
 
         // 4. Unvoiced Consonant Generation (Noise)
         let noise = 0;
-        if (isVowel <= 0) {
-            // Dynamic threshold: scale inversely with phonemeIntensity.
-            // A base threshold ensures absolute silence gating, but we increase it for quieter phonemes.
-            // Clamp intensity to 0.01 to prevent division by zero or massive thresholds.
-            const safeIntensity = Math.max(0.01, phonemeIntensity);
-            const noiseThreshold = 0.005 / safeIntensity;
-
+        if (isUnvoiced) {
             if (env > noiseThreshold) {
                 // LCG Pseudo-random noise
                 noiseSeed = (noiseSeed * 1664525 + 1013904223) | 0;

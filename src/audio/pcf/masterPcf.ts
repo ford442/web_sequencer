@@ -21,7 +21,8 @@
 import { PcfEffect, type PcfInitOptions } from '../../engines/PcfEffect';
 import type { PcfSettings } from '../../importers/rbs/types';
 import type { GraphPortPair } from '../graph/types';
-import { PCF_LANE_PARAMS } from '../automation/laneResolver';
+import { PCF_LANE_PARAMS, isParkedPcfCutoffLane } from '../automation/laneResolver';
+import { engineDegradationStore } from '../../stores/engineDegradationStore';
 
 /** Build and initialise a PCF on `context`; `null` when the worklet cannot load. */
 export async function createMasterPcf(
@@ -37,9 +38,36 @@ export async function createMasterPcf(
         return pcf;
     } catch (error) {
         console.warn('[masterPcf] PCF worklet unavailable; master PCF lanes will not play:', error);
+        reportMasterPcfUnavailable(error);
         pcf.dispose();
         return null;
     }
+}
+
+/** `engineDegradationStore` id of a master PCF that failed to load. */
+export const MASTER_PCF_DEGRADATION_ID = 'master-pcf';
+
+function errorReason(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Put a master PCF that failed to load in front of the user (the degradation
+ * banner), like every other worklet fallback. The mix still plays: the graph
+ * bridges the panner straight to the limiter.
+ */
+function reportMasterPcfUnavailable(error: unknown): void {
+    engineDegradationStore.report({
+        id: MASTER_PCF_DEGRADATION_ID,
+        subsystem: 'master-pcf',
+        category: 'worklet',
+        message: 'Master PCF unavailable: master PCF lanes and the song PCF will not play',
+        reason: errorReason(error),
+        status: 'active',
+        activeBackend: 'bypass',
+        requestedBackend: 'pcf-processor',
+        retryable: false,
+    });
 }
 
 /** The ports the graph compiler wires into the `masterPcf` node. */
@@ -89,6 +117,7 @@ interface LaneLike {
     target: string;
     parameter: string;
     enabled?: boolean;
+    points?: ReadonlyArray<{ value: number }>;
 }
 
 /**
@@ -106,7 +135,13 @@ export function createPcfLaneWatcher(pcf: Pick<PcfEffect, 'setAutomationCutoff' 
         const next = new Set<string>();
         if (playbackEnabled) {
             for (const lane of lanes) {
-                if (lane.target === 'master' && lane.enabled !== false && PCF_LANE_PARAMS.has(lane.parameter)) {
+                if (
+                    lane.target === 'master'
+                    && lane.enabled !== false
+                    && PCF_LANE_PARAMS.has(lane.parameter)
+                    // Parked at 0 it plays as no lane (`isParkedPcfCutoffLane`), so clear its override.
+                    && !isParkedPcfCutoffLane({ target: 'master', parameter: lane.parameter, points: lane.points })
+                ) {
                     next.add(lane.parameter);
                 }
             }

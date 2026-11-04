@@ -106,6 +106,23 @@ export function pcfMidiNormToHz(normMidi: number): number {
   return 20 * Math.pow(1000, normMidi);
 }
 
+/**
+ * A master `pcfCutoff` lane whose every point is 0: a lane parked at the
+ * bottom, not a sweep. Played, it would be a 20 Hz low-pass of the whole mix
+ * (`pcfMidiNormToHz(0)`), and the master meters would not show it (they tap
+ * `masterGain`, upstream of the PCF). So it plays as no lane: the scheduler,
+ * the offline timeline and the lane watcher all skip it, and the master PCF
+ * stays on its own settings. A lane that only touches 0 on the way through a
+ * sweep is automation and plays as written. See docs/audio-engine/master-pcf.md.
+ */
+export function isParkedPcfCutoffLane(
+  lane: Pick<UnifiedAutomationLane, 'target' | 'parameter'> & { points?: ReadonlyArray<{ value: number }> },
+): boolean {
+  if (lane.target !== 'master' || lane.parameter !== 'pcfCutoff') return false;
+  const points = lane.points;
+  return !!points && points.length > 0 && points.every((p) => p.value <= 0);
+}
+
 /** One PCF automation override, in the units `PcfEffect` / the worklet take. */
 export interface PcfLaneOverride {
   cutoffHz?: number;
@@ -261,6 +278,8 @@ export function resolveLaneValuesAtStep(
     // Note FX parameters shape which notes are generated; the step handler
     // reads them when it builds a pass (#1345). Nothing here could play them.
     if (isNoteFxParameter(lane.parameter)) continue;
+    // A master cutoff lane parked at 0 would mute the mix; it plays as no lane.
+    if (isParkedPcfCutoffLane(lane)) continue;
     const key = `${lane.target}:${lane.parameter}`;
     if (seen.has(key)) continue;
     const value = resolveLaneValue(lane, laneReadStep(lane, step, songStep));
