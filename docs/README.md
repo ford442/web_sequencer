@@ -31,6 +31,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [303-voices.md](audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |
 | [303-gpu-highfid.md](audio-engine/303-gpu-highfid.md) | High-fid 303 architecture, enablement, fallback, FAQ & roadmap (epic #972 / Phase-6) |
 | [303-authenticity-gaps.md](audio-engine/303-authenticity-gaps.md) | Phase-0 TB-303 authenticity gap audit, thresholds, and baseline links (epic #972) |
+| [303-voice-comparison.md](audio-engine/303-voice-comparison.md) | 303 voice comparison harness (`pnpm run compare:303`) and its results on real ReBirth songs |
 | [303-A-B-checklist.md](audio-engine/303-A-B-checklist.md) | Manual + automated high-fid A/B checklist (Phase-5) |
 | [303-baseline/](audio-engine/303-baseline/) | Canonical-pattern engine baseline WAVs + hardware capture protocol |
 | [303-baseline-spectra/](audio-engine/303-baseline-spectra/) | Spectrogram PNGs and RMS/band metrics for Phase-0 baselines |

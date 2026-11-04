@@ -60,6 +60,7 @@
     "test:e2e": "playwright test",
     "benchmark:303": "vite-node scripts/benchmark_offline303.mjs",
     "ai-song:render": "vite-node scripts/ai-song-render.ts --",
+    "compare:303": "vite-node scripts/compare-303-voices.ts --",
     "prepare": "husky",
     "deploy": "python deploy.py",
     "demo": "start svg-demo.html"

@@ -407,4 +407,9 @@ fallback routes notes to open303).
 - [ ] Turn `isOpenrb338ModuleBundled()` into a build define or runtime probe.
 - [ ] Offline render (freeze / export) through the same module.
 - [ ] Licence decision signed off (#1544), then bundling and notices.
-- [ ] A/B harness against the current voices on RBS patterns (#1543).
+- [x] A/B harness against the current voices on RBS patterns (#1543):
+      `pnpm run compare:303`, results and priority in
+      [303-voice-comparison.md](303-voice-comparison.md). On three real songs
+      the openrb voice is 16–26 dB (frame LSD) from every existing voice, which
+      sit in a separate cluster; the ReBirth-coefficient profiles are not closer
+      to it than stock.
