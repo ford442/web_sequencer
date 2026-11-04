@@ -4,6 +4,7 @@ import {
     MASTER_CHAIN_CONNECTIONS,
     MASTER_CHAIN_ORDER,
     MASTER_CHAIN_ORDER_WITH_LIMITER,
+    MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER,
     compileAudioGraph,
     extractMasterChainConnections,
 } from '../index';
@@ -147,12 +148,13 @@ describe('compileAudioGraph', () => {
                 nodes: CLASSIC_ELECTRIBE_GRAPH.nodes.filter((n) =>
                     MASTER_CHAIN_ORDER.includes(n.id) || n.id === 'masterAnalyser',
                 ),
-                // The master limiter node is only compiled when the host
-                // supplies a worklet; its edges stay in so the compiler has to
-                // bridge masterPanner straight to the destination.
+                // The master PCF and limiter nodes are only compiled when the
+                // host supplies their worklets; their edges stay in so the
+                // compiler has to bridge masterPanner straight to the destination.
                 edges: CLASSIC_ELECTRIBE_GRAPH.edges.filter(
                     (e) =>
                         MASTER_CHAIN_ORDER.includes(e.from) ||
+                        e.from === 'masterPcf' ||
                         e.from === 'masterLimiter' ||
                         e.from === 'masterGain' && e.to === 'masterAnalyser',
                 ),
@@ -210,8 +212,9 @@ describe('compileAudioGraph', () => {
         });
         const masterPairs = extractMasterChainConnections(graph.connectionLog);
         expect(masterPairs).toHaveLength(MASTER_CHAIN_CONNECTIONS.length);
-        // Without a master limiter node its two edges collapse into one.
-        expect(graph.connectionLog.length).toBe(CLASSIC_ELECTRIBE_GRAPH.edges.length - 1);
+        // Without the master PCF and limiter nodes, panner → PCF → limiter →
+        // destination (three edges) collapses into one.
+        expect(graph.connectionLog.length).toBe(CLASSIC_ELECTRIBE_GRAPH.edges.length - 2);
     });
 });
 
@@ -244,10 +247,11 @@ describe('master limiter stage', () => {
             ['sidechainGain', 'masterCompressor'],
             ['masterCompressor', 'masterGain'],
             ['masterGain', 'masterPanner'],
+            // No PCF supplied: its node is bridged.
             ['masterPanner', 'masterLimiter'],
             ['masterLimiter', 'destination'],
         ]);
-        expect(graph.connectionLog.length).toBe(CLASSIC_ELECTRIBE_GRAPH.edges.length);
+        expect(graph.connectionLog.length).toBe(CLASSIC_ELECTRIBE_GRAPH.edges.length - 1);
     });
 
     it('bridges masterPanner → destination when the worklet is unavailable', () => {
@@ -274,12 +278,12 @@ describe('master limiter stage', () => {
                 id: 'no-panner',
                 name: 'No Panner',
                 nodes: CLASSIC_ELECTRIBE_GRAPH.nodes.filter((n) =>
-                    MASTER_CHAIN_ORDER_WITH_LIMITER.includes(n.id),
+                    MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER.includes(n.id),
                 ),
                 edges: CLASSIC_ELECTRIBE_GRAPH.edges.filter(
                     (e) =>
-                        MASTER_CHAIN_ORDER_WITH_LIMITER.includes(e.from) &&
-                        MASTER_CHAIN_ORDER_WITH_LIMITER.includes(e.to),
+                        MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER.includes(e.from) &&
+                        MASTER_CHAIN_ORDER_WITH_PCF_AND_LIMITER.includes(e.to),
                 ),
             },
             {
@@ -292,6 +296,72 @@ describe('master limiter stage', () => {
         expect(pairs).toContainEqual(['masterGain', 'masterLimiter']);
         expect(pairs).toContainEqual(['masterLimiter', 'destination']);
         expect(pairs.some(([from]) => from === 'masterPanner')).toBe(false);
+    });
+});
+
+describe('master PCF stage', () => {
+    function pcfPorts() {
+        const input = { id: 'pcfIn', connect: () => {} } as unknown as AudioNode;
+        const output = { id: 'pcfOut', connect: () => {} } as unknown as AudioNode;
+        return { input, output };
+    }
+
+    it('sits post-pan, pre-limiter in the stock patch', () => {
+        const pcf = CLASSIC_ELECTRIBE_GRAPH.nodes.find((n) => n.id === 'masterPcf');
+        expect(pcf).toMatchObject({ factory: 'masterPcf', role: 'masterPcf', fixed: true });
+        expect(CLASSIC_ELECTRIBE_GRAPH.edges).toContainEqual({ from: 'masterPanner', to: 'masterPcf' });
+        expect(CLASSIC_ELECTRIBE_GRAPH.edges).toContainEqual({ from: 'masterPcf', to: 'masterLimiter' });
+        expect(CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.from === 'masterPanner')).toEqual([
+            { from: 'masterPanner', to: 'masterPcf' },
+        ]);
+    });
+
+    it('wires the supplied ports between the panner and the limiter', () => {
+        const { context } = createTrackingContext();
+        const impulse = context.createBuffer(2, 100, 48000);
+        const limiterNode = { id: 'masterLimiter', connect: () => {} } as unknown as AudioNode;
+        const ports = pcfPorts();
+
+        const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, {
+            createReverbImpulse: () => impulse,
+            createMasterLimiterNode: () => limiterNode,
+            createMasterPcf: () => ports,
+        });
+
+        expect(graph.getPort('masterPcf')).toEqual(ports);
+        expect(graph.getRoleNode('masterPcf')).toBe(ports.output);
+        const pairs = extractMasterChainConnections(graph.connectionLog).map((c) => [c.from, c.to]);
+        expect(pairs.slice(-3)).toEqual([
+            ['masterPanner', 'masterPcf'],
+            ['masterPcf', 'masterLimiter'],
+            ['masterLimiter', 'destination'],
+        ]);
+        expect(graph.connectionLog.length).toBe(CLASSIC_ELECTRIBE_GRAPH.edges.length);
+    });
+
+    it('bridges the panner to the destination when neither host stage is supplied', () => {
+        const { context } = createTrackingContext();
+        const impulse = context.createBuffer(2, 100, 48000);
+        const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, {
+            createReverbImpulse: () => impulse,
+        });
+        expect(graph.nodes.has('masterPcf')).toBe(false);
+        const pairs = extractMasterChainConnections(graph.connectionLog).map((c) => [c.from, c.to]);
+        expect(pairs).toContainEqual(['masterPanner', 'destination']);
+    });
+
+    it('feeds the PCF straight to the destination when only the limiter is missing', () => {
+        const { context } = createTrackingContext();
+        const impulse = context.createBuffer(2, 100, 48000);
+        const graph = compileAudioGraph(context, CLASSIC_ELECTRIBE_GRAPH, {
+            createReverbImpulse: () => impulse,
+            createMasterPcf: () => pcfPorts(),
+        });
+        const pairs = extractMasterChainConnections(graph.connectionLog).map((c) => [c.from, c.to]);
+        expect(pairs.slice(-2)).toEqual([
+            ['masterPanner', 'masterPcf'],
+            ['masterPcf', 'destination'],
+        ]);
     });
 });
 

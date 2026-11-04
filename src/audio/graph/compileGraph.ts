@@ -9,6 +9,13 @@ import {
     type EngineVoiceProvider,
 } from './engineVoices';
 import { edgeKey, validateGraph } from './graphOps';
+import {
+    LowpassModeSwitch,
+    isModalLowpass,
+    normalizeLowpassMode,
+    type OpenrbLowpassProvider,
+} from './lowpassMode';
+import type { PcfNodeProvider, PcfNodeRequest } from '../pcf/pcfInsert';
 import type {
     AnalyserConfig,
     AudioGraphConfig,
@@ -25,6 +32,7 @@ import type {
     GraphNodeRole,
     GraphNodeSpec,
     GraphPortPair,
+    PcfNodeConfig,
     StereoPannerConfig,
     TrackMonitorConfig,
     WaveShaperConfig,
@@ -44,12 +52,33 @@ export interface CompileGraphOptions {
      */
     createMasterLimiterNode?: (context: BaseAudioContext) => AudioNode | null;
     /**
+     * Supplies the master PCF's ports (`PcfEffect.input` / `.output`).
+     *
+     * Like the limiter it is an AudioWorklet whose module loads before the
+     * graph compiles, so the host builds it. Returning `null` (the default)
+     * bridges `masterPanner` straight to the limiter. The request carries the
+     * node's config (its `filterMode`), for a host that builds a `PcfInsert`.
+     */
+    createMasterPcf?: (context: BaseAudioContext, request: PcfNodeRequest) => GraphPortPair | null;
+    /**
+     * Builds a PCF the user placed (`pcf` factory; `createPcfNodeProvider`).
+     * Returning `null` (the default) omits the node and bridges its cables, so
+     * a patch with a PCF still plays where the PCF worklet cannot.
+     */
+    createPcfNode?: PcfNodeProvider;
+    /**
      * Builds the socket a first-party engine (`open303Voice`, `drumkitVoice`,
      * …) attaches to. The default makes a plain port pair; the engine plugs its
      * worklet output in after it boots. Returning `null` omits the node and its
      * edges are bridged, like an absent limiter.
      */
     createEngineVoice?: EngineVoiceProvider;
+    /**
+     * Builds the openrb (ReBirth PCF) branch of a low-pass node whose mode can
+     * switch (`isModalLowpass`). Returning `null` (the default: the opt-in
+     * module is not loaded) leaves the node on its RBJ biquad in every mode.
+     */
+    createOpenrbLowpass?: OpenrbLowpassProvider;
     /**
      * Reject configs that fail `validateGraph` (cycles, dangling edges,
      * duplicate ids) instead of compiling them. On by default: a user-authored
@@ -62,7 +91,10 @@ export interface CompileGraphOptions {
 const DEFAULT_OPTIONS: Required<CompileGraphOptions> = {
     useStereoPanner: true,
     createMasterLimiterNode: () => null,
+    createMasterPcf: () => null,
+    createPcfNode: () => null,
     createEngineVoice: defaultEngineVoiceProvider,
+    createOpenrbLowpass: () => null,
     validate: true,
     createReverbImpulse: (context, preset) => {
         switch (preset) {
@@ -121,6 +153,24 @@ function createNode(
             }
             if (cfg.gain !== undefined) {
                 node.gain.setValueAtTime(cfg.gain, t);
+            }
+            if (isModalLowpass(spec)) {
+                // Both filters in parallel behind an A/B switch, so the mode
+                // can change live; see lowpassMode.ts.
+                const branch = options.createOpenrbLowpass(context, {
+                    nodeId: id,
+                    // Unset values are the BiquadFilterNode defaults.
+                    frequency: cfg.frequency ?? 350,
+                    Q: cfg.Q ?? 1,
+                });
+                const lowpass = new LowpassModeSwitch(
+                    context,
+                    node,
+                    branch,
+                    normalizeLowpassMode(cfg.filterMode),
+                );
+                ports.set(id, { input: lowpass.input, output: lowpass.output, lowpass });
+                return lowpass.output;
             }
             return node;
         }
@@ -186,6 +236,16 @@ function createNode(
         }
         case 'masterLimiter':
             return options.createMasterLimiterNode(context);
+        case 'masterPcf':
+        case 'pcf': {
+            const request = { nodeId: id, config: asConfig<PcfNodeConfig>(config) };
+            const pair = factory === 'masterPcf'
+                ? options.createMasterPcf(context, request)
+                : options.createPcfNode(context, request);
+            if (!pair) return null;
+            ports.set(id, pair);
+            return pair.output;
+        }
         case 'destination':
             return context.destination;
         case 'wamInstrumentSlot':
@@ -304,7 +364,9 @@ export function compileAudioGraph(
         .map((spec) => spec.id)
         .filter((id) => !present.has(id) && id !== 'destination');
     // The limiter's edges may outlive its spec in a hand-cut subgraph.
-    if (!present.has('masterLimiter') && !absent.includes('masterLimiter')) absent.push('masterLimiter');
+    for (const hostStage of ['masterPcf', 'masterLimiter']) {
+        if (!present.has(hostStage) && !absent.includes(hostStage)) absent.push(hostStage);
+    }
     const edges = bridgeAbsentNodes(config.edges, absent);
 
     for (const edge of edges) {
@@ -382,6 +444,7 @@ export function extractMasterChainConnections(
     log: readonly GraphConnectionRecord[],
 ): Array<{ from: string; to: string }> {
     const masterIds = new Set([
+        'masterPcf',
         'masterLimiter',
         'masterSaturation',
         'bassSidechainEQ',

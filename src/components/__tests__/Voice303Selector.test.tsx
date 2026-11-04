@@ -6,6 +6,19 @@ import { engineDegradationStore } from '../../stores/engineDegradationStore';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 
 describe('Voice303Selector', () => {
+    it('shows a Vintage / 2.0 mode toggle only for openrb-338 voices', () => {
+        const onChange = vi.fn();
+        const { rerender } = render(<Voice303Selector model="stock-open303" onChange={onChange} />);
+        expect(screen.queryByRole('radiogroup', { name: 'openrb-338 sound mode' })).toBeNull();
+        rerender(<Voice303Selector model="openrb338-vintage" onChange={onChange} />);
+        expect(screen.getByRole('radio', { name: 'openrb-338 Vintage mode' })).toHaveAttribute('aria-checked', 'true');
+        fireEvent.click(screen.getByRole('radio', { name: 'openrb-338 2.0 mode' }));
+        expect(onChange).toHaveBeenCalledWith('openrb338-2.0');
+        onChange.mockClear();
+        fireEvent.click(screen.getByRole('radio', { name: 'openrb-338 Vintage mode' }));
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
     it('renders one button per available voice including offline high-fid', () => {
         render(<Voice303Selector model="stock-open303" onChange={vi.fn()} gpuAvailable />);
         for (const m of getAvailableTB303Models({ includeOfflineOnly: true })) {
@@ -49,6 +62,16 @@ describe('Voice303Selector', () => {
     it('shows the OPEN303 family badge for open303-family voices', () => {
         render(<Voice303Selector model="1ink303-v1" onChange={vi.fn()} />);
         expect(screen.getByLabelText('Open303 engine family active')).toBeInTheDocument();
+    });
+
+    it('lists the openrb-338 voices with a GPL badge and a stock-fallback status (#1537)', () => {
+        const onChange = vi.fn();
+        render(<Voice303Selector model="openrb338-vintage" onChange={onChange} />);
+        expect(screen.getByLabelText('openrb-338 engine family active')).toBeInTheDocument();
+        expect(screen.getAllByText('GPL · stub')).toHaveLength(2);
+        expect(screen.getByText(/openrb-338 module not bundled/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Select openrb-338 2.0 voice' }));
+        expect(onChange).toHaveBeenCalledWith('openrb338-2.0');
     });
 
     it('shows the JC303 family badge when a jc303-family voice is active', () => {

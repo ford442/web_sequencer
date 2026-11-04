@@ -13,6 +13,8 @@ export const DEFAULT_RBS_IMPORT_OPTIONS: RbsImportOptions = {
   /** v1.5 files expose a single TB-303 — maps to partA (SYNTH A) by default. */
   tb303ATarget: 'partA',
   tb303BTarget: 'bass2',
+  /** Stock Open303 until openrb-338 is bundled (#1537); see `tb303Voice`. */
+  tb303Voice: 'stock',
   convertPcfToAutomation: true,
   importSwing: true,
   drumKitMapping: 'auto',

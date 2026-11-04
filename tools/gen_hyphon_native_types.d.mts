@@ -19,12 +19,30 @@ export interface EventSchemaType {
   cancelledByStop?: boolean;
   args?: Array<{ name: string; doc: string }>;
 }
+export interface EventRingSchemaWord {
+  name: string;
+  /** Int32 slot in the header. */
+  index: number;
+  atomic: boolean;
+  doc: string;
+}
+/** The event ring header both sides lay records out in (#1497 P2). */
+export interface EventRingSchema {
+  headerBytes: number;
+  /** Four ASCII characters. */
+  magic: string;
+  /** `magic` as a little-endian uint32. */
+  magicValue: number;
+  /** Sorted by index. */
+  words: EventRingSchemaWord[];
+}
 export interface EventSchema {
   version: number;
   bytes: number;
   fields: EventSchemaField[];
   types: EventSchemaType[];
   base: { symbol: string; id: number; doc: string };
+  ring: EventRingSchema;
 }
 
 /** Parses and validates event_schema.json text (the committed file by default). */

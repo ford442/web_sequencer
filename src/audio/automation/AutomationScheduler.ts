@@ -37,6 +37,7 @@ import type { ProphecyManager } from '../../engines/ProphecyManager';
 import type { MacroManager } from '../../engines/MacroManager';
 import { isMacroAutomationParam } from '../../engines/MacroParams';
 import type { PcfEffect } from '../../engines/PcfEffect';
+import { pcfLaneFanout } from '../pcf/pcfInsert';
 import type { WamHost } from '../wam/WamHost';
 import {
   playbackHealthMonitor,
@@ -51,6 +52,7 @@ import {
 import {
   PROPHECY_LANE_PARAMS,
   open303ParamForLane,
+  pcfLaneOverride,
   resolveLaneValuesAtStep,
   type Open303LaneParam,
 } from './laneResolver';
@@ -119,28 +121,6 @@ const OPEN303_SETTERS: Record<Exclude<Open303LaneParam, 'slide'>, string> = {
   tuning: 'setTuning',
   abMix: 'setAbMix',
 };
-
-/**
- * Convert a normalised MIDI value to Hz using an exponential curve that
- * spans the human-audible range: `normMidi = 0` → 20 Hz, `normMidi = 1`
- * → 20 000 Hz.  The formula is `20 × 1000^normMidi`.
- *
- * This mirrors the identical `midiToHz` implementation inside the PCF
- * AudioWorklet.  AudioWorklet scope is isolated (no shared imports), so the
- * formula must exist in both places; this named helper avoids scattering
- * the magic constants across multiple call-sites in the scheduler.
- *
- * @param normMidi - Linear normalised value in [0, 1] (0 = lowest cutoff,
- *   1 = highest cutoff).
- * @returns Frequency in Hz.
- * @example
- * pcfMidiNormToHz(0)   // → 20 Hz   (lowest cutoff)
- * pcfMidiNormToHz(0.5) // → ≈ 632 Hz (mid cutoff)
- * pcfMidiNormToHz(1)   // → 20 000 Hz (highest cutoff)
- */
-function pcfMidiNormToHz(normMidi: number): number {
-  return 20 * Math.pow(1000, normMidi);
-}
 
 /**
  * Called once per bar/song-measure when song mode is active so the app can
@@ -480,23 +460,14 @@ export class AutomationScheduler {
    * @param value     Normalised 0–1 value (from automation lane or TRAK event).
    */
   private _applyPcfParam(pcf: PcfEffect, parameter: string, value: number): void {
-    const v = clamp01(value);
-    switch (parameter) {
-      case 'pcfCutoff':
-        // Convert normalised 0-1 to Hz using the helper that mirrors the worklet.
-        pcf.setAutomationCutoff(pcfMidiNormToHz(v));
-        break;
-      case 'pcfResonance':
-        // 0-1 normalised → 0-127 MIDI range.
-        pcf.setAutomationResonance(v * 127);
-        break;
-      case 'pcfEnvAmount':
-        pcf.setAutomationEnvAmount(v);
-        break;
-      default:
-        // Unknown PCF parameter — no-op.
-        break;
-    }
+    // Same conversion the offline renders use (`pcfLaneOverride`).
+    const override = pcfLaneOverride(parameter, value);
+    if (!override) return;
+    // The master PCF, plus any placed PCF that follows the master lanes.
+    const target = pcfLaneFanout(pcf);
+    if (override.cutoffHz !== undefined) target.setAutomationCutoff(override.cutoffHz);
+    if (override.resonanceMidi !== undefined) target.setAutomationResonance(override.resonanceMidi);
+    if (override.envAmountNorm !== undefined) target.setAutomationEnvAmount(override.envAmountNorm);
   }
 }
 

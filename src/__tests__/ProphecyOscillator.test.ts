@@ -4,9 +4,10 @@
  * Unit tests for the Korg Prophecy formant synthesis engine TypeScript layer.
  *
  * Covers:
- *  - ProphecyOscillator.noteOn / noteOff / allNotesOff send correct worklet messages
- *  - ProphecyOscillator.setParam sends correct worklet message
- *  - Convenience setters (setWaveform, setVowel, …) post correct paramId values
+ *  - ProphecyOscillator.noteOn / noteOff / allNotesOff send the right
+ *    control-plane records on the part's route (#1497 P2)
+ *  - ProphecyOscillator.setParam sends a PARAM_SET record
+ *  - Convenience setters (setWaveform, setVowel, …) send the right paramId
  *  - No-op behaviour when workletNode is null (not yet initialised)
  *  - cleanup() clears isReady and disconnects nodes
  *  - ProphecyParam enum values match the C++ enum in prophecy_wrapper.cpp
@@ -17,14 +18,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from '../engines/ProphecyParams';
 import type { ProphecyParams } from '../engines/ProphecyParams';
+import { EventType } from '../shared/rt/eventLayout';
+import { postedRecords, postedTypes } from '../test/helpers/controlPlaneRecords';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Build a ProphecyOscillator that already has a mock workletNode injected so
- * we can exercise message-posting logic without spinning up a real worklet.
+ * Build a ProphecyOscillator that already has a mock workletNode injected,
+ * its route open on the node's port as init leaves it on a page without
+ * shared memory, so we can read what it sends without a real worklet.
  */
 function makeReadyOscillator(): {
     osc:             ProphecyOscillator;
@@ -40,6 +44,7 @@ function makeReadyOscillator(): {
     const osc = new ProphecyOscillator();
     (osc as any).workletNode = fakeNode;
     (osc as any).isReady     = true;
+    (osc as any).events.open(fakePort, { sampleRate: 48000, sharedMemory: false, voiceRing: true });
 
     return { osc, mockPostMessage, mockClose };
 }
@@ -56,57 +61,58 @@ describe('ProphecyOscillator MIDI messages', () => {
         ({ osc, mockPostMessage } = makeReadyOscillator());
     });
 
-    it('noteOn posts correct message', () => {
-        osc.noteOn(60, 100);
-        expect(mockPostMessage).toHaveBeenCalledOnce();
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'noteOn',
-            data: { note: 60, velocity: 100 },
-        });
+    const sent = () => postedRecords(mockPostMessage).map((e) => [e.frame, e.type, e.target, e.value]);
+
+    it('noteOn sends a NOTE_ON record on the frame of its audioTime, and no note message', () => {
+        osc.noteOn(60, 100, 2);
+        expect(sent()).toEqual([[96000, EventType.NoteOn, 60, 100]]);
+        expect(postedTypes(mockPostMessage)).toEqual([]);
     });
 
-    it('noteOn uses default velocity of 100', () => {
+    it('noteOn uses default velocity of 100; no audioTime is frame 0, the next block', () => {
         osc.noteOn(69);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'noteOn',
-            data: { note: 69, velocity: 100 },
-        });
+        expect(sent()).toEqual([[0, EventType.NoteOn, 69, 100]]);
     });
 
-    it('noteOff posts correct message', () => {
-        osc.noteOff(60);
-        expect(mockPostMessage).toHaveBeenCalledOnce();
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'noteOff',
-            data: { note: 60 },
-        });
+    it('noteOff sends a NOTE_OFF record', () => {
+        osc.noteOff(60, 2.5);
+        expect(sent()).toEqual([[120000, EventType.NoteOff, 60, 0]]);
     });
 
-    it('allNotesOff posts correct message', () => {
+    it('allNotesOff sends CANCEL_NOTES, then ALL_NOTES_OFF on the next block', () => {
+        osc.noteOn(60, 100, 3);
         osc.allNotesOff();
+        expect(sent()).toEqual([
+            [144000, EventType.NoteOn, 60, 100],
+            [0, EventType.CancelNotes, 0, 0],
+            [0, EventType.AllNotesOff, 0, 0],
+        ]);
+    });
+
+    it('a tick\'s records go out as one batch', () => {
+        osc.noteOn(60, 100, 1);
+        osc.noteOff(60, 1.5);
+        postedRecords(mockPostMessage);
         expect(mockPostMessage).toHaveBeenCalledOnce();
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'allNotesOff',
-            data: {},
-        });
     });
 
     it('noteOn is a no-op when workletNode is null', () => {
         (osc as any).workletNode = null;
         osc.noteOn(60, 100);
+        expect(sent()).toEqual([]);
         expect(mockPostMessage).not.toHaveBeenCalled();
     });
 
     it('noteOff is a no-op when workletNode is null', () => {
         (osc as any).workletNode = null;
         osc.noteOff(60);
-        expect(mockPostMessage).not.toHaveBeenCalled();
+        expect(sent()).toEqual([]);
     });
 
     it('noteOn is a no-op when isReady is false', () => {
         (osc as any).isReady = false;
         osc.noteOn(60, 80);
-        expect(mockPostMessage).not.toHaveBeenCalled();
+        expect(sent()).toEqual([]);
     });
 });
 
@@ -122,98 +128,68 @@ describe('ProphecyOscillator.setParam()', () => {
         ({ osc, mockPostMessage } = makeReadyOscillator());
     });
 
-    it('posts set-param message with correct paramId and value', () => {
+    const params = () => postedRecords(mockPostMessage).map((e) => [e.type, e.target, e.value]);
+
+    it('sends a PARAM_SET record with the paramId as its target', () => {
         osc.setParam(ProphecyParam.VOWEL, 0.5);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: ProphecyParam.VOWEL, value: 0.5 },
-        });
+        expect(params()).toEqual([[EventType.Param, ProphecyParam.VOWEL, 0.5]]);
+        expect(postedTypes(mockPostMessage)).toEqual([]);
     });
 
-    it('setWaveform posts paramId=0', () => {
+    it('setWaveform sends paramId=0', () => {
         osc.setWaveform(1);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 0, value: 1 },
-        });
+        expect(params()).toEqual([[EventType.Param, 0, Math.fround(1)]]);
     });
 
-    it('setVowel posts paramId=1', () => {
+    it('setVowel sends paramId=1', () => {
         osc.setVowel(2);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 1, value: 2 },
-        });
+        expect(params()).toEqual([[EventType.Param, 1, Math.fround(2)]]);
     });
 
-    it('setVolume posts paramId=2', () => {
+    it('setVolume sends paramId=2', () => {
         osc.setVolume(0.8);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 2, value: 0.8 },
-        });
+        expect(params()).toEqual([[EventType.Param, 2, Math.fround(0.8)]]);
     });
 
-    it('setAttack posts paramId=3', () => {
+    it('setAttack sends paramId=3', () => {
         osc.setAttack(0.2);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 3, value: 0.2 },
-        });
+        expect(params()).toEqual([[EventType.Param, 3, Math.fround(0.2)]]);
     });
 
-    it('setDecay posts paramId=4', () => {
+    it('setDecay sends paramId=4', () => {
         osc.setDecay(0.4);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 4, value: 0.4 },
-        });
+        expect(params()).toEqual([[EventType.Param, 4, Math.fround(0.4)]]);
     });
 
-    it('setSustain posts paramId=5', () => {
+    it('setSustain sends paramId=5', () => {
         osc.setSustain(0.6);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 5, value: 0.6 },
-        });
+        expect(params()).toEqual([[EventType.Param, 5, Math.fround(0.6)]]);
     });
 
-    it('setRelease posts paramId=6', () => {
+    it('setRelease sends paramId=6', () => {
         osc.setRelease(0.3);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 6, value: 0.3 },
-        });
+        expect(params()).toEqual([[EventType.Param, 6, Math.fround(0.3)]]);
     });
 
-    it('setPortamento posts paramId=7', () => {
+    it('setPortamento sends paramId=7', () => {
         osc.setPortamento(0.5);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 7, value: 0.5 },
-        });
+        expect(params()).toEqual([[EventType.Param, 7, Math.fround(0.5)]]);
     });
 
-    it('setFormantShift posts paramId=8', () => {
+    it('setFormantShift sends paramId=8', () => {
         osc.setFormantShift(0.25);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 8, value: 0.25 },
-        });
+        expect(params()).toEqual([[EventType.Param, 8, Math.fround(0.25)]]);
     });
 
-    it('setResonance posts paramId=9', () => {
+    it('setResonance sends paramId=9', () => {
         osc.setResonance(0.7);
-        expect(mockPostMessage).toHaveBeenCalledWith({
-            type: 'set-param',
-            data: { paramId: 9, value: 0.7 },
-        });
+        expect(params()).toEqual([[EventType.Param, 9, Math.fround(0.7)]]);
     });
 
     it('setParam is a no-op when workletNode is null', () => {
         (osc as any).workletNode = null;
         osc.setParam(ProphecyParam.VOLUME, 0.5);
-        expect(mockPostMessage).not.toHaveBeenCalled();
+        expect(params()).toEqual([]);
     });
 });
 

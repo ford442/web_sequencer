@@ -27,11 +27,18 @@ export function pcfFilterToPcfSettings(
   };
 }
 
+/**
+ * Load a song's PCF onto the master PCF (`masterPcf` patch-bay node). Every
+ * song load goes through here, so the previous song's PCF is reset first: a
+ * song without `pcfFilter` gets a transparent master, not the last one's filter.
+ */
 export function applyPcfFilterToEffect(
   pcfFilter: HyphonSong['pcfFilter'] | undefined,
-  pcfEffect: { loadSettings: (settings: PcfSettings) => void } | null | undefined,
+  pcfEffect: { loadSettings: (settings: PcfSettings) => void; reset?: () => void } | null | undefined,
 ): boolean {
-  if (!pcfFilter || !pcfEffect) return false;
+  if (!pcfEffect) return false;
+  pcfEffect.reset?.();
+  if (!pcfFilter) return false;
   pcfEffect.loadSettings(pcfFilterToPcfSettings(pcfFilter));
   return true;
 }

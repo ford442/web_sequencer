@@ -30,9 +30,13 @@ import {
 } from '../audio/offline/compileOfflineGraph';
 import { resolveExportSampleRate, type SampleRatePref } from './audioContextPolicy';
 import {
+    PCF_UNAVAILABLE_SKIP_REASON,
+    resolveMasterPcfTimeline,
     resolveSynthLaneAutomation,
+    withMasterPcfNotRendered,
     type OfflineAutomationReport,
 } from '../audio/offline/offlineLaneAutomation';
+import { pcfFilterToPcfSettings } from '../importers/rbs/applyImportedEngineState';
 import type { Open303LaneTarget } from '../audio/automation/laneResolver';
 import { NUM_STEPS } from '../constants';
 import { primaryAITracks } from '../importers/ai-song/songBlock';
@@ -228,10 +232,13 @@ export async function renderSongPreview(
 
     // The song's automation lanes, as live playback plays them: pattern mode,
     // or the linear player with clip lanes over the song lanes.
+    const laneTimeline = { totalSteps: steps, stepCount: song.stepCount ?? NUM_STEPS, songMode: !!arrangement, arrangement };
     const automation = resolveSynthLaneAutomation(
         song.automationLanes ?? [],
-        { totalSteps: steps, stepCount: song.stepCount ?? NUM_STEPS, songMode: !!arrangement, arrangement },
+        laneTimeline,
         synthTracks.map((track) => ({ target: track.slot, waveform: track.waveform })),
+        // The preview bounces through the master chain, PCF stage included.
+        { masterPcf: true },
     );
 
     for (const track of synthTracks) {
@@ -279,7 +286,15 @@ export async function renderSongPreview(
         sampleRate,
         sampleRatePref: options.sampleRatePref,
         liveSampleRate: options.liveSampleRate ?? null,
+        masterPcf: {
+            timeline: resolveMasterPcfTimeline(song.automationLanes ?? [], laneTimeline, stepDurationSeconds(tempo)),
+            settings: song.pcfFilter ? pcfFilterToPcfSettings(song.pcfFilter) : null,
+            tempo,
+        },
     });
+    const automationReport = bounced.report.masterPcf === 'rendered'
+        ? automation.report
+        : withMasterPcfNotRendered(automation.report, PCF_UNAVAILABLE_SKIP_REASON);
 
     return {
         buffer: bounced.buffer,
@@ -288,7 +303,7 @@ export async function renderSongPreview(
         tempo,
         slots,
         graph: bounced.report,
-        automation: automation.report,
+        automation: automationReport,
     };
 }
 

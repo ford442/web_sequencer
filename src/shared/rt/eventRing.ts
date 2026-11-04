@@ -8,7 +8,14 @@
  * class also backs the worklet side of the postMessage fallback
  * (eventTransport.ts), on a plain ArrayBuffer whose two ends share a thread.
  *
- * Layout (createEventRing):
+ * A ring can sit anywhere in a buffer (`byteOffset`): in a SharedArrayBuffer
+ * of its own (createEventRing), or in place inside hyphon_native's shared
+ * memory, where hyphon::EventRing laid it out (#1497 P2). Then the main thread
+ * writes a voice's own native ring and the C++ consumer takes the records
+ * from there, with no copy in between.
+ *
+ * Layout (EventRingWord, generated from emscripten/core/event_schema.json for
+ * this file and hyphon::EventRingHeader alike):
  *   Int32[0]   write count   producer; uint32, wraps
  *   Int32[1]   dropped       producer: pushes refused because the ring was full
  *   Int32[2]   high water    producer: most records ever unread at once
@@ -30,33 +37,53 @@
 
 import {
   EVENT_BYTES,
+  EVENT_RING_HEADER_BYTES,
+  EVENT_RING_MAGIC,
   EVENT_SCHEMA_VERSION,
   EventReader,
+  EventRingWord,
   EventWriter,
   type EventRecord,
 } from './eventLayout';
 
-/** Header bytes before the first record. */
-export const EVENT_RING_HEADER_BYTES = 128;
+export { EVENT_RING_HEADER_BYTES };
 /** Enough for a bar of dense steps at the 40 ms step lookahead, with headroom. */
 export const EVENT_RING_DEFAULT_CAPACITY = 256;
 
 const HEADER_INTS = EVENT_RING_HEADER_BYTES / Int32Array.BYTES_PER_ELEMENT;
-const WRITE = 0;
-const DROPPED = 1;
-const HIGH_WATER = 2;
-const READ = 16;
-const MAGIC = 24;
-const VERSION = 25;
-const CAPACITY = 26;
-/** 'HEV1' in little-endian bytes. */
-const RING_MAGIC = 0x31564548;
+const WRITE = EventRingWord.write;
+const DROPPED = EventRingWord.dropped;
+const HIGH_WATER = EventRingWord.highWater;
+const READ = EventRingWord.read;
+const MAGIC = EventRingWord.magic;
+const VERSION = EventRingWord.version;
+const CAPACITY = EventRingWord.capacity;
 
 const isPowerOfTwo = (n: number) => Number.isInteger(n) && n >= 2 && (n & (n - 1)) === 0;
 
 /** Bytes a ring of `capacity` records takes. */
 export function eventRingBytes(capacity: number): number {
   return EVENT_RING_HEADER_BYTES + capacity * EVENT_BYTES;
+}
+
+/**
+ * Lay an empty ring of `capacity` records out at `byteOffset` of `buffer`,
+ * as hyphon::EventRing's constructor does: counts zeroed, then the magic,
+ * the schema version and the capacity. The bytes must be the ring's alone.
+ */
+export function formatEventRing(buffer: ArrayBufferLike, byteOffset: number, capacity: number): void {
+  if (!isPowerOfTwo(capacity) || capacity > 0x40000000) {
+    throw new Error(`event ring capacity must be a power of two >= 2 (got ${capacity})`);
+  }
+  if (!Number.isInteger(byteOffset) || byteOffset < 0 || byteOffset % 8 !== 0 ||
+      byteOffset + eventRingBytes(capacity) > buffer.byteLength) {
+    throw new Error(`an event ring of ${capacity} does not fit at byte ${byteOffset} of ${buffer.byteLength}`);
+  }
+  const header = new Int32Array(buffer, byteOffset, HEADER_INTS);
+  header.fill(0);
+  header[MAGIC] = EVENT_RING_MAGIC;
+  header[VERSION] = EVENT_SCHEMA_VERSION;
+  header[CAPACITY] = capacity;
 }
 
 /**
@@ -73,10 +100,7 @@ export function createEventRing(capacity: number = EVENT_RING_DEFAULT_CAPACITY, 
   }
   const bytes = eventRingBytes(capacity);
   const buffer = shared ? new SharedArrayBuffer(bytes) : new ArrayBuffer(bytes);
-  const header = new Int32Array(buffer, 0, HEADER_INTS);
-  header[MAGIC] = RING_MAGIC;
-  header[VERSION] = EVENT_SCHEMA_VERSION;
-  header[CAPACITY] = capacity;
+  formatEventRing(buffer, 0, capacity);
   return buffer;
 }
 
@@ -87,30 +111,40 @@ function isBuffer(buffer: unknown): buffer is ArrayBufferLike {
   );
 }
 
-/** True for a buffer laid out by createEventRing with this schema version. */
-export function isEventRing(buffer: unknown): buffer is ArrayBufferLike {
-  if (!isBuffer(buffer) || buffer.byteLength < EVENT_RING_HEADER_BYTES) return false;
-  const header = new Int32Array(buffer, 0, HEADER_INTS);
+/**
+ * True when `byteOffset` of `buffer` holds a ring of this schema version that
+ * fits inside the buffer: one createEventRing or formatEventRing laid out, or
+ * a hyphon::EventRing in wasm memory.
+ */
+export function isEventRing(buffer: unknown, byteOffset = 0): buffer is ArrayBufferLike {
+  if (!isBuffer(buffer) || !Number.isInteger(byteOffset) || byteOffset < 0 || byteOffset % 8 !== 0) return false;
+  if (byteOffset + EVENT_RING_HEADER_BYTES > buffer.byteLength) return false;
+  const header = new Int32Array(buffer, byteOffset, HEADER_INTS);
   const capacity = header[CAPACITY];
   return (
-    header[MAGIC] === RING_MAGIC &&
+    header[MAGIC] === EVENT_RING_MAGIC &&
     header[VERSION] === EVENT_SCHEMA_VERSION &&
     isPowerOfTwo(capacity) &&
-    buffer.byteLength === eventRingBytes(capacity)
+    byteOffset + eventRingBytes(capacity) <= buffer.byteLength
   );
 }
 
 /** What both ends can read: fill level and the producer's counters. */
 abstract class EventRingEnd {
   readonly buffer: ArrayBufferLike;
+  /** Where the ring's header starts in `buffer`. */
+  readonly byteOffset: number;
   readonly capacity: number;
   protected readonly header: Int32Array;
   protected readonly mask: number;
 
-  protected constructor(buffer: ArrayBufferLike) {
-    if (!isEventRing(buffer)) throw new Error('not an event ring (createEventRing) of this schema version');
+  protected constructor(buffer: ArrayBufferLike, byteOffset: number) {
+    if (!isEventRing(buffer, byteOffset)) {
+      throw new Error(`not an event ring of this schema version at byte ${byteOffset}`);
+    }
     this.buffer = buffer;
-    this.header = new Int32Array(buffer, 0, HEADER_INTS);
+    this.byteOffset = byteOffset;
+    this.header = new Int32Array(buffer, byteOffset, HEADER_INTS);
     this.capacity = this.header[CAPACITY];
     this.mask = this.capacity - 1;
   }
@@ -136,9 +170,9 @@ export class EventRingWriter extends EventRingEnd {
   private readonly slots: EventWriter;
   private highWaterMark: number;
 
-  constructor(buffer: ArrayBufferLike) {
-    super(buffer);
-    this.slots = new EventWriter(buffer, EVENT_RING_HEADER_BYTES, this.capacity);
+  constructor(buffer: ArrayBufferLike, byteOffset = 0) {
+    super(buffer, byteOffset);
+    this.slots = new EventWriter(buffer, byteOffset + EVENT_RING_HEADER_BYTES, this.capacity);
     this.highWaterMark = Atomics.load(this.header, HIGH_WATER);
   }
 
@@ -199,9 +233,9 @@ export class EventRingWriter extends EventRingEnd {
 export class EventRingReader extends EventRingEnd {
   private readonly slots: EventReader;
 
-  constructor(buffer: ArrayBufferLike) {
-    super(buffer);
-    this.slots = new EventReader(buffer, EVENT_RING_HEADER_BYTES, this.capacity);
+  constructor(buffer: ArrayBufferLike, byteOffset = 0) {
+    super(buffer, byteOffset);
+    this.slots = new EventReader(buffer, byteOffset + EVENT_RING_HEADER_BYTES, this.capacity);
   }
 
   /**

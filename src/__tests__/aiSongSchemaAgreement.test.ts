@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AISongImporter, type AISongData } from '../importers/ai-song';
 import { validateAISongData } from '../importers/ai-song/types';
+import { NOTE_NAME_SOURCE } from '../utils/musicTheory';
 
 const ROOT = process.cwd();
 const FIXTURE_DIR = resolve(ROOT, 'test-fixtures/ai-song');
@@ -121,8 +122,12 @@ const BAD_FOR_BOTH: Mutation[] = [
   ['v1.0 with a song block', 'minimal.json', (s) => { Object.assign(s, { patterns: { A: { tracks: {} } }, song: [{}] }); }],
   ['v1.0 with stepCount', 'minimal.json', (s) => { at(s, 'globals').stepCount = 16; }],
   ['note name H4', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'H4'; }],
-  ['note octave 9', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'C9'; }],
+  ['note octave 10', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'C10'; }],
+  ['note octave -2', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'C-2'; }],
   ['note with lowercase name', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'c4'; }],
+  ['note with two kinds of accidental', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'C#b4'; }],
+  ['note with three sharps', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'C###4'; }],
+  ['note with surrounding whitespace', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = ' C4'; }],
   ['note step below 0', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).step = -1; }],
   ['note missing its note', 'minimal.json', (s) => { delete at(s, 'tracks', 'synthA', 'notes', 0).note; }],
   ['sampler bankIndex 8', 'full.json', (s) => { at(s, 'tracks', 'sampler', 0).bankIndex = 8; }],
@@ -163,6 +168,10 @@ const IMPORTER_ONLY: Mutation[] = [
   ['v1.1 lane length differs from stepCount', 'song-mode.json', (s) => { at(s, 'globals').stepCount = 8; }],
   ['v1.1 song row naming an undefined pattern', 'song-mode.json', (s) => { at(s, 'song', 0).kick = 'nowhere'; }],
   ['note step past the end of the pattern', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).step = 32; }],
+  // Spelled like a note, but the pitch is outside MIDI 0..127: a pattern cannot say so.
+  ['note above G9', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'G#9'; }],
+  ['note B9', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'B9'; }],
+  ['note below C-1', 'minimal.json', (s) => { at(s, 'tracks', 'synthA', 'notes', 0).note = 'Cb-1'; }],
   ['pattern-local lane shadowed by a song-wide lane', 'song-mode.json', (s) => {
     const withLanes = Object.keys(at(s, 'patterns')).find((name) => {
       const lanes: unknown = at(s, 'patterns', name).automation;
@@ -179,6 +188,28 @@ describe('rules only the importer can enforce (the schema documents them as a ga
     mutate(song);
     expect(bySchema(song), JSON.stringify(validateSchema.errors)).toBe(true);
     expect(byCode(song)).toBe(false);
+  });
+});
+
+/**
+ * Every spelling the shared note grammar names is a note both sides take, and
+ * the importer keeps the string as written — it never respells a flat.
+ */
+describe('note names both the schema and the importer take', () => {
+  it.each(['Eb3', 'Bb4', 'Cb4', 'B#3', 'F##3', 'Fx3', 'Ebb4', 'C-1', 'G9', 'D♭4', 'F♯3', 'G𝄪2', 'B𝄫3'])('%s', (name) => {
+    const song = clone(load('minimal.json'));
+    at(song, 'tracks', 'synthA', 'notes', 0).note = name;
+    expect(bySchema(song), JSON.stringify(validateSchema.errors)).toBe(true);
+    expect(byCode(song)).toBe(true);
+    const result = new AISongImporter().convert(song as unknown as AISongData, { strict: true });
+    if (!result.success) throw new Error('import failed');
+    const step = at(song, 'tracks', 'synthA', 'notes', 0).step as number;
+    expect(result.song.pattern.partA.steps[step]?.note).toBe(name);
+  });
+
+  it('carries the parser\'s own pattern, not a copy of it', () => {
+    const note = (schema as { $defs: { AINoteEvent: { properties: { note: { pattern: string } } } } }).$defs.AINoteEvent.properties.note;
+    expect(note.pattern).toBe(NOTE_NAME_SOURCE);
   });
 });
 

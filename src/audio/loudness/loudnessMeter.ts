@@ -137,19 +137,25 @@ export class LoudnessMeter {
      * channels are treated as silence.
      */
     process(channels: readonly Float32Array[], frames: number): void {
+        const filters = this.filters;
+        const detectors = this.truePeakDetectors;
+        const weights = this.weights;
+        const channelCount = this.channelCount;
+
+        let localSamplePeakLinear = this.samplePeakLinear;
         for (let i = 0; i < frames; i += 1) {
             let weighted = 0;
-            for (let ch = 0; ch < this.channelCount; ch += 1) {
+            for (let ch = 0; ch < channelCount; ch += 1) {
                 const source = channels[ch];
                 const raw = source !== undefined ? source[i] : 0;
                 const sample = Number.isFinite(raw) ? raw : 0;
 
                 const magnitude = sample < 0 ? -sample : sample;
-                if (magnitude > this.samplePeakLinear) this.samplePeakLinear = magnitude;
-                this.truePeakDetectors[ch].processSample(sample);
+                if (magnitude > localSamplePeakLinear) localSamplePeakLinear = magnitude;
+                detectors[ch].processSample(sample);
 
-                const filtered = this.filters[ch].process(sample);
-                weighted += this.weights[ch] * filtered * filtered;
+                const filtered = filters[ch].process(sample);
+                weighted += weights[ch] * filtered * filtered;
             }
 
             this.pendingPower += weighted;
@@ -158,6 +164,7 @@ export class LoudnessMeter {
                 this.commitSubBlock();
             }
         }
+        this.samplePeakLinear = localSamplePeakLinear;
     }
 
     private commitSubBlock(): void {

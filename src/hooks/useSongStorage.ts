@@ -22,6 +22,7 @@ import { transportMixStore } from '../stores/transportMixStore';
 import { resolveSongMeter } from '../utils/songMeter';
 import { e2eTransportSnapshot, isE2eMode, setE2eLaneCount } from '../e2e/probe';
 import { applyPcfFilterToEffect, convert303Waveform } from '../importers/rbs/applyImportedEngineState';
+import { getMasterPcf, pcfFilterForSave } from '../audio/pcf/masterPcf';
 import type { RbsArrangementExtras } from './appState/useSongModeState';
 import { migrateSavedSongSession } from '../session/migrate';
 import { normalizeArrangement, projectArrangement, songStructureToArrangement } from '../arrangement/model';
@@ -213,6 +214,11 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         // so memoization of this callback does not cause stale automation data.
         const exportedLanes = automationStore.exportLanes();
         const exportedMidi = midiMapStore.exportMappings();
+        // A master PCF changed by hand in the patch bay overrides the song's own.
+        const savedPcfFilter = pcfFilterForSave(
+            deps.rbsArrangementExtrasRef?.current?.pcfFilter,
+            getMasterPcf(),
+        );
         const meter = transportMixStore.getMeter();
         return {
             version: SAVED_SONG_DATA_VERSION,
@@ -251,9 +257,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             ...(deps.rbsArrangementExtrasRef?.current?.loopEnd != null
                 ? { rbsLoopEnd: deps.rbsArrangementExtrasRef.current.loopEnd }
                 : {}),
-            ...(deps.rbsArrangementExtrasRef?.current?.pcfFilter
-                ? { pcfFilter: deps.rbsArrangementExtrasRef.current.pcfFilter }
-                : {}),
+            ...(savedPcfFilter ? { pcfFilter: savedPcfFilter } : {}),
             ...(deps.rbsArrangementExtrasRef?.current?.trackParamStorage
                 ? { trackParamStorage: deps.rbsArrangementExtrasRef.current.trackParamStorage }
                 : {}),

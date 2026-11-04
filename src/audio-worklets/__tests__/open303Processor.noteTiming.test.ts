@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
+import { MessageEventSink, RingEventSink, type EngineEventSink } from '../../shared/rt/eventTransport';
+import { VoiceEvent } from '../../shared/rt/hyphonNativeExports';
 
 /**
  * #1344: the 303 worklet honours audioTime on noteOn / noteOff.
@@ -196,7 +198,7 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
     expect(calls[2].args.slice(0, 2)).toEqual([0, 3]); // frame 0, kAllNotesOff
   });
 
-  it('an engine switch quiets the old voice and routes everything after it to the new one', () => {
+  it('an engine switch quiets the old voice and routes notes after it to the new one; params reach both', () => {
     send('noteOn', { note: 36, velocity: 100, audioTime: 1.0 });
     send('set-engine', { engine: 'jc303' });
     expect(calls.slice(1).map((c) => `${c.fn}:${c.h}`)).toEqual([
@@ -211,8 +213,28 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
     render(57600);
     expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
       `jc303_push_event:${JC303}`,
+      `open303_set_param:${OPEN303}`, // idle now: set at once, in sync for a switch back
       `jc303_push_event:${JC303}`,
       `jc303_render:${JC303}`,
+    ]);
+  });
+
+  it('an openrb-338 voice without its optional module plays stock open303 and says so (#1537)', () => {
+    send('set-engine', { engine: 'jc303' });
+    voice.port.posted.length = 0;
+    send('set-303-model', { model: 'openrb338-2.0', engine: 'openrb338' });
+    const unavailable = voice.port.posted.find((m) => m.type === 'openrb338-unavailable') as
+      | { type: string; data: { model: string; fallbackModel: string } }
+      | undefined;
+    expect(unavailable?.data.model).toBe('openrb338-2.0');
+    expect(unavailable?.data.fallbackModel).toBe('stock-open303');
+
+    calls = [];
+    send('noteOn', { note: 40, velocity: 100, audioTime: 1.2 });
+    render(57600);
+    expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
+      `open303_push_event:${OPEN303}`,
+      `open303_render:${OPEN303}`,
     ]);
   });
 
@@ -225,6 +247,7 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
     expect(calls.map((c) => `${c.fn}:${c.h}`)).toEqual([
       `highfid303_set_param:${HIGHFID}`,
       `open303_push_event:${OPEN303}`,
+      `jc303_set_param:${JC303}`,
     ]);
     expect(calls[1].args.slice(0, 3)).toEqual([144000, 4, 5]);
   });
@@ -250,5 +273,92 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
       `open303_flush:${OPEN303}`,
       `open303_all_notes_off:${OPEN303}`,
     ]);
+  });
+  /**
+   * #1497 P2: Open303Oscillator sends notes, params and stops as records on
+   * its EventBus route. A second processor on the same fake session, booted
+   * with the route's transport.
+   */
+  describe.each(['message', 'ring'] as const)('records from the bus (%s transport)', (kind) => {
+    let bus: Voice;
+    let sink: EngineEventSink;
+    let posted: unknown[];
+    const deliver = async () => {
+      sink.flush();
+      for (const m of posted.splice(0)) await bus.port.deliver(m);
+    };
+    const f = Math.fround;
+
+    beforeEach(async () => {
+      posted = [];
+      sink = kind === 'ring' ? new RingEventSink(32) : new MessageEventSink({ postMessage: (m) => posted.push(m) }, 32);
+      bus = new (registered.get('open303-processor')!)();
+      await bus.port.deliver({
+        type: 'init-wasm',
+        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 2048, exportMap: {}, events: sink.transport },
+      });
+      expect(bus.port.posted.map((m) => m.type)).toContain('ready');
+      calls = [];
+    });
+
+    const renderBus = (frame: number) => {
+      g.currentFrame = frame;
+      bus.process([], [[new Float32Array(BLOCK), new Float32Array(BLOCK)], [new Float32Array(BLOCK), new Float32Array(BLOCK)]], {});
+    };
+
+    it('notes, params and a stop reach the voices at block start, routed as their messages are', async () => {
+      sink.push(50400, VoiceEvent.NoteOn, 36, 100);
+      sink.push(50400, VoiceEvent.Param, 2, 0.3); // OPEN303_CUTOFF
+      sink.push(0, VoiceEvent.CancelNotes, 0, 0);
+      sink.push(0, VoiceEvent.AllNotesOff, 0, 0);
+      sink.push(51000, VoiceEvent.NoteOn, 38, 90); // a restart in the same task
+      await deliver();
+      expect(calls).toEqual([]); // nothing before the block
+
+      renderBus(50304);
+      expect(calls).toEqual([
+        { fn: 'open303_push_event', h: OPEN303, args: [50400, 1, 36, 100, 0, 0, 0, 0] },
+        { fn: 'open303_push_event', h: OPEN303, args: [50400, 4, 2, f(0.3), 0, 0, 0, 0] },
+        { fn: 'jc303_set_param', h: JC303, args: [2, f(0.3)] }, // idle: now
+        // The stop rides the voice's ring behind the notes it cancels.
+        { fn: 'open303_push_event', h: OPEN303, args: [0, VoiceEvent.CancelNotes, 0, 0, 0, 0, 0, 0] },
+        { fn: 'open303_push_event', h: OPEN303, args: [0, VoiceEvent.AllNotesOff, 0, 0, 0, 0, 0, 0] },
+        { fn: 'open303_push_event', h: OPEN303, args: [51000, 1, 38, 90, 0, 0, 0, 0] },
+        { fn: 'open303_render', h: OPEN303, args: [50304, BLOCK] },
+      ]);
+    });
+
+    it('a param drained before an engine switch message is handled still reaches the new engine', async () => {
+      // applyEngine303 posts set-engine, then re-sends the params as records;
+      // on the ring a block can take the records before the message lands.
+      sink.push(0, VoiceEvent.Param, 3, 0.8); // OPEN303_RESONANCE
+      await deliver();
+      renderBus(57600);
+      await bus.port.deliver({ type: 'set-engine', data: { engine: 'jc303' } });
+      expect(calls.filter((c) => c.fn.endsWith('set_param') || c.fn.endsWith('push_event')).map((c) => `${c.fn}:${c.h}`)).toEqual([
+        `open303_push_event:${OPEN303}`,
+        `jc303_set_param:${JC303}`,
+      ]);
+    });
+
+    it('records wait for the worklet to be ready, then drain in order', async () => {
+      const early = new (registered.get('open303-processor')!)();
+      const earlyPosted: unknown[] = [];
+      const earlySink = kind === 'ring' ? new RingEventSink(32) : new MessageEventSink({ postMessage: (m) => earlyPosted.push(m) }, 32);
+      const init = early.port.deliver({
+        type: 'init-wasm',
+        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 2048, exportMap: {}, events: earlySink.transport },
+      });
+      earlySink.push(0, VoiceEvent.Param, 7, 0.5);
+      earlySink.flush();
+      for (const m of earlyPosted) await early.port.deliver(m);
+      g.currentFrame = 0;
+      early.process([], [[new Float32Array(BLOCK)]], {});
+      await init;
+      calls = [];
+      g.currentFrame = BLOCK;
+      early.process([], [[new Float32Array(BLOCK)], [new Float32Array(BLOCK)]], {});
+      expect(calls.map((c) => c.fn)).toEqual(['open303_push_event', 'jc303_set_param', 'open303_render']);
+    });
   });
 });

@@ -35,6 +35,25 @@ interface PcfAutomationData {
 }
 
 /**
+ * One timed automation change for offline renders. `time` is in context
+ * seconds; the remaining fields follow {@link PcfAutomationData}.
+ */
+interface PcfTimelineEvent extends PcfAutomationData {
+  time: number;
+}
+
+/** Initial state handed over in `processorOptions` (offline renders). */
+interface PcfProcessorOptions {
+  enabled?: boolean;
+  params?: { filterType?: number; cutoff?: number; resonance?: number; envAmount?: number; decay?: number };
+  pattern?: number[];
+  /** Automation changes applied at block start once `currentTime` reaches them. */
+  timeline?: PcfTimelineEvent[];
+  /** Pattern transport from the first block (offline renders start playing at t=0). */
+  transport?: { playing?: boolean; bpm?: number };
+}
+
+/**
  * PCF Processor - Pattern Controlled Filter
  *
  * Implements a biquad filter (LP/BP/HP) whose cutoff frequency is modulated
@@ -48,6 +67,11 @@ interface PcfAutomationData {
  *  - { type: 'set-transport', data: { playing, bpm, stepIndex } }
  *  - { type: 'set-enabled', data: boolean }
  *  - { type: 'set-automation', data: PcfAutomationData }
+ *  - { type: 'set-timeline', data: PcfTimelineEvent[] }
+ *
+ * The filter runs while the pattern PCF is enabled *or* an automation cutoff
+ * override is active, so master `pcfCutoff` lanes are heard on songs that do
+ * not import the PCF pattern itself.
  */
 class PcfProcessor extends AudioWorkletProcessor {
     // Filter state (Direct Form II Transposed)
@@ -96,19 +120,35 @@ class PcfProcessor extends AudioWorkletProcessor {
 
     // Enable/disable
     private enabled = true;
+    /** Whether the last block ran the filter (vs. bypass). */
+    private filtering = false;
 
     // Automation overrides (external values, bypass pattern/params)
     private automationCutoffHz = -1;      // -1 means no override (Hz)
     private automationResonanceMidi = -1; // -1 means no override (0-127)
     private automationEnvAmountNorm = -1; // -1 means no override (0-1)
 
+    // Timed automation (offline renders): sorted by time, consumed in order.
+    private timeline: PcfTimelineEvent[] = [];
+    private timelineIndex = 0;
+
     // Cached invariant math for the hot path
     private baseHz = 20;
     private readonly maxHz = 20000; // midiToHz(127)
 
-    constructor() {
+    constructor(options?: { processorOptions?: PcfProcessorOptions }) {
         super();
         this.port.onmessage = this.handleMessage.bind(this);
+        const init = options?.processorOptions;
+        if (init) {
+            if (init.enabled !== undefined) this.applyMessage('set-enabled', init.enabled);
+            if (init.params) this.applyMessage('set-params', init.params);
+            if (init.pattern) this.applyMessage('set-pattern', init.pattern);
+            if (init.timeline) this.applyMessage('set-timeline', init.timeline);
+            if (init.transport) {
+                this.applyMessage('set-transport', { ...init.transport, stepIndex: 0 });
+            }
+        }
         this.baseHz = this.midiToHz(this.baseCutoff);
         this.updateSamplesPerStep();
         this.updateSmoothingCoeff();
@@ -118,7 +158,10 @@ class PcfProcessor extends AudioWorkletProcessor {
 
     private handleMessage(event: MessageEvent): void {
         const { type, data } = event.data;
+        this.applyMessage(type, data);
+    }
 
+    private applyMessage(type: string, data: any): void {
         switch (type) {
             case 'set-params': {
                 if (data.filterType !== undefined) this.filterType = data.filterType;
@@ -167,27 +210,38 @@ class PcfProcessor extends AudioWorkletProcessor {
                 }
                 break;
             }
-            case 'set-automation': {
-                const automation = data as PcfAutomationData | null;
-                if (!automation) break;
-                if ('cutoffHz' in automation) {
-                    this.automationCutoffHz =
-                        typeof automation.cutoffHz === 'number' ? automation.cutoffHz : -1;
-                }
-                if ('resonanceMidi' in automation) {
-                    this.automationResonanceMidi =
-                        typeof automation.resonanceMidi === 'number'
-                            ? clampMidi(automation.resonanceMidi)
-                            : -1;
-                }
-                if ('envAmountNorm' in automation) {
-                    this.automationEnvAmountNorm =
-                        typeof automation.envAmountNorm === 'number'
-                            ? clamp01(automation.envAmountNorm)
-                            : -1;
-                }
+            case 'set-timeline': {
+                const events = Array.isArray(data) ? (data as PcfTimelineEvent[]) : [];
+                this.timeline = events
+                    .filter((e) => e && typeof e.time === 'number' && Number.isFinite(e.time))
+                    .sort((a, b) => a.time - b.time);
+                this.timelineIndex = 0;
                 break;
             }
+            case 'set-automation': {
+                this.applyAutomation(data as PcfAutomationData | null);
+                break;
+            }
+        }
+    }
+
+    private applyAutomation(automation: PcfAutomationData | null): void {
+        if (!automation) return;
+        if ('cutoffHz' in automation) {
+            this.automationCutoffHz =
+                typeof automation.cutoffHz === 'number' ? automation.cutoffHz : -1;
+        }
+        if ('resonanceMidi' in automation) {
+            this.automationResonanceMidi =
+                typeof automation.resonanceMidi === 'number'
+                    ? clampMidi(automation.resonanceMidi)
+                    : -1;
+        }
+        if ('envAmountNorm' in automation) {
+            this.automationEnvAmountNorm =
+                typeof automation.envAmountNorm === 'number'
+                    ? clamp01(automation.envAmountNorm)
+                    : -1;
         }
     }
 
@@ -322,14 +376,34 @@ class PcfProcessor extends AudioWorkletProcessor {
         const outputR = output[1] || output[0];
         const blockSize = inputL.length;
 
-        // Bypass: pass through unmodified
-        if (!this.enabled) {
+        // Timed automation (offline): apply every change due by this block.
+        if (this.timelineIndex < this.timeline.length) {
+            const blockEnd = currentTime + blockSize / sampleRate;
+            while (
+                this.timelineIndex < this.timeline.length &&
+                this.timeline[this.timelineIndex].time < blockEnd
+            ) {
+                this.applyAutomation(this.timeline[this.timelineIndex]);
+                this.timelineIndex++;
+            }
+        }
+
+        // Bypass: pass through unmodified. A cutoff override engages the
+        // filter on its own — master PCF lanes play without the pattern PCF.
+        if (!this.enabled && this.automationCutoffHz < 0) {
+            if (this.filtering) {
+                // Leaving the filter: drop its state so re-engaging cannot click.
+                this.z1L = this.z2L = this.z1R = this.z2R = 0;
+                this.filtering = false;
+            }
             for (let i = 0; i < blockSize; i++) {
                 outputL[i] = inputL[i];
                 if (output[1]) outputR[i] = inputR[i];
             }
             return true;
         }
+
+        this.filtering = true;
 
         // Advance transport and compute target cutoff at block rate
         // (recompute coefficients once per block to reduce CPU)

@@ -16,14 +16,26 @@ export const LoadingButton: React.FC<LoadingButtonProps> = React.memo(({
     className = '',
     ...props
 }) => {
+    const isAriaDisabled = props['aria-disabled'] === true || props['aria-disabled'] === 'true';
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (disabled || isLoading || isAriaDisabled) {
+            e.preventDefault();
+            return;
+        }
+        props.onClick?.(e);
+    };
+
     return (
         <button type="button"
             {...props}
-            disabled={disabled || isLoading}
+            onClick={handleClick}
+            disabled={disabled ? true : undefined}
+            aria-disabled={isLoading || isAriaDisabled ? true : undefined}
             aria-busy={isLoading}
             aria-label={props['aria-label'] || (typeof children === 'string' ? children : loadingText)}
             className={`transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                isLoading ? 'opacity-70 cursor-wait' : disabled ? 'opacity-50 cursor-not-allowed' : ''
+                isLoading ? 'opacity-70 cursor-wait' : (disabled || isAriaDisabled) ? 'opacity-50 cursor-not-allowed' : ''
             } ${className}`}
         >
             {isLoading && (

@@ -24,6 +24,8 @@ import {
 } from './agentSong';
 import { captureTap } from './liveCapture';
 import { getE2eAudioTap } from '../e2e/probe';
+import type { AISongExport, AISongExportOptions } from '../importers/ai-song/exportAISong';
+import { createAppCoproducer, type HyphonAgentCoproducer } from './coproducer/appHost';
 
 export interface AgentFile {
     /** `stems/master.wav`, `stems/partA.wav`, … as in the export modal's ZIP. */
@@ -89,6 +91,10 @@ export interface HyphonAgentApi {
     captureLive: (options?: AgentCaptureOptions) => Promise<AgentCaptureResult>;
     /** Load a WAV into the active sampler bank, like the sampler panel's file picker. */
     loadSamplerPhrase: (wavBase64: string) => Promise<AgentSampleLoadResult>;
+    /** The open song as an AI song (the inverse of `importAISong`), and what the format could not carry. */
+    exportAISong: (options?: AISongExportOptions) => AISongExport;
+    /** The co-producer's tools, run against the open song (docs/coproducer.md). */
+    coproducer: HyphonAgentCoproducer;
 }
 
 declare global {
@@ -208,7 +214,7 @@ function liveTap(s: AppState, track: ExpressionLedTarget): { node: AudioNode; so
 export function createAgentApi(store: Store): HyphonAgentApi {
     const state = () => store.getSnapshot();
 
-    return {
+    const api: Omit<HyphonAgentApi, 'exportAISong' | 'coproducer'> = {
         version: 1,
 
         async importAISong(song, options = {}) {
@@ -309,4 +315,23 @@ export function createAgentApi(store: Store): HyphonAgentApi {
             }
         },
     };
+
+    const { coproducer, exportAISong } = createAppCoproducer({
+        getState: state,
+        settle: (quietMs) => waitForCommit(store, quietMs),
+        renderMix: (options) => api.renderMix(options),
+        exportRbs: api.exportRbs,
+        exportMidi: api.exportMidi,
+        exportXm: api.exportXm,
+        async exportWav() {
+            try {
+                const master = (await api.renderMix({ stems: false })).files.find((f) => f.path === 'stems/master.wav');
+                if (!master) return { ok: false, error: 'the render returned no master stem', warnings: [] };
+                return { ok: true, filename: 'song.wav', base64: master.base64, warnings: [] };
+            } catch (error) {
+                return { ok: false, error: error instanceof Error ? error.message : String(error), warnings: [] };
+            }
+        },
+    });
+    return { ...api, exportAISong, coproducer };
 }

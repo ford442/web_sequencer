@@ -1,0 +1,33 @@
+[package]
+name = "hyphon-openrb338"
+version = "0.1.0"
+edition = "2024"
+# The TB-303 core and its tables are openrb-338 code (GPL-3.0-only, no "or later"), so this crate
+# and the openrb338.wasm it builds are GPL-3.0-only as a whole. See README.md and
+# docs/audio-engine/openrb338-voice.md (licence decision).
+license = "GPL-3.0-only"
+publish = false
+description = "openrb-338's bit-exact ReBirth 2.01 TB-303, extracted into a host-driven voice with a C ABI for Hyphon"
+
+# A world of its own: not a member of any workspace (rust-audio/ stays the bench crate).
+[workspace]
+
+[lib]
+# cdylib: openrb338.wasm; rlib: the native reference tests and examples.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The tables' transcendentals, pinned exactly as upstream pins them, so the tables are the same
+# everywhere (wasm32 included).
+libm = "=0.2.16"
+
+[dev-dependencies]
+# The reference: upstream's own engine at the revision the core was extracted from.
+orb-engine = { git = "https://github.com/pingw33n/openrb-338", rev = "88a1770c645a8d29688f4941ed5672e81d1f8cf7" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

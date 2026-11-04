@@ -14,6 +14,11 @@
  * - **Master loudness.** The limiter/meter worklet cannot be instantiated in a
  *   render that has already finished, so the identical DSP runs over the
  *   rendered mix at the same point in the chain (#1095).
+ * - **Master PCF.** The `masterPcf` node (post-pan, pre-limiter) compiles to a
+ *   fresh `PcfEffect` on the offline context when the caller passes
+ *   `masterPcf` — the song's master PCF lanes pre-timed on the render clock
+ *   (`resolveMasterPcfTimeline`) and its imported pattern PCF. Without it, or
+ *   if the worklet cannot load, the node is bridged and the report says so.
  * - **WAM2 slots.** Bundled fixtures declare `offline: 'native'` and are
  *   mounted into the offline context. Everything else is `offline:
  *   'unsupported'` per ADR 0001: the slot is bypassed, the mix continues, and
@@ -57,6 +62,11 @@ import {
     type SampleRatePref,
 } from '../../utils/audioContextPolicy';
 import { createOfflineContext, resolveOfflineSpec } from './createOfflineContext';
+import { createMasterPcf } from '../pcf/masterPcf';
+import { createMasterPcfProvider, createPcfNodeProvider } from '../pcf/pcfInsert';
+import { createOpenrbLowpassProvider } from '../openrb/openrbLowpassHost';
+import type { PcfTimelineEvent } from '../../engines/PcfEffect';
+import type { PcfSettings } from '../../importers/rbs/types';
 
 /** Graph node factories that carry a WAM2 plugin. */
 const WAM_FACTORIES = new Set([
@@ -98,6 +108,13 @@ export interface OfflineEngineVoiceReport {
     status: 'fed' | 'silent';
 }
 
+export interface OfflinePcfNodeReport {
+    nodeId: GraphNodeId;
+    status: 'rendered' | 'unavailable';
+    stepping: boolean;
+    lanes: boolean;
+}
+
 export interface OfflineGraphReport {
     /** Rate the render actually runs at. */
     sampleRate: number;
@@ -108,6 +125,19 @@ export interface OfflineGraphReport {
     patchName: string;
     /** Every WAM2 slot in the patch, rendered or bypassed. */
     slots: OfflineGraphSlotReport[];
+    /**
+     * The master PCF stage: `rendered` (a PCF ran in the chain), `unavailable`
+     * (asked for, but the worklet failed to load — bridged), or `off` (not
+     * asked for — bridged, as the stage is transparent on a song without PCF).
+     */
+    masterPcf: 'rendered' | 'unavailable' | 'off';
+    /**
+     * Every PCF the user placed in the patch: `rendered`, or `unavailable` (the
+     * worklet failed; the node passed audio through, or was bridged). `stepping`
+     * is whether its pattern moved (the render passed `masterPcf.tempo`), and
+     * `lanes` whether it played the master lanes (`followMasterLanes`).
+     */
+    pcfNodes: OfflinePcfNodeReport[];
     /** Every first-party engine node in the patch, filled in by `render()`. */
     engineVoices: OfflineEngineVoiceReport[];
     /** Loudness readings, filled in by `render()`. */
@@ -140,6 +170,20 @@ export interface OfflineGraphLoudnessOptions {
     enabled?: boolean;
 }
 
+export interface OfflineMasterPcfOptions {
+    /** From `resolveMasterPcfTimeline`, on the render clock. */
+    timeline?: readonly PcfTimelineEvent[];
+    /** An imported song's pattern PCF (`pcfFilterToPcfSettings(song.pcfFilter)`). */
+    settings?: PcfSettings | null;
+    /** Tempo the pattern PCF steps at; required for `settings` to move. */
+    tempo?: number;
+}
+
+/** Whether `options` gives the PCF anything to do. */
+export function masterPcfRequested(options: OfflineMasterPcfOptions | null | undefined): boolean {
+    return !!options && ((options.timeline?.length ?? 0) > 0 || !!options.settings?.enabled);
+}
+
 export interface CompileOfflineGraphOptions {
     /** Render length. Rounded up to whole frames. */
     durationSeconds: number;
@@ -161,10 +205,16 @@ export interface CompileOfflineGraphOptions {
      */
     wam2?: Wam2SongPayload | null;
     loudness?: OfflineGraphLoudnessOptions;
+    /**
+     * Run the master PCF stage: the song's master PCF lanes as timed overrides
+     * and/or its imported pattern PCF. Omit for a render with nothing for the
+     * PCF to do — the stage is bridged, which is what a transparent PCF sounds like.
+     */
+    masterPcf?: OfflineMasterPcfOptions | null;
     /** Passed through to the shared compiler (reverb impulses, validation). */
     compile?: Pick<
         CompileGraphOptions,
-        'createReverbImpulse' | 'validate' | 'useStereoPanner' | 'createEngineVoice'
+        'createReverbImpulse' | 'validate' | 'useStereoPanner' | 'createEngineVoice' | 'createOpenrbLowpass'
     >;
     /** Injected by tests; production constructs a real `OfflineAudioContext`. */
     contextFactory?: (
@@ -416,12 +466,62 @@ export async function compileOfflineGraph(
         sampleRate,
     );
 
+    const pcfOptions = options.masterPcf;
+    const wantsPcf = masterPcfRequested(pcfOptions);
+    const masterPcf = wantsPcf
+        ? await createMasterPcf(context, {
+              timeline: pcfOptions?.timeline,
+              settings: pcfOptions?.settings ?? null,
+              transport: pcfOptions?.settings?.enabled && pcfOptions.tempo
+                  ? { playing: true, bpm: pcfOptions.tempo }
+                  : undefined,
+          })
+        : null;
+
+    // Low-pass nodes in openrb mode render as they play live: the same opt-in
+    // module, or the RBJ biquad when it is not loaded.
+    const openrbLowpass = options.compile?.createOpenrbLowpass
+        ? null
+        : await createOpenrbLowpassProvider(context);
+
+    // PCF nodes take the same openrb provider as low-pass nodes: openrb mode
+    // renders as it plays live.
+    const openrb = openrbLowpass ?? options.compile?.createOpenrbLowpass ?? null;
+    // Placed PCFs step at the render's tempo and, when they follow the master
+    // lanes, play the same pre-timed lanes as the master PCF.
+    const pcfTempo = pcfOptions?.tempo;
+    const pcfInits: Promise<void>[] = [];
+    const pcfNodeOptions = new Map<GraphNodeId, { stepping: boolean; lanes: boolean }>();
     const graph = compileAudioGraph(context, patch, {
         ...options.compile,
+        ...(openrbLowpass ? { createOpenrbLowpass: openrbLowpass } : {}),
         // The limiter is an AudioWorklet; offline it runs as DSP over the
         // rendered mix instead (see `render`), at the same point in the chain.
         createMasterLimiterNode: () => null,
+        createMasterPcf: createMasterPcfProvider(masterPcf, { openrb }),
+        createPcfNode: createPcfNodeProvider({
+            openrb,
+            pending: pcfInits,
+            init: (request, config) => {
+                const stepping = !!pcfTempo && config.enabled;
+                const lanes = config.followMasterLanes && (pcfOptions?.timeline?.length ?? 0) > 0;
+                pcfNodeOptions.set(request.nodeId, { stepping, lanes });
+                return {
+                    ...(stepping && pcfTempo ? { transport: { playing: true, bpm: pcfTempo } } : {}),
+                    ...(lanes ? { timeline: pcfOptions?.timeline } : {}),
+                };
+            },
+        }),
     });
+    // The PCF nodes' worklets must be running before the first block.
+    await Promise.all(pcfInits);
+    const pcfNodes: OfflinePcfNodeReport[] = patch.nodes
+        .filter((node) => node.factory === 'pcf')
+        .map((node) => {
+            const flags = pcfNodeOptions.get(node.id) ?? { stepping: false, lanes: false };
+            const running = graph.ports.get(node.id)?.pcf?.effect.isInitialized === true;
+            return { nodeId: node.id, status: running ? 'rendered' : 'unavailable', ...flags };
+        });
 
     const { reports, plugins } = await applyOfflineWamSlots(
         context,
@@ -438,6 +538,8 @@ export async function compileOfflineGraph(
         patchId: patch.id,
         patchName: patch.name,
         slots: reports,
+        masterPcf: !wantsPcf ? 'off' : masterPcf && graph.nodes.has('masterPcf') ? 'rendered' : 'unavailable',
+        pcfNodes,
         engineVoices: [],
         loudness: null,
     };

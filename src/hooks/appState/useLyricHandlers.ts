@@ -143,7 +143,11 @@ export function useLyricHandlers(deps: {
             const normalizedSentiment = Math.max(-1, Math.min(1, sentimentScore / maxScore));
             const openHatProb = Math.max(0, Math.min(0.8, 0.2 + (normalizedSentiment * 0.4)));
 
+            // Map sentiment to a pitch offset for the kick drum (-2 to +2 semitones)
+            const kickPitchOffset = Math.round(normalizedSentiment * 2);
+
             let consecutiveConsonants = 0;
+            let lastVowelBrightness = 0.5;
             let lastConsonantStep = -1;
             let currentStress = 0;
 
@@ -184,15 +188,26 @@ export function useLyricHandlers(deps: {
 
                 const durationSteps = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
 
+                const isBrightVowel = ['IY','IH','EY','EH','AE'].includes(ph);
+                const isMidVowel = ['AH','ER','AW','AY','OY'].includes(ph);
+                const isDarkVowel = ['AA','AO','OW','UH','UW','AW'].includes(ph);
+
+                if (isVowel) {
+                    if (isBrightVowel) lastVowelBrightness = 1;
+                    else if (isMidVowel) lastVowelBrightness = 0.5;
+                    else if (isDarkVowel) lastVowelBrightness = 0;
+                }
+
                 if (isVowel) {
                     consecutiveConsonants = 0;
                     lastConsonantStep = -1;
                     if (stepIdx >= 0 && stepIdx < newKick.steps.length) {
-                        newKick.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: durationSteps };
+                        let kickNote = 'C4';
+                        if (isBrightVowel) kickNote = 'E4';
+                        else if (isDarkVowel) kickNote = 'A3';
+                        newKick.steps[stepIdx] = { note: transposeNote(kickNote, kickPitchOffset), velocity: humanVelocity, length: durationSteps };
                     }
                     if (stepIdx >= 0 && stepIdx < newOH.steps.length) {
-                        const isBrightVowel = ['IY','IH','EY','EH','AE'].includes(ph);
-                        const isMidVowel = ['AH','ER','AW','AY','OY'].includes(ph);
                         if (isBrightVowel || isMidVowel) {
                             newOH.steps[stepIdx] = { note: 'C4', velocity: finalVel * 0.7, length: durationSteps };
                         }
@@ -246,7 +261,7 @@ export function useLyricHandlers(deps: {
                                 // Explore generating complementary drum rolls/fills inside handleTextToDrums when parsing multiple consonants in rapid succession
                                 if (consecutiveConsonants >= 3 && gapSize >= 2) {
                                     if (j % 3 === 0 && fillStep >= 0 && fillStep < newKick.steps.length) {
-                                        newKick.steps[fillStep] = { note: 'C4', velocity: 0.3, length: 1 };
+                                        newKick.steps[fillStep] = { note: transposeNote('C4', kickPitchOffset), velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
                                         const ghostVel = 0.4;
                                         newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: 1 };
@@ -260,7 +275,12 @@ export function useLyricHandlers(deps: {
                     }
 
                     if (isSnare) {
-                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) newSnare.steps[stepIdx] = { note: 'C4', velocity: humanVelocity, length: durationSteps };
+                        if (stepIdx >= 0 && stepIdx < newSnare.steps.length) {
+                            let snareNote = 'C4';
+                            if (lastVowelBrightness === 1) snareNote = 'E4';
+                            else if (lastVowelBrightness === 0) snareNote = 'A3';
+                            newSnare.steps[stepIdx] = { note: snareNote, velocity: humanVelocity, length: durationSteps };
+                        }
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = finalVel * 0.4;

@@ -122,7 +122,7 @@ step's `chord` notes are separate voices.
 ### Exports
 
 Generic (`HYPHON_EXPORT_VOICE(macro, …, 8)`): `macro_create`, `_destroy`,
-`_init`, `_push_event`, `_render`, `_cancel_notes`, `_flush`. Engine:
+`_init`, `_push_event`, `_render`, `_cancel_notes`, `_flush`, `_event_inbox`. Engine:
 `macro_set_param`, `macro_set_param_now`, `macro_all_notes_off` (transport stop:
 2 ms fade), `macro_engine_count`, `macro_stride`, and the immediate
 `macro_note_on` / `_note_off` / `_process` / `_active_voices` used by tooling and

@@ -97,6 +97,57 @@ export const PROPHECY_LANE_PARAMS: ReadonlySet<string> = new Set(['vowel', 'port
 /** Master lanes the scheduler sends to `PcfEffect`. */
 export const PCF_LANE_PARAMS: ReadonlySet<string> = new Set(['pcfCutoff', 'pcfResonance', 'pcfEnvAmount']);
 
+/**
+ * Normalised MIDI → Hz on the PCF worklet's curve: `20 × 1000^normMidi`
+ * (0 → 20 Hz, 1 → 20 kHz). Worklet scope cannot import, so the processor
+ * carries its own copy (`midiToHz`).
+ */
+export function pcfMidiNormToHz(normMidi: number): number {
+  return 20 * Math.pow(1000, normMidi);
+}
+
+/**
+ * A master `pcfCutoff` lane whose every point is 0: a lane parked at the
+ * bottom, not a sweep. Played, it would be a 20 Hz low-pass of the whole mix
+ * (`pcfMidiNormToHz(0)`), and the master meters would not show it (they tap
+ * `masterGain`, upstream of the PCF). So it plays as no lane: the scheduler,
+ * the offline timeline and the lane watcher all skip it, and the master PCF
+ * stays on its own settings. A lane that only touches 0 on the way through a
+ * sweep is automation and plays as written. See docs/audio-engine/master-pcf.md.
+ */
+export function isParkedPcfCutoffLane(
+  lane: Pick<UnifiedAutomationLane, 'target' | 'parameter'> & { points?: ReadonlyArray<{ value: number }> },
+): boolean {
+  if (lane.target !== 'master' || lane.parameter !== 'pcfCutoff') return false;
+  const points = lane.points;
+  return !!points && points.length > 0 && points.every((p) => p.value <= 0);
+}
+
+/** One PCF automation override, in the units `PcfEffect` / the worklet take. */
+export interface PcfLaneOverride {
+  cutoffHz?: number;
+  resonanceMidi?: number;
+  envAmountNorm?: number;
+}
+
+/**
+ * The override a master PCF lane value sets — the one conversion the live
+ * scheduler and the offline renders share. `null` for a non-PCF parameter.
+ */
+export function pcfLaneOverride(parameter: string, value: number): PcfLaneOverride | null {
+  const v = value < 0 ? 0 : value > 1 ? 1 : value;
+  switch (parameter) {
+    case 'pcfCutoff':
+      return { cutoffHz: pcfMidiNormToHz(v) };
+    case 'pcfResonance':
+      return { resonanceMidi: v * 127 };
+    case 'pcfEnvAmount':
+      return { envAmountNorm: v };
+    default:
+      return null;
+  }
+}
+
 /** What the scheduler dispatches for one lane target. */
 export interface RoutedAutomationTarget {
   /** `parameter` values `AutomationScheduler._scheduleParam` has a case for. */
@@ -126,10 +177,8 @@ export const ROUTED_AUTOMATION: Readonly<Partial<Record<AutomationTarget, Routed
   synthA: { parameters: [...OPEN303_PARAMETERS, ...PROPHECY_LANE_PARAMS, ...MACRO_AUTOMATION_PARAMS] },
   synthB: { parameters: [...OPEN303_PARAMETERS, ...PROPHECY_LANE_PARAMS, ...MACRO_AUTOMATION_PARAMS] },
   bass2: { parameters: OPEN303_PARAMETERS },
-  master: {
-    parameters: [...PCF_LANE_PARAMS],
-    unattached: 'nothing creates the PcfEffect the scheduler sends PCF lanes to',
-  },
+  // The engine builds the master PCF (`masterPcf` patch-bay node) at start.
+  master: { parameters: [...PCF_LANE_PARAMS] },
 };
 
 /**
@@ -229,6 +278,8 @@ export function resolveLaneValuesAtStep(
     // Note FX parameters shape which notes are generated; the step handler
     // reads them when it builds a pass (#1345). Nothing here could play them.
     if (isNoteFxParameter(lane.parameter)) continue;
+    // A master cutoff lane parked at 0 would mute the mix; it plays as no lane.
+    if (isParkedPcfCutoffLane(lane)) continue;
     const key = `${lane.target}:${lane.parameter}`;
     if (seen.has(key)) continue;
     const value = resolveLaneValue(lane, laneReadStep(lane, step, songStep));

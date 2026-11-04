@@ -38,6 +38,14 @@ describe('applyPcfFilterToEffect', () => {
       target: { tb303A: true, tb303B: false, drums: false },
     }, null)).toBe(false);
   });
+
+  it('resets the master PCF on every load, so a song without pcfFilter gets a clean master', () => {
+    const loadSettings = vi.fn();
+    const reset = vi.fn();
+    expect(applyPcfFilterToEffect(undefined, { loadSettings, reset })).toBe(false);
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(loadSettings).not.toHaveBeenCalled();
+  });
 });
 
 describe('applyTrackParamSlotToEngine', () => {

@@ -43,6 +43,8 @@ const WORKLETS = [
     'sustain-processor',
     'RubberBandProcessor',
     'master-loudness-processor',
+    'pcf-processor',
+    'openrb-lowpass-processor',
 ];
 
 /**
@@ -59,6 +61,8 @@ const WORKLET_CHUNK_STEM: Record<string, string> = {
     'sustain-processor': 'sustain-processor',
     RubberBandProcessor: 'rubberband-processor',
     'master-loudness-processor': 'master-loudness-processor',
+    'pcf-processor': 'pcf-processor',
+    'openrb-lowpass-processor': 'openrb-lowpass-processor',
 };
 const workletChunkName = (processor: string, hash = 'AbCd1234') => `${WORKLET_CHUNK_STEM[processor]}-${hash}.js`;
 
@@ -367,6 +371,47 @@ describe('check-release-dist WASM export gate', () => {
     });
 });
 
+describe('check-release-dist agent hook chunk', () => {
+    const BUDGET = (JSON.parse(readFileSync(join(ROOT, 'dist-budget.json'), 'utf8')) as {
+        compressed: { agentHookChunkMaxBytes: number };
+    }).compressed.agentHookChunkMaxBytes;
+    /** Pseudo-random text: brotli can only take it to ~0.8 of its length, so 2× the row is over it. */
+    const incompressible = (bytes: number) => {
+        let x = 0x9e3779b9;
+        let out = '';
+        while (out.length < bytes) {
+            x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+            out += String.fromCharCode(0x21 + ((x >>> 0) % 90));
+        }
+        return `const blob = ${JSON.stringify(out)};\nexport { blob };\n`;
+    };
+
+    it('passes a lazy agent chunk within its row', () => {
+        const { status, output } = runCheck(makeDist({ extraAssets: { 'AgentBridge-QwErTy12.js': 'export const api = 1;\n' } }));
+        expect(output).toMatch(/agent hook chunk +[\d,]+ B \/ +[\d,]+ B {2}assets\/AgentBridge-QwErTy12\.js\n/);
+        expect(status).toBe(0);
+    });
+
+    it('fails an agent chunk over dist-budget.json#compressed.agentHookChunkMaxBytes', () => {
+        const { status, output } = runCheck(makeDist({ extraAssets: { 'AgentBridge-QwErTy12.js': incompressible(BUDGET * 2) } }));
+        expect(status).toBe(1);
+        expect(output).toMatch(/agent hook chunk \(assets\/AgentBridge-QwErTy12\.js\) is [\d,]+ B brotli, over budget/);
+    });
+
+    it('fails when the entry imports the agent chunk statically', () => {
+        const dir = makeDist({
+            extraAssets: {
+                'AgentBridge-QwErTy12.js': 'export const api = 1;\n',
+                'main-AbCd1234.js': 'import"./AgentBridge-QwErTy12.js";\nconst app = 1;\n',
+            },
+            extraRootFiles: { 'index.html': '<script type="module" crossorigin src="./assets/main-AbCd1234.js"></script>' },
+        });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('agent hook chunk (assets/AgentBridge-QwErTy12.js) is reachable from the entry chunk by static import');
+    });
+});
+
 describe('check-release-dist worklet classification (#1468)', () => {
     it('does not treat a chunk that carries an inline worklet source string as a worklet', () => {
         // src/agent/liveCapture.ts loads its recorder from a Blob URL: the source
@@ -380,7 +425,7 @@ describe('check-release-dist worklet classification (#1468)', () => {
             },
         });
         const { status, output } = runCheck(dir);
-        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(output).toContain(`${WORKLETS.length} worklet chunk(s) are self-contained`);
         expect(status).toBe(0);
     });
 
@@ -409,7 +454,7 @@ describe('check-release-dist worklet classification (#1468)', () => {
             },
         });
         const { status, output } = runCheck(dir);
-        expect(output).toContain('8 worklet chunk(s) are self-contained');
+        expect(output).toContain(`${WORKLETS.length} worklet chunk(s) are self-contained`);
         expect(status).toBe(0);
     });
 
@@ -417,7 +462,31 @@ describe('check-release-dist worklet classification (#1468)', () => {
         const dir = makeDist({ omitWorklets: ['sustain-processor'] });
         const { status, output } = runCheck(dir);
         expect(status).toBe(1);
-        expect(output).toContain('expected at least 8 worklet chunk(s)');
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain('sustain-processor');
+    });
+
+    // The master-bus PCF (#1554) and the openrb low-pass mode (#1561): a bundle
+    // without their chunks plays the mix with the master PCF lanes silent.
+    it.each(['pcf-processor', 'openrb-lowpass-processor'])('fails a bundle whose %s chunk is missing', (worklet) => {
+        const dir = makeDist({ omitWorklets: [worklet] });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain(worklet);
+    });
+
+    it('fails an inlined PCF worklet even when the chunk count still adds up', () => {
+        // An unrelated extra worklet entry keeps the count at the list length,
+        // so only the per-name check can see the PCF went into a shared chunk.
+        const dir = makeDist({
+            omitWorklets: ['pcf-processor'],
+            extraAssets: { [workletChunkName('openrb-lowpass-processor', 'ZzYyXx99')]: "registerProcessor('spare', class {});\n" },
+        });
+        const { status, output } = runCheck(dir);
+        expect(status).toBe(1);
+        expect(output).toContain('not registered by any worklet entry chunk');
+        expect(output).toContain('pcf-processor');
     });
 
     it('fails a worklet entry chunk that never registers a processor', () => {

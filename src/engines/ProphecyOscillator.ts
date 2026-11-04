@@ -3,7 +3,10 @@
  *
  * TypeScript engine class for the Korg Prophecy formant synthesizer.
  * Communicates with the `prophecy-processor` AudioWorklet which drives
- * the `prophecy_*` C API inside hyphon_native.wasm.
+ * the `prophecy_*` C API inside hyphon_native.wasm. Notes, params and stops
+ * are frame-stamped control-plane records on the part's EventBus route
+ * (#1497 P2): written straight into the voice's own native ring on the
+ * pthread profile once the worklet offers it, batched messages elsewhere.
  *
  * Usage:
  *   const osc = new ProphecyOscillator();
@@ -30,6 +33,7 @@ import {
     type HyphonNativeArtifact,
 } from '../audio-worklets/hyphonNativeImports';
 import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
+import { VoiceEventRoute } from '../audio/controlPlane/VoiceEventRoute';
 
 /** Milliseconds to wait for the Prophecy worklet to signal readiness. */
 const PROPHECY_INIT_TIMEOUT_MS = 8000;
@@ -42,6 +46,9 @@ export class ProphecyOscillator {
 
     /** Snapshot of the current parameter state — applied once the worklet is ready. */
     private params: ProphecyParams = { ...DEFAULT_PROPHECY_PARAMS };
+
+    /** The worklet's control-plane route; closed while there is no worklet. */
+    private readonly events = new VoiceEventRoute();
 
     public isReady: boolean = false;
 
@@ -148,6 +155,14 @@ export class ProphecyOscillator {
             // which does not report `shared`) decides shared vs plain + page floor.
             console.log(`[ProphecyOscillator] WASM variant: ${artifact.threading}`);
 
+            // Records: batched messages until the worklet is ready, then — where
+            // the profile shares memory — into the voice's own ring.
+            const events = this.events.open(this.workletNode.port, {
+                sampleRate: audioContext.sampleRate,
+                sharedMemory: artifact.sharedMemory,
+                voiceRing: true,
+            });
+
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
                 data: {
@@ -157,6 +172,7 @@ export class ProphecyOscillator {
                     variant:     artifact.threading,
                     memoryPages: artifact.minMemoryPages,
                     exportMap,
+                    events,
                 },
             });
 
@@ -169,7 +185,8 @@ export class ProphecyOscillator {
                 this.workletNode!.port.onmessage = (e) => {
                     if (e.data.type === 'ready') {
                         readyReceived = true;
-                        console.log('[ProphecyOscillator] Engine ready');
+                        this.events.adopt(e.data.events);
+                        console.log(`[ProphecyOscillator] Engine ready (records ${this.events.inPlace ? 'in place' : 'batched'})`);
                         try { engineTelemetry.recordHyphonNativeHeap(e.data.heap); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'hyphon-heap') {
@@ -221,17 +238,22 @@ export class ProphecyOscillator {
 
     noteOn(midiNote: number, velocity: number = 100, audioTime?: number): void {
         if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOn', data: { note: midiNote, velocity, audioTime } });
+        this.events.noteOn(midiNote, velocity, audioTime);
     }
 
     noteOff(midiNote: number, audioTime?: number): void {
         if (!this.isReady || !this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'noteOff', data: { note: midiNote, audioTime } });
+        this.events.noteOff(midiNote, audioTime);
     }
 
+    /**
+     * Stop: drop the notes still queued for later frames, then reset what
+     * sounds on the next block (the part's hard all-notes-off). A note sent
+     * after this call is not cancelled by it.
+     */
     allNotesOff(): void {
         if (!this.workletNode) return;
-        this.workletNode.port.postMessage({ type: 'allNotesOff', data: {} });
+        this.events.stop(true);
     }
 
     // ── Parameters ────────────────────────────────────────────────────────────
@@ -242,8 +264,7 @@ export class ProphecyOscillator {
      * @param value    Normalised value (range depends on parameter — see ProphecyParams.ts).
      */
     setParam(paramId: number, value: number): void {
-        if (this.workletNode)
-            this.workletNode.port.postMessage({ type: 'set-param', data: { paramId, value } });
+        if (this.workletNode) this.events.param(paramId, value);
     }
 
     // Convenience setters that also update the internal snapshot
@@ -286,6 +307,8 @@ export class ProphecyOscillator {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private cleanupWorklet(): void {
+        // Before the dispose message: an in-place writer must not outlive the voice's ring.
+        this.events.close();
         if (this.workletNode) {
             // hyphon_native is shared by every voice in the audio session: ask the
             // processor to destroy its handle before the port goes away.

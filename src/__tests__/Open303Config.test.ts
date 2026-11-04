@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { Open303Oscillator } from '../engines/Open303Oscillator';
+import { EventType } from '../shared/rt/eventLayout';
+import { postedRecords, postedTypes } from '../test/helpers/controlPlaneRecords';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { resetHyphonWasmExportMapCache } from '../utils/engineTelemetry';
 import {
@@ -55,9 +57,38 @@ function mockOpen303Fetch(url: string | Request | URL): Promise<Response> {
     } as Response);
 }
 
+/** A message the façade posts to its worklet; only `init-wasm` is inspected here. */
+interface PostedMessage {
+    type?: string;
+    data?: Record<string, unknown>;
+}
+
+type PortListener = (ev: { data: PostedMessage }) => void;
+
+/** The worklet node the façade constructs: its port is what the tests read. */
+interface MockWorkletNode {
+    port: {
+        postMessage: Mock<(message: unknown) => void>;
+        onmessage: PortListener | null;
+        close: Mock<() => void>;
+        addEventListener: Mock<(event: string, handler: PortListener) => void>;
+        removeEventListener: Mock<() => void>;
+        start: Mock<() => void>;
+    };
+    connect: Mock<() => void>;
+    disconnect: Mock<() => void>;
+}
+
+/** The first `init-wasm` message posted to the port, if any. */
+function findInitMessage(node: MockWorkletNode): PostedMessage | undefined {
+    return node.port.postMessage.mock.calls
+        .map(([message]) => message as PostedMessage)
+        .find((message) => message.type === 'init-wasm');
+}
+
 describe('Open303 Oscillator', () => {
     let mockAudioContext: AudioContext;
-    let mockWorkletNode: any;
+    let mockWorkletNode: MockWorkletNode;
 
     afterEach(() => {
         vi.unstubAllGlobals();
@@ -70,10 +101,10 @@ describe('Open303 Oscillator', () => {
 
         mockWorkletNode = {
             port: {
-                postMessage: vi.fn(),
-                onmessage: null as ((ev: any) => void) | null,
+                postMessage: vi.fn<(message: unknown) => void>(),
+                onmessage: null,
                 close: vi.fn(),
-                addEventListener: vi.fn((event, handler) => {
+                addEventListener: vi.fn((event: string, handler: PortListener) => {
                     if (event === 'message') {
                         setTimeout(() => handler({ data: { type: 'ready' } }), 0);
                     }
@@ -86,10 +117,10 @@ describe('Open303 Oscillator', () => {
         };
 
         // Intercept onmessage setter to fire 'ready' once the handler is installed
-        let onmessageHandler: ((ev: any) => void) | null = null;
+        let onmessageHandler: PortListener | null = null;
         Object.defineProperty(mockWorkletNode.port, 'onmessage', {
             get() { return onmessageHandler; },
-            set(handler: ((ev: any) => void) | null) {
+            set(handler: PortListener | null) {
                 onmessageHandler = handler;
                 // Once the init code sets onmessage, simulate the worklet replying
                 if (handler) {
@@ -155,45 +186,64 @@ describe('Open303 Oscillator', () => {
         }));
     });
 
-    it('should send noteOn messages', async () => {
+    // #1497 P2: notes and params travel as records on the part's route —
+    // batched messages here, where the page shares no memory with the worklet.
+    it('sends a noteOn as a NOTE_ON record on its frame, not a message', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
-        engine.noteOn(60, 100);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'noteOn',
-            data: { note: 60, velocity: 100 }
-        });
+        engine.noteOn(60, 100, 1);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.frame, e.type, e.target, e.value])).toEqual([
+            [44100, EventType.NoteOn, 60, 100],
+        ]);
+        expect(postedTypes(mockWorkletNode.port.postMessage)).toEqual([]);
     });
 
-    it('should send noteOff messages', async () => {
+    it('sends a noteOff as a NOTE_OFF record', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
         engine.noteOff(60);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'noteOff',
-            data: { note: 60 }
-        });
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.frame, e.type, e.target])).toEqual([
+            [0, EventType.NoteOff, 60],
+        ]);
     });
 
-    it('should send param updates', async () => {
+    it('sends param updates as PARAM_SET records with the Open303Param id', async () => {
         const engine = new Open303Oscillator();
         await engine.init(mockAudioContext, 'worklet-url.js');
         mockWorkletNode.port.postMessage.mockClear();
 
         engine.setCutoff(0.5);
         engine.setFilterMode(1);
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'param',
-            data: { func: 'jc303_setCutoff', value: 0.5 }
-        });
-        expect(mockWorkletNode.port.postMessage).toHaveBeenCalledWith({
-            type: 'param',
-            data: { func: 'jc303_setFilterMode', value: 1 }
-        });
+        engine.setParam('setNotAParam', 1);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => [e.type, e.target, e.value])).toEqual([
+            [EventType.Param, 2, 0.5], // OPEN303_CUTOFF
+            [EventType.Param, 8, 1],   // OPEN303_FILTER_MODE
+        ]);
+    });
+
+    it('a stop is CANCEL_NOTES + ALL_NOTES_OFF behind the notes it cancels', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+        mockWorkletNode.port.postMessage.mockClear();
+
+        engine.noteOn(36, 100, 2);
+        engine.allNotesOff();
+        engine.noteOn(38, 100, 2.5);
+        expect(postedRecords(mockWorkletNode.port.postMessage).map((e) => e.type)).toEqual([
+            EventType.NoteOn, EventType.CancelNotes, EventType.AllNotesOff, EventType.NoteOn,
+        ]);
+        expect(postedTypes(mockWorkletNode.port.postMessage)).toEqual([]);
+    });
+
+    it('init hands the worklet its route\'s transport', async () => {
+        const engine = new Open303Oscillator();
+        await engine.init(mockAudioContext, 'worklet-url.js');
+        const init = findInitMessage(mockWorkletNode);
+        expect(init?.data?.events).toEqual({ kind: 'message', capacity: 256 });
     });
 
     it('should handle initialization failure gracefully', async () => {
@@ -214,10 +264,7 @@ describe('Open303 Oscillator', () => {
             vi.mocked(global.fetch).mock.calls
                 .map(([u]) => String(u))
                 .filter((u) => /\.wasm$/.test(u));
-        const initMessage = () =>
-            mockWorkletNode.port.postMessage.mock.calls
-                .map(([m]: [any]) => m)
-                .find((m: any) => m.type === 'init-wasm');
+        const initMessage = () => findInitMessage(mockWorkletNode);
         const crossOriginIsolated = () => {
             vi.stubGlobal('crossOriginIsolated', true);
             vi.stubGlobal('SharedArrayBuffer', globalThis.SharedArrayBuffer ?? ArrayBuffer);
@@ -229,7 +276,7 @@ describe('Open303 Oscillator', () => {
             await engine.init(mockAudioContext, 'worklet-url.js');
 
             expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.wasm$/)]);
-            expect(initMessage().data).toMatchObject({ isThreaded: true, variant: 'pthread', memoryPages: HYPHON_NATIVE_MIN_MEMORY_PAGES });
+            expect(initMessage()?.data).toMatchObject({ isThreaded: true, variant: 'pthread', memoryPages: HYPHON_NATIVE_MIN_MEMORY_PAGES });
             expect(engine.isFallback).toBe(false);
         });
 
@@ -240,7 +287,7 @@ describe('Open303 Oscillator', () => {
 
             expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.st\.wasm$/)]);
             expect(global.fetch).toHaveBeenCalledWith(expect.stringMatching(/hyphon_wasm_export_map\.st\.json$/));
-            expect(initMessage().data).toMatchObject({ isThreaded: false, variant: 'st', memoryPages: 256 });
+            expect(initMessage()?.data).toMatchObject({ isThreaded: false, variant: 'st', memoryPages: 256 });
             expect(engine.isFallback).toBe(false);
         });
 
@@ -250,7 +297,7 @@ describe('Open303 Oscillator', () => {
             await engine.init(mockAudioContext, 'worklet-url.js');
 
             expect(fetchedWasm()).toEqual([expect.stringMatching(/\/hyphon_native\.st\.wasm$/)]);
-            expect(initMessage().data).toMatchObject({ isThreaded: false, variant: 'st' });
+            expect(initMessage()?.data).toMatchObject({ isThreaded: false, variant: 'st' });
         });
 
         it('runs the native single-threaded voice on WebKit instead of the JS fallback', async () => {

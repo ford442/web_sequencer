@@ -959,7 +959,7 @@ void macro_set_param_now(uintptr_t handle, int paramId, float value)
 {
     MacroNativeVoice* v = macro_voice(handle);
     if (!v) return;
-    v->schedule.absorb(v->ring);
+    v->absorbPending();
     v->schedule.removeIf([paramId](const hyphon::Event& e) {
         return e.type == hyphon::kParam && static_cast<int>(e.target) == paramId;
     });

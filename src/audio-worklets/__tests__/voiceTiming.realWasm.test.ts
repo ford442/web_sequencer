@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { resetHyphonNativeSessionForTests } from '../hyphonNativeSession';
+import { acquireHyphonNativeSession, resetHyphonNativeSessionForTests, type HyphonNativeSession } from '../hyphonNativeSession';
+import { NATIVE_VOICE_MAX_BLOCK_FRAMES } from '../hyphonNativeImports';
 import { frameAtTime } from '../../shared/rt/audioClock';
+import { EventRingWriter, isEventRing } from '../../shared/rt/eventRing';
 import { MessageEventSink, RingEventSink, type EngineEventSink } from '../../shared/rt/eventTransport';
 import { DrumkitEvent, VoiceEvent } from '../../shared/rt/hyphonNativeExports';
 
@@ -78,8 +80,8 @@ afterEach(() => {
   resetHyphonNativeSessionForTests();
 });
 
-/** `drumEvents`: the control-plane transport for the drum kit (EngineEventSink.transport, #1497). */
-async function bootVoices(rate = SAMPLE_RATE, drumEvents?: unknown) {
+/** `events`: each voice's control-plane transport (EngineEventSink.transport, #1497). */
+async function bootVoices(rate = SAMPLE_RATE, events: { drums?: unknown; bass?: unknown; lead?: unknown } = {}) {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const wasm = readFileSync(WASM);
   const init = () => ({
@@ -100,10 +102,39 @@ async function bootVoices(rate = SAMPLE_RATE, drumEvents?: unknown) {
     return v;
   };
   return {
-    drums: await make('drumkit-processor', drumEvents),
-    bass: await make('open303-processor'),
-    lead: await make('prophecy-processor'),
+    drums: await make('drumkit-processor', events.drums),
+    bass: await make('open303-processor', events.bass),
+    lead: await make('prophecy-processor', events.lead),
   };
+}
+
+/** The audio session's instance, as the worklets join it — for calling a voice's exports directly. */
+async function nativeSession(): Promise<HyphonNativeSession> {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  const wasm = readFileSync(WASM);
+  return acquireHyphonNativeSession({
+    wasmBytes: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    isThreaded: false,
+    exportMap: JSON.parse(readFileSync(MAP, 'utf8')) as Record<string, string>,
+  });
+}
+
+/** A drum kit voice on `native`, rendered block by block: its left lane from `start`. */
+function drumVoice(native: HyphonNativeSession) {
+  const x = native.exports;
+  const h = x.drumkit_create() as number;
+  expect(h).toBeGreaterThan(0);
+  expect(x.drumkit_init(h, SAMPLE_RATE, NATIVE_VOICE_MAX_BLOCK_FRAMES)).toBe(1);
+  const render = (start: number, blocks: number) => {
+    const out = new Float32Array(blocks * BLOCK);
+    for (let b = 0; b < blocks; b++) {
+      const ptr = x.drumkit_render(h, start + b * BLOCK, BLOCK) as number;
+      expect(ptr).toBeGreaterThan(0);
+      out.set(new Float32Array(native.memory!.buffer, ptr, BLOCK), b * BLOCK);
+    }
+    return out;
+  };
+  return { h, render };
 }
 
 /** Render `blocks` from `startFrame` and return each voice's left channel, concatenated. */
@@ -177,7 +208,7 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
       const posted: unknown[] = [];
       const sink: EngineEventSink =
         kind === 'ring' ? new RingEventSink() : new MessageEventSink({ postMessage: (m) => posted.push(m) });
-      const { drums } = await bootVoices(SAMPLE_RATE, sink.transport);
+      const { drums } = await bootVoices(SAMPLE_RATE, { drums: sink.transport });
       const frame = frameAtTime(audioTime, SAMPLE_RATE);
       sink.push(frame, DrumkitEvent.SetPan, 0, 0);
       sink.push(frame, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
@@ -189,6 +220,89 @@ describe.skipIf(!haveWasm)('voice timing on the real hyphon_native.st.wasm (#134
       expect(firstDifference(viaBus, viaMessage)).toBe(-1);
     },
   );
+
+  it('a voice\'s own ring in wasm memory: records written there in place play sample-identical to push_event (#1497 P2)', async () => {
+    const start = SAMPLE_RATE * 2;
+    const frame = start + 2 * BLOCK + 37; // mid-block
+
+    const viaPush = await nativeSession();
+    const pushed = drumVoice(viaPush);
+    viaPush.exports.drumkit_push_event(pushed.h, frame, DrumkitEvent.SetPan, 0, 0, 0, 0, 0, 0);
+    viaPush.exports.drumkit_push_event(pushed.h, frame, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+    const reference = pushed.render(start, 8);
+    resetHyphonNativeSessionForTests();
+
+    // What the main thread does on the pthread build, through the address
+    // the worklet offers: write the voice's ring itself.
+    const native = await nativeSession();
+    const voice = drumVoice(native);
+    const at = native.exports.drumkit_event_inbox(voice.h) as number;
+    expect(isEventRing(native.memory!.buffer, at), 'the C++ ring header is the one eventRing.ts reads').toBe(true);
+    const ring = new EventRingWriter(native.memory!.buffer, at);
+    ring.push(frame, DrumkitEvent.SetPan, 0, 0);
+    ring.push(frame, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+    expect(ring.size).toBe(2);
+    const inPlace = voice.render(start, 8);
+
+    expect(ring.size, 'the voice took both records from its ring').toBe(0);
+    expect(firstNonZero(inPlace)).toBe(frame - start);
+    expect(firstDifference(inPlace, reference)).toBe(-1);
+  });
+
+  it('a CANCEL_NOTES record drops the hits queued before it, not the one after (#1497 P2)', async () => {
+    const start = SAMPLE_RATE * 2;
+    const restart = start + 4 * BLOCK + 5;
+
+    const only = await nativeSession();
+    const ref = drumVoice(only);
+    only.exports.drumkit_push_event(ref.h, restart, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1);
+    const reference = ref.render(start, 8);
+    resetHyphonNativeSessionForTests();
+
+    const native = await nativeSession();
+    const voice = drumVoice(native);
+    const ring = new EventRingWriter(native.memory!.buffer, native.exports.drumkit_event_inbox(voice.h) as number);
+    ring.push(start + 2 * BLOCK + 37, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1); // queued ahead
+    ring.push(0, VoiceEvent.CancelNotes, 0, 0); // transport stop
+    ring.push(restart, VoiceEvent.Trigger, 0, 1, 50, 0.6, 0.6, 1); // play again, same task
+    const out = voice.render(start, 8);
+
+    expect(firstNonZero(out)).toBe(restart - start);
+    expect(firstDifference(out, reference)).toBe(-1);
+  });
+
+  it('a jc303 note and a Prophecy note sent as records play sample-identical to their noteOn messages (#1497 P2)', async () => {
+    const start = SAMPLE_RATE * 2;
+    const at = start + 2 * BLOCK + 37;
+    const audioTime = at / SAMPLE_RATE;
+
+    const legacy = await bootVoices();
+    await legacy.bass.port.deliver({ type: 'set-engine', data: { engine: 'jc303' } });
+    await legacy.bass.port.deliver({ type: 'noteOn', data: { note: 36, velocity: 100, audioTime } });
+    await legacy.lead.port.deliver({ type: 'noteOn', data: { note: 57, velocity: 100, audioTime } });
+    const [bassMessage, leadMessage] = renderAll([legacy.bass, legacy.lead], start, 8);
+    resetHyphonNativeSessionForTests();
+
+    // What Open303Oscillator / ProphecyOscillator send on the single-threaded
+    // build: one batch per tick on each part's route.
+    const posted = { bass: [] as unknown[], lead: [] as unknown[] };
+    const bassSink = new MessageEventSink({ postMessage: (m) => posted.bass.push(m) });
+    const leadSink = new MessageEventSink({ postMessage: (m) => posted.lead.push(m) });
+    const { bass, lead } = await bootVoices(SAMPLE_RATE, { bass: bassSink.transport, lead: leadSink.transport });
+    await bass.port.deliver({ type: 'set-engine', data: { engine: 'jc303' } });
+    const frame = frameAtTime(audioTime, SAMPLE_RATE);
+    bassSink.push(frame, VoiceEvent.NoteOn, 36, 100);
+    leadSink.push(frame, VoiceEvent.NoteOn, 57, 100);
+    bassSink.flush();
+    leadSink.flush();
+    for (const m of posted.bass) await bass.port.deliver(m);
+    for (const m of posted.lead) await lead.port.deliver(m);
+    const [bassBus, leadBus] = renderAll([bass, lead], start, 8);
+
+    expect(firstNonZero(bassBus)).toBe(at - start);
+    expect(firstDifference(bassBus, bassMessage)).toBe(-1);
+    expect(firstDifference(leadBus, leadMessage)).toBe(-1);
+  });
 
   it('a 303 noteOff waits for its frame: the gate closes on the step boundary, not on arrival', async () => {
     // jc303 (rosic) has an amp envelope that releases on noteOff: a gate that

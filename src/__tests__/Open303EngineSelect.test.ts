@@ -13,6 +13,9 @@ import { Open303Oscillator } from '../engines/Open303Oscillator';
 import { Open303Manager } from '../engines/Open303Manager';
 import { DEFAULT_BASS2_PARAMS } from '../constants';
 import type { Engine303, Bass2Params, SynthParams } from '../types';
+import { OPEN303_PARAM_IDS } from '../audio-worklets/open303/shared';
+import { EventType } from '../shared/rt/eventLayout';
+import { postedRecords } from '../test/helpers/controlPlaneRecords';
 
 // ---------------------------------------------------------------------------
 // Open303Oscillator.setEngine303
@@ -31,7 +34,11 @@ describe('Open303Oscillator.setEngine303()', () => {
         const fakeNode = { port: fakePort } as unknown as AudioWorkletNode;
         (oscillator as any).workletNode = fakeNode;
         (oscillator as any).isReady = true;
+        // The route init opens; params travel on it as records (#1497 P2).
+        (oscillator as any).events.open(fakePort, { sampleRate: 48000, sharedMemory: false, voiceRing: false });
     });
+
+    const resentParams = () => postedRecords(mockPostMessage).filter((e) => e.type === EventType.Param).map((e) => e.target);
 
     it('posts a set-engine message with engine="jc303" and re-pushes params', () => {
         oscillator.setEngine303('jc303');
@@ -40,9 +47,7 @@ describe('Open303Oscillator.setEngine303()', () => {
             type: 'set-engine',
             data: { engine: 'jc303' },
         });
-        expect(mockPostMessage.mock.calls.some(
-            (call) => call[0]?.type === 'param' && call[0]?.data?.func === 'jc303_setCutoff',
-        )).toBe(true);
+        expect(resentParams()).toContain(OPEN303_PARAM_IDS.setCutoff);
     });
 
     it('posts a set-engine message with engine="open303" and re-pushes params', () => {
@@ -52,9 +57,7 @@ describe('Open303Oscillator.setEngine303()', () => {
             type: 'set-engine',
             data: { engine: 'open303' },
         });
-        expect(mockPostMessage.mock.calls.some(
-            (call) => call[0]?.type === 'param',
-        )).toBe(true);
+        expect(resentParams().length).toBeGreaterThan(0);
     });
 
     it('does nothing when workletNode is null (not yet initialised)', () => {

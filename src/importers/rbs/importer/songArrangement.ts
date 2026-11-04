@@ -10,7 +10,7 @@ import {
   convertDrumPattern,
   rbsImportStepCount,
 } from './patternConversion';
-import { buildTrackParamSlots } from './synthParams';
+import { buildTrackParamSlots, resolveRbsTb303VoiceFieldsFor } from './synthParams';
 import type { ImporterContext } from './importerContext';
 
 /** Find the active pattern index at a given tick position for a track. */
@@ -42,6 +42,8 @@ export function buildSongArrangement(
   warnings: string[],
 ): HyphonSong['songArrangement'] {
   const songData = raw.songData!;
+  const voiceFieldsA = resolveRbsTb303VoiceFieldsFor(ctx.options, raw, 'A');
+  const voiceFieldsB = resolveRbsTb303VoiceFieldsFor(ctx.options, raw, 'B');
   const numSteps = rbsImportStepCount(ctx, raw);
   const isExpansion = numSteps === 32 && raw.project.patternLength === 16;
 
@@ -144,10 +146,10 @@ export function buildSongArrangement(
       openHat: openHatSlots,
     },
     trackParamStorage: {
-      synthA: buildTrackParamSlots(songData.patternBanks.tb303A, maxSlots, false),
-      synthB: buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, false),
+      synthA: buildTrackParamSlots(songData.patternBanks.tb303A, maxSlots, false, voiceFieldsA),
+      synthB: buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, false, voiceFieldsB),
       bass2: ctx.options.tb303BTarget === 'bass2'
-        ? buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, true)
+        ? buildTrackParamSlots(songData.patternBanks.tb303B, maxSlots, true, voiceFieldsB)
         : Array(maxSlots).fill(null),
     },
     songStructure,

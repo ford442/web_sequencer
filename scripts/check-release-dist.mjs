@@ -205,6 +205,10 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'sustain-processor',
   'RubberBandProcessor',
   'master-loudness-processor',
+  // Master-bus PCF (#1554): without it, RBS master PCF lanes are silent again.
+  'pcf-processor',
+  // The patch bay's openrb low-pass mode (#1561), also the PCF node's openrb branch.
+  'openrb-lowpass-processor',
 ];
 
 const distJsFiles = walk(distDir).filter((p) => p.endsWith('.js') && !p.endsWith('.map'));
@@ -301,6 +305,23 @@ if (/addModule\s*\([^)]*\.tsx?/.test(distJsBundle)) {
       '[check-release-dist] found no `?worker&url` worklet imports under src/ — ' +
       'the entry scan is broken, so no chunk could be checked.',
     );
+    process.exit(1);
+  }
+
+  // Each required processor must be registered by a worklet entry chunk of its
+  // own. The name being somewhere in dist/ (checked above) is not enough: a
+  // worklet inlined into a shared app chunk still carries its name there, and
+  // the count below only notices when fewer chunks than required names remain.
+  const workletChunkText = workletChunks.map((p) => fs.readFileSync(p, 'utf8'));
+  const notInWorkletChunk = REQUIRED_WORKLET_PROCESSORS.filter(
+    (name) => !workletChunkText.some((text) => text.includes(name)),
+  );
+  if (notInWorkletChunk.length) {
+    console.error(
+      '[check-release-dist] required worklet processor(s) not registered by any worklet entry chunk ' +
+      '(inlined into a shared chunk, so unloadable in a worklet scope):',
+    );
+    for (const name of notInWorkletChunk) console.error(`  ${name}`);
     process.exit(1);
   }
 
@@ -864,6 +885,22 @@ if (budget) {
           `vendor-onnx chunk (${key}) is reachable from the entry chunk by static import — ` +
           'ONNX Runtime must stay behind the dynamic import() in src/services/ortRuntime.ts, ' +
           'or every visitor pays for it before the sequencer is interactive',
+        );
+      }
+    }
+
+    // The agent hook (`window.__HYPHON_AGENT__`: the co-producer's tools and
+    // their precompiled validators) is a lazy chunk that only `?agent=1` /
+    // `?e2e=1` loads. It has its own row, and it must never join the eager
+    // graph, where every visitor would pay for it.
+    const agentChunk = named('AgentBridge')[0];
+    addRow('agent hook chunk', agentChunk, compressed.agentHookChunkMaxBytes);
+    if (agentChunk) {
+      const key = path.relative(distDir, agentChunk).split(path.sep).join('/');
+      if (eager.has(key)) {
+        failures.push(
+          `agent hook chunk (${key}) is reachable from the entry chunk by static import — ` +
+          'src/agent/AgentBridge.tsx must stay behind the lazy() import in App.tsx',
         );
       }
     }
