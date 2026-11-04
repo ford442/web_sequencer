@@ -7,7 +7,7 @@ RBS import. The extraction spike (#1537) produced
 builds a 40 KB `openrb338.wasm` with no imports, and that module's output
 matches openrb-338 bit for bit at 44.1 kHz ([Verification](#verification)).
 The worklet does not load it yet, so the voices still play **Stock Open303**.
-The licence decision is below and is the input #1544 asked for.
+The licence decision is in [openrb338-licensing.md](openrb338-licensing.md) (the input #1544 asked for).
 
 openrb-338 is a bit-exact reimplementation
 of the ReBirth 2.01 TB-303, written in Rust, covering both of ReBirth's sound
@@ -308,69 +308,17 @@ module instance.
 
 ## Licence decision (GPL-3.0-only)
 
-*Engineering decision record, not legal advice. The repository owner makes
-the final call.*
+The full decision record is [openrb338-licensing.md](openrb338-licensing.md): facts, what is
+and is not allowed, the options, and the recommended strategy. In short:
 
-**Facts**
-
-- openrb-338 is **GPL-3.0-only**: no "or later" option, and no exception.
-- Since #1537, openrb-338 **source** (two files derived from upstream, see
-  `openrb338/README.md`) sits in this repository under `openrb338/`, with the
-  GPL-3.0 text and modification notices. Publishing GPL source with its
-  licence is allowed. The adapter and ABI code in that crate are a derived
-  work, so they are GPL-3.0-only too. The TypeScript contract
-  (`openrb338.ts`) contains no openrb code.
-- The built `openrb338.wasm` is **not** in the repository or in `public/`, and
-  no build step bundles it.
-- Hyphon's repository has **no LICENSE file**, and `package.json` is
-  `"private": true` with no `license` field.
-- Hyphon **already ships GPL code**: Rubber Band Library
-  (GPL-2.0-or-later, `rubberband/COPYING`), compiled to
-  `src/audio-worklets/rubberband-lib.js` and loaded in a worklet. So
-  conveying a Hyphon build already means conveying a GPL-covered combined
-  work, unless a commercial Rubber Band licence is held.
-- The other 303 engines are permissive: Open303 / jc303 are MIT, and Plaits
-  is MIT (see `THIRD_PARTY_NOTICES.md`). All of these are GPL-3.0-compatible.
-
-**What is allowed**
-
-- Developing against openrb-338 locally, and building it for private use.
-  The GPL places no obligation on code that is not conveyed.
-- Shipping a build that includes `openrb338.wasm`, **if** that build is
-  offered under GPL-3.0 terms, with complete corresponding source for the
-  combined work (the app that loads and drives it) and the GPL-3.0 licence
-  text. A module the worklet instantiates and calls through a C ABI is
-  treated as part of a combined work, the same as dynamic linking. Being a
-  separate file does not exempt the JS/TS that drives it.
-- Rubber Band (GPL-2.0-or-later) and the MIT components can all be conveyed
-  under GPL-3.0, so combining with GPL-3.0-only creates no conflict inside
-  the bundle.
-
-**What is not allowed**
-
-- Shipping `openrb338.wasm` inside a build distributed under non-GPL terms:
-  proprietary, "all rights reserved", or permissive-only.
-- Relicensing openrb-338 code, or code derived from it (a C++ translation
-  counts), under anything except GPL-3.0-only.
-- Distributing through channels whose terms conflict with GPL-3.0 (the same
-  restriction Rubber Band's README already notes for the Apple App Store).
-
-**Decision**
-
-1. Keep openrb-338 in its **own optional module and build**, never in
-   `hyphon_native.wasm`. The default build, and every non-openrb voice, stays
-   free of GPL-3.0-only code.
-2. Do **not** bundle the module in published builds until the owner picks a
-   project licence. Given Rubber Band already ships, the consistent choice is
-   GPL-3.0-or-later (or GPL-3.0-only) for the app. Until then, it is opt-in
-   for local builds.
-3. When it is bundled, add it to `THIRD_PARTY_NOTICES.md` (source URL, pinned
-   revision, GPL-3.0-only, copyright line). Ship the licence text, and keep a
-   written offer or link to the corresponding source with the release.
-4. If a GPL release is ruled out, the remaining routes are asking the
-   openrb-338 authors for a licence exception, or a clean-room
-   reimplementation validated against reference renders. A clean-room
-   reimplementation must not be derived from openrb code.
+- openrb-338 is **GPL-3.0-only**, and the adapter and ABI code in `openrb338/` are derived
+  from it. A build that contains `openrb338.wasm` can only be conveyed under GPL-3.0 terms,
+  with source. The separate `.wasm` file does not exempt the JS/TS that drives it.
+- Hyphon already ships Rubber Band (GPL-2.0-or-later), so a GPL-3.0 app licence is the
+  consistent choice. The owner decides it, and nothing publishes the module before then.
+- The module stays out of `hyphon_native.wasm` and out of `build:native`. Published builds do
+  not bundle it, and the voices play Stock Open303 until one does.
+- When it ships it gets a `THIRD_PARTY_NOTICES.md` entry, the licence text and a source offer.
 
 ## Code map
 
@@ -406,7 +354,7 @@ fallback routes notes to open303).
       (divergence 2).
 - [ ] Turn `isOpenrb338ModuleBundled()` into a build define or runtime probe.
 - [ ] Offline render (freeze / export) through the same module.
-- [ ] Licence decision signed off (#1544), then bundling and notices.
+- [ ] Licence decision signed off (#1544, [openrb338-licensing.md](openrb338-licensing.md)), then bundling and notices.
 - [x] A/B harness against the current voices on RBS patterns (#1543):
       `pnpm run compare:303`, results and priority in
       [303-voice-comparison.md](303-voice-comparison.md). On three real songs

@@ -43,8 +43,8 @@ stock voice of their family when loaded from a song.
 Voices whose DSP lives in an **optional module** (`optionalModule`, today only
 the `openrb338` family) are different: they stay selectable and persisted, show a
 **GPL · stub** pill, and play Stock Open303 while the module is missing — see
-[openrb338-voice.md](./openrb338-voice.md) for the port path and the GPL-3.0-only
-licence decision.
+[openrb338-voice.md](./openrb338-voice.md) for the port path and
+[openrb338-licensing.md](./openrb338-licensing.md) for the GPL-3.0-only licence decision.
 
 ### ReBirth character voices (`rebirth-338-1.5`, `rebirth-2.0`)
 
