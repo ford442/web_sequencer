@@ -18,8 +18,10 @@ import {
     pcfKnobToHz,
     pcfKnobToQ,
     pcfLaneFanout,
+    pcfNodeDegradationId,
     registerPcfInsert,
 } from '../pcfInsert';
+import { engineDegradationStore } from '../../../stores/engineDegradationStore';
 
 interface FakeParam {
     value: number;
@@ -313,6 +315,31 @@ describe('providers', () => {
         await Promise.all(pending);
         expect(ports?.pcf?.effect.isInitialized).toBe(false);
         expect(warn).toHaveBeenCalled();
+    });
+
+    it('reports a placed PCF whose worklet fails to load to the degradation store', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const id = pcfNodeDegradationId('pcf-7');
+        engineDegradationStore.clear(id);
+        const context = {
+            ...fakeContext(),
+            audioWorklet: { addModule: () => Promise.reject(new Error('worklet scope threw')) },
+        } as unknown as BaseAudioContext;
+        const pending: Promise<void>[] = [];
+        try {
+            createPcfNodeProvider({ pending })(context, { nodeId: 'pcf-7', config: {} });
+            // The failure is caught: a waiting caller (offline) never sees it reject.
+            await expect(Promise.all(pending)).resolves.toBeDefined();
+            expect(engineDegradationStore.getIssue(id)).toMatchObject({
+                subsystem: 'pcf-node',
+                category: 'worklet',
+                status: 'active',
+                reason: 'worklet scope threw',
+            });
+        } finally {
+            engineDegradationStore.clear(id);
+        }
     });
 
     it('returns null without an AudioWorklet, or without a master PCF', async () => {

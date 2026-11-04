@@ -629,6 +629,34 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
 
     expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
   });
+
+  it('sends nothing for a pcfCutoff lane parked at 0 (it would be a 20 Hz low-pass of the mix)', () => {
+    const ctx = makeAudioContext(0);
+    const mgr = makeOpen303Manager();
+    const pcf = makePcfEffect();
+    const scheduler = new AutomationScheduler(ctx, mgr as unknown as Open303Manager);
+    scheduler.setPcfEffect(pcf as unknown as PcfEffect);
+
+    const parked = makeLane({
+      target: 'master',
+      parameter: 'pcfCutoff',
+      points: [{ step: 0, value: 0 }, { step: 8, value: 0 }],
+    });
+    automationStore.addLane(parked);
+    for (let step = 0; step < 16; step++) scheduler.scheduleFromLanes([parked], step, 1, 0.5, 0);
+    vi.runAllTimers();
+    expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
+
+    // A sweep that starts at 0 still plays its 0 (20 Hz) and the rest.
+    const sweep = makeLane({
+      target: 'master',
+      parameter: 'pcfCutoff',
+      points: [{ step: 0, value: 0 }, { step: 15, value: 1 }],
+    });
+    scheduler.scheduleFromLanes([sweep], 0, 1, 0.5, 0);
+    vi.runAllTimers();
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.closeTo(20, 6));
+  });
 });
 
 describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => {

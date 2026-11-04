@@ -32,6 +32,7 @@
 
 import { PcfEffect, type PcfInitOptions } from '../../engines/PcfEffect';
 import type { PcfSettings } from '../../importers/rbs/types';
+import { engineDegradationStore } from '../../stores/engineDegradationStore';
 import {
     LowpassModeSwitch,
     normalizeLowpassMode,
@@ -327,6 +328,25 @@ function nodeSettings(config: Required<PcfNodeConfig>): PcfSettings {
     };
 }
 
+/** `engineDegradationStore` id of a placed PCF node whose worklet failed to load. */
+export function pcfNodeDegradationId(nodeId: GraphNodeId): string {
+    return `pcf-node:${nodeId}`;
+}
+
+function reportPcfNodeUnavailable(nodeId: GraphNodeId, error: unknown): void {
+    engineDegradationStore.report({
+        id: pcfNodeDegradationId(nodeId),
+        subsystem: 'pcf-node',
+        category: 'worklet',
+        message: `PCF node ${nodeId} unavailable: it passes audio through unfiltered`,
+        reason: error instanceof Error ? error.message : String(error),
+        status: 'active',
+        activeBackend: 'bypass',
+        requestedBackend: 'pcf-processor',
+        retryable: false,
+    });
+}
+
 /**
  * The compiler's `createPcfNode`: a fresh `PcfEffect` per placed PCF. The
  * effect passes audio straight through until its worklet loads, so the ports
@@ -341,6 +361,7 @@ export function createPcfNodeProvider(options: PcfNodeProviderOptions = {}): Pcf
         effect.loadSettings(nodeSettings(config));
         const ready = effect.init(options.init?.(request, config) ?? {}).catch((error: unknown) => {
             console.warn(`[pcfInsert] ${request.nodeId}: PCF worklet unavailable; the node passes audio through:`, error);
+            reportPcfNodeUnavailable(request.nodeId, error);
         });
         options.pending?.push(ready);
         const insert = new PcfInsert(
