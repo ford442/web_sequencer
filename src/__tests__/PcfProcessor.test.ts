@@ -351,6 +351,82 @@ describe('PcfProcessor', () => {
     });
   });
 
+  describe('master pcfCutoff lane sweep (spectral centroid)', () => {
+    /** Deterministic white noise (LCG), so the assertion never flakes. */
+    function noise(len: number, seed: number): Float32Array {
+      const out = new Float32Array(len);
+      let s = seed >>> 0;
+      for (let i = 0; i < len; i++) {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        out[i] = s / 2 ** 31 - 1;
+      }
+      return out;
+    }
+
+    /** Power-weighted mean frequency (Hz) of `x`, Hann-windowed naive DFT. */
+    function spectralCentroid(x: Float32Array, sr: number): number {
+      const n = x.length;
+      let num = 0;
+      let den = 0;
+      for (let k = 1; k < n / 2; k++) {
+        let re = 0;
+        let im = 0;
+        for (let t = 0; t < n; t++) {
+          const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / (n - 1));
+          const a = (-2 * Math.PI * k * t) / n;
+          re += x[t] * w * Math.cos(a);
+          im += x[t] * w * Math.sin(a);
+        }
+        const p = re * re + im * im;
+        num += p * ((k * sr) / n);
+        den += p;
+      }
+      return num / den;
+    }
+
+    it('moves the centroid of the master signal with the lane, on the render clock', async () => {
+      // The same lane → processor conversion the live scheduler and the
+      // offline renders use, so this pins what an imported RBS sweep does.
+      const { pcfLaneOverride } = await import('../audio/automation/laneResolver');
+      const g = globalThis as Record<string, unknown>;
+      const sr = 44100;
+      const block = 128;
+      const blocksPerSegment = 24; // ~70 ms: settle, then measure the last 1024 samples
+      const laneValues = [0.2, 0.5, 0.8]; // the lane rising across three segments
+      const timeline = laneValues.map((v, i) => ({
+        time: (i * blocksPerSegment * block) / sr,
+        ...pcfLaneOverride('pcfCutoff', v),
+      }));
+      // Pattern PCF off, as on a default RBS import with lanes only.
+      const proc = getProcessor({ processorOptions: { enabled: false, timeline } });
+      const src = noise(laneValues.length * blocksPerSegment * block, 1539);
+      const rendered = new Float32Array(src.length);
+      try {
+        for (let b = 0; b < src.length / block; b++) {
+          g.currentTime = (b * block) / sr;
+          const inL = src.subarray(b * block, (b + 1) * block);
+          const out = makeStereoOutput(block);
+          proc.process([[inL, inL.slice()]], out, {});
+          rendered.set(out[0][0], b * block);
+        }
+      } finally {
+        delete g.currentTime;
+      }
+
+      const segLen = blocksPerSegment * block;
+      const centroids = laneValues.map((_, i) =>
+        spectralCentroid(rendered.subarray((i + 1) * segLen - 1024, (i + 1) * segLen), sr),
+      );
+      const dryCentroid = spectralCentroid(src.subarray(segLen - 1024, segLen), sr);
+
+      // Every segment is filtered (darker than the dry noise) …
+      for (const c of centroids) expect(c).toBeLessThan(dryCentroid);
+      // … and the centroid climbs with the lane, by a clear margin each step.
+      expect(centroids[1]).toBeGreaterThan(centroids[0] * 2);
+      expect(centroids[2]).toBeGreaterThan(centroids[1] * 2);
+    });
+  });
+
   describe('process() return value', () => {
     it('always returns true (keep-alive)', () => {
       const proc = getProcessor();

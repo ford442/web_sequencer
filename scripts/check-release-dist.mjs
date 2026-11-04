@@ -205,6 +205,8 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'sustain-processor',
   'RubberBandProcessor',
   'master-loudness-processor',
+  // Master-bus PCF (#1554): without it, RBS master PCF lanes are silent again.
+  'pcf-processor',
 ];
 
 const distJsFiles = walk(distDir).filter((p) => p.endsWith('.js') && !p.endsWith('.map'));
