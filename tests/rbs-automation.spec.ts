@@ -100,6 +100,11 @@ test.describe('RBS import E2E', () => {
     const cutoffKnob = page.getByRole('slider', { name: /^CUTOFF/i }).first();
     await expect(cutoffKnob).toBeVisible();
 
+    await expect.poll(async () => {
+      const val = await cutoffKnob.getAttribute('aria-valuenow');
+      return Number(val);
+    }, { timeout: 5000 }).toBeGreaterThan(0);
+
     const readAriaValueNow = async (): Promise<number> => {
       const raw = await cutoffKnob.getAttribute('aria-valuenow');
       expect(raw, 'aria-valuenow is an integer').toMatch(/^\d+$/);
