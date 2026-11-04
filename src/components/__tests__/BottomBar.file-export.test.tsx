@@ -52,7 +52,7 @@ describe('BottomBar file export loading states', () => {
         render(<BottomBar {...props} />);
 
         const rbsButton = screen.getByRole('button', { name: 'Export project as ReBirth RB-338 .rbs file' });
-        expect(rbsButton).toBeDisabled();
+        expect(rbsButton).toHaveAttribute('aria-disabled', 'true');
         expect(rbsButton).toHaveAttribute('aria-busy', 'true');
         expect(rbsButton).toHaveTextContent('Exporting...');
     });
