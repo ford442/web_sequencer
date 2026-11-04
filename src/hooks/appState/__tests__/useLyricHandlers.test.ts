@@ -15,13 +15,13 @@ vi.mock('../../../utils/resampleAudioBuffer', () => ({
 
 vi.mock('../../../stores/transportMixStore', () => ({
     transportMixStore: {
-        getSnapshot: vi.fn().mockReturnValue({ swing: 50, stepCount: 16, tracks: { kick: { loopLength: 16 }, snare: { loopLength: 16 }, closedHat: { loopLength: 16 }, openHat: { loopLength: 16 } }, trackLengths: {} })
+        getSnapshot: vi.fn().mockReturnValue({ swing: 50, stepCount: 16, trackLengths: { kick: 16, snare: 16, closedHat: 16, openHat: 16 } })
     }
 }));
 
 describe('useLyricHandlers', () => {
-    let deps;
-    let mockSupertonic;
+    let deps: any;
+    let mockSupertonic: any;
 
     beforeEach(() => {
         mockSupertonic = {
