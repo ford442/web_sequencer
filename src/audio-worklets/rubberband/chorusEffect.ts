@@ -34,6 +34,19 @@ export class VocalChorusEffect {
 
       const lfoVal = Math.sin(lfoPhase);
 
+      // Tap 1: ~12ms, Tap 2: ~18ms
+      const delay1Ms = 12.0 + (lfoVal * 3.0 * vocalChorusAmount);
+      const delay2Ms = 18.0 + (-lfoVal * 4.0 * vocalChorusAmount);
+
+      const delay1Frames = delay1Ms * 0.001 * fs;
+      const delay2Frames = delay2Ms * 0.001 * fs;
+
+      let readPtr1 = writePtr - (delay1Frames | 0);
+      let readPtr2 = writePtr - (delay2Frames | 0);
+
+      if (readPtr1 < 0) readPtr1 += bufferSize;
+      if (readPtr2 < 0) readPtr2 += bufferSize;
+
       for (let channel = 0; channel < outputs[0].length; channel++) {
         const outCh = outputs[0][channel];
         if (!outCh) continue;
@@ -42,19 +55,6 @@ export class VocalChorusEffect {
 
         const dry = outCh[i];
         buf[writePtr] = dry;
-
-        // Tap 1: ~12ms, Tap 2: ~18ms
-        const delay1Ms = 12.0 + (lfoVal * 3.0 * vocalChorusAmount);
-        const delay2Ms = 18.0 + (-lfoVal * 4.0 * vocalChorusAmount);
-
-        const delay1Frames = delay1Ms * 0.001 * fs;
-        const delay2Frames = delay2Ms * 0.001 * fs;
-
-        let readPtr1 = writePtr - Math.floor(delay1Frames);
-        let readPtr2 = writePtr - Math.floor(delay2Frames);
-
-        if (readPtr1 < 0) readPtr1 += bufferSize;
-        if (readPtr2 < 0) readPtr2 += bufferSize;
 
         const tap1 = buf[readPtr1];
         const tap2 = buf[readPtr2];
