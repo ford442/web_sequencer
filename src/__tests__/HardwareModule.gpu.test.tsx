@@ -11,7 +11,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
     ];
     const mockColorHex: [number, number, number] = [0.0, 0.7, 1.0];
 
-    let mockWriteBuffer: any;
+    let mockWriteBuffer: ReturnType<typeof vi.fn>;
     let mockDevice: any;
     let mockContext: any;
     let requestAnimationFrameMock: any;
@@ -138,7 +138,7 @@ describe('HardwareModule - WebGPU Optimization', () => {
 
         // Subsequent frame: Also a full write of 4 elements (the refactored code writes everything each frame)
         expect(mockWriteBuffer).toHaveBeenCalledTimes(2);
-        const secondCall = mockWriteBuffer.mock.calls[1];
+        const secondCall = mockWriteBuffer.mock.calls[1] as any[];
         expect(secondCall[3]).toBeUndefined(); // offset
         expect(secondCall[4]).toBeUndefined(); // size
 
