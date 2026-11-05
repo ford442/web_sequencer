@@ -8,7 +8,9 @@
 - [x] Explore mapping lyric text sentiment to default scale
 - Velocity Check: Mapping lyric text sentiment to the default scale dynamically aligns the generative track context with the user's emotional intent without touching realtime DSP overhead.
 - Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
-- Explore cross-modulating lyric phrase length with tom-tom decay time to create space for dense syllables.
+- [x] Explore cross-modulating lyric phrase length with tom-tom decay time to create space for dense syllables.
+- Velocity Check: Cross-modulating lyric phrase length with tom-tom decay time successfully created rhythmic space for dense syllables by inversely scaling tom decay steps (from 4 down to 1) based on phoneme count, maintaining the dual mandate without adding DSP overhead.
+- Explore modulating synth bass filter cutoff using phrase progress to build tension towards the end of lines.
 - Explore mapping the vocal tract length parameter (formant shift) to a delay line feedback scalar to simulate acoustic reflection.
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.

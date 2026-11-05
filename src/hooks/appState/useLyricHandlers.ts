@@ -160,6 +160,7 @@ export function useLyricHandlers(deps: {
 
             for (let _i = 0; _i < alignment.phonemes.length; _i++) {
                 const phraseProgress = Math.max(0, Math.min(1, _i / alignment.phonemes.length));
+                const tomDecaySteps = Math.max(1, Math.round(4 - (alignment.phonemes.length / 10)));
                 const tomPitch = tomPitches[Math.floor(phraseProgress * tomPitches.length) % tomPitches.length];
 
                 const p: PhonemeSegment = alignment.phonemes[_i];
@@ -269,7 +270,7 @@ export function useLyricHandlers(deps: {
                                         newKick.steps[fillStep] = { note: transposeNote('C4', kickPitchOffset), velocity: 0.3, length: 1 };
                                     } else if (j % 2 === 0 && fillStep >= 0 && fillStep < newSnare.steps.length) {
                                         const ghostVel = 0.4;
-                                        newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: 1 };
+                                        newSnare.steps[fillStep] = { note: tomPitch, velocity: ghostVel, length: tomDecaySteps };
                                         if (Math.random() < ghostVel) {
                                             newCH.steps[fillStep] = null;
                                         }
@@ -289,7 +290,7 @@ export function useLyricHandlers(deps: {
                         // Inject a ghost snare on the preceding step for a more organic feel
                         if (stepIdx - 1 >= 0 && stepIdx - 1 < newSnare.steps.length && !newSnare.steps[stepIdx - 1]) {
                             const ghostVel = finalVel * 0.4;
-                            newSnare.steps[stepIdx - 1] = { note: tomPitch, velocity: ghostVel, length: 1 };
+                            newSnare.steps[stepIdx - 1] = { note: tomPitch, velocity: ghostVel, length: tomDecaySteps };
                             if (Math.random() < ghostVel && stepIdx - 1 < newCH.steps.length) {
                                 newCH.steps[stepIdx - 1] = null;
                             }
