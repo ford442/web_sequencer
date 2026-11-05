@@ -346,73 +346,179 @@ class SustainProcessor extends AudioWorkletProcessor {
         }
 
         // --- ORIGINAL MODES (LOOP, STRETCH, WAVETABLE) ---
-        for (let i = 0; i < blockSize; i++) {
-            const arpOn = (arpConstant ? arpParam[0] : arpParam[i]) > 0.5;
-            const currentPitch = pitchConstant ? pitchParam[0] : pitchParam[i];
-            const currentFreq = freqConstant ? freqParam[0] : freqParam[i];
-            const currentBpm = bpmConstant ? bpmParam[0] : bpmParam[i];
+        const buffer = this.buffer;
+        const bufLen = buffer ? buffer.length : 0;
+        const loopStart = this.loopStart;
+        const loopEnd = this.loopEnd;
+        const grainSize = this.grainSize;
+        const baseFrequency = this.baseFrequency;
 
-            // --- ARPEGGIATOR LOGIC ---
-            if (arpOn && this.buffer) {
-                const samplesPerStep = (currentSampleRate * 60) / (currentBpm * 4);
-                this.arpCounter++;
+        let playhead = this.playhead;
+        let arpCounter = this.arpCounter;
+        let arpStepIndex = this.arpStepIndex;
+        let basePitch = this.basePitch;
+        let isPlaying = this.isPlaying;
 
-                if (this.arpCounter >= samplesPerStep) {
-                    this.arpCounter = 0;
-                    const semiTone = this.arpPattern[this.arpStepIndex % this.arpPattern.length];
-                    this.basePitch = Math.exp((semiTone / 12.0) * Math.LN2);
-                    this.playhead = this.loopStart;
-                    this.isPlaying = true;
-                    this.arpStepIndex++;
+        const outL = output[0];
+
+        if (!buffer) {
+            outL.fill(0);
+        } else if (mode < 0.5) { // MODE A: LOOP
+            const arpPattern = this.arpPattern;
+            const arpPatternLength = arpPattern.length;
+            const ln2_12 = Math.LN2 / 12.0;
+            const currentBpm0 = bpmParam[0];
+            const currentPitch0 = pitchParam[0];
+            const arpParam0 = arpParam[0];
+
+            for (let i = 0; i < blockSize; i++) {
+                const arpOn = (arpConstant ? arpParam0 : arpParam[i]) > 0.5;
+
+                if (arpOn) {
+                    const currentBpm = bpmConstant ? currentBpm0 : bpmParam[i];
+                    const samplesPerStep = (currentSampleRate * 60) / (currentBpm * 4);
+                    arpCounter++;
+                    if (arpCounter >= samplesPerStep) {
+                        arpCounter = 0;
+                        const semiTone = arpPattern[arpStepIndex % arpPatternLength];
+                        basePitch = Math.exp(semiTone * ln2_12);
+                        playhead = loopStart;
+                        this.isPlaying = true; // Update state directly
+                        isPlaying = true;
+                        arpStepIndex++;
+                    }
+                }
+
+                if (!isPlaying) {
+                    outL[i] = 0;
+                    continue;
+                }
+
+                const indexA = playhead | 0;
+                let sampleValue = 0;
+                if (indexA >= 0 && indexA < bufLen) {
+                    const valA = buffer[indexA];
+                    const indexB = indexA + 1;
+                    const valB = indexB < bufLen ? buffer[indexB] : 0;
+                    sampleValue = valA + (valB - valA) * (playhead - indexA);
+                }
+                outL[i] = sampleValue;
+
+                const currentPitch = pitchConstant ? currentPitch0 : pitchParam[i];
+                playhead += arpOn ? basePitch : (currentPitch || 1.0);
+                if (playhead >= loopEnd) {
+                    playhead = this.findNearestZeroCrossing(loopStart);
                 }
             }
+        } else if (mode < 1.5) { // MODE B: STRETCH
+            const arpPattern = this.arpPattern;
+            const arpPatternLength = arpPattern.length;
+            const ln2_12 = Math.LN2 / 12.0;
+            const currentBpm0 = bpmParam[0];
+            const currentPitch0 = pitchParam[0];
+            const arpParam0 = arpParam[0];
 
-            if (!this.buffer || !this.isPlaying) {
-                output[0][i] = 0;
-                continue;
+            for (let i = 0; i < blockSize; i++) {
+                const arpOn = (arpConstant ? arpParam0 : arpParam[i]) > 0.5;
+
+                if (arpOn) {
+                    const currentBpm = bpmConstant ? currentBpm0 : bpmParam[i];
+                    const samplesPerStep = (currentSampleRate * 60) / (currentBpm * 4);
+                    arpCounter++;
+                    if (arpCounter >= samplesPerStep) {
+                        arpCounter = 0;
+                        const semiTone = arpPattern[arpStepIndex % arpPatternLength];
+                        basePitch = Math.exp(semiTone * ln2_12);
+                        playhead = loopStart;
+                        this.isPlaying = true;
+                        isPlaying = true;
+                        arpStepIndex++;
+                    }
+                }
+
+                if (!isPlaying) {
+                    outL[i] = 0;
+                    continue;
+                }
+
+                const indexA = playhead | 0;
+                let sampleValue = 0;
+                if (indexA >= 0 && indexA < bufLen) {
+                    const valA = buffer[indexA];
+                    const indexB = indexA + 1;
+                    const valB = indexB < bufLen ? buffer[indexB] : 0;
+                    sampleValue = valA + (valB - valA) * (playhead - indexA);
+                }
+                outL[i] = sampleValue;
+
+                const currentPitch = pitchConstant ? currentPitch0 : pitchParam[i];
+                playhead += arpOn ? basePitch : (currentPitch || 1.0);
+                if (playhead >= (loopStart + grainSize)) {
+                    playhead = this.getStretchJumpPosition();
+                }
             }
+        } else { // MODE C: WAVETABLE
+            const arpPattern = this.arpPattern;
+            const arpPatternLength = arpPattern.length;
+            const ln2_12 = Math.LN2 / 12.0;
+            const currentBpm0 = bpmParam[0];
+            const currentPitch0 = pitchParam[0];
+            const currentFreq0 = freqParam[0];
+            const arpParam0 = arpParam[0];
+            const srInv = 1.0 / currentSampleRate;
 
-            let sampleValue = 0;
+            for (let i = 0; i < blockSize; i++) {
+                const arpOn = (arpConstant ? arpParam0 : arpParam[i]) > 0.5;
 
-            if (mode < 0.5) {
-                // --- MODE A: LOOP ---
-                sampleValue = this.getInterpolatedSample(this.playhead);
-                const speed = arpOn ? this.basePitch : (currentPitch || 1.0);
-                this.playhead += speed;
-
-                if (this.playhead >= this.loopEnd) {
-                    const alignedStart = this.findNearestZeroCrossing(this.loopStart);
-                    this.playhead = alignedStart;
+                if (arpOn) {
+                    const currentBpm = bpmConstant ? currentBpm0 : bpmParam[i];
+                    const samplesPerStep = (currentSampleRate * 60) / (currentBpm * 4);
+                    arpCounter++;
+                    if (arpCounter >= samplesPerStep) {
+                        arpCounter = 0;
+                        const semiTone = arpPattern[arpStepIndex % arpPatternLength];
+                        basePitch = Math.exp(semiTone * ln2_12);
+                        playhead = loopStart;
+                        this.isPlaying = true;
+                        isPlaying = true;
+                        arpStepIndex++;
+                    }
                 }
-            } else if (mode < 1.5) {
-                // --- MODE B: STRETCH (Granular Freeze) ---
-                sampleValue = this.getInterpolatedSample(this.playhead);
-                const speed = arpOn ? this.basePitch : (currentPitch || 1.0);
-                this.playhead += speed;
 
-                const freezeLimit = this.loopStart + this.grainSize;
-                if (this.playhead >= freezeLimit) {
-                    this.playhead = this.getStretchJumpPosition();
+                if (!isPlaying) {
+                    outL[i] = 0;
+                    continue;
                 }
-            } else {
-                // --- MODE C: WAVETABLE (single-cycle oscillator) ---
-                const bufferLength = this.buffer.length;
-                const phase = this.playhead % bufferLength;
-                sampleValue = this.getInterpolatedSample(phase);
 
-                const pitchRatio = arpOn ? this.basePitch : (currentPitch || 1.0);
-                const targetFreq = (currentFreq || this.baseFrequency) * pitchRatio;
-                const increment = (targetFreq * bufferLength) / currentSampleRate;
-                this.playhead += increment;
+                let phase = playhead;
+                while (phase >= bufLen) phase -= bufLen;
 
-                if (this.playhead >= bufferLength) {
-                    // Maintain precision by wrapping instead of letting it grow
-                    this.playhead = this.playhead % bufferLength;
+                const indexA = phase | 0;
+                let sampleValue = 0;
+                if (indexA >= 0 && indexA < bufLen) {
+                    const valA = buffer[indexA];
+                    const indexB = indexA + 1;
+                    const valB = indexB < bufLen ? buffer[indexB] : 0;
+                    sampleValue = valA + (valB - valA) * (phase - indexA);
+                }
+                outL[i] = sampleValue;
+
+                const currentPitch = pitchConstant ? currentPitch0 : pitchParam[i];
+                const currentFreq = freqConstant ? currentFreq0 : freqParam[i];
+                const pitchRatio = arpOn ? basePitch : (currentPitch || 1.0);
+                const targetFreq = (currentFreq || baseFrequency) * pitchRatio;
+                playhead += (targetFreq * bufLen) * srInv;
+                if (playhead >= bufLen) {
+                    playhead -= bufLen;
                 }
             }
-
-            output[0][i] = sampleValue;
         }
+
+        this.playhead = playhead;
+        this.arpCounter = arpCounter;
+        this.arpStepIndex = arpStepIndex;
+        this.basePitch = basePitch;
+        this.isPlaying = isPlaying;
 
         // Copy to all channels
         for (let channel = 1; channel < output.length; channel++) {
