@@ -20,3 +20,7 @@
 ## $(date +%Y-%m-%d) - [Benchmark AudioWorklet Optimizations Before Changing]
 **Learning:** Some AudioWorklet inner loops look like they run often and are good optimization targets (e.g. `output[ch].set(output[0])` for `master-loudness-processor`), but actually run rarely (only when output channels > 2). Furthermore, not all property extractions yield a significant performance gain, and modifying core AudioWorklet loops blindly based on pattern matching can waste time.
 **Action:** When optimizing AudioWorklet DSP code, always measure the actual performance impact before implementing the change by writing a local benchmark script (e.g., running the processor on a fixed-length input for many blocks and timing it with `console.time()`).
+
+## 2024-05-19 - SustainProcessor Optimization
+**Learning:** In AudioWorklet DSP optimization, hoisting multi-way branch logic (e.g., `mode` checks) outside the per-sample inner loop provides a significant performance increase. Furthermore, replacing `Math.floor` with bitwise OR (`value | 0`) and manually inlining mathematical interpolation gives a large speedup by reducing function overhead in high-frequency audio paths.
+**Action:** Extract branching out of the inner loop and optimize floating point operations to their bitwise/manual equivalents when working in DSP hot paths, maintaining readability through separation by modes rather than inline conditionals.
