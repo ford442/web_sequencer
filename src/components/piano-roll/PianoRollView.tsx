@@ -352,8 +352,8 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
                     <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('delete')}>Delete</button>
                 </div>
                 <div role="group" aria-label="Zoom" className="flex gap-1 ml-2">
-                    <button type="button" aria-label="Zoom out" title="Zoom out" className={toolButton(false)} disabled={pxPerStep <= MIN_ZOOM} onClick={() => setPxPerStep((z) => Math.max(MIN_ZOOM, Math.round(z / 1.25)))}><span aria-hidden="true">−</span></button>
-                    <button type="button" aria-label="Zoom in" title="Zoom in" className={toolButton(false)} disabled={pxPerStep >= MAX_ZOOM} onClick={() => setPxPerStep((z) => Math.min(MAX_ZOOM, Math.round(z * 1.25)))}><span aria-hidden="true">+</span></button>
+                    <button type="button" aria-label="Zoom out" title="Zoom out" className={`${toolButton(false)} ${pxPerStep <= MIN_ZOOM ? 'opacity-40 cursor-not-allowed' : ''}`} aria-disabled={pxPerStep <= MIN_ZOOM} onClick={() => { if (pxPerStep <= MIN_ZOOM) return; setPxPerStep((z) => Math.max(MIN_ZOOM, Math.round(z / 1.25))) }}><span aria-hidden="true">−</span></button>
+                    <button type="button" aria-label="Zoom in" title="Zoom in" className={`${toolButton(false)} ${pxPerStep >= MAX_ZOOM ? 'opacity-40 cursor-not-allowed' : ''}`} aria-disabled={pxPerStep >= MAX_ZOOM} onClick={() => { if (pxPerStep >= MAX_ZOOM) return; setPxPerStep((z) => Math.min(MAX_ZOOM, Math.round(z * 1.25))) }}><span aria-hidden="true">+</span></button>
                 </div>
                 <span className="ml-auto text-[10px] font-mono text-gray-500" data-testid="piano-roll-status">
                     {`${noteCount} ${noteCount === 1 ? 'note' : 'notes'} · ${editor.selection.length} selected · ${backend === 'pending' ? '…' : backend}`}
