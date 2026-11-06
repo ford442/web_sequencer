@@ -89,11 +89,11 @@ export class KWeightingFilter {
 
     /** Filter a single sample. Non-finite input is treated as silence. */
     process(sample: number): number {
-        const x0 = Number.isFinite(sample) ? sample : 0;
+        const x0 = sample === sample && sample > -Infinity && sample < Infinity ? sample : 0;
 
         const s = this.shelf;
         const y0 = s.b0 * x0 + s.b1 * this.x1 + s.b2 * this.x2 - s.a1 * this.y1 - s.a2 * this.y2;
-        if (!Number.isFinite(y0)) {
+        if (!(y0 === y0 && y0 > -Infinity && y0 < Infinity)) {
             this.reset();
             return 0;
         }
@@ -104,7 +104,7 @@ export class KWeightingFilter {
 
         const h = this.hpf;
         const v0 = h.b0 * y0 + h.b1 * this.u1 + h.b2 * this.u2 - h.a1 * this.v1 - h.a2 * this.v2;
-        if (!Number.isFinite(v0)) {
+        if (!(v0 === v0 && v0 > -Infinity && v0 < Infinity)) {
             this.reset();
             return 0;
         }

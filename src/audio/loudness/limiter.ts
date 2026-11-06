@@ -228,53 +228,142 @@ export class TruePeakLimiter {
         const delayFrames = this.delayFrames;
         const delayCapacity = this.delayCapacity;
 
-        for (let i = 0; i < frames; i += 1) {
-            // 1. Detect the inter-sample peak of this input frame (channel-linked).
-            let peak = 0;
-            for (let ch = 0; ch < channelCount; ch += 1) {
-                const source = input[ch];
-                const raw = source !== undefined ? source[i] : 0;
-                const sample = Number.isFinite(raw) ? raw : 0;
-                const detected = detectors[ch].processSample(sample);
-                if (detected > peak) peak = detected;
+        if (channelCount === 2) {
+            const in0 = input[0];
+            const in1 = input[1];
+            const out0 = output[0];
+            const out1 = output[1];
+            const det0 = detectors[0];
+            const det1 = detectors[1];
+            const del0 = delayLines[0];
+            const del1 = delayLines[1];
 
-                // 2. Buffer the (undelayed) sample.
-                delayLines[ch][localDelayWrite] = sample;
-            }
+            let dTail = this.dequeTail;
+            let dHead = this.dequeHead;
+            const dVals = this.dequeValues;
+            const dInd = this.dequeIndices;
 
-            const gainTarget = peak > target ? target / peak : 1;
-            const index = localSampleCounter;
-            this.pushSlidingMin(index, gainTarget, capacity);
+            for (let i = 0; i < frames; i += 1) {
+                let peak = 0;
 
-            // 3. The minimum gain over [index - lookahead, index] applies to the
-            //    sample leaving the delay line now.
-            const windowMin = this.slidingMin(index, capacity);
-            const coefficient =
-                windowMin < localCurrentGain ? attackCoefficient : releaseCoefficient;
-            localCurrentGain += (windowMin - localCurrentGain) * coefficient;
-            if (Number.isNaN(localCurrentGain)) localCurrentGain = 1;
-            const gain = localCurrentGain < windowMin ? localCurrentGain : windowMin;
-            if (gain < localMinGainSinceReport) localMinGainSinceReport = gain;
+                const raw0 = in0 !== undefined ? in0[i] : 0;
+                const sample0 = raw0 === raw0 && raw0 > -Infinity && raw0 < Infinity ? raw0 : 0;
+                const detected0 = det0.processSample(sample0);
+                if (detected0 > peak) peak = detected0;
+                del0[localDelayWrite] = sample0;
 
-            // 4. Emit the delayed sample with the gain, clamped to the ceiling.
-            const readIndex =
-                (localDelayWrite - delayFrames + delayCapacity) % delayCapacity;
-            for (let ch = 0; ch < channelCount; ch += 1) {
-                const out = output[ch];
-                if (out === undefined) continue;
-                let value = delayLines[ch][readIndex] * gain;
-                if (value > ceiling) {
-                    value = ceiling;
-                    localClippedSinceReport = true;
-                } else if (value < -ceiling) {
-                    value = -ceiling;
-                    localClippedSinceReport = true;
+                const raw1 = in1 !== undefined ? in1[i] : 0;
+                const sample1 = raw1 === raw1 && raw1 > -Infinity && raw1 < Infinity ? raw1 : 0;
+                const detected1 = det1.processSample(sample1);
+                if (detected1 > peak) peak = detected1;
+                del1[localDelayWrite] = sample1;
+
+                const gainTarget = peak > target ? target / peak : 1;
+                const index = localSampleCounter;
+
+                while (dTail > dHead && dVals[(dTail - 1) % capacity] >= gainTarget) {
+                    dTail -= 1;
                 }
-                out[i] = value;
+                const idx = dTail % capacity;
+                dVals[idx] = gainTarget;
+                dInd[idx] = index;
+                dTail += 1;
+
+                const threshold = index - delayFrames;
+                while (dHead < dTail && dInd[dHead % capacity] < threshold) {
+                    dHead += 1;
+                }
+                const windowMin = dHead < dTail ? dVals[dHead % capacity] : 1.0;
+
+                const coefficient = windowMin < localCurrentGain ? attackCoefficient : releaseCoefficient;
+                localCurrentGain += (windowMin - localCurrentGain) * coefficient;
+                if (!(localCurrentGain === localCurrentGain)) localCurrentGain = 1;
+                const gain = localCurrentGain < windowMin ? localCurrentGain : windowMin;
+                if (gain < localMinGainSinceReport) localMinGainSinceReport = gain;
+
+                const readIndex = localDelayWrite >= delayFrames ? localDelayWrite - delayFrames : localDelayWrite + delayCapacity - delayFrames;
+
+                if (out0 !== undefined) {
+                    let outSample0 = del0[readIndex] * gain;
+                    if (outSample0 > ceiling) {
+                        outSample0 = ceiling;
+                        localClippedSinceReport = true;
+                    } else if (outSample0 < -ceiling) {
+                        outSample0 = -ceiling;
+                        localClippedSinceReport = true;
+                    }
+                    out0[i] = outSample0;
+                }
+
+                if (out1 !== undefined) {
+                    let outSample1 = del1[readIndex] * gain;
+                    if (outSample1 > ceiling) {
+                        outSample1 = ceiling;
+                        localClippedSinceReport = true;
+                    } else if (outSample1 < -ceiling) {
+                        outSample1 = -ceiling;
+                        localClippedSinceReport = true;
+                    }
+                    out1[i] = outSample1;
+                }
+
+                localDelayWrite = localDelayWrite === delayCapacity - 1 ? 0 : localDelayWrite + 1;
+                localSampleCounter += 1;
             }
 
-            localDelayWrite = (localDelayWrite + 1) % delayCapacity;
-            localSampleCounter = index + 1;
+            this.dequeTail = dTail;
+            this.dequeHead = dHead;
+        } else {
+            for (let i = 0; i < frames; i += 1) {
+                // 1. Detect the inter-sample peak of this input frame (channel-linked).
+                let peak = 0;
+                for (let ch = 0; ch < channelCount; ch += 1) {
+                    const source = input[ch];
+                    const raw = source !== undefined ? source[i] : 0;
+                    const sample = raw === raw && raw > -Infinity && raw < Infinity ? raw : 0;
+                    const detected = detectors[ch].processSample(sample);
+                    if (detected > peak) peak = detected;
+
+                    // 2. Buffer the (undelayed) sample.
+                    delayLines[ch][localDelayWrite] = sample;
+                }
+
+                const gainTarget = peak > target ? target / peak : 1;
+                const index = localSampleCounter;
+                this.pushSlidingMin(index, gainTarget, capacity);
+
+                // 3. The minimum gain over [index - lookahead, index] applies to the
+                //    sample leaving the delay line now.
+                const windowMin = this.slidingMin(index, capacity);
+                const coefficient =
+                    windowMin < localCurrentGain ? attackCoefficient : releaseCoefficient;
+                localCurrentGain += (windowMin - localCurrentGain) * coefficient;
+                if (!(localCurrentGain === localCurrentGain)) localCurrentGain = 1;
+                const gain = localCurrentGain < windowMin ? localCurrentGain : windowMin;
+                if (gain < localMinGainSinceReport) localMinGainSinceReport = gain;
+
+                // 4. Emit the delayed sample with the gain, clamped to the ceiling.
+                const readIndex =
+                    localDelayWrite >= delayFrames
+                        ? localDelayWrite - delayFrames
+                        : localDelayWrite + delayCapacity - delayFrames;
+                for (let ch = 0; ch < channelCount; ch += 1) {
+                    const out = output[ch];
+                    if (out === undefined) continue;
+                    let value = delayLines[ch][readIndex] * gain;
+                    if (value > ceiling) {
+                        value = ceiling;
+                        localClippedSinceReport = true;
+                    } else if (value < -ceiling) {
+                        value = -ceiling;
+                        localClippedSinceReport = true;
+                    }
+                    out[i] = value;
+                }
+
+                localDelayWrite = localDelayWrite === delayCapacity - 1 ? 0 : localDelayWrite + 1;
+                localSampleCounter = index + 1;
+            }
         }
 
         this.delayWrite = localDelayWrite;
