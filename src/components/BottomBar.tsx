@@ -197,8 +197,11 @@ export const BottomBar = memo(function BottomBar({
                 {setIsAutomationRecording && (
                     <HelpTip topicId="automation-rec-auto" showOnFirstUse position="top">
                     <button type="button"
-                        onClick={() => setIsAutomationRecording(!isAutomationRecording)}
-                        disabled={!isPlaying}
+                        onClick={() => {
+                            if (!isPlaying) return;
+                            setIsAutomationRecording(!isAutomationRecording);
+                        }}
+                        aria-disabled={!isPlaying}
                         aria-pressed={isAutomationRecording}
                         aria-label={
                             !isPlaying
@@ -214,7 +217,7 @@ export const BottomBar = memo(function BottomBar({
                                     ? 'Stop Automation Recording (saves to song lanes)'
                                     : 'Record Automation (arm+ capture knob moves while playing)'
                         }
-                        className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:scale-105 active:scale-95 ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'bg-zinc-800 text-red-400 border border-red-900/50 hover:bg-red-950 hover:text-red-300'} ${!isPlaying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`h-6 px-2 rounded-md font-orbitron text-[9px] font-bold tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] ${!isPlaying ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'} ${isAutomationRecording ? 'bg-red-600 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]' : `bg-zinc-800 text-red-400 border border-red-900/50 ${!isPlaying ? '' : 'hover:bg-red-950 hover:text-red-300'}`}`}
                     >
                         {isAutomationRecording ? <><span aria-hidden="true">●</span> <span aria-hidden="true">REC</span></> : <span aria-hidden="true">REC AUTO</span>}
                     </button>
