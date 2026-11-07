@@ -395,11 +395,17 @@ export function useLyricHandlers(deps: {
 
                     if (startStep >= 0 && startStep < trackLength) {
                         const durationSteps = Math.max(1, Math.round((p.end - p.start) / (60 / tempoRef.current / 4)));
+                        const phraseProgress = Math.max(0, Math.min(1, i / alignment.phonemes.length));
+
+                        // phraseProgress 0→1 → more crush at the end (fidelity degrades as the utterance progresses)
+                        const bitcrushValue = phraseProgress;
+
                         newSteps[startStep] = {
                             note: pitches[currentPitchIdx] || 'C4',
                             velocity: 1,
                             length: durationSteps,
                             sliceIndex: i,
+                            bitcrush: bitcrushValue,
                             ...(reverses[currentPitchIdx] ? { reverse: true } : {})
                         };
                         noteIndex++;

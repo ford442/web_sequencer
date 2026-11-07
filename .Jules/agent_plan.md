@@ -7,7 +7,8 @@
 - Velocity Check: Modulating the open hi-hat decay length using simple polyrhythmic math directly inside `handleTextToDrums` perfectly achieves the dual mandate of "Solidify and Innovate". It integrates tight organic breathing into the generated Euclidean hi-hat rolls without introducing heavy AudioWorklet DSP overhead or compromising core sequencer architecture.
 - [x] Explore mapping lyric text sentiment to default scale
 - Velocity Check: Mapping lyric text sentiment to the default scale dynamically aligns the generative track context with the user's emotional intent without touching realtime DSP overhead.
-- Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
+- [x] Explore applying a bitcrusher effect to TTS output scaled inversely by the calculated phrase progress to simulate degrading fidelity at the end of utterances.
+- Velocity Check: Mapping phrase progress linearly into the bitcrush parameter gracefully increases degradation without heavy audio graph modifications, maintaining the audio thread's time budget. (Note: using phrase progress 0..1 directly gives more crush at the end as intended).
 - [x] Explore cross-modulating lyric phrase length with tom-tom decay time to create space for dense syllables.
 - Velocity Check: Cross-modulating lyric phrase length with tom-tom decay time successfully created rhythmic space for dense syllables by inversely scaling tom decay steps (from 4 down to 1) based on phoneme count, maintaining the dual mandate without adding DSP overhead.
 - Explore modulating synth bass filter cutoff using phrase progress to build tension towards the end of lines.
@@ -55,6 +56,7 @@
 - [x] Evaluate real-time pitch correction (Auto-Tune style) in the granular playback chain using zero-crossing detection.
 
 ## Innovation Lab
+- Explore modulating the filter cutoff frequency with an LFO driven by text sentiment.
 - Explore using Euclidean rhythms to offset delay taps during consonant transients in the Spatial Router.
 - Explore assigning a random pitch variation to high-velocity drum hits based on consonant stress.
 - What if we map vowel brightness/formant to open hi-hat decay time?
