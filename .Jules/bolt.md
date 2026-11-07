@@ -24,3 +24,7 @@
 ## 2024-05-19 - SustainProcessor Optimization
 **Learning:** In AudioWorklet DSP optimization, hoisting multi-way branch logic (e.g., `mode` checks) outside the per-sample inner loop provides a significant performance increase. Furthermore, replacing `Math.floor` with bitwise OR (`value | 0`) and manually inlining mathematical interpolation gives a large speedup by reducing function overhead in high-frequency audio paths.
 **Action:** Extract branching out of the inner loop and optimize floating point operations to their bitwise/manual equivalents when working in DSP hot paths, maintaining readability through separation by modes rather than inline conditionals.
+
+## 2024-05-18 - AudioWorklet DSP Core Hot Path Micro-optimizations
+**Learning:** In very tight AudioWorklet per-sample DSP loops where `channelCount` is mostly fixed at 2, nested `for (let ch = 0; ch < channelCount; ch++)` loops introduce substantial overhead from array boundary checks and dynamic lookups. Additionally, function calls like `Number.isFinite()` and `Number.isNaN()` are measurably slower than inline primitive checks like `sample === sample && sample > -Infinity && sample < Infinity`.
+**Action:** When optimizing real-time audio hot paths (especially limiters, meters, and filters), unroll loops when sizes are statically known (like `channelCount === 2` or `factor === 4` polyphase resampling), flatten properties to block-scoped local variables before the loop, inline small generic logic, and use fast primitive arithmetic for NaN/Infinity checks.

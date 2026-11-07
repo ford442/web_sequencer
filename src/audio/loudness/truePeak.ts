@@ -118,7 +118,7 @@ export class TruePeakDetector {
      * latch the meter at +Infinity.
      */
     processSample(sample: number): number {
-        const x = Number.isFinite(sample) ? sample : 0;
+        const x = sample === sample && sample > -Infinity && sample < Infinity ? sample : 0;
 
         const h = this.history;
         const p = this.phases;
@@ -128,21 +128,53 @@ export class TruePeakDetector {
         h[w] = x;
         h[w + TAPS_PER_PHASE] = x;
 
-        const startIdx = (w + 1) % TAPS_PER_PHASE;
+        const startIdx = w === TAPS_PER_PHASE - 1 ? 0 : w + 1;
         this.historyIndex = startIdx;
 
         let localPeak = 0;
-        for (let phase = 0; phase < f; phase += 1) {
-            const taps = p[phase];
-            let acc = 0;
+
+        if (f === 4) {
+            const p0 = p[0];
+            const p1 = p[1];
+            const p2 = p[2];
+            const p3 = p[3];
+
+            let acc0 = 0;
+            let acc1 = 0;
+            let acc2 = 0;
+            let acc3 = 0;
             let idx = startIdx;
+
             for (let tap = TAPS_PER_PHASE - 1; tap >= 0; tap -= 1) {
-                acc += taps[tap] * h[idx];
-                idx += 1;
+                const hv = h[idx++];
+                acc0 += p0[tap] * hv;
+                acc1 += p1[tap] * hv;
+                acc2 += p2[tap] * hv;
+                acc3 += p3[tap] * hv;
             }
-            const magnitude = acc < 0 ? -acc : acc;
-            if (magnitude > localPeak) localPeak = magnitude;
+
+            const m0 = acc0 < 0 ? -acc0 : acc0;
+            const m1 = acc1 < 0 ? -acc1 : acc1;
+            const m2 = acc2 < 0 ? -acc2 : acc2;
+            const m3 = acc3 < 0 ? -acc3 : acc3;
+
+            localPeak = m0 > m1 ? m0 : m1;
+            if (m2 > localPeak) localPeak = m2;
+            if (m3 > localPeak) localPeak = m3;
+        } else {
+            for (let phase = 0; phase < f; phase += 1) {
+                const taps = p[phase];
+                let acc = 0;
+                let idx = startIdx;
+                for (let tap = TAPS_PER_PHASE - 1; tap >= 0; tap -= 1) {
+                    acc += taps[tap] * h[idx];
+                    idx += 1;
+                }
+                const magnitude = acc < 0 ? -acc : acc;
+                if (magnitude > localPeak) localPeak = magnitude;
+            }
         }
+
         if (localPeak > this.peak) this.peak = localPeak;
         return localPeak;
     }

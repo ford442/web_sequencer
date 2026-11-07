@@ -143,27 +143,78 @@ export class LoudnessMeter {
         const channelCount = this.channelCount;
 
         let localSamplePeakLinear = this.samplePeakLinear;
-        for (let i = 0; i < frames; i += 1) {
-            let weighted = 0;
-            for (let ch = 0; ch < channelCount; ch += 1) {
-                const source = channels[ch];
-                const raw = source !== undefined ? source[i] : 0;
-                const sample = Number.isFinite(raw) ? raw : 0;
+        let pendingPower = this.pendingPower;
+        let pendingFrames = this.pendingFrames;
+        const subBlockFrames = this.subBlockFrames;
 
-                const magnitude = sample < 0 ? -sample : sample;
-                if (magnitude > localSamplePeakLinear) localSamplePeakLinear = magnitude;
-                detectors[ch].processSample(sample);
+        if (channelCount === 2) {
+            const source0 = channels[0];
+            const source1 = channels[1];
+            const filter0 = filters[0];
+            const filter1 = filters[1];
+            const detector0 = detectors[0];
+            const detector1 = detectors[1];
+            const weight0 = weights[0];
+            const weight1 = weights[1];
 
-                const filtered = filters[ch].process(sample);
-                weighted += weights[ch] * filtered * filtered;
+            for (let i = 0; i < frames; i += 1) {
+                // Channel 0
+                const raw0 = source0 !== undefined ? source0[i] : 0;
+                const sample0 = raw0 === raw0 && raw0 > -Infinity && raw0 < Infinity ? raw0 : 0;
+                const magnitude0 = sample0 < 0 ? -sample0 : sample0;
+                if (magnitude0 > localSamplePeakLinear) localSamplePeakLinear = magnitude0;
+                detector0.processSample(sample0);
+                const filtered0 = filter0.process(sample0);
+
+                // Channel 1
+                const raw1 = source1 !== undefined ? source1[i] : 0;
+                const sample1 = raw1 === raw1 && raw1 > -Infinity && raw1 < Infinity ? raw1 : 0;
+                const magnitude1 = sample1 < 0 ? -sample1 : sample1;
+                if (magnitude1 > localSamplePeakLinear) localSamplePeakLinear = magnitude1;
+                detector1.processSample(sample1);
+                const filtered1 = filter1.process(sample1);
+
+                pendingPower += weight0 * filtered0 * filtered0 + weight1 * filtered1 * filtered1;
+                pendingFrames += 1;
+                if (pendingFrames >= subBlockFrames) {
+                    this.pendingPower = pendingPower;
+                    this.pendingFrames = pendingFrames;
+                    this.commitSubBlock();
+                    pendingPower = this.pendingPower;
+                    pendingFrames = this.pendingFrames;
+                }
             }
+        } else {
+            // Fallback for non-stereo layouts
+            for (let i = 0; i < frames; i += 1) {
+                let weighted = 0;
+                for (let ch = 0; ch < channelCount; ch += 1) {
+                    const source = channels[ch];
+                    const raw = source !== undefined ? source[i] : 0;
+                    const sample = raw === raw && raw > -Infinity && raw < Infinity ? raw : 0;
 
-            this.pendingPower += weighted;
-            this.pendingFrames += 1;
-            if (this.pendingFrames >= this.subBlockFrames) {
-                this.commitSubBlock();
+                    const magnitude = sample < 0 ? -sample : sample;
+                    if (magnitude > localSamplePeakLinear) localSamplePeakLinear = magnitude;
+                    detectors[ch].processSample(sample);
+
+                    const filtered = filters[ch].process(sample);
+                    weighted += weights[ch] * filtered * filtered;
+                }
+
+                pendingPower += weighted;
+                pendingFrames += 1;
+                if (pendingFrames >= subBlockFrames) {
+                    this.pendingPower = pendingPower;
+                    this.pendingFrames = pendingFrames;
+                    this.commitSubBlock();
+                    pendingPower = this.pendingPower;
+                    pendingFrames = this.pendingFrames;
+                }
             }
         }
+
+        this.pendingPower = pendingPower;
+        this.pendingFrames = pendingFrames;
         this.samplePeakLinear = localSamplePeakLinear;
     }
 
