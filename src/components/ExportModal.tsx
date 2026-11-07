@@ -263,11 +263,14 @@ export const ExportModal = React.memo(function ExportModal({
                     </h2>
                     <button
                         type="button"
-                        onClick={onClose}
-                        disabled={isExporting}
+                        onClick={() => {
+                            if (isExporting) return;
+                            onClose();
+                        }}
+                        aria-disabled={isExporting}
                         aria-label="Close export dialog"
                         title={isExporting ? "Cannot close while exporting" : "Close export dialog"}
-                        className="text-gray-400 hover:text-white disabled:opacity-40"
+                        className={`text-gray-400 ${isExporting ? 'opacity-40 cursor-not-allowed' : 'hover:text-white'}`}
                     >
                         <span aria-hidden="true">✕</span>
                     </button>
