@@ -304,9 +304,23 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
             return false;
         }
         const r = offset + stride;
-        for (let i = 0; i < frames; i++) {
-            if (left) left[i] = heap[offset + i] * gain;
-            if (right) right[i] = heap[r + i] * gain;
+        // Optimize: use Float32Array.prototype.set for the default gain === 1 case,
+        // and hoist existence checks outside of loops (loop unswitching)
+        if (gain === 1) {
+            if (left) left.set(heap.subarray(offset, offset + frames));
+            if (right) right.set(heap.subarray(r, r + frames));
+        } else if (left && right) {
+            for (let i = 0; i < frames; i++) {
+                left[i] = heap[offset + i] * gain;
+                right[i] = heap[r + i] * gain;
+            }
+        } else {
+            if (left) {
+                for (let i = 0; i < frames; i++) left[i] = heap[offset + i] * gain;
+            }
+            if (right) {
+                for (let i = 0; i < frames; i++) right[i] = heap[r + i] * gain;
+            }
         }
         return true;
     }
@@ -330,10 +344,25 @@ export abstract class NativeVoiceProcessor extends AudioWorkletProcessor {
             NativeVoiceProcessor.silence(left, right);
             return false;
         }
-        for (let i = 0; i < frames; i++) {
-            const s = heap[offset + i] * gain;
-            if (left) left[i] = s;
-            if (right) right[i] = s;
+        // Optimize: use Float32Array.prototype.set for the default gain === 1 case,
+        // and hoist existence checks outside of loops (loop unswitching)
+        if (gain === 1) {
+            const sub = heap.subarray(offset, offset + frames);
+            if (left) left.set(sub);
+            if (right) right.set(sub);
+        } else if (left && right) {
+            for (let i = 0; i < frames; i++) {
+                const s = heap[offset + i] * gain;
+                left[i] = s;
+                right[i] = s;
+            }
+        } else {
+            if (left) {
+                for (let i = 0; i < frames; i++) left[i] = heap[offset + i] * gain;
+            }
+            if (right) {
+                for (let i = 0; i < frames; i++) right[i] = heap[offset + i] * gain;
+            }
         }
         return true;
     }
