@@ -121,6 +121,7 @@ export function useLyricHandlers(deps: {
             const newSnare = { ...newPattern.snare, steps: [...newPattern.snare.steps] };
             const newCH = { ...newPattern.closedHat, steps: [...newPattern.closedHat.steps] };
             const newOH = { ...newPattern.openHat, steps: [...newPattern.openHat.steps] };
+            const newBass2 = { ...newPattern.bass2, steps: [...(newPattern.bass2?.steps || [])] };
             const meter = transportMixStore.getSnapshot();
             const kickSteps = trackLoopLength(meter, 'kick');
             const snareSteps = trackLoopLength(meter, 'snare');
@@ -165,6 +166,13 @@ export function useLyricHandlers(deps: {
 
                 const p: PhonemeSegment = alignment.phonemes[_i];
                 const stepIdx = timeToStep(p.start, tempoRef.current, meter.swing);
+
+                if (stepIdx >= 0 && stepIdx < newBass2.steps.length && newBass2.steps[stepIdx]) {
+                    newBass2.steps[stepIdx] = {
+                        ...newBass2.steps[stepIdx]!,
+                        filterCutoff: 200 + (phraseProgress * 3000)
+                    };
+                }
 
                 // Extract stress before stripping numbers
                 const rawPhoneme = p.phoneme.toUpperCase();
@@ -310,11 +318,13 @@ export function useLyricHandlers(deps: {
             newPattern.snare = newSnare;
             newPattern.closedHat = newCH;
             newPattern.openHat = newOH;
+            newPattern.bass2 = newBass2;
             setPattern(newPattern);
             updateStorageForTrack('kick', newKick);
             updateStorageForTrack('snare', newSnare);
             updateStorageForTrack('closedHat', newCH);
             updateStorageForTrack('openHat', newOH);
+            updateStorageForTrack('bass2', newBass2);
             showToast("Drumkit generated from text!", "success");
             setIsLyricTrackVisible(false);
         } catch(e) {

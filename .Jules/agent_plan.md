@@ -11,8 +11,10 @@
 - Velocity Check: Mapping phrase progress linearly into the bitcrush parameter gracefully increases degradation without heavy audio graph modifications, maintaining the audio thread's time budget. (Note: using phrase progress 0..1 directly gives more crush at the end as intended).
 - [x] Explore cross-modulating lyric phrase length with tom-tom decay time to create space for dense syllables.
 - Velocity Check: Cross-modulating lyric phrase length with tom-tom decay time successfully created rhythmic space for dense syllables by inversely scaling tom decay steps (from 4 down to 1) based on phoneme count, maintaining the dual mandate without adding DSP overhead.
-- Explore modulating synth bass filter cutoff using phrase progress to build tension towards the end of lines.
+- [x] Explore modulating synth bass filter cutoff using phrase progress to build tension towards the end of lines.
+- Velocity Check: Modulating the synth bass filter cutoff using phrase progress seamlessly builds tension across phrases without any new DSP nodes, elegantly achieving the musical intent purely through parameter mapping.
 - Explore mapping the vocal tract length parameter (formant shift) to a delay line feedback scalar to simulate acoustic reflection.
+- Explore modulating the delay mix amount inversely to phoneme intensity to create a ducking delay effect on vocals.
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
 - Velocity Check: Mapping synth bass sequence density (by counting active bass steps in the consonant gap) to a modulation scalar directly added to the base Euclidean density formula successfully connected the rhythm of the bassline to the auto-generated hi-hat fills without any heavy DSP cross-modulation worklets.
