@@ -85,7 +85,7 @@ describe('PianoRollView accessibility', () => {
         expect(screen.getByRole('button', { name: 'Draw' })).toHaveAttribute('aria-pressed', 'true');
         fireEvent.click(screen.getByRole('button', { name: 'Select' }));
         expect(screen.getByRole('button', { name: 'Select' })).toHaveAttribute('aria-pressed', 'true');
-        expect(screen.getByRole('button', { name: 'Scale lock' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Scale lock' })).toHaveAttribute('aria-disabled', 'true');
         expect(screen.getByRole('combobox', { name: 'Grid' })).toBeInTheDocument();
         expect(screen.getByRole('combobox', { name: 'Lane' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Lead' })).toHaveAttribute('aria-pressed', 'true');

@@ -324,10 +324,16 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
                 <button
                     type="button"
                     aria-pressed={scaleLock && !!scale}
-                    disabled={!scale}
+                    aria-disabled={!scale}
                     title={scale ? `Snap pitches to ${scale.root} ${scale.scale}` : 'Pick a scale in the transport bar to enable'}
-                    className={`${toolButton(scaleLock && !!scale)} disabled:opacity-40`}
-                    onClick={() => setScaleLock((v) => !v)}
+                    className={`${toolButton(scaleLock && !!scale)} ${!scale ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onClick={(e) => {
+                        if (!scale) {
+                            e.preventDefault();
+                            return;
+                        }
+                        setScaleLock((v) => !v);
+                    }}
                 >
                     Scale lock
                 </button>
@@ -346,10 +352,10 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
                     {fxActive && <span className="sr-only"> (active)</span>}
                 </button>
                 <div role="group" aria-label="Edit selection" className="flex gap-1 ml-2">
-                    <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('quantize')}>Quantize</button>
-                    <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('duplicate')}>Duplicate</button>
-                    <button type="button" disabled={!hasSelection || !scale} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('lockToScale')}>To scale</button>
-                    <button type="button" disabled={!hasSelection} className={`${toolButton(false)} disabled:opacity-40`} onClick={runAction('delete')}>Delete</button>
+                    <button type="button" aria-disabled={!hasSelection} title={!hasSelection ? "Select notes to quantize" : "Quantize selected notes"} className={`${toolButton(false)} ${!hasSelection ? 'opacity-40 cursor-not-allowed' : ''}`} onClick={(e) => { if (!hasSelection) { e.preventDefault(); return; } runAction('quantize')(); }}>Quantize</button>
+                    <button type="button" aria-disabled={!hasSelection} title={!hasSelection ? "Select notes to duplicate" : "Duplicate selected notes"} className={`${toolButton(false)} ${!hasSelection ? 'opacity-40 cursor-not-allowed' : ''}`} onClick={(e) => { if (!hasSelection) { e.preventDefault(); return; } runAction('duplicate')(); }}>Duplicate</button>
+                    <button type="button" aria-disabled={!hasSelection || !scale} title={!scale ? "Pick a scale in the transport bar to enable" : !hasSelection ? "Select notes to snap to scale" : "Snap selected notes to scale"} className={`${toolButton(false)} ${(!hasSelection || !scale) ? 'opacity-40 cursor-not-allowed' : ''}`} onClick={(e) => { if (!hasSelection || !scale) { e.preventDefault(); return; } runAction('lockToScale')(); }}>To scale</button>
+                    <button type="button" aria-disabled={!hasSelection} title={!hasSelection ? "Select notes to delete" : "Delete selected notes"} className={`${toolButton(false)} ${!hasSelection ? 'opacity-40 cursor-not-allowed' : ''}`} onClick={(e) => { if (!hasSelection) { e.preventDefault(); return; } runAction('delete')(); }}>Delete</button>
                 </div>
                 <div role="group" aria-label="Zoom" className="flex gap-1 ml-2">
                     <button type="button" aria-label="Zoom out" title="Zoom out" className={`${toolButton(false)} ${pxPerStep <= MIN_ZOOM ? 'opacity-40 cursor-not-allowed' : ''}`} aria-disabled={pxPerStep <= MIN_ZOOM} onClick={() => { if (pxPerStep <= MIN_ZOOM) return; setPxPerStep((z) => Math.max(MIN_ZOOM, Math.round(z / 1.25))) }}><span aria-hidden="true">−</span></button>
