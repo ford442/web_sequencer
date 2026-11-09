@@ -35,3 +35,6 @@
 ## 2026-11-08 - Better tooltips on functionally disabled piano roll buttons
 **Learning:** Found an accessibility issue where Piano Roll editing buttons using the native `disabled` attribute lacked tooltips describing *why* they were disabled, or had their tooltips suppressed by browsers.
 **Action:** When buttons are functionally disabled and need to provide explanatory hover context via `title`, prefer using `aria-disabled="true"` along with manual styling (e.g., `opacity-40 cursor-not-allowed`) and an early-return check in the `onClick` handler, rather than the native `disabled` attribute. Applied this fix to the Scale Lock and Edit Selection buttons in `PianoRollView.tsx`.
+## 2026-11-09 - Custom Tooltips on Disabled Buttons
+**Learning:** Native `disabled` attributes often suppress `title` tooltips on buttons, preventing users (and screen readers) from understanding why the action is disabled.
+**Action:** Use `aria-disabled="true"`, add manual styling (e.g. `opacity-40 cursor-not-allowed`), and implement an early return inside the `onClick` handler to keep the control focusable so its `title` explaining the reason for being disabled is accessible.
