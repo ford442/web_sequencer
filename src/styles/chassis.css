@@ -1,0 +1,512 @@
+/**
+ * White hardware chassis — tokens, materials and the transforming container
+ * (epic #1580: #1589 tokens, #1584 container, #1583 panel artwork, #1581 knob LEDs).
+ *
+ * Everything in this file is opt-in. Rules are scoped either under
+ * `[data-chassis="white"]` or to `.hyphon-chassis*` / `.hyphon-osc-art*` /
+ * `.hyphon-knob-led` classes that only the chassis components render, so a page
+ * without the attribute renders exactly as before.
+ *
+ * Motion: every transition / animation here is neutralised by the global
+ * `prefers-reduced-motion` rule in accessibility.css; the block at the end only
+ * removes the press / entry transforms that rule cannot cancel.
+ */
+
+/* ── 1. Tokens ─────────────────────────────────────────────────────────── */
+
+[data-chassis="white"] {
+  /* body */
+  --chassis-body: #eceef0;
+  --chassis-body-hi: #ffffff;
+  --chassis-body-lo: #c9ccd1;
+  --chassis-seam: rgba(0, 0, 0, 0.12);
+  /* recessed wells (grid, keyboard bed) */
+  --chassis-well: #1b1d21;
+  --chassis-well-edge: #0b0c0e;
+  /* silkscreen */
+  --chassis-print: #b3262e;        /* red section lines + labels (5.6:1 on body) */
+  --chassis-print-muted: #575b62;  /* grey secondary print (≥ 5.5:1 on body) */
+  --chassis-ink: #23262b;          /* body text */
+  --chassis-font-label: 'Roboto Condensed', 'Roboto Mono', sans-serif;
+  /* pads */
+  --pad-off: #2a2d33;
+  --pad-off-hi: #3b3f46;
+  /* key bed */
+  --key-white: #d9dbde;
+  --key-white-hi: #f4f5f6;
+  --key-black: #1d1f23;
+  --key-led: #ff3b3b;
+  /* morph */
+  --chassis-morph-duration: 420ms;
+  --chassis-morph-ease: cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+/* ── 2. Body + silkscreen materials ────────────────────────────────────── */
+
+[data-chassis="white"] .chassis-body,
+.chassis-body[data-chassis="white"] {
+  background:
+    radial-gradient(120% 80% at 30% 0%, var(--chassis-body-hi), transparent 60%),
+    linear-gradient(180deg, var(--chassis-body) 0%, var(--chassis-body-lo) 100%);
+  border-radius: 48px 48px 64px 64px / 40px 40px 80px 80px; /* curved front lip */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.08),
+    0 30px 60px -20px rgba(0, 0, 0, 0.55),
+    0 8px 16px rgba(0, 0, 0, 0.25);
+  color: var(--chassis-ink);
+}
+
+[data-chassis="white"] .chassis-well {
+  background: var(--chassis-well);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.8),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.85);
+  color: #e5e7eb;
+}
+
+/* Red silkscreen line with the angled end hatch. */
+[data-chassis="white"] .chassis-print-rule {
+  height: 1px;
+  background: var(--chassis-print);
+  -webkit-mask: linear-gradient(90deg, #000 0 calc(100% - 24px), transparent 0);
+  mask: linear-gradient(90deg, #000 0 calc(100% - 24px), transparent 0);
+}
+
+[data-chassis="white"] .chassis-label {
+  font: 600 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chassis-print);
+}
+
+/* ── 3. Step-pad material (chassis LED strip) ──────────────────────────── */
+
+[data-chassis="white"] .pad {
+  --c: var(--pad-color, var(--hyphon-accent-cyan));
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--pad-off-hi), var(--pad-off));
+  box-shadow: 0 2px 0 #000, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.06s, box-shadow 0.06s;
+}
+
+[data-chassis="white"] .pad[data-on] {
+  background: radial-gradient(circle at 50% 40%,
+      color-mix(in srgb, var(--c) 40%, white) 0%, var(--c) 55%,
+      color-mix(in srgb, var(--c) 60%, black) 100%);
+  box-shadow:
+    0 0 6px var(--c),
+    0 0 16px color-mix(in srgb, var(--c) 50%, transparent),
+    0 2px 0 #000,
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+[data-chassis="white"] .pad[data-playhead] {
+  filter: brightness(1.5) saturate(1.2);
+}
+
+[data-chassis="white"] .pad[data-playhead]:not([data-on]) {
+  background: linear-gradient(180deg, #5a5f68, #43474f);
+}
+
+/* ── 4. Transforming chassis container (HardwareChassis) ───────────────── */
+
+.hyphon-chassis {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: var(--chassis-max-w, 1000px);
+  margin-inline: auto;
+  padding: 18px 24px 30px;
+  transition: max-width var(--chassis-morph-duration) var(--chassis-morph-ease);
+}
+
+/* Moulded front lip: a lighter bevel band along the curved bottom edge. */
+.hyphon-chassis::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 8px;
+  height: 10px;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.55));
+  box-shadow: 0 1px 0 var(--chassis-seam);
+  pointer-events: none;
+}
+
+.hyphon-chassis__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.hyphon-chassis__brand {
+  font: 800 13px/1 var(--hyphon-font-display);
+  letter-spacing: 0.32em;
+  color: var(--chassis-ink);
+  white-space: nowrap;
+}
+
+.hyphon-chassis__rule {
+  flex: 1 1 auto;
+  min-width: 24px;
+}
+
+.hyphon-chassis__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Small rubber mode keys with a status LED. */
+.hyphon-chassis__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px 4px;
+  border-radius: 6px;
+  font: 700 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chassis-print-muted);
+  background: linear-gradient(180deg, #ffffff, #dfe1e5);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 #fff;
+  cursor: pointer;
+  transition: transform 80ms ease, box-shadow 80ms ease, color 120ms ease;
+}
+
+.hyphon-chassis__mode-btn::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8a1d22;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.hyphon-chassis__mode-btn:hover {
+  color: var(--chassis-ink);
+}
+
+.hyphon-chassis__mode-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 #fff;
+}
+
+.hyphon-chassis__mode-btn[aria-pressed="true"] {
+  color: var(--chassis-print);
+}
+
+.hyphon-chassis__mode-btn[aria-pressed="true"]::before {
+  background: var(--key-led);
+  box-shadow: 0 0 4px var(--key-led), 0 0 8px color-mix(in srgb, var(--key-led) 60%, transparent);
+}
+
+.hyphon-chassis__mode-btn:focus-visible {
+  outline: 2px solid var(--chassis-print);
+  outline-offset: 2px;
+}
+
+/* LCD-style mode badge: reflects the panel the stage is showing. */
+.hyphon-chassis__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--chassis-well);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 1px 0 #fff;
+  font: 700 10px/1 var(--hyphon-font-data);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chassis-badge-accent, #ff6b6b);
+  white-space: nowrap;
+}
+
+.hyphon-chassis__badge-code {
+  color: #fff;
+  opacity: 0.9;
+}
+
+.hyphon-chassis__badge-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Top anchor: the LED sequencer strip sits in a fixed dark well. */
+.hyphon-chassis__strip {
+  flex: none;
+  padding: 10px 12px;
+}
+
+/* Middle: the morphing stage. Height comes from the mode footprint. */
+.hyphon-chassis__stage {
+  position: relative;
+  flex: none;
+  height: var(--chassis-stage-h, 360px);
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.35));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.18), 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: height var(--chassis-morph-duration) var(--chassis-morph-ease);
+}
+
+.hyphon-chassis__panel {
+  position: absolute;
+  inset: 0;
+  animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
+}
+
+@keyframes hyphon-chassis-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Bottom anchor: key bed. */
+.hyphon-chassis__keybed {
+  flex: none;
+  padding: 10px 12px 12px;
+}
+
+.hyphon-chassis__keybed-label {
+  display: block;
+  margin: 0 0 6px 2px;
+}
+
+/* LED strip: 32 step pads in groups of four. */
+.chassis-led-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--chassis-led-count, 32), minmax(0, 1fr));
+  column-gap: 4px;
+  align-items: center;
+}
+
+.chassis-led-strip .pad {
+  height: 14px;
+}
+
+.chassis-led-strip .pad:nth-child(4n):not(:last-child) {
+  margin-right: 5px;
+}
+
+.chassis-led-strip__numbers {
+  display: grid;
+  grid-template-columns: repeat(var(--chassis-led-count, 32), minmax(0, 1fr));
+  column-gap: 4px;
+  margin-top: 5px;
+  font: 600 8px/1 var(--hyphon-font-data);
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+}
+
+.chassis-led-strip__numbers > span:nth-child(4n):not(:last-child) {
+  margin-right: 5px;
+}
+
+/* ── 5. Rack panels inside the white chassis ───────────────────────────── */
+
+[data-chassis="white"] .hyphon-rack-surface.hyphon-chrome-panel {
+  background:
+    radial-gradient(140% 90% at 20% 0%, rgba(255, 255, 255, 0.95), transparent 55%),
+    linear-gradient(180deg, #f3f4f6 0%, #e2e4e8 100%);
+  border-color: var(--chassis-seam);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 6px rgba(0, 0, 0, 0.06);
+}
+
+[data-chassis="white"] .hyphon-rack-surface.hyphon-chrome-panel::before {
+  border-color: transparent;
+}
+
+[data-chassis="white"] .hyphon-rack-shell {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-chassis="white"] .hyphon-panel-title {
+  padding-left: 1.1rem; /* clear the corner screw, which reads on the white plate */
+  font-family: var(--chassis-font-label);
+  color: var(--chassis-print);
+  border-bottom-color: color-mix(in srgb, var(--chassis-print) 70%, transparent);
+}
+
+[data-chassis="white"] .hyphon-screw {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #b9bdc4 70%, #8d929a);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-chassis="white"] .hyphon-vent__slot {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.35));
+}
+
+/* Knob labels are inline-coloured by part accent; on white use grey print. */
+[data-chassis="white"] .hyphon-knob-label {
+  color: var(--chassis-print-muted) !important;
+  filter: none;
+  --tw-drop-shadow: none;
+}
+
+[data-chassis="white"] .hyphon-knob-label > span:first-child {
+  color: var(--chassis-ink);
+  filter: none;
+}
+
+/* Knob status LED (rendered by HardwareModule when the knob material has a ledRing). */
+.hyphon-knob-led {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--knob-accent, #22d3ee) 35%, #3a3d44);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.hyphon-knob-led[data-active] {
+  background: var(--knob-accent, #22d3ee);
+  box-shadow:
+    0 0 4px var(--knob-accent, #22d3ee),
+    0 0 10px color-mix(in srgb, var(--knob-accent, #22d3ee) 60%, transparent);
+}
+
+/* ── 6. Oscillator panel artwork (public/osc/*.webp) ───────────────────── */
+
+.hyphon-osc-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.hyphon-osc-art__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--osc-art-focus, 50% 50%);
+  animation: hyphon-osc-art-in 320ms ease both;
+}
+
+/* Keep the art legible but subordinate to the live controls on top of it. */
+.hyphon-osc-art__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(10, 12, 15, 0.1) 0%, rgba(10, 12, 15, 0.55) 62%, rgba(10, 12, 15, 0.82) 100%);
+}
+
+.hyphon-osc-art__bezel {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+
+.hyphon-osc-art--fallback {
+  background: linear-gradient(135deg, #20242b, #0d1014);
+}
+
+@keyframes hyphon-osc-art-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Recessed artwork well used for the oscillator column in the rack. */
+.hyphon-osc-well {
+  position: absolute;
+  border-radius: 12px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+[data-chassis="white"] .hyphon-osc-well {
+  box-shadow: 0 1px 0 #fff, 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* ── 7. Layout adaptations ─────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .hyphon-chassis {
+    padding: 12px 10px 22px;
+    gap: 10px;
+  }
+
+  [data-chassis="white"].chassis-body {
+    border-radius: 24px 24px 36px 36px / 20px 20px 44px 44px;
+  }
+
+  .hyphon-chassis__head {
+    flex-wrap: wrap;
+  }
+
+  .hyphon-chassis__rule {
+    display: none;
+  }
+
+  .chassis-led-strip,
+  .chassis-led-strip__numbers {
+    column-gap: 2px;
+  }
+
+  .chassis-led-strip .pad:nth-child(4n):not(:last-child),
+  .chassis-led-strip__numbers > span:nth-child(4n):not(:last-child) {
+    margin-right: 2px;
+  }
+}
+
+.hyphon-compact .hyphon-chassis {
+  padding: 12px 14px 22px;
+  gap: 10px;
+}
+
+/* ── 8. Accessibility ──────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .hyphon-chassis__panel,
+  .hyphon-osc-art__img {
+    animation: none;
+  }
+
+  .hyphon-chassis__mode-btn:active {
+    transform: none;
+  }
+}
+
+/* forced-colors drops box-shadow; give glow-only states a real outline. */
+@media (forced-colors: active) {
+  [data-chassis="white"] .pad[data-on] {
+    outline: 2px solid Highlight;
+  }
+
+  [data-chassis="white"] .pad[data-playhead] {
+    outline: 2px solid CanvasText;
+    outline-offset: 1px;
+  }
+
+  .hyphon-chassis__mode-btn[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+  }
+
+  .hyphon-knob-led[data-active] {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}

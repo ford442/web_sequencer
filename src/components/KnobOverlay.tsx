@@ -87,7 +87,7 @@ export const KnobOverlay = memo(({
 
             {/* 1. Label and Value Display */}
             <div
-                className={`absolute text-center transform -translate-x-1/2 pointer-events-none transition-opacity duration-200 ${automationDimmed ? 'opacity-40' : ''}`}
+                className={`hyphon-knob-label absolute text-center transform -translate-x-1/2 pointer-events-none transition-opacity duration-200 ${automationDimmed ? 'opacity-40' : ''}`}
                 style={{
                     left: `${x * 100}%`,
                     top: `${(y + size * (compact ? 0.72 : 0.8)) * 100}%`,

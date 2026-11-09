@@ -25,6 +25,7 @@ import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 import { isAgentQuery } from './agent/agentQuery'
+import { isChassisQuery } from './components/chassis/chassisModes'
 
 // Route-split: neither renders on first paint — each is behind a query-param
 // dev view or the 3D-mode switch — so keep them out of the entry chunk and
@@ -33,7 +34,11 @@ const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ de
 const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
 // Agent render hook (`window.__HYPHON_AGENT__`): only ?agent=1 / ?e2e=1 load it.
 const AgentBridge = lazy(() => import('./agent/AgentBridge'));
+// Opt-in white chassis layout (?chassis=white): fetched only when asked for.
+const ChassisNode = lazy(() => import('./components/appParts/ChassisNode').then(module => ({ default: module.ChassisNode })));
 const AGENT_MODE = typeof location !== 'undefined' && isAgentQuery(location.search);
+// Opt-in white hardware chassis (#1580): `?chassis=white`. Default layout is untouched.
+const CHASSIS_MODE = typeof location !== 'undefined' && isChassisQuery(location.search);
 
 /**
  * Layout shell. It reads no app state of its own beyond the background image
@@ -113,16 +118,31 @@ export const App: React.FC = () => {
 
             <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-28' : 'pb-12'} hyphon-main-scroll`}>
                 <WhatsNewBanner />
-                <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}`}>
-                    <SequencerNode />
-                </div>
+                {CHASSIS_MODE ? (
+                    <div className="w-full max-w-[1180px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-4">
+                        <Suspense fallback={null}>
+                            <ChassisNode
+                                isCompact={isCompact}
+                                sequencer={<SequencerNode />}
+                                rack={<RackNode />}
+                                keyboard={<KeyboardNode />}
+                            />
+                        </Suspense>
+                    </div>
+                ) : (
+                    <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}`}>
+                        <SequencerNode />
+                    </div>
+                )}
                 <ContextMenuNode />
 
-                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                    <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
-                        <RackNode />
+                {!CHASSIS_MODE && (
+                    <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                        <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
+                            <RackNode />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Master true-peak limiter + BS.1770 loudness meters, sitting
                     with the rack because it measures the master bus output. */}
@@ -142,9 +162,11 @@ export const App: React.FC = () => {
                     </div>
                 </details>
 
-                <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
-                    <KeyboardNode />
-                </div>
+                {!CHASSIS_MODE && (
+                    <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">
+                        <KeyboardNode />
+                    </div>
+                )}
             </main>
 
             <BottomBarNode />

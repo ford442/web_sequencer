@@ -69,7 +69,42 @@ export interface KnobPointerStyle {
     shadow?: Rgb;
 }
 
+/**
+ * Physical knob cap (black knurled skirt + brushed-metal top) for the white
+ * hardware chassis (#1581). Radii are fractions of the CAP radius unless noted.
+ */
+export interface KnobCapStyle {
+    /** Cap skirt colour (black plastic in the reference). */
+    body: Rgb;
+    /** Cap radius as a fraction of the knob body radius. @default 0.74 */
+    radius?: number;
+    /** Brushed-metal top disc radius, fraction of the cap radius. @default 0.62 */
+    topRadius?: number;
+    topColor?: Rgb;
+    /** Number of knurl ridges on the skirt. 0 disables. @default 36 */
+    knurlCount?: number;
+    /** Skirt bevel width, fraction of the cap radius. @default 0.12 */
+    bevel?: number;
+}
+
+/** Shared lighting model for the physical cap — read by WGSL and Canvas2D. */
+export interface KnobLighting {
+    /** Light direction in screen space (x right, y down, z toward viewer); top-left key light. */
+    lightDir: [number, number, number];
+    /** 0..1 */
+    ambient: number;
+    /** Blinn-Phong exponent. */
+    specularPower: number;
+    specularStrength: number;
+    /** Contact shadow under the cap onto the panel, in cap-radius units. */
+    dropShadow: { offsetY: number; blur: number; opacity: number };
+    /** Glow around the lit value arc ("LED ring"); width in body-radius units. */
+    ledRing?: { radius: number; width: number; intensity: number };
+}
+
 export interface KnobMaterial {
+    /** Stable id used to cache GPU pipelines and Canvas2D static layers per material. */
+    id?: string;
     palette: {
         background: Rgb;
         ring: Rgb;
@@ -115,6 +150,10 @@ export interface KnobMaterial {
         /** Multiplier applied to wall-clock time. 0 = static frame. @default 1 */
         timeScale?: number;
     };
+    /** Physical cap. When set, renderers draw a lit 3D cap instead of the hologram body. */
+    cap?: KnobCapStyle;
+    /** Lighting for the physical cap. Falls back to `DEFAULT_KNOB_LIGHTING`. */
+    lighting?: KnobLighting;
 }
 
 /**
@@ -165,6 +204,93 @@ export const KNOB_MATERIAL: KnobMaterial = {
         intensity: 1.5,
     },
 };
+
+const CHASSIS_ARC_MIN: Rgb = { r: 0.55, g: 0.08, b: 0.1 };   // dim LED red
+const CHASSIS_ARC_MAX: Rgb = { r: 1.0, g: 0.23, b: 0.23 };   // --key-led #ff3b3b
+
+/** Studio key light from the top-left; soft contact shadow below the cap. */
+const DEFAULT_KNOB_LIGHTING: KnobLighting = {
+    lightDir: [-0.45, -0.6, 0.66],
+    ambient: 0.25,
+    specularPower: 48,
+    specularStrength: 0.9,
+    dropShadow: { offsetY: 0.12, blur: 0.25, opacity: 0.35 },
+    ledRing: { radius: 1.18, width: 0.06, intensity: 1.4 },
+};
+
+/**
+ * White-chassis knob (#1581): black knurled cap with a brushed-metal top, a red
+ * LED value arc printed on the panel and a contact shadow. Opt-in via the
+ * `knobMaterial` / `material` props; `KNOB_MATERIAL` stays the default.
+ */
+export const KNOB_MATERIAL_CHASSIS: KnobMaterial = {
+    ...KNOB_MATERIAL,
+    id: 'chassis-white',
+    palette: {
+        ...KNOB_MATERIAL.palette,
+        background: { r: 0.93, g: 0.93, b: 0.94 },
+        ring: { r: 0.62, g: 0.64, b: 0.67 },          // unlit arc track
+        arcMin: CHASSIS_ARC_MIN,
+        arcMax: CHASSIS_ARC_MAX,
+        needle: { r: 0.95, g: 0.95, b: 0.96 },
+        scaleMinor: { r: 0.55, g: 0.57, b: 0.6 },
+        scaleMajor: { r: 0.23, g: 0.24, b: 0.27 },
+        scaleLabel: { r: 0.34, g: 0.36, b: 0.38 },
+        detentShadow: { r: 0.42, g: 0.44, b: 0.47 },
+    },
+    geometry: {
+        ...KNOB_MATERIAL.geometry,
+        outerRingRadius: 0.98,
+        arcRadius: 0.88,
+        needleLength: 0.66,
+    },
+    scale: { ...KNOB_MATERIAL.scale, showLabels: false, tickRadius: 1.0, tickLength: 0.05, majorTickLength: 0.09 },
+    pointer: {
+        variant: 'hardware',
+        base: { r: 0.93, g: 0.94, b: 0.95 },
+        specular: { r: 1.0, g: 1.0, b: 1.0 },
+        shadow: { r: 0.02, g: 0.02, b: 0.03 },
+    },
+    cap: {
+        body: { r: 0.06, g: 0.06, b: 0.07 },
+        radius: 0.74,
+        topColor: { r: 0.72, g: 0.73, b: 0.75 },
+        topRadius: 0.62,
+        knurlCount: 36,
+        bevel: 0.12,
+    },
+    lighting: DEFAULT_KNOB_LIGHTING,
+};
+
+/** Cap with every optional field resolved, or null when the material has none. */
+export function resolveKnobCap(material: KnobMaterial): Required<KnobCapStyle> | null {
+    const cap = material.cap;
+    if (!cap) return null;
+    return {
+        body: cap.body,
+        radius: cap.radius ?? 0.74,
+        topRadius: cap.topRadius ?? 0.62,
+        topColor: cap.topColor ?? { r: 0.72, g: 0.73, b: 0.75 },
+        knurlCount: Math.max(0, Math.round(cap.knurlCount ?? 36)),
+        bevel: cap.bevel ?? 0.12,
+    };
+}
+
+export function resolveKnobLighting(material: KnobMaterial): KnobLighting {
+    return material.lighting ?? DEFAULT_KNOB_LIGHTING;
+}
+
+/** Screen-space light direction (y down) normalised. */
+export function normalizedLightDir(lighting: KnobLighting): [number, number, number] {
+    const [x, y, z] = lighting.lightDir;
+    const len = Math.hypot(x, y, z) || 1;
+    return [x / len, y / len, z / len];
+}
+
+/** Linear blend of two colours (t = 0 → a, t = 1 → b). */
+export function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
+    return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t };
+}
 
 const DEFAULT_MAJOR_VALUES = [0, 0.5, 1];
 const DEFAULT_DETENT_POSITIONS = [0, 0.5, 1];

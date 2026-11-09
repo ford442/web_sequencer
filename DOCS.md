@@ -108,6 +108,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | File | Description |
 |------|-------------|
 | [VISUAL_STYLE_GUIDE.md](docs/ui/VISUAL_STYLE_GUIDE.md) | Design tokens, bevels, LEDs, typography |
+| [CHASSIS.md](docs/ui/CHASSIS.md) | Expandable white hardware chassis (`?chassis=white`): tokens, container modes, knob caps, panel art |
 | [HELP_DISCOVERY.md](docs/ui/HELP_DISCOVERY.md) | In-app help, tooltips, what's-new banner |
 | [MOBILE_UX.md](docs/ui/MOBILE_UX.md) | Mobile layout and touch UX notes |
 | [HOLOGRAPHIC_KNOBS.md](docs/ui/HOLOGRAPHIC_KNOBS.md) | Holographic 3D knob implementation |

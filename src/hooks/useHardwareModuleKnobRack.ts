@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { KnobGPUContext, type SlotHandle } from '../components/KnobGPUContext';
-import { KNOB_MATERIAL, resolveDetentPositions } from '../components/knobMaterial';
+import { KNOB_MATERIAL, resolveDetentPositions, type KnobMaterial } from '../components/knobMaterial';
 import { renderKnob2D } from '../components/knobRender';
 import {
     isPointerNearArcRing, valueFromArcPointer, createKnobDragAnchor, computeKnobDragValue,
@@ -25,6 +25,8 @@ export interface UseHardwareModuleKnobRackParams {
     /** Called on right-click over a knob that has an automation lane; omit to disable the menu entirely. */
     onKnobContextMenu?: (paramId: string, x: number, y: number) => void;
     isCompact: boolean;
+    /** Knob material for every knob in this rack (e.g. KNOB_MATERIAL_CHASSIS). @default KNOB_MATERIAL */
+    knobMaterial?: KnobMaterial;
 }
 
 /**
@@ -35,8 +37,15 @@ export interface UseHardwareModuleKnobRackParams {
  */
 export function useHardwareModuleKnobRack({
     controls, onParamChange, onMidiTouch, onMidiLearnStart, automationTarget,
-    onAutomationNudge, onAutomationPunchIn, onKnobContextMenu, isCompact,
+    onAutomationNudge, onAutomationPunchIn, onKnobContextMenu, isCompact, knobMaterial = KNOB_MATERIAL,
 }: UseHardwareModuleKnobRackParams) {
+    // Pointer / resize handlers read the material through a ref so a material
+    // swap never re-creates their wiring; registration + 2D render below take it
+    // directly (HardwareModule also remounts the canvases on a material change).
+    const materialRef = useRef(knobMaterial);
+    useLayoutEffect(() => {
+        materialRef.current = knobMaterial;
+    }, [knobMaterial]);
     const containerRef = useRef<HTMLDivElement>(null);
     const cachedRectRef = useRef<DOMRect | null>(null);
     const controlsRef = useRef(controls);
@@ -105,8 +114,8 @@ export function useHardwareModuleKnobRack({
     const renderCanvasAt = useCallback((index: number) => {
         const canvas = knobCanvasRefs.current[index];
         if (!canvas || knobHandlesRef.current[index] !== null) return;
-        renderKnob2D(canvas, getCanvasValueAt(index), KNOB_MATERIAL, getAutomationOverlayAt(index));
-    }, [getCanvasValueAt, getAutomationOverlayAt]);
+        renderKnob2D(canvas, getCanvasValueAt(index), knobMaterial, getAutomationOverlayAt(index));
+    }, [getCanvasValueAt, getAutomationOverlayAt, knobMaterial]);
 
     // Sync controls ref and drive re-renders when values change
     useEffect(() => {
@@ -278,16 +287,16 @@ export function useHardwareModuleKnobRack({
                 ? Math.min(kRect.width, kRect.height) / 2
                 : k.size * Math.min(rect.width, rect.height);
 
-            if (!isPointerNearArcRing(dx, dy, bodyRadius, KNOB_MATERIAL)) {
+            if (!isPointerNearArcRing(dx, dy, bodyRadius, materialRef.current)) {
                 return false;
             }
 
-            const newVal = valueFromArcPointer(dx, dy, KNOB_MATERIAL.geometry, {
+            const newVal = valueFromArcPointer(dx, dy, materialRef.current.geometry, {
                 min: 0,
                 max: 1,
                 step: 0.05,
                 useDetents: k.enableDetentSnap,
-                material: KNOB_MATERIAL,
+                material: materialRef.current,
             });
             onParamChange(k.id, newVal);
             dragLiveValueRef.current = newVal;
@@ -342,14 +351,14 @@ export function useHardwareModuleKnobRack({
                     max: 1,
                     step: 0.05,
                     detentSnap: activeCtrl?.enableDetentSnap
-                        ? { enabled: true, material: KNOB_MATERIAL }
+                        ? { enabled: true, material: materialRef.current }
                         : undefined,
                 }
             );
             dragLiveValueRef.current = newVal;
             if (activeCtrl?.enableDetentSnap && activeCtrl.detentFeedback) {
-                const positions = resolveDetentPositions(KNOB_MATERIAL);
-                const threshold = KNOB_MATERIAL.detents?.snapThreshold ?? 0.035;
+                const positions = resolveDetentPositions(materialRef.current);
+                const threshold = materialRef.current.detents?.snapThreshold ?? 0.035;
                 const idx = snappedDetentIndex(newVal, positions, threshold);
                 if (idx !== null && idx !== lastDetentIndexRef.current) {
                     const mode = activeCtrl.detentFeedback === true ? 'both' : activeCtrl.detentFeedback;
@@ -454,7 +463,7 @@ export function useHardwareModuleKnobRack({
             if (handle && KnobGPUContext.isSlotActive(handle)) {
                 KnobGPUContext.markDirty(handle);
             } else {
-                renderKnob2D(canvas, getCanvasValueAt(index), KNOB_MATERIAL, getAutomationOverlayAt(index));
+                renderKnob2D(canvas, getCanvasValueAt(index), materialRef.current, getAutomationOverlayAt(index));
             }
         };
 
@@ -493,14 +502,14 @@ export function useHardwareModuleKnobRack({
             }
         }
 
-        const handle = KnobGPUContext.register(el, () => getCanvasValueAt(index));
+        const handle = KnobGPUContext.register(el, () => getCanvasValueAt(index), knobMaterial);
         knobHandlesRef.current[index] = handle;
         if (!handle || !KnobGPUContext.isSlotActive(handle)) {
             renderCanvasAt(index);
         } else {
             KnobGPUContext.markDirty(handle);
         }
-    }, [getCanvasValueAt, renderCanvasAt]);
+    }, [getCanvasValueAt, renderCanvasAt, knobMaterial]);
 
     useEffect(() => {
         return KnobGPUContext.onStatusChange(() => {
