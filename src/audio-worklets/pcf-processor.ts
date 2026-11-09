@@ -396,10 +396,8 @@ class PcfProcessor extends AudioWorkletProcessor {
                 this.z1L = this.z2L = this.z1R = this.z2R = 0;
                 this.filtering = false;
             }
-            for (let i = 0; i < blockSize; i++) {
-                outputL[i] = inputL[i];
-                if (output[1]) outputR[i] = inputR[i];
-            }
+            outputL.set(inputL);
+            if (output[1]) outputR.set(inputR);
             return true;
         }
 
@@ -441,20 +439,38 @@ class PcfProcessor extends AudioWorkletProcessor {
         }
 
         // Apply biquad filter (Direct Form II Transposed)
-        for (let i = 0; i < blockSize; i++) {
-            // Left channel
-            const xL = inputL[i];
-            const yL = this.b0 * xL + this.z1L;
-            this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
-            this.z2L = this.b2 * xL - this.a2 * yL;
-            outputL[i] = yL;
+        if (output[1]) {
+            for (let i = 0; i < blockSize; i++) {
+                // Left channel
+                const xL = inputL[i];
+                const yL = this.b0 * xL + this.z1L;
+                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
+                this.z2L = this.b2 * xL - this.a2 * yL;
+                outputL[i] = yL;
 
-            // Right channel
-            const xR = inputR[i];
-            const yR = this.b0 * xR + this.z1R;
-            this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
-            this.z2R = this.b2 * xR - this.a2 * yR;
-            if (output[1]) outputR[i] = yR;
+                // Right channel
+                const xR = inputR[i];
+                const yR = this.b0 * xR + this.z1R;
+                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
+                this.z2R = this.b2 * xR - this.a2 * yR;
+                outputR[i] = yR;
+            }
+        } else {
+            for (let i = 0; i < blockSize; i++) {
+                // Left channel
+                const xL = inputL[i];
+                const yL = this.b0 * xL + this.z1L;
+                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
+                this.z2L = this.b2 * xL - this.a2 * yL;
+                outputL[i] = yL;
+
+                // Right channel
+                const xR = inputR[i];
+                const yR = this.b0 * xR + this.z1R;
+                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
+                this.z2R = this.b2 * xR - this.a2 * yR;
+                // outputR[i] = yR;  // outputR defaults to output[0], which is outputL. No need to write twice.
+            }
         }
 
         return true;
