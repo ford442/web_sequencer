@@ -72,7 +72,9 @@ export const KnobCapSvg = memo(({ rotation, material, size = 48 }: KnobCapSvgPro
                     <line key={deg} x1={0} y1={-(topR + 1.6)} x2={0} y2={-(CAP_R - 0.8)} transform={`rotate(${deg})`} />
                 ))}
             </g>
-            <circle r={CAP_R - 0.5} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+            {cap.rimHighlight > 0 && (
+                <circle r={CAP_R - 0.5} fill="none" stroke={`rgba(255,255,255,${cap.rimHighlight})`} strokeWidth={1} />
+            )}
             <circle r={topR + 0.8} fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth={1.2} />
             <circle r={topR} fill={`url(#${uid}-top)`} />
             <line

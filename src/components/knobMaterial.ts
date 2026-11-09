@@ -85,6 +85,12 @@ export interface KnobCapStyle {
     knurlCount?: number;
     /** Skirt bevel width, fraction of the cap radius. @default 0.12 */
     bevel?: number;
+    /**
+     * Alpha of the 1px white rim highlight on the skirt edge. It separates a
+     * black cap from a dark panel; a white chassis relies on the drop shadow.
+     * @default 0.12
+     */
+    rimHighlight?: number;
 }
 
 /** Shared lighting model for the physical cap — read by WGSL and Canvas2D. */
@@ -262,6 +268,46 @@ export const KNOB_MATERIAL_CHASSIS: KnobMaterial = {
     lighting: DEFAULT_KNOB_LIGHTING,
 };
 
+/**
+ * Physical cap for dark legacy panels (#1581 §6): the same knurled cap and
+ * brushed top as the chassis, but a palette that reads on #0d0f13 (light
+ * ticks, dim graphite track, the default cyan value arc), a subtler contact
+ * shadow and a brighter rim highlight so the black skirt separates from the
+ * panel. Opt-in like `KNOB_MATERIAL_CHASSIS`.
+ */
+export const KNOB_MATERIAL_CAP_DARK: KnobMaterial = {
+    ...KNOB_MATERIAL_CHASSIS,
+    id: 'cap-dark',
+    palette: {
+        ...KNOB_MATERIAL.palette,
+        ring: { r: 0.2, g: 0.22, b: 0.25 },           // unlit arc track
+        scaleMinor: { r: 0.42, g: 0.45, b: 0.5 },
+        scaleMajor: { r: 0.78, g: 0.81, b: 0.85 },
+        scaleLabel: { r: 0.62, g: 0.66, b: 0.7 },
+        detentShadow: { r: 0.02, g: 0.03, b: 0.04 },
+    },
+    cap: {
+        ...KNOB_MATERIAL_CHASSIS.cap!,
+        body: { r: 0.08, g: 0.08, b: 0.09 },
+        rimHighlight: 0.2,
+    },
+    lighting: {
+        ...DEFAULT_KNOB_LIGHTING,
+        dropShadow: { offsetY: 0.07, blur: 0.18, opacity: 0.5 },
+        ledRing: { radius: 1.18, width: 0.06, intensity: 1.1 },
+    },
+};
+
+export type KnobSurface = 'light' | 'dark';
+
+/**
+ * Cap material for a panel surface (`data-surface="light|dark"`): pick once
+ * per panel, not per knob.
+ */
+export function knobCapMaterialForSurface(surface: KnobSurface): KnobMaterial {
+    return surface === 'dark' ? KNOB_MATERIAL_CAP_DARK : KNOB_MATERIAL_CHASSIS;
+}
+
 /** Cap with every optional field resolved, or null when the material has none. */
 export function resolveKnobCap(material: KnobMaterial): Required<KnobCapStyle> | null {
     const cap = material.cap;
@@ -273,6 +319,7 @@ export function resolveKnobCap(material: KnobMaterial): Required<KnobCapStyle> |
         topColor: cap.topColor ?? { r: 0.72, g: 0.73, b: 0.75 },
         knurlCount: Math.max(0, Math.round(cap.knurlCount ?? 36)),
         bevel: cap.bevel ?? 0.12,
+        rimHighlight: Math.max(0, Math.min(1, cap.rimHighlight ?? 0.12)),
     };
 }
 

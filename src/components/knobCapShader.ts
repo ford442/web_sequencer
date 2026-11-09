@@ -176,6 +176,10 @@ export function buildKnobCapShaderCode(material: KnobMaterial): string | null {
           let hd = q - hl_c;
           cap_col = cap_col + vec3f(exp(-dot(hd, hd) / 0.05) * 0.28 * is_top);
 
+          // 1px rim highlight on the skirt edge.
+          let rim_d = abs(rq * cap_r - (cap_r - px));
+          cap_col = cap_col + vec3f(${f(cap.rimHighlight)} * (1.0 - smoothstep(0.0, px, rim_d)));
+
           let cap_cov = 1.0 - smoothstep(1.0 - px / cap_r, 1.0 + px / cap_r, rq);
           acc = over(acc, clamp(cap_col, vec3f(0.0), vec3f(1.0)), cap_cov);
       }
