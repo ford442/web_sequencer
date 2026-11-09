@@ -32,6 +32,7 @@ import { engineEventBus, type EventBus } from '@/audio/controlPlane/EventBus';
 import { VoiceEventRoute } from '@/audio/controlPlane/VoiceEventRoute';
 import { EventField } from '@/shared/rt/eventLayout';
 import { DrumkitEvent, VoiceEvent } from '@/shared/rt/hyphonNativeExports';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
 
 const DRUMKIT_INIT_TIMEOUT_MS = 8000;
 
@@ -182,7 +183,7 @@ export class DrumKitEngine {
     artifact: HyphonNativeArtifact = resolveHyphonNativeArtifact(audioContext).artifact,
   ): Promise<boolean> {
     try {
-      await audioContext.audioWorklet.addModule(workletUrl);
+      await loadWorkletModule(audioContext, workletUrl, 'drumkit-processor');
 
       this.workletNode = new AudioWorkletNode(audioContext, 'drumkit-processor', {
         outputChannelCount: [2],

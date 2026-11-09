@@ -19,9 +19,15 @@ vi.mock('../../../stores/transportMixStore', () => ({
     }
 }));
 
+type LyricDeps = Parameters<typeof useLyricHandlers>[0];
+type MutableDeps = Omit<LyricDeps, 'currentScale' | 'setCurrentScale'> & {
+    currentScale: LyricDeps['currentScale'];
+    setCurrentScale: ReturnType<typeof vi.fn>;
+};
+
 describe('useLyricHandlers', () => {
-    let deps: any;
-    let mockSupertonic: any;
+    let deps: MutableDeps;
+    let mockSupertonic: Record<string, unknown>;
 
     beforeEach(() => {
         mockSupertonic = {
@@ -33,9 +39,9 @@ describe('useLyricHandlers', () => {
             textProcessor: {},
             cfgs: {}
         };
-        (SupertonicService.getInstance as any).mockReturnValue(mockSupertonic);
+        vi.mocked(SupertonicService).getInstance.mockReturnValue(mockSupertonic as unknown as SupertonicService);
 
-        deps = {
+        deps = ({
             audioEngine: {
                 context: { createBuffer: vi.fn().mockReturnValue({ getChannelData: vi.fn().mockReturnValue({ set: vi.fn() }) }) },
                 prepareVocal: vi.fn(),
@@ -58,11 +64,11 @@ describe('useLyricHandlers', () => {
             setActiveAlignment: vi.fn(),
             currentScale: null,
             setCurrentScale: vi.fn(),
-        };
+        } as unknown as MutableDeps);
     });
 
     it('sets Minor scale on negative sentiment when currentScale is null', async () => {
-        const { result } = renderHook(() => useLyricHandlers(deps as any));
+        const { result } = renderHook(() => useLyricHandlers(deps as unknown as LyricDeps));
 
         await act(async () => {
             await result.current.handleTextToDrums('I hate this cold dark pain');
@@ -73,7 +79,7 @@ describe('useLyricHandlers', () => {
 
     it('does not set scale on negative sentiment when currentScale is already set', async () => {
         deps.currentScale = { root: 'D', scale: 'Major', tuning: '12-TET' };
-        const { result } = renderHook(() => useLyricHandlers(deps as any));
+        const { result } = renderHook(() => useLyricHandlers(deps as unknown as LyricDeps));
 
         await act(async () => {
             await result.current.handleTextToDrums('I hate this cold dark pain');

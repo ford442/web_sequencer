@@ -89,7 +89,7 @@ const _chordScratch: string[] = [];
 
 function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
     const isArray = Array.isArray(notes);
-    const len = isArray ? (notes as string[]).length : 1;
+    const len = isArray ? (notes).length : 1;
     if (len <= 1) return notes;
 
     // Cheap exit before any parsing: the voices that sound are at most `len`,

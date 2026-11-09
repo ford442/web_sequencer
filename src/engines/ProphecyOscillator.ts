@@ -34,6 +34,7 @@ import {
 } from '../audio-worklets/hyphonNativeImports';
 import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 import { VoiceEventRoute } from '../audio/controlPlane/VoiceEventRoute';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
 
 /** Milliseconds to wait for the Prophecy worklet to signal readiness. */
 const PROPHECY_INIT_TIMEOUT_MS = 8000;
@@ -145,7 +146,7 @@ export class ProphecyOscillator {
         artifact:     HyphonNativeArtifact = HYPHON_NATIVE_ARTIFACTS.pthread,
     ): Promise<boolean> {
         try {
-            await audioContext.audioWorklet.addModule(workletUrl);
+            await loadWorkletModule(audioContext, workletUrl, 'prophecy-processor');
 
             this.workletNode = new AudioWorkletNode(audioContext, 'prophecy-processor', {
                 outputChannelCount: [2],

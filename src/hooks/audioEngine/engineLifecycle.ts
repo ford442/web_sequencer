@@ -48,7 +48,8 @@ import { automationStore } from '../../stores/automationStore';
 import type { TrackAnalysers } from '../../types';
 import { getStoredLatencyMode, type LatencyMode } from '../../utils/audioLatencyMode';
 import { applyAudioOutputSink } from '../../utils/audioOutputDevice';
-import { createAudioContext, type AudioContextCreation } from './audioContextFactory';
+import type { AudioContextCreation } from './audioContextFactory';
+import { audioRuntime, ensureRunning } from '../../audio/runtime/AudioRuntime';
 import {
     createNoiseBuffer,
     initializeHarmonizer,
@@ -57,7 +58,6 @@ import {
 } from './initialization';
 
 type AudioWindow = Window & typeof globalThis & {
-    webkitAudioContext?: typeof AudioContext;
     audioContext?: AudioContext;
 };
 
@@ -131,7 +131,8 @@ export async function initializeAudioContextAndEngines(
 ): Promise<EngineLifecycleResult> {
     const audioWindow = window as AudioWindow;
     loadingProgressStore.startStep('audioContext');
-    const created = precreated ?? createAudioContext(latencyHint);
+    const created = precreated ?? audioRuntime.createLiveContext(latencyHint);
+    audioRuntime.adopt(created);
     const context = created.context;
     loadingProgressStore.completeStep('audioContext');
     audioWindow.audioContext = context;
@@ -149,7 +150,7 @@ export async function initializeAudioContextAndEngines(
 
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {
-        await context.resume();
+        await ensureRunning('programmatic');
         console.log("AudioContext resumed");
     }
 

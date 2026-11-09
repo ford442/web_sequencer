@@ -251,6 +251,8 @@ Before opening a PR, `pnpm run lint:ratchet` must exit 0, and `eslint-baseline.j
 
 `pnpm lint` also runs the dead-code gate (`scripts/knip-ratchet.mjs`, config `knip.json`): a module that no production entry reaches — `src/main.tsx` and everything it imports, lazily or as a `?worker&url` worklet / worker, plus `scripts/**` and `tools/**` — fails lint. A test import does not count. Delete it or wire it in; `knip-baseline.json` only lists orphans that predate the gate and may only shrink (`pnpm run lint:knip:update`).
 
+Load worklet modules through `loadWorkletModule` (`src/audio/runtime/`), never `addModule` directly; resume the live context with `ensureRunning`, never `resume()` (see [docs/audio-engine/audio-runtime.md](docs/audio-engine/audio-runtime.md)).
+
 ```bash
 # Run unit tests (default PR gate — hermetic, no WASM build)
 pnpm run test:unit

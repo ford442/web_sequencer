@@ -247,9 +247,9 @@ chorus, sub harmonics, duck).
 | Case | TS (JIT-warm) | Native | Gate |
 |------|---------------|--------|------|
 | Post-retrieve chain, 128-frame quantum | ~0.040 ms | ~0.024 ms (**~1.7×**) | 0.5 ms ceiling; native median ≤ baseline × 1.25 (native/TS ratio logged, not gated) |
-| Freeze granulator, 1024-frame feed | ~0.11 ms | ~0.08 ms (**~1.4×**) | native median ≤ baseline × 1.25; native < TS |
+| Freeze granulator, 1024-frame feed | ~0.11 ms | ~0.08 ms (**~1.4×**) | native median ≤ baseline × 1.25 (native/TS ratio logged, not gated) |
 
-The quantum case does not gate on native < TS: two implementations racing on a shared CI runner is not a regression signal (it failed at 0.01652 vs 0.01570 ms on #1548 while the budget passed), so the absolute ceiling and the 1.25× baseline ratio are the gate and the native/TS speedup is only logged.
+Neither the quantum case nor the freeze-granulator case gates on native < TS: two implementations racing on a shared CI runner is not a regression signal (it failed at 0.01652 vs 0.01570 ms on #1548 while the budget passed), so the absolute ceiling and the 1.25× baseline ratio are the gate and the native/TS speedup is only logged.
 
 Figures are medians from a local Linux run (emcc 6.0.3, Node 24). Re-baseline
 `src/test/perf-baselines/vocalFx.native.*.json` from the first CI `perf-summary.json`.

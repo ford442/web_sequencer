@@ -9,54 +9,14 @@
  * posts every frame back, so nothing is lost to main-thread jank.
  */
 
+import { ensureRunning } from '../audio/runtime/AudioRuntime';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
+
 const PROCESSOR_NAME = 'hyphon-agent-recorder';
 
-/** Batches 128-frame quanta into ~4096-frame stereo chunks; silence when unconnected. */
-const RECORDER_SOURCE = `
-class HyphonAgentRecorder extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.active = true;
-    this.left = new Float32Array(4096);
-    this.right = new Float32Array(4096);
-    this.fill = 0;
-    this.port.onmessage = (e) => {
-      if (e.data === 'stop') {
-        this.flush();
-        this.active = false;
-        this.port.postMessage('stopped');
-      }
-    };
-  }
-  flush() {
-    if (this.fill === 0) return;
-    this.port.postMessage([this.left.slice(0, this.fill), this.right.slice(0, this.fill)]);
-    this.fill = 0;
-  }
-  process(inputs) {
-    if (!this.active) return false;
-    const input = inputs[0];
-    const l = input && input[0];
-    const r = (input && input[1]) || l;
-    const n = l ? l.length : 128;
-    for (let i = 0; i < n; i++) {
-      this.left[this.fill] = l ? l[i] : 0;
-      this.right[this.fill] = r ? r[i] : 0;
-      if (++this.fill === this.left.length) this.flush();
-    }
-    return true;
-  }
-}
-registerProcessor('${PROCESSOR_NAME}', HyphonAgentRecorder);
-`;
-
-const loadedContexts = new WeakSet<BaseAudioContext>();
-
 async function ensureRecorder(context: AudioContext): Promise<void> {
-    if (loadedContexts.has(context)) return;
     const { default: workerUrl } = await import('./worklet/agent-recorder-processor.worker.ts?worker&url');
-    await context.audioWorklet.addModule(workerUrl);
-    loadedContexts.add(context);
+    await loadWorkletModule(context, workerUrl, PROCESSOR_NAME);
 }
 
 /** A call, so TS does not narrow `state` across `await resume()`. */
@@ -78,7 +38,7 @@ export async function captureTap(
     seconds: number,
     during: () => void,
 ): Promise<LiveCaptureResult> {
-    if (stateOf(context) !== 'running') await context.resume();
+    if (stateOf(context) !== 'running') await ensureRunning('programmatic', context);
     const state = stateOf(context);
     if (state !== 'running') {
         throw new Error(`AudioContext is ${state}; live capture needs a running clock`);

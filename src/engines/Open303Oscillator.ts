@@ -33,6 +33,7 @@ import {
 import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 import { VoiceEventRoute } from '../audio/controlPlane/VoiceEventRoute';
 import { OPEN303_PARAM_IDS } from '../audio-worklets/open303/shared';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
 // Open303 DSP lives inside hyphon_native (see emscripten/open303_wrapper.cpp,
 // integrated in commit aa4fc93), built as a pthread and a single-threaded module;
 // resolveHyphonNativeArtifact picks one per audio context.
@@ -193,7 +194,7 @@ export class Open303Oscillator {
     ): Promise<boolean> {
         try {
             // Add the Worklet Module and create the node
-            await audioContext.audioWorklet.addModule(workletUrl);
+            await loadWorkletModule(audioContext, workletUrl, 'open303-processor');
 
             this.workletNode = new AudioWorkletNode(audioContext, 'open303-processor', {
                 // Output 0 is the voice (stereo). Output 1 is the live A/B
