@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { LoadingButton } from './LoadingButton';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { ensureRunning } from '../audio/runtime/AudioRuntime';
 
 interface StartOverlayProps {
     onStart: () => void;
@@ -79,11 +80,11 @@ function installE2EAudioUnlock(): void {
         return Promise.resolve();
     };
 
-    const reuse = function (this: unknown) {
+    const reuse = function (this: unknown, ...args: ConstructorParameters<typeof AudioContext>) {
         if (w.audioContext && w.audioContext.state !== 'closed') {
             return w.audioContext;
         }
-        const ctx = new Orig();
+        const ctx = new Orig(...args);
         w.audioContext = ctx;
         return ctx;
     } as unknown as typeof AudioContext;
@@ -119,7 +120,7 @@ function gestureResumeForE2E(): void {
         if (!w.audioContext || w.audioContext.state === 'closed') {
             w.audioContext = new Ctor();
         }
-        void w.audioContext.resume();
+        void ensureRunning('click', w.audioContext);
     } catch {
         // ignore
     }
@@ -153,6 +154,8 @@ export const StartOverlay: React.FC<StartOverlayProps> = React.memo(({
     const handleStart = useCallback(() => {
         // Same synchronous turn as the click — best-effort real resume + start.
         gestureResumeForE2E();
+        // Records the gesture; resumes the live context when one already exists.
+        void ensureRunning('click');
         onStart();
     }, [onStart]);
 

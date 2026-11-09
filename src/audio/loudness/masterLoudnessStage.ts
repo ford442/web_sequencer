@@ -19,6 +19,7 @@ import {
     type MasterLoudnessCommand,
     type MasterLoudnessReport,
 } from './types';
+import { loadWorkletModule } from '../runtime/workletRegistry';
 
 /** Coalesce rapid knob movements into one message per animation-ish frame. */
 const PARAM_DEBOUNCE_MS = 30;
@@ -161,7 +162,7 @@ export async function createMasterLoudnessStage(
     }
 
     try {
-        await context.audioWorklet.addModule(masterLoudnessProcessorUrl);
+        await loadWorkletModule(context, masterLoudnessProcessorUrl, MASTER_LOUDNESS_PROCESSOR_NAME);
         const node = new AudioWorkletNode(context, MASTER_LOUDNESS_PROCESSOR_NAME, {
             numberOfInputs: 1,
             numberOfOutputs: 1,

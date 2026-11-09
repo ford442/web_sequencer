@@ -1,20 +1,14 @@
+import { ensureRunning } from '../../audio/runtime/AudioRuntime';
+import { loadWorkletModule } from '../../audio/runtime/workletRegistry';
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
 import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
 import type { ClockStepMessage } from '../../shared/rt/clock';
 import { STEP_LOOKAHEAD_MS, type StepCallback, type TransportClock, type TransportSyncTelemetry } from './types';
 
-let clockModulePromise: Promise<void> | null = null;
-
 function ensureClockModule(context: AudioContext): Promise<void> {
-  if (!clockModulePromise) {
-    clockModulePromise = import('../../audio-worklets/clock-processor.ts?worker&url')
-      .then(({ default: url }) => context.audioWorklet.addModule(url))
-      .catch((err) => {
-        clockModulePromise = null;
-        throw err;
-      });
-  }
-  return clockModulePromise;
+  // The registry keeps one load per context, so a re-init context loads it too.
+  return import('../../audio-worklets/clock-processor.ts?worker&url')
+    .then(({ default: url }) => loadWorkletModule(context, url, 'clock-processor'));
 }
 
 /**
@@ -51,7 +45,7 @@ export class InternalClockAdapter implements TransportClock {
 
     this.startPromise = (async () => {
       if (this.context.state === 'suspended') {
-        await this.context.resume();
+        await ensureRunning('programmatic', this.context);
       }
 
       if (isAppleWebKit()) {

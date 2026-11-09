@@ -23,6 +23,7 @@ import {
     type OpenrbLowpassProcessorOptions,
 } from '../../audio-worklets/openrbLowpass';
 import type { OpenrbLowpassBranch, OpenrbLowpassProvider } from '../graph/lowpassMode';
+import { loadWorkletModule } from '../runtime/workletRegistry';
 
 /** The opt-in module URL, or `null` (the default) when the build names none. */
 export function openrbModuleUrl(): string | null {
@@ -120,7 +121,7 @@ export async function createOpenrbLowpassProvider(
     const module = options.module !== undefined ? options.module : await loadOpenrbModule();
     if (!module || !context.audioWorklet) return null;
     try {
-        await context.audioWorklet.addModule(processorUrl);
+        await loadWorkletModule(context, processorUrl, OPENRB_LOWPASS_PROCESSOR);
     } catch (error) {
         console.warn('[openrbLowpass] worklet failed to load; openrb low-pass plays RBJ:', error);
         return null;

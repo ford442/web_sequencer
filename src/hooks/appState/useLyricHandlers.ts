@@ -169,7 +169,7 @@ export function useLyricHandlers(deps: {
 
                 if (stepIdx >= 0 && stepIdx < newBass2.steps.length && newBass2.steps[stepIdx]) {
                     newBass2.steps[stepIdx] = {
-                        ...newBass2.steps[stepIdx]!,
+                        ...newBass2.steps[stepIdx],
                         filterCutoff: 200 + (phraseProgress * 3000)
                     };
                 }

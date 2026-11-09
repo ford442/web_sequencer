@@ -1,7 +1,6 @@
-import React, { createContext, useContext } from 'react';
+import React, { useContext } from 'react';
 import { useCompactLayout, type CompactLayoutState } from '../hooks/useCompactLayout';
-
-const CompactLayoutContext = createContext<CompactLayoutState | null>(null);
+import { CompactLayoutContext } from './compactLayoutStore';
 
 export function CompactLayoutProvider({ children }: { children: React.ReactNode }) {
     const value = useCompactLayout();
@@ -10,14 +9,6 @@ export function CompactLayoutProvider({ children }: { children: React.ReactNode 
             {children}
         </CompactLayoutContext.Provider>
     );
-}
-
-export function useCompactLayoutContext(): CompactLayoutState {
-    const ctx = useContext(CompactLayoutContext);
-    if (!ctx) {
-        throw new Error('useCompactLayoutContext must be used within CompactLayoutProvider');
-    }
-    return ctx;
 }
 
 /** Safe fallback when provider is absent (tests / Storybook). */

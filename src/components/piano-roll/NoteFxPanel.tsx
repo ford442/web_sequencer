@@ -214,10 +214,16 @@ export const NoteFxPanel = memo(({ trackLabel, chain, onChange, onFreeze, onAuto
 
             <button
                 type="button"
-                disabled={!active}
-                onClick={onFreeze}
-                title="Write the chain's notes into the pattern (undoable) and bypass the chain"
-                className="px-2 py-1 rounded border text-[10px] font-mono uppercase tracking-wider bg-[#11151b] border-amber-600/60 text-amber-200 hover:text-white disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                aria-disabled={!active}
+                onClick={(e) => {
+                    if (!active) {
+                        e.preventDefault();
+                        return;
+                    }
+                    onFreeze();
+                }}
+                title={!active ? "Enable a note FX module to freeze the chain" : "Write the chain's notes into the pattern (undoable) and bypass the chain"}
+                className={`px-2 py-1 rounded border text-[10px] font-mono uppercase tracking-wider bg-[#11151b] border-amber-600/60 text-amber-200 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${!active ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
                 Freeze to pattern
             </button>

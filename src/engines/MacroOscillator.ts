@@ -29,6 +29,7 @@ import {
 import { hyphonNativeBackendName, resolveHyphonNativeArtifact } from './hyphonNativeVariant';
 import { attachWorkletPerf } from '../utils/workletPerfBridge';
 import type { MacroParamId } from './MacroParams';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
 
 /** Milliseconds to wait for the macro worklet to signal readiness. */
 const MACRO_INIT_TIMEOUT_MS = 8000;
@@ -125,7 +126,7 @@ export class MacroOscillator {
         label = 'macro',
     ): Promise<boolean> {
         try {
-            await audioContext.audioWorklet.addModule(workletUrl);
+            await loadWorkletModule(audioContext, workletUrl, 'macro-processor');
             this.workletNode = new AudioWorkletNode(audioContext, 'macro-processor', {
                 outputChannelCount: [2],
             });

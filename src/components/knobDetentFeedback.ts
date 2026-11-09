@@ -1,30 +1,29 @@
-/** Short tick via Web Audio when crossing a detent (opt-in per control). */
-let sharedAudioContext: AudioContext | null = null;
+import { audioRuntime } from '../audio/runtime/AudioRuntime';
 
+/**
+ * Short tick via Web Audio when crossing a detent (opt-in per control).
+ * Plays on the engine's live context from the audio runtime — no second
+ * AudioContext, clock or output path. Before the engine exists, or while its
+ * context is not running, the tick is silent (the haptic still fires).
+ */
 export function playDetentTick(): void {
-    if (typeof window === 'undefined') return;
+    const ctx = audioRuntime.context;
+    if (!ctx || ctx.state !== 'running') return;
     try {
-        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctx) return;
-        if (!sharedAudioContext) sharedAudioContext = new Ctx();
-        if (sharedAudioContext.state === 'suspended') {
-            void sharedAudioContext.resume();
-        }
-
-        const osc = sharedAudioContext.createOscillator();
-        const gain = sharedAudioContext.createGain();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.value = 2800;
-        const now = sharedAudioContext.currentTime;
+        const now = ctx.currentTime;
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.exponentialRampToValueAtTime(0.06, now + 0.002);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
         osc.connect(gain);
-        gain.connect(sharedAudioContext.destination);
+        gain.connect(ctx.destination);
         osc.start(now);
         osc.stop(now + 0.03);
     } catch {
-        // Audio may be blocked until user gesture — fail silently.
+        // A context mid-teardown can throw on node creation — stay silent.
     }
 }
 

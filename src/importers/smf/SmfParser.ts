@@ -399,7 +399,7 @@ export function parseSmfBytes(
     notes.sort((a, b) => a.startTick - b.startTick);
 
     const data: ParsedSmf = {
-      format: format as 0 | 1,
+      format: format,
       ppq,
       trackCount: tracks.length,
       tracks,

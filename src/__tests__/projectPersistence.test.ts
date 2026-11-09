@@ -108,7 +108,7 @@ describe('saveSessionToLocalStorage', () => {
     it('the stored value is valid JSON containing tempo', () => {
         const storage = makeMockStorage();
         saveSessionToLocalStorage(BASE_SONG, storage);
-        const parsed = JSON.parse(storage.store['hyphon:autosave:v1']!);
+        const parsed = JSON.parse(storage.store['hyphon:autosave:v1']);
         expect(parsed.tempo).toBe(120);
     });
 

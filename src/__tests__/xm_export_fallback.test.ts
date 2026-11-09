@@ -104,7 +104,7 @@ describe('XM Export Fallback Pattern', () => {
                     fillPatternFromSequence(seq, 'sampler', idx);
                 });
             } else {
-                const sequence = currentPattern[trackKey] as PartSequence;
+                const sequence = currentPattern[trackKey];
                 if (sequence) {
                     fillPatternFromSequence(sequence, trackKey);
                 }

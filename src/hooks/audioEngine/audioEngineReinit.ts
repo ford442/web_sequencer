@@ -2,7 +2,8 @@
 // with no React tree, so the live engine hook registers its re-init routine
 // here and the HUD calls `reinitAudioEngineFromGesture` from a click handler.
 
-import { createAudioContext, type AudioContextCreation } from './audioContextFactory';
+import type { AudioContextCreation } from './audioContextFactory';
+import { audioRuntime, ensureRunning } from '../../audio/runtime/AudioRuntime';
 
 export type AudioEngineReinitHandler = (created: AudioContextCreation) => Promise<void>;
 
@@ -37,18 +38,12 @@ export function reinitAudioEngineFromGesture(): Promise<boolean> {
 
     let created: AudioContextCreation;
     try {
-        created = createAudioContext();
+        created = audioRuntime.createLiveContext();
     } catch (e) {
         return Promise.reject(e instanceof Error ? e : new Error(String(e)));
     }
-    const resumed = created.context.state === 'suspended'
-        ? created.context.resume()
-        : Promise.resolve();
-
-    return resumed
-        .catch((e: unknown) => {
-            console.warn('[audioEngineReinit] resume() rejected; continuing', e);
-        })
+    // Issued synchronously inside the gesture; never rejects (the runtime logs).
+    return ensureRunning('click')
         .then(() => run(created))
         .then(() => true);
 }

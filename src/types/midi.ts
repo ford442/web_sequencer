@@ -5,7 +5,7 @@ export type MidiControlTarget = AutomationTarget | 'session';
 export type MidiControlId = `${MidiControlTarget}:${string}`;
 
 export function makeMidiControlId(target: MidiControlTarget, param: string): MidiControlId {
-  return `${target}:${param}` as MidiControlId;
+  return `${target}:${param}`;
 }
 
 export function parseMidiControlId(id: MidiControlId): { target: MidiControlTarget; param: string } {
