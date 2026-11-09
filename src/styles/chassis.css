@@ -276,6 +276,44 @@
   }
 }
 
+/* Sampler-family stage (#1582): rack on top, voice deck (TTS + Voice
+   Designer) beneath it. The rack keeps whatever the deck leaves. */
+.hyphon-chassis__sampler-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.hyphon-chassis__rack-slot {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.hyphon-chassis__deck {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
+}
+
+.hyphon-chassis__deck-label {
+  font: 700 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ff6b6b;
+}
+
+@media (max-width: 640px) {
+  .hyphon-chassis__deck {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+}
+
 /* Bottom anchor: key bed. */
 .hyphon-chassis__keybed {
   flex: none;
@@ -481,6 +519,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hyphon-chassis__panel,
+  .hyphon-chassis__deck,
   .hyphon-osc-art__img {
     animation: none;
   }

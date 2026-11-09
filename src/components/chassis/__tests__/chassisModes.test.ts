@@ -3,8 +3,13 @@ import {
     CHASSIS_MODES,
     CHASSIS_MODE_ORDER,
     chassisModeForTrack,
+    DEFAULT_SAMPLER_CHASSIS_MODE,
+    SAMPLER_CHASSIS_MODES,
+    chassisModeHasVoiceDeck,
     getChassisFootprint,
     isChassisQuery,
+    isSamplerChassisMode,
+    resolveChassisMode,
     trackForChassisMode,
 } from '../chassisModes';
 
@@ -53,9 +58,33 @@ describe('chassis modes (#1584)', () => {
     });
 
     it('modes without a live rack panel select no track', () => {
-        expect(trackForChassisMode('vd', 'partA')).toBeNull();
-        expect(trackForChassisMode('tts', 'sampler')).toBeNull();
         expect(trackForChassisMode('pcf', 'kick')).toBeNull();
+    });
+
+    it('TTS and VD host the sampler track (#1582)', () => {
+        expect(trackForChassisMode('tts', 'partA')).toBe('sampler');
+        expect(trackForChassisMode('vd', 'kick')).toBe('sampler');
+        expect(trackForChassisMode('tts', 'sampler')).toBe('sampler');
+        for (const mode of SAMPLER_CHASSIS_MODES) expect(isSamplerChassisMode(mode)).toBe(true);
+        expect(isSamplerChassisMode('osc')).toBe(false);
+        expect(isSamplerChassisMode('pcf')).toBe(false);
+    });
+
+    it('selecting the sampler expands to its remembered view; other tracks ignore it', () => {
+        expect(DEFAULT_SAMPLER_CHASSIS_MODE).toBe('tts');
+        expect(resolveChassisMode('sampler', 'tts')).toBe('tts');
+        expect(resolveChassisMode('sampler', 'smp')).toBe('smp');
+        expect(resolveChassisMode('sampler', 'vd')).toBe('vd');
+        expect(resolveChassisMode('partA', 'vd')).toBe('osc');
+        expect(resolveChassisMode('kick', 'tts')).toBe('drm');
+    });
+
+    it('only TTS and VD show the voice deck, and both expand past the sampler rack', () => {
+        expect(CHASSIS_MODE_ORDER.filter(chassisModeHasVoiceDeck)).toEqual(['tts', 'vd']);
+        for (const mode of ['tts', 'vd'] as const) {
+            expect(getChassisFootprint(mode).stageHeight).toBeGreaterThan(getChassisFootprint('smp').stageHeight);
+            expect(getChassisFootprint(mode, true).stageHeight).toBeGreaterThan(getChassisFootprint('smp', true).stageHeight);
+        }
     });
 
     it('opts in only on ?chassis / ?chassis=white / ?chassis=1', () => {
