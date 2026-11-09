@@ -106,6 +106,28 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   macro: '/osc/macro.webp',
 };
 
+/**
+ * Where each artwork's signature (title / LCD) sits, as a CSS object-position,
+ * so a cover-cropped window into the panel keeps the recognisable part.
+ */
+export const OSCILLATOR_PANEL_FOCUS: Record<OscillatorType, string> = {
+  javascript: '30% 22%',
+  pcm: '50% 14%',
+  open303: '50% 12%',
+  jc303: '40% 14%',
+  prophecy: '50% 32%',
+  pyodide: '50% 20%',
+  webgpu: '50% 20%',
+  wam: '50% 22%',
+  macro: '50% 18%',
+};
+
+/** Deploy-safe URL for a family's panel art (respects Vite's BASE_URL). */
+export function oscillatorPanelImageUrl(type: OscillatorType): string {
+  const base = import.meta.env.BASE_URL ?? '/';
+  return `${base.endsWith('/') ? base : `${base}/`}${OSCILLATOR_PANEL_IMAGES[type].replace(/^\//, '')}`;
+}
+
 /** Derive the OscillatorType from a concrete Waveform + optional engine303 override. */
 export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine303): OscillatorType {
   const w = waveform as string;

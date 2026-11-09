@@ -1,5 +1,6 @@
 @import './accessibility.css';
 @import './styles/hyphon-theme.css';
+@import './styles/chassis.css';
 
 @tailwind base;
 @tailwind components;

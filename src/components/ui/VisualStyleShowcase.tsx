@@ -6,6 +6,8 @@ import React, { memo } from 'react';
 import { LedIndicator } from './PanelChrome';
 import { RackPanelChrome } from './RackPanelChrome';
 import { PanelTitleBar } from './PanelChrome';
+import { ChassisShowcase } from './ChassisShowcase';
+import { ChassisMaterialsShowcase } from './ChassisMaterialsShowcase';
 
 export const VisualStyleShowcase = memo(() => (
   <div className="fixed inset-0 z-[200] overflow-y-auto bg-hyphon-deep p-6 font-mono text-gray-200">
@@ -86,6 +88,9 @@ export const VisualStyleShowcase = memo(() => (
           ))}
         </div>
       </section>
+
+      <ChassisShowcase />
+      <ChassisMaterialsShowcase />
     </div>
   </div>
 ));

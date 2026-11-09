@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import bezelImg from './assets/knob-bezel.webp';
 import { KnobGPUContext } from './KnobGPUContext';
 import type { KnobMaterial } from './knobMaterial';
+import { KnobCapSvg } from './KnobCapSvg';
 import {
     KNOB_MATERIAL,
     resolveTickPositions,
@@ -207,7 +208,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const handle = KnobGPUContext.register(canvas, () => renderValueRef.current);
+        const handle = KnobGPUContext.register(canvas, () => renderValueRef.current, material);
         gpuHandleRef.current = handle;
         if (!handle || !KnobGPUContext.isSlotActive(handle)) {
             renderKnob2D(canvas, renderValueRef.current, material);
@@ -462,7 +463,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                         }}
                     />
                 </div>
-                <span className="text-xs font-orbitron text-cyan-400 mt-1 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">
+                <span className="hyphon-knob-label text-xs font-orbitron text-cyan-400 mt-1 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">
                     {label}
                 </span>
                 {isAutomated && (
@@ -486,7 +487,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                 {isAutomated && <KnobAutomationRing className="inset-0" style={{ zIndex: 1 }} />}
                 <div
                     {...interactionProps}
-                    className={`w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center cursor-pointer select-none border-2 border-gray-600 focus:outline-none ${FOCUS_BORDER_CLASSES[color]}`}
+                    className={`w-16 h-16 ${material.cap ? 'border-transparent' : 'bg-gray-700 border-gray-600'} rounded-full flex items-center justify-center cursor-pointer select-none border-2 focus:outline-none ${FOCUS_BORDER_CLASSES[color]}`}
                     title={label}
                     data-testid={testId}
                 >
@@ -511,11 +512,11 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                                     y1={tick.y1}
                                     x2={tick.x2}
                                     y2={tick.y2}
-                                    stroke={tick.isMajor ? '#33ffff' : '#00bfd9'}
+                                    stroke={rgbToHex(tick.isMajor ? material.palette.scaleMajor : material.palette.scaleMinor)}
                                     strokeWidth={tick.isMajor ? 2 : 1}
                                     strokeLinecap="round"
                                 />
-                                {KNOB_MATERIAL.scale?.showLabels && tick.isMajor && (
+                                {material.scale?.showLabels && tick.isMajor && (
                                     <text
                                         x={tick.lx}
                                         y={tick.ly}
@@ -551,6 +552,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                             </g>
                         ))}
                     </svg>
+                    {material.cap ? <KnobCapSvg rotation={rotation} material={material} /> : (
                     <div
                         className="w-12 h-12 bg-gray-800 rounded-full relative shadow-inner"
                         data-testid="knob-needle"
@@ -578,6 +580,7 @@ export const HardwareKnob: React.FC<HardwareKnobProps> = memo(({
                             <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${COLOR_CLASSES[color]}`} />
                         )}
                     </div>
+                    )}
                 </div>
             </div>
             <span className="text-xs text-gray-400 uppercase tracking-wider">{label}</span>

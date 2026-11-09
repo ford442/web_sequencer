@@ -22,6 +22,8 @@ import type { HighFidCoefficients, TB303VoiceExtra } from '../../types'
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../components/oscillatorThemes'
+import { ChassisOnly } from '../../components/chassis/ChassisOnly'
+import { OscillatorPanelArt } from '../../components/chassis/OscillatorPanelArt'
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
 
 /**
@@ -156,6 +158,9 @@ export function useHardwarePanels(deps: {
         return (
             <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
                 <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
+                <ChassisOnly>
+                    <OscillatorPanelArt type={currentTypeA} />
+                </ChassisOnly>
                 <OscillatorTypeSelector
                     type={currentTypeA}
                     onChange={handleSynthATypeChange}
@@ -245,6 +250,9 @@ export function useHardwarePanels(deps: {
         return (
             <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
                 <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
+                <ChassisOnly>
+                    <OscillatorPanelArt type={currentTypeB} />
+                </ChassisOnly>
                 <OscillatorTypeSelector
                     type={currentTypeB}
                     onChange={handleSynthBTypeChange}
@@ -309,6 +317,9 @@ export function useHardwarePanels(deps: {
         return (
         <div className="absolute top-4 right-6 pointer-events-none">
             <div className="pointer-events-auto flex flex-col gap-2 p-2 rounded-lg bg-zinc-950/80 border border-pink-500/20 w-fit">
+                <ChassisOnly>
+                    <OscillatorPanelArt type={bass2Type} height={64} />
+                </ChassisOnly>
                 <OscillatorVariantSelector
                     type={bass2Type}
                     selected={bass2.waveform}

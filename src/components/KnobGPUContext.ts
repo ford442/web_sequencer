@@ -24,6 +24,8 @@ interface Slot {
     surface: ConfiguredCanvas;
     getValue: () => number;
     uniformBuffer: GPUBuffer;
+    /** Pipeline compiled for this slot's material (shared per material). */
+    pipeline: GPURenderPipeline;
     bindGroup: GPUBindGroup;
     dirty: boolean;
     /** Drag / hover / keyboard-focus — only this knob advances the time uniform. */
@@ -36,6 +38,7 @@ interface Registration {
     canvas: HTMLCanvasElement;
     getValue: () => number;
     animated: boolean;
+    material: KnobMaterial;
 }
 
 /** Snapshot for useSyncExternalStore — bumped only on pause/status/registry size. */
@@ -58,6 +61,7 @@ export interface KnobGpuDebugStats {
 
 import { KNOB_MATERIAL, rgbToWgsl, resolveTickPositions, resolveDetentPositions, tickAnglesToWgslArray, tickMajorFlagsToWgslArray, detentAnglesToWgslArray, usesHardwarePointer } from './knobMaterial';
 import type { KnobMaterial } from './knobMaterial';
+import { buildKnobCapShaderCode } from './knobCapShader';
 import { getPrefersReducedMotion, resolveKnobTimeUniform, shouldAnimateKnob, subscribeReducedMotion } from './knobMotion';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { loadingProgressStore } from '../stores/loadingProgressStore';
@@ -74,6 +78,10 @@ type SnapshotListener = () => void;
 // to grow.  This keeps the buffer at 4 floats (32 bytes) and avoids re-creating
 // the shader module per knob.
 export function buildKnobShaderCode(material: KnobMaterial = KNOB_MATERIAL): string {
+    // Physical-cap materials (#1581) get their own fragment; the holographic
+    // template below is unchanged for every other material.
+    const capShader = buildKnobCapShaderCode(material);
+    if (capShader) return capShader;
     const tickAngles = tickAnglesToWgslArray(material);
     const tickMajorFlags = tickMajorFlagsToWgslArray(material);
     const tickCount = resolveTickPositions(material).length;
@@ -275,6 +283,8 @@ const SHADER_CODE = buildKnobShaderCode();
 class KnobGPUContextClass {
     private device: GPUDevice | null = null;
     private pipeline: GPURenderPipeline | null = null;
+    /** One pipeline per material; KNOB_MATERIAL maps to `pipeline`. */
+    private pipelines = new Map<KnobMaterial, GPURenderPipeline>();
     private format: GPUTextureFormat | null = null;
     private slots = new Map<number, Slot>();
     private scratchUniforms = new Float32Array(4);
@@ -503,7 +513,11 @@ class KnobGPUContextClass {
         }
     }
 
-    register(canvas: HTMLCanvasElement, getValue: () => number): SlotHandle | null {
+    register(
+        canvas: HTMLCanvasElement,
+        getValue: () => number,
+        material: KnobMaterial = KNOB_MATERIAL,
+    ): SlotHandle | null {
         this.ensureEnvironmentListeners();
 
         if (!navigator.gpu) {
@@ -513,7 +527,7 @@ class KnobGPUContextClass {
         }
 
         const id = this.nextId++;
-        this.registrations.set(id, { canvas, getValue, animated: false });
+        this.registrations.set(id, { canvas, getValue, animated: false, material });
         this.pendingIds.add(id);
         this.setStatus('initializing');
         this.bumpSnapshot();
@@ -528,7 +542,7 @@ class KnobGPUContextClass {
                 return;
             }
 
-            if (this.attachSlot(id, canvas, getValue)) {
+            if (this.attachSlot(id, canvas, getValue, material)) {
                 this.setStatus('active');
                 this.resolveDegradation();
                 this.consecutiveRenderFailures = 0;
@@ -562,9 +576,36 @@ class KnobGPUContextClass {
         slot.inViewport = true;
     }
 
-    private attachSlot(id: number, canvas: HTMLCanvasElement, getValue: () => number): boolean {
+    /** Compile (once) the pipeline for a material on the current device. */
+    private pipelineFor(material: KnobMaterial): GPURenderPipeline | null {
+        if (!this.device || !this.format) return null;
+        const cached = this.pipelines.get(material);
+        if (cached) return cached;
+        const shaderModule = this.device.createShaderModule({ code: buildKnobShaderCode(material) });
+        const pipeline = this.device.createRenderPipeline({
+            layout: 'auto',
+            vertex: { module: shaderModule, entryPoint: 'vs_main' },
+            fragment: {
+                module: shaderModule,
+                entryPoint: 'fs_main',
+                targets: [{ format: this.format }],
+            },
+            primitive: { topology: 'triangle-list' },
+        });
+        this.pipelines.set(material, pipeline);
+        return pipeline;
+    }
+
+    private attachSlot(
+        id: number,
+        canvas: HTMLCanvasElement,
+        getValue: () => number,
+        material: KnobMaterial = KNOB_MATERIAL,
+    ): boolean {
         if (!this.device || !this.pipeline || !this.format) return false;
         try {
+            const pipeline = this.pipelineFor(material);
+            if (!pipeline) return false;
             const surface = configureCanvas(canvas, {
                 device: this.device,
                 format: this.format,
@@ -578,7 +619,7 @@ class KnobGPUContextClass {
             });
 
             const bindGroup = this.device.createBindGroup({
-                layout: this.pipeline.getBindGroupLayout(0),
+                layout: pipeline.getBindGroupLayout(0),
                 entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
             });
 
@@ -588,6 +629,7 @@ class KnobGPUContextClass {
                 surface,
                 getValue,
                 uniformBuffer,
+                pipeline,
                 bindGroup,
                 dirty: true,
                 animated: reg?.animated ?? false,
@@ -720,7 +762,7 @@ class KnobGPUContextClass {
 
         let attached = 0;
         for (const [id, reg] of this.registrations) {
-            if (this.attachSlot(id, reg.canvas, reg.getValue)) attached++;
+            if (this.attachSlot(id, reg.canvas, reg.getValue, reg.material)) attached++;
         }
 
         if (attached > 0) {
@@ -751,6 +793,7 @@ class KnobGPUContextClass {
         this.pauseLoop();
         this.device = null;
         this.pipeline = null;
+        this.pipelines.clear();
         this.format = null;
     }
 
@@ -804,6 +847,7 @@ class KnobGPUContextClass {
                 },
                 primitive: { topology: 'triangle-list' },
             });
+            this.pipelines.set(KNOB_MATERIAL, this.pipeline);
 
             return true;
         } catch (e) {
@@ -938,7 +982,7 @@ class KnobGPUContextClass {
                     }],
                 });
 
-                pass.setPipeline(this.pipeline);
+                pass.setPipeline(slot.pipeline);
                 pass.setBindGroup(0, slot.bindGroup);
                 pass.draw(3);
                 pass.end();

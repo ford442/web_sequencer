@@ -184,6 +184,10 @@ Shows panel shells, LEDs, buttons, legacy panels, and knob swatches side-by-side
 
 ---
 
+## White hardware chassis (opt-in)
+
+`[data-chassis="white"]` switches a subtree to the curved white desktop-synth look: matte white body, dark recessed wells, red silkscreen print (`--chassis-print #b3262e`, 5.6:1 on the body), silicone LED pads and physical knob caps (`KNOB_MATERIAL_CHASSIS`). Tokens and materials live in `src/styles/chassis.css`; the transforming container is `HardwareChassis`. Nothing changes without the attribute. Full reference: [CHASSIS.md](CHASSIS.md).
+
 ## Related docs
 
 - [HOLOGRAPHIC_KNOBS.md](./HOLOGRAPHIC_KNOBS.md) — GPU shader effects

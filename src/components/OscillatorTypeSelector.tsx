@@ -3,6 +3,8 @@ import React, { memo } from 'react';
 import type { OscillatorType } from '../types';
 import type { OscillatorTheme } from './oscillatorThemes';
 import { OSCILLATOR_THEMES } from './oscillatorThemes';
+import { ChassisOnly } from './chassis/ChassisOnly';
+import { OscillatorSignatureIcon } from './chassis/OscillatorSignatureIcon';
 
 interface OscillatorTypeSelectorProps {
   /** Currently active oscillator family (derived or stored). */
@@ -86,6 +88,9 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
                 isActive ? activeStyleMap[t] : inactiveBase
               }`}
             >
+              <ChassisOnly>
+                <OscillatorSignatureIcon type={t} className="inline-block w-3 h-3 mr-0.5 -mt-px align-middle" />
+              </ChassisOnly>
               {theme.badge ?? theme.label}
             </button>
           );

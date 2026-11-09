@@ -78,7 +78,7 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
 | 701 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
 | 756 | `src/engines/rubberband/ArtifactDetector.ts` | justified exception - complex analysis logic |
-| 991 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below |
+| 1019 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below; 975 → 1019 for per-material pipelines (#1581) — the cap shader itself lives in `knobCapShader.ts` |
 | 917 | `src/components/PhonemePainter.tsx` | un-triaged |
 | 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
 | 874 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |

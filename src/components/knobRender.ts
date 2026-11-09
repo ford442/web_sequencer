@@ -11,6 +11,7 @@ import {
 } from './knobMaterial';
 import type { KnobMaterial } from './knobMaterial';
 import { drawKnobAutomationOverlay, type KnobAutomationOverlayState } from './knobAutomationOverlay';
+import { buildKnobCapLayers } from './knobCapRender';
 
 export {
     getPrefersReducedMotion,
@@ -42,13 +43,23 @@ export type Knob2DDrawCommand =
     | { op: 'textBaseline'; value: CanvasTextBaseline }
     | { op: 'fillText'; args: [string, number, number] }
     | { op: 'fill' }
-    | { op: 'ellipse'; args: [number, number, number, number, number, number, number] };
+    | { op: 'ellipse'; args: [number, number, number, number, number, number, number] }
+    // Physical-cap ops (knobCapRender.ts); the holographic path never emits these.
+    | { op: 'save' }
+    | { op: 'restore' }
+    | { op: 'lineCap'; value: CanvasLineCap }
+    | { op: 'shadow'; color: string; blur: number; offsetX: number; offsetY: number }
+    | { op: 'createRadialGradient'; id: string; args: [number, number, number, number, number, number] }
+    | { op: 'fillStyleGradient'; id: string };
 
 export function buildKnob2DDrawCalls(
     material: KnobMaterial,
     value: number,
     dims: Knob2DDimensions
 ): Knob2DDrawCommand[] {
+    const capLayers = buildKnobCapLayers(material, value, dims);
+    if (capLayers) return [...capLayers.staticLayer, ...capLayers.dynamicLayer];
+
     const cx = dims.w / 2;
     const cy = dims.h / 2;
     const bodyRadius = Math.min(dims.w, dims.h) / 2;
@@ -299,8 +310,66 @@ export function replayKnob2DDrawCalls(
             case 'ellipse':
                 ctx.ellipse(...cmd.args);
                 break;
+            case 'save':
+                ctx.save();
+                break;
+            case 'restore':
+                ctx.restore();
+                break;
+            case 'lineCap':
+                ctx.lineCap = cmd.value;
+                break;
+            case 'shadow':
+                ctx.shadowColor = cmd.color;
+                ctx.shadowBlur = cmd.blur;
+                ctx.shadowOffsetX = cmd.offsetX;
+                ctx.shadowOffsetY = cmd.offsetY;
+                break;
+            case 'createRadialGradient':
+                gradients.set(cmd.id, ctx.createRadialGradient(...cmd.args));
+                break;
+            case 'fillStyleGradient': {
+                const gradient = gradients.get(cmd.id);
+                if (gradient) {
+                    ctx.fillStyle = gradient;
+                }
+                break;
+            }
         }
     }
+}
+
+/**
+ * Value-independent cap layers rendered once per (material, size, dpr) and
+ * blitted on every redraw, so a value change only replays the rotating layers.
+ */
+const CAP_STATIC_CACHE_LIMIT = 48;
+const capStaticCache = new Map<string, HTMLCanvasElement>();
+
+function getCapStaticLayer(
+    material: KnobMaterial,
+    commands: Knob2DDrawCommand[],
+    w: number,
+    h: number,
+    dpr: number,
+): HTMLCanvasElement | null {
+    const key = `${material.id ?? 'cap'}|${w.toFixed(2)}x${h.toFixed(2)}@${dpr}`;
+    const hit = capStaticCache.get(key);
+    if (hit) return hit;
+    if (typeof document === 'undefined') return null;
+    const layer = document.createElement('canvas');
+    layer.width = Math.max(1, Math.floor(w * dpr));
+    layer.height = Math.max(1, Math.floor(h * dpr));
+    const lctx = layer.getContext('2d');
+    if (!lctx) return null;
+    lctx.scale(dpr, dpr);
+    replayKnob2DDrawCalls(lctx, commands);
+    if (capStaticCache.size >= CAP_STATIC_CACHE_LIMIT) {
+        const oldest = capStaticCache.keys().next().value;
+        if (oldest !== undefined) capStaticCache.delete(oldest);
+    }
+    capStaticCache.set(key, layer);
+    return layer;
 }
 
 /** Render a holographic knob face on a canvas (2D fallback when WebGPU is unavailable).
@@ -326,10 +395,19 @@ export function renderKnob2D(
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(dpr, dpr);
-    replayKnob2DDrawCalls(
-        ctx,
-        buildKnob2DDrawCalls(material, value, { w: rect.width, h: rect.height })
-    );
+    const dims = { w: rect.width, h: rect.height };
+    const capLayers = buildKnobCapLayers(material, value, dims);
+    if (capLayers) {
+        const staticLayer = getCapStaticLayer(material, capLayers.staticLayer, rect.width, rect.height, dpr);
+        if (staticLayer) {
+            ctx.drawImage(staticLayer, 0, 0, rect.width, rect.height);
+        } else {
+            replayKnob2DDrawCalls(ctx, capLayers.staticLayer);
+        }
+        replayKnob2DDrawCalls(ctx, capLayers.dynamicLayer);
+    } else {
+        replayKnob2DDrawCalls(ctx, buildKnob2DDrawCalls(material, value, dims));
+    }
     if (automationOverlay && (automationOverlay.showCurve || automationOverlay.indicatorValue !== undefined)) {
         drawKnobAutomationOverlay(ctx, rect.width, rect.height, automationOverlay, material);
     }

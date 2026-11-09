@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Expandable white hardware chassis, opt-in (#1580)
+- **One instrument, many panels**: `?chassis=white` puts the sequencer, rack and key bed in one curved white body (`HardwareChassis`). The step sequencer stays on top and the key bed at the bottom. The rack between them is a stage that changes height and width per mode: OSC 380 px, DRM 340, SMP 420, TTS 460, VD 520 and 1180 wide, PCF 320. Mode keys and an LCD badge in the head follow the selected track. Panel changes animate without remounting. Without the flag nothing changes.
+- **3D knob caps** (#1581): `KNOB_MATERIAL_CHASSIS` has a black knurled cap with a brushed-metal top, a red LED value arc, a contact shadow and a status LED. The WGSL height-field shader, the Canvas 2D fallback (static layers cached, rotating layers redrawn) and the classic SVG knob all read the same `cap` / `lighting` contract. `KnobGPUContext` compiles one pipeline per material. The default shader is byte-identical.
+- **Oscillator panel art + icons** (#1583 / #1587): the `public/osc/*.webp` artwork shows as a faceplate over each synth's oscillator column on the chassis and swaps with the family (it now resolves against `BASE_URL`). Nine signature icons appear in the selector and the badge.
+- **Tokens** (#1589): the `[data-chassis="white"]` token block, body / well / silkscreen / pad materials, reduced-motion and forced-colors handling, and a contrast test. Review everything at `?visual-review=1`. See [CHASSIS.md](docs/ui/CHASSIS.md).
+
 ### Patch bay: the PCF as a node you can place, cable and play
 - **Placeable PCF**: the palette offers **PCF** (factory `pcf`) with Cutoff / Reso / Env / Decay, LP / BP / HP and a Mode. Cable any engine voice, bus or send through it. Several can run at once. The host builds each one (`createPcfNodeProvider`); where the PCF worklet cannot load, the node is bridged and the patch plays.
 - **Live controls** for the master PCF and placed PCFs: selecting one opens a PCF panel with on/off, filter type, the four knobs, a step-pattern editor and the filter mode (`PatchController.setPcf`, `usePatchBay().setPcf` / `pcfState`). Placed PCFs save every setting in the patch. The master PCF saves only its mode. Hand edits to its knobs are written to the song's `pcfFilter` on the next save (`pcfFilterForSave`).

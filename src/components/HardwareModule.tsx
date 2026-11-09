@@ -10,6 +10,8 @@ import { ExpressionLed } from './ExpressionLed';
 import type { ExpressionLedTarget } from '../types';
 import { KnobOverlay } from './KnobOverlay';
 import { useHardwareModuleKnobRack } from '../hooks/useHardwareModuleKnobRack';
+import type { KnobMaterial } from './knobMaterial';
+import { useChassisKnobMaterial } from './chassis/chassisContext';
 
 const KNOB_TEST_ID_SANITIZE_PATTERN = /[^A-Za-z0-9_-]/g;
 
@@ -68,6 +70,8 @@ interface HardwareModuleProps {
     expressionLedTarget?: ExpressionLedTarget;
     expressionLedAnalyser?: AnalyserNode | null;
     expressionLedFallbackColor?: string;
+    /** Knob material for the whole rack, e.g. KNOB_MATERIAL_CHASSIS inside the white chassis. */
+    knobMaterial?: KnobMaterial;
 }
 
 export const HardwareModule = memo(
@@ -92,7 +96,11 @@ export const HardwareModule = memo(
         expressionLedTarget,
         expressionLedAnalyser,
         expressionLedFallbackColor,
+        knobMaterial: knobMaterialProp,
     }: HardwareModuleProps) => {
+        // Explicit prop wins; otherwise a HardwareChassis stage supplies its material.
+        const chassisKnobMaterial = useChassisKnobMaterial();
+        const knobMaterial = knobMaterialProp ?? chassisKnobMaterial ?? undefined;
         const compactLayout = useCompactLayoutOptional();
         const isCompact = compactLayout?.isCompact ?? false;
         const { showHardwareAutomation } = useAutomationStore();
@@ -116,7 +124,11 @@ export const HardwareModule = memo(
             onAutomationPunchIn,
             onKnobContextMenu: onAutomationLaneAction ? handleKnobContextMenu : undefined,
             isCompact,
+            knobMaterial,
         });
+        // Remount knob canvases when the material changes so GPU slots re-register.
+        const materialKey = knobMaterial?.id ?? (knobMaterial ? 'custom' : 'default');
+        const knobAccent = `rgb(${colorHex.map((v) => Math.round(v * 255)).join(', ')})`;
 
         const handleHeaderContextMenu = useCallback((e: React.MouseEvent) => {
             if (!automationTarget || !onAutomationLaneAction) return;
@@ -180,7 +192,7 @@ export const HardwareModule = memo(
                 />
                 {controls.map((c, i) => (
                     <div
-                        key={c.id}
+                        key={`${c.id}|${materialKey}`}
                         className="absolute pointer-events-none"
                         style={{
                             left: `${c.x * 100}%`,
@@ -194,6 +206,14 @@ export const HardwareModule = memo(
                             className="block w-full h-full"
                             style={{ pointerEvents: 'none' }}
                         />
+                        {knobMaterial?.cap && (
+                            <span
+                                className="hyphon-knob-led"
+                                data-active={(c.isAutomated || c.isRecording || c.isMidiActive) || undefined}
+                                style={{ left: '90%', top: '10%', ['--knob-accent' as string]: knobAccent }}
+                                aria-hidden="true"
+                            />
+                        )}
                     </div>
                 ))}
                 <div className="absolute inset-0 pointer-events-none">
