@@ -208,7 +208,7 @@ describe('Note FX panel', () => {
         expect(toggle).toHaveAttribute('aria-expanded', 'true');
         const region = screen.getByRole('region', { name: 'NOTE FX for Lead' });
         expect(region).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Freeze to pattern' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Freeze to pattern' })).toHaveAttribute('aria-disabled', 'true');
 
         fireEvent.click(screen.getByRole('button', { name: 'Arp' }));
         expect(onFxChange).toHaveBeenCalledWith('arp', { enabled: true });
