@@ -247,7 +247,7 @@ export function applyGrooveTemplate(seq: PartSequence, groove: GrooveTemplate): 
     const period = groove.steps.length;
     const newSteps = seq.steps.map((step, i): Note | null => {
         if (!step) return null;
-        const g = groove.steps[i % period]!;
+        const g = groove.steps[i % period];
         return {
             ...step,
             microtiming: g.timing,

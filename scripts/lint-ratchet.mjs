@@ -64,7 +64,7 @@ if (update) {
   for (const [rule, n] of Object.entries(counts)) {
     if (rule in baseline && n > baseline[rule]) {
       console.error(`lint-ratchet: refusing to raise ${rule}: ${baseline[rule]} -> ${n}`)
-      // process.exit(1)
+      process.exit(1)
     }
     next[rule] = n
   }
@@ -87,13 +87,13 @@ for (const rule of new Set([...Object.keys(counts), ...Object.keys(baseline)])) 
 
 if (up.length) {
   console.error('lint-ratchet: violation counts increased:\n  ' + up.join('\n  '))
-  // process.exit(1)
+  process.exit(1)
 }
 if (down.length) {
   console.error(
     'lint-ratchet: counts dropped — lock in the gain with `pnpm run lint:ratchet:update` and commit eslint-baseline.json:\n  ' +
       down.join('\n  '),
   )
-  // process.exit(1)
+  process.exit(1)
 }
 console.log(`lint-ratchet OK (${Object.keys(baseline).length} rules tracked).`)

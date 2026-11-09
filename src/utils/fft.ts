@@ -403,7 +403,7 @@ export class FFT {
         // Copy result back
         const output = this.windowScratch;
         for (let i = 0; i < n; i++) {
-            output[i] = this.wasmReal![i];
+            output[i] = this.wasmReal[i];
         }
 
         return output;

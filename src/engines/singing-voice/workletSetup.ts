@@ -101,8 +101,9 @@ export const WorkletSetupMixin = {
             );
             resolve();
           } else {
+            const error = (event.data as { error?: unknown } | null)?.error;
             reject(
-              new Error(event.data.error || "Worklet initialization failed"),
+              new Error(typeof error === "string" && error ? error : "Worklet initialization failed"),
             );
           }
         };

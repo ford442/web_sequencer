@@ -309,7 +309,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
                 if (songData.params.sampler) {
                     const samplerWithMode = songData.params.sampler.map(bank => ({
                         ...bank,
-                        mode: (bank.mode || 'loop') as 'loop' | 'stretch' | 'wavetable',
+                        mode: (bank.mode || 'loop'),
                         // Backward-compat: hydrate nested expressiveness from legacy flat fields.
                         expressiveness: bank.expressiveness ?? {
                             vibratoRate: 5.5,

@@ -22,7 +22,7 @@ import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
 import { PatchBay } from './components/PatchBay'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
-import { useCompactLayoutContext } from './contexts/CompactLayoutContext'
+import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 import { isAgentQuery } from './agent/agentQuery'
 
