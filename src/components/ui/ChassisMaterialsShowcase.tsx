@@ -1,11 +1,12 @@
 /**
  * Chassis materials review (#1581 knobs, #1583 panel art, #1587 icons, #1589
  * tokens) for `?visual-review=1`. Each knob row shows the default material
- * next to KNOB_MATERIAL_CHASSIS on both a dark and a white surface.
+ * next to its cap material: KNOB_MATERIAL_CAP_DARK on the dark surface and
+ * KNOB_MATERIAL_CHASSIS on the white one.
  */
 import React, { memo, useState } from 'react';
 import { HardwareKnob } from '../HardwareKnob';
-import { KNOB_MATERIAL, KNOB_MATERIAL_CHASSIS, type KnobMaterial } from '../knobMaterial';
+import { KNOB_MATERIAL, KNOB_MATERIAL_CAP_DARK, KNOB_MATERIAL_CHASSIS, type KnobMaterial } from '../knobMaterial';
 import { OscillatorPanelArt } from '../chassis/OscillatorPanelArt';
 import { OscillatorSignatureIcon } from '../chassis/OscillatorSignatureIcon';
 import { OSCILLATOR_THEMES } from '../oscillatorThemes';
@@ -65,7 +66,7 @@ export const ChassisMaterialsShowcase = memo(() => (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="hyphon-chrome-panel p-4 space-y-4" data-surface="dark">
                     <KnobRow material={KNOB_MATERIAL} label="Dark · KNOB_MATERIAL" />
-                    <KnobRow material={KNOB_MATERIAL_CHASSIS} label="Dark · KNOB_MATERIAL_CHASSIS" />
+                    <KnobRow material={KNOB_MATERIAL_CAP_DARK} label="Dark · KNOB_MATERIAL_CAP_DARK" />
                 </div>
                 <div data-chassis="white" className="chassis-body p-6 space-y-4" data-surface="light" data-testid="chassis-white-surface">
                     <span className="chassis-label">White chassis</span>

@@ -134,6 +134,18 @@ export function buildKnobCapLayers(
         { op: 'strokeStyleGradient', id: 'capRim' },
         { op: 'lineWidth', value: 1.5 },
         { op: 'stroke' },
+    );
+    if (cap.rimHighlight > 0) {
+        // 1px rim highlight on the skirt edge (separates the cap from dark panels).
+        staticLayer.push(
+            { op: 'beginPath' },
+            { op: 'arc', args: [cx, cy, Math.max(0, capR - 0.5), 0, Math.PI * 2] },
+            { op: 'strokeStyle', value: rgba(WHITE, cap.rimHighlight) },
+            { op: 'lineWidth', value: 1 },
+            { op: 'stroke' },
+        );
+    }
+    staticLayer.push(
         // Groove where the metal top sits in the skirt.
         { op: 'beginPath' },
         { op: 'arc', args: [cx, cy, topR + capR * 0.025, 0, Math.PI * 2] },

@@ -73,6 +73,8 @@ The oscillator stage keeps the legacy rack height (380 px), so live panels do no
 | Canvas 2D | `buildKnob2DDrawCalls` → `buildKnobCapLayers` | Layered gradients. The **static layer** (track, ticks, shadow, skirt shading) is cached per material × size × DPR (48-entry LRU). Only the **dynamic layer** (lit arc, knurl, brushed top, pointer, highlight) replays on a value change. No background fill, so it composes on white or dark. |
 | Classic SVG | `HardwareKnob mode="classic"` → `KnobCapSvg` | Gradients, `feDropShadow`, knurl ticks and a pointer in a rotating group, with a static highlight. `useId()` keeps gradient ids unique. |
 
+**Dark panels.** `KNOB_MATERIAL_CAP_DARK` is the same cap for dark legacy panels: light silkscreen ticks and a graphite track that read on `#0d0f13`, the default cyan value arc, a subtler contact shadow and a brighter skirt rim (`cap.rimHighlight`, default 0.12, 0 disables). All three renderers draw the rim. In Canvas 2D it sits in the cached static layer. Pick the cap material once per panel with `knobCapMaterialForSurface('light' | 'dark')`, matching the panel's `data-surface`. Do not pick it per knob.
+
 Inside a chassis, `HardwareModule` also renders a small **status LED** at each knob's top-right in the part colour. It is lit when the parameter is automated, recording or receiving MIDI.
 
 ---
