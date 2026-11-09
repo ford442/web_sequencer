@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { AudioEngine, Pattern } from '../../types'
 import type { useUndoRedo } from '../useUndoRedo'
 import { nudgePatternLength } from '../../utils/meterActions'
+import { ensureRunning } from '../../audio/runtime/AudioRuntime'
 
 type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
 
@@ -62,11 +63,8 @@ export function useTransportHandlers(deps: {
         }
         const ctx = audioEngine?.context;
         if (ctx?.state === 'suspended') {
-            try {
-                await ctx.resume();
-            } catch (e) {
-                console.warn('[transport] AudioContext.resume() failed:', e);
-            }
+            // Never rejects; a failed resume is logged and reported by the runtime.
+            await ensureRunning('click', ctx);
         }
         if (!isReady) {
             console.warn('[transport] Audio engine not ready yet — playback may not start');

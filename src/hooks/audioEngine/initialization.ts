@@ -2,6 +2,7 @@ import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
 import { fetchPublicArrayBuffer } from '../../utils/publicAsset';
+import { loadWorkletModule } from '../../audio/runtime/workletRegistry';
 
 /** Decode a WAV under `public/` (e.g. `saw.wav`); null, with the reason logged, when it is missing. */
 export async function loadWavBuffer(context: AudioContext, url: string): Promise<AudioBuffer | null> {
@@ -25,7 +26,7 @@ export async function initializeSustainProcessor(
     // AudioWorklet is now the only supported path
     // ScriptProcessorNode fallback removed as it's deprecated and runs on main thread
     try {
-        await context.audioWorklet.addModule(sustainProcessorUrl);
+        await loadWorkletModule(context, sustainProcessorUrl, 'sustain-processor');
         const sustainNode = new AudioWorkletNode(context, 'sustain-processor', {
             numberOfInputs: 0,
             numberOfOutputs: 1,

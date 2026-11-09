@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { transportClockController } from '../midi/clock/TransportClockController';
 import type { StepCallback } from '../midi/clock/types';
 import { engineTelemetry } from '../utils/engineTelemetry';
+import { audioRuntime, ensureRunning } from '../audio/runtime/AudioRuntime';
 
 export type { StepCallback };
 
@@ -63,8 +64,10 @@ export const useScheduler = (
         }
 
         if (context.state === 'suspended') {
-            // Rejections propagate to the caller, which owns the isPlaying state.
-            await context.resume();
+            // A failed resume propagates to the caller, which owns the isPlaying state.
+            await ensureRunning('programmatic', context);
+            const { lastResumeError } = audioRuntime.getSnapshot();
+            if (lastResumeError && context.state === 'suspended') throw new Error(lastResumeError);
         }
 
         transportClockController.start();

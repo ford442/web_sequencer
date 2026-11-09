@@ -9,15 +9,14 @@
  * posts every frame back, so nothing is lost to main-thread jank.
  */
 
+import { ensureRunning } from '../audio/runtime/AudioRuntime';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
+
 const PROCESSOR_NAME = 'hyphon-agent-recorder';
 
-const loadedContexts = new WeakSet<BaseAudioContext>();
-
 async function ensureRecorder(context: AudioContext): Promise<void> {
-    if (loadedContexts.has(context)) return;
     const { default: workerUrl } = await import('./worklet/agent-recorder-processor.worker.ts?worker&url');
-    await context.audioWorklet.addModule(workerUrl);
-    loadedContexts.add(context);
+    await loadWorkletModule(context, workerUrl, PROCESSOR_NAME);
 }
 
 /** A call, so TS does not narrow `state` across `await resume()`. */
@@ -39,7 +38,7 @@ export async function captureTap(
     seconds: number,
     during: () => void,
 ): Promise<LiveCaptureResult> {
-    if (stateOf(context) !== 'running') await context.resume();
+    if (stateOf(context) !== 'running') await ensureRunning('programmatic', context);
     const state = stateOf(context);
     if (state !== 'running') {
         throw new Error(`AudioContext is ${state}; live capture needs a running clock`);

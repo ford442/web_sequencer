@@ -2,6 +2,7 @@ import processorUrl from "../../audio-worklets/rubberband-processor.ts?worker&ur
 import type { SingingVoiceHost } from "./host";
 import { attachWorkletPerf, registerRubberbandNode } from "../../utils/workletPerfBridge";
 import { readVocalFxOverride, recordVocalFxBackend } from "./vocalFxTelemetry";
+import { loadWorkletModule } from "../../audio/runtime/workletRegistry";
 
 export const WorkletSetupMixin = {
   /**
@@ -32,7 +33,7 @@ export const WorkletSetupMixin = {
     }
 
     try {
-      await this.audioContext.audioWorklet.addModule(processorUrl);
+      await loadWorkletModule(this.audioContext, processorUrl, "RubberBandProcessor");
 
       // Fetch the WASM binary on the main thread to bypass worklet restrictions
       // OR use the pre-loaded one if provided (for multi-voice optimization)

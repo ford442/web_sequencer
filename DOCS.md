@@ -58,6 +58,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 
 | File | Description |
 |------|-------------|
+| [audio-runtime.md](docs/audio-engine/audio-runtime.md) | AudioRuntime: the one live AudioContext owner, `ensureRunning` gesture rule, `loadWorkletModule` registry, offline exception, how to add a worklet (#1596 P1) |
 | [HARMONIZER_IMPLEMENTATION.md](docs/audio-engine/HARMONIZER_IMPLEMENTATION.md) | Vocal harmonizer engine design |
 | [JC303_STACK_OVERFLOW_FIX.md](docs/audio-engine/JC303_STACK_OVERFLOW_FIX.md) | JC-303 WASM stack overflow fix |
 | [303-voices.md](docs/audio-engine/303-voices.md) | Selectable TB-303 voice catalog, WASM registry, migration, and tests |

@@ -21,6 +21,7 @@
 
 import type { PcfSettings } from '@/importers/rbs/types';
 import pcfProcessorUrl from '../audio-worklets/pcf-processor.ts?worker&url';
+import { loadWorkletModule } from '../audio/runtime/workletRegistry';
 
 /** Filter type numeric constants matching the processor */
 const FILTER_TYPE_MAP: Record<string, number> = {
@@ -182,7 +183,7 @@ export class PcfEffect {
         if (this.initialized) return;
 
         try {
-            await this.audioContext.audioWorklet.addModule(pcfProcessorUrl);
+            await loadWorkletModule(this.audioContext, pcfProcessorUrl, 'pcf-processor');
 
             this.workletNode = new AudioWorkletNode(this.audioContext, 'pcf-processor', {
                 numberOfInputs: 1,
