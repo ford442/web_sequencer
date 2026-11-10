@@ -25,6 +25,7 @@ import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 import { isAgentQuery } from './agent/agentQuery'
+import { collabModeFromSearch } from './collab/collabQuery'
 import { isChassisQuery } from './components/chassis/chassisModes'
 
 // Route-split: neither renders on first paint — each is behind a query-param
@@ -34,9 +35,12 @@ const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ de
 const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
 // Agent render hook (`window.__HYPHON_AGENT__`): only ?agent=1 / ?e2e=1 load it.
 const AgentBridge = lazy(() => import('./agent/AgentBridge'));
+// Collab session (#1597): only ?collab=local loads Yjs and the provider.
+const CollabBridge = lazy(() => import('./collab/CollabBridge'));
 // Opt-in white chassis layout (?chassis=white): fetched only when asked for.
 const ChassisNode = lazy(() => import('./components/appParts/ChassisNode').then(module => ({ default: module.ChassisNode })));
 const AGENT_MODE = typeof location !== 'undefined' && isAgentQuery(location.search);
+const COLLAB_MODE = typeof location !== 'undefined' ? collabModeFromSearch(location.search) : null;
 // Opt-in white hardware chassis (#1580): `?chassis=white`. Default layout is untouched.
 const CHASSIS_MODE = typeof location !== 'undefined' && isChassisQuery(location.search);
 
@@ -101,6 +105,7 @@ export const App: React.FC = () => {
 
             <ModalHosts />
             {AGENT_MODE && <Suspense fallback={null}><AgentBridge /></Suspense>}
+            {COLLAB_MODE && <Suspense fallback={null}><CollabBridge mode={COLLAB_MODE} /></Suspense>}
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 
