@@ -92,6 +92,13 @@ export interface HardwareChassisProps {
     badgeIcon?: React.ReactNode;
     /** LCD text colour. @default red LED */
     badgeAccent?: string;
+    /**
+     * Accent colour of the hosted panel (e.g. the active oscillator type's).
+     * Exposed as `--chassis-accent`; tints the active mode LED and stage rim.
+     */
+    accent?: string;
+    /** Theme id of the hosted panel, exposed as `data-chassis-theme`. */
+    theme?: string;
     /** Fixed top anchor — the LED step strip / sequencer well. */
     ledStrip: React.ReactNode;
     /** Fixed bottom anchor — the key bed. */
@@ -147,6 +154,8 @@ export const HardwareChassis = memo(({
     badgeDetail,
     badgeIcon,
     badgeAccent,
+    accent,
+    theme,
     ledStrip,
     keybed,
     children,
@@ -242,6 +251,7 @@ export const HardwareChassis = memo(({
         ...(stackedShare > 0 ? { '--chassis-stage-h-stacked': `${Math.round(stageH / (1 - stackedShare))}px` } : {}),
         '--chassis-max-w': `${maxWidth}px`,
         '--chassis-morph-duration': `${CHASSIS_MORPH_MS}ms`,
+        ...(accent ? { '--chassis-accent': accent } : {}),
     } as React.CSSProperties;
 
     return (
@@ -249,6 +259,7 @@ export const HardwareChassis = memo(({
             ref={sectionRef}
             data-chassis="white"
             data-chassis-mode={mode}
+            data-chassis-theme={theme}
             data-secondary={secondaryOpen ? placement : undefined}
             className={`hyphon-chassis chassis-body ${className}`}
             style={style}

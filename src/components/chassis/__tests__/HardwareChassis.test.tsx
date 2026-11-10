@@ -148,3 +148,25 @@ describe('ChassisLedStrip', () => {
         expect(screen.getByRole('img')).toHaveAccessibleName('32-step pattern, 4 steps on');
     });
 });
+
+describe('HardwareChassis oscillator theme (#1585)', () => {
+    it('exposes the accent and theme id on the body', () => {
+        const { container } = render(
+            <HardwareChassis mode="osc" ledStrip={<div />} accent="#a78bfa" theme="prophecy">
+                <div />
+            </HardwareChassis>,
+        );
+        const body = container.querySelector('[data-chassis="white"]') as HTMLElement;
+        expect(body.dataset.chassisTheme).toBe('prophecy');
+        expect(body.style.getPropertyValue('--chassis-accent')).toBe('#a78bfa');
+    });
+
+    it('omits the theme when no accent is given', () => {
+        const { container } = render(
+            <HardwareChassis mode="drm" ledStrip={<div />}><div /></HardwareChassis>,
+        );
+        const body = container.querySelector('[data-chassis="white"]') as HTMLElement;
+        expect(body.dataset.chassisTheme).toBeUndefined();
+        expect(body.style.getPropertyValue('--chassis-accent')).toBe('');
+    });
+});
