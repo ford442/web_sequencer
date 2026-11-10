@@ -3,6 +3,7 @@ import {
     ProjectStore,
     contentHash,
     AUTOSAVE_PROJECT_ID,
+    PROJECT_STORE_VERSION,
     type ProjectFileBackend,
 } from '@/services/ProjectStore';
 import { AUTOSAVE_KEY } from '@/utils/projectPersistence';
@@ -283,6 +284,68 @@ describe('ProjectStore', () => {
             await store.saveProject('bg2', makeSong({ backgroundImage: 'https://example.com/bg.jpg' }));
             const loaded = await store.loadProject('bg2');
             expect(loaded!.backgroundImage).toBe('https://example.com/bg.jpg');
+        });
+    });
+
+    describe('v1 → v2 (#1597: project doc log)', () => {
+        /** project.json exactly as a v1 store wrote it, with one content-addressed sample. */
+        async function writeV1Project(id: string, song: SavedSongData, sample: number[]): Promise<void> {
+            const bytes = new Uint8Array(sample);
+            const hash = contentHash(bytes);
+            await backend.writeFile(`hyphon-projects/${id}/samples/${hash}.wav`, bytes);
+            const v1 = { ...song, schemaVersion: 1, updatedAt: 1_700_000_000_000, sampleRefs: { 3: hash } };
+            await backend.writeFile(`hyphon-projects/${id}/project.json`, JSON.stringify(v1));
+            await backend.writeFile(`hyphon-projects/${id}/shutdown.json`, JSON.stringify({ clean: true, at: 1 }));
+        }
+
+        it('opens a v1 project and re-saves it as v2', async () => {
+            const sample = [82, 73, 70, 70, 9, 8, 7];
+            const song = makeSong({ tempo: 133, ttsPhrases: ['a', 'b'] });
+            await writeV1Project('old', song, sample);
+            const noCodec = new ProjectStore(backend, {
+                loadDocCodec: () => Promise.reject(new Error('a project without a doc log needs no codec')),
+            });
+
+            const loaded = await noCodec.loadProject('old');
+            expect(loaded).toEqual({ ...song, embeddedSamples: { 3: wavDataUrl(sample) } });
+            expect(await noCodec.wasCleanShutdown('old')).toBe(true);
+
+            expect(await noCodec.saveProject('old', loaded!)).toEqual({ ok: true });
+            const stored = JSON.parse((await backend.readText('hyphon-projects/old/project.json'))!) as {
+                schemaVersion: number;
+            };
+            expect(PROJECT_STORE_VERSION).toBe(2);
+            expect(stored.schemaVersion).toBe(2);
+            // The log appears only once the project is opened in a collab session.
+            expect(await backend.exists('hyphon-projects/old/doc.ylog')).toBe(false);
+            expect(await noCodec.loadProject('old')).toEqual(loaded);
+        });
+
+        it('loadProjectSnapshot is the saved song without blobs or storage fields', async () => {
+            const song = makeSong({ tempo: 99 });
+            await store.saveProject('snap', {
+                ...song,
+                embeddedSamples: { 0: wavDataUrl([1, 2, 3]) },
+                backgroundImage: 'https://example.com/bg.jpg',
+            });
+            expect(await store.loadProjectSnapshot('snap')).toEqual(song);
+            expect(await store.loadProjectSnapshot('missing')).toBeNull();
+        });
+
+        it('readDocLog is null without a log and for an unreadable one', async () => {
+            expect(await store.readDocLog('none')).toBeNull();
+            await backend.writeFile('hyphon-projects/bad/doc.ylog', '{"not":"a log"}');
+            expect(await store.readDocLog('bad')).toBeNull();
+            await store.appendDocUpdate('fresh', Uint8Array.from([0, 0]));
+            expect(await store.readDocLog('fresh')).toEqual([Uint8Array.from([0, 0])]);
+        });
+
+        it('serialises read-modify-write of the log', async () => {
+            await Promise.all(
+                Array.from({ length: 20 }, (_, i) => store.appendDocUpdate('busy', Uint8Array.from([i]))),
+            );
+            const frames = await store.readDocLog('busy');
+            expect(frames?.map((f) => f[0])).toEqual(Array.from({ length: 20 }, (_, i) => i));
         });
     });
 });
