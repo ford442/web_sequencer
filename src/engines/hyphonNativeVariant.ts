@@ -13,6 +13,7 @@
  *
  * See docs/wasm/BUILD_NOTES.md#threading-profiles.
  */
+import { log } from '@/utils/log';
 import {
     HYPHON_NATIVE_ARTIFACTS,
     type HyphonNativeArtifact,
@@ -92,7 +93,7 @@ export function resolveHyphonNativeArtifact(
         reason: wanted.reason,
     };
     bound.set(audioContext, selection);
-    console.log(
+    log.debug(
         `[HyphonNative] audio session uses ${selection.artifact.wasm} (${selection.reason})`,
     );
     return selection;

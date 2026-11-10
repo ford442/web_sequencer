@@ -3,6 +3,7 @@
 // processor instance, and the model-registry + live high-fid lifecycle that
 // decides it. Delegates all WASM instance/handle access to Open303EngineSession.
 
+import { wlog } from '../wlog';
 import {
     LIVE_HIGHFID_MODEL_ID,
     LiveHighFid303Voice,
@@ -123,7 +124,7 @@ export class Open303EngineSelection {
         this.clearAllNotes();
 
         this.engine = engine;
-        console.log(`[Open303] Engine switched to: ${engine}`);
+        wlog(`[Open303] Engine switched to: ${engine}`);
         this.engineChangedMessage.data.engine = engine;
         this.port.postMessage(this.engineChangedMessage);
     }
@@ -188,7 +189,7 @@ export class Open303EngineSelection {
 
         this.model = model;
         this.syncAbStockProfile();
-        console.log(`[Open303] 303 model set to: ${model} (engine=${engine}, native=${entry !== undefined})`);
+        wlog(`[Open303] 303 model set to: ${model} (engine=${engine}, native=${entry !== undefined})`);
         this.modelChangedMessage.data.model = model;
         this.modelChangedMessage.data.engine = engine;
         this.port.postMessage(this.modelChangedMessage);
@@ -225,7 +226,7 @@ export class Open303EngineSelection {
 
         const exports = this.session.getExports();
         if (!supportsLiveHighFid(exports)) {
-            console.log('[Open303] Live high-fid engine not available in this WASM build');
+            wlog('[Open303] Live high-fid engine not available in this WASM build');
             return false;
         }
 
@@ -239,7 +240,7 @@ export class Open303EngineSelection {
         this.highFidGuard.reset();
         this.pollCoefficientTable();
         this.applyCoefficients();
-        console.log(`[Open303] Live high-fid voice ready (oversample=${voice.activeOversample}×)`);
+        wlog(`[Open303] Live high-fid voice ready (oversample=${voice.activeOversample}×)`);
         return true;
     }
 

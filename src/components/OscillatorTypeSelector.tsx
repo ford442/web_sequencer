@@ -91,7 +91,7 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
               <ChassisOnly>
                 {OSCILLATOR_FAMILY_ICONS[t] ? (
                   <img
-                    src={oscillatorIconUrl(OSCILLATOR_FAMILY_ICONS[t]!)}
+                    src={oscillatorIconUrl(OSCILLATOR_FAMILY_ICONS[t])}
                     alt=""
                     aria-hidden="true"
                     data-osc-icon={t}

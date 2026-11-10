@@ -207,6 +207,23 @@ export default defineConfig([
       ],
     },
   },
+  // #1596 P4: console output goes through src/utils/log.ts (main thread,
+  // workers) or src/audio-worklets/wlog.ts (AudioWorkletGlobalScope), whose
+  // `debug` is silent in production. console.warn / console.error stay
+  // allowed for real failures. Tests and test helpers may log freely.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/**/__tests__/**',
+      'src/**/*.{test,spec,bench,perf}.{ts,tsx}',
+      'src/test/**',
+      'src/utils/log.ts',
+      'src/audio-worklets/wlog.ts',
+    ],
+    rules: {
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+    },
+  },
   // `ESLINT_RATCHET=1` (scripts/lint-ratchet.mjs) — every rule this file keeps
   // 'off' is switched to 'error' so its violations can be counted and compared
   // against eslint-baseline.json. Any NEW 'off' entry above is picked up

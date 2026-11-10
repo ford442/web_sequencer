@@ -15,6 +15,7 @@
  *   osc.noteOn(60, 100);
  */
 
+import { log } from '@/utils/log';
 import type { ProphecyParams } from './ProphecyParams';
 import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from './ProphecyParams';
 
@@ -85,7 +86,7 @@ export class ProphecyOscillator {
         try {
             const { artifact, reason } = resolveHyphonNativeArtifact(audioContext);
             const wasmUrl = resolvePublicAsset(artifact.wasm);
-            console.log(`[ProphecyOscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
+            log.debug(`[ProphecyOscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
             const response = await fetch(wasmUrl);
             if (!response.ok) {
                 logEngineFallback('prophecy', 'wasm-worklet', `${artifact.wasm} fetch HTTP ${response.status} (${wasmUrl})`);
@@ -93,7 +94,7 @@ export class ProphecyOscillator {
             }
 
             const wasmBytes = await response.arrayBuffer();
-            console.log(`[ProphecyOscillator] Fetched ${wasmBytes.byteLength} bytes`);
+            log.debug(`[ProphecyOscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
             const exportMap = await this.fetchExportMap(wasmBytes, artifact);
             // The worklet would refuse this module by the same check — fail now
@@ -154,7 +155,7 @@ export class ProphecyOscillator {
 
             // Both profiles import memory; the selection (not the import table,
             // which does not report `shared`) decides shared vs plain + page floor.
-            console.log(`[ProphecyOscillator] WASM variant: ${artifact.threading}`);
+            log.debug(`[ProphecyOscillator] WASM variant: ${artifact.threading}`);
 
             // Records: batched messages until the worklet is ready, then — where
             // the profile shares memory — into the voice's own ring.
@@ -187,7 +188,7 @@ export class ProphecyOscillator {
                     if (e.data.type === 'ready') {
                         readyReceived = true;
                         this.events.adopt(e.data.events);
-                        console.log(`[ProphecyOscillator] Engine ready (records ${this.events.inPlace ? 'in place' : 'batched'})`);
+                        log.debug(`[ProphecyOscillator] Engine ready (records ${this.events.inPlace ? 'in place' : 'batched'})`);
                         try { engineTelemetry.recordHyphonNativeHeap(e.data.heap); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'hyphon-heap') {

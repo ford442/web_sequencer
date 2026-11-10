@@ -7,6 +7,7 @@
 // frame; the engine applies it on the next 48 kHz control block (≤ 0.25 ms).
 // The voice renders planar stereo: left at the buffer, right one stride on.
 
+import { wlog } from './wlog';
 import { formatMissingWasmExports, hasMacroApi, MACRO_REQUIRED_WASM_EXPORTS } from './hyphonNativeImports';
 import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import { NativeVoiceProcessor, type NativeVoiceRef } from './nativeVoiceProcessor';
@@ -170,7 +171,7 @@ class MacroProcessor extends NativeVoiceProcessor {
             this.stride = this.x.macro_stride(handle);
 
             this.voice = { prefix: 'macro', handle };
-            console.log(`[Macro] Engine ready: handle=${handle}, sr=${this.rateHz}, stride=${this.stride}`);
+            wlog(`[Macro] Engine ready: handle=${handle}, sr=${this.rateHz}, stride=${this.stride}`);
             this.readyMessage.heap = native.stats;
             this.readyMessage.engineCount = this.x.macro_engine_count();
             this.port.postMessage(this.readyMessage);

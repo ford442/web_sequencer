@@ -5,10 +5,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bufferHasFinitePeak, readWavMonoFromBuffer } from '@/utils/tb303AuthenticityMetrics';
+import { bufferHasFinitePeak, readWavMonoFromBuffer } from '@/test/helpers/tb303AuthenticityMetrics';
 import { runPython303MetricsOrThrow } from '@/test/helpers/tb303MetricsRunner';
 
-const ROOT = join(__dirname, '../../..');
+const ROOT = join(__dirname, '../..');
 const BASELINE_DIR = join(ROOT, 'docs/audio-engine/303-baseline');
 const REF_WAV = join(BASELINE_DIR, 'jc303_canonical.wav');
 

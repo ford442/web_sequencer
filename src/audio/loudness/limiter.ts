@@ -18,6 +18,7 @@
  * `process()` allocates nothing at all.
  */
 
+import { clamp } from '../../utils/math';
 import {
     TruePeakDetector,
     TAPS_PER_PHASE,
@@ -44,10 +45,6 @@ const DETECTION_HEADROOM_DB = 0.4;
 
 /** Group delay of the polyphase true-peak detector, in input samples. */
 const DETECTOR_LATENCY_FRAMES = TAPS_PER_PHASE >> 1;
-
-function clamp(value: number, min: number, max: number): number {
-    return value < min ? min : value > max ? max : value;
-}
 
 /** One-pole coefficient for a time constant in samples (1 = instantaneous). */
 function onePoleCoefficient(timeFrames: number): number {

@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { Open303Manager } from '../engines/Open303Manager';
@@ -288,7 +289,7 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
     // ---- Load helpers ----
 
     const loadCloudData = useCallback(async (data: unknown, type: CloudItemType) => {
-        console.log("Loading Cloud Data:", type, data);
+        log.debug("Loading Cloud Data:", type, data);
         if (type === 'song') {
             const songData = data as SavedSongData;
             if (songData.pattern) setPattern(songData.pattern);

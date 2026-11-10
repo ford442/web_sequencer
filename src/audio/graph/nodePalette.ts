@@ -9,6 +9,7 @@
  * now.
  */
 
+import { clamp } from '@/utils/math';
 import { LOWPASS_FILTER_MODES, LOWPASS_MODE_LABELS } from './lowpassMode';
 import { PCF_NODE_DEFAULTS } from '../pcf/pcfNodeConfig';
 import type { AudioGraphConfig, GraphNodeConfig, GraphNodeFactory, GraphNodeSpec } from './types';
@@ -135,9 +136,9 @@ export const NODE_PALETTE: readonly PaletteEntry[] = [
     },
 ];
 
-function clamp(value: number, param: PaletteParam): number {
+function clampParam(value: number, param: PaletteParam): number {
     if (!Number.isFinite(value)) return param.defaultValue;
-    return Math.min(param.max, Math.max(param.min, value));
+    return clamp(value, param.min, param.max);
 }
 
 /** Default parameter values for a palette entry. */
@@ -167,7 +168,7 @@ export function createPaletteNode(
 
     const params: Record<string, number> = {};
     for (const param of entry.params) {
-        params[param.key] = clamp(values[param.key] ?? param.defaultValue, param);
+        params[param.key] = clampParam(values[param.key] ?? param.defaultValue, param);
     }
     const choices: Record<string, string> = {};
     for (const choice of entry.choices ?? []) {

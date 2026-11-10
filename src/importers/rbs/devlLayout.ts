@@ -3,6 +3,7 @@
  * Ref: Propellerhead RBSFormat42.txt, nsauzede/jsynth rbs.h
  */
 
+import { clamp } from '@/utils/math';
 import type { DrumPattern, Tb303PatternA, Tb303PatternB, Tb303Step, PcfSettings } from './types';
 
 /** DEVL nested chunk IDs (4-char ASCII, trailing space where specified). */
@@ -46,10 +47,6 @@ export const TB303_FLAG_ACCENT = 0x02;
 export const TB303_FLAG_TRANSPOSE_UP = 0x04;
 export const TB303_FLAG_TRANSPOSE_DOWN = 0x08;
 export const TB303_FLAG_NOTE = 0x10;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 function readTb303Params(bytes: Uint8Array, offset: number): Omit<Tb303PatternA, 'steps'> {
   return {

@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type {
   SavedSongData, Pattern, PartSequence, Note, SynthParams, Bass2Params,
   SamplerParams, AutomationPoint, UnifiedAutomationLane, AutomationTarget
@@ -952,7 +953,7 @@ export class AISongImporter {
     hyphonSong: SavedSongData,
     options?: AISongUploadOptions
   ): Promise<AIUploadResultType> {
-    console.log('[AISongImporter] Uploading to cloud storage...');
+    log.debug('[AISongImporter] Uploading to cloud storage...');
     
     const result = await AISongStorage.uploadAISong(aiSong, hyphonSong, options);
     
@@ -968,7 +969,7 @@ export class AISongImporter {
       };
     }
     
-    console.log('[AISongImporter] Upload successful:', result.data.id);
+    log.debug('[AISongImporter] Upload successful:', result.data.id);
     
     // Fetch metadata for the uploaded song
     const metadataResult = await AISongStorage.getAISong(result.data.id);

@@ -308,7 +308,7 @@ const voice = new SingingVoice(audioContext, {
 
 - Explore `HybridNeuralPipeline.ts` for neural vocoding (Section 6)
 - Check `LatencyCompensator.ts` for MIDI sync (Section 9)
-- See `ArtifactDetector.ts` for quality monitoring (Section 10)
+- `ArtifactDetector.ts` (Section 10 quality monitoring) was removed in #1596 P4; it was never wired into the app — recover it from git history if needed
 
 ## References
 

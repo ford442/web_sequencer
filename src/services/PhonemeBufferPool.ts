@@ -12,6 +12,8 @@
  * Covers 16th notes at 80–200 BPM, 8th notes at 80–160 BPM, and common triplets.
  * Worst-case quantisation error: ≤ 12.5 ms (half the widest grid gap).
  */
+import { log } from '@/utils/log';
+
 export const DEFAULT_DURATION_GRID_MS: readonly number[] = Object.freeze([
     50, 62.5, 75, 93.75, 100, 125, 150, 187.5, 250, 375
 ]);
@@ -137,7 +139,7 @@ export class PhonemeBufferPool {
         // If a stricter implementation is needed, warm the two most common next
         // durations here. For now, we just note the change.
         const stepMs = (60 / bpm / 4) * 1000; // 16th note at this BPM
-        console.debug(
+        log.debug(
             `PhonemeBufferPool: BPM changed to ${bpm}. ` +
             `16th-note step = ${stepMs.toFixed(1)} ms. ` +
             `Grid coverage: ${this.durationGridMs.join(', ')} ms.`

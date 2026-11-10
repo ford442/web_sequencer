@@ -3,6 +3,7 @@
  * Tracks scheduler lag, voice steals, and automation back-pressure.
  */
 
+import { log } from '@/utils/log';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
 
 /** Documented acceptable thresholds — see docs/audio-engine/PLAYBACK_STABILITY.md */
@@ -72,7 +73,7 @@ class PlaybackHealthMonitor {
   recordStepBurst(step: number): void {
     this.stepBursts += 1;
     if (import.meta.env.DEV) {
-      console.debug(`[playback] duplicate step callback suppressed at step ${step}`);
+      log.debug(`[playback] duplicate step callback suppressed at step ${step}`);
     }
   }
 

@@ -1,9 +1,7 @@
-const DEBUG = true;
+import { log as logger } from '@/utils/log';
 
 export function log(message: string, ...args: unknown[]): void {
-  if (DEBUG) {
-    console.log(`[AISongStorage] ${message}`, ...args);
-  }
+  logger.debug(`[AISongStorage] ${message}`, ...args);
 }
 
 export function logError(message: string, error: unknown): void {

@@ -7,6 +7,7 @@
 // @perf-bottleneck: Loop analysis in findLoopPoints scans entire buffer
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
 
+import { log } from '@/utils/log';
 import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '@/types';
 // @ts-ignore
 const initTrackFreezer = async () => {
@@ -194,9 +195,9 @@ export const freezeWithOfflineContext = async (
     setupCallback(offlineCtx);
 
     // Render
-    console.log('Rendering audio offline...');
+    log.debug('Rendering audio offline...');
     const renderedBuffer = await offlineCtx.startRendering();
-    console.log('Render complete:', renderedBuffer.duration, 'seconds');
+    log.debug('Render complete:', renderedBuffer.duration, 'seconds');
 
     return renderedBuffer;
 };

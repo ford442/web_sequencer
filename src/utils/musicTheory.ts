@@ -117,6 +117,9 @@ export const midiToNote = (midi: number): string => {
     return `${NOTES[noteIndex]}${octave}`;
 };
 
+// Hz <-> MIDI is defined once in ./math (a leaf module worklets can import).
+export { midiToHz, hzToMidi } from './math';
+
 // ==================== SCALES ====================
 
 export const SCALE_INTERVALS: Record<string, number[]> = {

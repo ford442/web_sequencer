@@ -1,7 +1,7 @@
 import type { AlignmentResult } from "../rubberband/PhonemeAligner";
 import type { PhonemeBufferPool } from "../../services/PhonemeBufferPool";
 import { applyMicrotonalTuning } from "../../utils/musicTheory";
-import { midiToFreq } from "./pitchUtils";
+import { midiToHz } from '@/utils/math';
 import { clampStretchRatio, PITCH_RATIO_LIMITS } from "./constants";
 import { matchUserPhonemes } from "../rubberband/phonemeElasticity";
 import type { PhonemeData } from '../../types';
@@ -43,8 +43,8 @@ export const PlaybackMixin = {
     const totalSemitoneOffset = effectiveCoarse + effectiveFine / 100 + (opts.pitchOffset ?? 0);
     finalTargetMidi += totalSemitoneOffset;
 
-    const targetFreq = midiToFreq(finalTargetMidi);
-    const baseFreq = midiToFreq(baseMidi);
+    const targetFreq = midiToHz(finalTargetMidi);
+    const baseFreq = midiToHz(baseMidi);
     let targetRatio = targetFreq / baseFreq;
     targetRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, targetRatio));
 
@@ -63,7 +63,7 @@ export const PlaybackMixin = {
       if (opts.slideFromMidi !== undefined) {
           let fromMidi = applyMicrotonalTuning(opts.slideFromMidi, tuning);
           fromMidi += totalSemitoneOffset;
-          fromRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, midiToFreq(fromMidi) / baseFreq));
+          fromRatio = Math.max(PITCH_RATIO_LIMITS.MIN, Math.min(PITCH_RATIO_LIMITS.MAX, midiToHz(fromMidi) / baseFreq));
       } else {
           fromRatio = this.currentPitch ?? targetRatio; // Fallback to target if null
       }
