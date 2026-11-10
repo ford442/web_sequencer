@@ -47,7 +47,8 @@ export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
     // Voice Designer heatmap (taller and wider under VD).
     tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060, secondary: { placement: 'below' } },
     vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180, secondary: { placement: 'below' } },
-    // PCF: the filter plate and a patch / routing panel side by side (#1586).
+    // PCF: the filter plate and the patch bay side by side (#1586). A panel
+    // mode: it opens over whichever track is selected rather than selecting one.
     pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000, secondary: { placement: 'side', share: 0.5 } },
 };
 
@@ -120,11 +121,46 @@ export function chassisModeHasVoiceDeck(mode: ChassisMode): boolean {
 }
 
 /**
- * The mode the live chassis shows: the track decides, except that the sampler
- * track shows whichever sampler view (SMP / TTS / VD) was last chosen.
+ * Panel modes (#1586) are interfaces that are not a rack track: the stage
+ * expands to them over the selected track, and collapses back to that track's
+ * panel when a track mode key is pressed or another track is selected.
  */
-export function resolveChassisMode(track: TrackKey, samplerMode: SamplerChassisMode): ChassisMode {
+export type PanelChassisMode = Extract<ChassisMode, 'pcf'>;
+
+export const PANEL_CHASSIS_MODES: readonly PanelChassisMode[] = ['pcf'];
+
+export function isPanelChassisMode(mode: ChassisMode): mode is PanelChassisMode {
+    return (PANEL_CHASSIS_MODES as readonly ChassisMode[]).includes(mode);
+}
+
+/** An open panel mode and the track it was opened over. */
+export interface OpenChassisPanel {
+    mode: PanelChassisMode;
+    track: TrackKey;
+}
+
+/**
+ * The mode the live chassis shows: the track decides, except that the sampler
+ * track shows whichever sampler view (SMP / TTS / VD) was last chosen, and an
+ * open panel mode (PCF) wins while its track is still the selected one. Picking
+ * another track anywhere in the app therefore collapses the panel by itself.
+ */
+export function resolveChassisMode(
+    track: TrackKey,
+    samplerMode: SamplerChassisMode,
+    panel: OpenChassisPanel | null = null,
+): ChassisMode {
+    if (panel && panel.track === track) return panel.mode;
     return track === 'sampler' ? samplerMode : chassisModeForTrack(track);
+}
+
+/**
+ * Whether the rack (the primary panel of every track mode) is hidden because
+ * a panel mode owns the stage. It stays mounted, so its state and GPU knob
+ * slots survive the panel opening and closing.
+ */
+export function chassisModeHidesRack(mode: ChassisMode): boolean {
+    return isPanelChassisMode(mode);
 }
 
 /** `?chassis=white` (or `?chassis`) opts the live layout into the white chassis. */

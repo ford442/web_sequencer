@@ -82,6 +82,12 @@ test.describe('chassis showcase', () => {
         expect(secondaryBox!.x).toBeGreaterThan(primaryBox!.x + primaryBox!.width - 1);
         expect(secondaryBox!.y).toBeCloseTo(primaryBox!.y, 0);
 
+        // #1586: the real filter plate + patch bay, against the page's offline patch.
+        await expect(page.getByTestId('chassis-primary').getByTestId('chassis-pcf-plate')).toBeVisible();
+        await expect(secondary.getByTestId('chassis-patch-deck')).toBeVisible();
+        await expect(page.getByTestId('pcf-panel')).toHaveAttribute('data-surface', 'chassis');
+        await expect(secondary.getByRole('application', { name: /audio routing graph/i })).toBeVisible();
+
         await page.getByTestId('chassis-mode-osc').click();
         await expect(secondary).toHaveCount(0);
     });

@@ -103,6 +103,11 @@ export interface HardwareChassisProps {
     ledStrip: React.ReactNode;
     /** Fixed bottom anchor — the key bed. */
     keybed?: React.ReactNode;
+    /**
+     * Fixed strip under the key bed (e.g. the master loudness / limiter strip,
+     * #1586). Like the LED strip and key bed it never morphs.
+     */
+    footer?: React.ReactNode;
     /** Primary stage content for the current mode. */
     children: React.ReactNode;
     /**
@@ -158,6 +163,7 @@ export const HardwareChassis = memo(({
     theme,
     ledStrip,
     keybed,
+    footer,
     children,
     secondary,
     secondaryPlacement,
@@ -324,6 +330,7 @@ export const HardwareChassis = memo(({
             </div>
 
             {keybed && <div className="hyphon-chassis__keybed chassis-well">{keybed}</div>}
+            {footer && <div className="hyphon-chassis__footer chassis-well" data-testid="chassis-footer">{footer}</div>}
         </section>
     );
 });

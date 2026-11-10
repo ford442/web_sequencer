@@ -6,8 +6,11 @@ import {
     DEFAULT_SAMPLER_CHASSIS_MODE,
     SAMPLER_CHASSIS_MODES,
     chassisModeHasVoiceDeck,
+    PANEL_CHASSIS_MODES,
+    chassisModeHidesRack,
     getChassisFootprint,
     isChassisQuery,
+    isPanelChassisMode,
     isSamplerChassisMode,
     resolveChassisMode,
     trackForChassisMode,
@@ -77,6 +80,23 @@ describe('chassis modes (#1584)', () => {
         expect(resolveChassisMode('sampler', 'vd')).toBe('vd');
         expect(resolveChassisMode('partA', 'vd')).toBe('osc');
         expect(resolveChassisMode('kick', 'tts')).toBe('drm');
+    });
+
+    it('PCF is a panel mode over the track it was opened on (#1586)', () => {
+        expect(PANEL_CHASSIS_MODES).toEqual(['pcf']);
+        expect(isPanelChassisMode('pcf')).toBe(true);
+        for (const mode of CHASSIS_MODE_ORDER.filter((m) => m !== 'pcf')) {
+            expect(isPanelChassisMode(mode)).toBe(false);
+            expect(chassisModeHidesRack(mode)).toBe(false);
+        }
+        expect(chassisModeHidesRack('pcf')).toBe(true);
+        const panel = { mode: 'pcf', track: 'partB' } as const;
+        expect(resolveChassisMode('partB', 'tts', panel)).toBe('pcf');
+        // Another track selected: the panel no longer applies.
+        expect(resolveChassisMode('kick', 'tts', panel)).toBe('drm');
+        expect(resolveChassisMode('sampler', 'vd', panel)).toBe('vd');
+        expect(resolveChassisMode('sampler', 'vd', { mode: 'pcf', track: 'sampler' })).toBe('pcf');
+        expect(resolveChassisMode('partB', 'tts', null)).toBe('osc');
     });
 
     it('only TTS and VD show the voice deck, and both expand past the sampler rack', () => {
