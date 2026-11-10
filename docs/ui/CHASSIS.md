@@ -11,6 +11,7 @@ Everything is **opt-in**. Without the flag the app renders exactly as before.
 
 ![Chassis, oscillator mode](chassis/chassis-osc.webp)
 ![Chassis, Voice Designer mode — wider and deeper stage, same anchors](chassis/chassis-vd.webp)
+![Chassis, PCF mode — filter plate beside the patch bay (review page, offline patch)](chassis/chassis-pcf.webp)
 ![Live app under ?chassis=white](chassis/live.webp)
 
 ---
@@ -32,17 +33,18 @@ No event handlers on knobs, step buttons, pads or keys were added, removed or re
 | File | Role |
 |---|---|
 | `src/styles/chassis.css` | `[data-chassis="white"]` tokens (#1589), body / well / silkscreen / pad materials, container + stage morph, rack-panel overrides, panel-art frame, knob LED, reduced-motion + forced-colors blocks |
-| `src/components/chassis/HardwareChassis.tsx` | The container (#1584): head (brand, print rule, mode keys, LCD badge), LED-strip well, morphing stage with primary + optional secondary panel, key-bed well |
-| `src/components/chassis/chassisModes.ts` | Modes, footprints, per-mode secondary layout, track → mode mapping, `?chassis` parser |
+| `src/components/chassis/HardwareChassis.tsx` | The container (#1584): head (brand, print rule, mode keys, LCD badge), LED-strip well, morphing stage with primary + optional secondary panel, key-bed well, optional fixed footer well (#1586) |
+| `src/components/chassis/chassisModes.ts` | Modes, footprints, per-mode secondary layout, track → mode mapping, panel modes (PCF) and their resolution, `?chassis` parser |
+| `src/components/chassis/ChassisPcfDeck.tsx` | PCF mode (#1586): `ChassisPcfPlate` (primary — `PatchBayPcfPanel` on a white plate, master or placed PCF) and `ChassisPatchDeck` (`side` secondary — `PatchBay` in a dark well) |
 | `src/components/chassis/ChassisLedStrip.tsx` | Presentational 32-step silicone pad strip (`data-on` / `data-playhead`) |
 | `src/components/chassis/OscillatorPanelArt.tsx` | `public/osc/*.webp` artwork per family (#1583): `header` faceplate or `backdrop` (controls on top) |
 | `src/components/chassis/OscillatorSignatureIcon.tsx` | One 16×16 glyph per family (#1587), `currentColor` |
 | `src/components/chassis/chassisContext.ts`, `ChassisOnly.tsx` | Stage context + guard |
-| `src/components/appParts/ChassisNode.tsx` | Live layout: sequencer = top anchor, rack = primary panel, voice deck = `below` secondary in TTS / VD, keyboard = bottom anchor. Lazy-loaded; the three live nodes are passed in from `App.tsx` (like `Studio3D`), so they stay in the entry bundle |
+| `src/components/appParts/ChassisNode.tsx` | Live layout: sequencer = top anchor, rack = primary panel, voice deck = `below` secondary in TTS / VD, PCF plate + patch bay in PCF, keyboard = bottom anchor, master strip = footer. Lazy-loaded; the live nodes are passed in from `App.tsx` (like `Studio3D`), so they stay in the entry bundle |
 | `src/components/knobCapRender.ts` | Canvas 2D cap layers (static / dynamic split) |
 | `src/components/knobCapShader.ts` | WGSL cap fragment |
 | `src/components/KnobCapSvg.tsx` | Classic-mode SVG cap |
-| `src/components/ui/ChassisShowcase.tsx`, `ChassisMaterialsShowcase.tsx` | Review sections |
+| `src/components/ui/ChassisShowcase.tsx`, `ChassisMaterialsShowcase.tsx` | Review sections. PCF mode mounts an offline `PatchController` (classic preset + one placed PCF) so the real plate and patch bay render without an audio engine |
 
 ---
 
@@ -57,9 +59,33 @@ The LED strip and key bed never move. Only `--chassis-stage-h` (stage height) an
 | Sampler | SMP | 420 | 340 | 1000 | — | ✅ Sampler |
 | Voice / TTS | TTS | 640 | 540 | 1060 | `below`, fits content | ✅ Sampler rack + voice deck |
 | Voice Designer | VD | 720 | 600 | 1180 | `below`, fits content | ✅ Sampler rack + expanded voice deck |
-| Filter (PCF) | PCF | 320 | 270 | 1000 | `side`, 50% | showcase only (routing stand-in) |
+| Filter (PCF) | PCF | 320 | 270 | 1000 | `side`, 50% | ✅ Filter plate + patch bay (panel mode) |
 
 The oscillator stage keeps the legacy rack height (380 px), so live panels do not reflow. The live mode keys select a track: OSC goes to Synth A (or keeps the current synth), DRM to Kick, SMP / TTS / VD to Sampler. The LCD badge names the track and, for synths, the oscillator family with its signature icon.
+
+### Expansion modes: track modes and panel modes (#1586)
+
+Every interface on the chassis expands and collapses the same way: a mode key (or a track selection) changes the footprint, the stage morphs, and the content fades in once the size settles. There are two kinds of mode:
+
+| Kind | Modes | Primary | Secondary | Opens | Collapses |
+|---|---|---|---|---|---|
+| Track | OSC, DRM, SMP | The rack, showing the selected track | — | Its key selects a matching track; selecting a track anywhere opens its mode | Another mode key or track |
+| Track (sampler views) | TTS, VD | The rack (sampler) | Voice deck, `below` | Sampler track opens the last sampler view (default TTS) | SMP key, or any other track |
+| Panel | PCF | `ChassisPcfPlate` | `ChassisPatchDeck`, `side` 50% | PCF key, over whichever track is selected; it selects no track | Any track mode key returns to the current track's mode. Selecting another track (sequencer, pads…) collapses it for good, so coming back to the first track does not reopen it |
+
+`resolveChassisMode(track, samplerMode, panel)` decides which mode the stage shows. `chassisModeHidesRack(mode)` is true for panel modes. The rack is **never unmounted**: it is the first child of the primary in every mode, and a panel mode only sets `hidden` on it while the panel's own primary sits beside it. Rack state and GPU knob slots survive PCF opening and closing, as they do for the voice deck.
+
+### PCF mode: filter plate + patch bay
+
+- **Filter plate** (primary): `PatchBayPcfPanel`, the same component and the same `PatchController.setPcf` edits the patch bay uses, rendered on a white rack plate. Inside a chassis it switches to its chassis skin, picked from `ChassisKnobMaterialContext` like every other chassis visual: chassis knobs (`HardwareKnob` with the stage's knob material) instead of range sliders, chassis keys for On / LP / BP / HP / filter mode, and the pattern as LED bars in a dark well. Outside a chassis it renders exactly as before. The plate drives the master PCF by default. When the patch has placed PCFs, a row of keys picks which one, and selecting a PCF node on the graph moves the plate to it. While the master PCF is not running its song knobs are locked (`inert`, dimmed), as in the patch bay.
+- **Patch deck** (secondary): `PatchBay` in a dark well, like the voice deck. `showPcfControls={false}` leaves PCF controls to the plate, and `onSelectPcfNode` hands PCF selections to it.
+- The oscillator theme / accent is dropped while PCF owns the stage. The LCD badge reads `PCF · Master PCF · Patch bay` (or the placed node).
+
+### Nothing floats outside the chassis
+
+Under `?chassis=white`, `App.tsx` no longer renders the collapsible *Patch Bay* `<details>` or the standalone master loudness strip under the instrument. The patch bay opens on the stage with the PCF key, and `MasterLoudnessMeter` is the chassis's **footer**: a fixed dark well under the key bed that never morphs, like the LED strip and key bed. The default layout keeps both where they were.
+
+Song mode, session, arrangement, piano roll, the lyric track and the modals are app views and overlays rather than instrument panels, so they stay outside the chassis.
 
 ### Secondary panel
 
@@ -137,4 +163,4 @@ Measured with `vite build` against `main` (`f6894c7`):
 | #1587 icons | Done: nine glyphs, used in the selector (on a chassis stage) and the LCD badge. |
 | #1585 oscillator migration | Synth A / B / Bass 2 render on the chassis plate with chassis knobs, art and icons. The controls themselves are unchanged. |
 | #1582 Sampler / TTS / Voice Designer | Live: SMP shows the rack. TTS / VD open the voice deck (phrase, GEN, Voice Designer heatmap) as the chassis's `below` secondary. |
-| #1586 PCF + rest | PCF footprint and its `side` secondary layout exist (the review page shows a routing stand-in). **Not yet:** hosting `PatchBayPcfPanel` on the stage. |
+| #1586 PCF + rest | Done: PCF is a live panel mode. `PatchBayPcfPanel` (chassis skin) is the primary, the patch bay is the `side` secondary, the rack stays mounted underneath. The master strip is the chassis footer. Nothing from the instrument floats outside the chassis under `?chassis=white`. |

@@ -126,6 +126,7 @@ export const App: React.FC = () => {
                                 sequencer={<SequencerNode />}
                                 rack={<RackNode />}
                                 keyboard={<KeyboardNode />}
+                                master={<MasterLoudnessMeter />}
                             />
                         </Suspense>
                     </div>
@@ -144,23 +145,30 @@ export const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* Master true-peak limiter + BS.1770 loudness meters, sitting
-                    with the rack because it measures the master bus output. */}
-                <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                    <MasterLoudnessMeter />
-                </div>
+                {/* Inside the chassis the master strip is its fixed footer and
+                    the patch bay opens on the stage with the PCF key (#1586),
+                    so neither floats under the instrument there. */}
+                {!CHASSIS_MODE && (
+                    <>
+                        {/* Master true-peak limiter + BS.1770 loudness meters, sitting
+                            with the rack because it measures the master bus output. */}
+                        <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                            <MasterLoudnessMeter />
+                        </div>
 
-                {/* Routing editor — collapsed by default so the rack stays the
-                    focus; opening it costs nothing until the engine publishes
-                    a patch controller. */}
-                <details className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                    <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-gray-500 hover:text-cyan-300">
-                        Patch Bay
-                    </summary>
-                    <div className="mt-2">
-                        <PatchBay />
-                    </div>
-                </details>
+                        {/* Routing editor — collapsed by default so the rack stays the
+                            focus; opening it costs nothing until the engine publishes
+                            a patch controller. */}
+                        <details className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
+                            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-gray-500 hover:text-cyan-300">
+                                Patch Bay
+                            </summary>
+                            <div className="mt-2">
+                                <PatchBay />
+                            </div>
+                        </details>
+                    </>
+                )}
 
                 {!CHASSIS_MODE && (
                     <div className="shrink-0 py-3 sm:py-4 mt-2 max-w-[1000px] mx-auto w-full px-2 sm:px-4">

@@ -1,10 +1,11 @@
 /**
  * White hardware chassis — tokens, materials and the transforming container
- * (epic #1580: #1589 tokens, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs).
+ * (epic #1580: #1589 tokens, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs,
+ * #1586 PCF plate + patch deck + master footer).
  *
  * Everything in this file is opt-in. Rules are scoped either under
  * `[data-chassis="white"]` or to `.hyphon-chassis*` / `.hyphon-osc-art*` /
- * `.hyphon-knob-led` classes that only the chassis components render, so a page
+ * `.hyphon-pcf-plate*` / `.hyphon-knob-led` classes that only the chassis components render, so a page
  * without the attribute renders exactly as before.
  *
  * Motion: every transition / animation here is neutralised by the global
@@ -338,6 +339,150 @@
   color: #ff6b6b;
 }
 
+/* PCF mode (#1586): the patch bay is the `side` secondary, in a dark well
+   like the voice deck. Its own chrome-panel background gives way to the well. */
+.hyphon-chassis__routing {
+  height: 100%;
+  overflow: auto;
+  padding: 6px;
+}
+
+[data-chassis="white"] .hyphon-chassis__routing > .hyphon-chrome-panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-chassis="white"] .hyphon-chassis__routing > .hyphon-chrome-panel::before {
+  border-color: transparent;
+}
+
+/* PCF filter plate (#1586): PatchBayPcfPanel's chassis skin on a white rack
+   plate — red / grey silkscreen, chassis keys, chassis knobs, and the pattern
+   in a dark well of LED bars. */
+.hyphon-pcf-plate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--chassis-ink);
+}
+
+.hyphon-pcf-plate__title {
+  font: 700 11px/1 var(--chassis-font-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chassis-print);
+}
+
+.hyphon-pcf-plate__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chassis-print-muted);
+}
+
+.hyphon-pcf-plate__value {
+  min-width: 4ch;
+  text-align: center;
+  font: 600 10px/1 var(--hyphon-font-data);
+  color: var(--chassis-ink);
+}
+
+.hyphon-pcf-plate__note {
+  font: 500 10px/1.3 var(--hyphon-font-data);
+  color: var(--chassis-print-muted);
+}
+
+.hyphon-pcf-plate__warn {
+  font: 700 10px/1.3 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chassis-print);
+}
+
+.hyphon-pcf-plate__alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--chassis-print) 50%, transparent);
+  font: 600 10px/1.3 var(--hyphon-font-data);
+  color: var(--chassis-print);
+}
+
+.hyphon-chassis__mode-btn.hyphon-pcf-plate__key {
+  padding: 4px 8px 3px;
+  font-size: 9px;
+}
+
+.hyphon-chassis__mode-btn.hyphon-pcf-plate__key:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hyphon-pcf-plate__knobs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 18px;
+}
+
+.hyphon-pcf-plate__knobs[data-disabled] {
+  opacity: 0.5;
+}
+
+.hyphon-pcf-plate__knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-chassis="white"] .hyphon-pcf-plate__steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.hyphon-pcf-plate__step {
+  position: relative;
+  width: 8px;
+  height: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--pad-off);
+}
+
+.hyphon-pcf-plate__step:focus-visible {
+  outline: 2px solid var(--key-led);
+  outline-offset: 1px;
+}
+
+.hyphon-pcf-plate__step:disabled {
+  cursor: not-allowed;
+}
+
+.hyphon-pcf-plate__bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: color-mix(in srgb, var(--key-led) 65%, #000);
+}
+
+.hyphon-pcf-plate__bar--beat {
+  background: var(--key-led);
+  box-shadow: 0 0 4px var(--key-led);
+}
+
 @media (max-width: 640px) {
   .hyphon-chassis__deck {
     grid-template-columns: minmax(0, 1fr);
@@ -362,6 +507,18 @@
 .hyphon-chassis__keybed {
   flex: none;
   padding: 10px 12px 12px;
+}
+
+/* Fixed footer under the key bed (#1586): the master loudness / limiter strip.
+   Its own panel background gives way to the well. */
+.hyphon-chassis__footer {
+  flex: none;
+  padding: 8px 12px;
+}
+
+.hyphon-chassis__footer > section {
+  background: transparent;
+  border-color: transparent;
 }
 
 .hyphon-chassis__keybed-label {
@@ -588,6 +745,11 @@
   }
 
   .hyphon-knob-led[data-active] {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  .hyphon-pcf-plate__bar {
     forced-color-adjust: none;
     background: Highlight;
   }
