@@ -8,6 +8,7 @@ import { RackPanelChrome } from './RackPanelChrome';
 import { PanelTitleBar } from './PanelChrome';
 import { ChassisShowcase } from './ChassisShowcase';
 import { ChassisMaterialsShowcase } from './ChassisMaterialsShowcase';
+import { ChassisSurfacesShowcase } from './ChassisSurfacesShowcase';
 
 export const VisualStyleShowcase = memo(() => (
   <div className="fixed inset-0 z-[200] overflow-y-auto bg-hyphon-deep p-6 font-mono text-gray-200">
@@ -91,6 +92,7 @@ export const VisualStyleShowcase = memo(() => (
 
       <ChassisShowcase />
       <ChassisMaterialsShowcase />
+      <ChassisSurfacesShowcase />
     </div>
   </div>
 ));

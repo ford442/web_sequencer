@@ -11,6 +11,7 @@ import { TrackMuteSoloButtons } from './TrackMuteSoloButtons';
 import { TrackLoopLengthChip } from './TrackLoopLengthChip';
 import { PianoRollChip } from './PianoRollChip';
 import { NUM_STEPS } from '../../constants';
+import { setStepPlayhead } from './playhead';
 
 /**
  * `trackStep` maps a row to the step it is playing when tracks loop at their own
@@ -82,8 +83,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
             }
 
             if (newActiveIndex !== lastActiveIndexRef.current) {
-                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); }
-                if (newActiveIndex !== -1) { stepRefs.current[newActiveIndex]?.classList.add('is-current'); }
+                if (lastActiveIndexRef.current !== -1) { setStepPlayhead(stepRefs.current[lastActiveIndexRef.current], false); }
+                if (newActiveIndex !== -1) { setStepPlayhead(stepRefs.current[newActiveIndex], true); }
                 lastActiveIndexRef.current = newActiveIndex;
             }
         });
@@ -101,7 +102,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
         setHighlight: (masterStep: number, trackStep?: HighlightTrackStep) => {
             const step = masterStep === -1 || !trackStep ? masterStep : trackStep(rowKey);
             if (step === -1) {
-                if (lastActiveIndexRef.current !== -1) { stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current'); lastActiveIndexRef.current = -1; }
+                if (lastActiveIndexRef.current !== -1) { setStepPlayhead(stepRefs.current[lastActiveIndexRef.current], false); lastActiveIndexRef.current = -1; }
                 lastStepRef.current = -1;
                 return;
             }

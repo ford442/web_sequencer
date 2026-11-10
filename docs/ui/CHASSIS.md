@@ -44,7 +44,8 @@ No event handlers on knobs, step buttons, pads or keys were added, removed or re
 | `src/components/knobCapRender.ts` | Canvas 2D cap layers (static / dynamic split) |
 | `src/components/knobCapShader.ts` | WGSL cap fragment |
 | `src/components/KnobCapSvg.tsx` | Classic-mode SVG cap |
-| `src/components/ui/ChassisShowcase.tsx`, `ChassisMaterialsShowcase.tsx` | Review sections. PCF mode mounts an offline `PatchController` (classic preset + one placed PCF) so the real plate and patch bay render without an audio engine |
+| `src/components/sequencer/playhead.ts` | `setStepPlayhead`: toggles `is-current` + `data-playhead` together on the one playhead step per row (#1589) |
+| `src/components/ui/ChassisShowcase.tsx`, `ChassisMaterialsShowcase.tsx`, `ChassisSurfacesShowcase.tsx` | Review sections. PCF mode mounts an offline `PatchController` (classic preset + one placed PCF) so the real plate and patch bay render without an audio engine |
 
 ---
 
@@ -156,7 +157,7 @@ Measured with `vite build` against `main` (`f6894c7`):
 
 | Sub-issue | State in this slice |
 |---|---|
-| #1589 tokens + materials | Tokens, body / well / silkscreen / label, step-pad material (chassis LED strip), contrast test. **Not yet:** the white-chassis rules for the live step grid (`SEQUENCER_STYLES`), `DrumPads` `data-hit` + `.live-pad`, `LiveKeyboard` `data-key` / `data-down` + scale LEDs. The live sequencer and key bed sit in dark wells for now. |
+| #1589 tokens + materials | Done: tokens, body / well / silkscreen / label, step-pad material (chassis LED strip), contrast test, live step grid (`.svg-step[data-on]` / `[data-playhead]`, SVG `fill` / `filter`), `DrumPads` `.live-pad` + `data-hit`, `LiveKeyboard` `data-key` / `data-down` + key LEDs (`ledNotes` prop), review section *White-chassis surfaces*. **Not yet:** nothing feeds `ledNotes` in the live layout (needs a scale / pattern source). |
 | #1581 knob 3D | Done: material contract, WGSL, Canvas 2D with cached static layers, classic SVG, LED dot, per-material GPU pipelines. |
 | #1584 container + expansion | Done: `HardwareChassis`, modes / footprints, mode badge, compact layout, live `?chassis=white`, secondary panel (`side` / `below`) with reveal, target-size hold (one content resize per morph), content fade after the size settles. |
 | #1583 `public/osc` panels | Done for the oscillator columns (header faceplate). The `backdrop` variant exists for full-panel art. |
