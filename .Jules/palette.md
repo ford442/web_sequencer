@@ -38,3 +38,6 @@
 ## 2026-11-09 - Custom Tooltips on Disabled Buttons
 **Learning:** Native `disabled` attributes often suppress `title` tooltips on buttons, preventing users (and screen readers) from understanding why the action is disabled.
 **Action:** Use `aria-disabled="true"`, add manual styling (e.g. `opacity-40 cursor-not-allowed`), and implement an early return inside the `onClick` handler to keep the control focusable so its `title` explaining the reason for being disabled is accessible.
+## 2026-11-13 - Removing `role="status"` from static empty states
+**Learning:** Static empty state panels generally do not need `role="status"` wrappers, as they are announced naturally when mounted.
+**Action:** Removed unnecessary `role="status"` from empty state components. For dynamic state changes (e.g., filter results becoming empty), use the `a11yAnnouncerStore` (`a11yAnnouncerStore.announce()`) rather than static live regions. When building banners or toasts that must use `role="status"` or `aria-live`, keep interactive elements (buttons) outside the wrapper to prevent redundant screen reader announcements.

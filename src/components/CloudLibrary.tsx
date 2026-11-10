@@ -4,6 +4,7 @@ import { CloudStorage } from '../services/CloudStorage';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { LoadingButton } from './LoadingButton';
 import type { CloudSongMeta, CloudItemType } from '../services/CloudStorage';
+import { a11yAnnouncerStore } from '../stores/a11yAnnouncerStore';
 
 interface CloudLibraryProps {
     isOpen: boolean;
@@ -89,6 +90,16 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
             void loadLibrary();
         }
     }, [isOpen, activeTab, loadLibrary]);
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'browse' && !isLoading) {
+            if (songs.length === 0) {
+                a11yAnnouncerStore.announce("Library is empty");
+            } else if (filteredSongs.length === 0) {
+                a11yAnnouncerStore.announce("No items match this filter");
+            }
+        }
+    }, [isOpen, activeTab, isLoading, songs.length, filteredSongs.length]);
 
     const performUpload = async (retryCount = 0): Promise<void> => {
         try {
@@ -272,7 +283,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                 </div>
                             ) : songs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-                                    <div role="status" className="flex flex-col items-center justify-center mb-6">
+                                    <div className="flex flex-col items-center justify-center mb-6">
                                         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -295,7 +306,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                                 </div>
                             ) : filteredSongs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-                                    <div role="status" className="flex flex-col items-center justify-center mb-4">
+                                    <div className="flex flex-col items-center justify-center mb-4">
                                         <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500" aria-hidden="true">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />

@@ -12,9 +12,6 @@ export const TrackStatisticsPanel: React.FC<TrackStatisticsPanelProps> = React.m
     return (
       <div className="p-4">
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-          <div role="status" aria-live="polite" className="sr-only">
-            No track statistics. Track statistics will appear here once the file is loaded.
-          </div>
           <div aria-hidden="true">
             <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 mx-auto text-cyan-500">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
