@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { MutableRefObject } from 'react';
 import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
@@ -57,7 +58,7 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
                 sampleBank.processingProgress = 1.0;
 
                 onProgress(1.0);
-                console.log(`Multisample generation complete for ${name}: ${pitchBank.size} pitches`);
+                log.debug(`Multisample generation complete for ${name}: ${pitchBank.size} pitches`);
             } catch (error) {
                 console.error('Multisample generation failed:', error);
                 sampleBank.isProcessing = false;
@@ -104,7 +105,7 @@ export function createSampleLibraryControls(refs: SampleManagementRefs) {
             );
             if (alignment) {
                 refs.vocalAlignmentsRef.current.set(bankName, alignment);
-                console.log(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
+                log.debug(`Aligned phonemes for ${bankName}: ${alignment.phonemes.length}`);
             }
         } catch (error) {
             console.warn('Phoneme alignment failed:', error);

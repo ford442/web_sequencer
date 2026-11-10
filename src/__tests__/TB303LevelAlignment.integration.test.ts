@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readWavMonoFromBuffer } from '@/utils/tb303AuthenticityMetrics';
+import { readWavMonoFromBuffer } from '@/test/helpers/tb303AuthenticityMetrics';
 
 const ROOT = join(__dirname, '../..');
 const BASELINE_DIR = join(ROOT, 'docs/audio-engine/303-baseline');

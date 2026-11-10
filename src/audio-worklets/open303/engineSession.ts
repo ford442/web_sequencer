@@ -6,6 +6,7 @@
 // once at init or is called from the process() hot path — no allocation-adding
 // indirection.
 
+import { wlog } from '../wlog';
 import {
     formatMissingWasmExports,
     hasJc303Api,
@@ -166,7 +167,7 @@ export class Open303EngineSession {
      *  caller flush anything it queued while waiting for init to finish. */
     async initialize(data: any, onReady: () => void): Promise<void> {
         if (this.synthState === SynthState.INITIALIZING) {
-            console.log('[Open303] Initialization already in progress');
+            wlog('[Open303] Initialization already in progress');
             return;
         }
 
@@ -174,7 +175,7 @@ export class Open303EngineSession {
 
         while (this.initAttempts < Open303EngineSession.MAX_INIT_ATTEMPTS && !this.disposed) {
             this.initAttempts++;
-            console.log(`[Open303] Initialization attempt ${this.initAttempts}/${Open303EngineSession.MAX_INIT_ATTEMPTS}`);
+            wlog(`[Open303] Initialization attempt ${this.initAttempts}/${Open303EngineSession.MAX_INIT_ATTEMPTS}`);
 
             try {
                 const success = await this.tryInitialize(data);
@@ -185,7 +186,7 @@ export class Open303EngineSession {
                 }
                 if (success) {
                     this.synthState = SynthState.READY;
-                    console.log('[Open303] WASM initialized successfully');
+                    wlog('[Open303] WASM initialized successfully');
                     this.attachToSession();
                     onReady();
                     this.readyMessage.heap = this.native?.stats;
@@ -225,7 +226,7 @@ export class Open303EngineSession {
         const variant = data.variant || (data.isThreaded ? 'pthread' : 'st');
         this.isThreadedFlag = data.isThreaded || false;
 
-        console.log(`[Open303] Initializing with ${variant} WASM variant (threaded: ${this.isThreadedFlag})`);
+        wlog(`[Open303] Initializing with ${variant} WASM variant (threaded: ${this.isThreadedFlag})`);
 
         // Compile, allocate the imported memory, instantiate and run the C++
         // constructors — once per audio session. Every 303 and Prophecy voice
@@ -267,7 +268,7 @@ export class Open303EngineSession {
     }
 
     private initializeNativeApi(exports: any, sampleRate: number): boolean {
-        console.log('[Open303] Using native multi-instance API (open303_*)');
+        wlog('[Open303] Using native multi-instance API (open303_*)');
         try {
             // Create instance
             this.handle = exports.open303_create();
@@ -285,7 +286,7 @@ export class Open303EngineSession {
             }
 
             this.nativeApi = true;
-            console.log(`[Open303] Native instance created: handle=${this.handle}`);
+            wlog(`[Open303] Native instance created: handle=${this.handle}`);
 
             // Also initialise the authentic rosic::Open303 multi-instance (jc303_*)
             // so that per-voice engine switching works without a full reinit.
@@ -311,7 +312,7 @@ export class Open303EngineSession {
      *  remains the default and engine switching will simply be unavailable. */
     private initializeJc303MultiInstance(exports: any, sampleRate: number): void {
         if (!hasJc303Api(exports)) {
-            console.log('[Open303] jc303 multi-instance API not available in this WASM build');
+            wlog('[Open303] jc303 multi-instance API not available in this WASM build');
             return;
         }
         try {
@@ -334,7 +335,7 @@ export class Open303EngineSession {
                 return;
             }
             this.jc303MultiApi = true;
-            console.log(`[Open303] Authentic JC303 instance ready: handle=${this.jc303HandleValue}`);
+            wlog(`[Open303] Authentic JC303 instance ready: handle=${this.jc303HandleValue}`);
         } catch (e) {
             console.warn('[Open303] JC303 multi-instance init failed (engine unavailable):', e);
             this.jc303HandleValue = 0;
@@ -349,7 +350,7 @@ export class Open303EngineSession {
         if (typeof exports.open303_get_model_count !== 'function' ||
             typeof exports.open303_get_model_id !== 'function' ||
             typeof exports.open303_get_model_engine !== 'function') {
-            console.log('[Open303] Native 303 model registry not available in this WASM build');
+            wlog('[Open303] Native 303 model registry not available in this WASM build');
             return;
         }
         try {
@@ -365,7 +366,7 @@ export class Open303EngineSession {
             }
             if (registry.size > 0) {
                 this.registry = registry;
-                console.log(`[Open303] Native 303 model registry: ${[...registry.keys()].join(', ')}`);
+                wlog(`[Open303] Native 303 model registry: ${[...registry.keys()].join(', ')}`);
             }
         } catch (e) {
             console.warn('[Open303] Failed to read native 303 model registry:', e);

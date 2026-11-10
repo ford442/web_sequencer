@@ -8,6 +8,7 @@
 // implemented in WASM for better performance. Original JS implementations are
 // kept as fallbacks when WASM is unavailable.
 
+import { log } from '@/utils/log';
 import {
     createModule, createInstrument, createSample, addSampleToInstrument,
     XMWriter, LoopType
@@ -59,7 +60,7 @@ export async function initXmExportWasm(): Promise<boolean> {
         wasmMemory = wasmInstance.memory;
         wasmReady = true;
         
-        console.log('[xmExport] WASM module initialized');
+        log.debug('[xmExport] WASM module initialized');
         return true;
     } catch (e) {
         console.warn('[xmExport] WASM initialization failed, using JS fallback:', e);
@@ -564,7 +565,7 @@ export const exportSongToXM = async (...args: XmExportArgs): Promise<XmExportRes
 export const buildSongXM = async (
     ...[songStructure, trackStorage, params, tempo, currentPattern, engines, sampleBuffers, options = {}]: XmExportArgs
 ): Promise<XmModuleResult> => {
-    console.log("Starting XM Export with engines:", engines);
+    log.debug("Starting XM Export with engines:", engines);
 
     // One rate for every instrument in the module, resolved from the user
     // sample-rate policy (#1233). XM stores pitch as relative-note/fine-tune

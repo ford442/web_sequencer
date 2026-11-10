@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { MutableRefObject } from "react";
 import { Harmonizer, type HarmonizerConfig } from "../../../engines/Harmonizer";
 import { makeDistortionCurve } from "../distortion";
@@ -40,7 +41,7 @@ export function setHarmonizerConfig(
 
   harmonizerRef.current.setConfig(config);
   harmonizerRef.current.setActive(isActive);
-  console.log(
+  log.debug(
     "[useAudioEngine] Harmonizer config updated:",
     config,
     "active:",

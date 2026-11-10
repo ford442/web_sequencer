@@ -16,6 +16,7 @@
 // AudioWorkletGlobalScope's global object. Calls into the instance never overlap
 // because every processor's message handler and process() run on that thread.
 
+import { wlog } from './wlog';
 import {
     buildHyphonWasmImports,
     normalizeWasmExports,
@@ -219,7 +220,7 @@ async function createSession(
             ownMemory,
             data.isThreaded ? 'pthread' : 'st',
         );
-        console.log(
+        wlog(
             `${logPrefix} hyphon_native (${session.threading}) instantiated once for this audio session ` +
             `(${session.initialPages} pages, heaps=${registry.heapCount})`,
         );

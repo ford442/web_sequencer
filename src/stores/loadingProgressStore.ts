@@ -4,6 +4,7 @@
  * Uses a subscription pattern for decoupled updates.
  */
 
+import { log } from '@/utils/log';
 import React from 'react';
 
 export type LoadingStep =
@@ -283,7 +284,7 @@ class LoadingProgressStore {
 
     // Structured log for debugging
     if (typeof window !== 'undefined' && (window as any).__AUDIO_LOADER_DEBUG__) {
-      console.log(`${prefix} ${message}`);
+      log.info(`${prefix} ${message}`);
     }
   }
 

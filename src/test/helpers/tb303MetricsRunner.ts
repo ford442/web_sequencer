@@ -6,7 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { SpectrogramBandMse, Tb303LevelMetrics, Tb303VsReferenceMetrics } from '@/utils/tb303AuthenticityMetrics';
+import type { SpectrogramBandMse, Tb303LevelMetrics, Tb303VsReferenceMetrics } from '@/test/helpers/tb303AuthenticityMetrics';
 
 const ROOT = join(import.meta.dirname, '../../..');
 const CLI = join(ROOT, 'scripts/303_metrics_cli.py');

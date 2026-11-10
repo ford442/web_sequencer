@@ -8,6 +8,7 @@
  * offline alike), so `AutomationScheduler` leaves them alone rather than
  * routing them to an AudioParam.
  */
+import { clamp, lerp } from '@/utils/math';
 import type { AutomationTarget } from '@/types';
 import {
     ARP_MODES,
@@ -20,7 +21,6 @@ import {
     type SongNoteFx,
 } from './types';
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const num = (v: unknown, fallback: number, lo: number, hi: number): number =>
     typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : fallback;
 const int = (v: unknown, fallback: number, lo: number, hi: number): number => Math.round(num(v, fallback, lo, hi));
@@ -105,7 +105,7 @@ export interface NoteFxAutomationParam {
     read: (chain: NoteFxChain) => number;
 }
 
-const lerp = (lo: number, hi: number, v: number) => lo + (hi - lo) * clamp(v, 0, 1);
+const lerpUnit = (lo: number, hi: number, v: number) => lerp(lo, hi, clamp(v, 0, 1));
 const unlerp = (lo: number, hi: number, v: number) => (hi === lo ? 0 : clamp((v - lo) / (hi - lo), 0, 1));
 
 export const NOTE_FX_AUTOMATION_PARAMS: readonly NoteFxAutomationParam[] = [
@@ -121,12 +121,12 @@ export const NOTE_FX_AUTOMATION_PARAMS: readonly NoteFxAutomationParam[] = [
     },
     {
         id: 'noteFx.arp.octaves', module: 'arp', label: 'Arp octaves',
-        apply: (c, v) => ({ ...c, arp: { ...c.arp, octaves: Math.round(lerp(1, 4, v)) } }),
+        apply: (c, v) => ({ ...c, arp: { ...c.arp, octaves: Math.round(lerpUnit(1, 4, v)) } }),
         read: (c) => unlerp(1, 4, c.arp.octaves),
     },
     {
         id: 'noteFx.arp.gate', module: 'arp', label: 'Arp gate',
-        apply: (c, v) => ({ ...c, arp: { ...c.arp, gate: lerp(0.05, 1, v) } }),
+        apply: (c, v) => ({ ...c, arp: { ...c.arp, gate: lerpUnit(0.05, 1, v) } }),
         read: (c) => unlerp(0.05, 1, c.arp.gate),
     },
     {
@@ -136,27 +136,27 @@ export const NOTE_FX_AUTOMATION_PARAMS: readonly NoteFxAutomationParam[] = [
     },
     {
         id: 'noteFx.ratchet.count', module: 'ratchet', label: 'Ratchet count',
-        apply: (c, v) => ({ ...c, ratchet: { ...c.ratchet, count: Math.round(lerp(1, 8, v)) } }),
+        apply: (c, v) => ({ ...c, ratchet: { ...c.ratchet, count: Math.round(lerpUnit(1, 8, v)) } }),
         read: (c) => unlerp(1, 8, c.ratchet.count),
     },
     {
         id: 'noteFx.euclid.pulses', module: 'euclid', label: 'Euclid pulses',
-        apply: (c, v) => ({ ...c, euclid: { ...c.euclid, pulses: Math.round(lerp(0, c.euclid.steps, v)) } }),
+        apply: (c, v) => ({ ...c, euclid: { ...c.euclid, pulses: Math.round(lerpUnit(0, c.euclid.steps, v)) } }),
         read: (c) => unlerp(0, c.euclid.steps, c.euclid.pulses),
     },
     {
         id: 'noteFx.euclid.rotation', module: 'euclid', label: 'Euclid rotation',
-        apply: (c, v) => ({ ...c, euclid: { ...c.euclid, rotation: Math.round(lerp(0, c.euclid.steps - 1, v)) } }),
+        apply: (c, v) => ({ ...c, euclid: { ...c.euclid, rotation: Math.round(lerpUnit(0, c.euclid.steps - 1, v)) } }),
         read: (c) => unlerp(0, c.euclid.steps - 1, c.euclid.rotation),
     },
     {
         id: 'noteFx.humanize.timing', module: 'humanize', label: 'Humanize timing',
-        apply: (c, v) => ({ ...c, humanize: { ...c.humanize, timing: lerp(0, 0.5, v) } }),
+        apply: (c, v) => ({ ...c, humanize: { ...c.humanize, timing: lerpUnit(0, 0.5, v) } }),
         read: (c) => unlerp(0, 0.5, c.humanize.timing),
     },
     {
         id: 'noteFx.humanize.velocity', module: 'humanize', label: 'Humanize velocity',
-        apply: (c, v) => ({ ...c, humanize: { ...c.humanize, velocity: lerp(0, 1, v) } }),
+        apply: (c, v) => ({ ...c, humanize: { ...c.humanize, velocity: lerpUnit(0, 1, v) } }),
         read: (c) => unlerp(0, 1, c.humanize.velocity),
     },
 ];

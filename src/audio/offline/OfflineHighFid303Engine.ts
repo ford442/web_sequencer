@@ -8,6 +8,7 @@
  * Engine id: `highfid-cpu` (offline-only).
  */
 
+import { midiToHz } from '@/utils/math';
 import { LIVE_HIGHFID_MODEL_ID } from '../../audio-worklets/liveHighFid303';
 import {
   CANONICAL_HIGHFID_COEFFICIENTS,
@@ -55,10 +56,6 @@ function polyBlep(t: number, dt: number): number {
     return t * t + t + t + 1;
   }
   return 0;
-}
-
-function midiToFreq(midiNote: number): number {
-  return 440 * Math.pow(2, (midiNote - 69) / 12);
 }
 
 class OnePoleHP {
@@ -275,7 +272,7 @@ export class OfflineHighFid303Engine {
   }
 
   noteOn(midiNote: number, velocity: number): void {
-    const freq = midiToFreq(midiNote);
+    const freq = midiToHz(midiNote);
     this.targetFreq = freq;
     if (this.gateOpen && this.params.slideTime > 0 && this.currentFreq > 0) {
       const slideSeconds = 0.01 + this.params.slideTime * 0.49;

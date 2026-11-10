@@ -7,7 +7,7 @@ import {
   REFERENCE_FREQUENCIES,
   type PitchCache,
 } from "./constants";
-import { midiToFreq } from "./pitchUtils";
+import { midiToHz } from '@/utils/math';
 import type { SingingVoiceHost } from "./host";
 
 export const PitchControlMixin = {
@@ -137,8 +137,8 @@ export const PitchControlMixin = {
 
     const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
 
-    const targetFreq = midiToFreq(adjustedTargetMidi);
-    const baseFreq = midiToFreq(effectiveBaseNote);
+    const targetFreq = midiToHz(adjustedTargetMidi);
+    const baseFreq = midiToHz(effectiveBaseNote);
 
     let pitchRatio = targetFreq / baseFreq;
     pitchRatio = Math.max(
@@ -171,8 +171,8 @@ export const PitchControlMixin = {
 
     const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
 
-    const targetFreq = midiToFreq(adjustedTargetMidi);
-    const baseFreq = midiToFreq(effectiveBaseNote);
+    const targetFreq = midiToHz(adjustedTargetMidi);
+    const baseFreq = midiToHz(effectiveBaseNote);
 
     let pitchRatio = targetFreq / baseFreq;
     pitchRatio = Math.max(
@@ -216,8 +216,8 @@ export const PitchControlMixin = {
     const totalSemitoneOffset = effectiveCoarse + effectiveFine / 100;
     const adjustedTargetMidi = targetMidiNote + totalSemitoneOffset;
 
-    const targetFreq = midiToFreq(adjustedTargetMidi);
-    const baseFreq = midiToFreq(effectiveBaseNote);
+    const targetFreq = midiToHz(adjustedTargetMidi);
+    const baseFreq = midiToHz(effectiveBaseNote);
 
     // Calculate pitch ratio, clamped to optimal range for best quality
     let pitchRatio = targetFreq / baseFreq;
@@ -241,7 +241,7 @@ export const PitchControlMixin = {
     tuning?: ScaleDefinition | null,
   ): keyof PitchCache {
     targetMidiNote = applyMicrotonalTuning(targetMidiNote, tuning);
-    const freq = midiToFreq(targetMidiNote);
+    const freq = midiToHz(targetMidiNote);
     if (freq < 200) return "low";
     if (freq < 400) return "mid";
     return "high";
@@ -309,7 +309,7 @@ export const PitchControlMixin = {
 
     // Calculate pitch shift from the cached base to the target
     const baseFreq = REFERENCE_FREQUENCIES[cacheLevel];
-    const targetFreq = midiToFreq(targetMidiNote);
+    const targetFreq = midiToHz(targetMidiNote);
     const pitchRatio = Math.max(
       PITCH_RATIO_LIMITS.MIN,
       Math.min(PITCH_RATIO_LIMITS.MAX, targetFreq / baseFreq),

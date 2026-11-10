@@ -19,6 +19,7 @@
  * ```
  */
 
+import { log } from '@/utils/log';
 import type { PcfSettings } from '@/importers/rbs/types';
 import pcfProcessorUrl from '../audio-worklets/pcf-processor.ts?worker&url';
 import { loadWorkletModule } from '../audio/runtime/workletRegistry';
@@ -210,7 +211,7 @@ export class PcfEffect {
             // Send current state to processor
             this.syncAllParams();
 
-            console.log('[PcfEffect] AudioWorklet initialized');
+            log.debug('[PcfEffect] AudioWorklet initialized');
         } catch (error) {
             console.error('[PcfEffect] Failed to initialize AudioWorklet:', error);
             // Keep pass-through on failure

@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { RawRbsData } from './types';
 import { isV15SubsetVersion } from './parser-types';
 import type { RbsParserResult, RbsParserError } from './parser-types';
@@ -114,13 +115,13 @@ export class RbsParser {
           }
         }
 
-        console.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Attempting full song parse.`);
+        log.info(`[RbsParser] Detected full IFF CAT RB40 structure with ${iffChunks.length} top-level chunks. Attempting full song parse.`);
         const iffResult = parseIffSongData(ctx, iffChunks);
         if (iffResult) {
           this.onProgress?.(100);
           return { success: true, data: iffResult };
         }
-        console.info('[RbsParser] IFF song data incomplete, falling back to legacy single-pattern extraction.');
+        log.info('[RbsParser] IFF song data incomplete, falling back to legacy single-pattern extraction.');
       }
 
       const headerResult = parseHeader(ctx);

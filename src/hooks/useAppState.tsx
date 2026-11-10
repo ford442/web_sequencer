@@ -28,6 +28,7 @@
  * only one flag can also subscribe to its store directly, which skips the
  * provider entirely.
  */
+import { log } from '@/utils/log';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
@@ -157,7 +158,7 @@ export function useAppState() {
     } = useSamplerBanksState(audioEngine);
 
     const handleStart = async () => {
-        console.log("Initialization sequence started...");
+        log.debug("Initialization sequence started...");
         setHasStarted(true);
         try {
             // WebKit can hang inside AudioWorklet addModule; don't leave the
@@ -183,7 +184,7 @@ export function useAppState() {
             console.error("Failed to start system:", e);
         } finally {
             setIsInitialized(true);
-            console.log("Audio Engine Initialized");
+            log.debug("Audio Engine Initialized");
         }
         loadingProgressStore.startStep('ttsEngine');
         void SupertonicService.getInstance().init().then(() => {

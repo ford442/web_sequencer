@@ -1,4 +1,5 @@
 // src/components/CloudLibrary.tsx
+import { log } from '@/utils/log';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudStorage } from '../services/CloudStorage';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -104,7 +105,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
                 type: uploadType,
                 data: dataToUpload
             });
-            console.debug('CloudLibrary: upload result', result);
+            log.debug('CloudLibrary: upload result', result);
 
             if (result.success) {
                 setUploadStatus('success');
@@ -138,7 +139,7 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
 
     const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.debug('CloudLibrary: starting upload', uploadType);
+        log.debug('CloudLibrary: starting upload', uploadType);
         setUploadStatus('uploading');
         setErrorMessage("");
         await performUpload(0);

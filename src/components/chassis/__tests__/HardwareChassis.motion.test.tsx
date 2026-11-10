@@ -34,7 +34,9 @@ interface AnimateCall {
 }
 
 let calls: AnimateCall[] = [];
-const originalAnimate = HTMLElement.prototype.animate;
+// The own descriptor, not a bare method read (unbound-method): restoring it, or
+// deleting the stub when happy-dom inherits `animate`, puts the prototype back.
+const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
 
 beforeEach(() => {
     motion.reduced = false;
@@ -47,7 +49,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    HTMLElement.prototype.animate = originalAnimate;
+    if (originalAnimate) Object.defineProperty(HTMLElement.prototype, 'animate', originalAnimate);
+    else delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
     vi.useRealTimers();
 });
 

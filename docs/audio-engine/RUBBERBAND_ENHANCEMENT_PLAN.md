@@ -462,10 +462,10 @@ Exposed option constants for JavaScript:
 | **Section 4: Formant Shifting** | `src/engines/rubberband/FormantShifter.ts` | ✅ wired |
 | **Section 5: Expression Layer** | `src/engines/rubberband/ExpressiveVoiceProcessor.ts` | ✅ IMPLEMENTED |
 | **Section 6: Hybrid Neural** | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | library; not on live voice path (V4) |
-| **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | present |
+| **Section 7: Performance** | `src/engines/rubberband/PerformanceOptimizer.ts` | removed (#1596 P4) — never wired into the app |
 | **Section 8: Concatenative** | `src/engines/rubberband/ConcatenativeHybrid.ts` | STUB (V2) |
 | **Section 9: Latency Sync** | `LatencyCompensator.ts` | **Deleted** — MIDI clock is `TransportClockController` |
-| **Section 10: Artifact Detection** | `src/engines/rubberband/ArtifactDetector.ts` | present |
+| **Section 10: Artifact Detection** | `src/engines/rubberband/ArtifactDetector.ts` | removed (#1596 P4) — never wired into the app |
 
 ### File Structure
 

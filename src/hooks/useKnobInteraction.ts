@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KNOB_MATERIAL, normalizedFromWgslAngle, resolveDetentPositions } from '../components/knobMaterial';
 import type { KnobMaterial } from '../components/knobMaterial';
@@ -137,7 +138,6 @@ export function useKnobInteraction({
     const valueText = formatValue ? formatValue(displayValue) : `${displayValue}`;
 
     const emitChange = useCallback((next: number) => {
-        // console.log("emitChange", next);
         dragLiveValueRef.current = next;
         setDragValue(next);
         propsRef.current.onDragValue?.(next);

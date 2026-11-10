@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { Open303Params, Open303Config } from './Open303Params';
 import { DEFAULT_303_PARAMS } from './Open303Params';
 import type { TB303ModelId } from './TB303Models';
@@ -120,7 +121,7 @@ export class Open303Oscillator {
             try {
                 const { artifact, reason } = resolveHyphonNativeArtifact(audioContext, config);
                 const wasmUrl = resolvePublicAsset(artifact.wasm);
-                console.log(`[Open303Oscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
+                log.debug(`[Open303Oscillator] Fetching WASM: ${wasmUrl} (${artifact.threading}: ${reason})`);
                 const wasmResponse = await fetch(wasmUrl);
 
                 if (!wasmResponse.ok) {
@@ -130,7 +131,7 @@ export class Open303Oscillator {
                 }
 
                 const wasmBytes = await wasmResponse.arrayBuffer();
-                console.log(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
+                log.debug(`[Open303Oscillator] Fetched ${wasmBytes.byteLength} bytes`);
 
                 const exportMap = await this.fetchExportMap(wasmBytes, artifact);
                 if (!exportMap) {
@@ -210,7 +211,7 @@ export class Open303Oscillator {
             // page floor from emscripten/wasm_memory_budget.json.
             const isThreaded = artifact.sharedMemory;
             const variant = artifact.threading;
-            console.log(`[Open303Oscillator] WASM variant: ${variant}`);
+            log.debug(`[Open303Oscillator] WASM variant: ${variant}`);
 
             this.workletNode.port.postMessage({
                 type: 'init-wasm',
@@ -240,7 +241,7 @@ export class Open303Oscillator {
                         readyReceived = true;
                         try { engineTelemetry.recordHyphonNativeHeap(e.data.heap); } catch (_) {}
                         const backend = hyphonNativeBackendName(artifact.threading);
-                        console.log(`[Open303] Engine Fully Operational (${backend})`);
+                        log.debug(`[Open303] Engine Fully Operational (${backend})`);
                         try { engineTelemetry.registerResolution('jc303', backend, 'worklet-ready'); } catch (_) {}
                         resolve(true);
                     } else if (e.data.type === 'error') {

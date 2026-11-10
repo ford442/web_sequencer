@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import processorUrl from "../../audio-worklets/rubberband-processor.ts?worker&url";
 import type { SingingVoiceHost } from "./host";
 import { attachWorkletPerf, registerRubberbandNode } from "../../utils/workletPerfBridge";
@@ -111,7 +112,7 @@ export const WorkletSetupMixin = {
         this.workletNode!.port.onmessage = handler;
       });
 
-      console.log("SingingVoice: AudioWorklet initialized successfully");
+      log.debug("SingingVoice: AudioWorklet initialized successfully");
       // An offline (freeze) voice is not part of the live engine's telemetry.
       if (this.config.offline) return;
       this.detachWorkletPerf = attachWorkletPerf(this.workletNode, 'rubberband');

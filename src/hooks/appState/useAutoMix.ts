@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { useCallback } from 'react'
 import type { AudioEngine, Pattern, PartSequence, SamplerParams } from '../../types'
 
@@ -123,7 +124,7 @@ export function useAutoMix(deps: {
             audioEngine.setMasterVolume(0.85);
         }
 
-        console.log("Auto-Mix Assistant applied dynamic, content-aware mixing parameters.");
+        log.debug("Auto-Mix Assistant applied dynamic, content-aware mixing parameters.");
     }, [updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare, updateClosedHat, updateOpenHat, audioEngine, synthA.filterCutoff, synthA.filterResonance, synthB.filterCutoff, synthB.filterResonance, setSampler, setMasterVolume, patternRef]);
 
     return { handleAutoMix };
