@@ -2,7 +2,7 @@
 import React, { memo } from 'react';
 import type { OscillatorType } from '../types';
 import type { OscillatorTheme } from './oscillatorThemes';
-import { OSCILLATOR_THEMES } from './oscillatorThemes';
+import { OSCILLATOR_THEMES, OSCILLATOR_FAMILY_ICONS, oscillatorIconUrl } from './oscillatorThemes';
 import { ChassisOnly } from './chassis/ChassisOnly';
 import { OscillatorSignatureIcon } from './chassis/OscillatorSignatureIcon';
 
@@ -89,7 +89,18 @@ export const OscillatorTypeSelector: React.FC<OscillatorTypeSelectorProps> = mem
               }`}
             >
               <ChassisOnly>
-                <OscillatorSignatureIcon type={t} className="inline-block w-3 h-3 mr-0.5 -mt-px align-middle" />
+                {OSCILLATOR_FAMILY_ICONS[t] ? (
+                  <img
+                    src={oscillatorIconUrl(OSCILLATOR_FAMILY_ICONS[t]!)}
+                    alt=""
+                    aria-hidden="true"
+                    data-osc-icon={t}
+                    draggable={false}
+                    className="inline-block w-5 h-[11px] mr-0.5 -mt-px align-middle"
+                  />
+                ) : (
+                  <OscillatorSignatureIcon type={t} className="inline-block w-3 h-3 mr-0.5 -mt-px align-middle" />
+                )}
               </ChassisOnly>
               {theme.badge ?? theme.label}
             </button>

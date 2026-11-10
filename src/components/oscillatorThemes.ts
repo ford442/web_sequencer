@@ -106,6 +106,20 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   macro: '/osc/macro.webp',
 };
 
+/** Hardware-style icon faces in public/osc/icons/ (SVG). Family icons exist for these types. */
+export const OSCILLATOR_FAMILY_ICONS: Partial<Record<OscillatorType, string>> = {
+  macro: 'macro',
+  prophecy: 'prophecy',
+  open303: 'open303',
+  webgpu: 'webgpu',
+};
+
+/** Deploy-safe URL for an icon face in public/osc/icons (respects Vite's BASE_URL). */
+export function oscillatorIconUrl(name: string): string {
+  const base = import.meta.env.BASE_URL ?? '/';
+  return `${base.endsWith('/') ? base : `${base}/`}osc/icons/${name}.svg`;
+}
+
 /**
  * Where each artwork's signature (title / LCD) sits, as a CSS object-position,
  * so a cover-cropped window into the panel keeps the recognisable part.
