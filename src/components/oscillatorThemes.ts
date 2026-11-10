@@ -181,3 +181,19 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     default: return ['sawtooth'];
   }
 }
+
+/**
+ * Hex value of each type's Tailwind accent (400 shade), for surfaces themed
+ * through CSS custom properties rather than classes (the hardware chassis).
+ */
+export const OSCILLATOR_ACCENT_HEX: Record<OscillatorType, string> = {
+  javascript: '#38bdf8', // sky-400
+  pcm: '#a8a29e',        // stone-400
+  open303: '#34d399',    // emerald-400
+  jc303: '#2dd4bf',      // teal-400
+  prophecy: '#a78bfa',   // violet-400
+  pyodide: '#facc15',    // yellow-400
+  webgpu: '#e879f9',     // fuchsia-400
+  wam: '#fbbf24',        // amber-400
+  macro: '#22d3ee',      // cyan-400
+};

@@ -12,7 +12,7 @@ import {
     type ChassisMode,
     type SamplerChassisMode,
 } from '../chassis/chassisModes';
-import { OSCILLATOR_THEMES, waveformToOscillatorType } from '../oscillatorThemes';
+import { OSCILLATOR_ACCENT_HEX, OSCILLATOR_THEMES, waveformToOscillatorType } from '../oscillatorThemes';
 import type { TrackKey } from '../../constants/appDefaults';
 
 const CHASSIS_KEYS = [
@@ -89,7 +89,12 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard }:
     return (
         <HardwareChassis
             mode={mode}
-            panelKey={selectedTrack}
+            // Type switches re-run the panel entry so the new art + theme land
+            // as a fresh module, without remounting the rack (#1585).
+            panelKey={oscType ? `${selectedTrack}:${oscType}` : selectedTrack}
+            accent={oscType ? OSCILLATOR_ACCENT_HEX[oscType] : undefined}
+            theme={oscType ?? undefined}
+            badgeAccent={oscType ? OSCILLATOR_ACCENT_HEX[oscType] : undefined}
             modes={LIVE_MODES}
             onModeChange={handleModeChange}
             badgeDetail={badgeDetail}
