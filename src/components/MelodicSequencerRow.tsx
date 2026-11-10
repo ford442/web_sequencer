@@ -9,6 +9,7 @@ import type { HighlightTrackStep } from './sequencer/SequencerRow';
 import { NUM_STEPS } from '../constants';
 import { noteToMidi } from '../utils/musicTheory';
 import type { Note, PartSequence, TrackKey } from '../types';
+import { setStepPlayhead } from './sequencer/playhead';
 
 /**
  * MelodicSequencerRow - Sequencer row for Melodic Lyric Mode
@@ -95,10 +96,10 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
 
         if (newActiveIndex !== lastActiveIndexRef.current) {
           if (lastActiveIndexRef.current !== -1) {
-            stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+            setStepPlayhead(stepRefs.current[lastActiveIndexRef.current], false);
           }
           if (newActiveIndex !== -1) {
-            stepRefs.current[newActiveIndex]?.classList.add('is-current');
+            setStepPlayhead(stepRefs.current[newActiveIndex], true);
           }
           lastActiveIndexRef.current = newActiveIndex;
         }
@@ -118,7 +119,7 @@ export const MelodicSequencerRow = memo(forwardRef<MelodicSequencerRowHandle, Me
         const step = masterStep === -1 || !trackStep ? masterStep : trackStep(rowKey);
         if (step === -1) {
           if (lastActiveIndexRef.current !== -1) {
-            stepRefs.current[lastActiveIndexRef.current]?.classList.remove('is-current');
+            setStepPlayhead(stepRefs.current[lastActiveIndexRef.current], false);
             lastActiveIndexRef.current = -1;
           }
           lastStepRef.current = -1;

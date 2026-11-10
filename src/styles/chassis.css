@@ -1,6 +1,6 @@
 /**
  * White hardware chassis — tokens, materials and the transforming container
- * (epic #1580: #1589 tokens, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs,
+ * (epic #1580: #1589 tokens + step grid / live pad / key bed materials, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs,
  * #1586 PCF plate + patch deck + master footer).
  *
  * Everything in this file is opt-in. Rules are scoped either under
@@ -110,6 +110,146 @@
 
 [data-chassis="white"] .pad[data-playhead]:not([data-on]) {
   background: linear-gradient(180deg, #5a5f68, #43474f);
+}
+
+/* ── 3b. Live step grid (SvgStep / MelodicStep SVG steps) ──────────────── *
+ * The sequencer steps are SVG, so the pad material is expressed with `fill` /
+ * `filter` instead of `background` / `box-shadow`. CSS beats the presentation
+ * attributes the components set, so the dark grid needs no prop changes.
+ * `data-on` is set at render; `data-playhead` is toggled with `is-current` by
+ * the rows' imperative playhead path (`sequencer/playhead.ts`) — one element
+ * per row per tick, no extra recalc versus the dark theme. */
+
+[data-chassis="white"] .svg-step .step-body {
+  fill: var(--pad-off);
+}
+
+[data-chassis="white"] .svg-step:not([data-on]) .step-cap {
+  fill: var(--pad-off-hi);
+  fill-opacity: 1;
+}
+
+[data-chassis="white"] .svg-step[data-on] .step-cap {
+  fill-opacity: 0.92;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1px;
+}
+
+[data-chassis="white"] .svg-step[data-on] .step-glow {
+  fill-opacity: 0.55;
+}
+
+/* Inline `filter: none` on MelodicStep needs the !important. Only the one
+   playhead element per row matches. */
+[data-chassis="white"] .svg-step[data-playhead] {
+  filter: brightness(1.5) saturate(1.2) !important;
+}
+
+[data-chassis="white"] .svg-step[data-playhead]:not([data-on]) .step-cap {
+  fill: #5a5f68;
+}
+
+/* ── 3c. Live pads (DrumPads) ──────────────────────────────────────────── *
+ * Back-lit rubber pads with a coloured edge glow (`--c` per pad). The extra
+ * `.live-pads` keeps these above Tailwind's `hover:` utilities, which come
+ * later in the cascade. */
+
+[data-chassis="white"] .live-pads {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-chassis="white"] .live-pads .live-pads__title {
+  font: 600 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  color: var(--chassis-print);
+}
+
+/* In a dark well the red print is too dim; use the lit LED red. */
+[data-chassis="white"] .chassis-well .live-pads .live-pads__title {
+  color: var(--hyphon-led-on-red);
+}
+
+[data-chassis="white"] .live-pads .live-pad {
+  border: 0;
+  border-radius: 10px;
+  background: #1a1c20;
+  color: #cbd5e1;
+  box-shadow:
+    0 0 0 2px var(--c),
+    0 0 14px color-mix(in srgb, var(--c) 70%, transparent),
+    inset 0 2px 4px rgba(255, 255, 255, 0.08),
+    0 4px 0 #000;
+  transform: none;
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+
+[data-chassis="white"] .live-pads .live-pad:active,
+[data-chassis="white"] .live-pads .live-pad[data-hit] {
+  background: color-mix(in srgb, var(--c) 22%, #1a1c20);
+  color: #fff;
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 2px var(--c),
+    0 0 24px var(--c),
+    0 2px 0 #000;
+}
+
+[data-chassis="white"] .live-pads .live-pad__bloom {
+  display: none;
+}
+
+/* ── 3d. Key bed (LiveKeyboard SVG keys) ───────────────────────────────── */
+
+/* The LED dot exists on every key; it only shows on the chassis key bed. */
+.piano-key .key-led {
+  display: none;
+}
+
+[data-chassis="white"] .key-bed {
+  background: transparent;
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-body {
+  fill: #b9bcc0;
+  stroke: rgba(0, 0, 0, 0.28);
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-face {
+  fill: var(--key-white);
+}
+
+[data-chassis="white"] .piano-key[data-key="white"][data-down] .key-face {
+  fill: #c6c9cd;
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-note,
+[data-chassis="white"] .piano-key[data-key="white"] .key-hint {
+  fill: var(--chassis-print-muted);
+}
+
+[data-chassis="white"] .piano-key[data-key="black"] .key-body {
+  fill: var(--key-black);
+  stroke: #000;
+}
+
+[data-chassis="white"] .piano-key[data-key="black"] .key-face {
+  fill: #34373c;
+}
+
+[data-chassis="white"] .piano-key[data-key="black"][data-down] .key-face {
+  fill: #26282c;
+}
+
+[data-chassis="white"] .piano-key .key-led {
+  display: inline;
+  fill: #5a1a1a;
+}
+
+[data-chassis="white"] .piano-key .key-led[data-on] {
+  fill: var(--key-led);
+  filter: drop-shadow(0 0 3px var(--key-led));
 }
 
 /* ── 4. Transforming chassis container (HardwareChassis) ───────────────── */
@@ -724,7 +864,9 @@
     animation: none;
   }
 
-  .hyphon-chassis__mode-btn:active {
+  .hyphon-chassis__mode-btn:active,
+  [data-chassis="white"] .live-pads .live-pad:active,
+  [data-chassis="white"] .live-pads .live-pad[data-hit] {
     transform: none;
   }
 }
@@ -742,6 +884,19 @@
 
   .hyphon-chassis__mode-btn[aria-pressed="true"] {
     outline: 2px solid Highlight;
+  }
+
+  [data-chassis="white"] .live-pads .live-pad {
+    outline: 1px solid CanvasText;
+  }
+
+  [data-chassis="white"] .live-pads .live-pad[data-hit] {
+    outline: 2px solid Highlight;
+  }
+
+  [data-chassis="white"] .piano-key .key-led[data-on] {
+    forced-color-adjust: none;
+    fill: Highlight;
   }
 
   .hyphon-knob-led[data-active] {
