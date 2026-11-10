@@ -48,12 +48,12 @@ describe('HardwareChassis (#1584)', () => {
         expect(body.style.getPropertyValue('--chassis-max-w')).toBe('1000px');
 
         rerender(<HardwareChassis mode="vd" ledStrip={strip} keybed={keys}><div /></HardwareChassis>);
-        expect(body.style.getPropertyValue('--chassis-stage-h')).toBe('520px');
+        expect(body.style.getPropertyValue('--chassis-stage-h')).toBe('720px');
         expect(body.style.getPropertyValue('--chassis-max-w')).toBe('1180px');
         expect(screen.getByTestId('strip')).toBe(stripEl);
 
         rerender(<HardwareChassis mode="vd" compact ledStrip={strip}><div /></HardwareChassis>);
-        expect(body.style.getPropertyValue('--chassis-stage-h')).toBe('400px');
+        expect(body.style.getPropertyValue('--chassis-stage-h')).toBe('600px');
     });
 
     it('keeps stage content mounted across a panel change (motion only, no remount)', () => {

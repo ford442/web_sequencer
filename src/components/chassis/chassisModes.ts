@@ -24,8 +24,11 @@ export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
     osc: { code: 'OSC', label: 'Oscillator', stageHeight: 380, compactStageHeight: 320, maxWidth: 1000 },
     drm: { code: 'DRM', label: 'Drum voice', stageHeight: 340, compactStageHeight: 290, maxWidth: 1000 },
     smp: { code: 'SMP', label: 'Sampler', stageHeight: 420, compactStageHeight: 340, maxWidth: 1000 },
-    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 460, compactStageHeight: 360, maxWidth: 1060 },
-    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 520, compactStageHeight: 400, maxWidth: 1180 },
+    // TTS / VD host the sampler rack plus the voice deck beneath it (#1582):
+    // the rack keeps ~SMP height, the deck adds the phrase field, GEN and the
+    // Voice Designer heatmap (taller and wider under VD).
+    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060 },
+    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180 },
     pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000 },
 };
 
@@ -69,10 +72,40 @@ export function trackForChassisMode(mode: ChassisMode, current: TrackKey): Track
         case 'drm':
             return 'kick';
         case 'smp':
+        case 'tts':
+        case 'vd':
             return 'sampler';
         default:
             return null;
     }
+}
+
+/** Modes that host the sampler track: plain rack, rack + TTS deck, rack + full Voice Designer. */
+export type SamplerChassisMode = Extract<ChassisMode, 'smp' | 'tts' | 'vd'>;
+
+export const SAMPLER_CHASSIS_MODES: readonly SamplerChassisMode[] = ['smp', 'tts', 'vd'];
+
+/**
+ * Selecting the sampler track expands the chassis straight to the TTS deck
+ * (phrase field, GEN, Voice Designer heatmap); SMP collapses back to the rack.
+ */
+export const DEFAULT_SAMPLER_CHASSIS_MODE: SamplerChassisMode = 'tts';
+
+export function isSamplerChassisMode(mode: ChassisMode): mode is SamplerChassisMode {
+    return (SAMPLER_CHASSIS_MODES as readonly ChassisMode[]).includes(mode);
+}
+
+/** Whether a mode shows the voice deck (TTS phrase + GEN + Voice Designer) under the rack. */
+export function chassisModeHasVoiceDeck(mode: ChassisMode): boolean {
+    return mode === 'tts' || mode === 'vd';
+}
+
+/**
+ * The mode the live chassis shows: the track decides, except that the sampler
+ * track shows whichever sampler view (SMP / TTS / VD) was last chosen.
+ */
+export function resolveChassisMode(track: TrackKey, samplerMode: SamplerChassisMode): ChassisMode {
+    return track === 'sampler' ? samplerMode : chassisModeForTrack(track);
 }
 
 /** `?chassis=white` (or `?chassis`) opts the live layout into the white chassis. */

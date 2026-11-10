@@ -1,12 +1,24 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useAppStateSlice } from '../../contexts/AppStateContext';
 import { HardwareChassis } from '../chassis/HardwareChassis';
 import { OscillatorSignatureIcon } from '../chassis/OscillatorSignatureIcon';
-import { chassisModeForTrack, trackForChassisMode, type ChassisMode } from '../chassis/chassisModes';
+import { ChassisVoiceDeck } from '../chassis/ChassisVoiceDeck';
+import {
+    DEFAULT_SAMPLER_CHASSIS_MODE,
+    chassisModeHasVoiceDeck,
+    isSamplerChassisMode,
+    resolveChassisMode,
+    trackForChassisMode,
+    type ChassisMode,
+    type SamplerChassisMode,
+} from '../chassis/chassisModes';
 import { OSCILLATOR_THEMES, waveformToOscillatorType } from '../oscillatorThemes';
 import type { TrackKey } from '../../constants/appDefaults';
 
-const CHASSIS_KEYS = ['selectedTrack', 'setSelectedTrack', 'synthA', 'synthB', 'bass2'] as const;
+const CHASSIS_KEYS = [
+    'selectedTrack', 'setSelectedTrack', 'synthA', 'synthB', 'bass2',
+    'activeSamplerBank', 'ttsPhrases', 'handleTtsPhraseChange', 'handleGenerateTTS',
+] as const;
 
 /** LCD names for the track the stage is showing (rack titles, shortened). */
 const TRACK_BADGE: Record<TrackKey, string> = {
@@ -20,8 +32,8 @@ const TRACK_BADGE: Record<TrackKey, string> = {
     sampler: 'Sampler',
 };
 
-/** Modes that have a live rack panel today; TTS / VD / PCF hosting follows in #1582 / #1586. */
-const LIVE_MODES: readonly ChassisMode[] = ['osc', 'drm', 'smp'];
+/** Modes with a live panel; TTS / VD host the sampler + voice deck (#1582), PCF follows in #1586. */
+const LIVE_MODES: readonly ChassisMode[] = ['osc', 'drm', 'smp', 'tts', 'vd'];
 
 interface ChassisNodeProps {
     isCompact: boolean;
@@ -37,25 +49,38 @@ interface ChassisNodeProps {
  * Live layout inside the white chassis (opt-in via `?chassis=white`, #1580):
  * the step sequencer is the fixed top anchor, the key bed the fixed bottom
  * anchor, and the rack is the stage that morphs as the selected track moves
- * between oscillator, drum and sampler panels. The hosted nodes are the same
+ * between oscillator, drum and sampler panels. With the sampler selected the
+ * stage expands to the voice deck (TTS phrase + GEN + Voice Designer, #1582);
+ * SMP collapses it back to the plain rack, and any synth / drum track collapses
+ * it entirely. The hosted nodes are the same
  * components the default layout renders — no handler or state changes. They
  * are passed in (like Studio3D) so this lazy chunk never pulls them out of
  * the entry bundle.
  */
 export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard }: ChassisNodeProps) => {
-    const { selectedTrack, setSelectedTrack, synthA, synthB, bass2 } = useAppStateSlice(CHASSIS_KEYS);
-    const mode = chassisModeForTrack(selectedTrack);
+    const {
+        selectedTrack, setSelectedTrack, synthA, synthB, bass2,
+        activeSamplerBank, ttsPhrases, handleTtsPhraseChange, handleGenerateTTS,
+    } = useAppStateSlice(CHASSIS_KEYS);
+    // Which sampler view (SMP rack / TTS deck / full VD) the sampler track opens
+    // in. Remembered across track switches so returning to the sampler restores it.
+    const [samplerMode, setSamplerMode] = useState<SamplerChassisMode>(DEFAULT_SAMPLER_CHASSIS_MODE);
+    const mode = resolveChassisMode(selectedTrack, samplerMode);
+    const showDeck = chassisModeHasVoiceDeck(mode);
     const synth = selectedTrack === 'partA' ? synthA
         : selectedTrack === 'partB' ? synthB
             : selectedTrack === 'bass2' ? bass2
                 : null;
     const oscType = synth ? waveformToOscillatorType(synth.waveform, synth.engine303) : null;
-    const trackLabel = TRACK_BADGE[selectedTrack] ?? selectedTrack;
+    const trackLabel = selectedTrack === 'sampler'
+        ? `${TRACK_BADGE.sampler} · Bank ${activeSamplerBank + 1}`
+        : TRACK_BADGE[selectedTrack] ?? selectedTrack;
     const badgeDetail = oscType
         ? `${trackLabel} · ${OSCILLATOR_THEMES[oscType].badge ?? OSCILLATOR_THEMES[oscType].label}`
         : trackLabel;
 
     const handleModeChange = useCallback((next: ChassisMode) => {
+        if (isSamplerChassisMode(next)) setSamplerMode(next);
         const track = trackForChassisMode(next, selectedTrack);
         if (track && track !== selectedTrack) setSelectedTrack(track);
     }, [selectedTrack, setSelectedTrack]);
@@ -76,7 +101,22 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard }:
             )}
             keybed={keyboard}
         >
-            {rack}
+            {/* Same tree in every mode so the rack (and its GPU knob slots) never
+                remounts; the voice deck mounts under it only in TTS / VD. */}
+            <div className="hyphon-chassis__sampler-stage">
+                <div className="hyphon-chassis__rack-slot">
+                    <div className="absolute inset-0">{rack}</div>
+                </div>
+                {showDeck && (
+                    <ChassisVoiceDeck
+                        bankIdx={activeSamplerBank}
+                        phrases={ttsPhrases}
+                        onPhrasesChange={handleTtsPhraseChange}
+                        onGenerate={handleGenerateTTS}
+                        expanded={mode === 'vd'}
+                    />
+                )}
+            </div>
         </HardwareChassis>
     );
 });
