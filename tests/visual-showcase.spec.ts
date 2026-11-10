@@ -54,12 +54,36 @@ test.describe('chassis showcase', () => {
 
         await page.getByTestId('chassis-mode-vd').click();
         await expect(page.getByTestId('chassis-mode-badge')).toContainText('VD');
-        await expect.poll(async () => (await stage.boundingBox())?.height).toBeCloseTo(520, 0);
+        await expect.poll(async () => (await stage.boundingBox())?.height).toBeCloseTo(720, 0);
         expect(await stripOffset()).toBeCloseTo(before, 0);
 
         await page.getByTestId('chassis-mode-pcf').click();
         await expect.poll(async () => (await stage.boundingBox())?.height).toBeCloseTo(320, 0);
         await expect(page.locator('.hyphon-chassis__keybed')).toBeVisible();
+    });
+
+    test('PCF opens a side secondary and the panel holds the stage target size (#1584)', async ({ page }) => {
+        const stage = page.getByTestId('chassis-stage');
+        await page.getByTestId('chassis-mode-pcf').click();
+        const secondary = page.getByTestId('chassis-secondary');
+        await expect(secondary).toBeVisible();
+        await expect(secondary).toHaveAttribute('data-placement', 'side');
+        await expect.poll(async () => (await stage.boundingBox())?.height).toBeCloseTo(320, 0);
+
+        // Primary and secondary split the stage side by side; the panel matches the stage.
+        const [stageBox, primaryBox, secondaryBox, panelBox] = await Promise.all([
+            stage.boundingBox(),
+            page.getByTestId('chassis-primary').boundingBox(),
+            secondary.boundingBox(),
+            page.locator('.hyphon-chassis__panel').boundingBox(),
+        ]);
+        expect(panelBox!.width).toBeCloseTo(stageBox!.width, 0);
+        expect(panelBox!.height).toBeCloseTo(stageBox!.height, 0);
+        expect(secondaryBox!.x).toBeGreaterThan(primaryBox!.x + primaryBox!.width - 1);
+        expect(secondaryBox!.y).toBeCloseTo(primaryBox!.y, 0);
+
+        await page.getByTestId('chassis-mode-osc').click();
+        await expect(secondary).toHaveCount(0);
     });
 
     test('oscillator family swaps the public/osc panel art', async ({ page }) => {

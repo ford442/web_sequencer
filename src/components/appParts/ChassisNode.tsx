@@ -52,7 +52,8 @@ interface ChassisNodeProps {
  * between oscillator, drum and sampler panels. With the sampler selected the
  * stage expands to the voice deck (TTS phrase + GEN + Voice Designer, #1582);
  * SMP collapses it back to the plain rack, and any synth / drum track collapses
- * it entirely. The hosted nodes are the same
+ * it entirely. The deck is the chassis's secondary panel, so it opens and
+ * closes with the same morph + reveal as every other footprint change. The hosted nodes are the same
  * components the default layout renders — no handler or state changes. They
  * are passed in (like Studio3D) so this lazy chunk never pulls them out of
  * the entry bundle.
@@ -100,23 +101,20 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard }:
                 </div>
             )}
             keybed={keyboard}
+            secondary={showDeck ? (
+                <ChassisVoiceDeck
+                    bankIdx={activeSamplerBank}
+                    phrases={ttsPhrases}
+                    onPhrasesChange={handleTtsPhraseChange}
+                    onGenerate={handleGenerateTTS}
+                    expanded={mode === 'vd'}
+                />
+            ) : undefined}
         >
-            {/* Same tree in every mode so the rack (and its GPU knob slots) never
-                remounts; the voice deck mounts under it only in TTS / VD. */}
-            <div className="hyphon-chassis__sampler-stage">
-                <div className="hyphon-chassis__rack-slot">
-                    <div className="absolute inset-0">{rack}</div>
-                </div>
-                {showDeck && (
-                    <ChassisVoiceDeck
-                        bankIdx={activeSamplerBank}
-                        phrases={ttsPhrases}
-                        onPhrasesChange={handleTtsPhraseChange}
-                        onGenerate={handleGenerateTTS}
-                        expanded={mode === 'vd'}
-                    />
-                )}
-            </div>
+            {/* The rack is the primary panel in every mode, so it (and its GPU
+                knob slots) never remounts; the voice deck opens under it as the
+                chassis's `below` secondary only in TTS / VD. */}
+            <div className="absolute inset-0">{rack}</div>
         </HardwareChassis>
     );
 });

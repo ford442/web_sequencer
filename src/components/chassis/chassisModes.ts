@@ -7,6 +7,22 @@ import type { TrackKey } from '../../constants/appDefaults';
 
 export type ChassisMode = 'osc' | 'drm' | 'smp' | 'tts' | 'vd' | 'pcf';
 
+/** Where a secondary panel opens on the stage: beside the primary or under it. */
+export type ChassisSecondaryPlacement = 'side' | 'below';
+
+export interface ChassisSecondarySpec {
+    placement: ChassisSecondaryPlacement;
+    /**
+     * Share of the stage (0–1) the secondary takes along its split axis: width
+     * for `side`, height for `below`. Omit on `below` to size it to its content.
+     * `side` panels stack `below` on narrow screens and keep this share of the height.
+     */
+    share?: number;
+}
+
+/** Share a `side` secondary takes when its mode does not set one. */
+export const DEFAULT_SIDE_SECONDARY_SHARE = 0.4;
+
 export interface ChassisModeSpec {
     /** Three-letter code shown on the mode key and in the LCD badge. */
     code: string;
@@ -18,6 +34,8 @@ export interface ChassisModeSpec {
     compactStageHeight: number;
     /** Body max-width in px; wider panels (Voice Designer) widen the chassis. */
     maxWidth: number;
+    /** Default layout for a secondary panel opened in this mode. */
+    secondary?: ChassisSecondarySpec;
 }
 
 export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
@@ -27,9 +45,10 @@ export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
     // TTS / VD host the sampler rack plus the voice deck beneath it (#1582):
     // the rack keeps ~SMP height, the deck adds the phrase field, GEN and the
     // Voice Designer heatmap (taller and wider under VD).
-    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060 },
-    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180 },
-    pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000 },
+    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060, secondary: { placement: 'below' } },
+    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180, secondary: { placement: 'below' } },
+    // PCF: the filter plate and a patch / routing panel side by side (#1586).
+    pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000, secondary: { placement: 'side', share: 0.5 } },
 };
 
 /** Display order of the mode keys. */
