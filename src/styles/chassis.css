@@ -1,6 +1,6 @@
 /**
  * White hardware chassis — tokens, materials and the transforming container
- * (epic #1580: #1589 tokens, #1584 container, #1583 panel artwork, #1581 knob LEDs).
+ * (epic #1580: #1589 tokens, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs).
  *
  * Everything in this file is opt-in. Rules are scoped either under
  * `[data-chassis="white"]` or to `.hyphon-chassis*` / `.hyphon-osc-art*` /
@@ -259,10 +259,45 @@
   transition: height var(--chassis-morph-duration) var(--chassis-morph-ease);
 }
 
+/* The panel is laid out at the size the stage is heading to, not the size it
+   is passing through: `--chassis-stage-h` is the target height and
+   `--chassis-stage-w` the measured target width (HardwareChassis). The stage
+   animates and clips around it, so hosted content (rack knob canvases, their
+   ResizeObservers, GPU slots) re-lays out once per mode change instead of on
+   every frame of the morph. */
 .hyphon-chassis__panel {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: var(--chassis-stage-w, 100%);
+  height: var(--chassis-stage-h, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
   animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
+}
+
+/* Secondary panel: beside the primary (`side`) or under it (`below`). The
+   share comes in as `--chassis-secondary-size` (a % of the stage, or `auto`
+   to fit its content). */
+.hyphon-chassis__panel[data-secondary="side"] {
+  grid-template-columns: minmax(0, 1fr) var(--chassis-secondary-size, 40%);
+}
+
+.hyphon-chassis__panel[data-secondary="below"] {
+  grid-template-rows: minmax(0, 1fr) var(--chassis-secondary-size, auto);
+}
+
+.hyphon-chassis__primary,
+.hyphon-chassis__secondary {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hyphon-chassis__secondary[data-placement="side"] {
+  overflow: auto;
 }
 
 @keyframes hyphon-chassis-panel-in {
@@ -276,28 +311,13 @@
   }
 }
 
-/* Sampler-family stage (#1582): rack on top, voice deck (TTS + Voice
-   Designer) beneath it. The rack keeps whatever the deck leaves. */
-.hyphon-chassis__sampler-stage {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 100%;
-}
-
-.hyphon-chassis__rack-slot {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
+/* Voice deck (#1582): the sampler's `below` secondary in TTS / VD. The rack
+   (primary) keeps whatever the deck leaves; the chassis plays the reveal. */
 .hyphon-chassis__deck {
-  flex: none;
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: 12px;
   padding: 10px 12px;
-  animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
 }
 
 .hyphon-chassis__deck-label {
@@ -311,6 +331,19 @@
   .hyphon-chassis__deck {
     grid-template-columns: minmax(0, 1fr);
     overflow-y: auto;
+  }
+
+  /* No room for two columns: a side secondary stacks under the primary. The
+     stage grows by the secondary's share (`--chassis-stage-h-stacked`), so the
+     primary keeps the mode's full height and the secondary adds to it. */
+  .hyphon-chassis[data-secondary="side"] .hyphon-chassis__stage,
+  .hyphon-chassis[data-secondary="side"] .hyphon-chassis__panel {
+    height: var(--chassis-stage-h-stacked, var(--chassis-stage-h));
+  }
+
+  .hyphon-chassis__panel[data-secondary="side"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) var(--chassis-secondary-size, 40%);
   }
 }
 
@@ -519,7 +552,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hyphon-chassis__panel,
-  .hyphon-chassis__deck,
   .hyphon-osc-art__img {
     animation: none;
   }

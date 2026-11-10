@@ -172,6 +172,29 @@ const DemoRackPanel = memo(({ mode, values, onChange, children }: DemoRackPanelP
 
 DemoRackPanel.displayName = 'DemoRackPanel';
 
+const ROUTING_ROWS: readonly [from: string, to: string][] = [
+    ['LFO 1', 'CUTOFF'], ['ENV 2', 'RES'], ['VEL', 'DRIVE'], ['MOD WHL', 'MODE'],
+];
+
+/** PCF secondary stand-in: a patch / routing plate the chassis opens beside the filter. */
+const DemoRoutingPanel = memo(() => (
+    <div className="relative w-full h-full hyphon-chrome-panel hyphon-rack-surface overflow-hidden">
+        <RackPanelChrome />
+        <PanelTitleBar title="PCF // ROUTING" />
+        <ul className="absolute top-10 left-6 right-6 flex flex-col gap-2 font-mono text-[10px]" aria-label="Filter modulation routing">
+            {ROUTING_ROWS.map(([from, to]) => (
+                <li key={from} className="flex items-center gap-2 rounded bg-zinc-950/85 px-2 py-1.5 text-amber-300">
+                    <span className="w-16">{from}</span>
+                    <span className="flex-1 h-px bg-amber-400/50" aria-hidden="true" />
+                    <span className="text-zinc-300">{to}</span>
+                </li>
+            ))}
+        </ul>
+    </div>
+));
+
+DemoRoutingPanel.displayName = 'DemoRoutingPanel';
+
 export const ChassisShowcase = memo(() => {
     const [mode, setMode] = useState<ChassisMode>('osc');
     const [osc, setOsc] = useState<OscillatorType>('javascript');
@@ -192,6 +215,7 @@ export const ChassisShowcase = memo(() => {
             <h2 className="hyphon-section-label text-cyan-500/80 mb-3">Expandable hardware chassis (#1580)</h2>
             <p className="text-[10px] text-gray-500 mb-3">
                 Mode keys morph the stage height and body width; the LED strip and key bed stay put.
+                PCF opens a secondary routing panel beside the filter.
                 Live layout: <code>?chassis=white</code>.
                 {' '}
                 <button type="button" className="hyphon-btn hyphon-btn--ghost px-2 py-0.5 text-[10px]" aria-pressed={running} onClick={() => setRunning((r) => !r)}>
@@ -211,6 +235,7 @@ export const ChassisShowcase = memo(() => {
                         <LiveKeyboard onPlayNote={noop} onStopNote={noop} activeTrackColor="#ff3b3b" />
                     </>
                 )}
+                secondary={mode === 'pcf' ? <DemoRoutingPanel /> : undefined}
             >
                 <DemoRackPanel mode={mode} values={values} onChange={onKnobChange}>
                     <StageExtras mode={mode} osc={osc} onOsc={setOsc} />
