@@ -34,6 +34,7 @@ const WRITE_LIMIT = 4;
 export interface PhonemeDelayContext {
   /** 1 while streaming a note with phoneme data + ratios. Without it the voice is treated as a vowel. */
   hasPhonemeContext: boolean;
+  phonemeVolume: number;
   isVowel: number;
   /** -1 = none. */
   phonemeIndex: number;
@@ -85,7 +86,8 @@ export class PhonemeDelay {
     feedback: number,
     ctx: PhonemeDelayContext,
   ): void {
-    const targetGain = amount > 0 ? Math.min(1, amount) : 0;
+    const duckingScalar = ctx.hasPhonemeContext ? Math.max(0, 1.0 - ctx.phonemeVolume) : 1.0;
+    const targetGain = amount > 0 ? Math.min(1, amount) * duckingScalar : 0;
     if (targetGain === 0 && !this.active) return;
 
     const vowel = !ctx.hasPhonemeContext || ctx.isVowel >= 0.5;
