@@ -84,9 +84,10 @@ function memoryFor(world, budget, rel) {
   }
   if (world.world === 'rubberband') {
     // Owns its memory (not imported by the worklet), and NO_THREADING: no pool.
+    // Fixed (ALLOW_MEMORY_GROWTH=0) like the voice module: maximum == initial.
     return {
       initialMb: budget.rubberband.initialMemoryMb,
-      maximumMb: budget.rubberband.maximumMemoryMb,
+      maximumMb: budget.rubberband.initialMemoryMb,
       stackMb: budget.rubberband.stackSizeMb,
       pthreadPoolSize: 0,
     };
@@ -107,7 +108,8 @@ function linkFlagsFor(world, rel) {
   if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (world.world === 'emcc') return ['-pthread', 'ALLOW_MEMORY_GROWTH=0'];
-  return ['ALLOW_MEMORY_GROWTH=1'];
+  // rubberband: no worklet-loaded module grows its memory (AGENTS.md).
+  return ['ALLOW_MEMORY_GROWTH=0'];
 }
 
 export function buildNativeManifest({ repoRoot = defaultRepoRoot(), profile = 'release' } = {}) {

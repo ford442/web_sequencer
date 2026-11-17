@@ -134,8 +134,11 @@ ST_THREAD_FLAGS=""
 # through the C exports. No WASM=1 / WASM_BIGINT=1: both are the 6.x defaults.
 #
 # ALLOW_MEMORY_GROWTH=0: see MEMORY BUDGET above. A malloc past the fixed heap
-# returns NULL (every *_create / *_init checks it) instead of growing the memory.
-BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s ALLOW_MEMORY_GROWTH=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --no-entry -lexports.js"
+# returns NULL (every *_init checks it) instead of growing the memory.
+# ABORTING_MALLOC=0 keeps it that way in the glue: without growth emcc defaults
+# it to 1, and the glue's emscripten_resize_heap would abort() instead. (The
+# worklets supply their own, which refuses too: hyphonNativeImports.ts.)
+BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s ALLOW_MEMORY_GROWTH=0 -s ABORTING_MALLOC=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --no-entry -lexports.js"
 
 # pthread: shared imported memory (the SAB the event rings live in). No worker
 # pool: nothing in the module creates a thread, and the worklets instantiate the

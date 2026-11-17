@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "Rubber Band stretcher golden renders (#1596 follow-up P2). Generated ONCE from the",
+    "last embind build of public/rubberband.wasm (module.RubberBandStretcher, -fexceptions",
+    "-frtti --bind, emcc 6.0.13 -O3 -flto) with the scenario in",
+    "src/__tests__/rubberbandFixedHeap.integration.test.ts (renderStretcherGolden).",
+    "The rb_* C ABI build must reproduce every hash bit for bit: the ABI, exception and",
+    "RTTI changes must not move a sample. Regenerate only for an intended change to",
+    "Rubber Band itself or its compile flags, and say so in the PR."
+  ],
+  "scenario": {
+    "sampleRate": 48000,
+    "quantum": 128,
+    "blocks": 400,
+    "inputSeconds": 3
+  },
+  "profiles": {
+    "vocal": {
+      "options": 17826049,
+      "frames": 51200,
+      "rms": 0.203289,
+      "sha256": "e563582754f40413c7c84ba2c10aa36a817d35d846da93ae7d80275db877c878"
+    },
+    "harmonic": {
+      "options": 33554689,
+      "frames": 51200,
+      "rms": 0.178553,
+      "sha256": "e5089187c1fdca387e3391f5ba513b14cac6162bfa7c834e6ee043f675f0b71d"
+    },
+    "fast": {
+      "options": 1,
+      "frames": 51200,
+      "rms": 0.190991,
+      "sha256": "ba75c9916236feb6a65ee722b1296235b74e261b3403210508039b51c1e8c0fc"
+    },
+    "finer": {
+      "options": 536870913,
+      "frames": 42479,
+      "rms": 0.218422,
+      "sha256": "2dc31e25d80698a52ee755987b2026c426a5db003407e3e494160844afcdb6e3"
+    }
+  }
+}

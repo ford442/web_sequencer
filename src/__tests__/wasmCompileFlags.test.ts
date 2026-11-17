@@ -272,12 +272,14 @@ describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => 
     // worklet-loaded wasm may grow memory or throw". (mix_bus runs in a Worker.)
     const workletModules = {
         'emscripten/build.sh': buildSh,
+        'emscripten/build_rubberband.sh': rubberbandSh,
     };
 
-    it('passes ALLOW_MEMORY_GROWTH=0 and never =1', () => {
+    it('passes ALLOW_MEMORY_GROWTH=0 (and ABORTING_MALLOC=0, so malloc fails soft) and never =1', () => {
         for (const [name, src] of Object.entries(workletModules)) {
             const code = withoutShellComments(src);
             expect(code, name).toContain('-s ALLOW_MEMORY_GROWTH=0');
+            expect(code, name).toContain('-s ABORTING_MALLOC=0');
             expect(code, name).not.toMatch(/ALLOW_MEMORY_GROWTH=1/);
             expect(code, name).not.toContain('MAXIMUM_MEMORY');
         }
@@ -289,10 +291,31 @@ describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => 
             expect(code, name).not.toContain('--bind');
             expect(code, name).not.toMatch(/-fexceptions|-fwasm-exceptions|-frtti/);
             expect(code, name).toContain('-fno-exceptions');
+            // Redundant on the 6.x pin (the default), and noise in a flags audit.
+            expect(code, name).not.toMatch(/-s WASM=1\b/);
+        }
+    });
+
+    it('Rubber Band is a plain C ABI: no EMSCRIPTEN_BINDINGS, and its throw sites compiled out', () => {
+        const wrapper = withoutJsLineComments(read('emscripten/rubberband_wrapper.cpp'));
+        expect(wrapper).not.toContain('EMSCRIPTEN_BINDINGS');
+        expect(wrapper).not.toContain('emscripten/bind.h');
+        expect(wrapper).toContain('extern "C"');
+        expect(wrapper).not.toMatch(/std::vector/);
+        const code = withoutShellComments(rubberbandSh);
+        expect(code).toContain('-DNO_EXCEPTIONS');
+        expect(code).toContain('-fno-rtti');
+        expect(code).not.toContain('EMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES');
+        // Each worklet loader goes through the typed rb_* wrapper, never an embind class.
+        for (const f of ['src/audio-worklets/rubberband-processor.ts', 'src/audio-worklets/sustain-processor.ts']) {
+            const src = read(f);
+            expect(src, f).toContain("from \"./rubberband/stretcher\"");
+            expect(src, f).not.toContain('module.RubberBandStretcher');
         }
     });
 
     it('takes every memory size from wasm_memory_budget.json and checks the linked wasm against it', () => {
+        expect(withoutShellComments(rubberbandSh)).toContain('check_rubberband_module.mjs');
         expect(buildSh).toContain('hyphonNative.initialMemoryMb');
         expect(buildSh).toContain('hyphonNativeSt.initialMemoryMb');
         expect(withoutShellComments(buildSh)).toContain('--fixed-memory-mb "$ST_INITIAL_MEMORY_MB"');

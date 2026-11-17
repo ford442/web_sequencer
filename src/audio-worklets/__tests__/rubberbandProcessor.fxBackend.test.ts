@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RB_FX_ABI_VERSION, RB_FX_PARAM_COUNT, RB_FX_REQUIRED_EXPORTS } from '../rubberband/nativeVocalFx';
+import { RB_ABI_VERSION } from '../rubberband/stretcher';
 import { RUBBERBAND_PARAMETER_DESCRIPTORS } from '../rubberband/parameterDescriptors';
 import { SpatialRouter } from '../rubberband/spatialRouter';
 import { PhonemeDelay } from '../rubberband/phonemeDelay';
@@ -35,8 +36,41 @@ class FakeStretcher {
   retrieve(_c: Float32Array[], _n: number) { return 0; }
 }
 
+type StretcherClass = new (rate: number, channels: number, options: number, time: number, pitch: number) => FakeStretcher;
+
+/**
+ * The rb_* C ABI (src/audio-worklets/rubberband/stretcher.ts) over a fake
+ * stretcher class: rb_create returns a handle, every other call dispatches to the
+ * instance behind it.
+ */
+function rbExports(Cls: StretcherClass): Record<string, unknown> {
+  const live = new Map<number, FakeStretcher & { delete?(): void }>();
+  let next = 1;
+  const on = (h: number) => live.get(h)!;
+  return {
+    _rb_abi_version: () => RB_ABI_VERSION,
+    _rb_create: (rate: number, ch: number, opts: number, time: number, pitch: number) => {
+      live.set(next, new Cls(rate, ch, opts, time, pitch));
+      return next++;
+    },
+    _rb_destroy: (h: number) => { on(h)?.delete?.(); live.delete(h); },
+    _rb_reset: (h: number) => on(h).reset(),
+    _rb_set_time_ratio: (h: number, r: number) => on(h).setTimeRatio(r),
+    _rb_set_pitch_scale: (h: number, p: number) => on(h).setPitchScale(p),
+    _rb_get_time_ratio: (h: number) => on(h).getTimeRatio(),
+    _rb_get_pitch_scale: (h: number) => on(h).getPitchScale(),
+    _rb_set_formant_option: () => {},
+    _rb_get_samples_required: (h: number) => on(h).getSamplesRequired(),
+    _rb_get_latency: () => 0,
+    _rb_get_channel_count: () => 1,
+    _rb_available: (h: number) => on(h).available(),
+    _rb_process: () => {},
+    _rb_retrieve: (h: number) => on(h).retrieve([], 0),
+  };
+}
+
 function stretcherOnlyModule(): Record<string, unknown> {
-  return { RubberBandStretcher: FakeStretcher, HEAPF32: new Float32Array(1024), _malloc: () => 0, _free() {} };
+  return { ...rbExports(FakeStretcher), HEAPF32: new Float32Array(1024), _malloc: () => 0, _free() {} };
 }
 
 function fxModule(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -135,10 +169,10 @@ describe('RubberBandProcessor native FX runtime failure', () => {
   it('switches to TS and reports it when rb_fx_process throws, without dropping later blocks', async () => {
     const throwing = fxModule({ _rb_fx_process: () => { throw new Error('boom'); } });
     Object.assign(throwing, {
-      RubberBandStretcher: class extends FakeStretcher {
+      ...rbExports(class extends FakeStretcher {
         available() { return 128; }
         retrieve() { return 128; }
-      },
+      }),
       _malloc: () => 32768,
     });
     const { processor } = await boot(throwing);
@@ -158,9 +192,9 @@ describe('RubberBandProcessor native FX runtime failure', () => {
   it('does not blame the FX chain for a stretcher error', async () => {
     const module = fxModule();
     Object.assign(module, {
-      RubberBandStretcher: class extends FakeStretcher {
+      ...rbExports(class extends FakeStretcher {
         available(): number { throw new Error('stretcher exploded'); }
-      },
+      }),
     });
     const { processor } = await boot(module);
     processor.port.postMessage.mockClear();
@@ -190,7 +224,7 @@ describe('RubberBandProcessor setStretchProfile', () => {
       getTimeRatio() { return this.state.time; }
       getPitchScale() { return this.state.pitch; }
     }
-    const module = { ...stretcherOnlyModule(), RubberBandStretcher: Tracked, _free: (ptr: number) => freed.push(ptr) };
+    const module = { ...stretcherOnlyModule(), ...rbExports(Tracked), _free: (ptr: number) => freed.push(ptr) };
     return { module, created, freed };
   };
 
@@ -249,10 +283,10 @@ describe('RubberBandProcessor spectral stage', () => {
     const { SpectralBandProcessor } = await import('../rubberband/spectralEffects');
     const module = fxModule();
     Object.assign(module, {
-      RubberBandStretcher: class extends FakeStretcher {
+      ...rbExports(class extends FakeStretcher {
         available() { return 128; }
         retrieve() { return 128; }
-      },
+      }),
       _malloc: () => 32768,
     });
 
@@ -270,10 +304,10 @@ describe('RubberBandProcessor spectral stage', () => {
 describe('RubberBandProcessor spatial routing', () => {
   it.each(['native', 'ts'] as const)('routes the %s backend output only with stereo phoneme context', async (fxBackend) => {
     const module = fxModule({
-      RubberBandStretcher: class extends FakeStretcher {
+      ...rbExports(class extends FakeStretcher {
         available() { return 128; }
         retrieve() { return 128; }
-      },
+      }),
       _malloc: () => 32768,
     });
     const { processor } = await boot(module, { fxBackend });

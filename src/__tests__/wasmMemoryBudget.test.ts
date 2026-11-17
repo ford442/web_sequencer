@@ -40,7 +40,7 @@ const budget = JSON.parse(
     };
     rubberband: {
         initialMemoryMb: number;
-        maximumMemoryMb: number;
+        maximumMemoryMb?: number;
         stackSizeMb: number;
     };
     mixBus: {
@@ -194,15 +194,18 @@ describe('Rubber Band module split', () => {
         expect(buildSh).not.toMatch(/-DUSE_SPEEX/);
     });
 
-    it('has its own budget entry and build script that reads it', () => {
+    it('has its own fixed budget entry and a build script that reads it', () => {
         expect(budget.rubberband.initialMemoryMb).toBeGreaterThan(0);
-        expect(budget.rubberband.initialMemoryMb).toBeLessThan(budget.rubberband.maximumMemoryMb);
+        // Fixed (ALLOW_MEMORY_GROWTH=0, BUILD_NOTES#rubberband-fixed-memory).
+        expect(budget.rubberband).not.toHaveProperty('maximumMemoryMb');
         expect(rubberbandSh).toContain('wasm_memory_budget.json');
         expect(rubberbandSh).toContain('rubberband.initialMemoryMb');
         expect(rubberbandSh).toContain('-s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb');
-        expect(rubberbandSh).toContain('-s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb');
+        expect(rubberbandSh).not.toContain('MAXIMUM_MEMORY');
         expect(rubberbandSh).toContain('-s STACK_SIZE=${STACK_SIZE_MB}mb');
         expect(rubberbandSh).not.toMatch(/INITIAL_MEMORY=\d+/);
+        // The linked module is checked against the same number.
+        expect(rubberbandSh).toContain('check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$GLUE_JS" "$INITIAL_MEMORY_MB"');
     });
 
     it('is a registered build world with a package script', () => {

@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 #include <vector>
 
 namespace {
@@ -24,6 +25,48 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kTwoPi = 2.0 * kPi;
 constexpr double kSqrt1_2 = 0.70710678118654752440;
+
+/**
+ * A float buffer whose allocation can FAIL. rubberband.wasm has fixed memory
+ * (ALLOW_MEMORY_GROWTH=0) and is built -fno-exceptions, so a std::vector that
+ * cannot allocate would abort() the whole module; the sample (and window) a user
+ * loads has no length cap. assign() returns false instead, and the worklet falls
+ * back to the TypeScript FX chain for that sample (nativeVocalFx.ts).
+ */
+class FloatBuf {
+public:
+    FloatBuf() = default;
+    FloatBuf(const FloatBuf&) = delete;
+    FloatBuf& operator=(const FloatBuf&) = delete;
+    ~FloatBuf() { std::free(data_); }
+
+    /** n zeroed floats; on failure (or n == 0) the buffer is empty. */
+    bool assign(size_t n) {
+        std::free(data_);
+        data_ = nullptr;
+        size_ = 0;
+        if (n == 0) return true;
+        data_ = static_cast<float*>(std::calloc(n, sizeof(float)));
+        if (!data_) return false;
+        size_ = n;
+        return true;
+    }
+    size_t size() const { return size_; }
+    bool empty() const { return size_ == 0; }
+    float* data() { return data_; }
+    const float* data() const { return data_; }
+    float operator[](size_t i) const { return data_[i]; }
+
+private:
+    float* data_ = nullptr;
+    size_t size_ = 0;
+};
+
+/**
+ * Longest chorus tap: (18 + 4 * amount) ms with amount <= 1 (vocalChorus).
+ * The ring only has to exceed it; its length never changes a sample.
+ */
+constexpr double kChorusMaxDelaySeconds = 0.022;
 
 struct Grain {
     int phase = 0;
@@ -43,9 +86,9 @@ struct RbFx {
     uint32_t rng = 0x9E3779B9u;
 
     // Source material for the freeze granulator.
-    std::vector<float> sample;
-    std::vector<float> customWindowShape;
-    std::vector<float> customGrainEnvelope;
+    FloatBuf sample;
+    FloatBuf customWindowShape;
+    FloatBuf customGrainEnvelope;
 
     // granularEngine.ts
     Grain grains[2];
@@ -578,7 +621,7 @@ void bitcrusher(RbFx& fx, float* ch[2], int n) {
     }
 }
 
-double interpolate(const std::vector<float>& table, double phase) {
+double interpolate(const FloatBuf& table, double phase) {
     const double index = phase * (table.size() - 1);
     const size_t lower = static_cast<size_t>(std::floor(index));
     const size_t upper = static_cast<size_t>(std::ceil(index));
@@ -645,7 +688,11 @@ EMSCRIPTEN_KEEPALIVE int rb_fx_param_count(void) { return RB_FX_PARAM_COUNT; }
 
 EMSCRIPTEN_KEEPALIVE RbFx* rb_fx_create(double sampleRate, int maxFrames) {
     if (!(sampleRate > 0) || maxFrames <= 0) return nullptr;
-    RbFx* fx = new RbFx();
+    // The per-block buffers below are small and sized here once; the module is
+    // built -fno-exceptions, so an allocation failure in them aborts. RbFx itself
+    // is nothrow so the common failure (no room at all) returns nullptr.
+    RbFx* fx = new (std::nothrow) RbFx();
+    if (!fx) return nullptr;
     fx->sampleRate = sampleRate;
     fx->maxFrames = maxFrames;
     std::fill(std::begin(fx->params), std::end(fx->params), 0.0);
@@ -657,8 +704,12 @@ EMSCRIPTEN_KEEPALIVE RbFx* rb_fx_create(double sampleRate, int maxFrames) {
     fx->params[RB_FX_PHONEME_INDEX] = -1.0;
     fx->channels[0].assign(static_cast<size_t>(maxFrames), 0.0f);
     fx->channels[1].assign(static_cast<size_t>(maxFrames), 0.0f);
-    fx->chorusBuf[0].assign(48000, 0.0f);
-    fx->chorusBuf[1].assign(48000, 0.0f);
+    // Was a hard-coded 48000 (one second at 48 kHz, ~0.25 s at 192 kHz): sized from
+    // the real rate now, with a 2x margin over the longest tap. A ring longer than
+    // the longest delay never changes the output, so this is bit-identical.
+    const size_t chorusLen = static_cast<size_t>(std::ceil(2.0 * kChorusMaxDelaySeconds * sampleRate)) + 2;
+    fx->chorusBuf[0].assign(chorusLen, 0.0f);
+    fx->chorusBuf[1].assign(chorusLen, 0.0f);
     return fx;
 }
 
@@ -675,17 +726,18 @@ EMSCRIPTEN_KEEPALIVE void rb_fx_seed(RbFx* fx, uint32_t seed) { fx->rng = seed ?
 EMSCRIPTEN_KEEPALIVE void rb_fx_note_on(RbFx* fx) { fx->syllableLp = 0.0; }
 
 EMSCRIPTEN_KEEPALIVE float* rb_fx_sample_alloc(RbFx* fx, int frames) {
-    fx->sample.assign(static_cast<size_t>(std::max(0, frames)), 0.0f);
+    // nullptr for frames > 0 means the fixed heap could not hold the sample.
+    fx->sample.assign(static_cast<size_t>(std::max(0, frames)));
     for (Grain& g : fx->grains) g.active = false;
     return fx->sample.empty() ? nullptr : fx->sample.data();
 }
 
 EMSCRIPTEN_KEEPALIVE float* rb_fx_window_alloc(RbFx* fx, int kind, int len) {
-    std::vector<float>* target = kind == RB_FX_WINDOW_CUSTOM_SHAPE ? &fx->customWindowShape
+    FloatBuf* target = kind == RB_FX_WINDOW_CUSTOM_SHAPE ? &fx->customWindowShape
         : kind == RB_FX_WINDOW_CUSTOM_ENVELOPE ? &fx->customGrainEnvelope
         : nullptr;
     if (!target) return nullptr;
-    target->assign(static_cast<size_t>(std::max(0, len)), 0.0f);
+    target->assign(static_cast<size_t>(std::max(0, len)));
     return target->empty() ? nullptr : target->data();
 }
 

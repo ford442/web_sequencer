@@ -278,7 +278,7 @@ Two independent reasons, one of which is simply that it was never used there:
 | Module | Built by | Memory | Imported memory? |
 |---|---|---|---|
 | `public/hyphon_native.wasm` | `emscripten/build.sh` | `wasm_memory_budget.json#hyphonNative` | **yes** — the worklets pass one in, so `initial` must match exactly |
-| `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` | no — the module owns its memory |
+| `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` — fixed, never grows | no — the module owns its memory |
 | `public/mix_bus.wasm` | `emscripten/build_mix_bus.sh` | `#mixBus` — fixed, never grows | no — owns it, zero imports |
 | `src/wasm/*.wasm` | `asc` (see the AS matrix) | `#assemblyScript` (pages) | no |
 
@@ -349,9 +349,9 @@ Same flags as the stretcher: `-msimd128`, `-DNO_THREADING`, no `-ffast-math`.
   `src/audio-worklets/rubberband/__tests__/nativeVocalFx.test.ts`. Bump
   `RB_FX_ABI_VERSION` whenever the layout changes. The worklet refuses a mismatched
   module and falls back to TS.
-- **Memory.** One stretcher, one FX chain and a 30 s vocal fit in the 64 MB initial
-  heap with no growth (asserted by the integration test), so the `rubberband` budget
-  is unchanged.
+- **Memory.** One stretcher, one FX chain and a 30 s vocal fit in the 64 MB heap
+  (asserted by the integration test). The heap is fixed now:
+  [Rubber Band: plain C ABI, fixed memory](#rubberband-fixed-memory).
 - **emcc 4+ glue.** `build_rubberband.sh` now declares `INCOMING_MODULE_JS_API`
   (`wasmBinary`, `locateFile`, …) and exports `HEAPF32` / `HEAPF64`. Without the
   first, the glue ignores `Module.wasmBinary` and aborts inside the AudioWorklet,
@@ -870,36 +870,66 @@ stretcher, spread over Rubber Band's many TUs, is where cross-TU inlining pays.
 | `mix_bus.wasm` | 730 | 880 | +150 (the explicit SIMD peak) |
 
 <a id="rubberband-memory-growth"></a>
-### Rubber Band memory growth: kept, and tested
+<a id="rubberband-fixed-memory"></a>
+### Rubber Band: plain C ABI, fixed memory, no exceptions (#1596 follow-up P2)
 
-`rubberband.wasm` runs in an AudioWorklet with `ALLOW_MEMORY_GROWTH=1`; a grow
-replaces the memory's `ArrayBuffer` and detaches every `HEAPF32` / `HEAPF64` view
-made before it. **Decision: keep growth** (initial 64 MB, max 256 MB, unchanged),
-because the one allocation that scales with user input has no bound:
-`loadBuffer` copies the whole sample into the heap (`rb_fx_sample_alloc`), and
-nothing caps sample length. A fixed heap would turn a long sample into a load
-failure. Everything else is small: a build with an **8 MB** initial heap never
-grew through all five stretcher renders above (R3 finer stereo included) — the
-"~40 MB finer-engine stretch transient" quoted when the module split out does
-not reproduce on the real-time engine both worklets use — and
-`nativeVocalFx.integration.test.ts` already pins a 30 s vocal session at zero
-growth inside 64 MB. So in practice a grow happens on `loadBuffer`, outside
-`process()`.
+`rubberband.wasm` used to be the odd module out: embind (`--bind`, `-frtti`),
+JS-trampoline exceptions (`-fexceptions`, so every `invoke_*` crossed into JS),
+`ALLOW_MEMORY_GROWTH=1` (64 → 256 MB), a `std::vector` of channel pointers built on
+every `process()` / `retrieve()`, and an embind class whose `getTimeRatio` /
+`getPitchScale` were declared in TS but never bound. That last one meant
+`setStretchProfile` threw on the shipped build. It now matches the voice module:
 
-What makes growth safe is that no view outlives a call that can allocate. The
-calls that can are `_malloc`, `rb_fx_create`, `rb_fx_sample_alloc`,
-`rb_fx_window_alloc` and the stretcher's `process` / `retrieve` /
-`setTimeRatio` / `setPitchScale`; the per-block `rb_fx_process`,
-`rb_fx_render_grains` and `rb_fx_advance_lfo` work in buffers sized up front and
-never allocate. The glue reassigns `Module.HEAPF32` / `HEAPF64` on every grow,
-and the worklets read them after each such call; `NativeVocalFx` re-derives its
-cached channel views when the buffer changes.
-`src/__tests__/rubberbandHeapGrowth.integration.test.ts` proves it: it drives the
-real `RubberBandProcessor` (stream, freeze granulator, FX chain) and
-`sustain-processor` on the real module twice, once untouched and once with the
-heap forced to grow right after **every** allocating call returns, and requires
-bit-identical output. Reading `HEAPF32` before `retrieve()` instead of after
-fails it at the second block.
+- **ABI.** `emscripten/rubberband_wrapper.cpp` is `extern "C"` over an opaque
+  handle: `rb_create` / `rb_destroy` / `rb_reset` / `rb_set_time_ratio` /
+  `rb_set_pitch_scale` / `rb_get_*` / `rb_available` / `rb_process` /
+  `rb_retrieve`, with `rb_abi_version`. The handle owns fixed channel-pointer
+  arrays (up to 8 channels), so the per-block calls do no heap work of their own.
+  `src/audio-worklets/rubberband/stretcher.ts` wraps it in a `RubberBandStretcher`
+  class with the old method names. `rubberband-processor.ts` (live vocal and the
+  offline vocal host, which runs the same class) and `sustain-processor.ts`
+  construct that instead of `module.RubberBandStretcher`.
+- **Flags.** `-fno-exceptions -fno-rtti -DNO_EXCEPTIONS`, no `--bind`, no
+  `-s WASM=1`. Rubber Band never catches. Under `NO_EXCEPTIONS` its few throw
+  sites (allocation failure, an FFT/resampler implementation error) `abort()`, which
+  is what an uncaught throw did before. `tools/check_rubberband_module.mjs` fails
+  the build if the glue carries embind or the C++ exception runtime, or if the memory
+  can grow. The module's import/export names are minified, so the glue is where those
+  runtimes show.
+- **Memory: fixed at 64 MB** (`ALLOW_MEMORY_GROWTH=0`, `ABORTING_MALLOC=0`). Growth
+  was kept before because `loadBuffer` copies the whole, uncapped sample into the
+  heap. Now a sample the heap cannot hold fails `rb_fx_sample_alloc`, which returns
+  NULL: the sample buffer is a nullable `calloc`, not a `std::vector` that would
+  `abort()` under `-fno-exceptions`. The worklet then runs that sample on the
+  TypeScript FX chain, reported as `FX_BACKEND: ts`, and the stretcher keeps
+  streaming it from JS. 64 MB holds 15.0 M sample frames (5.2 min of 48 kHz mono,
+  measured) next to a live stretcher and FX chain. The benchmark below ran 12 R3
+  stretchers inside it.
+- **Chorus ring.** `rubberband_fx.cpp` sized the chorus delay ring at a literal
+  48000 samples. It is now `2 × 22 ms × sampleRate`, from the rate `rb_fx_create`
+  receives. The longest tap is 22 ms, and a ring longer than the longest delay
+  never changes a sample.
+
+**Golden render.** The stretcher on the rb_* build is **bit-identical** to the
+embind build on all four stretch profiles (vocal, harmonic, fast, R3 finer), with
+pitch and time ratio moving every block. The hashes from the last embind build are
+committed in `src/test/fixtures/rubberbandStretcherGolden.json` and checked by
+`src/__tests__/rubberbandFixedHeap.integration.test.ts`. A one-off run of the full
+`RubberBandProcessor` session (stream, freeze granulator, FX chain, stereo) and of
+`sustain-processor` was also bit-identical. The same test drives both worklets on
+the fixed heap and the long-sample fallback, and replaces
+`rubberbandHeapGrowth.integration.test.ts`: with no growth there is nothing left to
+inject.
+
+**Size and CPU** (emcc 6.0.13 `-O3 -flto`, `scripts/benchmark_rubberband_engines.mjs`,
+mean per-quantum CPU summed over every voice count and pitch, new / old):
+
+| | embind + `-fexceptions` | C ABI, no exceptions |
+|---|---:|---:|
+| `rubberband.wasm` | 456,505 B | 399,949 B (−12 %) |
+| `rubberband-lib.js` | 99,066 B | 57,731 B (−42 %) |
+| CPU, R2 profiles (vocal / harmonic / fast) | 1.00 | 0.89–1.06 (noise) |
+| CPU, R3 profiles (vocal / harmonic) | 1.00 | 0.73–0.82 |
 
 ### Why the export map is checked against the binary too
 

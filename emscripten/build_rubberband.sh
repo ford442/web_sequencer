@@ -52,12 +52,14 @@ fi
 # ---------------------------------------------------------
 # emscripten/wasm_memory_budget.json#rubberband. Unlike hyphon_native this module
 # owns its memory (the worklets do not pass an imported WebAssembly.Memory), so
-# the contract is only "no literals in this script".
+# the contract is "no literals in this script". The memory is FIXED
+# (ALLOW_MEMORY_GROWTH=0, BUILD_NOTES#rubberband-fixed-memory): a sample too long
+# for it fails rb_fx_sample_alloc and runs on the TypeScript FX chain instead of
+# growing the heap under the worklet's views.
 BUDGET_JSON="$SCRIPT_DIR/wasm_memory_budget.json"
 INITIAL_MEMORY_MB="$(node -p "require('$BUDGET_JSON').rubberband.initialMemoryMb")"
-MAXIMUM_MEMORY_MB="$(node -p "require('$BUDGET_JSON').rubberband.maximumMemoryMb")"
 STACK_SIZE_MB="$(node -p "require('$BUDGET_JSON').rubberband.stackSizeMb")"
-echo "  Memory budget: INITIAL=${INITIAL_MEMORY_MB}mb MAXIMUM=${MAXIMUM_MEMORY_MB}mb STACK=${STACK_SIZE_MB}mb"
+echo "  Memory budget: INITIAL=${INITIAL_MEMORY_MB}mb (fixed) STACK=${STACK_SIZE_MB}mb"
 
 # ---------------------------------------------------------
 # SOURCE COPY + PATCHES
@@ -87,6 +89,12 @@ fi
 # exactly the recursive/reassociation-sensitive code the audit in
 # docs/wasm/BUILD_NOTES.md#fast-math flagged. -msimd128 matches hyphon_native.
 # NO_THREADING is deliberate — this module runs inside an AudioWorklet.
+#
+# No exceptions, no RTTI, no embind (like hyphon_native): the worklets call the
+# extern "C" rb_* API in rubberband_wrapper.cpp. Rubber Band itself never catches;
+# with -DNO_EXCEPTIONS its few throw sites (allocation failure, an FFT/resampler
+# implementation error) abort() instead — what an uncaught throw already did,
+# minus the JS-trampoline invoke_* on every call that -fexceptions cost.
 if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3"
     LINK_PROFILE_FLAGS="-O1 -g3 -gsource-map -s ASSERTIONS=2"
@@ -111,6 +119,14 @@ GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"
 # module.HEAPF32 / HEAPF64 for every block, so without them stretch output is
 # written into `undefined`.
 
+# The stretcher (rubberband_wrapper.cpp) — RB_REQUIRED_EXPORTS in
+# src/audio-worklets/rubberband/stretcher.ts.
+RB_EXPORTS=(
+    rb_abi_version rb_create rb_destroy rb_reset
+    rb_set_time_ratio rb_set_pitch_scale rb_get_time_ratio rb_get_pitch_scale
+    rb_set_formant_option rb_get_samples_required rb_get_latency
+    rb_get_channel_count rb_available rb_process rb_retrieve
+)
 # Native vocal FX chain (rubberband_fx.cpp). The worklet probes for these at
 # INIT_WASM and falls back to the TS modules — loudly — if any is missing, so
 # keep this list and RB_FX_REQUIRED_EXPORTS in
@@ -122,15 +138,15 @@ RB_FX_EXPORTS=(
     rb_fx_render_grains rb_fx_exit_freeze rb_fx_process
 )
 EXPORTED_FUNCTIONS='["_malloc", "_free"'
-for fn in "${RB_FX_EXPORTS[@]}"; do EXPORTED_FUNCTIONS+=", \"_${fn}\""; done
+for fn in "${RB_EXPORTS[@]}" "${RB_FX_EXPORTS[@]}"; do EXPORTED_FUNCTIONS+=", \"_${fn}\""; done
 EXPORTED_FUNCTIONS+=']'
 
 em++ $OPT_FLAGS \
     -msimd128 \
-    -frtti \
-    -fexceptions \
+    -fno-rtti \
+    -fno-exceptions \
+    -DNO_EXCEPTIONS \
     -std=c++17 \
-    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=1 \
     -DUSE_KISSFFT \
     -DHAVE_KISSFFT \
     -DUSE_SPEEX \
@@ -147,12 +163,10 @@ em++ $OPT_FLAGS \
     $(find "$RB/src" -name "*.cpp" -not -path "*jni*" -not -path "*test*") \
     $(find "$RB/src/ext/kissfft" -name "*.c") \
     $(find "$RB/src/ext/speex" -name "*.c") \
-    --bind \
     $LINK_PROFILE_FLAGS \
-    -s WASM=1 \
-    -s ALLOW_MEMORY_GROWTH=1 \
+    -s ALLOW_MEMORY_GROWTH=0 \
+    -s ABORTING_MALLOC=0 \
     -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb \
-    -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb \
     -s STACK_SIZE=${STACK_SIZE_MB}mb \
     -s MODULARIZE=1 \
     -s EXPORT_ES6=1 \
@@ -167,6 +181,9 @@ em++ $OPT_FLAGS \
 # The compiler writes rubberband-lib.wasm next to the glue; the worklet host
 # fetches it from public/ as rubberband.wasm.
 mv "$REPO_ROOT/src/audio-worklets/rubberband-lib.wasm" "$REPO_ROOT/public/rubberband.wasm"
+
+# No embind, no exception runtime, and a memory that cannot grow.
+node "$REPO_ROOT/tools/check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$GLUE_JS" "$INITIAL_MEMORY_MB"
 
 rm -rf "$TEMP_DIR"
 
