@@ -9,17 +9,29 @@
  *     their JS library names) is where `_embind_*`, `_emval_*`, `__cxa_*` and the
  *     -fexceptions `invoke_*` trampolines show up
  *   - no wasm exception tag (-fwasm-exceptions)
- *   - every rb_* / rb_fx_* export the worklets bind to, as a Module property
+ *   - exactly the `rubberband` section of emscripten/wasm_export_manifest.json as
+ *     Module properties: none missing, none undeclared
  *
  * Usage:
  *   node tools/check_rubberband_module.mjs public/rubberband.wasm src/audio-worklets/rubberband-lib.js [initialMemoryMb]
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseWasmMemories } from './check_mix_bus_module.mjs';
 
 /** The stretcher C ABI (rubberband_wrapper.cpp); see src/audio-worklets/rubberband/stretcher.ts. */
 export const RB_ABI_VERSION = 1;
+
+/** The `rubberband` section of emscripten/wasm_export_manifest.json. */
+export const RUBBERBAND_MANIFEST_EXPORTS = JSON.parse(
+  fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../emscripten/wasm_export_manifest.json'), 'utf8'),
+).rubberband.required;
+
+/** Names the glue publishes as Module["_name"]. */
+export function glueModuleExports(glue) {
+  return [...new Set([...glue.matchAll(/Module\["_([A-Za-z0-9_]+)"\]/g)].map((m) => m[1]))];
+}
 
 /** Glue markers of a runtime no worklet-loaded module may carry. */
 export const FORBIDDEN_GLUE_MARKERS = [
@@ -28,7 +40,7 @@ export const FORBIDDEN_GLUE_MARKERS = [
 ];
 
 /** @returns {string[]} problems; empty when the module is acceptable. */
-export function checkRubberBandModule(buf, glue, initialMemoryMb = null, requiredExports = []) {
+export function checkRubberBandModule(buf, glue, initialMemoryMb = null, requiredExports = RUBBERBAND_MANIFEST_EXPORTS) {
   const problems = [];
   const module = new WebAssembly.Module(buf);
 
@@ -58,8 +70,12 @@ export function checkRubberBandModule(buf, glue, initialMemoryMb = null, require
   }
 
   // The glue publishes each export as Module["_name"] = wasmExports["<minified>"].
-  const missing = requiredExports.filter((name) => !glue.includes(`Module["_${name}"]`));
+  const published = new Set(glueModuleExports(glue));
+  const missing = requiredExports.filter((name) => !published.has(name));
   if (missing.length) problems.push(`missing exports: ${missing.join(', ')}`);
+  const declared = new Set(requiredExports);
+  const extra = [...published].filter((name) => !declared.has(name));
+  if (extra.length) problems.push(`exports not in the manifest's rubberband section: ${extra.join(', ')}`);
 
   return problems;
 }
@@ -71,10 +87,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(2);
   }
   const glue = fs.readFileSync(gluePath, 'utf8');
-  const problems = checkRubberBandModule(fs.readFileSync(file), glue, mb === undefined ? null : Number(mb), [
-    'rb_abi_version', 'rb_create', 'rb_destroy', 'rb_process', 'rb_retrieve', 'rb_available',
-    'rb_fx_create', 'rb_fx_process',
-  ]);
+  const problems = checkRubberBandModule(fs.readFileSync(file), glue, mb === undefined ? null : Number(mb));
   if (problems.length) {
     console.error(`[check_rubberband_module] ${file} is not real-time safe:`);
     for (const p of problems) console.error(`  - ${p}`);

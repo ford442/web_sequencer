@@ -1,7 +1,12 @@
 {
   "$comment": [
-    "Declared export surface of public/hyphon_native.wasm — the one list of its C API.",
-    "emscripten/build.sh exports exactly this (tools/hyphon_native_exports.mjs), and",
+    "Declared export surface of every em++ module Hyphon links — the one list of each C API.",
+    "The top-level buckets are public/hyphon_native.wasm (both threading profiles); the",
+    "`rubberband` and `mixBus` sections are public/rubberband.wasm and public/mix_bus.wasm.",
+    "Each build script exports exactly its section (tools/hyphon_native_exports.mjs --module),",
+    "gen:native-types types it (src/shared/rt/{hyphonNative,rubberband,mixBus}Exports.ts), and",
+    "check:native-types fails on a TS caller of a name no section declares.",
+    "emscripten/build.sh exports exactly the top-level buckets, and",
     "tools/check_wasm_export_map.mjs fails the build on any drift from it.",
     "`required` exports are called by shipped worklet / engine code — a build that",
     "drops one of them is broken.",
@@ -127,5 +132,71 @@
     "hyphon_stack_free",
     "hyphon_stack_paint",
     "hyphon_stack_high_water"
-  ]
+  ],
+  "rubberband": {
+    "$comment": [
+      "public/rubberband.wasm (emscripten/build_rubberband.sh). Glue Module properties are",
+      "these names with a leading underscore (Module._rb_create). rb_* is the stretcher",
+      "(rubberband_wrapper.cpp, wrapped by src/audio-worklets/rubberband/stretcher.ts), rb_fx_*",
+      "the vocal FX chain (rubberband_fx.cpp, rubberband/nativeVocalFx.ts). tools/",
+      "check_rubberband_module.mjs fails on a missing name or on one listed here that the",
+      "glue does not publish, and on any extra the glue does."
+    ],
+    "required": [
+      "malloc",
+      "free",
+      "rb_abi_version",
+      "rb_create",
+      "rb_destroy",
+      "rb_reset",
+      "rb_set_time_ratio",
+      "rb_set_pitch_scale",
+      "rb_get_time_ratio",
+      "rb_get_pitch_scale",
+      "rb_set_formant_option",
+      "rb_get_samples_required",
+      "rb_get_latency",
+      "rb_get_channel_count",
+      "rb_available",
+      "rb_process",
+      "rb_retrieve",
+      "rb_fx_abi_version",
+      "rb_fx_param_count",
+      "rb_fx_create",
+      "rb_fx_destroy",
+      "rb_fx_params",
+      "rb_fx_channel",
+      "rb_fx_seed",
+      "rb_fx_note_on",
+      "rb_fx_sample_alloc",
+      "rb_fx_window_alloc",
+      "rb_fx_advance_lfo",
+      "rb_fx_render_grains",
+      "rb_fx_exit_freeze",
+      "rb_fx_process"
+    ]
+  },
+  "mixBus": {
+    "$comment": [
+      "public/mix_bus.wasm (emscripten/build_mix_bus.sh), STANDALONE_WASM: the wasm export",
+      "names are `required`, unprefixed, plus `memory` / `_initialize` and the `runtime`",
+      "names Emscripten adds itself (never requested). Bound by",
+      "src/audio/offline/mixBus/mixBusKernel.ts; tools/check_mix_bus_module.mjs fails on a",
+      "missing name or on any export in no bucket."
+    ],
+    "required": [
+      "mix_bus_abi_version",
+      "mix_bus_block_frames",
+      "mix_bus_in_ptr",
+      "mix_bus_acc_ptr",
+      "mix_bus_accumulate",
+      "mix_bus_peak"
+    ],
+    "runtime": [
+      "__indirect_function_table",
+      "setThrew",
+      "_emscripten_stack_restore",
+      "emscripten_stack_get_current"
+    ]
+  }
 }

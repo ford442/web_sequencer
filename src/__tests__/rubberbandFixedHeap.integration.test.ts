@@ -209,8 +209,9 @@ describe('rubberband.wasm module contract', () => {
     requireRepoArtifacts(ARTIFACTS);
     const wasm = readFileSync(join(ROOT, 'public/rubberband.wasm'));
     const glue = readFileSync(join(ROOT, 'src/audio-worklets/rubberband-lib.js'), 'utf8');
-    const required = RB_REQUIRED_EXPORTS.map((name) => name.slice(1));
-    expect(checkRubberBandModule(wasm, glue, budget.rubberband.initialMemoryMb, required)).toEqual([]);
+    // Exactly the manifest's rubberband section (the generated lists come from it too).
+    expect(checkRubberBandModule(wasm, glue, budget.rubberband.initialMemoryMb)).toEqual([]);
+    for (const name of RB_REQUIRED_EXPORTS) expect(glue).toContain(`Module["${name}"]`);
   });
 });
 

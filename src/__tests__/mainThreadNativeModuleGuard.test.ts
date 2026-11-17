@@ -98,6 +98,8 @@ describe('main-thread hyphon_native guard', () => {
     const allowed = new Set([
       'src/workers/mixBus.worker.ts',
       'src/audio/offline/mixBus/mixBusKernel.ts',
+      // Generated declarations (gen:native-types): the export list and its types, no binding.
+      'src/shared/rt/mixBusExports.ts',
     ]);
     const violations: string[] = [];
     for (const file of files) {

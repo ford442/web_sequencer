@@ -944,15 +944,35 @@ resolve a single function. `check_wasm_export_map.mjs` therefore also takes
 
 ## Export surface
 
-`emscripten/wasm_export_manifest.json` declares the module's contract, and is
-the **only** list of it: `build.sh` passes exactly `required` + `optional` to
-`EXPORTED_FUNCTIONS` via `tools/hyphon_native_exports.mjs` (#1344). Add an
-export to the manifest, never to `build.sh`.
+`emscripten/wasm_export_manifest.json` declares the contract of **all three** em++
+modules, and is the **only** list of each. The top-level buckets are
+`hyphon_native` (#1344). The `rubberband` and `mixBus` sections were added in
+#1596 follow-up P3, replacing the hand-kept `RB_FX_EXPORTS` / `MIX_BUS_EXPORTS`
+arrays and their TS twins. Each build script passes exactly its module to
+`EXPORTED_FUNCTIONS` via `tools/hyphon_native_exports.mjs [--module rubberband|mixBus]`.
+Add an export to the manifest, never to a build script.
 
 - **required** — called by shipped worklet/engine code. A build missing one is broken.
 - **optional** — built, but not (yet) called by shipped code.
-- **runtime** — added by Emscripten itself (pthread internals, `main`); never requested.
+- **runtime** — added by Emscripten itself (pthread internals, `main`; mix_bus's
+  standalone stack helpers); never requested.
+- **debug** — linked into the debug profile only (the hyphon_native stack probe).
 - anything else present is flagged as export bloat.
+
+The same three lists feed all the tooling:
+
+| | hyphon_native | rubberband | mix_bus |
+|---|---|---|---|
+| Typed for TS (`pnpm run gen:native-types`) | `src/shared/rt/hyphonNativeExports.ts` | `src/shared/rt/rubberbandExports.ts` (`RUBBERBAND_STRETCHER_EXPORTS`, `RUBBERBAND_FX_EXPORTS`, `RubberBandExports`) | `src/shared/rt/mixBusExports.ts` |
+| Consumed by | worklets via the export map | `rubberband/stretcher.ts`, `rubberband/nativeVocalFx.ts` | `mixBusKernel.ts`, `check_mix_bus_module.mjs` |
+| Binary checked by | `check_wasm_export_map.mjs` (map, glue, wasm) | `check_rubberband_module.mjs` (glue `Module._x` set == section) | `check_mix_bus_module.mjs` (wasm exports == section + runtime) |
+
+`pnpm run check:exports` runs all three checks whenever the artifacts exist.
+`pnpm run check:native-types` fails when a generated file is stale **or** when code
+under `src/`, `scripts/` or `tools/` calls a native export that no section
+declares. It scans for `x.name(` / `x._name(` and quoted `'name'` with a module's
+prefix: a voice prefix or `hyphon_stack_`, `rb_`, or `mix_bus_`. Such a caller
+compiles and then fails at run time with `undefined is not a function`.
 
 Engines on the shared voice core get their generic exports from
 `HYPHON_EXPORT_VOICE(prefix, …)` — `prefix_create`, `_destroy`, `_init`,

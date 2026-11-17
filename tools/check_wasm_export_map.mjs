@@ -19,6 +19,11 @@
  *      the .wasm without touching the glue (a manual wasm-opt run) and renames
  *      exports would leave a map that still agrees with the glue and no longer
  *      resolves in the worklet.
+ *   6. The other two em++ modules against their manifest sections (#1596 follow-up
+ *      P3), whenever their artifacts exist: public/rubberband.wasm + its glue
+ *      (tools/check_rubberband_module.mjs — exact export set, fixed memory, no
+ *      embind / exceptions) and public/mix_bus.wasm (tools/check_mix_bus_module.mjs).
+ *      `--skip-modules` leaves them out (emscripten/build.sh checks only its own).
  *
  * Usage:
  *   node tools/check_wasm_export_map.mjs [--map <file>] [--glue <hyphon_native.js>] [--wasm <file>]
@@ -31,6 +36,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExportMap } from './extract_wasm_export_map.mjs';
 import { staleGeneratedFiles } from './gen_hyphon_native_types.mjs';
+import { checkRubberBandModule } from './check_rubberband_module.mjs';
+import { checkMixBusModule } from './check_mix_bus_module.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -40,6 +47,7 @@ function parseArgs(argv) {
     manifest: path.join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'),
     glue: null,
     wasm: null,
+    skipModules: false,
   };
   for (let i = 2; i < argv.length; i++) {
     const next = argv[i + 1];
@@ -47,6 +55,7 @@ function parseArgs(argv) {
     else if (argv[i] === '--manifest') { args.manifest = next; i++; }
     else if (argv[i] === '--glue') { args.glue = next; i++; }
     else if (argv[i] === '--wasm') { args.wasm = next; i++; }
+    else if (argv[i] === '--skip-modules') { args.skipModules = true; }
     else {
       console.error(`Unknown argument: ${argv[i]}`);
       process.exit(1);
@@ -65,6 +74,33 @@ if (stale.length) {
     console.error(`- ${rel} is stale against its sources — run: pnpm run gen:native-types\n`);
   }
   process.exit(1);
+}
+
+// 6. rubberband.wasm and mix_bus.wasm against their manifest sections.
+if (!args.skipModules) {
+  const moduleErrors = [];
+  const rel = (p) => path.join(REPO_ROOT, p);
+  const rbWasm = rel('public/rubberband.wasm');
+  const rbGlue = rel('src/audio-worklets/rubberband-lib.js');
+  if (fs.existsSync(rbWasm) && fs.existsSync(rbGlue)) {
+    const budget = JSON.parse(fs.readFileSync(rel('emscripten/wasm_memory_budget.json'), 'utf8'));
+    for (const p of checkRubberBandModule(fs.readFileSync(rbWasm), fs.readFileSync(rbGlue, 'utf8'), budget.rubberband.initialMemoryMb)) {
+      moduleErrors.push(`public/rubberband.wasm: ${p}`);
+    }
+  } else {
+    console.warn('[export-map] public/rubberband.wasm not built — skipping its check (pnpm run build:wasm:rubberband).');
+  }
+  const mixBus = rel('public/mix_bus.wasm');
+  if (fs.existsSync(mixBus)) {
+    for (const p of checkMixBusModule(fs.readFileSync(mixBus))) moduleErrors.push(`public/mix_bus.wasm: ${p}`);
+  } else {
+    console.warn('[export-map] public/mix_bus.wasm not built — skipping its check (pnpm run build:wasm:mixbus).');
+  }
+  if (moduleErrors.length) {
+    console.error('[export-map] FAILED\n');
+    for (const e of moduleErrors) console.error(`- ${e}\n`);
+    process.exit(1);
+  }
 }
 
 if (!fs.existsSync(args.map)) {

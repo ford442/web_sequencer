@@ -12,15 +12,14 @@
  * Node integration test both instantiate the module through this file.
  */
 
-/** Keep in step with emscripten/build_mix_bus.sh and tools/check_mix_bus_module.mjs. */
-export const MIX_BUS_REQUIRED_EXPORTS = [
-    'mix_bus_abi_version',
-    'mix_bus_block_frames',
-    'mix_bus_in_ptr',
-    'mix_bus_acc_ptr',
-    'mix_bus_accumulate',
-    'mix_bus_peak',
-] as const;
+import { MIX_BUS_EXPORTS, type MixBusExports } from '../../../shared/rt/mixBusExports';
+
+/**
+ * Generated from the `mixBus` section of emscripten/wasm_export_manifest.json
+ * (pnpm run gen:native-types) — what build_mix_bus.sh exports and
+ * tools/check_mix_bus_module.mjs checks.
+ */
+export const MIX_BUS_REQUIRED_EXPORTS = MIX_BUS_EXPORTS;
 
 export const MIX_BUS_ABI_VERSION = 1;
 
@@ -55,15 +54,9 @@ export const jsMixKernel: MixKernel = {
     },
 };
 
-interface MixBusWasmExports {
+interface MixBusWasmExports extends MixBusExports {
     memory: WebAssembly.Memory;
     _initialize?: () => void;
-    mix_bus_abi_version(): number;
-    mix_bus_block_frames(): number;
-    mix_bus_in_ptr(): number;
-    mix_bus_acc_ptr(): number;
-    mix_bus_accumulate(frames: number, gain: number): void;
-    mix_bus_peak(frames: number): number;
 }
 
 /** Why a compiled module cannot be used, or null when it can. */

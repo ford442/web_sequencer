@@ -12,17 +12,19 @@
  * Usage: node tools/check_mix_bus_module.mjs public/mix_bus.wasm
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Keep in step with build_mix_bus.sh and src/audio/offline/mixBus/mixBusKernel.ts. */
-export const MIX_BUS_REQUIRED_EXPORTS = [
-  'mix_bus_abi_version',
-  'mix_bus_block_frames',
-  'mix_bus_in_ptr',
-  'mix_bus_acc_ptr',
-  'mix_bus_accumulate',
-  'mix_bus_peak',
-];
+/**
+ * The `mixBus` section of emscripten/wasm_export_manifest.json — what
+ * build_mix_bus.sh exports and src/shared/rt/mixBusExports.ts types.
+ */
+const MIX_BUS_SECTION = JSON.parse(
+  fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../emscripten/wasm_export_manifest.json'), 'utf8'),
+).mixBus;
+export const MIX_BUS_REQUIRED_EXPORTS = MIX_BUS_SECTION.required;
+/** Exports Emscripten adds on its own (the section's `runtime` bucket). */
+const MIX_BUS_RUNTIME_EXPORTS = MIX_BUS_SECTION.runtime ?? [];
 
 export const MIX_BUS_ABI_VERSION = 1;
 
@@ -94,6 +96,10 @@ export function checkMixBusModule(buf) {
   if (!exportNames.has('memory')) problems.push('memory is not exported');
   const missing = MIX_BUS_REQUIRED_EXPORTS.filter((name) => !exportNames.has(name));
   if (missing.length) problems.push(`missing exports: ${missing.join(', ')}`);
+  // STANDALONE_WASM adds memory + _initialize; anything in no bucket is undeclared surface.
+  const allowed = new Set(['memory', '_initialize', ...MIX_BUS_REQUIRED_EXPORTS, ...MIX_BUS_RUNTIME_EXPORTS]);
+  const extra = [...exportNames].filter((name) => !allowed.has(name));
+  if (extra.length) problems.push(`exports not in the manifest's mixBus section: ${extra.join(', ')}`);
 
   if (!problems.length) {
     const { exports } = new WebAssembly.Instance(module, {});

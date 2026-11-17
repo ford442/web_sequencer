@@ -119,27 +119,13 @@ GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"
 # module.HEAPF32 / HEAPF64 for every block, so without them stretch output is
 # written into `undefined`.
 
-# The stretcher (rubberband_wrapper.cpp) — RB_REQUIRED_EXPORTS in
-# src/audio-worklets/rubberband/stretcher.ts.
-RB_EXPORTS=(
-    rb_abi_version rb_create rb_destroy rb_reset
-    rb_set_time_ratio rb_set_pitch_scale rb_get_time_ratio rb_get_pitch_scale
-    rb_set_formant_option rb_get_samples_required rb_get_latency
-    rb_get_channel_count rb_available rb_process rb_retrieve
-)
-# Native vocal FX chain (rubberband_fx.cpp). The worklet probes for these at
-# INIT_WASM and falls back to the TS modules — loudly — if any is missing, so
-# keep this list and RB_FX_REQUIRED_EXPORTS in
-# src/audio-worklets/rubberband/nativeVocalFx.ts in step.
-RB_FX_EXPORTS=(
-    rb_fx_abi_version rb_fx_param_count rb_fx_create rb_fx_destroy
-    rb_fx_params rb_fx_channel rb_fx_seed rb_fx_note_on
-    rb_fx_sample_alloc rb_fx_window_alloc rb_fx_advance_lfo
-    rb_fx_render_grains rb_fx_exit_freeze rb_fx_process
-)
-EXPORTED_FUNCTIONS='["_malloc", "_free"'
-for fn in "${RB_EXPORTS[@]}" "${RB_FX_EXPORTS[@]}"; do EXPORTED_FUNCTIONS+=", \"_${fn}\""; done
-EXPORTED_FUNCTIONS+=']'
+# EXPORTED_FUNCTIONS come from the `rubberband` section of
+# emscripten/wasm_export_manifest.json — the stretcher (rb_*, rubberband_wrapper.cpp)
+# and the native vocal FX chain (rb_fx_*, rubberband_fx.cpp). Add an export there,
+# not here: gen:native-types turns the same list into src/shared/rt/rubberbandExports.ts
+# (what stretcher.ts and nativeVocalFx.ts probe for), and check_rubberband_module.mjs
+# below fails on any drift between it and the linked glue.
+EXPORTED_FUNCTIONS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs" --module rubberband)"
 
 em++ $OPT_FLAGS \
     -msimd128 \

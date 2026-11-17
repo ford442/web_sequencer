@@ -271,7 +271,7 @@ build_profile() {
     echo "Extracting WASM export name map ($variant) for AudioWorklets..."
     node "$REPO_ROOT/tools/extract_wasm_export_map.mjs" "$output_js" "$map_json"
     echo "Validating export map against emscripten/wasm_export_manifest.json and the linked wasm..."
-    node "$REPO_ROOT/tools/check_wasm_export_map.mjs" \
+    node "$REPO_ROOT/tools/check_wasm_export_map.mjs" --skip-modules \
         --map "$map_json" \
         --glue "$output_js" \
         --wasm "${output_js%.js}.wasm"

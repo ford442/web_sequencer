@@ -1,4 +1,5 @@
 import type { VocalFxBlock, VocalFxChain } from "./vocalFx";
+import { RUBBERBAND_FX_EXPORTS } from "../../shared/rt/rubberbandExports";
 
 /** Must equal RB_FX_ABI_VERSION in emscripten/rubberband_fx.h. */
 export const RB_FX_ABI_VERSION = 5;
@@ -48,23 +49,12 @@ export const RB_FX_PARAM_COUNT = 32;
 const RB_FX_WINDOW_CUSTOM_SHAPE = 1;
 const RB_FX_WINDOW_CUSTOM_ENVELOPE = 2;
 
-/** Keep in step with RB_FX_EXPORTS in emscripten/build_rubberband.sh. */
-export const RB_FX_REQUIRED_EXPORTS = [
-  '_rb_fx_abi_version',
-  '_rb_fx_param_count',
-  '_rb_fx_create',
-  '_rb_fx_destroy',
-  '_rb_fx_params',
-  '_rb_fx_channel',
-  '_rb_fx_seed',
-  '_rb_fx_note_on',
-  '_rb_fx_sample_alloc',
-  '_rb_fx_window_alloc',
-  '_rb_fx_advance_lfo',
-  '_rb_fx_render_grains',
-  '_rb_fx_exit_freeze',
-  '_rb_fx_process',
-] as const;
+/**
+ * The rb_fx_* exports, generated from the `rubberband` section of
+ * emscripten/wasm_export_manifest.json (pnpm run gen:native-types) — the same
+ * list build_rubberband.sh exports.
+ */
+export const RB_FX_REQUIRED_EXPORTS = RUBBERBAND_FX_EXPORTS;
 
 type RbFxExportName = (typeof RB_FX_REQUIRED_EXPORTS)[number];
 

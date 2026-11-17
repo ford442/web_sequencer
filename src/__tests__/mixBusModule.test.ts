@@ -25,10 +25,13 @@ const buildMixBusSh = readFileSync(join(REPO_ROOT, 'emscripten/build_mix_bus.sh'
 const mixBusCpp = readFileSync(join(REPO_ROOT, 'emscripten/mix_bus.cpp'), 'utf8');
 
 describe('mix bus export surface', () => {
-    it('build script, release checker and worker loader name the same exports', () => {
-        const block = /MIX_BUS_EXPORTS=\(([\s\S]*?)\)/.exec(buildMixBusSh)?.[1] ?? '';
-        const fromScript = block.split(/\s+/).filter(Boolean);
-        expect(fromScript).toEqual([...MIX_BUS_REQUIRED_EXPORTS]);
+    it('build script, release checker and worker loader name the same exports (one manifest)', () => {
+        const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8')) as {
+            mixBus: { required: string[] };
+        };
+        expect(buildMixBusSh).toContain('hyphon_native_exports.mjs" --module mixBus');
+        expect(buildMixBusSh).not.toMatch(/MIX_BUS_EXPORTS=\(/);
+        expect([...MIX_BUS_REQUIRED_EXPORTS]).toEqual(manifest.mixBus.required);
         expect(CHECKER_EXPORTS).toEqual([...MIX_BUS_REQUIRED_EXPORTS]);
     });
 
