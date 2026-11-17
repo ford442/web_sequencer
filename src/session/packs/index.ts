@@ -1,6 +1,7 @@
 import { TRACK_KEYS, NUM_STEPS } from '@/constants';
 import type { TrackKey } from '@/constants/appDefaults';
 import type { Note, PartSequence, SynthParams } from '@/types';
+import { SESSION_PACK_FORMAT_VERSION, type SessionPack } from '../pack/format';
 import { getMacroPreset, macroPresetUpdate } from '@/engines/macroPresets';
 import type { TrackStorageMap } from '@/utils/trackStorageUtils';
 import { createEmptyTrackStorage } from '@/utils/trackStorageUtils';
@@ -8,18 +9,7 @@ import { randomizeDrumTrack, randomizeMelodicTrack, seededRng } from '@/utils/pa
 import { createDefaultSessionDocument } from '../defaults';
 import type { SessionDocument } from '../types';
 
-export interface SessionPack {
-  id: string;
-  name: string;
-  description: string;
-  session: SessionDocument;
-  trackStorage: TrackStorageMap;
-  /** Instrument settings the pack's clips were written for, applied on load. */
-  instruments?: {
-    synthA?: Partial<SynthParams>;
-    synthB?: Partial<SynthParams>;
-  };
-}
+export type { SessionPack };
 
 /** A factory macro patch as a part update; throws on an unknown id so a pack cannot ship a dangling one. */
 function macroPatch(id: string): Partial<SynthParams> {
@@ -92,6 +82,7 @@ export function createAcidLiveSetPack(): SessionPack {
   session.scenes[1].name = 'Drop';
   wireScenes(session, 2);
   return {
+    formatVersion: SESSION_PACK_FORMAT_VERSION,
     id: 'acid-live-set',
     name: 'Acid Live Set',
     description: 'Dual 303 lines with four-on-the-floor drums for a live acid set.',
@@ -123,6 +114,7 @@ export function createVocalChopPack(): SessionPack {
   session.scenes[1].name = 'Chop Flip';
   wireScenes(session, 2);
   return {
+    formatVersion: SESSION_PACK_FORMAT_VERSION,
     id: 'vocal-chop-performance',
     name: 'Vocal Chop Performance',
     description: 'Sampler banks as launchable vocal chops over a light rhythm bed.',
@@ -152,6 +144,7 @@ export function createDual303JamPack(): SessionPack {
   session.scenes[1].name = 'Jam B';
   wireScenes(session, 2);
   return {
+    formatVersion: SESSION_PACK_FORMAT_VERSION,
     id: 'dual-303-jam',
     name: 'Dual-303 Jam',
     description: 'Lead and bass 303 clips for call-and-response scene launches.',
@@ -181,6 +174,7 @@ export function createMinimalDrumLabPack(): SessionPack {
   session.scenes[1].name = 'Lab B';
   wireScenes(session, 2);
   return {
+    formatVersion: SESSION_PACK_FORMAT_VERSION,
     id: 'minimal-drum-lab',
     name: 'Minimal Drum Lab',
     description: 'Kick, snare, and hat clip columns for drum-only scene practice.',
@@ -226,6 +220,7 @@ export function createMacroPalettePack(): SessionPack {
   session.scenes[1].name = 'Plucks';
   wireScenes(session, 2);
   return {
+    formatVersion: SESSION_PACK_FORMAT_VERSION,
     id: 'macro-palette',
     name: 'Macro Palette',
     description: 'Macro engine: 8-voice pad chords, a mono gliding bass and a plucked line — browse the 40+ patches from the Macro panel.',

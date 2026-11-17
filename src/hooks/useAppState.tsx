@@ -82,6 +82,7 @@ import { useSamplerVoiceState } from './appState/useSamplerVoiceState'
 import { useUIModalsState } from './appState/useUIModalsState'
 import { useSongModeState } from './appState/useSongModeState'
 import { useSessionState } from './appState/useSessionState'
+import { useSessionPacks } from './appState/useSessionPacks'
 import { useSongStructureEditor } from './useSongStructureEditor'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
@@ -694,6 +695,18 @@ export function useAppState() {
     const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
     const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
 
+    // Session pack import / export (previews first; loads only on an explicit confirm).
+    const sessionPackFiles = useSessionPacks({
+        sessionDocumentRef: session.sessionDocumentRef,
+        setSessionDocument: session.setSessionDocument,
+        trackStorageRef,
+        setTrackStorage,
+        synthARef,
+        synthBRef,
+        updateSynthA,
+        updateSynthB,
+    });
+
     return {
         isVoiceEditorOpen, setIsVoiceEditorOpen,
         isCloudLibraryOpen, setIsCloudLibraryOpen,
@@ -947,6 +960,7 @@ export function useAppState() {
         redoSession: session.redoSession,
         canUndoSession: session.canUndoSession,
         canRedoSession: session.canRedoSession,
+        sessionPackFiles,
         loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage, { synthA: updateSynthA, synthB: updateSynthB }),
     }
 }

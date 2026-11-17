@@ -57,13 +57,15 @@ Gamepad (when Session is focused): D-pad moves the grid (same as arrows). Attack
 
 Undo/redo: session document edits use a dedicated history. Capture writes go through the song (arrangement) undo.
 
-## Starter packs
+## Starter packs and session packs
 
-Acid Live Set, Vocal Chop Performance, Dual-303 Jam, Minimal Drum Lab (`src/session/packs`).
+Built-in starters (`src/session/packs/index.ts`, deterministic factories): Acid Live Set, Vocal Chop Performance, Dual-303 Jam, Minimal Drum Lab, Macro Palette. Data-file starters (`src/session/packs/library/`, loaded on demand): Ambient Drift, Broken Beat Workbench, Vocal Sampler Booth.
+
+A live session can be exported to, and a pack imported from, a versioned `.hyphonpack.json` file — metadata, the session document, pattern slots and SYNTH A / B settings. Imports are validated, previewed and loaded only on an explicit confirm; a failed import changes nothing. Format, limits, security model and collision handling: [session-pack-format.md](session-pack-format.md).
 
 ## Tests
 
 - Unit / property: `src/session/__tests__/sessionLauncher.test.ts`
-- Packs: `src/session/__tests__/sessionPacks.test.ts`
+- Packs: `src/session/__tests__/sessionPacks.test.ts` (built-in starters), `sessionPackFormat.test.ts`, `sessionPackLoad.test.ts`, `sessionPackLibrary.test.ts` (session packs); `src/hooks/__tests__/useSessionPacks.test.ts`, `src/components/__tests__/SessionLauncherPacks.test.tsx`
 - A11y: `src/components/__tests__/SessionLauncherA11y.test.tsx`
 - E2E: `tests/session-launcher.spec.ts`
