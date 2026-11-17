@@ -66,9 +66,6 @@ export const PreviewTabPanel = React.memo(function PreviewTabPanel({
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-gray-800/20 border border-dashed border-gray-700 rounded-lg">
-        <div role="status" aria-live="polite" className="sr-only">
-          No Preview Available. Paste or drop valid JSON in the Paste tab to see a preview of your song.
-        </div>
         <div className="flex flex-col items-center justify-center" aria-hidden="true">
           <div className="w-12 h-12 rounded-full bg-cyan-900/30 flex items-center justify-center mb-4 text-cyan-500">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
