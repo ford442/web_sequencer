@@ -16,7 +16,7 @@ actually controls — not all of `dist/`:
 |---|---|---|
 | Entry chunk (`dist/index.html`'s `<script type="module">`) | < 1.65 MB raw | ~1.50 MB |
 | Any single image asset (png/jpg/gif/webp/avif, anywhere in `dist/`) | < 512 KB | 31.7 KB (`knob-bezel.webp`) |
-| `dist/assets/` total, excluding `.wasm` | < 4.2 MB | 4.02 MB (2026-11-17) |
+| `dist/assets/` total, excluding `.wasm` | < 4.28 MB | 4.22 MB (2026-11-17, with session packs) |
 
 `build:release` fails with the offending asset(s) and sizes when a budget is
 exceeded, plus the ten largest `dist/assets/` files for context.
@@ -37,7 +37,7 @@ total would absorb.
 | `vendor-react` chunk | < 61 KB br | 56.7 KB |
 | `vendor-onnx` chunk | < 108 KB br | 100.0 KB |
 | Largest worklet chunk | < 31 KB br | 28.5 KB (`rubberband-processor`) |
-| `dist/assets/` total, excluding `.wasm` | < 970 KB br | 952.6 KB (2026-11-17) |
+| `dist/assets/` total, excluding `.wasm` | < 990 KB br | 975.6 KB (2026-11-17, with session packs) |
 
 Two structural gates ride alongside the sizes and have no number to tune:
 
