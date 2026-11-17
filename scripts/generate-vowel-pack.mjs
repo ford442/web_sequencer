@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Generates the built-in vowel pack for the concatenative hybrid (V2):
- * public/assets/vowels/manifest.json plus one looped WAV per vowel.
+ * public/samples/vowels/manifest.json plus one looped WAV per vowel.
  *
- *   node scripts/generate-vowel-pack.mjs [--out public/assets/vowels]
+ *   node scripts/generate-vowel-pack.mjs [--out public/samples/vowels]
  *
  * The voice is a formant synthesizer, not a recording: a glottal pulse train
  * through a cascade of second-order resonators (F1..F5). The pulse period is
@@ -125,7 +125,7 @@ function encodeWav(samples, loopStart, loopEnd) {
 
 function main(argv) {
     const outIdx = argv.indexOf('--out');
-    const outDir = resolve(ROOT, outIdx >= 0 ? argv[outIdx + 1] : 'public/assets/vowels');
+    const outDir = resolve(ROOT, outIdx >= 0 ? argv[outIdx + 1] : 'public/samples/vowels');
     mkdirSync(outDir, { recursive: true });
 
     const f0Hz = SAMPLE_RATE / PERIOD;

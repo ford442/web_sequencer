@@ -774,6 +774,18 @@ if (budget) {
     const excludeExts = new Set(budget.assetsDirExcludeExtensions ?? []);
     const assetFiles = walk(assetsDir).filter((p) => !excludeExts.has(path.extname(p).toLowerCase()));
     const assetSizes = assetFiles.map((p) => ({ path: p, size: fs.statSync(p).size }));
+    // Runtime-fetched sample audio is outside Vite's graph and outside these rows
+    // (docs/PERFORMANCE_BUDGET.md). `public/assets/` is Vite's own assetsDir, so a
+    // sample dropped there is copied into dist/assets/ and silently counted: the
+    // vowel pack's 506 KB did that (#1622). Keep samples under public/samples/.
+    const strayAudio = assetFiles.filter((p) => /\.(?:wav|mp3|ogg|flac|opus|m4a)$/i.test(p));
+    if (strayAudio.length) {
+      budgetFailures.push(
+        `dist/assets/ contains sample audio (${strayAudio.map((p) => path.relative(distDir, p)).join(', ')}) — ` +
+        'it is copied from public/assets/, which is Vite\'s assetsDir and counts against the JS/CSS budget. ' +
+        'Move it to public/samples/.',
+      );
+    }
     const assetsTotal = assetSizes.reduce((sum, f) => sum + f.size, 0);
     if (assetsTotal > budget.assetsDirMaxBytes) {
       budgetFailures.push(

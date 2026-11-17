@@ -29,7 +29,7 @@ const SONG = {
 };
 
 /** The committed "ah" as the phrase: a sung vowel the aligner can segment. */
-const PHRASE = readFileSync('public/assets/vowels/ah.wav').toString('base64');
+const PHRASE = readFileSync('public/samples/vowels/ah.wav').toString('base64');
 
 function rms(channel: Float32Array): number {
     let sum = 0;

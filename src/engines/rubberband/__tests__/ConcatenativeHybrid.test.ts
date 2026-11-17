@@ -152,9 +152,9 @@ describe('VowelLibrary.loadFromUrl', () => {
     it('disables the pack with a reason when manifest.json is missing (404)', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('nope', { status: 404 }))));
         const library = new VowelLibrary();
-        const status = await library.loadFromUrl('assets/vowels/', decode);
+        const status = await library.loadFromUrl('samples/vowels/', decode);
         expect(status.state).toBe('disabled');
-        expect((status as { reason: string }).reason).toContain('assets/vowels/manifest.json not found (HTTP 404)');
+        expect((status as { reason: string }).reason).toContain('samples/vowels/manifest.json not found (HTTP 404)');
         expect(library.getStatus()).toBe(status);
         expect(library.size()).toBe(0);
     });
@@ -164,21 +164,21 @@ describe('VowelLibrary.loadFromUrl', () => {
             status: 200,
             headers: { 'content-type': 'text/html' },
         }))));
-        const status = await new VowelLibrary().loadFromUrl('assets/vowels/', decode);
+        const status = await new VowelLibrary().loadFromUrl('samples/vowels/', decode);
         expect(status.state).toBe('disabled');
         expect((status as { reason: string }).reason).toMatch(/HTML page/);
         expect(decode).not.toHaveBeenCalled();
     });
 
     it('loads the committed pack and scales loop points to the decode rate', async () => {
-        const dir = join(process.cwd(), 'public/assets/vowels');
+        const dir = join(process.cwd(), 'public/samples/vowels');
         vi.stubGlobal('fetch', vi.fn((url: string) => {
             const file = url.split('/').pop()!;
             const body = readFileSync(join(dir, file));
             return Promise.resolve(new Response(body, { status: 200, headers: { 'content-type': file.endsWith('.json') ? 'application/json' : 'audio/wav' } }));
         }));
         const library = new VowelLibrary();
-        const status = await library.loadFromUrl('assets/vowels', decode);
+        const status = await library.loadFromUrl('samples/vowels', decode);
         expect(status).toEqual({ state: 'ready', count: 7 });
         expect(library.getAvailableVowels().sort()).toEqual(['ah', 'ee', 'eh', 'ih', 'oh', 'oo', 'uh']);
         const manifest = parseVowelManifest(JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')));

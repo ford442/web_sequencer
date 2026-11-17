@@ -1,8 +1,8 @@
 {
-  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Mostly scoped to dist/assets/ (the Vite-built JS/CSS/image graph). Native binaries outside Vite's bundler have raw-byte rows (`native`, below): the voice module, rubberband.wasm and mix_bus.wasm; sample .wav files and the vendored Pyodide runtime (dist/pyodide/) are not budgeted. See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
+  "_comment": "Byte budgets enforced by scripts/check-release-dist.mjs. Mostly scoped to dist/assets/ (the Vite-built JS/CSS/image graph). Native binaries outside Vite's bundler have raw-byte rows (`native`, below): the voice module, rubberband.wasm and mix_bus.wasm; sample .wav files (public/samples/, public/*.wav) and the vendored Pyodide runtime (dist/pyodide/) are not budgeted; the gate rejects audio inside dist/assets/ (#1622). See docs/PERFORMANCE_BUDGET.md#bundle-size-budget.",
   "entryChunkMaxBytes": 1650000,
   "imageAssetMaxBytes": 524288,
-  "assetsDirMaxBytes": 4500000,
+  "assetsDirMaxBytes": 4200000,
   "assetsDirExcludeExtensions": [
     ".wasm"
   ],

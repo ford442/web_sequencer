@@ -155,7 +155,7 @@ async function singLine(rate: number): Promise<number[]> {
 
 /** The committed vowel pack, decoded from its 16-bit WAVs (and linearly resampled for 44.1 kHz). */
 function vowelPackAt(rate: number): VowelLibrary {
-  const dir = join(repoRoot(), 'public/assets/vowels');
+  const dir = join(repoRoot(), 'public/samples/vowels');
   const manifest = parseVowelManifest(JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')));
   const library = new VowelLibrary();
   for (const entry of manifest.samples) {
