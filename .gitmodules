@@ -2,9 +2,6 @@
 	path = jc303_wasm
 	url = https://github.com/ford442/jc303_wasm.git
 
-[submodule "rubberband"]
-	path = rubberband
-	url = https://github.com/breakfastquay/rubberband.git
 [submodule "third_party/eurorack"]
 	path = third_party/eurorack
 	url = https://github.com/pichenettes/eurorack.git

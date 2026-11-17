@@ -71,7 +71,7 @@ sed -i 's/for (int c = 0; c < int(m_channels); ++c) {/#pragma omp parallel for\n
 ```
 
 #### Option 2: Fork/Modify Source
-Directly edit rubberband source files (tracked in git submodule).
+Directly edit rubberband source files (vendored in-tree under `rubberband/`, not a submodule).
 
 ### Files with Parallelizable Loops
 

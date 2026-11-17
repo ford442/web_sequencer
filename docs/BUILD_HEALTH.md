@@ -1,5 +1,19 @@
 # BUILD_HEALTH.md — web_sequencer pipeline hygiene pass
 
+> **Current state (2026-11-17, #1596 follow-up P5).** This file is a dated log; the
+> sections below describe the tree on their own dates. Today:
+> - **Emscripten pin: 6.0.13**, recorded in `emscripten/toolchain.json` and nowhere
+>   else. Every em++ script refuses any other `emcc` (`emscripten/toolchain_env.sh`),
+>   and every CI workflow reads the same field.
+> - **No `tools/optimize.sh`, no binaryen or wasmedge install.** The `-O3 -flto` link
+>   runs the pinned emsdk's own `wasm-opt` (`docs/wasm/BUILD_NOTES.md#wasm-opt`).
+> - **No Rust in the default build or CI.** `rust-audio` is bench-only (#1294) and
+>   `openrb338` is opt-in (`pnpm run build:wasm:openrb338`, its own pinned toolchain).
+> - **WASM artifacts are build output, not committed** (except the Rubber Band glue
+>   and the export maps). `pnpm run build:native` rebuilds every world.
+> - **Every module an AudioWorklet loads has fixed memory and no exceptions**
+>   (`docs/wasm/BUILD_NOTES.md#fixed-voice-memory`, `#rubberband-fixed-memory`).
+
 **Date:** 2026-06-01  **Branch:** `claude/gallant-carson-8737B`  **Mode:** verification only (no source changes)
 **Environment:** ephemeral CI-like container (Node 22, pnpm 11, cargo 1.94). **Not** a full build host.
 
@@ -15,7 +29,7 @@
 
 **The full clean build cannot complete in a vanilla container.** Missing toolchain:
 - `emcc` (Emscripten) — required by `build:emcc` and `build:wasm:jc303` (`tools/build_jc303_omp.sh`). **Genuinely absent** (not an npm dep).
-- `wasm-opt` (binaryen) **and** `wasmedge` — required by `tools/optimize.sh`, which `exit 1`s if `wasm-opt` is missing and tries a `curl | bash` network install of `wasmedge` (fails offline).
+- ~~`wasm-opt` (binaryen) **and** `wasmedge` — required by `tools/optimize.sh`~~ — *superseded 2026-10-14: `tools/optimize.sh` is deleted; the pinned emsdk's in-band `wasm-opt` runs at the `-O3` link.*
 - `bench:wasm:rust` (`wasm-pack`) needs network to fetch crates. Bench-only since #1294 — not part of `build:native`.
 - `asc` / `wasm-pack` themselves are fine via `node_modules` (npx-runnable).
 
@@ -61,7 +75,7 @@ From `deploy.py`:
 
 1. **🔴 SECURITY — deploy credential.** *In-code fallback removed:* `deploy.py` was found missing from the working tree and from git history entirely, and has been rewritten to read `DEPLOY_TOKEN` from the environment only, failing closed when unset. **The previously-reported hardcoded token must still be rotated on the VPS** — assume it is compromised. Remaining action is on the server side.
 
-2. **🟠 Build is not reproducible / source maps shipped.** (a) No pinned toolchain or Dockerfile for `emcc` + `binaryen` + `wasmedge`; the build only works because prebuilt WASM is committed. (b) `dist/` ships **~6 MB of `.map` files** (incl. `Studio3D-*.js.map` 4 MB, `index-*.js.map` 1.28 MB) which still get generated. *Partly mitigated:* `deploy.py` now excludes `.map` files from the upload by default (bundle ~11 MB, down from ~36 MB), so they are no longer published. They are still built — set `build.sourcemap: false` (or `'hidden'`) in `vite.config.ts:43` to stop producing them.
+2. **🟠 Build is not reproducible / source maps shipped.** (a) No pinned toolchain or Dockerfile for `emcc` + `binaryen` + `wasmedge`; the build only works because prebuilt WASM is committed. *(Superseded: the emsdk pin lives in `emscripten/toolchain.json`; binaryen / wasmedge are no longer needed.)* (b) `dist/` ships **~6 MB of `.map` files** (incl. `Studio3D-*.js.map` 4 MB, `index-*.js.map` 1.28 MB) which still get generated. *Partly mitigated:* `deploy.py` now excludes `.map` files from the upload by default (bundle ~11 MB, down from ~36 MB), so they are no longer published. They are still built — set `build.sourcemap: false` (or `'hidden'`) in `vite.config.ts:43` to stop producing them.
 
 3. **🟠 protobufjs vulns via onnxruntime-web** (1 critical / 4 high) — bump `protobufjs >=7.5.8` via `pnpm.overrides`.
 
@@ -74,7 +88,7 @@ From `deploy.py`:
 ## Explicitly NOT verified
 - Real-browser boot: WebGPU knob render, AudioContext init, Pyodide load (headless container — needs Playwright/manual).
 - Live deploy (dry-run only; no upload performed).
-- Full WASM recompilation (emcc/binaryen/wasmedge absent; verified the committed artifacts bundle correctly instead).
+- Full WASM recompilation (emcc/binaryen/wasmedge absent; verified the committed artifacts bundle correctly instead). *(2026-06-01 only; see the current-state note at the top.)*
 
 ---
 
@@ -95,7 +109,7 @@ Baseline: `main` `242750b`. `tsc -b` clean; `lint:ratchet` failed `no-explicit-a
 
 ## 2026-10-14 — native toolchain modernisation (Part A, branch `chore/toolchain-modernise`)
 
-Supersedes the toolchain notes above: the emsdk pin is **6.0.9**, in `emscripten/toolchain.json` only, and every em++ script fails on any other `emcc` (`emscripten/toolchain_env.sh`). `tools/optimize.sh` (and its `wasm-opt` / `wasmedge` requirement) is deleted — the `-O3 -flto` link runs the pinned emsdk's own `wasm-opt`. Details, sizes and the render-parity result: `docs/wasm/BUILD_NOTES.md#toolchain-pin`.
+Supersedes the toolchain notes above: the emsdk pin is **6.0.9** (since bumped to **6.0.13**; `emscripten/toolchain.json` is the record), in `emscripten/toolchain.json` only, and every em++ script fails on any other `emcc` (`emscripten/toolchain_env.sh`). `tools/optimize.sh` (and its `wasm-opt` / `wasmedge` requirement) is deleted — the `-O3 -flto` link runs the pinned emsdk's own `wasm-opt`. Details, sizes and the render-parity result: `docs/wasm/BUILD_NOTES.md#toolchain-pin`.
 
 - `pnpm run build:native` on 6.0.9: all 9 worlds rebuild. `test:native` passes; `test:unit` and `test:integration` (`HYPHON_REQUIRE_NATIVE=1`) pass against the 6.0.9 artifacts.
 - Rubber Band on 6.x needed `HEAPF32` / `HEAPF64` in `EXPORTED_RUNTIME_METHODS`; without them `nativeVocalFx` / `phonemeElasticity` fail ("Rubber Band glue does not expose HEAPF32").

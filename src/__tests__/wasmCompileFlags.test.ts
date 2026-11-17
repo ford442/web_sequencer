@@ -147,11 +147,14 @@ describe('AssemblyScript browser matrix', () => {
         }
     });
 
-    it('keeps threads on the oscillators module only', () => {
-        expect(packageJson.scripts['build:wasm:oscillators']).toContain('--enable threads');
-        for (const name of asScripts.filter((n) => n !== 'build:wasm:oscillators')) {
+    it('enables threads on no module: none uses atomics or shared memory', () => {
+        // The oscillators' --enable threads was dead: assembly/oscillators.ts has
+        // no atomics and WasmOscillator.ts uses the module's own non-shared memory
+        // (the module built without it is byte-identical).
+        for (const name of asScripts) {
             expect(packageJson.scripts[name], name).not.toContain('--enable threads');
         }
+        expect(read('assembly/oscillators.ts')).not.toMatch(/\batomic\.|Atomics/);
     });
 
     it('keeps the capability probe available for a future relaxed kernel', () => {
@@ -326,6 +329,36 @@ describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => 
         const code = withoutShellComments(buildSh);
         expect(code).toMatch(/if \[ "\$BUILD_PROFILE" = "debug" \]; then\s*\n\s*compile_cpp "\$SCRIPT_DIR\/core\/stack_probe\.cpp"/);
         expect(code).toContain('hyphon_native_exports.mjs" --profile "$BUILD_PROFILE"');
+    });
+});
+
+describe('repo hygiene (#1596 follow-up P5)', () => {
+    it('rubberband/ is vendored, not a submodule', () => {
+        expect(read('.gitmodules')).not.toMatch(/submodule "rubberband"/);
+        expect(withoutShellComments(rubberbandSh)).not.toContain('submodule update');
+    });
+
+    it('no CI workflow installs or caches Rust (rust-audio is bench-only, openrb338 opt-in)', () => {
+        for (const f of readdirSync(join(REPO_ROOT, '.github/workflows')).filter((n) => n.endsWith('.yml'))) {
+            const yml = read(`.github/workflows/${f}`);
+            expect(yml, f).not.toContain('dtolnay/rust-toolchain');
+            expect(yml, f).not.toMatch(/rust-audio\/(target|src|Cargo)/);
+            expect(yml, f).not.toContain('public/rust-wasm/');
+        }
+    });
+
+    it('openrb338 is built with SIMD like every other shipped-capable module', () => {
+        expect(read('openrb338/build.sh')).toMatch(/RUSTFLAGS="\$\{RUSTFLAGS:-\} -C target-feature=\+simd128" \\\n\s*cargo build --release --target wasm32-unknown-unknown/);
+    });
+
+    it('the docs name the real toolchain pin', () => {
+        const pin = toolchain.emscripten.version;
+        for (const f of ['CLAUDE.md', 'AGENTS.md']) {
+            const doc = read(f);
+            expect(doc, f).toContain(`Emscripten ${pin}`);
+            expect(doc, f).not.toMatch(/Emscripten \*{0,2}6\.0\.(?!13\b)\d+/);
+        }
+        expect(read('AGENTS.md')).toContain('No worklet-loaded wasm may grow memory or throw');
     });
 });
 

@@ -57,9 +57,8 @@ function isHyphonSt(world, rel) {
 
 function artifactMeta(rel, world) {
   if (isHyphonSt(world, rel)) return { threaded: false, requiresCoopCoep: false };
-  const threaded =
-    world.world === 'emcc' ||
-    (world.world === 'assemblyscript' && rel.includes('oscillators'));
+  // No AssemblyScript module is built with threads (#1596 follow-up P5).
+  const threaded = world.world === 'emcc';
   const requiresCoopCoep = world.world === 'emcc';
   return { threaded, requiresCoopCoep };
 }

@@ -1144,7 +1144,6 @@ Current flags (`package.json`), one script per module:
 ```
 --optimize --converge --optimizeLevel 3
 --enable simd --enable bulk-memory
---enable threads          (oscillators only)
 --initialMemory 128–384 pages
 --exportRuntime --bindings esm
 ```
@@ -1157,7 +1156,7 @@ asserted by `src/__tests__/wasmCompileFlags.test.ts`.
 |---|---|---|---|---|
 | SIMD (`simd128`) | ✅ 91+ | ✅ 89+ | ✅ 16.4+ | ✅ |
 | Bulk memory | ✅ | ✅ | ✅ 15+ | ✅ |
-| Threads + SharedArrayBuffer | ✅ (COOP/COEP) | ✅ (COOP/COEP) | ⚠️ COOP/COEP required; historically flaky inside AudioWorklets on iOS | ✅ oscillators only |
+| Threads + SharedArrayBuffer | ✅ (COOP/COEP) | ✅ (COOP/COEP) | ⚠️ COOP/COEP required; historically flaky inside AudioWorklets on iOS | ❌ dropped (#1596 follow-up P5) — `oscillators.ts` uses no atomics and `WasmOscillator.ts` runs it on its own non-shared memory; the module without the flag is byte-identical |
 | Reference types | ✅ | ✅ | ✅ 15+ | ❌ dropped — nothing needs it |
 | Relaxed SIMD | ✅ 114+ | ✅ 120+ | ⚠️ recent only | ❌ dropped — see below |
 | **WasmGC (`--target wasm-gc`)** | ✅ 119+ | ✅ 120+ | ⚠️ **the risk** — trails the others; older supported Safari refuses the module outright | ❌ dropped |
