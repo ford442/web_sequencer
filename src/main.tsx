@@ -10,6 +10,7 @@ import { engineTelemetry } from './utils/engineTelemetry'
 import { probeHyphonNative } from './engines/hyphonNativeProbe'
 import { automationStore } from './stores/automationStore'
 import { e2eTransportSnapshot, measureE2eAudioTapPeak } from './e2e/probe'
+import { closeProbeContexts, probeAudioContext, type AudioContextProbeRequest } from './e2e/audioContextProbe'
 // Direct module import, not the './audio/wam' barrel: the barrel re-exports the
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
@@ -164,6 +165,12 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
     getEngineResolution: (subsystem: string) =>
       engineTelemetry.snapshot()[subsystem]?.resolution?.backend ?? null,
     measureAudioTapPeak: (name: string, ms: number) => measureE2eAudioTapPeak(name, ms),
+
+    // --- AudioContext negotiation matrix --------------------------------------
+    // Builds a context through the production factory; the spec calls it from a
+    // real click and closes every context afterwards.
+    probeAudioContext: (req: AudioContextProbeRequest) => probeAudioContext(req),
+    closeProbeContexts: () => closeProbeContexts(),
   }
 }
 
