@@ -191,6 +191,17 @@ jobs:
         # ever turned the Playwright E2E badge red.
         run: pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs
 
+      - name: Bundle report (budget headroom, report only)
+        # Never fails the job - the gate is check-release-dist.mjs above. This
+        # only makes the headroom visible on the run page. For a before/after
+        # delta locally: `node scripts/analyze-bundle.mjs --json > base.json` on
+        # the base commit, then `pnpm run bundle:compare base.json` on yours.
+        if: always()
+        continue-on-error: true
+        run: |
+          node scripts/analyze-bundle.mjs --json > /tmp/bundle-report.json
+          node scripts/analyze-bundle.mjs --compare /tmp/bundle-report.json >> "$GITHUB_STEP_SUMMARY"
+
       - name: Test (integration tier)
         run: pnpm run test:integration
         env:

@@ -41,6 +41,7 @@
     "lint": "eslint . && node scripts/check-root.mjs && pnpm run check:ai-song-schema && pnpm run check:coproducer-validators && pnpm run check:native-types && node scripts/check-module-size.mjs && node scripts/wam-catalog-integrity.mjs --check && node scripts/knip-ratchet.mjs",
     "lint:knip": "node scripts/knip-ratchet.mjs",
     "lint:knip:update": "node scripts/knip-ratchet.mjs --update",
+    "bundle:compare": "node scripts/analyze-bundle.mjs --compare",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",
