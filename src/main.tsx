@@ -1,3 +1,4 @@
+import { log } from '@/utils/log'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -95,7 +96,7 @@ if (
   w.__devtools = w.__devtools || {}
   w.__devtools.exportEngineReport = () => {
     engineTelemetry.exportReport()
-    console.log('[devtools] engine report exported')
+    log.info('[devtools] engine report exported')
   }
 }
 

@@ -14,7 +14,8 @@
 - [x] Explore modulating synth bass filter cutoff using phrase progress to build tension towards the end of lines.
 - Velocity Check: Modulating the synth bass filter cutoff using phrase progress seamlessly builds tension across phrases without any new DSP nodes, elegantly achieving the musical intent purely through parameter mapping.
 - Explore mapping the vocal tract length parameter (formant shift) to a delay line feedback scalar to simulate acoustic reflection.
-- Explore modulating the delay mix amount inversely to phoneme intensity to create a ducking delay effect on vocals.
+- [x] Explore modulating the delay mix amount inversely to phoneme intensity to create a ducking delay effect on vocals.
+- Velocity Check: Modulating the delay mix amount inversely to phoneme intensity creates a clean ducking delay effect seamlessly. It prevents the delay tail from muddying dense syllables and cleanly fills the space between words. It adds musicality by emphasizing tails during pauses without any heavy extra DSP overhead in the delay loop, meeting the dual mandate exactly.
 - [x] Explore shifting the phase of the Euclidean polyrhythms dynamically based on the current swing percentage.
 - [x] Explore cross-modulating the Euclidean rhythm density of the hi-hats with the synth bass envelope.
 - Velocity Check: Mapping synth bass sequence density (by counting active bass steps in the consonant gap) to a modulation scalar directly added to the base Euclidean density formula successfully connected the rhythm of the bassline to the auto-generated hi-hat fills without any heavy DSP cross-modulation worklets.

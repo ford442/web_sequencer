@@ -11,8 +11,8 @@ import {
   readAsciiString,
   convertSignedByte,
   convertSignedByteWithOffset,
-  clamp,
 } from './binaryIO';
+import { clamp } from '@/utils/math';
 import { getAutomationDisplayName, getAutomationRange } from './automationMeta';
 
 export function parseHeader(

@@ -1,6 +1,7 @@
 // ONNX Runtime is loaded through the shared `ortRuntime` helper, which owns the
 // dynamic import (so ORT never lands in the entry chunk) and is the single
 // writer of `ort.env` — see src/services/ortRuntime.ts.
+import { log } from '@/utils/log';
 import type * as ort from 'onnxruntime-web';
 import { loadOrt, type Ort } from './ortRuntime';
 import { fetchPublicArrayBuffer, fetchPublicJson, isMissingPublicAsset } from '../utils/publicAsset';
@@ -108,7 +109,7 @@ export class SupertonicService {
             const ort = await loadOrt();
             this.ortMod = ort;
 
-            console.log("Supertonic: Loading Config...");
+            log.debug("Supertonic: Loading Config...");
 
             // The model files are downloaded separately (download_models.sh) and
             // gitignored. fetchPublicJson / fetchPublicArrayBuffer turn a missing
@@ -119,7 +120,7 @@ export class SupertonicService {
             const indexer = await fetchPublicJson<number[]>('assets/onnx/unicode_indexer.json');
             this.textProcessor = new UnicodeProcessor(indexer);
 
-            console.log("Supertonic: Loading Models with WebGPU...");
+            log.debug("Supertonic: Loading Models with WebGPU...");
 
             // OPTIMIZATION 2: WebGPU Execution Provider
             // We attempt 'webgpu' first. If the browser doesn't support it,
@@ -154,19 +155,19 @@ export class SupertonicService {
             // Load Default Style
             try {
                 await this.loadStyle(resolvePublicAsset('assets/voice_styles/F1.json'));
-                console.log('✓ Loaded default voice style: F1');
+                log.debug('✓ Loaded default voice style: F1');
             } catch (e) {
                 console.warn('Could not load default style F1.json', e);
             }
 
             this.isReady = true;
             this.unavailableReason = null;
-            console.log("Supertonic: Ready (WebGPU Enabled)");
+            log.debug("Supertonic: Ready (WebGPU Enabled)");
         } catch (e) {
             this.isReady = false;
             if (isMissingPublicAsset(e)) {
                 this.unavailableReason = `${e.message}; run download_models.sh`;
-                console.info(`Supertonic: TTS off — ${this.unavailableReason}`);
+                log.info(`Supertonic: TTS off — ${this.unavailableReason}`);
             } else {
                 this.unavailableReason = e instanceof Error ? e.message : String(e);
                 console.error("❌ Supertonic Init Failed:", e);
@@ -209,11 +210,11 @@ export class SupertonicService {
         if (!this.isReady || this.isPreloading) return;
         this.isPreloading = true;
         try {
-            if (import.meta.env.DEV) { console.log("Supertonic: Warming ONNX session with dummy inference..."); }
+            log.debug("Supertonic: Warming ONNX session with dummy inference...");
             // Minimal dummy inference to warm GPU kernels for all banks
             await this.generate("a", 1, 1.0);
             this.preloadManifest.fill(true);
-            if (import.meta.env.DEV) { console.log("Supertonic: ONNX session warmed."); }
+            log.debug("Supertonic: ONNX session warmed.");
         } catch (e) {
             if (import.meta.env.DEV) { console.warn("Supertonic: Preload dummy inference failed (non-critical):", e); }
         } finally {
@@ -228,7 +229,7 @@ export class SupertonicService {
      * window.__devtools.purgeTTSCache()
      */
     purgeCache(): void {
-        if (import.meta.env.DEV) { console.log("Supertonic: Purging ONNX session cache..."); }
+        log.debug("Supertonic: Purging ONNX session cache...");
         (Object.keys(this.models) as (keyof Models)[]).forEach((key) => {
             const session = this.models[key];
             if (session && typeof session.release === 'function') {
@@ -242,7 +243,7 @@ export class SupertonicService {
         this.models = {};
         this.isReady = false;
         this.preloadManifest.fill(false);
-        if (import.meta.env.DEV) { console.log("Supertonic: ONNX cache purged. isReady=false"); }
+        log.debug("Supertonic: ONNX cache purged. isReady=false");
     }
 
     /**
@@ -362,6 +363,6 @@ export class SupertonicService {
         const dpTensor = new ort.Tensor('float32', dpData, dpDims);
 
         this.currentStyle = new Style(ttlTensor, dpTensor);
-        console.log("Supertonic: Style Updated from Mixer");
+        log.debug("Supertonic: Style Updated from Mixer");
     }
 }

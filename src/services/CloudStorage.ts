@@ -2,6 +2,7 @@
 // VPS Storage Manager API Integration
 // Base URL: https://storage.noahcohn.com (nginx on 443 proxies /api/ to the backend)
 
+import { log } from '@/utils/log';
 import type { SavedSongData } from '../types';
 
 // =============================================================================
@@ -228,7 +229,7 @@ async function fetchWithRetry(
     // Retry if error is retryable and we haven't exceeded max retries
     if (storageError.retryable && retryCount < MAX_RETRIES) {
       const retryDelay = getRetryDelay(retryCount);
-      console.log(`[CloudStorage] Retrying request (${retryCount + 1}/${MAX_RETRIES}) after ${retryDelay}ms...`);
+      log.debug(`[CloudStorage] Retrying request (${retryCount + 1}/${MAX_RETRIES}) after ${retryDelay}ms...`);
       await delay(retryDelay);
       return fetchWithRetry(url, options, retryCount + 1);
     }
@@ -293,7 +294,7 @@ async function applyResponseInterceptors(response: Response, url: string): Promi
 
 // Default logging interceptor (can be disabled by not registering it)
 export const loggingInterceptor: RequestInterceptor = (url, options) => {
-  console.log(`[CloudStorage] ${options.method || 'GET'} ${url}`);
+  log.debug(`[CloudStorage] ${options.method || 'GET'} ${url}`);
   return { url, options };
 };
 

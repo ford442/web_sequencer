@@ -22,6 +22,7 @@
  * because strict import would reject it.
  */
 
+import { clamp } from '@/utils/math';
 import type {
   Bass2Params,
   Note,
@@ -105,7 +106,6 @@ const SAMPLER_NOTE_FIELDS = new Set(['note', 'velocity', 'length']);
 
 const isImportableTimeSignature = (ts: unknown): ts is [number, number] =>
   Array.isArray(ts) && ts.length === 2 && ts.every((n) => Number.isInteger(n) && n >= 1 && n <= 32);
-const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;

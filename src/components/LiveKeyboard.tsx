@@ -5,7 +5,17 @@ import {
     clampOctave, noteForOffset, loadStoredOctave, storeOctave, isOctaveAtEdge,
 } from '../utils/keyboardOctave';
 
-interface LiveKeyboardProps { onPlayNote: (note: string) => void; onStopNote?: (note: string) => void; activeTrackColor?: string; }
+interface LiveKeyboardProps {
+    onPlayNote: (note: string) => void;
+    onStopNote?: (note: string) => void;
+    activeTrackColor?: string;
+    /**
+     * Pitch classes ("C", "F#", …) whose key LED is lit — a scale or
+     * note-in-pattern hint. The LEDs only show on the white chassis key bed
+     * (#1589); the dark keyboard renders them hidden.
+     */
+    ledNotes?: ReadonlySet<string>;
+}
 
 // PC Key Mapping for Classic Piano Layout.
 // Values are semitone offsets from the C of the current base octave, so the
@@ -164,6 +174,8 @@ interface PianoKeyProps {
     isBlack: boolean;
     isActive: boolean;
     isHeldByMouse: boolean;
+    /** Key LED lit (scale / note-in-pattern hint, white chassis only). */
+    ledOn: boolean;
     activeColor: string;
     onMouseDown: (offset: number) => void;
     onMouseEnter: (offset: number) => void;
@@ -172,7 +184,7 @@ interface PianoKeyProps {
 
 const PianoKey = memo(({
     note, offset, x, y, width, height, label, isBlack,
-    isActive, activeColor, onMouseDown, onMouseEnter, onStopMouse
+    isActive, ledOn, activeColor, onMouseDown, onMouseEnter, onStopMouse
 }: PianoKeyProps) => {
     const noteBase = getNoteBase(note);
     const noteColor = NOTE_COLORS[noteBase] || '#94a3b8';
@@ -197,6 +209,8 @@ const PianoKey = memo(({
             role="button"
             aria-label={`Play ${note}`}
             aria-pressed={isActive}
+            data-key={isBlack ? 'black' : 'white'}
+            data-down={isActive || undefined}
             tabIndex={0}
             onMouseDown={(e) => { if (e.button === 0) onMouseDown(offset); }}
             onMouseEnter={(e) => { if (e.buttons === 1) onMouseEnter(offset); else onStopMouse(); }}
@@ -206,7 +220,7 @@ const PianoKey = memo(({
             onTouchEnd={(e) => { e.preventDefault(); onStopMouse(); }}
             onKeyDown={handleKeyDown}
             cursor="pointer"
-            className="focus:outline-none"
+            className="piano-key focus:outline-none"
         >
             {/* Shadow underneath */}
             <rect 
@@ -222,6 +236,7 @@ const PianoKey = memo(({
             <g transform={`translate(0, ${pressOffset})`} style={{ transition: 'transform 0.03s ease-out' }}>
                 {/* Key body */}
                 <rect 
+                    className="key-body"
                     x={0} 
                     y={0} 
                     width={width} 
@@ -234,6 +249,7 @@ const PianoKey = memo(({
                 
                 {/* Key face (main surface) */}
                 <rect 
+                    className="key-face"
                     x={2} 
                     y={2} 
                     width={width - 4} 
@@ -255,6 +271,17 @@ const PianoKey = memo(({
                     />
                 )}
 
+                {/* Key-bed LED (white chassis only; hidden by CSS elsewhere) */}
+                <circle
+                    className="key-led"
+                    cx={width / 2}
+                    cy={isBlack ? 7 : 12}
+                    r={2.5}
+                    data-on={ledOn || undefined}
+                    aria-hidden="true"
+                    pointerEvents="none"
+                />
+
                 {/* LED rim glow when active */}
                 {isActive && (
                     <rect 
@@ -272,6 +299,7 @@ const PianoKey = memo(({
 
                 {/* Note name */}
                 <text 
+                    className="key-note"
                     x={width / 2} 
                     y={height / 2 + (isBlack ? 3 : 5)} 
                     fill={isActive ? '#fff' : (isBlack ? '#e2e8f0' : noteColor)}
@@ -287,6 +315,7 @@ const PianoKey = memo(({
                 {/* PC Key label */}
                 {label && (
                     <text 
+                        className="key-hint"
                         x={width / 2} 
                         y={height - (isBlack ? 8 : 12)} 
                         fill={isBlack ? '#94a3b8' : '#475569'}
@@ -305,7 +334,7 @@ const PianoKey = memo(({
     );
 });
 
-export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _activeTrackColor }: LiveKeyboardProps) => {
+export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _activeTrackColor, ledNotes }: LiveKeyboardProps) => {
     // A held key stores the note name resolved at the moment it was pressed,
     // keyed by the semitone offset that keyup will look it up by. Because the
     // sounding pitch is captured at press time rather than re-derived from the
@@ -509,7 +538,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
             {showGuide && <KeyboardGuide onClose={() => setShowGuide(false)} />}
 
             {/* Piano Keyboard SVG */}
-            <svg aria-hidden="true" viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
+            <svg aria-hidden="true" viewBox={`0 0 ${totalWidth} ${svgHeight}`} className="key-bed w-full drop-shadow-2xl bg-black/20 rounded-lg p-2">
                 {/* White keys (bottom row) — group 1: C D E F (i=0–3), group 2: G A B C (i=4–7) */}
                 {whiteOffsets.map((offset, i) => {
                     const note = noteForOffset(offset, octave);
@@ -526,6 +555,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             isBlack={false}
                             isActive={targetActiveNotes.has(note)}
                             isHeldByMouse={heldByMouse?.offset === offset}
+                            ledOn={ledNotes?.has(getNoteBase(note)) ?? false}
                             activeColor={getNoteColor(note)}
                             onMouseDown={handleMouseDownStable}
                             onMouseEnter={handleMouseEnterStable}
@@ -553,6 +583,7 @@ export const LiveKeyboard = memo(({ onPlayNote, onStopNote, activeTrackColor: _a
                             isBlack={true}
                             isActive={targetActiveNotes.has(note)}
                             isHeldByMouse={heldByMouse?.offset === offset}
+                            ledOn={ledNotes?.has(getNoteBase(note)) ?? false}
                             activeColor={getNoteColor(note)}
                             onMouseDown={handleMouseDownStable}
                             onMouseEnter={handleMouseEnterStable}

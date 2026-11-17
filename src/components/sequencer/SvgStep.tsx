@@ -88,12 +88,12 @@ export const SvgStep = memo(({
 
 
     return (
-        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}${outOfLoop ? ", outside track loop" : ""}`} data-out-of-loop={outOfLoop || undefined} opacity={outOfLoop ? 0.35 : undefined} aria-pressed={active} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
+        <g transform={`translate(${x}, 0)`} ref={(el) => { refsArray.current[stepIndex] = el; onStepRef?.(el); }} className="svg-step" role="gridcell" tabIndex={0} data-testid={`step-${rowKey}-${stepIndex}`} aria-label={`${rowLabel} step ${stepIndex + 1}, ${active ? "Active" : "Inactive"}${outOfLoop ? ", outside track loop" : ""}`} data-out-of-loop={outOfLoop || undefined} opacity={outOfLoop ? 0.35 : undefined} aria-pressed={active} data-on={active || undefined} onPointerDown={handlePointerDown} onPointerEnter={handlePointerEnter} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(rowKey, stepIndex, e); } else { onGridKeyDown?.(e); } }} onContextMenu={(e) => e.preventDefault()} cursor="pointer" style={{ transition: 'all 0.1s ease', touchAction: 'none', '--focus-color': focusColor } as React.CSSProperties}>
             {active && <rect className="step-glow" x={-4} y={-4} width={totalWidth + 8} height={height + 8} rx={6} fill={color} fillOpacity={0.4} filter="blur(6px)" />}
             {isRangeSelected && <rect className="step-selection" x={-2} y={-2} width={totalWidth + 4} height={height + 4} rx={4} fill="none" stroke="#ffffff" strokeWidth={2} strokeOpacity={0.8} style={{ pointerEvents: 'none' }} />}
             <rect x={0} y={0} width={totalWidth} height={height} rx={3} fill="#050505" />
             {active && isSlide && <rect x={4} y={height - 8} width={totalWidth - 8} height={3} rx={1} fill="#fbbf24" fillOpacity={1} style={{ mixBlendMode: 'plus-lighter' }} />}
-            <rect x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
+            <rect className="step-body" x={1} y={1} width={totalWidth - 2} height={height - 2} rx={2} fill={baseFill} strokeWidth={0} />
 
             {/* Retrigger Indicators */}
             {active && retriggerCount > 1 && Array.from({ length: retriggerCount - 1 }).map((_, i) => (

@@ -8,8 +8,8 @@ import {
 
 const SR = 48000;
 const BLOCK = 128;
-const vowel: PhonemeDelayContext = { hasPhonemeContext: true, isVowel: 1, phonemeIndex: 0 };
-const consonant: PhonemeDelayContext = { hasPhonemeContext: true, isVowel: 0, phonemeIndex: 1 };
+const vowel: PhonemeDelayContext = { hasPhonemeContext: true, phonemeVolume: 1.0, isVowel: 1, phonemeIndex: 0 };
+const consonant: PhonemeDelayContext = { hasPhonemeContext: true, phonemeVolume: 1.0, isVowel: 0, phonemeIndex: 1 };
 
 /** Runs `blocks` blocks of an impulse (first sample of block 0) and returns both channels. */
 function render(
@@ -61,7 +61,7 @@ describe('PhonemeDelay', () => {
 
   it('ramps out over one block when switched off, then bypasses bit-exact', () => {
     const delay = new PhonemeDelay(SR);
-    render(delay, 4, 0.8, 0.5, () => vowel);
+    render(delay, 4, 0.8, 0.5, () => ({ ...vowel, phonemeVolume: 0.0 })); // Ensure ducking doesn't disable delay here
     expect(delay.isActive).toBe(true);
     const l = new Float32Array(BLOCK).fill(0.25);
     delay.process(l, null, 0, 0.5, vowel);
@@ -72,40 +72,42 @@ describe('PhonemeDelay', () => {
   });
 
   it('places the first echo at the vowel tap, and a consonant at the short slap', () => {
-    const v = render(new PhonemeDelay(SR), 100, 1, 0, () => vowel)[0];
+    const v = render(new PhonemeDelay(SR), 100, 1, 0, () => ({ ...vowel, phonemeVolume: 0.0 }))[0];
     expect(peakIndex(v)).toBeCloseTo(VOWEL_DELAY_SECONDS[0] * SR, -1);
 
-    const c = render(new PhonemeDelay(SR), 40, 1, 0, () => consonant)[0];
+    const c = render(new PhonemeDelay(SR), 40, 1, 0, () => ({ ...consonant, phonemeVolume: 0.0 }))[0];
     expect(peakIndex(c)).toBeCloseTo(CONSONANT_DELAY_SECONDS[0] * SR, -1);
   });
 
   it('a phoneme change glides the tap to the new target', () => {
     const delay = new PhonemeDelay(SR);
-    render(delay, 4, 1, 0, () => consonant);
+    const c = { ...consonant, phonemeVolume: 0.0 };
+    const v = { ...vowel, phonemeVolume: 0.0 };
+    render(delay, 4, 1, 0, () => c);
     expect(delay.tapSamples(0)).toBeCloseTo(CONSONANT_DELAY_SECONDS[0] * SR, 3);
     // One block after the change the head has moved, but not jumped.
-    render(delay, 1, 1, 0, () => vowel);
+    render(delay, 1, 1, 0, () => v);
     const moved = delay.tapSamples(0);
     expect(moved).toBeGreaterThan(CONSONANT_DELAY_SECONDS[0] * SR);
     expect(moved).toBeLessThan(VOWEL_DELAY_SECONDS[0] * SR);
-    render(delay, 200, 1, 0, () => vowel);
+    render(delay, 200, 1, 0, () => v);
     expect(delay.tapSamples(0)).toBeCloseTo(VOWEL_DELAY_SECONDS[0] * SR, 1);
   });
 
   it('throws consonant slaps to alternating sides; vowels stay centred', () => {
-    const odd = render(new PhonemeDelay(SR), 40, 1, 0, () => consonant);
-    const even = render(new PhonemeDelay(SR), 40, 1, 0, () => ({ ...consonant, phonemeIndex: 2 }));
+    const odd = render(new PhonemeDelay(SR), 40, 1, 0, () => ({ ...consonant, phonemeVolume: 0.0 }));
+    const even = render(new PhonemeDelay(SR), 40, 1, 0, () => ({ ...consonant, phonemeVolume: 0.0, phonemeIndex: 2 }));
     const tap = Math.round(CONSONANT_DELAY_SECONDS[0] * SR);
     const tapR = Math.round(CONSONANT_DELAY_SECONDS[1] * SR);
     expect(Math.abs(odd[0][tap])).toBeLessThan(Math.abs(even[0][tap]));
     expect(Math.abs(odd[1][tapR])).toBeGreaterThan(Math.abs(even[1][tapR]));
 
-    const [vl, vr] = render(new PhonemeDelay(SR), 100, 1, 0, () => vowel);
+    const [vl, vr] = render(new PhonemeDelay(SR), 100, 1, 0, () => ({ ...vowel, phonemeVolume: 0.0 }));
     expect(Math.abs(vl[peakIndex(vl)])).toBeCloseTo(Math.abs(vr[peakIndex(vr)]), 2);
   });
 
   it('feedback decays, even with the knob at 1', () => {
-    const [l] = render(new PhonemeDelay(SR), 1200, 1, 1, () => vowel);
+    const [l] = render(new PhonemeDelay(SR), 1200, 1, 1, () => ({ ...vowel, phonemeVolume: 0.0 }));
     const tap = VOWEL_DELAY_SECONDS[0] * SR;
     const windows = [1, 3, 6, 12].map((k) => rms(l, Math.floor(k * tap), Math.floor((k + 1) * tap)));
     for (let i = 1; i < windows.length; i++) expect(windows[i]).toBeLessThan(windows[i - 1]);
@@ -146,5 +148,20 @@ describe('PhonemeDelay', () => {
     const l = new Float32Array(BLOCK);
     l[0] = 1;
     expect(() => delay.process(l, null, 0.5, 0.5, consonant)).not.toThrow();
+  });
+
+  it('ducks the delay send inversely to phoneme intensity', () => {
+    const delayHigh = new PhonemeDelay(SR);
+    const [lHigh] = render(delayHigh, 100, 1.0, 0, () => ({ ...vowel, phonemeVolume: 0.9 }));
+
+    const delayLow = new PhonemeDelay(SR);
+    const [lLow] = render(delayLow, 100, 1.0, 0, () => ({ ...vowel, phonemeVolume: 0.3 }));
+
+    const tap = Math.round(VOWEL_DELAY_SECONDS[0] * SR);
+    expect(lHigh.length).toBeGreaterThan(tap + 2);
+
+    const peakHigh = rms(lHigh, tap - 2, tap + 2);
+    const peakLow = rms(lLow, tap - 2, tap + 2);
+    expect(peakHigh).toBeLessThan(peakLow);
   });
 });

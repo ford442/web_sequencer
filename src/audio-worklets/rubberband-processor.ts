@@ -1,3 +1,4 @@
+import { wlog } from './wlog';
 import { RingBuffer } from "../shared/rt/ringBuffer";
 import { ExpressiveVoiceProcessor } from "../engines/rubberband/ExpressiveVoiceProcessor";
 import { WorkletPerfReporter } from "./workletPerfReporter";
@@ -191,7 +192,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
           const options = getStretchProfileOptions('vocal');
 
-          console.log(`[RubberBandProcessor] Initializing with: Rate=${safeSampleRate}, Ch=1, Opts=${options}`);
+          wlog(`[RubberBandProcessor] Initializing with: Rate=${safeSampleRate}, Ch=1, Opts=${options}`);
 
           this.rubberBand = new module.RubberBandStretcher(
             safeSampleRate,

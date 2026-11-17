@@ -1,6 +1,7 @@
 // Project storage over the Origin Private File System (OPFS), with an
 // IndexedDB fallback for browsers that expose `navigator.storage.getDirectory`
-// only partially (or not at all) and an in-memory fallback for SSR/tests.
+// only partially (or not at all) and an in-memory fallback for SSR/tests
+// (the backends live in `projectFileBackends.ts`).
 //
 // Unlike `utils/projectPersistence.ts` (localStorage, 512 KB cap, strips
 // samples/background image before saving), a project here is a directory:
@@ -8,6 +9,7 @@
 //   hyphon-projects/<id>/samples/<hash>.wav — content-addressed sample banks
 //   hyphon-projects/<id>/assets/<hash>.ext  — content-addressed background image
 //   hyphon-projects/<id>/shutdown.json      — { clean, at } crash-recovery marker
+//   hyphon-projects/<id>/doc.ylog           — Yjs update log of the project doc (v2, see below)
 // Duplicate sample content (same bank re-saved, or shared across projects)
 // is written once and referenced by hash, so autosaving repeatedly does not
 // multiply storage use.
@@ -16,8 +18,18 @@
 // than localStorage (typically a meaningful fraction of free disk), and
 // `requestPersistence()` asks the browser not to evict the origin under
 // storage pressure.
+//
+// v2 (#1597) adds the project document's update log (`src/collab/updateLog.ts`).
+// A project gets one when it is first opened in a collab session; from then on
+// every save keeps it in step — through the open session's live doc, or, with
+// no session open, by rebuilding the doc from the log and appending the diff.
+// project.json stays the readable snapshot `loadProject` reads, and projects
+// that never had a session never load the CRDT library. Log writes run under a
+// per-project lock (Web Locks across tabs, a promise chain within one).
 
 import type { SavedSongData } from '@/types';
+import { appendToUpdateLog, decodeUpdateLog, encodeUpdateLog } from '@/collab/updateLog';
+import { detectBackend, type ProjectFileBackend } from './projectFileBackends';
 import {
     AUTOSAVE_KEY,
     loadSessionFromLocalStorage,
@@ -25,10 +37,57 @@ import {
     type StorageBackend,
 } from '@/utils/projectPersistence';
 
-export const PROJECT_STORE_VERSION = 1;
+/** 1 = project.json + content-addressed blobs; 2 = adds the optional `doc.ylog`. */
+export const PROJECT_STORE_VERSION = 2;
 export const AUTOSAVE_PROJECT_ID = 'autosave';
 
 const PROJECTS_ROOT = 'hyphon-projects';
+const DOC_LOG_FILE = 'doc.ylog';
+
+/** An open collab session's doc for a project: saves go into it, not around it. */
+export interface LiveProjectDoc {
+    /** Write the saved song (blobs stripped) into the live doc and persist the change. */
+    writeSavedSong(song: SavedSongData): Promise<void>;
+}
+
+/**
+ * The CRDT side of a save with no session open. Loaded on demand, so the CRDT
+ * library is fetched only for projects that have a doc log.
+ */
+export interface ProjectDocCodec {
+    /**
+     * The log frames after writing `song` into the doc `frames` rebuild (null
+     * when it already holds it). New edits continue `clientId` when the log
+     * already holds edits by it, and use a fresh id otherwise; the id used is
+     * returned so the next save can pass it back.
+     */
+    nextFrames(
+        frames: readonly Uint8Array[],
+        song: SavedSongData,
+        clientId: number | null,
+    ): { frames: Uint8Array[] | null; clientId: number };
+}
+
+export interface ProjectStoreOptions {
+    loadDocCodec?: () => Promise<ProjectDocCodec>;
+}
+
+const loadDefaultDocCodec = (): Promise<ProjectDocCodec> =>
+    import('@/collab/projectDocCodec').then((module) => module.projectDocCodec);
+
+/**
+ * Doc-log lock chains, per lock name. Module-wide rather than per store, so two
+ * stores in one page (tests, a second instance) also take turns.
+ */
+const lockChains = new Map<string, Promise<unknown>>();
+
+/** Runs `fn` holding the named Web Lock where the browser has them (all tabs of the origin). */
+function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const locks = typeof navigator !== 'undefined'
+        ? (navigator as { locks?: { request?: (n: string, cb: () => Promise<T>) => Promise<T> } }).locks
+        : undefined;
+    return typeof locks?.request === 'function' ? locks.request(name, fn) : fn();
+}
 
 export interface ProjectMeta {
     id: string;
@@ -37,24 +96,11 @@ export interface ProjectMeta {
     cleanShutdown: boolean;
 }
 
+export type { ProjectFileBackend };
+
 export interface SaveProjectResult {
     ok: boolean;
     error?: string;
-}
-
-// ── File backend abstraction (directory paths use '/', no leading/trailing slash) ─
-
-export interface ProjectFileBackend {
-    readonly kind: 'opfs' | 'idb' | 'memory';
-    writeFile(path: string, data: Uint8Array | string): Promise<void>;
-    readFile(path: string): Promise<Uint8Array | null>;
-    readText(path: string): Promise<string | null>;
-    exists(path: string): Promise<boolean>;
-    deleteFile(path: string): Promise<void>;
-    /** Immediate child directory names under `dirPath` (no trailing slash). */
-    listDirs(dirPath: string): Promise<string[]>;
-    /** Recursively delete everything under (and including) `dirPath`. */
-    deleteDir(dirPath: string): Promise<void>;
 }
 
 // ── content addressing / encoding helpers ──────────────────────────────────────
@@ -113,296 +159,6 @@ function mimeToExt(mime: string): string {
     return MIME_TO_EXT[mime] ?? 'bin';
 }
 
-// ── in-memory backend (SSR / tests / last-resort fallback) ─────────────────────
-
-class MemoryBackend implements ProjectFileBackend {
-    readonly kind = 'memory' as const;
-    private files = new Map<string, Uint8Array>();
-
-    writeFile(path: string, data: Uint8Array | string): Promise<void> {
-        this.files.set(path, typeof data === 'string' ? new TextEncoder().encode(data) : data);
-        return Promise.resolve();
-    }
-    readFile(path: string): Promise<Uint8Array | null> {
-        return Promise.resolve(this.files.get(path) ?? null);
-    }
-    readText(path: string): Promise<string | null> {
-        const bytes = this.files.get(path);
-        return Promise.resolve(bytes ? new TextDecoder().decode(bytes) : null);
-    }
-    exists(path: string): Promise<boolean> {
-        return Promise.resolve(this.files.has(path));
-    }
-    deleteFile(path: string): Promise<void> {
-        this.files.delete(path);
-        return Promise.resolve();
-    }
-    listDirs(dirPath: string): Promise<string[]> {
-        const prefix = `${dirPath}/`;
-        const names = new Set<string>();
-        for (const key of this.files.keys()) {
-            if (!key.startsWith(prefix)) continue;
-            const seg = key.slice(prefix.length).split('/')[0];
-            if (seg) names.add(seg);
-        }
-        return Promise.resolve([...names]);
-    }
-    deleteDir(dirPath: string): Promise<void> {
-        const prefix = `${dirPath}/`;
-        for (const key of [...this.files.keys()]) {
-            if (key === dirPath || key.startsWith(prefix)) this.files.delete(key);
-        }
-        return Promise.resolve();
-    }
-}
-
-// ── IndexedDB backend ────────────────────────────────────────────────────────
-
-const IDB_NAME = 'hyphon-project-store';
-const IDB_STORE = 'files';
-
-interface StoredRecord {
-    path: string;
-    bytes: Uint8Array;
-}
-
-class IdbBackend implements ProjectFileBackend {
-    readonly kind = 'idb' as const;
-    private dbPromise: Promise<IDBDatabase> | null = null;
-
-    private db(): Promise<IDBDatabase> {
-        if (!this.dbPromise) {
-            this.dbPromise = new Promise((resolve, reject) => {
-                const req = indexedDB.open(IDB_NAME, 1);
-                req.onupgradeneeded = () => {
-                    const db = req.result;
-                    if (!db.objectStoreNames.contains(IDB_STORE)) {
-                        db.createObjectStore(IDB_STORE, { keyPath: 'path' });
-                    }
-                };
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-            });
-        }
-        return this.dbPromise;
-    }
-
-    /**
-     * Issues a single request against a fresh transaction's object store and
-     * resolves with its `.result` once the transaction actually commits
-     * (`oncomplete`), not merely once the request itself reports success. A
-     * request can succeed and then have its transaction abort (a quota
-     * error, another request in the same transaction failing); waiting for
-     * `oncomplete` is the only way to know the write is durable.
-     */
-    private async runRequest<T>(
-        mode: IDBTransactionMode,
-        fn: (store: IDBObjectStore) => IDBRequest<T>,
-    ): Promise<T> {
-        const db = await this.db();
-        return new Promise<T>((resolve, reject) => {
-            const tx = db.transaction(IDB_STORE, mode);
-            let request: IDBRequest<T>;
-            try {
-                request = fn(tx.objectStore(IDB_STORE));
-            } catch (err) {
-                reject(err as Error);
-                return;
-            }
-            tx.oncomplete = () => resolve(request.result);
-            tx.onerror = () => reject(tx.error ?? request.error ?? new Error('IndexedDB transaction failed'));
-            tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
-        });
-    }
-
-    async writeFile(path: string, data: Uint8Array | string): Promise<void> {
-        const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-        await this.runRequest('readwrite', (store) => store.put({ path, bytes } satisfies StoredRecord));
-    }
-    async readFile(path: string): Promise<Uint8Array | null> {
-        const rec = await this.runRequest(
-            'readonly',
-            (store) => store.get(path) as IDBRequest<StoredRecord | undefined>,
-        );
-        return rec?.bytes ?? null;
-    }
-    async readText(path: string): Promise<string | null> {
-        const bytes = await this.readFile(path);
-        return bytes ? new TextDecoder().decode(bytes) : null;
-    }
-    async exists(path: string): Promise<boolean> {
-        const key = await this.runRequest('readonly', (store) => store.getKey(path));
-        return key !== undefined;
-    }
-    async deleteFile(path: string): Promise<void> {
-        await this.runRequest('readwrite', (store) => store.delete(path));
-    }
-    async listDirs(dirPath: string): Promise<string[]> {
-        const prefix = `${dirPath}/`;
-        const range = IDBKeyRange.bound(prefix, `${prefix}￿`);
-        const keys = await this.runRequest('readonly', (store) => store.getAllKeys(range));
-        const names = new Set<string>();
-        for (const key of keys) {
-            const seg = String(key).slice(prefix.length).split('/')[0];
-            if (seg) names.add(seg);
-        }
-        return [...names];
-    }
-    async deleteDir(dirPath: string): Promise<void> {
-        const prefix = `${dirPath}/`;
-        const range = IDBKeyRange.bound(prefix, `${prefix}￿`);
-        const db = await this.db();
-        // getAllKeys() and every delete() it triggers are issued within one
-        // readwrite transaction, all synchronously inside getAllKeys'
-        // onsuccess handler — no `await` between them, so the transaction
-        // cannot go inactive mid-sequence (the classic IDB async/await
-        // pitfall this backend otherwise avoids by resolving on oncomplete).
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(IDB_STORE, 'readwrite');
-            const store = tx.objectStore(IDB_STORE);
-            const getKeysReq = store.getAllKeys(range);
-            getKeysReq.onsuccess = () => {
-                for (const key of getKeysReq.result) store.delete(key);
-            };
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error ?? getKeysReq.error ?? new Error('deleteDir transaction failed'));
-            tx.onabort = () => reject(tx.error ?? new Error('deleteDir transaction aborted'));
-        });
-    }
-}
-
-// ── OPFS backend ─────────────────────────────────────────────────────────────
-// Typed locally (not via the DOM lib) so this file compiles regardless of
-// whether the project's TS `lib` includes the File System Access API.
-
-interface OpfsWritable {
-    write(data: Uint8Array | string): Promise<void>;
-    close(): Promise<void>;
-}
-interface OpfsFileHandle {
-    kind: 'file';
-    getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
-    createWritable(): Promise<OpfsWritable>;
-}
-interface OpfsDirectoryHandle {
-    kind: 'directory';
-    getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<OpfsDirectoryHandle>;
-    getFileHandle(name: string, options?: { create?: boolean }): Promise<OpfsFileHandle>;
-    removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
-    entries(): AsyncIterableIterator<[string, OpfsDirectoryHandle | OpfsFileHandle]>;
-}
-
-class OpfsBackend implements ProjectFileBackend {
-    readonly kind = 'opfs' as const;
-    private readonly root: OpfsDirectoryHandle;
-    constructor(root: OpfsDirectoryHandle) {
-        this.root = root;
-    }
-
-    private async getDir(segments: string[], create: boolean): Promise<OpfsDirectoryHandle | null> {
-        let dir = this.root;
-        for (const seg of segments) {
-            try {
-                dir = await dir.getDirectoryHandle(seg, { create });
-            } catch {
-                return null;
-            }
-        }
-        return dir;
-    }
-
-    private split(path: string): { dirs: string[]; name: string } {
-        const parts = path.split('/').filter(Boolean);
-        return { dirs: parts.slice(0, -1), name: parts[parts.length - 1] };
-    }
-
-    async writeFile(path: string, data: Uint8Array | string): Promise<void> {
-        const { dirs, name } = this.split(path);
-        const dir = await this.getDir(dirs, true);
-        if (!dir) throw new Error(`OPFS: could not create directory for ${path}`);
-        const fileHandle = await dir.getFileHandle(name, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(typeof data === 'string' ? new TextEncoder().encode(data) : data);
-        await writable.close();
-    }
-    async readFile(path: string): Promise<Uint8Array | null> {
-        const { dirs, name } = this.split(path);
-        const dir = await this.getDir(dirs, false);
-        if (!dir) return null;
-        try {
-            const fileHandle = await dir.getFileHandle(name);
-            const file = await fileHandle.getFile();
-            return new Uint8Array(await file.arrayBuffer());
-        } catch {
-            return null;
-        }
-    }
-    async readText(path: string): Promise<string | null> {
-        const bytes = await this.readFile(path);
-        return bytes ? new TextDecoder().decode(bytes) : null;
-    }
-    async exists(path: string): Promise<boolean> {
-        return (await this.readFile(path)) !== null;
-    }
-    async deleteFile(path: string): Promise<void> {
-        const { dirs, name } = this.split(path);
-        const dir = await this.getDir(dirs, false);
-        if (!dir) return;
-        try {
-            await dir.removeEntry(name);
-        } catch {
-            /* already gone */
-        }
-    }
-    async listDirs(dirPath: string): Promise<string[]> {
-        const segments = dirPath.split('/').filter(Boolean);
-        const dir = await this.getDir(segments, false);
-        if (!dir) return [];
-        const names: string[] = [];
-        for await (const [childName, handle] of dir.entries()) {
-            if (handle.kind === 'directory') names.push(childName);
-        }
-        return names;
-    }
-    async deleteDir(dirPath: string): Promise<void> {
-        const segments = dirPath.split('/').filter(Boolean);
-        const name = segments.pop();
-        if (!name) return;
-        const parent = await this.getDir(segments, false);
-        if (!parent) return;
-        try {
-            await parent.removeEntry(name, { recursive: true });
-        } catch {
-            /* already gone */
-        }
-    }
-}
-
-async function detectBackend(): Promise<ProjectFileBackend> {
-    if (typeof navigator !== 'undefined') {
-        const storage = navigator.storage as unknown as {
-            getDirectory?: () => Promise<OpfsDirectoryHandle>;
-        };
-        if (typeof storage?.getDirectory === 'function') {
-            try {
-                const root = await storage.getDirectory();
-                // Probe write access — some embedders expose the API but throw
-                // (private browsing, permission policy) on first real use.
-                const probe = await root.getDirectoryHandle('.hyphon-opfs-probe', { create: true });
-                void probe;
-                await root.removeEntry('.hyphon-opfs-probe', { recursive: true });
-                return new OpfsBackend(root);
-            } catch {
-                /* fall through to IndexedDB */
-            }
-        }
-    }
-    if (typeof indexedDB !== 'undefined') {
-        return new IdbBackend();
-    }
-    return new MemoryBackend();
-}
-
 // ── stored project.json shape ────────────────────────────────────────────────
 
 interface StoredProjectJson extends Omit<SavedSongData, 'embeddedSamples' | 'backgroundImage'> {
@@ -425,10 +181,15 @@ interface ShutdownMeta {
 export class ProjectStore {
     private backendPromise: Promise<ProjectFileBackend> | null = null;
     private readonly backendOverride?: ProjectFileBackend;
+    private readonly loadDocCodec: () => Promise<ProjectDocCodec>;
+    private readonly liveDocs = new Map<string, LiveProjectDoc>();
+    /** Client id this store's session-less doc writes continue (per project). */
+    private readonly docClientIds = new Map<string, number>();
 
     /** Pass a backend to bypass auto-detection (tests, or a forced fallback). */
-    constructor(backendOverride?: ProjectFileBackend) {
+    constructor(backendOverride?: ProjectFileBackend, options: ProjectStoreOptions = {}) {
         this.backendOverride = backendOverride;
+        this.loadDocCodec = options.loadDocCodec ?? loadDefaultDocCodec;
     }
 
     private getBackend(): Promise<ProjectFileBackend> {
@@ -503,23 +264,29 @@ export class ProjectStore {
             const dirtyMeta: ShutdownMeta = { clean: false, at: Date.now() };
             await backend.writeFile(this.path(id, 'shutdown.json'), JSON.stringify(dirtyMeta));
             await backend.writeFile(this.path(id, 'project.json'), JSON.stringify(stored));
+            await this.syncProjectDoc(id, rest);
             return { ok: true };
         } catch (err) {
             return { ok: false, error: err instanceof Error ? err.message : String(err) };
         }
     }
 
-    async loadProject(id: string): Promise<SavedSongData | null> {
+    /** project.json as stored, v1 or v2 (the formats differ only beside it). */
+    private async readStoredProject(id: string): Promise<StoredProjectJson | null> {
         const backend = await this.getBackend();
         const text = await backend.readText(this.path(id, 'project.json'));
         if (!text) return null;
-
-        let stored: StoredProjectJson;
         try {
-            stored = JSON.parse(text) as StoredProjectJson;
+            return JSON.parse(text) as StoredProjectJson;
         } catch {
             return null;
         }
+    }
+
+    async loadProject(id: string): Promise<SavedSongData | null> {
+        const backend = await this.getBackend();
+        const stored = await this.readStoredProject(id);
+        if (!stored) return null;
 
         const { sampleRefs, backgroundImageRef, backgroundImageMime, backgroundImageUrl, schemaVersion: _sv, updatedAt: _u, ...rest } = stored;
         void _sv;
@@ -546,6 +313,106 @@ export class ProjectStore {
             ...(Object.keys(embeddedSamples).length ? { embeddedSamples } : {}),
             ...(backgroundImage ? { backgroundImage } : {}),
         } as SavedSongData;
+    }
+
+    /**
+     * The saved song without its blobs and without resolving them: what the
+     * project doc holds (samples and the background image stay content-addressed
+     * files; see `saveProject`).
+     */
+    async loadProjectSnapshot(id: string): Promise<SavedSongData | null> {
+        const stored = await this.readStoredProject(id);
+        if (!stored) return null;
+        const {
+            sampleRefs: _sr,
+            backgroundImageRef: _br,
+            backgroundImageMime: _bm,
+            backgroundImageUrl: _bu,
+            schemaVersion: _sv,
+            updatedAt: _u,
+            ...rest
+        } = stored;
+        void [_sr, _br, _bm, _bu, _sv, _u];
+        return rest as SavedSongData;
+    }
+
+    // ── project doc log (v2) ────────────────────────────────────────────────
+
+    /**
+     * Route this project's saves through an open session's doc until the
+     * returned function is called. One live doc per project and store.
+     */
+    attachLiveDoc(id: string, live: LiveProjectDoc): () => void {
+        if (this.liveDocs.has(id)) throw new Error(`Project ${id} already has a live doc`);
+        this.liveDocs.set(id, live);
+        return () => {
+            if (this.liveDocs.get(id) === live) this.liveDocs.delete(id);
+        };
+    }
+
+    /** The doc log's frames; null when the project has no log (or an unreadable one). */
+    async readDocLog(id: string): Promise<Uint8Array[] | null> {
+        const backend = await this.getBackend();
+        const bytes = await backend.readFile(this.path(id, DOC_LOG_FILE));
+        return bytes ? (decodeUpdateLog(bytes)?.frames ?? null) : null;
+    }
+
+    /** Append one update to the doc log (creating it), under the project lock. */
+    async appendDocUpdate(id: string, update: Uint8Array): Promise<void> {
+        await this.withProjectLock(id, async () => {
+            const backend = await this.getBackend();
+            const path = this.path(id, DOC_LOG_FILE);
+            await backend.writeFile(path, appendToUpdateLog(await backend.readFile(path), update));
+        });
+    }
+
+    /**
+     * Read-modify-write of the doc log under the project lock: `fn` gets the
+     * current frames (null = no log) and returns the new ones, or null to leave
+     * the log as it is.
+     */
+    async updateDocLog(
+        id: string,
+        fn: (frames: Uint8Array[] | null) => Uint8Array[] | null | Promise<Uint8Array[] | null>,
+    ): Promise<void> {
+        await this.withProjectLock(id, async () => {
+            const next = await fn(await this.readDocLog(id));
+            if (next) await (await this.getBackend()).writeFile(this.path(id, DOC_LOG_FILE), encodeUpdateLog(next));
+        });
+    }
+
+    private withProjectLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+        const name = `hyphon-project:${id}`;
+        const run = () => withCrossTabLock(name, fn);
+        const next = (lockChains.get(name) ?? Promise.resolve()).then(run, run);
+        const settled = next.catch(() => undefined);
+        lockChains.set(name, settled);
+        void settled.then(() => {
+            if (lockChains.get(name) === settled) lockChains.delete(name);
+        });
+        return next;
+    }
+
+    /** Keep the doc log in step with a save (see the file header). */
+    private async syncProjectDoc(id: string, song: SavedSongData): Promise<void> {
+        try {
+            const live = this.liveDocs.get(id);
+            if (live) {
+                await live.writeSavedSong(song);
+                return;
+            }
+            const backend = await this.getBackend();
+            if (!(await backend.exists(this.path(id, DOC_LOG_FILE)))) return;
+            const codec = await this.loadDocCodec();
+            await this.updateDocLog(id, (frames) => {
+                if (!frames) return null;
+                const result = codec.nextFrames(frames, song, this.docClientIds.get(id) ?? null);
+                this.docClientIds.set(id, result.clientId);
+                return result.frames;
+            });
+        } catch (err) {
+            throw new Error(`Project doc log: ${err instanceof Error ? err.message : String(err)}`);
+        }
     }
 
     async hasProject(id: string): Promise<boolean> {

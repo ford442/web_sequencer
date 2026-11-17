@@ -106,6 +106,20 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   macro: '/osc/macro.webp',
 };
 
+/** Hardware-style icon faces in public/osc/icons/ (SVG). Family icons exist for these types. */
+export const OSCILLATOR_FAMILY_ICONS: Partial<Record<OscillatorType, string>> = {
+  macro: 'macro',
+  prophecy: 'prophecy',
+  open303: 'open303',
+  webgpu: 'webgpu',
+};
+
+/** Deploy-safe URL for an icon face in public/osc/icons (respects Vite's BASE_URL). */
+export function oscillatorIconUrl(name: string): string {
+  const base = import.meta.env.BASE_URL ?? '/';
+  return `${base.endsWith('/') ? base : `${base}/`}osc/icons/${name}.svg`;
+}
+
 /**
  * Where each artwork's signature (title / LCD) sits, as a CSS object-position,
  * so a cover-cropped window into the panel keeps the recognisable part.
@@ -181,3 +195,19 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     default: return ['sawtooth'];
   }
 }
+
+/**
+ * Hex value of each type's Tailwind accent (400 shade), for surfaces themed
+ * through CSS custom properties rather than classes (the hardware chassis).
+ */
+export const OSCILLATOR_ACCENT_HEX: Record<OscillatorType, string> = {
+  javascript: '#38bdf8', // sky-400
+  pcm: '#a8a29e',        // stone-400
+  open303: '#34d399',    // emerald-400
+  jc303: '#2dd4bf',      // teal-400
+  prophecy: '#a78bfa',   // violet-400
+  pyodide: '#facc15',    // yellow-400
+  webgpu: '#e879f9',     // fuchsia-400
+  wam: '#fbbf24',        // amber-400
+  macro: '#22d3ee',      // cyan-400
+};

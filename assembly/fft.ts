@@ -3,7 +3,7 @@
 // FFT operations for spectral analysis - Cooley-Tukey radix-2 implementation
 // Compiled to WASM via: npm run build:wasm:fft
 // Output: src/wasm/fft.wasm
-// Bridge file: src/utils/fft.ts
+// Bridge: none in the app since #1596 P4 removed the unreachable src/utils/fft.ts + fftLoader.ts
 //
 // Design constraints:
 // - Only use primitive types (f32, i32, usize) and direct memory access

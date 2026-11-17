@@ -20,6 +20,7 @@
  *   back to fixed-offset extraction for compatibility.
  */
 
+import { log } from '@/utils/log';
 import type {
   RawRbsData,
   Tb303PatternA,
@@ -224,7 +225,7 @@ export class RebirthRBSParser {
     const arrangement = this.parseSongArrangement();
     const automationLanes = this.parseAutomation();
 
-    console.log(
+    log.debug(
       `[RebirthRBSParser] Parsed "${filename}" – version ${header.version}, ` +
       `${patterns.length} pattern entries, ${automationLanes.length} automation lane(s).`
     );

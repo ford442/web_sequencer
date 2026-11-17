@@ -9,6 +9,7 @@
 // main thread straight into the voice's own native ring, which the ready
 // message offers. The note / param messages stay for tools and tests.
 
+import { wlog } from './wlog';
 import { formatMissingWasmExports, hasProphecyApi } from './hyphonNativeImports';
 import { VoiceEvent } from '../shared/rt/hyphonNativeExports';
 import type { RingTransport } from '../shared/rt/eventTransport';
@@ -137,7 +138,7 @@ class ProphecyProcessor extends NativeVoiceProcessor {
             if (ok !== 1) throw new Error(`[Prophecy] prophecy_init() returned ${ok}`);
 
             this.voice = { prefix: 'prophecy', handle };
-            console.log(`[Prophecy] Engine ready: handle=${handle}, sr=${this.rateHz}`);
+            wlog(`[Prophecy] Engine ready: handle=${handle}, sr=${this.rateHz}`);
             this.readyMessage.heap = native.stats;
             this.readyMessage.events = this.voiceRingTransport(this.voice) ?? undefined;
             this.port.postMessage(this.readyMessage);

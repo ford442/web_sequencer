@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { SingingVoice, type SingingVoiceConfig } from './SingingVoice';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { VoicePool } from './base/VoicePool';
@@ -84,7 +85,7 @@ export class SingingVoiceManager extends VoicePool<SingingVoice> {
         }
 
         await Promise.all(initPromises);
-        console.log(`SingingVoiceManager: Initialized ${this.maxVoices} voices`);
+        log.debug(`SingingVoiceManager: Initialized ${this.maxVoices} voices`);
     }
 
     /**

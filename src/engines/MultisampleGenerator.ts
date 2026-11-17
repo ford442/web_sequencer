@@ -10,6 +10,7 @@
  * WebGpu303Engine (GPU diode-ladder with highfid-cpu fallback).
  */
 
+import { log } from '@/utils/log';
 import { SingingVoice } from './SingingVoice';
 import {
   float32ToAudioBuffer,
@@ -108,7 +109,7 @@ export class MultisampleGenerator {
             if (response.ok) {
                 this.rubberbandWasm = await response.arrayBuffer();
                 this.isWasmLoaded = true;
-                console.log('MultisampleGenerator: WASM pre-loaded');
+                log.debug('MultisampleGenerator: WASM pre-loaded');
             }
         } catch (e) {
             console.warn('MultisampleGenerator: Failed to pre-load WASM, will retry per-bank', e);

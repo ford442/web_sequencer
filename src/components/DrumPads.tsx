@@ -6,20 +6,22 @@ interface DrumPadConfig {
   sound: DrumSound;
   label: string;
   color: string;
+  /** Edge-glow colour for the white-chassis `.live-pad` material (#1589). */
+  glow: string;
   inactiveBorder: string;
   hoverShadow: string;
   velocity: number;
 }
 
 const DRUM_PADS: DrumPadConfig[] = [
-  { id: 'kick', sound: 'kick', label: 'KICK', color: 'bg-red-500', inactiveBorder: 'border-red-900/40', hoverShadow: 'hover:shadow-red-500/40', velocity: 1.0 },
-  { id: 'snare', sound: 'snare', label: 'SNARE', color: 'bg-yellow-400', inactiveBorder: 'border-yellow-700/40', hoverShadow: 'hover:shadow-yellow-400/40', velocity: 1.0 },
-  { id: 'closedHat', sound: 'closedHat', label: 'CH HAT', color: 'bg-cyan-500', inactiveBorder: 'border-cyan-800/40', hoverShadow: 'hover:shadow-cyan-500/40', velocity: 1.0 },
-  { id: 'openHat', sound: 'openHat', label: 'OH HAT', color: 'bg-cyan-300', inactiveBorder: 'border-cyan-600/40', hoverShadow: 'hover:shadow-cyan-300/40', velocity: 1.0 },
-  { id: 'kick-soft', sound: 'kick', label: 'KICK L', color: 'bg-red-400', inactiveBorder: 'border-red-900/30', hoverShadow: 'hover:shadow-red-400/30', velocity: 0.65 },
-  { id: 'snare-soft', sound: 'snare', label: 'SNR L', color: 'bg-yellow-300', inactiveBorder: 'border-yellow-700/30', hoverShadow: 'hover:shadow-yellow-300/30', velocity: 0.7 },
-  { id: 'closedHat-soft', sound: 'closedHat', label: 'CH L', color: 'bg-cyan-400', inactiveBorder: 'border-cyan-800/30', hoverShadow: 'hover:shadow-cyan-400/30', velocity: 0.55 },
-  { id: 'openHat-soft', sound: 'openHat', label: 'OH L', color: 'bg-cyan-200', inactiveBorder: 'border-cyan-600/30', hoverShadow: 'hover:shadow-cyan-200/30', velocity: 0.75 },
+  { id: 'kick', sound: 'kick', label: 'KICK', color: 'bg-red-500', glow: 'var(--hyphon-accent-red)', inactiveBorder: 'border-red-900/40', hoverShadow: 'hover:shadow-red-500/40', velocity: 1.0 },
+  { id: 'snare', sound: 'snare', label: 'SNARE', color: 'bg-yellow-400', glow: 'var(--hyphon-accent-yellow)', inactiveBorder: 'border-yellow-700/40', hoverShadow: 'hover:shadow-yellow-400/40', velocity: 1.0 },
+  { id: 'closedHat', sound: 'closedHat', label: 'CH HAT', color: 'bg-cyan-500', glow: 'var(--hyphon-accent-cyan)', inactiveBorder: 'border-cyan-800/40', hoverShadow: 'hover:shadow-cyan-500/40', velocity: 1.0 },
+  { id: 'openHat', sound: 'openHat', label: 'OH HAT', color: 'bg-cyan-300', glow: '#67e8f9', inactiveBorder: 'border-cyan-600/40', hoverShadow: 'hover:shadow-cyan-300/40', velocity: 1.0 },
+  { id: 'kick-soft', sound: 'kick', label: 'KICK L', color: 'bg-red-400', glow: '#f87171', inactiveBorder: 'border-red-900/30', hoverShadow: 'hover:shadow-red-400/30', velocity: 0.65 },
+  { id: 'snare-soft', sound: 'snare', label: 'SNR L', color: 'bg-yellow-300', glow: '#fde047', inactiveBorder: 'border-yellow-700/30', hoverShadow: 'hover:shadow-yellow-300/30', velocity: 0.7 },
+  { id: 'closedHat-soft', sound: 'closedHat', label: 'CH L', color: 'bg-cyan-400', glow: '#22d3ee', inactiveBorder: 'border-cyan-800/30', hoverShadow: 'hover:shadow-cyan-400/30', velocity: 0.55 },
+  { id: 'openHat-soft', sound: 'openHat', label: 'OH L', color: 'bg-cyan-200', glow: '#a5f3fc', inactiveBorder: 'border-cyan-600/30', hoverShadow: 'hover:shadow-cyan-200/30', velocity: 0.75 },
 ];
 
 export interface DrumPadsProps {
@@ -43,9 +45,9 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
   }, []);
 
   return (
-    <div className="bg-gray-900 border border-gray-700/50 rounded-xl p-4 shadow-2xl w-full max-w-md mx-auto">
+    <div className="live-pads bg-gray-900 border border-gray-700/50 rounded-xl p-4 shadow-2xl w-full max-w-md mx-auto">
       <div className="flex justify-between items-center mb-4 px-1">
-        <h3 className="text-cyan-400 font-orbitron font-bold text-xs tracking-widest">LIVE PADS</h3>
+        <h3 className="live-pads__title text-cyan-400 font-orbitron font-bold text-xs tracking-widest">LIVE PADS</h3>
         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
       </div>
 
@@ -59,6 +61,8 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
               type="button"
               aria-label={`Play ${pad.label}`}
               title={`Play ${pad.label}`}
+              data-hit={isActive || undefined}
+              style={{ '--c': pad.glow } as React.CSSProperties}
               onMouseDown={() => handlePadDown(pad)}
               onMouseUp={() => handlePadUp(pad.id)}
               onMouseLeave={() => handlePadUp(pad.id)}
@@ -81,7 +85,7 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
                 }
               }}
               className={`
-                relative flex items-center justify-center aspect-square rounded-lg
+                live-pad relative flex items-center justify-center aspect-square rounded-lg
                 font-bold text-[10px] tracking-wider select-none
                 transition-all duration-75 outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900
                 ${isActive
@@ -93,7 +97,7 @@ export const DrumPads = memo(({ onPlayDrum }: DrumPadsProps) => {
               {pad.label}
 
               {isActive && (
-                <div className={`absolute -inset-1 rounded-lg ${pad.color} opacity-30 blur-sm pointer-events-none`} aria-hidden="true" />
+                <div className={`live-pad__bloom absolute -inset-1 rounded-lg ${pad.color} opacity-30 blur-sm pointer-events-none`} aria-hidden="true" />
               )}
             </button>
           );

@@ -77,7 +77,6 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 |-------|--------|--------|
 | 1004 | `src/utils/engineTelemetry.ts` | un-triaged |
 | 701 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
-| 756 | `src/engines/rubberband/ArtifactDetector.ts` | justified exception - complex analysis logic |
 | 1019 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below; 975 → 1019 for per-material pipelines (#1581) — the cap shader itself lives in `knobCapShader.ts` |
 | 917 | `src/components/PhonemePainter.tsx` | un-triaged |
 | 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
@@ -86,7 +85,6 @@ budget" table below**. It runs as part of `pnpm lint`. This means:
 | 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
 | 811 | `src/utils/xmExport.ts` | un-triaged |
 | 794 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
-| 792 | `src/engines/rubberband/performance/PerformanceOptimizer.ts` | un-triaged |
 | 981 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
 | 770 | `src/hooks/useSongStorage.ts` | justified exception — see split plan below |
 | 762 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |

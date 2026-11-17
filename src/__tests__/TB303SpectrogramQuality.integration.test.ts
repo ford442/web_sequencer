@@ -18,7 +18,7 @@ import {
   bufferHasFinitePeak,
   evaluateHighFidGates,
   readWavMonoFromBuffer,
-} from '@/utils/tb303AuthenticityMetrics';
+} from '@/test/helpers/tb303AuthenticityMetrics';
 import { runPython303MetricsOrThrow } from '@/test/helpers/tb303MetricsRunner';
 
 const ROOT = join(__dirname, '../..');

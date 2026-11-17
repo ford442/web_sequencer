@@ -111,11 +111,16 @@ function SamplerChassisHarness({ initialTrack = 'partA' as TrackKey }) {
         <>
             <button type="button" onClick={() => setTrack('sampler')}>select sampler</button>
             <button type="button" onClick={() => setTrack('partA')}>select synth</button>
-            <HardwareChassis mode={mode} modes={['osc', 'drm', 'smp', 'tts', 'vd']} onModeChange={onModeChange} ledStrip={<div />}>
-                <div data-testid="rack">rack</div>
-                {chassisModeHasVoiceDeck(mode) && (
+            <HardwareChassis
+                mode={mode}
+                modes={['osc', 'drm', 'smp', 'tts', 'vd']}
+                onModeChange={onModeChange}
+                ledStrip={<div />}
+                secondary={chassisModeHasVoiceDeck(mode) ? (
                     <ChassisVoiceDeck bankIdx={0} phrases={PHRASES} onPhrasesChange={vi.fn()} onGenerate={vi.fn()} expanded={mode === 'vd'} />
-                )}
+                ) : undefined}
+            >
+                <input data-testid="rack" aria-label="rack" />
             </HardwareChassis>
         </>
     );
@@ -128,16 +133,22 @@ describe('sampler chassis expansion (#1582)', () => {
         render(<SamplerChassisHarness />);
         expect(body()).toHaveAttribute('data-chassis-mode', 'osc');
         expect(screen.queryByTestId('chassis-voice-deck')).toBeNull();
+        const rack = screen.getByTestId('rack');
 
         fireEvent.click(screen.getByText('select sampler'));
         expect(body()).toHaveAttribute('data-chassis-mode', 'tts');
-        expect(screen.getByTestId('chassis-voice-deck')).toBeInTheDocument();
+        expect(screen.getByTestId('chassis-secondary')).toContainElement(screen.getByTestId('chassis-voice-deck'));
+        expect(screen.getByTestId('chassis-secondary')).toHaveAttribute('data-placement', 'below');
         expect(body().style.getPropertyValue('--chassis-stage-h')).toBe('640px');
+        // The deck opens under the rack; the rack itself never remounts.
+        expect(screen.getByTestId('rack')).toBe(rack);
 
         fireEvent.click(screen.getByText('select synth'));
         expect(body()).toHaveAttribute('data-chassis-mode', 'osc');
         expect(screen.queryByTestId('chassis-voice-deck')).toBeNull();
+        expect(screen.queryByTestId('chassis-secondary')).toBeNull();
         expect(body().style.getPropertyValue('--chassis-stage-h')).toBe('380px');
+        expect(screen.getByTestId('rack')).toBe(rack);
     });
 
     it('mode keys move between SMP / TTS / VD on the sampler and the choice is remembered', () => {

@@ -8,6 +8,7 @@
  * resamples it to the export rate (`VowelLibrary.withSampleRate`).
  */
 
+import { log } from '@/utils/log';
 import {
     ConcatenativeHybrid,
     DEFAULT_VOWEL_PACK_PATH,
@@ -59,7 +60,7 @@ export function loadLiveVowelLibrary(context: BaseAudioContext, basePath: string
     const ready = library.loadFromUrl(basePath, decodeWithContext(context)).then((status) => {
         reportStatus(status);
         if (status.state === 'ready') {
-            console.log(`[VowelLibrary] ${status.count} vowel samples at ${context.sampleRate} Hz`);
+            log.debug(`[VowelLibrary] ${status.count} vowel samples at ${context.sampleRate} Hz`);
         } else if (status.state === 'disabled') {
             console.warn(`[VowelLibrary] ${status.reason}`);
         }

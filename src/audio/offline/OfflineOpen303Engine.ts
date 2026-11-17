@@ -9,6 +9,7 @@
  * voices must use separate instances.
  */
 
+import { midiToHz } from '@/utils/math';
 import type { HighFidCoefficients } from '../../audio-worklets/liveHighFidCoefficients';
 
 export type OversampleFactor = 1 | 2 | 4;
@@ -159,10 +160,6 @@ function fastTanh(x: number): number {
   return (x * (27 + x2)) / (27 + 9 * x2);
 }
 
-function midiToFreq(midiNote: number): number {
-  return 440 * Math.pow(2, (midiNote - 69) / 12);
-}
-
 export function resolveOffline303Model(modelId: string): Offline303ModelProfile {
   const found = OFFLINE_303_MODELS.find((m) => m.id === modelId);
   // jc303 / unknown → stock open303 coefficients for the soft offline path
@@ -274,7 +271,7 @@ export class OfflineOpen303Engine {
   }
 
   noteOn(midiNote: number, velocity: number): void {
-    const freq = midiToFreq(midiNote);
+    const freq = midiToHz(midiNote);
     this.targetFreq = freq;
 
     if (this.gateOpen && this.params.slideTime > 0 && this.currentFreq > 0) {

@@ -7,6 +7,22 @@ import type { TrackKey } from '../../constants/appDefaults';
 
 export type ChassisMode = 'osc' | 'drm' | 'smp' | 'tts' | 'vd' | 'pcf';
 
+/** Where a secondary panel opens on the stage: beside the primary or under it. */
+export type ChassisSecondaryPlacement = 'side' | 'below';
+
+export interface ChassisSecondarySpec {
+    placement: ChassisSecondaryPlacement;
+    /**
+     * Share of the stage (0–1) the secondary takes along its split axis: width
+     * for `side`, height for `below`. Omit on `below` to size it to its content.
+     * `side` panels stack `below` on narrow screens and keep this share of the height.
+     */
+    share?: number;
+}
+
+/** Share a `side` secondary takes when its mode does not set one. */
+export const DEFAULT_SIDE_SECONDARY_SHARE = 0.4;
+
 export interface ChassisModeSpec {
     /** Three-letter code shown on the mode key and in the LCD badge. */
     code: string;
@@ -18,6 +34,8 @@ export interface ChassisModeSpec {
     compactStageHeight: number;
     /** Body max-width in px; wider panels (Voice Designer) widen the chassis. */
     maxWidth: number;
+    /** Default layout for a secondary panel opened in this mode. */
+    secondary?: ChassisSecondarySpec;
 }
 
 export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
@@ -27,9 +45,11 @@ export const CHASSIS_MODES: Readonly<Record<ChassisMode, ChassisModeSpec>> = {
     // TTS / VD host the sampler rack plus the voice deck beneath it (#1582):
     // the rack keeps ~SMP height, the deck adds the phrase field, GEN and the
     // Voice Designer heatmap (taller and wider under VD).
-    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060 },
-    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180 },
-    pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000 },
+    tts: { code: 'TTS', label: 'Voice / TTS', stageHeight: 640, compactStageHeight: 540, maxWidth: 1060, secondary: { placement: 'below' } },
+    vd: { code: 'VD', label: 'Voice Designer', stageHeight: 720, compactStageHeight: 600, maxWidth: 1180, secondary: { placement: 'below' } },
+    // PCF: the filter plate and the patch bay side by side (#1586). A panel
+    // mode: it opens over whichever track is selected rather than selecting one.
+    pcf: { code: 'PCF', label: 'Filter (PCF)', stageHeight: 320, compactStageHeight: 270, maxWidth: 1000, secondary: { placement: 'side', share: 0.5 } },
 };
 
 /** Display order of the mode keys. */
@@ -101,11 +121,46 @@ export function chassisModeHasVoiceDeck(mode: ChassisMode): boolean {
 }
 
 /**
- * The mode the live chassis shows: the track decides, except that the sampler
- * track shows whichever sampler view (SMP / TTS / VD) was last chosen.
+ * Panel modes (#1586) are interfaces that are not a rack track: the stage
+ * expands to them over the selected track, and collapses back to that track's
+ * panel when a track mode key is pressed or another track is selected.
  */
-export function resolveChassisMode(track: TrackKey, samplerMode: SamplerChassisMode): ChassisMode {
+export type PanelChassisMode = Extract<ChassisMode, 'pcf'>;
+
+export const PANEL_CHASSIS_MODES: readonly PanelChassisMode[] = ['pcf'];
+
+export function isPanelChassisMode(mode: ChassisMode): mode is PanelChassisMode {
+    return (PANEL_CHASSIS_MODES as readonly ChassisMode[]).includes(mode);
+}
+
+/** An open panel mode and the track it was opened over. */
+export interface OpenChassisPanel {
+    mode: PanelChassisMode;
+    track: TrackKey;
+}
+
+/**
+ * The mode the live chassis shows: the track decides, except that the sampler
+ * track shows whichever sampler view (SMP / TTS / VD) was last chosen, and an
+ * open panel mode (PCF) wins while its track is still the selected one. Picking
+ * another track anywhere in the app therefore collapses the panel by itself.
+ */
+export function resolveChassisMode(
+    track: TrackKey,
+    samplerMode: SamplerChassisMode,
+    panel: OpenChassisPanel | null = null,
+): ChassisMode {
+    if (panel && panel.track === track) return panel.mode;
     return track === 'sampler' ? samplerMode : chassisModeForTrack(track);
+}
+
+/**
+ * Whether the rack (the primary panel of every track mode) is hidden because
+ * a panel mode owns the stage. It stays mounted, so its state and GPU knob
+ * slots survive the panel opening and closing.
+ */
+export function chassisModeHidesRack(mode: ChassisMode): boolean {
+    return isPanelChassisMode(mode);
 }
 
 /** `?chassis=white` (or `?chassis`) opts the live layout into the white chassis. */

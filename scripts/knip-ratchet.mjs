@@ -14,7 +14,8 @@
  * knip-baseline.json lists the files that were already orphaned when the gate
  * landed. Fails on any unused file not in it, and on a baseline entry that is
  * no longer unused (deleted or wired in) so the list only shrinks. --update
- * refuses to add a file; delete it or wire it in instead.
+ * refuses to add a file; delete it or wire it in instead. Since #1596 P4 the
+ * list is empty, so any unreachable module fails the gate.
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -48,8 +49,10 @@ try {
 const unused = new Set((report.issues ?? []).flatMap((i) => (i.files ?? []).map((f) => f.name)))
 
 let baseline = []
+let haveBaseline = false
 try {
   baseline = JSON.parse(readFileSync(baselinePath, 'utf8')).unusedFiles
+  haveBaseline = true
 } catch {
   if (!update) {
     console.error('knip-ratchet: knip-baseline.json missing; run with --update.')
@@ -62,7 +65,9 @@ const added = [...unused].filter((f) => !known.has(f)).sort()
 const gone = [...known].filter((f) => !unused.has(f)).sort()
 
 if (update) {
-  if (added.length && baseline.length) {
+  // An existing baseline only shrinks — an empty one (#1596 P4 emptied it)
+  // included, so --update can never re-grandfather an orphan.
+  if (added.length && haveBaseline) {
     console.error(
       'knip-ratchet: refusing to baseline new orphans — delete them, or import them from production code:\n  ' +
         added.join('\n  '),

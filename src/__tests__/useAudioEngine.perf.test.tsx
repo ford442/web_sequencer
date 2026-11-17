@@ -23,7 +23,6 @@ vi.mock('../engines/SingingVoice', () => ({
         getSourceNode = vi.fn().mockReturnValue({ connect: vi.fn() });
     },
     REFERENCE_FREQUENCIES: {},
-    freqToMidi: vi.fn()
 }));
 
 describe('useAudioEngine Performance', () => {

@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { Bass2Params } from '../types';
 import type { TB303ModelId } from './TB303Models';
 import type { TB303VoiceExtra } from './tb303VoiceExtra';
@@ -92,7 +93,7 @@ export class Open303Manager {
             this.isReady = this.bass1Ready || this.bass2Ready || this.lead303Ready;
             
             if (this.isReady) {
-                console.log('[Open303Manager] Triple 303 instances initialized:', {
+                log.debug('[Open303Manager] Triple 303 instances initialized:', {
                     bass1: this.bass1Ready,
                     bass2: this.bass2Ready,
                     lead303: this.lead303Ready,

@@ -11,6 +11,7 @@
  * last sent: applying a full patch per note costs nothing when nothing moved.
  */
 
+import { log } from '@/utils/log';
 import {
     engineTelemetry,
     loadHyphonWasmExportMap,
@@ -85,7 +86,7 @@ export class MacroOscillator {
                 return false;
             }
             const wasmBytes = await response.arrayBuffer();
-            console.log(`[MacroOscillator] ${label}: ${wasmBytes.byteLength} bytes (${artifact.threading}: ${reason})`);
+            log.debug(`[MacroOscillator] ${label}: ${wasmBytes.byteLength} bytes (${artifact.threading}: ${reason})`);
             const exportMap = await this.fetchExportMap(wasmBytes, artifact, label);
             return this._initWithWasmBytes(audioContext, workletUrl, wasmBytes, exportMap, artifact, label);
         } catch (e) {

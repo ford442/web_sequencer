@@ -89,3 +89,12 @@ describe('oscillator signature icons (#1587)', () => {
         expect(onChange).toHaveBeenCalledWith('jc303');
     });
 });
+
+describe('OSCILLATOR_ACCENT_HEX', () => {
+    it('has a hex colour for every themed oscillator type', async () => {
+        const { OSCILLATOR_ACCENT_HEX, OSCILLATOR_THEMES } = await import('../../oscillatorThemes');
+        for (const type of Object.keys(OSCILLATOR_THEMES)) {
+            expect(OSCILLATOR_ACCENT_HEX[type as keyof typeof OSCILLATOR_ACCENT_HEX]).toMatch(/^#[0-9a-f]{6}$/);
+        }
+    });
+});

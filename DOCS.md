@@ -46,6 +46,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/ai-song-render.md](docs/ai-song-render.md) | `pnpm run ai-song:render`: render an AI song headless, `report.json` metrics + exit codes, the `window.__HYPHON_AGENT__` hook |
 | [docs/coproducer.md](docs/coproducer.md) | Co-producer agent: `exportAISong()` (the importer's inverse) and the seven tools (`get_song`, `edit_pattern`, `set_params`, …), validation, undo, the agent hook, phases |
 | [docs/session-launcher.md](docs/session-launcher.md) | Session / clip launcher: quantization, capture, MIDI/gamepad |
+| [docs/collab.md](docs/collab.md) | Collaboration (#1597): the project as a Yjs document — subsystem maps, the lossless `SavedSongData` codec, ProjectStore v2's `doc.ylog`, the BroadcastChannel provider, `?collab=local` |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [docs/piano-roll.md](docs/piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
 | [docs/note-fx.md](docs/note-fx.md) | Note FX chain (arp / ratchet / chord / euclid / humanize): pure steps → events, identical live and offline, automation, freeze to pattern |

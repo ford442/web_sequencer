@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { useEffect, useRef } from 'react';
 
 // Configuration for Key Mappings
@@ -126,7 +127,7 @@ export function useGamepad() {
     };
 
     const onConnected = (e: GamepadEvent) => {
-      console.log("Gamepad connected:", e.gamepad.id);
+      log.debug("Gamepad connected:", e.gamepad.id);
       // Ensure loop is running
       if (!requestRef.current) {
         requestRef.current = requestAnimationFrame(updateLoop);
@@ -134,7 +135,7 @@ export function useGamepad() {
     };
 
     const onDisconnected = (e: GamepadEvent) => {
-      console.log("Gamepad disconnected:", e.gamepad.id);
+      log.debug("Gamepad disconnected:", e.gamepad.id);
     };
 
     window.addEventListener("gamepadconnected", onConnected);

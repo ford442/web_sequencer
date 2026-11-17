@@ -1,8 +1,5 @@
+import { midiToHz } from '@/utils/math';
 import type { Wam2NoteEvent, Wam2PackageDescriptor, Wam2Plugin } from '../types';
-
-function midiToHz(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
 
 interface Voice {
   osc: OscillatorNode;

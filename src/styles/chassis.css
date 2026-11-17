@@ -1,10 +1,11 @@
 /**
  * White hardware chassis — tokens, materials and the transforming container
- * (epic #1580: #1589 tokens, #1584 container, #1583 panel artwork, #1581 knob LEDs).
+ * (epic #1580: #1589 tokens + step grid / live pad / key bed materials, #1584 container + secondary panel, #1583 panel artwork, #1581 knob LEDs,
+ * #1586 PCF plate + patch deck + master footer).
  *
  * Everything in this file is opt-in. Rules are scoped either under
  * `[data-chassis="white"]` or to `.hyphon-chassis*` / `.hyphon-osc-art*` /
- * `.hyphon-knob-led` classes that only the chassis components render, so a page
+ * `.hyphon-pcf-plate*` / `.hyphon-knob-led` classes that only the chassis components render, so a page
  * without the attribute renders exactly as before.
  *
  * Motion: every transition / animation here is neutralised by the global
@@ -111,6 +112,146 @@
   background: linear-gradient(180deg, #5a5f68, #43474f);
 }
 
+/* ── 3b. Live step grid (SvgStep / MelodicStep SVG steps) ──────────────── *
+ * The sequencer steps are SVG, so the pad material is expressed with `fill` /
+ * `filter` instead of `background` / `box-shadow`. CSS beats the presentation
+ * attributes the components set, so the dark grid needs no prop changes.
+ * `data-on` is set at render; `data-playhead` is toggled with `is-current` by
+ * the rows' imperative playhead path (`sequencer/playhead.ts`) — one element
+ * per row per tick, no extra recalc versus the dark theme. */
+
+[data-chassis="white"] .svg-step .step-body {
+  fill: var(--pad-off);
+}
+
+[data-chassis="white"] .svg-step:not([data-on]) .step-cap {
+  fill: var(--pad-off-hi);
+  fill-opacity: 1;
+}
+
+[data-chassis="white"] .svg-step[data-on] .step-cap {
+  fill-opacity: 0.92;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1px;
+}
+
+[data-chassis="white"] .svg-step[data-on] .step-glow {
+  fill-opacity: 0.55;
+}
+
+/* Inline `filter: none` on MelodicStep needs the !important. Only the one
+   playhead element per row matches. */
+[data-chassis="white"] .svg-step[data-playhead] {
+  filter: brightness(1.5) saturate(1.2) !important;
+}
+
+[data-chassis="white"] .svg-step[data-playhead]:not([data-on]) .step-cap {
+  fill: #5a5f68;
+}
+
+/* ── 3c. Live pads (DrumPads) ──────────────────────────────────────────── *
+ * Back-lit rubber pads with a coloured edge glow (`--c` per pad). The extra
+ * `.live-pads` keeps these above Tailwind's `hover:` utilities, which come
+ * later in the cascade. */
+
+[data-chassis="white"] .live-pads {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-chassis="white"] .live-pads .live-pads__title {
+  font: 600 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  color: var(--chassis-print);
+}
+
+/* In a dark well the red print is too dim; use the lit LED red. */
+[data-chassis="white"] .chassis-well .live-pads .live-pads__title {
+  color: var(--hyphon-led-on-red);
+}
+
+[data-chassis="white"] .live-pads .live-pad {
+  border: 0;
+  border-radius: 10px;
+  background: #1a1c20;
+  color: #cbd5e1;
+  box-shadow:
+    0 0 0 2px var(--c),
+    0 0 14px color-mix(in srgb, var(--c) 70%, transparent),
+    inset 0 2px 4px rgba(255, 255, 255, 0.08),
+    0 4px 0 #000;
+  transform: none;
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+
+[data-chassis="white"] .live-pads .live-pad:active,
+[data-chassis="white"] .live-pads .live-pad[data-hit] {
+  background: color-mix(in srgb, var(--c) 22%, #1a1c20);
+  color: #fff;
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 2px var(--c),
+    0 0 24px var(--c),
+    0 2px 0 #000;
+}
+
+[data-chassis="white"] .live-pads .live-pad__bloom {
+  display: none;
+}
+
+/* ── 3d. Key bed (LiveKeyboard SVG keys) ───────────────────────────────── */
+
+/* The LED dot exists on every key; it only shows on the chassis key bed. */
+.piano-key .key-led {
+  display: none;
+}
+
+[data-chassis="white"] .key-bed {
+  background: transparent;
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-body {
+  fill: #b9bcc0;
+  stroke: rgba(0, 0, 0, 0.28);
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-face {
+  fill: var(--key-white);
+}
+
+[data-chassis="white"] .piano-key[data-key="white"][data-down] .key-face {
+  fill: #c6c9cd;
+}
+
+[data-chassis="white"] .piano-key[data-key="white"] .key-note,
+[data-chassis="white"] .piano-key[data-key="white"] .key-hint {
+  fill: var(--chassis-print-muted);
+}
+
+[data-chassis="white"] .piano-key[data-key="black"] .key-body {
+  fill: var(--key-black);
+  stroke: #000;
+}
+
+[data-chassis="white"] .piano-key[data-key="black"] .key-face {
+  fill: #34373c;
+}
+
+[data-chassis="white"] .piano-key[data-key="black"][data-down] .key-face {
+  fill: #26282c;
+}
+
+[data-chassis="white"] .piano-key .key-led {
+  display: inline;
+  fill: #5a1a1a;
+}
+
+[data-chassis="white"] .piano-key .key-led[data-on] {
+  fill: var(--key-led);
+  filter: drop-shadow(0 0 3px var(--key-led));
+}
+
 /* ── 4. Transforming chassis container (HardwareChassis) ───────────────── */
 
 .hyphon-chassis {
@@ -205,8 +346,8 @@
 }
 
 .hyphon-chassis__mode-btn[aria-pressed="true"]::before {
-  background: var(--key-led);
-  box-shadow: 0 0 4px var(--key-led), 0 0 8px color-mix(in srgb, var(--key-led) 60%, transparent);
+  background: var(--chassis-accent, var(--key-led));
+  box-shadow: 0 0 4px var(--chassis-accent, var(--key-led)), 0 0 8px color-mix(in srgb, var(--chassis-accent, var(--key-led)) 60%, transparent);
 }
 
 .hyphon-chassis__mode-btn:focus-visible {
@@ -259,10 +400,56 @@
   transition: height var(--chassis-morph-duration) var(--chassis-morph-ease);
 }
 
+/* Oscillator theme (#1585): a thin rim in the active type's accent. */
+.hyphon-chassis[data-chassis-theme] .hyphon-chassis__stage {
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px color-mix(in srgb, var(--chassis-accent) 45%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.9);
+  transition:
+    height var(--chassis-morph-duration) var(--chassis-morph-ease),
+    box-shadow 240ms ease-out;
+}
+
+/* The panel is laid out at the size the stage is heading to, not the size it
+   is passing through: `--chassis-stage-h` is the target height and
+   `--chassis-stage-w` the measured target width (HardwareChassis). The stage
+   animates and clips around it, so hosted content (rack knob canvases, their
+   ResizeObservers, GPU slots) re-lays out once per mode change instead of on
+   every frame of the morph. */
 .hyphon-chassis__panel {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: var(--chassis-stage-w, 100%);
+  height: var(--chassis-stage-h, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
   animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
+}
+
+/* Secondary panel: beside the primary (`side`) or under it (`below`). The
+   share comes in as `--chassis-secondary-size` (a % of the stage, or `auto`
+   to fit its content). */
+.hyphon-chassis__panel[data-secondary="side"] {
+  grid-template-columns: minmax(0, 1fr) var(--chassis-secondary-size, 40%);
+}
+
+.hyphon-chassis__panel[data-secondary="below"] {
+  grid-template-rows: minmax(0, 1fr) var(--chassis-secondary-size, auto);
+}
+
+.hyphon-chassis__primary,
+.hyphon-chassis__secondary {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hyphon-chassis__secondary[data-placement="side"] {
+  overflow: auto;
 }
 
 @keyframes hyphon-chassis-panel-in {
@@ -276,28 +463,13 @@
   }
 }
 
-/* Sampler-family stage (#1582): rack on top, voice deck (TTS + Voice
-   Designer) beneath it. The rack keeps whatever the deck leaves. */
-.hyphon-chassis__sampler-stage {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 100%;
-}
-
-.hyphon-chassis__rack-slot {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
+/* Voice deck (#1582): the sampler's `below` secondary in TTS / VD. The rack
+   (primary) keeps whatever the deck leaves; the chassis plays the reveal. */
 .hyphon-chassis__deck {
-  flex: none;
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: 12px;
   padding: 10px 12px;
-  animation: hyphon-chassis-panel-in 360ms var(--chassis-morph-ease) both;
 }
 
 .hyphon-chassis__deck-label {
@@ -307,10 +479,167 @@
   color: #ff6b6b;
 }
 
+/* PCF mode (#1586): the patch bay is the `side` secondary, in a dark well
+   like the voice deck. Its own chrome-panel background gives way to the well. */
+.hyphon-chassis__routing {
+  height: 100%;
+  overflow: auto;
+  padding: 6px;
+}
+
+[data-chassis="white"] .hyphon-chassis__routing > .hyphon-chrome-panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-chassis="white"] .hyphon-chassis__routing > .hyphon-chrome-panel::before {
+  border-color: transparent;
+}
+
+/* PCF filter plate (#1586): PatchBayPcfPanel's chassis skin on a white rack
+   plate — red / grey silkscreen, chassis keys, chassis knobs, and the pattern
+   in a dark well of LED bars. */
+.hyphon-pcf-plate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--chassis-ink);
+}
+
+.hyphon-pcf-plate__title {
+  font: 700 11px/1 var(--chassis-font-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chassis-print);
+}
+
+.hyphon-pcf-plate__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 10px/1 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chassis-print-muted);
+}
+
+.hyphon-pcf-plate__value {
+  min-width: 4ch;
+  text-align: center;
+  font: 600 10px/1 var(--hyphon-font-data);
+  color: var(--chassis-ink);
+}
+
+.hyphon-pcf-plate__note {
+  font: 500 10px/1.3 var(--hyphon-font-data);
+  color: var(--chassis-print-muted);
+}
+
+.hyphon-pcf-plate__warn {
+  font: 700 10px/1.3 var(--chassis-font-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chassis-print);
+}
+
+.hyphon-pcf-plate__alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--chassis-print) 50%, transparent);
+  font: 600 10px/1.3 var(--hyphon-font-data);
+  color: var(--chassis-print);
+}
+
+.hyphon-chassis__mode-btn.hyphon-pcf-plate__key {
+  padding: 4px 8px 3px;
+  font-size: 9px;
+}
+
+.hyphon-chassis__mode-btn.hyphon-pcf-plate__key:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hyphon-pcf-plate__knobs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 18px;
+}
+
+.hyphon-pcf-plate__knobs[data-disabled] {
+  opacity: 0.5;
+}
+
+.hyphon-pcf-plate__knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-chassis="white"] .hyphon-pcf-plate__steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.hyphon-pcf-plate__step {
+  position: relative;
+  width: 8px;
+  height: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--pad-off);
+}
+
+.hyphon-pcf-plate__step:focus-visible {
+  outline: 2px solid var(--key-led);
+  outline-offset: 1px;
+}
+
+.hyphon-pcf-plate__step:disabled {
+  cursor: not-allowed;
+}
+
+.hyphon-pcf-plate__bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: color-mix(in srgb, var(--key-led) 65%, #000);
+}
+
+.hyphon-pcf-plate__bar--beat {
+  background: var(--key-led);
+  box-shadow: 0 0 4px var(--key-led);
+}
+
 @media (max-width: 640px) {
   .hyphon-chassis__deck {
     grid-template-columns: minmax(0, 1fr);
     overflow-y: auto;
+  }
+
+  /* No room for two columns: a side secondary stacks under the primary. The
+     stage grows by the secondary's share (`--chassis-stage-h-stacked`), so the
+     primary keeps the mode's full height and the secondary adds to it. */
+  .hyphon-chassis[data-secondary="side"] .hyphon-chassis__stage,
+  .hyphon-chassis[data-secondary="side"] .hyphon-chassis__panel {
+    height: var(--chassis-stage-h-stacked, var(--chassis-stage-h));
+  }
+
+  .hyphon-chassis__panel[data-secondary="side"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) var(--chassis-secondary-size, 40%);
   }
 }
 
@@ -318,6 +647,18 @@
 .hyphon-chassis__keybed {
   flex: none;
   padding: 10px 12px 12px;
+}
+
+/* Fixed footer under the key bed (#1586): the master loudness / limiter strip.
+   Its own panel background gives way to the well. */
+.hyphon-chassis__footer {
+  flex: none;
+  padding: 8px 12px;
+}
+
+.hyphon-chassis__footer > section {
+  background: transparent;
+  border-color: transparent;
 }
 
 .hyphon-chassis__keybed-label {
@@ -519,12 +860,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .hyphon-chassis__panel,
-  .hyphon-chassis__deck,
   .hyphon-osc-art__img {
     animation: none;
   }
 
-  .hyphon-chassis__mode-btn:active {
+  .hyphon-chassis__mode-btn:active,
+  [data-chassis="white"] .live-pads .live-pad:active,
+  [data-chassis="white"] .live-pads .live-pad[data-hit] {
     transform: none;
   }
 }
@@ -544,7 +886,25 @@
     outline: 2px solid Highlight;
   }
 
+  [data-chassis="white"] .live-pads .live-pad {
+    outline: 1px solid CanvasText;
+  }
+
+  [data-chassis="white"] .live-pads .live-pad[data-hit] {
+    outline: 2px solid Highlight;
+  }
+
+  [data-chassis="white"] .piano-key .key-led[data-on] {
+    forced-color-adjust: none;
+    fill: Highlight;
+  }
+
   .hyphon-knob-led[data-active] {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  .hyphon-pcf-plate__bar {
     forced-color-adjust: none;
     background: Highlight;
   }

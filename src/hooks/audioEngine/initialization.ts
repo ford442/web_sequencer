@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { MutableRefObject } from 'react';
 import { Harmonizer } from '../../engines/Harmonizer';
 import { ensureBufferMatchesContext } from '../../utils/resampleAudioBuffer';
@@ -34,7 +35,7 @@ export async function initializeSustainProcessor(
         });
         connectOutput(sustainNode);
         sustainNodeRef.current = sustainNode;
-        console.log('SustainProcessor AudioWorklet initialized');
+        log.debug('SustainProcessor AudioWorklet initialized');
     } catch (error) {
         console.error('SustainProcessor AudioWorklet initialization failed:', error);
         // Clear the ref on failure - no fallback
@@ -63,7 +64,7 @@ export function initializeHarmonizer(harmonizerRef: MutableRefObject<Harmonizer 
             detuneSpread: 15,
             formantSpread: 3,
         });
-        console.log('[useAudioEngine] Harmonizer initialized');
+        log.debug('[useAudioEngine] Harmonizer initialized');
     } catch (error) {
         console.warn('Harmonizer failed to init:', error);
     }

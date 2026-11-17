@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { ensureRunning } from '../../audio/runtime/AudioRuntime';
 import { loadWorkletModule } from '../../audio/runtime/workletRegistry';
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
@@ -79,7 +80,7 @@ export class InternalClockAdapter implements TransportClock {
         if (e.data?.type === 'step') {
           if (this.stepWatchdog != null) {
             this.clearStepWatchdog();
-            console.info('[Clock] source: clock-processor AudioWorklet');
+            log.info('[Clock] source: clock-processor AudioWorklet');
           }
           const { step, audioTime, absStep } = e.data as ClockStepMessage;
           for (const cb of this.stepListeners) cb(step, audioTime, absStep);

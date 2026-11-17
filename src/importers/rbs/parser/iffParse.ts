@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type {
   RawRbsData, RbsGlobData, RbsTrakEvent, RbsTrakData, RbsSongData, PcfSettings,
 } from '../types';
@@ -65,7 +66,7 @@ export function parseIffChunks(ctx: ParserBinaryContext): IffChunk[] {
   let pos = 12;
 
   const formType = readAsciiString(ctx, 8, 4);
-  console.debug(`[RbsParser] IFF CAT form detected: ${formType}, root size ${rootSize}`);
+  log.debug(`[RbsParser] IFF CAT form detected: ${formType}, root size ${rootSize}`);
 
   const maxPos = Math.min(ctx.fileSize, 8 + rootSize);
   while (pos + 8 <= maxPos) {

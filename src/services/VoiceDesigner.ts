@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import { Style } from './Supertonic';
 import { WebGpuBackend } from './WebGpuBackend';
 
@@ -95,12 +96,12 @@ export class VoiceDesigner {
     // --- Helper for GPU Execution ---
     async _runGpuOp(opName: string, params: Record<string, number> = {}) {
         if (this.gpu.ready && this.currentTtl) {
-            console.time(`GPU ${opName}`);
+            const t0 = performance.now();
             const result = await this.gpu.runOp(opName, this.currentTtl, this.ttlDims, params);
             if (result) {
                 this.currentTtl = result;
             }
-            console.timeEnd(`GPU ${opName}`);
+            log.debug(`GPU ${opName}: ${(performance.now() - t0).toFixed(1)} ms`);
         } else {
             console.warn(`WebGPU not ready, running ${opName} on CPU fallback.`);
             // Fallback map
@@ -123,7 +124,7 @@ export class VoiceDesigner {
     async _runGpuChain(ops: { name: string; params?: Record<string, number> }[]) {
         if (ops.length === 0) return;
         if (this.gpu.ready && this.currentTtl) {
-            console.time(`GPU chain [${ops.map(o => o.name).join('>')}]`);
+            const t0 = performance.now();
             const result = await this.gpu.runChain(
                 ops.map(o => o.name),
                 this.currentTtl,
@@ -131,7 +132,7 @@ export class VoiceDesigner {
                 ops.map(o => o.params ?? {}),
             );
             if (result) this.currentTtl = result;
-            console.timeEnd(`GPU chain [${ops.map(o => o.name).join('>')}]`);
+            log.debug(`GPU chain [${ops.map(o => o.name).join('>')}]: ${(performance.now() - t0).toFixed(1)} ms`);
             if (result) {
                 this.renderHeatmap();
                 return;

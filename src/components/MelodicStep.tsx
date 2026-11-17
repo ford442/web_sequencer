@@ -256,7 +256,7 @@ export const MelodicStep = memo(({
         style={{ transition: 'all 0.1s ease', touchAction: 'none' }}
       >
         <rect x={0} y={0} width={baseWidth} height={50} rx={3} fill="#050505" />
-        <rect x={1} y={1} width={baseWidth - 2} height={48} rx={2} fill={baseFill} strokeWidth={0} />
+        <rect className="step-body" x={1} y={1} width={baseWidth - 2} height={48} rx={2} fill={baseFill} strokeWidth={0} />
         <path d={`M 2 2 L ${baseWidth - 2} 2 L ${baseWidth - 4} 4 L 4 4 L 4 46 L 2 48 Z`} fill="rgba(255,255,255,0.1)" />
         <path d={`M ${baseWidth - 2} 2 L ${baseWidth - 2} 48 L 2 48 L 4 46 L ${baseWidth - 4} 46 L ${baseWidth - 4} 4 Z`} fill="rgba(0,0,0,0.5)" />
       </g>
@@ -274,6 +274,8 @@ export const MelodicStep = memo(({
       }}
       transform={`translate(${x}, ${y})`}
       className={`svg-step melodic-step ${isCurrent ? 'is-current' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      data-on=""
+      data-playhead={isCurrent || undefined}
       role="button"
       tabIndex={0}
       aria-label={`${rowLabel} step ${stepIndex + 1}, pitch ${midiToNoteName(pitch)}${outOfLoop ? ', outside track loop' : ''}`}
@@ -317,6 +319,7 @@ export const MelodicStep = memo(({
       
       {/* Inner fill */}
       <rect 
+        className="step-body"
         x={2} 
         y={2} 
         width={totalWidth - 4} 

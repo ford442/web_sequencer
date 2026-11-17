@@ -1,4 +1,5 @@
 /// <reference types="@webgpu/types" />
+import { log } from '@/utils/log';
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import { onWebGpuDeviceChange, probeWebGPU } from '../engines/backends/webgpuProbe';
 import { COMPUTE_CHAIN_MAX_BYTES, maxComputeElements } from '../webgpu/deviceRequirements';
@@ -82,7 +83,7 @@ export class WebGpuBackend {
             });
             this.ready = true;
             this.wantsDevice = true;
-            console.log("WebGPU Backend Initialized 🚀");
+            log.debug("WebGPU Backend Initialized 🚀");
             try { engineTelemetry.registerResolution('webgpu-compute', 'webgpu', 'device-ready'); } catch (_) {}
             return true;
         } catch (e) {

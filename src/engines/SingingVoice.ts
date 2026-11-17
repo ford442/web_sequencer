@@ -14,7 +14,6 @@ import {
   STRETCH_RATIO_LIMITS,
   clampStretchRatio,
 } from "./singing-voice/constants";
-import { midiToFreq, freqToMidi } from "./singing-voice/pitchUtils";
 import type { SingingVoiceHost } from "./singing-voice/host";
 import type { SingingVoicePublic } from "./singing-voice/types";
 import { WorkletSetupMixin } from "./singing-voice/workletSetup";
@@ -31,7 +30,6 @@ export {
   STRETCH_RATIO_LIMITS,
   clampStretchRatio,
 };
-export { midiToFreq, freqToMidi };
 
 /**
  * SingingVoice - High-fidelity vocal synthesis engine

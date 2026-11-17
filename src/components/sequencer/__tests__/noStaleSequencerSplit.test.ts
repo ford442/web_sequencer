@@ -58,6 +58,7 @@ describe('sequencer/ split has no stale abandoned duplicates', () => {
             'TrackMuteSoloButtons.tsx',
             'TrackSlotButton.tsx',
             'constants.ts',
+            'playhead.ts',
             'stepHitGeometry.ts',
         ]);
     });

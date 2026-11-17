@@ -1,3 +1,4 @@
+import { log } from '@/utils/log';
 import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
@@ -151,7 +152,7 @@ export async function initializeAudioContextAndEngines(
     // --- CRITICAL FIX: Ensure AudioContext is running ---
     if (context.state === 'suspended') {
         await ensureRunning('programmatic');
-        console.log("AudioContext resumed");
+        log.debug("AudioContext resumed");
     }
 
     loadingProgressStore.startStep('masterChain');
@@ -251,7 +252,7 @@ export async function initializeAudioContextAndEngines(
             // pan are the patch's strip nodes, not a mixer of the manager's.
             open303Manager.attachToGraph(graph, masterBusInput);
             refs.open303ManagerRef.current = open303Manager;
-            console.log('[useAudioEngine] Open303Manager Ready');
+            log.debug('[useAudioEngine] Open303Manager Ready');
             try { engineTelemetry.registerResolution('jc303','open303','ready'); } catch (e) { /* noop */ }
         } else {
             console.warn('[useAudioEngine] Open303Manager failed to initialize');
@@ -263,7 +264,7 @@ export async function initializeAudioContextAndEngines(
     }
 
     if (!open303Ready) {
-        console.log('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
+        log.debug('[useAudioEngine] Open303 bypassed - using fallback bass synthesis');
         loadingProgressStore.failStep('open303Engine', new Error('Open303 not ready'), true);
     } else {
         loadingProgressStore.completeStep('open303Engine');
@@ -279,7 +280,7 @@ export async function initializeAudioContextAndEngines(
             const partBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
             prophecyManager.attachToGraph(graph, { partA: partADest, partB: partBDest });
             refs.prophecyManagerRef.current = prophecyManager;
-            console.log('[useAudioEngine] ProphecyManager Ready');
+            log.debug('[useAudioEngine] ProphecyManager Ready');
             try { engineTelemetry.registerResolution('prophecy', 'wasm-worklet', 'ready'); } catch (e) { /* noop */ }
         } else {
             console.warn('[useAudioEngine] ProphecyManager failed to initialize');
@@ -312,7 +313,7 @@ export async function initializeAudioContextAndEngines(
             const partADest = refs.synthABusRef.current ?? refs.masterSaturationRef.current!;
             const partBDest = refs.synthBBusRef.current ?? refs.masterSaturationRef.current!;
             macroManager.attachToGraph(graph, { partA: partADest, partB: partBDest });
-            console.log('[useAudioEngine] MacroManager Ready');
+            log.debug('[useAudioEngine] MacroManager Ready');
             loadingProgressStore.completeStep('macroEngine');
         } else {
             console.warn('[useAudioEngine] MacroManager failed to initialize — macro-* parts will substitute');

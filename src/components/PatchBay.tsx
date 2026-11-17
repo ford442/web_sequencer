@@ -50,7 +50,19 @@ function edgeIsSelected(edge: GraphEdgeSpec, selected: SelectedCable | null): bo
     return selected !== null && edge.from === selected.from && edge.to === selected.to;
 }
 
-export const PatchBay: React.FC<{ className?: string }> = memo(({ className = '' }) => {
+export interface PatchBayProps {
+    className?: string;
+    /**
+     * Render the selected PCF node's controls under the graph. The chassis
+     * (#1586) turns this off and shows them on its filter plate instead.
+     * @default true
+     */
+    showPcfControls?: boolean;
+    /** Called when a PCF node (master or placed) is selected on the graph. */
+    onSelectPcfNode?: (id: string) => void;
+}
+
+export const PatchBay: React.FC<PatchBayProps> = memo(({ className = '', showPcfControls = true, onSelectPcfNode }) => {
     const {
         config,
         ready,
@@ -294,6 +306,9 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
                                     onMouseDown={() => {
                                         setMovingNode(node.id);
                                         setSelectedNode(node.id);
+                                        if (onSelectPcfNode && (node.factory === 'pcf' || node.factory === 'masterPcf')) {
+                                            onSelectPcfNode(node.id);
+                                        }
                                     }}
                                 />
                                 <text
@@ -386,7 +401,7 @@ export const PatchBay: React.FC<{ className?: string }> = memo(({ className = ''
 
             <PatchBayPalette config={config} onAdd={addNode} />
 
-            {selectedNode && pcf && (
+            {showPcfControls && selectedNode && pcf && (
                 <PatchBayPcfPanel
                     state={pcf}
                     label={pcfLabel}
