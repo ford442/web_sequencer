@@ -92,16 +92,6 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
         }
     }, [isOpen, activeTab, loadLibrary]);
 
-    useEffect(() => {
-        if (isOpen && activeTab === 'browse' && !isLoading) {
-            if (songs.length === 0) {
-                a11yAnnouncerStore.announce("Library is empty");
-            } else if (filteredSongs.length === 0) {
-                a11yAnnouncerStore.announce("No items match this filter");
-            }
-        }
-    }, [isOpen, activeTab, isLoading, songs.length, filteredSongs.length]);
-
     const performUpload = async (retryCount = 0): Promise<void> => {
         try {
             let dataToUpload: unknown;
@@ -200,6 +190,16 @@ export const CloudLibrary: React.FC<CloudLibraryProps> = React.memo(({
     };
 
     const filteredSongs = useMemo(() => songs.filter(s => filterType === 'all' || s.type === filterType), [songs, filterType]);
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'browse' && !isLoading) {
+            if (songs.length === 0) {
+                a11yAnnouncerStore.announce("Library is empty");
+            } else if (filteredSongs.length === 0) {
+                a11yAnnouncerStore.announce("No items match this filter");
+            }
+        }
+    }, [isOpen, activeTab, isLoading, songs.length, filteredSongs.length]);
 
     const modalRef = useFocusTrap(isOpen, onClose);
 
