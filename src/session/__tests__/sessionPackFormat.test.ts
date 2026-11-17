@@ -335,6 +335,66 @@ describe('session pack validation', () => {
       expect(reject({ ...fixture(), description: 'line\u0000break' }).message).toMatch(/control or text-direction/);
     });
 
+    describe('hostile nesting', () => {
+      // JSON.parse accepts nesting that structuredClone and JSON.stringify overflow the stack on, so the
+      // depth cap has to refuse it first. 100k levels is ~200 KB: well inside the size limit.
+      const LEVELS = 100_000;
+      const deepArray = '['.repeat(LEVELS) + ']'.repeat(LEVELS);
+      const deepObject = '{"a":'.repeat(LEVELS) + '1' + '}'.repeat(LEVELS);
+      const withDeep = (field: string, deep: string) =>
+        asText(fixture()).replace(/^\{/, `{"${field}":${deep},`);
+
+      it.each([
+        ['an unknown field holding a deep array', withDeep('x', deepArray)],
+        ['an unknown field holding a deep object', withDeep('x', deepObject)],
+        // Replaces the value (a prepended second "name" key would lose to the original: last key wins).
+        ['a known field holding a deep array (the error formatter would stringify it)', asText(fixture()).replace(/"name":"[^"]*"/, `"name":${deepArray}`)],
+        ['a deep array where a note name belongs', asText(fixture()).replace(/"note":"[^"]*"/, `"note":${deepArray}`)],
+      ])('refuses %s with a sentence instead of throwing', (_label, text) => {
+        let issue: { code: string; path: string; message: string } | undefined;
+        expect(() => { issue = reject(text); }).not.toThrow();
+        expect(issue?.code).toBe('schema');
+        expect(issue?.message).toMatch(new RegExp(`more than ${PACK_LIMITS.maxDepth} levels deep`));
+        expect(issue?.message).toMatch(/Export the pack again from Hyphon/);
+      });
+
+      it('draws the line at maxDepth: that deep still reaches the schema, one deeper does not', () => {
+        // The root is level 1, so `n` nested arrays under an unknown field reach level n + 1.
+        const nested = (n: number) => '['.repeat(n) + ']'.repeat(n);
+        const atLimit = reject(withDeep('x', nested(PACK_LIMITS.maxDepth - 1)));
+        expect(atLimit.message).toMatch(/unknown field "x"/);
+        const over = reject(withDeep('x', nested(PACK_LIMITS.maxDepth)));
+        expect(over.message).toMatch(/levels deep/);
+      });
+
+      it('leaves real packs far from the cap', () => {
+        // Depth of the real files is 7; if a format change ever needs more than half the cap, raise the cap on purpose.
+        const depthOf = (value: unknown): number => {
+          let max = 0;
+          const pending: Array<[unknown, number]> = [[value, 1]];
+          while (pending.length > 0) {
+            const [node, depth] = pending.pop() as [unknown, number];
+            if (typeof node !== 'object' || node === null) continue;
+            max = Math.max(max, depth);
+            for (const child of Object.values(node)) pending.push([child, depth + 1]);
+          }
+          return max;
+        };
+        for (const pack of SESSION_PACKS) {
+          const { file } = exportBuiltIn(pack.id);
+          expect(depthOf(file), pack.id).toBeLessThanOrEqual(PACK_LIMITS.maxDepth / 2);
+        }
+      });
+    });
+
+    it('says a non-finite number is not finite, instead of "got null"', () => {
+      // `1e999` is valid JSON text and parses to Infinity; JSON.stringify(Infinity) is "null".
+      const text = asText(fixture()).replace(/"velocity":[0-9.]+/, '"velocity":1e999');
+      const issue = reject(text);
+      expect(issue.message).toMatch(/velocity: must be a finite number, got Infinity\./);
+      expect(issue.message).not.toMatch(/null/);
+    });
+
     it('requires a slug id', () => {
       expect(reject({ ...fixture(), id: 'Has Spaces' }).message).toMatch(/lowercase slug/);
       expect(reject({ ...fixture(), id: '' }).message).toMatch(/must not be empty/);
@@ -493,6 +553,7 @@ describe('docs/session-pack-format.md', () => {
     expect(doc).toContain(`| Slots per track / rows / scenes | ${PACK_LIMITS.maxSlotsPerTrack} |`);
     expect(doc).toContain(`| Steps per pattern / sampler banks per slot | ${PACK_LIMITS.maxSteps} / ${PACK_LIMITS.maxSamplerBanks} |`);
     expect(doc).toContain(`| Issues listed for one failed import | ${PACK_LIMITS.maxReportedIssues} |`);
+    expect(doc).toContain(`| Nesting depth | ${PACK_LIMITS.maxDepth} levels |`);
     expect(PACK_LIMITS.maxRows).toBe(PACK_LIMITS.maxSlotsPerTrack);
   });
 });

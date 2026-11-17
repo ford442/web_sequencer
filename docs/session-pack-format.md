@@ -149,9 +149,10 @@ Not carried: BASS 2, drum and sampler settings, `model303Extra` (high-fidelity c
 | File size | 4 MiB (UTF-8). Checked on the `File` before reading, and again on the text. |
 | Slots per track / rows / scenes | 32 |
 | Steps per pattern / sampler banks per slot | 64 / 8 |
+| Nesting depth | 64 levels |
 | Issues listed for one failed import | 25 |
 
-All are in `PACK_LIMITS` (`format.ts`). Nothing is truncated: a value over a limit is an error.
+All are in `PACK_LIMITS` (`format.ts`). Nothing is truncated: a value over a limit is an error. The depth cap exists so deeply nested input is refused before the stages that copy or print it; real packs nest 7 levels.
 
 ## Import
 
@@ -164,7 +165,7 @@ All are in `PACK_LIMITS` (`format.ts`). Nothing is truncated: a value over a lim
 5. **References** — what a schema cannot say: clip and scene ids unique; scenes naming clips that exist *on that track*; non-empty clips with a pattern behind them; equal column lengths; playable pitch names. Up to 25 issues.
 6. **Normalize** — a fresh `SessionPack` is built from the accepted fields.
 
-Every issue is `{ code, path, message }` — for example `trackStorage.kick[0].steps[3].velocity: 7 is out of range; it must be at most 1.` Codes: `too-large`, `invalid-json`, `not-a-pack`, `unsupported-version`, `schema`, `reference`, `duplicate-id`, `inconsistent`, `note`.
+Every issue is `{ code, path, message }` — for example `trackStorage.kick[0].steps[3].velocity: 7 is out of range; it must be at most 1.` Codes: `too-large`, `invalid-json`, `not-a-pack`, `unsupported-version`, `schema`, `reference`, `duplicate-id`, `inconsistent`, `note`, `export`, `unavailable` (the import code itself could not run, e.g. its lazy chunk failed to download).
 
 The Session Launcher then shows a **preview** — name, scenes, tracks (clips, patterns, notes), the instruments the pack asks for and what they need (for example the native macro engine), and any pattern slots it would collide with. **Nothing is loaded until the user chooses Load pack.** A file that fails any stage leaves the session, the patterns and the instruments exactly as they were; there is no partial import.
 

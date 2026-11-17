@@ -50,6 +50,11 @@ export const PACK_LIMITS = {
   maxPhonemes: 64,
   /** Automation lanes in one pattern. */
   maxAutomationLanes: 64,
+  /**
+   * Nesting of objects / arrays, the file's root being level 1. The deepest real pack is 7 levels;
+   * the cap exists so hostile input is refused before any recursive stage (clone, stringify) can overflow the stack.
+   */
+  maxDepth: 64,
   /** Issues reported for one failed import. */
   maxReportedIssues: 25,
   maxIdLength: 64,
@@ -105,7 +110,9 @@ export type PackIssueCode =
   /** A note name is not a playable pitch. */
   | 'note'
   /** The session cannot be written as a valid pack (export). */
-  | 'export';
+  | 'export'
+  /** The import / export code itself could not run (a lazy chunk failed to load, an unexpected error). */
+  | 'unavailable';
 
 export interface PackIssue {
   code: PackIssueCode;

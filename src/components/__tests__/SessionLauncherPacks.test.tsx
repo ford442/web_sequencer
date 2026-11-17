@@ -225,6 +225,39 @@ describe('SessionLauncher pack files', () => {
     expect(screen.getByRole('region', { name: 'Macro Palette' })).toBeTruthy();
   });
 
+  it('an action that rejects (the lazy importer chunk failing to load) still ends in an alert, not silence', async () => {
+    const actions = makeActions({
+      previewFile: vi.fn(() => Promise.reject(new Error('Failed to fetch dynamically imported module'))),
+    });
+    const props = baseProps();
+    render(<SessionLauncher {...props} packFiles={actions} />);
+    await pickFile();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/Could not import the pack: Failed to fetch dynamically imported module/);
+    expect(alert.textContent).toMatch(/Your session was not changed/);
+    expect(screen.queryByTestId('session-pack-preview')).toBeNull();
+    expect(actions.confirmLoad).not.toHaveBeenCalled();
+    expect(props.onUpdateDocument).not.toHaveBeenCalled();
+    // The controls come back, so the person can try again.
+    const importButton = screen.getByRole('button', { name: /Import a session pack file/ }) as HTMLButtonElement;
+    expect(importButton.disabled).toBe(false);
+  });
+
+  it('a load that rejects keeps the preview open and reports it', async () => {
+    const actions = makeActions({ confirmLoad: vi.fn(() => Promise.reject(new Error('boom'))) });
+    render(<SessionLauncher {...baseProps()} packFiles={actions} />);
+    await pickFile();
+    await screen.findByRole('region', { name: 'Macro Palette' });
+    await act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Load pack Macro Palette into the session' }));
+      return Promise.resolve();
+    });
+    expect(screen.getByRole('alert').textContent).toMatch(/Could not load the pack: boom/);
+    expect(screen.getByRole('region', { name: 'Macro Palette' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Load pack Macro Palette into the session' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('offers a choice when the pack collides with the song’s patterns, defaulting to keeping them', async () => {
     const pack = packFromBuiltIn('minimal-drum-lab');
     const current = createEmptyTrackStorage();
