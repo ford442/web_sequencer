@@ -8,7 +8,7 @@ actually controls — not all of `dist/`:
 
 | What's excluded | Why |
 |---|---|
-| `hyphon_native*`, `jc303*`, `rubberband.wasm`, `*.wav` (dist root) | Vendored native-build/audio artifacts copied from `public/`, outside Vite's bundling |
+| `hyphon_native*`, `jc303*`, `rubberband.wasm`, `*.wav` (dist root), `dist/samples/` | Vendored native-build/audio artifacts copied from `public/`, outside Vite's bundling. Sample audio must live under `public/samples/`, never `public/assets/` (Vite's `assetsDir`): the gate fails on audio inside `dist/assets/` (#1622) |
 | `dist/pyodide/` (~75 MB) | Vendored CPython/WASM runtime for the Pyodide oscillator engine; a fixed cost unrelated to app code splitting |
 | any `*.wasm` inside `dist/assets/` (incl. `ort-wasm-simd-threaded.jsep-*.wasm`, ~24 MB) | Runtime-fetched by `onnxruntime-web` on first TTS use, or by the AssemblyScript oscillators — not part of what every visitor downloads on load |
 
@@ -16,7 +16,7 @@ actually controls — not all of `dist/`:
 |---|---|---|
 | Entry chunk (`dist/index.html`'s `<script type="module">`) | < 1.65 MB raw | ~1.50 MB |
 | Any single image asset (png/jpg/gif/webp/avif, anywhere in `dist/`) | < 512 KB | 31.7 KB (`knob-bezel.webp`) |
-| `dist/assets/` total, excluding `.wasm` | < 4.4 MB | ~4.06 MB |
+| `dist/assets/` total, excluding `.wasm` | < 4.2 MB | 4.02 MB (2026-11-17) |
 
 `build:release` fails with the offending asset(s) and sizes when a budget is
 exceeded, plus the ten largest `dist/assets/` files for context.
@@ -37,7 +37,7 @@ total would absorb.
 | `vendor-react` chunk | < 61 KB br | 56.7 KB |
 | `vendor-onnx` chunk | < 108 KB br | 100.0 KB |
 | Largest worklet chunk | < 31 KB br | 28.5 KB (`rubberband-processor`) |
-| `dist/assets/` total, excluding `.wasm` | < 876 KB br | 811.1 KB |
+| `dist/assets/` total, excluding `.wasm` | < 970 KB br | 952.6 KB (2026-11-17) |
 
 Two structural gates ride alongside the sizes and have no number to tune:
 

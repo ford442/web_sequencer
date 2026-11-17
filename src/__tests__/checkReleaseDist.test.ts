@@ -354,6 +354,20 @@ describe('check-release-dist WASM export gate', () => {
         expect(result.output).toMatch(/hyphon_native\.wasm is [\d,]+ B, over budget/);
     });
 
+    it('rejects sample audio inside dist/assets, which the JS/CSS rows would silently count (#1622)', () => {
+        const result = runCheck(makeDist({ extraRootFiles: { 'assets/vowels/ah.wav': 'RIFF' } }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/assets/ contains sample audio (assets/vowels/ah.wav)');
+        expect(result.output).toContain('public/samples/');
+    });
+
+    it('allows sample audio outside dist/assets', () => {
+        const result = runCheck(makeDist({ extraRootFiles: { 'samples/vowels/ah.wav': 'RIFF' } }));
+
+        expect(result.output).not.toContain('contains sample audio');
+    });
+
     it('rejects a pthread binary that still links embind', () => {
         const result = runCheck(makeDist({ pthreadMarker: '_embind_register_function' }));
 

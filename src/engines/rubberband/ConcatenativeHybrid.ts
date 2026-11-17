@@ -8,7 +8,7 @@
  * sample nearest its pitch, inside the note's sustained vowel. This module is
  * the TypeScript half of the language split:
  *
- * - it owns the manifest (`public/assets/vowels/manifest.json`), the duration
+ * - it owns the manifest (`public/samples/vowels/manifest.json`), the duration
  *   gate, which vowel and which sample, how many loop repeats, and the
  *   crossfade curve;
  * - Rubber Band (`rubberband.wasm`, the same RubberBandProcessor worklet the
@@ -93,7 +93,7 @@ export const DEFAULT_CONCATENATIVE_CONFIG: Omit<ConcatenativeConfig, 'sampleRate
 };
 
 /** Where the built-in pack lives under `public/`. */
-export const DEFAULT_VOWEL_PACK_PATH = 'assets/vowels/';
+export const DEFAULT_VOWEL_PACK_PATH = 'samples/vowels/';
 
 /** Stretch ratio cap for the loop; the worklet clamps its time ratio to 4. */
 const MAX_LOOP_TIME_RATIO = 2;
@@ -188,7 +188,7 @@ export class VowelLibrary {
      * through `resolvePublicAsset`). Never throws: a missing or malformed pack
      * returns — and keeps — a `disabled` status with the reason.
      *
-     * @param basePath Directory under `public/`, e.g. `assets/vowels/`
+     * @param basePath Directory under `public/`, e.g. `samples/vowels/`
      * @param decode Decoder at the rate the samples will play at
      */
     async loadFromUrl(basePath: string, decode: DecodeVowelAudio): Promise<VowelLibraryStatus> {
