@@ -110,7 +110,7 @@ export function sessionFromTrackStorage(
   return doc;
 }
 
-function hasAnyNotes(seq: PartSequence | PartSequence[]): boolean {
+export function hasAnyNotes(seq: PartSequence | PartSequence[]): boolean {
   if (Array.isArray(seq)) {
     return seq.some((bank) => bank.steps.some((n) => n != null));
   }

@@ -78,6 +78,8 @@ export default defineConfig([
     'scripts/*.mjs',
     // ajv standalone output (scripts/gen-coproducer-validators.ts), drift-checked by `pnpm lint`.
     'src/agent/coproducer/generated/**',
+    // ajv standalone output (scripts/gen-session-pack-schema.ts), drift-checked by `pnpm lint`.
+    'src/session/pack/generated/**',
   ]),
   {
     files: ['**/*.{ts,tsx}'],

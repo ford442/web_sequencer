@@ -1,14 +1,16 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TRACK_KEYS } from '../constants';
 import type { TrackKey } from '../constants/appDefaults';
 import { midiMapStore } from '../stores/midiMapStore';
-import { SESSION_PACKS } from '../session/packs';
 import { LAUNCH_QUANTIZATIONS, SESSION_TRACK_LABELS, type LaunchQuantization, type SessionDocument } from '../session/types';
 import { moveSessionFocus, type SessionGridFocus } from '../session/gridKeyboard';
 import { sessionClipControlId, sessionSceneControlId } from '../session/midiMap';
 import { startMidiLearnForControl } from '../hooks/useMidi';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { a11yAnnouncerStore } from '../stores/a11yAnnouncerStore';
+import type { PackFileActions } from '../session/pack/actions';
+import { SessionPackPanel } from './session-launcher/SessionPackPanel';
+import { usePackFlow } from './session-launcher/usePackFlow';
 
 interface SessionLauncherProps {
   isVisible: boolean;
@@ -31,6 +33,8 @@ interface SessionLauncherProps {
   canRedo: boolean;
   onLoadPack: (id: string) => void;
   onUpdateDocument: (next: SessionDocument) => void;
+  /** Pack import / export / preview. Omitted = the launcher shows the built-in starters only. */
+  packFiles?: PackFileActions;
 }
 
 export const SessionLauncher = memo(function SessionLauncher({
@@ -54,11 +58,21 @@ export const SessionLauncher = memo(function SessionLauncher({
   canRedo,
   onLoadPack,
   onUpdateDocument,
+  packFiles,
 }: SessionLauncherProps) {
   const [focus, setFocus] = useState<SessionGridFocus>({ kind: 'scene', row: 0 });
   const rowCount = document.columns.partA.clips.length;
 
-  const containerRef = useFocusTrap<HTMLDivElement>(isVisible, onClose);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
+  const packFlow = usePackFlow(packFiles, importButtonRef);
+  const { preview: packPreview, cancel: cancelPackPreview } = packFlow;
+
+  // Escape backs out of an open pack preview first; only then does it close the launcher.
+  const handleEscape = useCallback(() => {
+    if (packPreview) cancelPackPreview();
+    else onClose();
+  }, [packPreview, cancelPackPreview, onClose]);
+  const containerRef = useFocusTrap<HTMLDivElement>(isVisible, handleEscape);
 
   useEffect(() => {
     if (!isVisible || !containerRef.current) return;
@@ -85,6 +99,14 @@ export const SessionLauncher = memo(function SessionLauncher({
 
   const onGridKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Grid keys belong to the grid. Anywhere else in the dialog — the header buttons, the
+      // quantization select, the pack panel and its text field — Enter, Space, arrows, Delete and
+      // Backspace keep their own meaning. The gamepad-mapped keys still work from any button.
+      const target = e.target as HTMLElement;
+      const inGrid = target.closest('[role="grid"]') !== null;
+      const isGamepadKey = e.code === 'ControlLeft' || e.code === 'AltLeft';
+      if (!inGrid && !(isGamepadKey && !target.matches('input, textarea, select'))) return;
+
       const next = moveSessionFocus(focus, e.key, rowCount);
       if (next !== focus && (e.key.startsWith('Arrow'))) {
         e.preventDefault();
@@ -159,19 +181,7 @@ export const SessionLauncher = memo(function SessionLauncher({
           <button type="button" className="h-7 w-7 text-gray-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded" onClick={onClose} aria-label="Close Session Launcher" title="Close Session Launcher"><span aria-hidden="true">✕</span></button>
         </header>
 
-        <div className="px-3 py-2 flex gap-2 overflow-x-auto border-b border-gray-800">
-          {SESSION_PACKS.map((pack) => (
-            <button
-              key={pack.id}
-              type="button"
-              className="shrink-0 h-7 px-2 text-[10px] font-orbitron border border-cyan-900/60 text-cyan-300 rounded transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] hover:bg-cyan-900/30 hover:scale-105 active:scale-95"
-              onClick={() => onLoadPack(pack.id)}
-              aria-label={`Load starter pack ${pack.name}`}
-            >
-              {pack.name}
-            </button>
-          ))}
-        </div>
+        <SessionPackPanel onLoadPack={onLoadPack} actions={packFiles} flow={packFlow} importButtonRef={importButtonRef} />
 
         <div className="flex-1 overflow-auto custom-scrollbar p-2" data-testid="session-grid">
           {rowCount === 0 ? (

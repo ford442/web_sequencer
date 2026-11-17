@@ -46,7 +46,7 @@ const SESSION_KEYS = [
     'isSessionOpen', 'sessionDocument', 'sessionPlayingSlots', 'isSessionCapturing',
     'setIsSessionOpen', 'launchSessionClip', 'launchSessionScene', 'stopSessionTrack',
     'stopSessionAll', 'setSessionQuantization', 'beginSessionCapture', 'finishSessionCapture',
-    'undoSession', 'redoSession', 'loadSessionPack', 'setSessionDocument',
+    'undoSession', 'redoSession', 'loadSessionPack', 'sessionPackFiles', 'setSessionDocument',
     'editArrangement', 'setIsArrangementOpen',
 ] as const
 
@@ -83,6 +83,7 @@ export const SessionNode = React.memo(() => {
             canUndo={canUndo}
             canRedo={canRedo}
             onLoadPack={s.loadSessionPack}
+            packFiles={s.sessionPackFiles}
             onUpdateDocument={(doc) => s.setSessionDocument(doc)}
         />
     )

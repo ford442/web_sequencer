@@ -1,0 +1,1230 @@
+{
+  "format": "hyphon-session-pack",
+  "formatVersion": 1,
+  "id": "ambient-drift",
+  "name": "Ambient Drift",
+  "description": "Evolving two-bar chord movements that follow each other on their own, with bells that wander between clips at random. Launch a scene, then let the follow actions play. Works well around 70–90 BPM.",
+  "author": "Hyphon starter library",
+  "session": {
+    "schemaVersion": 1,
+    "quantization": "2bars",
+    "columns": {
+      "partA": {
+        "track": "partA",
+        "clips": [
+          {
+            "id": "c:partA:0",
+            "name": "Dmaj7 → Bm9",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "next",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partA:1",
+            "name": "Gmaj7 → Em9",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "next",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partA:2",
+            "name": "Bm11 → A6/9",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "next",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partA:3",
+            "name": "Em9 → Dadd9",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "next",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partA:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partA:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partA:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partA:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "partB": {
+        "track": "partB",
+        "clips": [
+          {
+            "id": "c:partB:0",
+            "name": "Bells sparse",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "random",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partB:1",
+            "name": "Bells drift",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "random",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partB:2",
+            "name": "Bells shimmer",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "random",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partB:3",
+            "name": "Last light",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "random",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:partB:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partB:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partB:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:partB:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "bass2": {
+        "track": "bass2",
+        "clips": [
+          {
+            "id": "c:bass2:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:1",
+            "name": "2",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:2",
+            "name": "3",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:3",
+            "name": "4",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:bass2:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "kick": {
+        "track": "kick",
+        "clips": [
+          {
+            "id": "c:kick:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:kick:1",
+            "name": "Heartbeat",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:kick:2",
+            "name": "Heartbeat late",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:kick:3",
+            "name": "4",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:kick:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:kick:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:kick:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:kick:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "snare": {
+        "track": "snare",
+        "clips": [
+          {
+            "id": "c:snare:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:1",
+            "name": "2",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:2",
+            "name": "3",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:3",
+            "name": "4",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:snare:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "closedHat": {
+        "track": "closedHat",
+        "clips": [
+          {
+            "id": "c:closedHat:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:1",
+            "name": "2",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:2",
+            "name": "3",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:3",
+            "name": "4",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:closedHat:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "openHat": {
+        "track": "openHat",
+        "clips": [
+          {
+            "id": "c:openHat:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:openHat:1",
+            "name": "2",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:openHat:2",
+            "name": "Breath",
+            "slotIndex": 2,
+            "launchMode": "toggle",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:openHat:3",
+            "name": "Breath late",
+            "slotIndex": 3,
+            "launchMode": "toggle",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": false
+          },
+          {
+            "id": "c:openHat:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:openHat:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:openHat:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:openHat:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      },
+      "sampler": {
+        "track": "sampler",
+        "clips": [
+          {
+            "id": "c:sampler:0",
+            "name": "1",
+            "slotIndex": 0,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:1",
+            "name": "2",
+            "slotIndex": 1,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:2",
+            "name": "3",
+            "slotIndex": 2,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:3",
+            "name": "4",
+            "slotIndex": 3,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:4",
+            "name": "5",
+            "slotIndex": 4,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:5",
+            "name": "6",
+            "slotIndex": 5,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:6",
+            "name": "7",
+            "slotIndex": 6,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          },
+          {
+            "id": "c:sampler:7",
+            "name": "8",
+            "slotIndex": 7,
+            "launchMode": "trigger",
+            "followAction": "none",
+            "followRepeatN": 1,
+            "empty": true
+          }
+        ]
+      }
+    },
+    "scenes": [
+      {
+        "id": "s:0",
+        "name": "Dawn",
+        "clipIds": {
+          "partA": "c:partA:0",
+          "partB": "c:partB:0",
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:1",
+        "name": "Drift",
+        "clipIds": {
+          "partA": "c:partA:1",
+          "partB": "c:partB:1",
+          "bass2": null,
+          "kick": "c:kick:1",
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:2",
+        "name": "Swell",
+        "clipIds": {
+          "partA": "c:partA:2",
+          "partB": "c:partB:2",
+          "bass2": null,
+          "kick": "c:kick:2",
+          "snare": null,
+          "closedHat": null,
+          "openHat": "c:openHat:2",
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:3",
+        "name": "Dissolve",
+        "clipIds": {
+          "partA": "c:partA:3",
+          "partB": "c:partB:3",
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": "c:openHat:3",
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:4",
+        "name": "Scene 5",
+        "clipIds": {
+          "partA": null,
+          "partB": null,
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:5",
+        "name": "Scene 6",
+        "clipIds": {
+          "partA": null,
+          "partB": null,
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:6",
+        "name": "Scene 7",
+        "clipIds": {
+          "partA": null,
+          "partB": null,
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      },
+      {
+        "id": "s:7",
+        "name": "Scene 8",
+        "clipIds": {
+          "partA": null,
+          "partB": null,
+          "bass2": null,
+          "kick": null,
+          "snare": null,
+          "closedHat": null,
+          "openHat": null,
+          "sampler": null
+        }
+      }
+    ]
+  },
+  "trackStorage": {
+    "partA": [
+      {
+        "steps": [
+          {"note":"D3","velocity":0.62,"chord":["A3","C#4","F#4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"B2","velocity":0.58,"chord":["F#3","A3","C#4","D4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          {"note":"G2","velocity":0.6,"chord":["D3","F#3","B3"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"E3","velocity":0.56,"chord":["G3","B3","D4","F#4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          {"note":"B2","velocity":0.64,"chord":["F#3","A3","D4","E4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"A2","velocity":0.6,"chord":["E3","F#3","B3","C#4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          {"note":"E2","velocity":0.58,"chord":["B2","D3","F#3","G3"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"D3","velocity":0.5,"chord":["E3","A3","C#4","F#4"],"length":16},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "partB": [
+      {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"D5","velocity":0.57,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"E5","velocity":0.61,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"E5","velocity":0.49,"length":2},
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"B5","velocity":0.45,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"D5","velocity":0.66,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          null,
+          {"note":"B5","velocity":0.57,"length":2},
+          null,
+          null,
+          null,
+          null,
+          {"note":"B5","velocity":0.66,"length":2},
+          null,
+          {"note":"B5","velocity":0.53,"length":2},
+          null,
+          {"note":"B5","velocity":0.65,"length":2},
+          null,
+          {"note":"B5","velocity":0.53,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"B5","velocity":0.41,"length":2},
+          null,
+          {"note":"A5","velocity":0.45,"length":2},
+          null,
+          null,
+          {"note":"E5","velocity":0.42,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          null,
+          null,
+          null,
+          {"note":"D5","velocity":0.66,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"F#5","velocity":0.67,"length":2},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"F#5","velocity":0.45,"length":2}
+        ]
+      }
+    ],
+    "kick": [
+      null,
+      {
+        "steps": [
+          {"note":"C2","velocity":0.48,"length":1},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"C2","velocity":0.36,"length":1},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          {"note":"C2","velocity":0.5,"length":1},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"C2","velocity":0.34,"length":1},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "openHat": [
+      null,
+      null,
+      {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"F#3","velocity":0.3,"length":1},
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "steps": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {"note":"F#3","velocity":0.26,"length":1},
+          null,
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "instruments": {
+    "synthA": {
+      "waveform": "macro-string-machine",
+      "macro": {
+        "harmonics": 0.3,
+        "timbre": 0.5,
+        "morph": 0.5,
+        "decay": 0.9,
+        "lpgColour": 0.3,
+        "fmMod": 0,
+        "timbreMod": 0,
+        "morphMod": 0,
+        "spread": 0.8,
+        "glide": 0,
+        "auxMix": 0,
+        "polyphony": 8,
+        "lpgMode": "gate"
+      }
+    },
+    "synthB": {
+      "waveform": "macro-modal",
+      "delayTime": 0.5,
+      "delayFeedback": 0.55,
+      "delayMix": 0.4,
+      "macro": {
+        "harmonics": 0.6,
+        "timbre": 0.7,
+        "morph": 0.8,
+        "decay": 0.5,
+        "lpgColour": 0.5,
+        "fmMod": 0,
+        "timbreMod": 0,
+        "morphMod": 0,
+        "spread": 0.6,
+        "glide": 0,
+        "auxMix": 0,
+        "polyphony": 8,
+        "lpgMode": "gate"
+      }
+    }
+  }
+}

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { SESSION_PACKS, getSessionPack, mergePackStorage } from '../packs';
+import {
+  SESSION_PACKS,
+  createAcidLiveSetPack,
+  createDual303JamPack,
+  createMacroPalettePack,
+  createMinimalDrumLabPack,
+  createVocalChopPack,
+  getSessionPack,
+  mergePackStorage,
+} from '../packs';
+import { SESSION_PACK_FORMAT_VERSION } from '../pack/format';
 import { createEmptyTrackStorage } from '../../utils/trackStorageUtils';
 import { TRACK_KEYS } from '../../constants';
 
@@ -32,5 +42,11 @@ describe('session starter packs', () => {
     expect(pack?.instruments?.synthB?.macro?.polyphony).toBe(1);
     const padClip = pack?.trackStorage.partA[0] as { steps: Array<{ chord?: string[] } | null> } | null;
     expect(padClip?.steps.some((s) => (s?.chord?.length ?? 0) >= 3)).toBe(true);
+  });
+
+  it('stays deterministic: building a starter twice gives the same pack, and every starter declares the pack format version', () => {
+    const factories = [createAcidLiveSetPack, createVocalChopPack, createDual303JamPack, createMinimalDrumLabPack, createMacroPalettePack];
+    for (const make of factories) expect(make()).toEqual(make());
+    for (const pack of SESSION_PACKS) expect(pack.formatVersion).toBe(SESSION_PACK_FORMAT_VERSION);
   });
 });
