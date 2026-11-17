@@ -55,10 +55,20 @@ export function usePackFlow(actions: PackFileActions | undefined, importButtonRe
     }
   }, [returnFocus]);
 
-  const withBusy = useCallback(async (work: () => Promise<void>) => {
+  /**
+   * Runs one pack action. Actions report failure as data; this is the net for the ones that do not —
+   * the lazily loaded importer chunk failing to download (offline, a stale deploy) or an unexpected
+   * throw — so the user gets an alert instead of a button that does nothing.
+   */
+  const withBusy = useCallback(async (verb: 'import' | 'load' | 'export', work: () => Promise<void>) => {
     setBusy(true);
     try {
       await work();
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const message = `Could not ${verb} the pack: ${reason}`;
+      setProblems([{ code: 'unavailable', path: '', message }]);
+      a11yAnnouncerStore.announce(`${message} Your session was not changed.`, 'assertive');
     } finally {
       setBusy(false);
     }
@@ -66,27 +76,27 @@ export function usePackFlow(actions: PackFileActions | undefined, importButtonRe
 
   const pickFile = useCallback((file: File | undefined) => {
     if (!file || !actions) return Promise.resolve();
-    return withBusy(async () => showPreview(await actions.previewFile(file)));
+    return withBusy('import', async () => showPreview(await actions.previewFile(file)));
   }, [actions, showPreview, withBusy]);
 
   const previewImported = useCallback((id: string) => {
     if (!actions) return Promise.resolve();
-    return withBusy(async () => showPreview(await actions.previewImported(id)));
+    return withBusy('import', async () => showPreview(await actions.previewImported(id)));
   }, [actions, showPreview, withBusy]);
 
   const confirm = useCallback(() => {
     if (!actions || !preview) return Promise.resolve();
-    return withBusy(async () => finishLoad(await actions.confirmLoad(preview.pack, policy)));
+    return withBusy('load', async () => finishLoad(await actions.confirmLoad(preview.pack, policy)));
   }, [actions, preview, policy, finishLoad, withBusy]);
 
   const loadLibraryPack = useCallback((id: string) => {
     if (!actions) return Promise.resolve();
-    return withBusy(async () => finishLoad(await actions.loadLibraryPack(id)));
+    return withBusy('load', async () => finishLoad(await actions.loadLibraryPack(id)));
   }, [actions, finishLoad, withBusy]);
 
   const exportPack = useCallback(() => {
     if (!actions) return Promise.resolve();
-    return withBusy(async () => {
+    return withBusy('export', async () => {
       const result = await actions.exportPack(packName);
       if (result.ok) {
         setProblems([]);

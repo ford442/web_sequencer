@@ -82,6 +82,8 @@ function describeSchemaError(errors: PackValidationError[], root: unknown): stri
       return `missing required field "${String(p.missingProperty)}".`;
     case 'type': {
       const want = Array.isArray(p.type) ? (p.type as string[]).join(' or ') : String(p.type);
+      // JSON has no Infinity, but `1e999` parses to one; JSON.stringify would print it as "null".
+      if (typeof value === 'number' && !Number.isFinite(value)) return `must be a finite ${want}, got ${String(value)}.`;
       return `must be ${want}, got ${show(value)}.`;
     }
     case 'enum': {
@@ -258,10 +260,39 @@ function utf8Length(text: string): number {
 }
 
 /**
+ * True when objects / arrays nest deeper than `max` levels (the root is level 1). Iterative on
+ * purpose: the input this guards against is exactly what would overflow a recursive walk, and
+ * `JSON.parse` accepts nesting far deeper than `structuredClone` or `JSON.stringify` survive.
+ */
+function nestsDeeperThan(value: unknown, max: number): boolean {
+  const pending: Array<[node: object, depth: number]> = [];
+  if (typeof value === 'object' && value !== null) pending.push([value, 1]);
+  while (pending.length > 0) {
+    const [node, depth] = pending.pop() as [object, number];
+    if (depth > max) return true;
+    for (const child of Object.values(node)) {
+      if (typeof child === 'object' && child !== null) pending.push([child, depth + 1]);
+    }
+  }
+  return false;
+}
+
+/**
  * Migrate and validate an already-parsed document (a JSON module, say). Same stages as
  * `parseSessionPackText` after `JSON.parse`; `bytes` is only reported back.
  */
 export function parseSessionPackValue(parsed: unknown, bytes = 0): PackImportResult {
+  // Before the first recursive stage (the migration runner deep-copies its input).
+  if (nestsDeeperThan(parsed, PACK_LIMITS.maxDepth)) {
+    return {
+      ok: false,
+      errors: [{
+        code: 'schema',
+        path: '',
+        message: `The file nests data more than ${PACK_LIMITS.maxDepth} levels deep, which no session pack does. Export the pack again from Hyphon instead of editing its structure by hand.`,
+      }],
+    };
+  }
   const migrated = migrateSessionPack(parsed);
   if (!migrated.ok) return { ok: false, errors: [migrated.error] };
   return validateSessionPackFile(migrated.raw, bytes);
