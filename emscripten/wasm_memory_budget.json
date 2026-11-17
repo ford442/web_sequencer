@@ -29,12 +29,16 @@
       "of the 32 MB initial memory. No change to these numbers needed.",
       "2026-11-02, #1497 P2: every voice slot gains an inbox EventRing (the ring the main",
       "thread writes in place): 72 slots, +0.57 MB of zero-initialised static data, inside",
-      "the initial memory of both profiles. No change to these numbers needed."
+      "the initial memory of both profiles. No change to these numbers needed.",
+      "2026-11-17, #1596 follow-up P1: FIXED memory (ALLOW_MEMORY_GROWTH=0, no maximumMemoryMb).",
+      "`render_hyphon_native_parity.mjs slots` (every one of the 72 voice slots at 4096-frame",
+      "blocks, 4x / 2x oversample, sounding): 13.5 MB at any sample rate — 2.4x inside 32 MB.",
+      "Stack 8 MB → 64 KB: the debug-build probe (`… stack`) measures a < 1 KB high-water.",
+      "pthreadPoolSize 4 → 0: nothing creates a thread (BUILD_NOTES#fixed-voice-memory)."
     ],
     "initialMemoryMb": 32,
-    "maximumMemoryMb": 1024,
-    "stackSizeMb": 8,
-    "pthreadPoolSize": 4
+    "stackSizeMb": 0.0625,
+    "pthreadPoolSize": 0
   },
   "hyphonNativeSt": {
     "$comment": [
@@ -55,11 +59,12 @@
       "2026-10-19, stereo drum kit (per-hit pan, planar 2 x maxFrames buffer): voice",
       "heap 2.11 → 2.13 MB, peak 4.32 → 4.34 MB.",
       "2026-11-02, #1497 P2: the same +0.57 MB of static inbox rings (unused here: the",
-      "memory is not shared, so routes stay on batched messages) — still well inside 16 MB."
+      "memory is not shared, so routes stay on batched messages) — still well inside 16 MB.",
+      "2026-11-17, #1596 follow-up P1: FIXED like the pthread build; stack 1 MB → 64 KB. The",
+      "all-slots ceiling (13.5 MB) fits 16 MB, enforced by hyphonNativeFixedMemory.integration."
     ],
     "initialMemoryMb": 16,
-    "maximumMemoryMb": 512,
-    "stackSizeMb": 1
+    "stackSizeMb": 0.0625
   },
   "rubberband": {
     "$comment": [

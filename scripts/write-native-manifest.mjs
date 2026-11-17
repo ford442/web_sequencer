@@ -66,9 +66,10 @@ function artifactMeta(rel, world) {
 
 function memoryFor(world, budget, rel) {
   if (isHyphonSt(world, rel)) {
+    // Fixed memory (ALLOW_MEMORY_GROWTH=0): the maximum IS the initial size.
     return {
       initialMb: budget.hyphonNativeSt.initialMemoryMb,
-      maximumMb: budget.hyphonNativeSt.maximumMemoryMb,
+      maximumMb: budget.hyphonNativeSt.initialMemoryMb,
       stackMb: budget.hyphonNativeSt.stackSizeMb,
       pthreadPoolSize: 0,
     };
@@ -76,7 +77,7 @@ function memoryFor(world, budget, rel) {
   if (world.world === 'emcc') {
     return {
       initialMb: budget.hyphonNative.initialMemoryMb,
-      maximumMb: budget.hyphonNative.maximumMemoryMb,
+      maximumMb: budget.hyphonNative.initialMemoryMb,
       stackMb: budget.hyphonNative.stackSizeMb,
       pthreadPoolSize: budget.hyphonNative.pthreadPoolSize,
     };
@@ -104,10 +105,9 @@ function memoryFor(world, budget, rel) {
 
 function linkFlagsFor(world, rel) {
   if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
-  const flags = ['ALLOW_MEMORY_GROWTH=1'];
-  if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', ...flags];
-  if (world.world === 'emcc') flags.unshift('-pthread');
-  return flags;
+  if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=0'];
+  if (world.world === 'emcc') return ['-pthread', 'ALLOW_MEMORY_GROWTH=0'];
+  return ['ALLOW_MEMORY_GROWTH=1'];
 }
 
 export function buildNativeManifest({ repoRoot = defaultRepoRoot(), profile = 'release' } = {}) {

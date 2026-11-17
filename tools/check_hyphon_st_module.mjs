@@ -12,9 +12,13 @@
  * strings that listing prints, plus the runtimes' own data strings (libomp's
  * KMP_* environment names), and it needs no wabt install on the CI runner.
  *
+ * With --fixed-memory-mb N (both modes) it also asserts the imported memory is
+ * FIXED at the budget: initial == maximum == N MB (ALLOW_MEMORY_GROWTH=0,
+ * docs/wasm/BUILD_NOTES.md#fixed-voice-memory).
+ *
  * Usage:
- *   node tools/check_hyphon_st_module.mjs public/hyphon_native.st.wasm
- *   node tools/check_hyphon_st_module.mjs --symbols-only public/hyphon_native.wasm
+ *   node tools/check_hyphon_st_module.mjs [--fixed-memory-mb N] public/hyphon_native.st.wasm
+ *   node tools/check_hyphon_st_module.mjs --symbols-only [--fixed-memory-mb N] public/hyphon_native.wasm
  */
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -132,12 +136,45 @@ export function checkSingleThreadedModule(buf) {
   return problems;
 }
 
+/**
+ * @returns {string[]} problems; empty when the module imports exactly one memory
+ * whose initial and maximum are both `memoryMb` (it cannot grow).
+ */
+export function checkFixedMemory(buf, memoryMb) {
+  const pages = (memoryMb * 1024 * 1024) / 65536;
+  const memories = parseWasmImports(buf).filter((i) => i.kind === 'memory');
+  if (memories.length !== 1) return [`expected exactly one imported memory, found ${memories.length}`];
+  const [m] = memories;
+  const problems = [];
+  if (m.initial !== pages) problems.push(`memory initial is ${m.initial} pages, budget is ${pages} (${memoryMb} MB)`);
+  if (m.maximum === undefined) problems.push('memory has no maximum: it can grow without bound');
+  else if (m.maximum !== m.initial) {
+    problems.push(`memory can grow: initial ${m.initial} pages, maximum ${m.maximum} (link with ALLOW_MEMORY_GROWTH=0)`);
+  }
+  return problems;
+}
+
 function main() {
-  const symbolsOnly = process.argv[2] === '--symbols-only';
-  const file = process.argv[symbolsOnly ? 3 : 2];
-  if (!file) {
-    console.error('Usage: node tools/check_hyphon_st_module.mjs [--symbols-only] <hyphon_native[.st].wasm>');
+  const argv = process.argv.slice(2);
+  let fixedMb = null;
+  const fixedAt = argv.indexOf('--fixed-memory-mb');
+  if (fixedAt !== -1) {
+    fixedMb = Number(argv[fixedAt + 1]);
+    argv.splice(fixedAt, 2);
+  }
+  const symbolsOnly = argv[0] === '--symbols-only';
+  const file = argv[symbolsOnly ? 1 : 0];
+  if (!file || (fixedMb !== null && !(fixedMb > 0))) {
+    console.error('Usage: node tools/check_hyphon_st_module.mjs [--symbols-only] [--fixed-memory-mb N] <hyphon_native[.st].wasm>');
     process.exit(2);
+  }
+  if (fixedMb !== null) {
+    const problems = checkFixedMemory(fs.readFileSync(file), fixedMb);
+    if (problems.length) {
+      console.error(`[fixed-memory] FAILED ${file}\n  - ${problems.join('\n  - ')}`);
+      process.exit(1);
+    }
+    console.log(`[fixed-memory] OK — ${file} memory fixed at ${fixedMb} MB`);
   }
   if (symbolsOnly) {
     const problems = checkForbiddenSymbols(fs.readFileSync(file));

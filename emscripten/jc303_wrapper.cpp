@@ -34,6 +34,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <new>
 
 #include "rosic_Open303.h"
 
@@ -111,7 +112,11 @@ struct Jc303Engine {
     {
         sampleRate = sr;
 
-        synth.reset(new Open303());
+        // nothrow: the voice module's memory is fixed (ALLOW_MEMORY_GROWTH=0) and
+        // built -fno-exceptions, so a plain new would abort() on exhaustion. A
+        // failed init is reported to the worklet instead (jc303_init returns 0).
+        synth.reset(new (std::nothrow) Open303());
+        if (!synth) return false;
         synth->setSampleRate(sampleRate);
 
         // Devil Fish / extended defaults (from plan)

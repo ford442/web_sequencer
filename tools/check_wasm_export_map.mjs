@@ -81,7 +81,12 @@ const map = JSON.parse(fs.readFileSync(args.map, 'utf8'));
 const required = new Set(manifest.required ?? []);
 // Allowed but not required: built-but-uncalled C API and names Emscripten adds
 // on its own.
-const optional = new Set([...(manifest.optional ?? []), ...(manifest.runtime ?? [])]);
+// `debug` names are linked into the debug profile only (the stack probe).
+const optional = new Set([
+  ...(manifest.optional ?? []),
+  ...(manifest.runtime ?? []),
+  ...(manifest.debug ?? []),
+]);
 const present = Object.keys(map);
 const errors = [];
 

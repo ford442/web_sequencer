@@ -13,6 +13,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Plaits sources (macro voices)](#plaits-sources)
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
+- [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
 - [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
@@ -195,7 +196,7 @@ into a non-pthread module):
 |---|---|---|
 | Artifacts | `public/hyphon_native.{js,wasm}` | `public/hyphon_native.st.{js,wasm}` |
 | Export map | `public/hyphon_wasm_export_map.json` | `public/hyphon_wasm_export_map.st.json` (byte-identical) |
-| Threading | `-pthread -s PTHREAD_POOL_SIZE=4` | none |
+| Threading | `-pthread -s PTHREAD_POOL_SIZE=0` (shared memory + atomics, no workers) | none |
 | Memory | imported, `shared: true` — budget key `hyphonNative` | imported, plain `ArrayBuffer` — budget key `hyphonNativeSt` |
 | Sources / exports | voices only, `--no-entry` | identical |
 | Link opt | `-O3 -flto` (see [wasm-opt](#wasm-opt)) | identical |
@@ -230,9 +231,9 @@ Open303 at 4× oversample, 3× JC303, 3× live high-fid at 2×, and 2× Prophecy
 192 kHz with 4096-frame blocks, peak about **2 MB** of heap above the 1 MB
 stack + data. Re-measured 2026-10-13 on the 6.0.9 `-O3 -flto` build with the drum
 kit added (`render_hyphon_native_parity.mjs heap`): 0.45 MB of voice heap, 1.47 MB
-high-water. `initialMemoryMb: 16` is 8× the older, larger figure. Because the memory is not
-shared, growing toward the 512 MB ceiling is an ordinary buffer grow, not a new
-SharedArrayBuffer reservation.
+high-water. Since #1596's follow-up the ST memory is **fixed** at 16 MB like the
+pthread one — no growth, see [Fixed voice memory](#fixed-voice-memory) for the
+all-slots ceiling it holds.
 
 **WebKit evidence.** In a standalone AudioWorklet probe on Playwright WebKit 26.5
 (v2311) and Chromium, `hyphon_native.st.wasm` instantiates with plain memory,
@@ -513,7 +514,8 @@ and then:
 ## Four Worlds memory budget
 
 **Source of truth: `emscripten/wasm_memory_budget.json`.** `emscripten/build.sh`
-reads it for `-s INITIAL_MEMORY` / `-s MAXIMUM_MEMORY` / `-s STACK_SIZE`, and
+reads it for `-s INITIAL_MEMORY` / `-s STACK_SIZE` (the memory is fixed: no
+`MAXIMUM_MEMORY`, see [Fixed voice memory](#fixed-voice-memory)), and
 `src/audio-worklets/hyphonNativeImports.ts` mirrors it for the imported
 `WebAssembly.Memory`. `src/__tests__/wasmMemoryBudget.test.ts` fails CI if the two
 drift apart — this matters because the worklets instantiate the module with an
@@ -523,8 +525,9 @@ degrade, it fails instantiation outright.
 | Setting | Before | Now |
 |---|---|---|
 | `INITIAL_MEMORY` | 512 MB (8192 pages), then 128 MB | **32 MB (512 pages)** — measured, see below |
-| `MAXIMUM_MEMORY` | unset (16384 pages in JS only) | 1024 MB (16384 pages) |
-| `STACK_SIZE` | default (64 KB) | 8 MB |
+| `MAXIMUM_MEMORY` | unset (16384 pages in JS only), then 1024 MB | **= initial** (`ALLOW_MEMORY_GROWTH=0`) |
+| `STACK_SIZE` | default (64 KB), then 8 MB | **64 KB** — measured high-water < 1 KB |
+| `PTHREAD_POOL_SIZE` | 4 | **0** — nothing creates a thread |
 
 ### Why 512 MB was the wrong default
 
@@ -542,7 +545,7 @@ in `createHyphonMemory()`, which now distinguishes "no SharedArrayBuffer" from
 | Consumer | Steady | Peak | Notes |
 |---|---|---|---|
 | Emscripten runtime + static data | ~6 MB | ~6 MB | glue, wavetables (analytic; measured below: < 0.1 MB) |
-| Stack (`STACK_SIZE`) | 8 MB | 8 MB | reserved; the 64 KB default is what the `__handle_stack_overflow` workaround in `open303-processor.ts` was fighting |
+| Stack (`STACK_SIZE`) | 8 MB | 8 MB | reserved (now 64 KB: [measured](#fixed-voice-memory)). The `__handle_stack_overflow` the jc303 build used to report was a false positive of uninitialised stack limits (`configureWasmStack`), not a real overflow |
 | 3 × Open303 / JC303 voices | ~2 MB | ~4 MB | per-instance state + oversampled scratch |
 | Prophecy voice | ~1 MB | ~2 MB | |
 | Analog drumkit (one handle) | ~0.5 MB | ~1 MB | kick/snare/hats share the voice module |
@@ -581,9 +584,9 @@ rendered 8 blocks (`node tools/render_hyphon_native_parity.mjs heap`):
 
 The 3.1.51 `-O1` build measures the same 0.45 MB of voice heap. Almost all of the
 pthread figure is the 8 MB `STACK_SIZE`. `initialMemoryMb: 32` leaves ~23 MB of
-heap — about 50× the measured voice set — before the first grow, which is still
-available up to 1 GB. A quarter of the old `shared: true` reservation is what
-mobile Safari and 4 GB Chromebooks fail on.
+heap — about 50× the measured voice set. (Growth up to 1 GB was still on then; it
+is off now — [Fixed voice memory](#fixed-voice-memory).) A quarter of the old
+`shared: true` reservation is what mobile Safari and 4 GB Chromebooks fail on.
 
 TTS/Pyodide is **not** in this budget: Pyodide is a separate WASM runtime with its
 own heap (`src/pyodide/bootstrap.ts` loads it; it never shared a heap with
@@ -602,9 +605,79 @@ performance.measureUserAgentSpecificMemory?.().then(console.log);
 console.log('hyphon heap MB', memory.buffer.byteLength / 1048576);
 ```
 
-If the worklet reports growth past 32 MB during normal playback, raise
-`initialMemoryMb` in the budget JSON. The test caps it at 256 MB deliberately:
-going above that should be a measured decision, not a default.
+The memory no longer grows, so the in-tree ceiling check is
+`hyphonNativeFixedMemory.integration.test.ts` (every voice slot, below). If it
+fails, raise `initialMemoryMb` in the budget JSON. The test caps it at 256 MB
+deliberately: going above that should be a measured decision, not a default.
+
+<a id="fixed-voice-memory"></a>
+## Fixed voice memory (no growth)
+
+Both `hyphon_native` profiles link with **`-s ALLOW_MEMORY_GROWTH=0`**. The
+module declares `maximum == initial`, `createHyphonMemory()` imports exactly the
+budget's pages (a larger `maximum` would be a `LinkError`), and
+`emscripten_resize_heap` answers *no*, warning once. A `malloc` past the heap
+returns `NULL`, and the voice's `*_init` returns 0 (jc303 allocates its
+`Open303` with `new (std::nothrow)`: under `-fno-exceptions` a plain `new` would
+`abort()`).
+
+**Why.** In the pthread profile the heap is a `SharedArrayBuffer`. Growing it from
+inside the AudioWorklet replaces the buffer under every `HEAPF32` view and the
+event rings, mid-quantum. Nothing on the voice path needs growth: the voice set
+is a fixed number of statically declared slots, and each slot's buffers are sized
+by `*_init`, by block size.
+
+**The ceiling, measured** (2026-11-17, emcc 6.0.13 `-O3 -flto`, node,
+`node tools/render_hyphon_native_parity.mjs slots`). Every slot of every
+`HYPHON_EXPORT_VOICE` engine is created: 16 Open303 at 4× oversample, 16 JC303,
+16 high-fid at 2×, 8 Prophecy, 8 drum kits and 8 macro parts. Each is initialised at
+`NATIVE_VOICE_MAX_BLOCK_FRAMES` (4096), sent a note and rendered:
+
+| | pthread (32 MB) | ST (16 MB) |
+|---|---:|---:|
+| High-water, all 72 slots | 13.5 MB | 13.5 MB |
+| …at 48 / 96 / 192 / 384 / 768 kHz | identical | identical |
+| Worst-case live set (`heap`, 14 voices) | 4.0 MB | 3.9 MB |
+
+Heap per voice depends on the block size, not the sample rate, so this is a
+hard ceiling. A session cannot ask for more than every slot at the largest block.
+`src/__tests__/hyphonNativeFixedMemory.integration.test.ts` runs `slots` on both
+built modules and checks the memory import limits. `emscripten/build.sh` checks
+the limits at link time too (`check_hyphon_st_module.mjs --fixed-memory-mb`).
+Adding a voice, slots or per-voice buffers that no longer fit fails there.
+
+**32 vs 48 MB (the iOS question from #1596).** It stays 32. WebKit always loads the
+ST build (`hyphonNativeVariant.ts`), whose memory is a plain 16 MB `ArrayBuffer`,
+so iOS never makes the shared reservation at all. The pthread build's 32 MB is
+2.4× the all-slots ceiling. 48 MB would only grow the `shared: true`
+reservation that low-RAM Chromebooks refuse.
+
+**Stack: 8 MB → 64 KB.** The debug build links `emscripten/core/stack_probe.cpp`
+(manifest bucket `debug`, `tools/hyphon_native_exports.mjs --profile debug`). It
+paints the free stack between the linker's `__stack_low` / `__stack_high`, and
+`render_hyphon_native_parity.mjs stack` reads back the deepest overwritten word
+after running the worst-case set, the event path (`*_push_event` + `*_render`)
+and all 24 macro engines. The result is **0.3 KB on both profiles**, about the
+probe's own 256-byte guard. clang keeps the DSP state in wasm locals, so the
+linear-memory stack holds almost nothing. The probe reads linker symbols, not
+`emscripten_stack_get_end()`, because the hand-instantiating worklets never run
+`emscripten_stack_init()`. `-O1` frames are at least the `-O3` ones, so this
+is an upper bound. 64 KB (Emscripten's default) is 200× it.
+
+```bash
+pnpm run build:emcc:debug
+node tools/render_hyphon_native_parity.mjs stack --wasm public/hyphon_native.wasm --map public/hyphon_wasm_export_map.json
+node tools/render_hyphon_native_parity.mjs stack --wasm public/hyphon_native.st.wasm --map public/hyphon_wasm_export_map.st.json
+```
+
+**Pthread pool: 4 → 0.** Nothing in the module creates a thread (no
+`pthread_create`, `std::thread` or `std::async`). The worklets instantiate the wasm
+by hand, so the glue that would have spawned the pool never ran. `-pthread` stays
+for the shared memory and atomics the event rings need.
+
+**Null test.** All 37 renders of `render_hyphon_native_parity.mjs render`
+(the 303 models, drums, Prophecy, macro) are bit-identical before and after, on
+both profiles.
 
 ---
 

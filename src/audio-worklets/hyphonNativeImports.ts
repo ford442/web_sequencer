@@ -10,35 +10,37 @@ import { nowMs } from '../shared/rt/time';
 const WASM_PAGE_BYTES = 65536;
 
 /**
- * Initial memory of the threaded hyphon_native.wasm build, in 64 KiB pages.
+ * Memory of the threaded hyphon_native.wasm build, in 64 KiB pages. FIXED: the
+ * module links with ALLOW_MEMORY_GROWTH=0 and declares maximum == initial, so the
+ * imported memory must be exactly this size — an `initial` below the module's
+ * minimum, or a `maximum` above its maximum, fails instantiation outright.
  *
  * MUST equal `hyphonNative.initialMemoryMb` in emscripten/wasm_memory_budget.json
- * (the value emscripten/build.sh passes as -s INITIAL_MEMORY): the worklets
- * instantiate the module with an *imported* memory, and a memory whose `initial`
- * is below the module's declared minimum fails instantiation outright.
+ * (the value emscripten/build.sh passes as -s INITIAL_MEMORY).
  * src/__tests__/wasmMemoryBudget.test.ts enforces the match in CI.
  *
- * 32 MB (was 128 MB, before that 512 MB) — measured: the full live voice set
- * peaks at 8.5 MB, 8 MB of it stack (wasm_memory_budget.json#hyphonNative,
- * docs/wasm/BUILD_NOTES.md#four-worlds-memory-budget). A large `shared: true`
- * allocation is a frequent SharedArrayBuffer failure on mobile Safari and low-RAM
- * Chromebooks even with correct COOP/COEP; the module grows on demand up to
- * HYPHON_NATIVE_MAX_MEMORY_PAGES.
+ * 32 MB — measured (docs/wasm/BUILD_NOTES.md#fixed-voice-memory): every one of the
+ * 72 voice slots created, initialised at NATIVE_VOICE_MAX_BLOCK_FRAMES and
+ * sounding peaks at ~13.5 MB (heap per voice depends on the block, not the sample
+ * rate); the stack is 64 KB, of which the voices use < 1 KB. Growing a shared
+ * memory inside the AudioWorklet replaced the SharedArrayBuffer under every heap
+ * view mid-quantum, and a large `shared: true` reservation is a frequent
+ * allocation failure on mobile Safari and low-RAM Chromebooks.
  */
 export const HYPHON_NATIVE_MIN_MEMORY_PAGES = (32 * 1024 * 1024) / WASM_PAGE_BYTES; // 512
 
-/** Growth ceiling, matching -s MAXIMUM_MEMORY in emscripten/build.sh (1 GB). */
-export const HYPHON_NATIVE_MAX_MEMORY_PAGES = (1024 * 1024 * 1024) / WASM_PAGE_BYTES; // 16384
+/** Fixed size: the module cannot grow, so the maximum is the initial size. */
+export const HYPHON_NATIVE_MAX_MEMORY_PAGES = HYPHON_NATIVE_MIN_MEMORY_PAGES;
 
 /**
- * Initial memory of the single-threaded hyphon_native.st.wasm build, in pages.
- * MUST equal `hyphonNativeSt.initialMemoryMb` (src/__tests__/wasmMemoryBudget.test.ts).
- * Non-shared, so this is an ordinary ArrayBuffer and growth is cheap.
+ * Memory of the single-threaded hyphon_native.st.wasm build, in pages. Fixed like
+ * the pthread build. MUST equal `hyphonNativeSt.initialMemoryMb`
+ * (src/__tests__/wasmMemoryBudget.test.ts). Holds the same 72-slot worst case.
  */
 export const HYPHON_NATIVE_ST_MIN_MEMORY_PAGES = (16 * 1024 * 1024) / WASM_PAGE_BYTES; // 256
 
-/** Growth ceiling of the ST build, matching `hyphonNativeSt.maximumMemoryMb` (512 MB). */
-export const HYPHON_NATIVE_ST_MAX_MEMORY_PAGES = (512 * 1024 * 1024) / WASM_PAGE_BYTES; // 8192
+/** Fixed size, like the pthread build. */
+export const HYPHON_NATIVE_ST_MAX_MEMORY_PAGES = HYPHON_NATIVE_ST_MIN_MEMORY_PAGES;
 
 /**
  * The two hyphon_native link profiles emitted by emscripten/build.sh.
@@ -61,6 +63,7 @@ export interface HyphonNativeArtifact {
   exportMap: string;
   /** Imported memory is `shared: true` (pthread) or a plain ArrayBuffer (st). */
   sharedMemory: boolean;
+  /** The module's fixed memory size (min == max: ALLOW_MEMORY_GROWTH=0). */
   minMemoryPages: number;
   maxMemoryPages: number;
 }
@@ -292,7 +295,15 @@ export function createHyphonMemory(
   logPrefix = '[HyphonNative]',
 ): WebAssembly.Memory {
   const artifact = HYPHON_NATIVE_ARTIFACTS[shared ? 'pthread' : 'st'];
-  const memoryImportPages = Math.max(pages ?? 0, artifact.minMemoryPages);
+  // The module's memory is fixed (min == max), so the import is exactly that
+  // size: a caller asking for more would only get a LinkError at instantiation.
+  if (pages !== undefined && pages > artifact.maxMemoryPages) {
+    console.warn(
+      `${logPrefix} ${pages} memory pages requested; hyphon_native's memory is fixed at ` +
+      `${artifact.maxMemoryPages} pages (wasm_memory_budget.json)`,
+    );
+  }
+  const memoryImportPages = artifact.minMemoryPages;
   const maxMemoryPages = artifact.maxMemoryPages;
 
   if (shared) {
@@ -346,28 +357,21 @@ function tableInvoke(
 export function createEmscriptenEnv(ctx: HyphonNativeImportContext): Record<string, unknown> {
   const logPrefix = ctx.logPrefix ?? '[HyphonNative]';
 
+  // hyphon_native links ALLOW_MEMORY_GROWTH=0 (BUILD_NOTES#fixed-voice-memory):
+  // sbrk only calls this when the fixed heap is exhausted, and the answer is no —
+  // malloc returns NULL and the voice's *_init reports failure. Growing here
+  // would also exceed the module's declared maximum. Warn once, not per call:
+  // this runs on the audio thread.
+  let warnedHeapFull = false;
   const resizeHeap = (size: number): number => {
-    const memory =
-      (ctx.getWasmInstance()?.exports as { memory?: WebAssembly.Memory } | undefined)?.memory ??
-      ctx.getImportedMemory();
-    if (!memory) {
-      console.warn(`${logPrefix} emscripten_resize_heap called but no memory available yet`);
-      return 0;
+    if (!warnedHeapFull) {
+      warnedHeapFull = true;
+      console.warn(
+        `${logPrefix} heap exhausted (asked for ${size} bytes); hyphon_native's memory is fixed ` +
+        'and does not grow (wasm_memory_budget.json)',
+      );
     }
-    const currentPages = memory.buffer.byteLength / (64 * 1024);
-    const targetPages = Math.ceil(size / (64 * 1024));
-    const deltaPages = targetPages - currentPages;
-    if (deltaPages > 0) {
-      try {
-        memory.grow(deltaPages);
-        ctx.onHeapUpdate();
-        return 1;
-      } catch (e) {
-        console.error(`${logPrefix} Failed to grow heap:`, e);
-        return 0;
-      }
-    }
-    return 1;
+    return 0;
   };
 
   const handleStackOverflow = (): void => {

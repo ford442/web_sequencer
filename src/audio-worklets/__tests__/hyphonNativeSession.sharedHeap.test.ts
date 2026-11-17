@@ -131,7 +131,7 @@ describe('hyphon_native shared heap (one per audio session)', () => {
       sampleRate: 48000,
       isThreaded: true,
       variant: 'threaded',
-      memoryPages: 2048,
+      memoryPages: 512,
       exportMap: {},
     },
   });
@@ -158,7 +158,8 @@ describe('hyphon_native shared heap (one per audio session)', () => {
       expect(v.port.posted.map((m) => m.type), name).toContain('ready');
     }
     expect(memoryCtor).toHaveBeenCalledTimes(1);
-    expect(memoryCtor.mock.calls[0][0]).toMatchObject({ initial: 2048, shared: true });
+    // Fixed memory (ALLOW_MEMORY_GROWTH=0): maximum == initial == the 32 MB budget.
+    expect(memoryCtor.mock.calls[0][0]).toMatchObject({ initial: 512, maximum: 512, shared: true });
     expect(compileSpy).toHaveBeenCalledTimes(1);
     expect(instantiateSpy).toHaveBeenCalledTimes(1);
     // C++ static constructors must run once — re-running them would reset live globals.

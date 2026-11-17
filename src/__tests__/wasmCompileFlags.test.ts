@@ -7,6 +7,7 @@
  *   3. One Emscripten pin, enforced by every em++ script and read by every CI job;
  *      the voice module links at -O3 + LTO with no embind / main() / OpenMP.
  *   4. index.html boots with no remote script and no `unsafe-eval`.
+ *   5. No module an AudioWorklet loads may grow its memory or throw.
  *
  * See docs/wasm/BUILD_NOTES.md.
  */
@@ -243,8 +244,8 @@ describe('voice module link (hyphon_native)', () => {
     });
 
     it('fails the build if libomp / embind / emscripten_run_script reach either wasm', () => {
-        expect(code).toContain('check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"');
-        expect(code).toContain('check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"');
+        expect(code).toContain('check_hyphon_st_module.mjs" --fixed-memory-mb "$ST_INITIAL_MEMORY_MB" "${OUTPUT_ST_JS%.js}.wasm"');
+        expect(code).toContain('check_hyphon_st_module.mjs" --symbols-only --fixed-memory-mb "$INITIAL_MEMORY_MB" "${OUTPUT_JS%.js}.wasm"');
     });
 
     it('emits no pthread *.worker.js shim (the pinned emcc inlines workers)', () => {
@@ -252,10 +253,56 @@ describe('voice module link (hyphon_native)', () => {
         expect(code).not.toContain('worker.js');
     });
 
-    it('release and emcc builds re-check the linked wasm, not only glue', () => {
-        expect(packageJson.scripts['build:release']).toContain('--wasm public/hyphon_native.wasm');
-        expect(packageJson.scripts['build:release:changed']).toContain('--wasm public/hyphon_native.wasm');
+    it('release and emcc builds re-check the linked wasm, not only glue — both profiles', () => {
+        for (const script of ['build:release', 'build:release:changed']) {
+            const cmd = packageJson.scripts[script];
+            expect(cmd, script).toContain('--glue public/hyphon_native.js --wasm public/hyphon_native.wasm');
+            expect(cmd, script).toContain(
+                '--map public/hyphon_wasm_export_map.st.json --glue public/hyphon_native.st.js --wasm public/hyphon_native.st.wasm',
+            );
+        }
         expect(code).toContain('--wasm');
+    });
+});
+
+describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => {
+    // Every em++ module an AudioWorklet instantiates. Growing memory there replaces
+    // the buffer under every heap view (for a SAB, mid-quantum); an exception in
+    // JS-trampoline mode crosses into JS on every invoke_*. AGENTS.md: "no
+    // worklet-loaded wasm may grow memory or throw". (mix_bus runs in a Worker.)
+    const workletModules = {
+        'emscripten/build.sh': buildSh,
+    };
+
+    it('passes ALLOW_MEMORY_GROWTH=0 and never =1', () => {
+        for (const [name, src] of Object.entries(workletModules)) {
+            const code = withoutShellComments(src);
+            expect(code, name).toContain('-s ALLOW_MEMORY_GROWTH=0');
+            expect(code, name).not.toMatch(/ALLOW_MEMORY_GROWTH=1/);
+            expect(code, name).not.toContain('MAXIMUM_MEMORY');
+        }
+    });
+
+    it('builds without embind, exceptions or RTTI', () => {
+        for (const [name, src] of Object.entries(workletModules)) {
+            const code = withoutShellComments(src);
+            expect(code, name).not.toContain('--bind');
+            expect(code, name).not.toMatch(/-fexceptions|-fwasm-exceptions|-frtti/);
+            expect(code, name).toContain('-fno-exceptions');
+        }
+    });
+
+    it('takes every memory size from wasm_memory_budget.json and checks the linked wasm against it', () => {
+        expect(buildSh).toContain('hyphonNative.initialMemoryMb');
+        expect(buildSh).toContain('hyphonNativeSt.initialMemoryMb');
+        expect(withoutShellComments(buildSh)).toContain('--fixed-memory-mb "$ST_INITIAL_MEMORY_MB"');
+        expect(withoutShellComments(buildSh)).toContain('--fixed-memory-mb "$INITIAL_MEMORY_MB"');
+    });
+
+    it('links the stack probe into the debug profile only', () => {
+        const code = withoutShellComments(buildSh);
+        expect(code).toMatch(/if \[ "\$BUILD_PROFILE" = "debug" \]; then\s*\n\s*compile_cpp "\$SCRIPT_DIR\/core\/stack_probe\.cpp"/);
+        expect(code).toContain('hyphon_native_exports.mjs" --profile "$BUILD_PROFILE"');
     });
 });
 

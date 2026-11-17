@@ -65,15 +65,20 @@ mkdir -p "$TEMP_ROOT"
 # WebAssembly.Memory for the worklet instantiation path. Both sides must agree —
 # src/__tests__/wasmMemoryBudget.test.ts enforces that in CI.
 BUDGET_JSON="$SCRIPT_DIR/wasm_memory_budget.json"
+#
+# Both profiles are FIXED-SIZE (ALLOW_MEMORY_GROWTH=0): the memory is the
+# budget's initialMemoryMb, the module declares maximum == initial, and there is
+# no maximumMemoryMb. Growing the pthread profile's SharedArrayBuffer inside an
+# AudioWorklet forces every heap view to be rebuilt mid-quantum; nothing on the
+# voice path needs it (BUILD_NOTES#fixed-voice-memory).
 INITIAL_MEMORY_MB="$(node -p "require('$BUDGET_JSON').hyphonNative.initialMemoryMb")"
-MAXIMUM_MEMORY_MB="$(node -p "require('$BUDGET_JSON').hyphonNative.maximumMemoryMb")"
-STACK_SIZE_MB="$(node -p "require('$BUDGET_JSON').hyphonNative.stackSizeMb")"
+# stackSizeMb may be fractional (64 KB = 0.0625): passed to emcc in bytes.
+STACK_SIZE_BYTES="$(node -p "Math.round(require('$BUDGET_JSON').hyphonNative.stackSizeMb * 1048576)")"
 PTHREAD_POOL_SIZE="$(node -p "require('$BUDGET_JSON').hyphonNative.pthreadPoolSize")"
-echo "  Memory budget: INITIAL=${INITIAL_MEMORY_MB}mb MAXIMUM=${MAXIMUM_MEMORY_MB}mb STACK=${STACK_SIZE_MB}mb"
+echo "  Memory budget: INITIAL=${INITIAL_MEMORY_MB}mb (fixed) STACK=${STACK_SIZE_BYTES}B POOL=${PTHREAD_POOL_SIZE}"
 ST_INITIAL_MEMORY_MB="$(node -p "require('$BUDGET_JSON').hyphonNativeSt.initialMemoryMb")"
-ST_MAXIMUM_MEMORY_MB="$(node -p "require('$BUDGET_JSON').hyphonNativeSt.maximumMemoryMb")"
-ST_STACK_SIZE_MB="$(node -p "require('$BUDGET_JSON').hyphonNativeSt.stackSizeMb")"
-echo "  ST memory budget: INITIAL=${ST_INITIAL_MEMORY_MB}mb MAXIMUM=${ST_MAXIMUM_MEMORY_MB}mb STACK=${ST_STACK_SIZE_MB}mb"
+ST_STACK_SIZE_BYTES="$(node -p "Math.round(require('$BUDGET_JSON').hyphonNativeSt.stackSizeMb * 1048576)")"
+echo "  ST memory budget: INITIAL=${ST_INITIAL_MEMORY_MB}mb (fixed) STACK=${ST_STACK_SIZE_BYTES}B"
 
 # ---------------------------------------------------------
 # FLAGS
@@ -127,20 +132,26 @@ ST_THREAD_FLAGS=""
 #
 # No --bind / -frtti: there are no EMSCRIPTEN_BINDINGS left; every caller goes
 # through the C exports. No WASM=1 / WASM_BIGINT=1: both are the 6.x defaults.
-BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s ALLOW_MEMORY_GROWTH=1 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --no-entry -lexports.js"
+#
+# ALLOW_MEMORY_GROWTH=0: see MEMORY BUDGET above. A malloc past the fixed heap
+# returns NULL (every *_create / *_init checks it) instead of growing the memory.
+BASE_LINK_FLAGS="$LINK_PROFILE_FLAGS $ARCH_FLAGS -s ALLOW_MEMORY_GROWTH=0 -s ENVIRONMENT=web,worker -s EXPORT_ES6=1 --pre-js $SCRIPT_DIR/pre.js --no-entry -lexports.js"
 
-# pthread: shared imported memory, worker pool.
-PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_MB}mb"
+# pthread: shared imported memory (the SAB the event rings live in). No worker
+# pool: nothing in the module creates a thread, and the worklets instantiate the
+# wasm by hand, so the glue that would spawn pool workers never runs.
+PTHREAD_LINK_FLAGS="$BASE_LINK_FLAGS -pthread -s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb -s STACK_SIZE=${STACK_SIZE_BYTES}"
 
 # single-threaded: the memory is IMPORTED and non-shared so the worklet can size
 # it from the same budget key.
-ST_LINK_FLAGS="$BASE_LINK_FLAGS -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_MB}mb"
+ST_LINK_FLAGS="$BASE_LINK_FLAGS -s IMPORTED_MEMORY=1 -s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb -s STACK_SIZE=${ST_STACK_SIZE_BYTES}"
 
 # EXPORTED_FUNCTIONS come from emscripten/wasm_export_manifest.json — the one
 # declared list of the C API (#1344). Add an export there, not here; the map
 # check after each link fails on any drift from it. Both profiles export the
-# same surface.
-VOICE_EXPORTS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs")"
+# same surface. The debug profile adds the manifest's `debug` bucket (the stack
+# high-water probe, emscripten/core/stack_probe.cpp).
+VOICE_EXPORTS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs" --profile "$BUILD_PROFILE")"
 PTHREAD_EXPORTS="$VOICE_EXPORTS"
 ST_EXPORTS="$VOICE_EXPORTS"
 
@@ -239,6 +250,12 @@ build_profile() {
     done
     compile_cpp "$SCRIPT_DIR/macro_wrapper.cpp" $PLAITS_FLAGS
 
+    # 7. Debug only: the stack high-water probe that sizes STACK_SIZE
+    #    (tools/render_hyphon_native_parity.mjs stack).
+    if [ "$BUILD_PROFILE" = "debug" ]; then
+        compile_cpp "$SCRIPT_DIR/core/stack_probe.cpp"
+    fi
+
     echo "Linking ($variant)..."
 
     local objects
@@ -264,9 +281,10 @@ build_profile st "$OUTPUT_ST_JS" "$ST_THREAD_FLAGS" "$ST_LINK_FLAGS" \
     "$ST_EXPORTS" "$REPO_ROOT/public/hyphon_wasm_export_map.st.json"
 
 # A single-threaded module must not import shared memory or spawn workers, and
-# neither module may carry libomp, embind or emscripten_run_script.
-node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"
-node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"
+# neither module may carry libomp, embind or emscripten_run_script. Both must
+# import a memory fixed at the budget (initial == maximum).
+node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" --fixed-memory-mb "$ST_INITIAL_MEMORY_MB" "${OUTPUT_ST_JS%.js}.wasm"
+node "$REPO_ROOT/tools/check_hyphon_st_module.mjs" --symbols-only --fixed-memory-mb "$INITIAL_MEMORY_MB" "${OUTPUT_JS%.js}.wasm"
 
 echo "Build successful! (profile=$BUILD_PROFILE)"
 echo "Generated: public/hyphon_native.js (and .wasm)"

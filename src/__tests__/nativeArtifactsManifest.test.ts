@@ -53,13 +53,14 @@ describe('native-artifacts manifest', () => {
   it('records hyphon_native memory from the budget, not ad-hoc numbers', () => {
     const budget = JSON.parse(
       readFileSync(join(REPO_ROOT, 'emscripten/wasm_memory_budget.json'), 'utf8'),
-    ) as { hyphonNative: { initialMemoryMb: number; maximumMemoryMb: number; stackSizeMb: number } };
+    ) as { hyphonNative: { initialMemoryMb: number; stackSizeMb: number } };
     const manifest = buildNativeManifest({ repoRoot: REPO_ROOT, profile: 'release' });
     const native = manifest.artifacts.find((a: { id: string }) => a.id === 'hyphon_native.wasm');
     if (!native) return;
     expect(native.memory).toMatchObject({
       initialMb: budget.hyphonNative.initialMemoryMb,
-      maximumMb: budget.hyphonNative.maximumMemoryMb,
+      // Fixed memory: maximum == initial (ALLOW_MEMORY_GROWTH=0).
+      maximumMb: budget.hyphonNative.initialMemoryMb,
       stackMb: budget.hyphonNative.stackSizeMb,
     });
     expect(native.requiresCoopCoep).toBe(true);

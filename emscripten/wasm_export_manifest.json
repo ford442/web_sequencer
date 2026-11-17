@@ -9,6 +9,7 @@
     "`runtime` names are added by Emscripten itself (pthread internals); never requested.",
     "Each HYPHON_EXPORT_VOICE(prefix, ...) engine contributes prefix_create/_destroy/_init/",
     "_push_event/_render/_cancel_notes/_flush/_event_inbox (src/__tests__/wasmExportManifest.voices.test.ts).",
+    "`debug` exports are linked into the debug build profile only (emscripten/core/stack_probe.cpp, the STACK_SIZE probe); a release map never has them.",
     "Anything present in the export map but listed in no bucket is reported as",
     "unexpected export bloat."
   ],
@@ -120,5 +121,11 @@
     "_emscripten_thread_crashed",
     "_emscripten_thread_exit",
     "__set_stack_limits"
+  ],
+  "debug": [
+    "hyphon_stack_size",
+    "hyphon_stack_free",
+    "hyphon_stack_paint",
+    "hyphon_stack_high_water"
   ]
 }
