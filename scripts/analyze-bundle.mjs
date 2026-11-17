@@ -10,18 +10,27 @@
  *
  *   node scripts/analyze-bundle.mjs
  *   node scripts/analyze-bundle.mjs --json          # machine-readable
+ *   node scripts/analyze-bundle.mjs --compare base.json   # delta vs a saved --json report
+ *                                                   # (markdown; report only, never fails)
  *   HYPHON_DIST_DIR=/tmp/bundle node scripts/analyze-bundle.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { compareReports, formatComparison } from './bundle-compare.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distDir = process.env.HYPHON_DIST_DIR
   ? path.resolve(process.env.HYPHON_DIST_DIR)
   : path.join(repoRoot, 'dist');
 const asJson = process.argv.includes('--json');
+const compareIdx = process.argv.indexOf('--compare');
+const comparePath = compareIdx >= 0 ? process.argv[compareIdx + 1] : null;
+if (compareIdx >= 0 && !comparePath) {
+  console.error('[analyze-bundle] --compare needs a baseline report path.');
+  process.exit(1);
+}
 
 if (!fs.existsSync(distDir)) {
   console.error('[analyze-bundle] dist/ is missing — run `pnpm run build:web` first.');
@@ -83,8 +92,27 @@ const rows = jsFiles
 const sum = (list, key) => list.reduce((n, r) => n + r[key], 0);
 const eagerRows = rows.filter((r) => r.eager);
 
-if (asJson) {
-  console.log(JSON.stringify({ entry: entryPath && rel(entryPath), rows }, null, 2));
+// Same population dist-budget.json's assetsDirMaxBytes rows sum: everything
+// under dist/assets/ except the excluded extensions (.wasm).
+const budgetPath = path.join(repoRoot, 'dist-budget.json');
+const budget = fs.existsSync(budgetPath) ? JSON.parse(fs.readFileSync(budgetPath, 'utf8')) : {};
+const excludeExts = new Set(budget.assetsDirExcludeExtensions ?? ['.wasm']);
+const assetsDir = path.join(distDir, 'assets');
+const assets = fs.existsSync(assetsDir)
+  ? walk(assetsDir)
+      .filter((p) => !excludeExts.has(path.extname(p).toLowerCase()))
+      .map((p) => {
+        const buf = fs.readFileSync(p);
+        return { file: rel(p), raw: buf.length, brotli: zlib.brotliCompressSync(buf).length };
+      })
+  : [];
+const report = { entry: entryPath && rel(entryPath), rows, assets };
+
+if (comparePath) {
+  const baseline = JSON.parse(fs.readFileSync(comparePath, 'utf8'));
+  console.log(formatComparison(compareReports(baseline, report, budget)));
+} else if (asJson) {
+  console.log(JSON.stringify(report, null, 2));
 } else {
   const w = Math.max(...rows.map((r) => r.file.length), 4);
   console.log(`\n  ${'chunk'.padEnd(w)}  ${'raw'.padStart(11)}  ${'gzip'.padStart(10)}  ${'brotli'.padStart(10)}  load`);
