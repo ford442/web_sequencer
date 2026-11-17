@@ -96,6 +96,88 @@ enum Jc303Param : int {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Denormal guard for the rosic DSP (#1596 follow-up P4)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// rosic never goes idle (Open303::getSample's `idle` is always false): after a
+// release the oscillator keeps running, and every envelope and envelope-fed
+// filter decays exponentially in double. ~35 s after note-off that state is
+// subnormal and stays there — every sample from then on pays a microcode assist
+// on x86, measured by emscripten/tests/denormal_tail_test.cpp. WebAssembly has no
+// flush-to-zero mode, and jc303_wasm is a pinned submodule we do not patch, so
+// the wrapper zeroes that state itself, once per block, just above the double
+// subnormal range (hyphon::flushSubnormalState: 1e-300). Not at 1e-15: the filter
+// envelope feeds the cutoff exponent, and zeroing it there moved the last bits of
+// a still-sounding release.
+//
+// The state is `protected` in each rosic class. A pointer to a protected base
+// member may be formed inside a class derived from that base, and then used
+// anywhere: that is the only access path below, no rosic header is touched.
+
+namespace rosic_state {
+
+struct AnalogEnv : rosic::AnalogEnvelope {
+    static constexpr double rosic::AnalogEnvelope::*kOutput = &AnalogEnv::previousOutput;
+};
+struct DecayEnv : rosic::DecayEnvelope {
+    static constexpr double rosic::DecayEnvelope::*kOutput = &DecayEnv::y;
+};
+struct Leaky : rosic::LeakyIntegrator {
+    static constexpr double rosic::LeakyIntegrator::*kOutput = &Leaky::y1;
+};
+struct OnePole : rosic::OnePoleFilter {
+    static constexpr double rosic::OnePoleFilter::*kX1 = &OnePole::x1;
+    static constexpr double rosic::OnePoleFilter::*kY1 = &OnePole::y1;
+};
+struct Biquad : rosic::BiquadFilter {
+    static constexpr double rosic::BiquadFilter::*kX1 = &Biquad::x1;
+    static constexpr double rosic::BiquadFilter::*kX2 = &Biquad::x2;
+    static constexpr double rosic::BiquadFilter::*kY1 = &Biquad::y1;
+    static constexpr double rosic::BiquadFilter::*kY2 = &Biquad::y2;
+};
+struct Ladder : rosic::TeeBeeFilter {
+    static constexpr double rosic::TeeBeeFilter::*kY1 = &Ladder::y1;
+    static constexpr double rosic::TeeBeeFilter::*kY2 = &Ladder::y2;
+    static constexpr double rosic::TeeBeeFilter::*kY3 = &Ladder::y3;
+    static constexpr double rosic::TeeBeeFilter::*kY4 = &Ladder::y4;
+    static constexpr rosic::OnePoleFilter rosic::TeeBeeFilter::*kFeedbackHp = &Ladder::feedbackHighpass;
+};
+struct Elliptic : rosic::EllipticQuarterBandFilter {
+    static constexpr double (rosic::EllipticQuarterBandFilter::*kW)[12] = &Elliptic::w;
+};
+
+/** flushSubnormalState on each double in place. */
+template <class... T>
+inline void z(T&... state) {
+    ((state = hyphon::flushSubnormalState(state)), ...);
+}
+
+inline void flush(rosic::OnePoleFilter& f) { z(f.*OnePole::kX1, f.*OnePole::kY1); }
+inline void flush(rosic::BiquadFilter& f) {
+    z(f.*Biquad::kX1, f.*Biquad::kX2, f.*Biquad::kY1, f.*Biquad::kY2);
+}
+
+/**
+ * Every recursive state in rosic::Open303's signal and envelope path. Left out:
+ * the oscillator phase and the pitch slew limiter (they never decay toward 0),
+ * and the sequencer (no state of that kind).
+ */
+inline void flushDenormals(rosic::Open303& s) {
+    z(s.ampEnv.*AnalogEnv::kOutput, s.mainEnv.*DecayEnv::kOutput,
+      s.rc1.*Leaky::kOutput, s.rc2.*Leaky::kOutput);
+    flush(s.ampDeClicker);
+    flush(s.notch);
+    flush(s.highpass1);
+    flush(s.highpass2);
+    flush(s.allpass);
+    z(s.filter.*Ladder::kY1, s.filter.*Ladder::kY2, s.filter.*Ladder::kY3, s.filter.*Ladder::kY4);
+    flush(s.filter.*Ladder::kFeedbackHp);
+    for (double& w : s.antiAliasFilter.*Elliptic::kW) w = hyphon::flushSubnormalState(w);
+}
+
+}  // namespace rosic_state
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Jc303Engine
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -205,8 +287,13 @@ struct Jc303Engine {
         if (!synth) return;
         const float gain = volume * JC303_OUTPUT_NORMALIZE;
         for (int i = 0; i < numFrames; ++i) {
-            output[i] = static_cast<float>(synth->getSample()) * gain;
+            // rosic renders in double. Its release tail is still a normal double
+            // long after it is a subnormal FLOAT (< 1.2e-38, ~4 s after note-off),
+            // and every multiply on that float cost a microcode assist on x86.
+            // Flush in double, before the narrowing (BUILD_NOTES#denormal-guards).
+            output[i] = static_cast<float>(hyphon::flushForNarrowing(synth->getSample())) * gain;
         }
+        rosic_state::flushDenormals(*synth);
     }
 };
 

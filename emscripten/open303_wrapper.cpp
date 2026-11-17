@@ -199,6 +199,9 @@ struct MoogFilter {
     }
 
     void reset() { for (auto& x : s) x = 0.0f; }
+
+    /** Once per block: zero integrator state below -300 dBFS (wasm has no FTZ). */
+    void flushDenormals() { hyphon::flushDenormals(s); }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -436,6 +439,7 @@ struct Open303Engine {
             for (int i = 0; i < numFrames; ++i) {
                 output[i] = renderSampleAt(srEff);
             }
+            filter.flushDenormals();
             return;
         }
 
@@ -451,6 +455,7 @@ struct Open303Engine {
             }
             output[i] = acc * invN;
         }
+        filter.flushDenormals();
     }
 
     void render(float* out, int numFrames) { process(out, numFrames); }

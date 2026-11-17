@@ -166,6 +166,9 @@ public:
 
     void reset() { x1 = x2 = y1 = y2 = 0.0f; }
 
+    /** [wrapper mod] once per block: zero state below -300 dBFS (wasm has no FTZ). */
+    void flushDenormals() { hyphon::flushDenormals(x1, x2, y1, y2); }
+
 private:
     float sr = DEFAULT_SAMPLE_RATE;
     float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
@@ -224,6 +227,8 @@ public:
     }
 
     void reset() { for (auto& f : filters) f.reset(); }
+
+    void flushDenormals() { for (auto& f : filters) f.flushDenormals(); }
 
     char getCurrentVowel() const { return currentVowel; }
 
@@ -405,6 +410,9 @@ public:
     bool isActive()   const { return active || adsr.state != ADSR::Idle; }
     int  getMidiNote() const { return midiNote; }
 
+    /** [wrapper mod] the formant resonators are the voice's only recursive state. */
+    void flushDenormals() { formantBank.flushDenormals(); }
+
     void reset()
     {
         active           = false;
@@ -488,6 +496,7 @@ public:
             if (voice.isActive()) {
                 for (int i = 0; i < frames; ++i)
                     output[i] += voice.process();
+                voice.flushDenormals();
             }
         }
 

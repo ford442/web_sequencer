@@ -14,6 +14,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
+- [Denormal guards](#denormal-guards)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
 - [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
@@ -680,6 +681,66 @@ for the shared memory and atomics the event rings need.
 both profiles.
 
 ---
+
+<a id="denormal-guards"></a>
+## Denormal guards (#1596 follow-up P4)
+
+WebAssembly floats are IEEE with gradual underflow: there is no flush-to-zero
+(FTZ / DAZ) mode to switch on. A filter or envelope ringing down after a note
+decays into subnormals, and on x86 every operation that reads one costs a
+~100-cycle microcode assist. The Plaits sources get their guards at staging time
+([`tools/plaits_wasm_patches.mjs`](#plaits-sources)). The other voices'
+wrappers zero their recursive state themselves, once per render block, with
+`hyphon::flushDenormal` / `flushDenormals` (`emscripten/core/voice.h`):
+
+| Wrapper | State flushed at each block end | Measured before (60 s tail after a note) |
+|---|---|---|
+| `jc303_wrapper.cpp` (rosic) | output before the double→float narrowing; amp / filter envelopes, the two RC smoothers, de-clicker + notch biquads, three one-poles, the ladder's four stages and feedback high-pass, the 12-word elliptic anti-alias filter | **11,141 of 22,500 silent blocks** consume subnormals: the float output from ~4 s, rosic's own double state from ~35 s, for good |
+| `open303_wrapper.cpp` | Moog ladder integrators | none |
+| `highfid303_wrapper.cpp` | diode-ladder stages, osc low-pass, feedback high-pass | none |
+| `prophecy_wrapper.cpp` | each active voice's four formant biquads | none (idle voices stop processing) |
+| `drumkit_wrapper.cpp` | snare noise band-pass, both hats' high-pass + band-pass | none (hits deactivate at −100 dB) |
+
+A sweep of 208 configurations found subnormals only in jc303, and in every one
+of its configurations. The sweep covered all 7 open303 models × cutoff ×
+resonance × decay × 1× / 4× oversampling, every Prophecy waveform × resonance ×
+release, and every drum pad of both kits at decays up to 5 s. The other four are
+guarded anyway, so that a parameter path the sweep missed stays clean. Each guard
+runs once per block, a handful of compares per 128 frames.
+
+**Thresholds.** Float state is zeroed below 1e-15 (−300 dBFS, `flushDenormal`).
+rosic keeps its state in double, and its filter envelope feeds the cutoff
+exponent, so zeroing it at 1e-15 moved the last bits of a still-sounding
+release (−312 dBFS, but not bit-identical). It is zeroed just above the double
+subnormal range instead (`flushSubnormalState`, 1e-300). rosic's double output
+sample is zeroed below 1e-30 before it narrows to float (`flushForNarrowing`):
+that is the one value whose *float* goes subnormal first. Per block is enough:
+nothing decays from the threshold to the subnormal range inside one.
+
+rosic is the pinned `jc303_wasm` submodule and is never patched. Its state is
+`protected`, so the wrapper reaches it with member pointers formed inside derived
+classes (`rosic_state` in `jc303_wrapper.cpp`), and no rosic header changes.
+
+**The test.** `emscripten/tests/denormal_tail_test.cpp` runs in `pnpm test:native`.
+It builds each of the five engines twice: guards off, so `flushDenormal` is the
+identity (`-DHYPHON_DENORMAL_GUARD=0`, report only), and guards on. It renders a
+note released at 0.5 s and then 60 s of silence. After every block it reads the
+x86 MXCSR denormal-operand flag, the hardware's own record that a subnormal was
+consumed, which is deterministic where a timing threshold is not. The guarded
+build must show:
+
+- no silent-tail block with the flag set;
+- mean tail-block CPU ≤ 2× the sounding blocks', a loose check against the
+  10–100× of a denormal tail;
+- output bit-identical to the unguarded build until the tail (after the last
+  sample ≥ 2^-40), and within 1e-9 inside it.
+
+Every engine passes. The wasm render-parity set is still bit-identical, 36/36 on
+both profiles.
+
+To find a new site, the Plaits recipe works here too. Unmask DM in MXCSR, catch
+`SIGFPE`, and read the backtrace
+([macro-voices.md](../audio-engine/macro-voices.md#denormals)).
 
 <a id="plaits-sources"></a>
 ## Plaits sources (macro voices)

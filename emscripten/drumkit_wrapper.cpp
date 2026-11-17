@@ -86,6 +86,9 @@ struct Biquad {
         z2 = 0.0f;
     }
 
+    /** Once per block: zero state below -300 dBFS (wasm has no FTZ). */
+    void flushDenormals() { hyphon::flushDenormals(z1, z2); }
+
     float process(float x) {
         const float y = b0 * x + z1;
         z1 = b1 * x - a1 * y + z2;
@@ -446,6 +449,13 @@ struct DrumkitEngine {
             out[i] = std::clamp(l, -1.5f, 1.5f);
             right[i] = std::clamp(r, -1.5f, 1.5f);
         }
+        // The kit's recursive state: the snare's noise band-pass and the hats'
+        // high-pass + band-pass (the kick and the envelopes are closed-form).
+        snare.noiseBp.flushDenormals();
+        closedHat.hp.flushDenormals();
+        closedHat.bp.flushDenormals();
+        openHat.hp.flushDenormals();
+        openHat.bp.flushDenormals();
     }
 };
 
