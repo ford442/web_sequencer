@@ -2,10 +2,7 @@ import { useCallback, useEffect } from 'react'
 import { copySteps, pasteSteps } from '../../utils/clipboardUtils'
 import type { Note, Pattern } from '../../types'
 import type { TrackKey } from '../../constants/appDefaults'
-import type { useUndoRedo } from '../useUndoRedo'
 import { updateSamplerRange, updateTrackRange } from './patternUpdates'
-
-type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
 
 export function useClipboardHandlers(deps: {
     selection: { trackKey: TrackKey; startStep: number; endStep: number; } | null;
@@ -16,7 +13,6 @@ export function useClipboardHandlers(deps: {
     setSelection: React.Dispatch<React.SetStateAction<{ trackKey: TrackKey; startStep: number; endStep: number; } | null>>;
     patternRef: React.MutableRefObject<Pattern>;
     activeSamplerBankRef: React.MutableRefObject<number>;
-    undoRedo: UndoRedo;
     updateStorageForTrack: (track: TrackKey, sequence: any) => void;
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     handleSelectionEnd: () => void;
@@ -24,7 +20,7 @@ export function useClipboardHandlers(deps: {
 }) {
     const {
         selection, selectedTrack, clipboard, setClipboard, setPattern, setSelection,
-        patternRef, activeSamplerBankRef, undoRedo, updateStorageForTrack, showToast,
+        patternRef, activeSamplerBankRef, updateStorageForTrack, showToast,
         handleSelectionEnd, audioEngine,
     } = deps;
 
@@ -47,7 +43,6 @@ export function useClipboardHandlers(deps: {
         } else {
              if (!window.confirm(`Paste from clipboard to start of ${targetTrack}?`)) return;
         }
-        undoRedo.push(patternRef.current);
         const newPattern = pasteSteps(patternRef.current, clipboard, targetTrack, targetStep, activeSamplerBankRef.current);
         setPattern(newPattern);
         let changedSequence;
@@ -58,7 +53,7 @@ export function useClipboardHandlers(deps: {
         }
         updateStorageForTrack(targetTrack, changedSequence);
         showToast("Pasted from clipboard!", "success");
-    }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack, undoRedo, patternRef, activeSamplerBankRef, setPattern]);
+    }, [clipboard, selection, selectedTrack, showToast, updateStorageForTrack, patternRef, activeSamplerBankRef, setPattern]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {

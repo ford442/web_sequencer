@@ -53,6 +53,7 @@
     "gen:coproducer-validators": "vite-node scripts/gen-coproducer-validators.ts --",
     "check:coproducer-validators": "vite-node scripts/gen-coproducer-validators.ts -- --check",
     "check:module-size": "node scripts/check-module-size.mjs",
+    "check:module-size:update": "node scripts/check-module-size.mjs --update",
     "typecheck": "tsc -b",
     "test": "pnpm run test:unit",
     "test:unit": "vitest run --config vitest.unit.config.ts --pool forks",

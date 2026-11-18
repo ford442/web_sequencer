@@ -284,8 +284,8 @@ export const ArrangementView = memo(function ArrangementView({
                     + BAR
                 </button>
                 <div className="flex-1" />
-                <button type="button" onClick={onUndo} disabled={!canUndo} aria-label="Undo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">UNDO</span></button>
-                <button type="button" onClick={onRedo} disabled={!canRedo} aria-label="Redo arrangement edit" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">REDO</span></button>
+                <button type="button" onClick={onUndo} disabled={!canUndo} aria-label="Undo your last edit (Ctrl/Cmd+Z)" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">UNDO</span></button>
+                <button type="button" onClick={onRedo} disabled={!canRedo} aria-label="Redo your last undone edit (Ctrl/Cmd+Shift+Z)" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">REDO</span></button>
                 <button
                     type="button"
                     onClick={() => onSetIsSongModeActive(!isSongModeActive)}

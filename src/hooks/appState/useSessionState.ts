@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { TrackKey } from '../../constants/appDefaults';
-import { useUndoRedo } from '../useUndoRedo';
 import { SessionLaunchEngine } from '../../session/SessionLaunchEngine';
-import { createDefaultSessionDocument } from '../../session/defaults';
+import { sessionDocumentStore } from '../../stores/songRecordStore';
+import { useValueStore } from '../../stores/valueStore';
 import { captureEventsToArrangement } from '../../session/capture';
 import { parseSessionMidiParam } from '../../session/midiMap';
 import type { LaunchQuantization, SessionDocument, TransportClockSnapshot } from '../../session/types';
@@ -28,9 +28,14 @@ function clockSnapshot(clock: { step: number; audioTime: number; tempo: number }
   };
 }
 
+/**
+ * The clip launcher. Its document is `sessionDocumentStore` (bound to the
+ * project doc, so session edits are undone with Ctrl/Cmd+Z like any other);
+ * the launch engine, playing slots and capture are this tab's own.
+ */
 export function useSessionState() {
   const [isSessionOpen, setIsSessionOpen] = useState(false);
-  const [sessionDocument, setSessionDocument] = useState<SessionDocument>(() => createDefaultSessionDocument());
+  const sessionDocument = useValueStore(sessionDocumentStore);
   const [playingSlots, setPlayingSlots] = useState<Record<TrackKey, number | null>>(() => {
     const empty = {} as Record<TrackKey, number | null>;
     empty.partA = null;
@@ -49,21 +54,16 @@ export function useSessionState() {
     engineRef.current = new SessionLaunchEngine(sessionDocument);
   }
   const clockRef = useRef({ step: 0, audioTime: 0, tempo: 120 });
-  const undo = useUndoRedo<SessionDocument>(40);
-  const sessionDocumentRef = useRef(sessionDocument);
-  useEffect(() => {
-    sessionDocumentRef.current = sessionDocument;
-  }, [sessionDocument]);
+  const sessionDocumentRef = sessionDocumentStore.ref as MutableRefObject<SessionDocument>;
 
-  useEffect(() => {
-    engineRef.current?.setDocument(sessionDocument);
-  }, [sessionDocument]);
+  // The engine follows the document whoever changed it (this tab, a peer, an undo).
+  useEffect(() => sessionDocumentStore.subscribe(() => {
+    engineRef.current?.setDocument(sessionDocumentStore.getSnapshot());
+  }), []);
 
-  const replaceSession = useCallback((next: SessionDocument, recordUndo = true) => {
-    if (recordUndo) undo.push(sessionDocument);
-    setSessionDocument(next);
-    engineRef.current?.setDocument(next);
-  }, [sessionDocument, undo]);
+  const replaceSession = useCallback((next: SessionDocument) => {
+    sessionDocumentStore.set(next);
+  }, []);
 
   const launchClip = useCallback((track: TrackKey, row: number, source: 'manual' | 'midi' | 'gamepad' = 'manual', gateDown = true) => {
     const engine = engineRef.current;
@@ -117,10 +117,9 @@ export function useSessionState() {
   const setQuantization = useCallback((q: LaunchQuantization) => {
     const engine = engineRef.current;
     if (!engine) return;
-    undo.push(sessionDocument);
     engine.setQuantization(q);
-    setSessionDocument({ ...engine.document });
-  }, [sessionDocument, undo]);
+    sessionDocumentStore.set({ ...engine.document });
+  }, []);
 
   const handleSessionMidi = useCallback((param: string, normalized: number) => {
     const action = parseSessionMidiParam(param, normalized);
@@ -148,22 +147,6 @@ export function useSessionState() {
     });
   }, []);
 
-  const undoSession = useCallback(() => {
-    const prev = undo.undo();
-    if (prev) {
-      setSessionDocument(prev);
-      engineRef.current?.setDocument(prev);
-    }
-  }, [undo]);
-
-  const redoSession = useCallback(() => {
-    const next = undo.redo();
-    if (next) {
-      setSessionDocument(next);
-      engineRef.current?.setDocument(next);
-    }
-  }, [undo]);
-
   const loadPack = useCallback((
     packId: string,
     setTrackStorage: (s: TrackStorageMap | ((p: TrackStorageMap) => TrackStorageMap)) => void,
@@ -171,14 +154,12 @@ export function useSessionState() {
   ) => {
     const pack = getSessionPack(packId);
     if (!pack) return;
-    undo.push(sessionDocument);
-    setSessionDocument(pack.session);
-    engineRef.current?.setDocument(pack.session);
+    sessionDocumentStore.set(pack.session);
     setTrackStorage((prev) => mergePackStorage(prev, pack.trackStorage));
     // The patches the pack's clips were written for (e.g. Macro Palette's models).
     if (pack.instruments?.synthA) instruments?.synthA?.(pack.instruments.synthA);
     if (pack.instruments?.synthB) instruments?.synthB?.(pack.instruments.synthB);
-  }, [sessionDocument, undo]);
+  }, []);
 
   return {
     isSessionOpen,
@@ -199,10 +180,6 @@ export function useSessionState() {
     handleSessionMidi,
     beginCapture,
     finishCapture,
-    undoSession,
-    redoSession,
-    canUndoSession: undo.canUndo,
-    canRedoSession: undo.canRedo,
     loadPack,
   };
 }

@@ -10,6 +10,7 @@ import { useSurfaceTexture, type SurfaceTexture } from '../hooks/useSurfaceTextu
 import { helpDiscoveryStore } from '../stores/helpDiscoveryStore'
 import { HelpTip } from './help/HelpTip'
 import { LoadingButton } from './LoadingButton'
+import { historyPanelStore } from '../stores/historyPanelStore'
 
 interface BottomBarProps {
     viewMode: 'notes' | 'automation'
@@ -483,6 +484,17 @@ export const BottomBar = memo(function BottomBar({
                 </button>
 
                 <div className="w-px h-4 bg-gray-700 mx-1" />
+
+                {/* Edit history (#1597 P2) */}
+                <button type="button"
+                    onClick={() => historyPanelStore.set((open) => !open)}
+                    className="h-6 px-2 bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 border border-zinc-600 flex items-center justify-center font-mono font-bold text-[9px] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
+                    aria-label="Edit history — every undoable step, with jump-to"
+                    title="Edit history"
+                    data-testid="history-toggle"
+                >
+                    HIST
+                </button>
 
                 {/* Help Button */}
                 <button type="button"

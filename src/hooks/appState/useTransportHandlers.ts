@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { AudioEngine, Pattern } from '../../types'
-import type { useUndoRedo } from '../useUndoRedo'
+import type { AudioEngine } from '../../types'
 import { nudgePatternLength } from '../../utils/meterActions'
 import { ensureRunning } from '../../audio/runtime/AudioRuntime'
-
-type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
+import { redoHuman, undoHuman } from '../../collab/liveProject'
 
 export function useTransportHandlers(deps: {
     isInitialized: boolean;
@@ -14,13 +12,11 @@ export function useTransportHandlers(deps: {
     audioEngine: AudioEngine | null;
     setSchedPlaying: React.Dispatch<React.SetStateAction<boolean>>;
     setTempo: React.Dispatch<React.SetStateAction<number>>;
-    undoRedo: UndoRedo;
-    setPattern: React.Dispatch<React.SetStateAction<Pattern>>;
     activeKeyboardNotesRef: React.MutableRefObject<Map<string, number>>;
 }) {
     const {
         isInitialized, isReady, initializeAudio, setIsInitialized,
-        audioEngine, setSchedPlaying, setTempo, undoRedo, setPattern,
+        audioEngine, setSchedPlaying, setTempo,
         activeKeyboardNotesRef,
     } = deps;
 
@@ -93,11 +89,13 @@ export function useTransportHandlers(deps: {
                 return;
             }
 
+            // The project's undo: every bound edit this tab's user made (pattern,
+            // knobs, mixer, patch bay, automation, arrangement, session), never
+            // a peer's or the co-producer's.
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                 if (inTextField) return;
                 e.preventDefault();
-                const prev = undoRedo.undo();
-                if (prev) setPattern(prev);
+                undoHuman();
                 return;
             }
 
@@ -105,14 +103,13 @@ export function useTransportHandlers(deps: {
                 ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')) {
                 if (inTextField) return;
                 e.preventDefault();
-                const next = undoRedo.redo();
-                if (next) setPattern(next);
+                redoHuman();
                 return;
             }
         };
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [handlePlayToggle, undoRedo, setPattern]);
+    }, [handlePlayToggle]);
 
     return {
         adjustTempo,

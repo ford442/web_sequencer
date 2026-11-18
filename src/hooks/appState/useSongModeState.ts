@@ -1,10 +1,12 @@
-import type { SetStateAction } from 'react'
+import type { MutableRefObject, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TrackKey } from '../../constants/appDefaults'
 import type { TrackParamStorage } from '../../importers/rbs/applyImportedEngineState'
 import type { Arrangement, SavedSongData } from '../../types'
-import { createDefaultArrangement, liftStructureEdit, projectArrangement } from '../../arrangement/model'
+import { liftStructureEdit, projectArrangement } from '../../arrangement/model'
 import { transportMixStore, useTransportMixStore } from '../../stores/transportMixStore'
+import { arrangementStore } from '../../stores/songRecordStore'
+import { useValueStore } from '../../stores/valueStore'
 
 export interface RbsArrangementExtras {
   loopStart?: number;
@@ -17,16 +19,16 @@ type SongStructureRows = ({ [key in TrackKey]: number | null })[];
 
 /**
  * The arrangement (#1342) is the song's linear record and the only stored
- * state. `songStructure` is its Song Mode projection at the current measure
- * length; `setSongStructure` lifts grid edits back into the arrangement.
+ * state (`arrangementStore`, bound to the project doc). `songStructure` is its
+ * Song Mode projection at the current measure length; `setSongStructure`
+ * lifts grid edits back into the arrangement.
  */
 export function useSongModeState() {
     const [isSongModeOpen, setIsSongModeOpen] = useState(false);
     const [isArrangementOpen, setIsArrangementOpen] = useState(false);
     const [isSongModeActive, setIsSongModeActive] = useState(false);
-    const [arrangement, setArrangement] = useState<Arrangement>(
-        () => createDefaultArrangement(transportMixStore.meterRef.current.stepCount),
-    );
+    const arrangement = useValueStore(arrangementStore);
+    const setArrangement = arrangementStore.set;
     const stepCount = useTransportMixStore((s) => s.stepCount);
     const songStructure = useMemo<SongStructureRows>(
         () => projectArrangement(arrangement, stepCount),
@@ -34,20 +36,29 @@ export function useSongModeState() {
     );
     const [currentSongMeasure, setCurrentSongMeasure] = useState(0);
 
-    const arrangementRef = useRef(arrangement);
-    useEffect(() => { arrangementRef.current = arrangement; }, [arrangement]);
+    const arrangementRef = arrangementStore.ref as MutableRefObject<Arrangement>;
     const songStructureRef = useRef(songStructure);
     useEffect(() => { songStructureRef.current = songStructure; }, [songStructure]);
 
     // Reads the live meter, not `stepCount` state, so a loader that applies a
     // new meter and then sets the structure in one tick uses the new length.
     const setSongStructure = useCallback((action: SetStateAction<SongStructureRows>) => {
-        setArrangement((prev) => {
+        arrangementStore.set((prev) => {
             const spm = transportMixStore.meterRef.current.stepCount;
             const before = projectArrangement(prev, spm);
             const after = typeof action === 'function' ? action(before) : action;
             return liftStructureEdit(prev, before, after, spm);
         });
+    }, []);
+
+    /** A Song Mode grid edit, lifted into the arrangement (one undo step per gesture). */
+    const editSongStructure = useCallback((updater: (prev: SongStructureRows) => SongStructureRows) => {
+        setSongStructure((prev) => updater(prev));
+    }, [setSongStructure]);
+
+    /** An Arrangement view edit; a no-op edit writes nothing. */
+    const editArrangement = useCallback((updater: (prev: Arrangement) => Arrangement) => {
+        arrangementStore.set((prev) => updater(prev));
     }, []);
 
     const isSongModeActiveRef = useRef(isSongModeActive);
@@ -63,6 +74,7 @@ export function useSongModeState() {
         arrangement, setArrangement,
         arrangementRef,
         songStructure, setSongStructure,
+        editSongStructure, editArrangement,
         currentSongMeasure, setCurrentSongMeasure,
         songStructureRef,
         isSongModeActiveRef,

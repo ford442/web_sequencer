@@ -6,34 +6,18 @@ import { UPDATED_INITIAL_PATTERN } from '../../constants/appDefaults';
 import type { Arrangement, SavedSongData } from '../../types';
 import { createArrangement, placeClip } from '../../arrangement/model';
 import { createEmptyMeasure } from '../../utils/songModeEditing';
+import { arrangementStore } from '../../stores/songRecordStore';
 
-function makeDeps(arrangement: Arrangement) {
-  const setArrangement = vi.fn();
-  const base: Record<string, unknown> = {
-    patternRef: { current: UPDATED_INITIAL_PATTERN },
-    tempoRef: { current: 120 },
-    trackStorageRef: { current: {} },
-    activeTrackSlotsRef: { current: {} },
-    songStructureRef: { current: [] },
-    arrangementRef: { current: arrangement },
-    setArrangement,
-    ambianceUrl: '',
-    backgroundImage: '',
-    sampleBuffers: [],
-    ttsPhrases: [],
-    songStorage: [],
-    pattern: UPDATED_INITIAL_PATTERN,
-    tempo: 120,
-    trackStorage: {},
-    audioEngine: null,
-  };
-  const deps = new Proxy(base, {
+/** Every dep a spy; the arrangement itself lives in `arrangementStore` (#1597 P2). */
+function makeDeps(arrangement: Arrangement): SongStorageDeps {
+  arrangementStore.set(arrangement);
+  const base: Record<string, unknown> = { audioEngine: null };
+  return new Proxy(base, {
     get(target, key: string) {
-      if (!(key in target)) target[key] = key.endsWith('Ref') ? { current: {} } : vi.fn();
+      if (!(key in target)) target[key] = key.endsWith('Ref') ? { current: null } : vi.fn();
       return target[key];
     },
   }) as unknown as SongStorageDeps;
-  return { deps, setArrangement };
 }
 
 const trimmed = placeClip(createArrangement(64), {
@@ -41,11 +25,14 @@ const trimmed = placeClip(createArrangement(64), {
 });
 
 describe('useSongStorage arrangement (v5)', () => {
-  afterEach(() => transportMixStore.reset());
+  afterEach(() => {
+    transportMixStore.reset();
+    arrangementStore.reset();
+  });
 
   it('saves the arrangement and its Song Mode projection', async () => {
     transportMixStore.setStepCount(16);
-    const { deps } = makeDeps(trimmed);
+    const deps = makeDeps(trimmed);
     const { result } = renderHook(() => useSongStorage(deps));
     const data = await result.current.getSongData();
     expect(data.version).toBe(5);
@@ -57,22 +44,22 @@ describe('useSongStorage arrangement (v5)', () => {
   });
 
   it('loads a v5 arrangement as saved (trim, offset and one-shot kept)', async () => {
-    const { deps, setArrangement } = makeDeps(createArrangement(32));
+    const deps = makeDeps(createArrangement(32));
     const { result } = renderHook(() => useSongStorage(deps));
     const v5 = { version: 5, pattern: UPDATED_INITIAL_PATTERN, tempo: 120, songStructure: [], arrangement: trimmed } as unknown as SavedSongData;
     await act(() => result.current.loadCloudData(v5, 'song'));
-    expect(setArrangement).toHaveBeenCalledWith(trimmed);
+    expect(arrangementStore.getSnapshot()).toEqual(trimmed);
   });
 
   it('migrates a v4 song: one clip per cell at the song meter length', async () => {
-    const { deps, setArrangement } = makeDeps(createArrangement(32));
+    const deps = makeDeps(createArrangement(32));
     const { result } = renderHook(() => useSongStorage(deps));
     const v4 = {
       version: 4, pattern: UPDATED_INITIAL_PATTERN, tempo: 120, stepCount: 24,
       songStructure: [{ ...createEmptyMeasure(), kick: 0 }, createEmptyMeasure(), { ...createEmptyMeasure(), snare: 3 }],
     } as unknown as SavedSongData;
     await act(() => result.current.loadCloudData(v4, 'song'));
-    const loaded = setArrangement.mock.calls[0][0] as Arrangement;
+    const loaded = arrangementStore.getSnapshot();
     expect(loaded.lengthSteps).toBe(72);
     expect(loaded.clips.map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
       ['kick', 0, 0, 24],

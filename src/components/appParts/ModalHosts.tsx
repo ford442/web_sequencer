@@ -3,6 +3,8 @@ import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
 import { helpDiscoveryStore, useHelpDiscoveryStore } from '../../stores/helpDiscoveryStore'
 import { midiMapStore, useMidiMapStore } from '../../stores/midiMapStore'
+import { historyPanelStore } from '@/stores/historyPanelStore'
+import { useValueStore } from '@/stores/valueStore'
 
 // Route-split: none of these render on first paint — each is behind a modal
 // toggle — so keep them out of the entry chunk and fetch on demand.
@@ -12,6 +14,7 @@ const RbsImportModal = lazy(() => import('../RbsImportModal').then(module => ({ 
 const SmfImportModal = lazy(() => import('../SmfImportModal').then(module => ({ default: module.SmfImportModal })));
 const ExportModal = lazy(() => import('../ExportModal').then(module => ({ default: module.ExportModal })));
 const VoiceEditor = lazy(() => import('../VoiceEditor').then(module => ({ default: module.VoiceEditor })));
+const HistoryPanel = lazy(() => import('../HistoryPanel'));
 const ShortcutsHelp = lazy(() => import('../ShortcutsHelp').then(module => ({ default: module.ShortcutsHelp })));
 const MidiMapPanel = lazy(() => import('../MidiMapPanel').then(module => ({ default: module.MidiMapPanel })));
 const GamepadDebugger = lazy(() => import('../GamepadDebugger').then(module => ({ default: module.GamepadDebugger })));
@@ -151,6 +154,12 @@ export const MidiMapHost = React.memo(() => {
     return panelOpen ? <Suspense fallback={<ModalLoadingFallback />}><MidiMapPanel onClose={closeMidiMapPanel} /></Suspense> : null
 })
 
+const closeHistoryPanel = () => historyPanelStore.set(false)
+const HistoryPanelHost = React.memo(() => {
+    const isOpen = useValueStore(historyPanelStore)
+    return isOpen ? <Suspense fallback={null}><HistoryPanel onClose={closeHistoryPanel} /></Suspense> : null
+})
+
 /** All of the app's lazy modals, in their original stacking order. */
 export function ModalHosts() {
     return (
@@ -164,6 +173,7 @@ export function ModalHosts() {
             <ShortcutsHelpHost />
             <GamepadDebugHost />
             <MidiMapHost />
+            <HistoryPanelHost />
         </>
     )
 }

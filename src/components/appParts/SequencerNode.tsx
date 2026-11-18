@@ -5,12 +5,13 @@ import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
 import { useCompactLayoutOptional } from '../../contexts/CompactLayoutContext'
 import { DEFAULT_ZOOM } from '../sequencer/constants'
+import { redoHuman, undoHuman, useUndoAvailability } from '../../collab/liveProject'
 
 const SONG_PANEL_KEYS = [
   'songStructure', 'currentSongMeasure', 'backgroundImage', 'setBackgroundImage',
   'handleSongModeToggle', 'handleSongStructureUpdate', 'handleEditSongStructure',
-  'handleAddMeasure', 'handleRemoveMeasure', 'handleExportXM', 'undoSongStructure',
-  'redoSongStructure', 'isSongModeActive', 'setIsSongModeActive',
+  'handleAddMeasure', 'handleRemoveMeasure', 'handleExportXM',
+  'isSongModeActive', 'setIsSongModeActive',
 ] as const
 
 const GRID_KEYS = [
@@ -43,9 +44,7 @@ function CompactAutoZoom() {
  * never subscribes to them. */
 const SongModePanel3D = React.memo(() => {
   const song = useAppStateSlice(SONG_PANEL_KEYS)
-  // Derived by calling the (stable) undo helpers, so the flags stay fresh.
-  const canUndoSong = useAppStateSelector((s) => s.canUndoSong())
-  const canRedoSong = useAppStateSelector((s) => s.canRedoSong())
+  const { canUndo: canUndoSong, canRedo: canRedoSong } = useUndoAvailability()
   return (
     <div className="w-full h-[480px] p-4 bg-[#0a0d10] rounded-xl border-2 border-gray-700 shadow-2xl relative overflow-hidden">
       <div className="absolute inset-0 rounded-xl border-2 border-cyan-900/10 pointer-events-none z-50"></div>
@@ -59,8 +58,8 @@ const SongModePanel3D = React.memo(() => {
         onToggle={song.handleSongModeToggle}
         onUpdateStep={song.handleSongStructureUpdate}
         onEditStructure={song.handleEditSongStructure}
-        onUndoSong={song.undoSongStructure}
-        onRedoSong={song.redoSongStructure}
+        onUndoSong={undoHuman}
+        onRedoSong={redoHuman}
         canUndoSong={canUndoSong}
         canRedoSong={canRedoSong}
         onAddMeasure={song.handleAddMeasure}

@@ -5,9 +5,10 @@ Epic [#1597](https://github.com/ford442/web_sequencer/issues/1597). The project 
 tab, another tab, later a remote peer or the co-producer agent. Per-editor undo (P2), presence and
 WebRTC (P3), the agent as a peer (P4) and a relay with transport sync (P5) all build on it.
 
-**Status: P1 — document, codec, update log, local provider.** Nothing visible changes. Nothing
-reads the document back into the app's stores yet (that is P2's store bridges), and the audio
-thread, `src/shared/rt/**`, `src/audio/controlPlane/**` and the worklets are untouched.
+**Status: P2 — the document is the source of truth.** Every song store is bound to it, undo goes
+through it (one `Y.UndoManager` per local editor), and two tabs on `?collab=local` edit one song.
+P1 laid the document, codec, update log and local provider. The audio thread,
+`src/shared/rt/**`, `src/audio/controlPlane/**` and the worklets are untouched.
 
 | Module | Role |
 |--------|------|
@@ -18,21 +19,30 @@ thread, `src/shared/rt/**`, `src/audio/controlPlane/**` and the worklets are unt
 | `src/collab/projectDocCodec.ts` | ProjectStore's session-less save path, loaded on demand |
 | `src/collab/session.ts` | `openCollabSession`: live doc + log persistence + provider |
 | `src/collab/providers/` | The provider interface and the `local` (BroadcastChannel) provider |
-| `src/collab/collabQuery.ts`, `CollabBridge.tsx` | The `?collab=local` flag and its lazy mount |
+| `src/collab/collabQuery.ts`, `CollabBridge.tsx` | The `?collab=local` flag; the lazy bridge that starts the runtime (every page load) and, with the flag, adopts the session's doc |
+| `src/collab/binding.ts`, `appBindings.ts` | How a store joins the doc (Yjs-free), and the app's bindings |
+| `src/collab/fields.ts` | One top-level song field in and out of the doc; which fields a transaction changed |
+| `src/collab/runtime.ts` | `ProjectRuntime`: stores ↔ doc, edit scopes (human, agent, load, playback), gestures |
+| `src/collab/history.ts`, `editLabels.ts` | Per-editor `Y.UndoManager`s, labelled steps, jump-to |
+| `src/collab/liveProject.ts`, `liveProjectRuntime.ts` | The app's Yjs-free handle on the runtime, and the lazy chunk that creates it |
 
 ## Trying it
 
-Open the app with `?collab=local` in two tabs. Each tab opens a session on the autosave project and
-joins the BroadcastChannel room `project:autosave`. Autosaves become document edits, and the other
-tab's document receives them (its UI does not follow yet — P2). In the console:
+Open the app with `?collab=local` in two tabs. Each tab opens a session on the autosave project,
+joins the BroadcastChannel room `project:autosave`, and shows the room's song: paint a step, turn a
+knob or move a clip in one tab and the other follows. Ctrl/Cmd+Z in a tab undoes that tab's own
+edits only. In the console:
 
 ```js
 __HYPHON_COLLAB__.peers()     // doc client ids of the other tabs
 __HYPHON_COLLAB__.readSong()  // the song the document holds
+__HYPHON_COLLAB__.history()   // this tab's undo steps (human and co-producer), oldest first
 ```
 
-Without the flag, `App.tsx` loads none of this: Yjs and the provider sit in the `CollabBridge`
-chunk, and `ProjectStore` imports only the Yjs-free `updateLog.ts`.
+Without the flag the runtime still binds the stores to a private, in-memory doc (undo and the
+history panel work the same), but no session, log or provider is opened. Yjs stays out of the entry
+chunk either way: it is in the lazy `CollabBridge` chunk, and `ProjectStore` imports only the
+Yjs-free `updateLog.ts`.
 
 ## The document
 
@@ -89,8 +99,10 @@ and checks that concurrent edits converge: one value per step, both of two new c
 one lyric line, a reorder that never moves one clip's edit onto another.
 
 Origins: `DOC_ORIGINS.save` (a project save), `.log` (frames read back from disk), `.seed` (a doc
-created from project.json). Remote updates carry the provider as origin. P2's undo tracks editor
-origins, so none of these is ever undone.
+created from project.json or from the stores), `.load` (a song load or import), `.playback` (state
+the transport writes while it plays). Remote updates carry the provider as origin. Undo tracks only
+the two editor origins (`EditorOrigin('human')`, `EditorOrigin('agent')`), so none of these is ever
+undone.
 
 ## Persistence: ProjectStore v2
 
@@ -108,8 +120,9 @@ origins, so none of these is ever undone.
   `saveProject` loads `projectDocCodec.ts`, rebuilds the doc from the log, writes the song and
   appends the diff. A store continues one client id for its session-less edits while the log holds
   them, so the state vector grows per page load, not per save.
-- **project.json stays the readable snapshot** and is what `loadProject` and crash recovery read. In
-  P1 the two always agree. The document becomes the source the app loads from with P2's bridges.
+- **project.json stays the readable snapshot** and is what `loadProject` and crash recovery read. It
+  is written from the document: a save reads the bound fields back through the codec
+  (`useSongStorage/save.ts`). In a session, the app loads from the document.
 - **Blobs stay out of the doc.** Sample banks and the background image remain content-addressed
   files; the doc holds the song without them (`loadProjectSnapshot`). The codec still carries them
   (the `assets` map) so it is lossless on its own; blob refs in the doc come with the audio tracks
@@ -121,6 +134,60 @@ origins, so none of these is ever undone.
   appends only its own edits, and compaction writes everything the tab has seen.
 - **Crashes.** A torn last frame is dropped on read. A failed append keeps the edits queued for the
   next flush, and the save reports `Project doc log: …`.
+
+## Stores ↔ document (P2)
+
+The document is the source of truth; the stores (`patternStore`, `instrumentStore`,
+`samplerBanksStore`, `transportMixStore`, `arrangementStore`, `sessionDocumentStore`,
+`automationStore`, `noteFxStore`, the patch bay's controller) are its synchronous, typed views. They
+stay because the audio path reads their refs on every step, and because they are what React
+subscribes to (`useAppStateSelector` call sites did not change). `ProjectRuntime` keeps the two in
+step:
+
+- **store → doc.** Each binding (`appBindings.ts`) names its song fields. When a store changes, the
+  runtime writes the fields whose value changed (by identity: stores update immutably) as a minimal
+  transaction (`fields.ts` → `reconcileEntry`) under the current editor's origin. One painted step
+  is one step's worth of update.
+- **doc → store.** A transaction the runtime did not write from a store (a peer, an undo or redo, a
+  load) is read back into the stores of the fields it changed, keeping every unchanged subtree by
+  identity (`preserveIdentity`) so memoised UI does not re-render. Writes caused by that projection
+  are not echoed back.
+- **Stores must be synchronous** (`useSyncExternalStore`, `valueStore.ts`): a write lands in the doc
+  inside the scope that made it. That is why the pattern, the instrument patches, the arrangement
+  and the session document moved out of `useState`.
+- **Not bound:** audio (sample banks), the background image, WAM2 plugin state, MIDI mappings and the
+  .rbs extras. Saves read them from their owners; they are not undoable.
+
+Measured in node: ~0.65 ms per painted step (pattern and track storage), ~0.17 ms per knob move,
+~0.19 ms per undo. `knobDragRenderBudget.test.tsx` holds a knob drag during playback, with the doc
+attached, to the render count it had before (90 commits, 30 rack renders per 30 moves), and
+`appRenderBudget.test.tsx` still allows one grid render per pattern edit and nothing else.
+
+### Edit scopes
+
+| Scope | Origin | Undo |
+|-------|--------|------|
+| `human` (default) | `EditorOrigin('human')` | Ctrl/Cmd+Z, Shift+Z, Ctrl+Y, the panels' buttons |
+| `agent` — `liveProject.edit('agent', fn, label)` | `EditorOrigin('agent')` | the co-producer's `undo()`, or the history panel |
+| `load` — song load, import, crash restore | `DOC_ORIGINS.load` | none; clears both histories (inside an agent step it is that step) |
+| `playback` — RBS per-slot knob recall | `DOC_ORIGINS.playback` | none |
+
+Each co-producer tool call is one `agent` edit: one transaction, one step labelled with the tool call
+(`Co-producer: edit_pattern closedHat slot 0`). Yjs never lets an undo manager overwrite a key a
+different origin changed since, so the human's undo leaves the co-producer's edits alone, a tab's
+undo leaves another tab's alone, and the other way round.
+
+### Steps and labels
+
+A pointer down or key press begins a gesture. Its first edit starts a new step unless it is the
+same kind of edit as the step being captured (painting more cells, turning the same knob), the way
+typing joins one step in a text editor; 500 ms without an edit (`captureTimeout`) also ends a step.
+So eight quick clicks on the grid are one step, "paint 8 steps (Open hat)", and a knob drag right
+after them is the next, "Synth A: Cutoff 2500 → 4900". Labels come from the step's fields before its
+first and after its last write (`editLabels.ts`), unless the edit gave one.
+
+The history panel (HIST in the bottom bar) lists both editors' steps oldest first. Clicking a step
+puts the song back to right after it, by undoing or redoing that step's own editor only.
 
 ## The `local` provider
 
@@ -140,8 +207,8 @@ false when the tab is alone. The provider interface (`providers/types.ts`) is wh
 
 ## Next
 
-- **P2** — store bridges (stores ↔ doc), `Y.UndoManager` per editor origin, history panel, retire
-  `useUndoRedo.ts`.
+- **P2** — done: store bridges, `Y.UndoManager` per editor origin, history panel, `useUndoRedo.ts`
+  retired, the doc authoritative (see above). Acceptance: `tests/collab-undo.spec.ts`.
 - **P3** — WebRTC provider, awareness and presence UI, and the threat model in this file.
 - **P4** — the co-producer as a peer (`CollabHost`, `agent:<id>` origins, agent notes).
 - **P5** — relay provider, read-only mode, bar-aligned transport sync.

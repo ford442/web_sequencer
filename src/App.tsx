@@ -35,7 +35,8 @@ const Studio3D = lazy(() => import('./components/Studio3D').then(module => ({ de
 const VisualStyleShowcase = lazy(() => import('./components/ui/VisualStyleShowcase').then(module => ({ default: module.VisualStyleShowcase })));
 // Agent render hook (`window.__HYPHON_AGENT__`): only ?agent=1 / ?e2e=1 load it.
 const AgentBridge = lazy(() => import('./agent/AgentBridge'));
-// Collab session (#1597): only ?collab=local loads Yjs and the provider.
+// Project doc runtime (#1597 P2), and with ?collab=local the collab session:
+// a lazy chunk, so Yjs stays out of the entry chunk.
 const CollabBridge = lazy(() => import('./collab/CollabBridge'));
 // Opt-in white chassis layout (?chassis=white): fetched only when asked for.
 const ChassisNode = lazy(() => import('./components/appParts/ChassisNode').then(module => ({ default: module.ChassisNode })));
@@ -105,7 +106,7 @@ export const App: React.FC = () => {
 
             <ModalHosts />
             {AGENT_MODE && <Suspense fallback={null}><AgentBridge /></Suspense>}
-            {COLLAB_MODE && <Suspense fallback={null}><CollabBridge mode={COLLAB_MODE} /></Suspense>}
+            <Suspense fallback={null}><CollabBridge mode={COLLAB_MODE} /></Suspense>
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 

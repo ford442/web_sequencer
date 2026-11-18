@@ -13,6 +13,7 @@ import { BottomBar } from '@/components/BottomBar';
 import ContextMenuNode from '@/components/appParts/ContextMenuNode';
 import { ToastNode } from '@/components/appParts/AppOverlays';
 import { ArrangementNode, LyricTrackNode, MobileTransportNode, PianoRollNode, SessionNode, SongModeNode } from '@/components/appParts/PanelNodes';
+import { startLiveProject, stopLiveProject } from '@/collab/liveProjectRuntime';
 
 vi.mock('@/services/AISongStorage', () => ({
     AISongStorage: {
@@ -117,6 +118,9 @@ describe('App top-level render budget', () => {
         const spies = REGIONS.map((region) => ({ name: region.name, ...spyOnRender(region.component) }));
 
         try {
+            // As in the app: every edit is written into the project doc and is
+            // an undo step; closed panels' undo buttons must not re-render.
+            startLiveProject();
             let toggleStep: (i: number) => void = () => {};
 
             render(
@@ -148,6 +152,7 @@ describe('App top-level render budget', () => {
             expect(renders).toBeLessThanOrEqual(RENDER_BUDGET);
         } finally {
             spies.forEach((s) => s.restore());
+            stopLiveProject();
         }
     });
 });

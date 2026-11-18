@@ -53,43 +53,55 @@ the tracking issue had already been removed.
 
 ## Size gate
 
-`scripts/check-module-size.mjs` fails CI when a `src/**/*.ts(x)` file exceeds
-the 700-line soft budget **and its path is not a row of the "Modules over
-budget" table below**. It runs as part of `pnpm lint`. This means:
+`scripts/check-module-size.mjs` is a **ratchet** over `src/**/*.ts(x)`, run as
+part of `pnpm lint`. The soft budget is 700 lines (counted like `wc -l`). Every
+file over it must be a row of the "Modules over budget" table below. The row's
+first cell is that file's recorded size, and that size is a ceiling that only
+goes down, the same way `scripts/lint-ratchet.mjs` treats
+`eslint-baseline.json`:
 
-- Every file already over budget when the gate landed (2026-09-23) had to be
-  listed once, below, with a reason — that's the "Modules over budget" table.
-  The gate does not re-fail that historical inventory on every run.
-- A file that grows past 700 lines without ever being added here fails CI
-  immediately. Split it, or add a row with a one-line reason (a real
-  exception, a tracked follow-up, or a split plan).
-- Only the backticked `src/…` path on a table row under the "Modules over
-  budget" heading counts. A mention in prose, or in any other section's table,
-  does **not** exempt a file. Until 2026-09-28 the gate was a plain substring
-  match over this whole document, so the sentence "`src/types.ts` is
-  **resolved**" below exempted `src/types.ts`, and #1303's 749-line
-  resurrection of it passed the gate. `src/__tests__/checkModuleSize.test.ts`
-  now plants a prose-only mention to prove it no longer counts.
+- A listed file that **grows** past its recorded size fails CI. Split it, or
+  move code out, until it is back at or under the recorded size.
+- A listed file that **shrinks** also fails until the row is lowered, so the
+  gain is locked in. Run `pnpm run check:module-size:update` and commit the
+  doc.
+- A listed file that is back **within budget** (or deleted) fails until its row
+  is removed. `--update` removes it.
+- A file over budget with **no row** fails. `--update` never adds a row (it
+  refuses, as it refuses to raise a count). A new exception needs a
+  hand-written row with a reason, in review.
 
-## Modules over budget (2026-09-23 audit)
+Until 2026-11 the gate only checked that an over-budget path was *listed*, never
+its size. The table went stale: `useAppState.tsx` was recorded at 874 lines
+and had grown to 966, `useSongStorage.ts` from 770 to 986, and
+`AISongImporter.ts` from 981 to 1,120. Nothing failed. The table was refreshed
+to real numbers once, when the ratchet landed.
+
+Only the backticked `src/…` path on a table row under the "Modules over
+budget" heading counts. A mention in prose, or in any other section's table,
+does **not** exempt a file. Until 2026-09-28 the gate was a plain substring
+match over this whole document, so the sentence "`src/types.ts` is
+**resolved**" below exempted `src/types.ts`, and #1303's 749-line
+resurrection of it passed the gate. `src/__tests__/checkModuleSize.test.ts`
+plants a prose-only mention to prove it no longer counts, and plants a grown
+and a shrunk file to prove the ratchet bites both ways.
+
+## Modules over budget (ratchet — sizes refreshed 2026-11-18)
 
 | Lines | Module | Status |
 |-------|--------|--------|
-| 701 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
+| 703 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
 | 1019 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below; 975 → 1019 for per-material pipelines (#1581) — the cap shader itself lives in `knobCapShader.ts` |
-| 917 | `src/components/PhonemePainter.tsx` | un-triaged |
-| 901 | `src/engines/rubberband/experimental/HybridNeuralPipeline.ts` | **quarantined** (2026-09-23) — see below; not barrel-exported, nothing in the app constructs it |
-| 874 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |
-| 848 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
-| 817 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
-| 811 | `src/utils/xmExport.ts` | un-triaged |
-| 794 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
-| 981 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
-| 770 | `src/hooks/useSongStorage.ts` | justified exception — see split plan below |
-| 762 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
-| 932 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
+| 774 | `src/components/PhonemePainter.tsx` | un-triaged |
+| 901 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
+| 839 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
+| 786 | `src/utils/xmExport.ts` | un-triaged |
+| 822 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
+| 1120 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
+| 906 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
+| 970 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
 | 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
-| 721 | `src/components/WaveformDisplay.tsx` | un-triaged |
+| 723 | `src/components/WaveformDisplay.tsx` | un-triaged |
 | 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |
 
 `Open303Manager.ts` is **resolved** (patch bay Phase C): 873 → 685 lines.
@@ -151,11 +163,17 @@ browser before landing them. Recorded here as a plan for a focused follow-up:
   `EnvelopeSection.tsx`, `ModulationSection.tsx`, `EffectsSection.tsx`, each
   taking the voice params slice and setter it needs; `SamplerVoicePanel.tsx`
   keeps the tab/accordion shell.
-- **`src/hooks/useSongStorage.ts` (770 lines):** one hook covering save,
-  load, import (legacy schema migration) and export. Split along those seams
-  into `useSongStorage/{save,load,migrate,export}.ts`, each a plain function
-  taking the state it needs rather than a hook, with `useSongStorage.ts` left
-  as the thin hook that wires them to component state.
+- **`src/hooks/useSongStorage.ts`** — **resolved** (#1597 P2): 986 → 360
+  lines. Split along exactly this plan into
+  `useSongStorage/{save,load,migrate,export}.ts`, plain functions over the
+  project doc and the stores; the hook only binds them to the engine, toasts
+  and the import modals.
+- **`src/hooks/useAppState.tsx`** — **resolved** (#1597 P2): 966 → 387
+  lines. The song's state moved into doc-bound stores (pattern, instrument
+  patches, arrangement, session), the engine-sync effects, transport
+  lifecycle and boot sequence into `appState/useEngineParamSync.ts`,
+  `useTransportLifecycle.ts` and `useBootSequence.ts`, and the return value
+  spreads each sub-hook's result instead of restating every field.
 
 **`LatencyCompensator.ts` (was 1005 lines, deleted 2026-08-24):** a second,
 unwired MIDI/timing system (`NoteScheduler`, `LatencyCompensator`,

@@ -4,7 +4,8 @@
  * Runs the real script in a child process: once against the clean tree, and
  * with an oversized file planted under src/ (removed again in `afterEach`,
  * including on assertion failure) — undocumented, mentioned only in prose of a
- * fixture budget doc, and listed as a row of that doc's exception table.
+ * fixture budget doc, and listed as a row of that doc's exception table with a
+ * recorded size that is equal, smaller (it grew) or larger (it shrank).
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
@@ -37,9 +38,9 @@ function runCheckModuleSize(args: string[] = []): RunResult {
 
 const PLANTED: string[] = [];
 
-function plantOversizedFile(relativePath: string): void {
+function plantOversizedFile(relativePath: string, length = 701): void {
     const full = join(ROOT, relativePath);
-    const lines = Array.from({ length: 701 }, (_, i) => `// line ${i}`).join('\n');
+    const lines = Array.from({ length }, (_, i) => `// line ${i}`).join('\n');
     writeFileSync(full, `${lines}\n`);
     PLANTED.push(full);
 }
@@ -105,25 +106,79 @@ describe('check:module-size gate', () => {
         expect(result.output).toContain('__checkmodulesize_fixture__.ts');
     });
 
-    it('exempts a file listed as a row of the "Modules over budget" table', () => {
-        const real = readFileSync(BUDGET_DOC, 'utf8');
-        const separator = real.indexOf('\n|---', real.indexOf('## Modules over budget'));
-        expect(separator).toBeGreaterThan(-1);
-        const rowAt = real.indexOf('\n', separator + 1);
-        const doc = writeBudgetDoc(
-            `${real.slice(0, rowAt)}\n| 701 | \`${FIXTURE}\` | test fixture |${real.slice(rowAt)}`,
-        );
+    it('exempts a file listed as a row of the "Modules over budget" table at its recorded size', () => {
+        const doc = writeBudgetDoc(withRow(`| 701 | \`${FIXTURE}\` | test fixture |`));
         plantOversizedFile(FIXTURE);
         const result = runCheckModuleSize(['--budget-doc', doc]);
         expect(result.status).toBe(0);
         expect(result.output).toContain('check-module-size: OK');
     });
 
-    it('does not fail the historical inventory already listed in the budget doc', () => {
-        // src/hooks/useAppState.tsx is over budget today but is recorded in
-        // docs/refactoring/module-size-budget.md, so it must not appear as a
-        // fresh violation.
-        const result = runCheckModuleSize();
-        expect(result.output).not.toContain('useAppState.tsx');
+    it('fails when a listed file grows past its recorded size', () => {
+        const doc = writeBudgetDoc(withRow(`| 701 | \`${FIXTURE}\` | test fixture |`));
+        plantOversizedFile(FIXTURE, 705);
+        const result = runCheckModuleSize(['--budget-doc', doc]);
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain('grew past the size recorded');
+        expect(result.output).toMatch(/701 ->\s+705\s+src\/__checkmodulesize_fixture__\.ts/);
+    });
+
+    it('fails when a listed file shrank but its row was not lowered', () => {
+        const doc = writeBudgetDoc(withRow(`| 800 | \`${FIXTURE}\` | test fixture |`));
+        plantOversizedFile(FIXTURE, 750);
+        const result = runCheckModuleSize(['--budget-doc', doc]);
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain('lock in the gain');
+    });
+
+    it('--update lowers a shrunk row and drops a row back within budget, then passes', () => {
+        const SECOND = 'src/__checkmodulesize_fixture_small__.ts';
+        const doc = writeBudgetDoc(
+            withRow(`| 800 | \`${FIXTURE}\` | test fixture |\n| 720 | \`${SECOND}\` | small fixture |`),
+        );
+        plantOversizedFile(FIXTURE, 750);
+        plantOversizedFile(SECOND, 650);
+        const updated = runCheckModuleSize(['--budget-doc', doc, '--update']);
+        expect(updated.status).toBe(0);
+        const text = readFileSync(doc, 'utf8');
+        expect(text).toContain(`| 750 | \`${FIXTURE}\` | test fixture |`);
+        expect(text).not.toContain(SECOND);
+        expect(runCheckModuleSize(['--budget-doc', doc]).status).toBe(0);
+    });
+
+    it('--update refuses to raise a recorded size', () => {
+        const doc = writeBudgetDoc(withRow(`| 701 | \`${FIXTURE}\` | test fixture |`));
+        const before = readFileSync(doc, 'utf8');
+        plantOversizedFile(FIXTURE, 710);
+        const result = runCheckModuleSize(['--budget-doc', doc, '--update']);
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain('refusing to update');
+        expect(readFileSync(doc, 'utf8')).toBe(before);
+    });
+
+    it('--update never adds a row for an unlisted file', () => {
+        const doc = writeBudgetDoc(readFileSync(BUDGET_DOC, 'utf8'));
+        plantOversizedFile(FIXTURE);
+        const result = runCheckModuleSize(['--budget-doc', doc, '--update']);
+        expect(result.status).not.toBe(0);
+        expect(readFileSync(doc, 'utf8')).not.toContain(FIXTURE);
+    });
+
+    it('records every listed row with a line count that matches the tree', () => {
+        // The clean-tree pass above already proves no row is stale; this pins
+        // that the table is not empty, so the ratchet has something to hold.
+        const real = readFileSync(BUDGET_DOC, 'utf8');
+        const section = real.slice(real.indexOf('## Modules over budget'));
+        const rows = section.split('\n').filter((line) => /^\|\s*\d+\s*\|\s*`src\//.test(line));
+        expect(rows.length).toBeGreaterThan(0);
     });
 });
+
+/** The real budget doc with `rows` inserted as the first rows of the exception table. */
+function withRow(rows: string): string {
+    const real = readFileSync(BUDGET_DOC, 'utf8');
+    const separator = real.indexOf('\n|---', real.indexOf('## Modules over budget'));
+    expect(separator).toBeGreaterThan(-1);
+    const rowAt = real.indexOf('\n', separator + 1);
+    return `${real.slice(0, rowAt)}\n${rows}${real.slice(rowAt)}`;
+}

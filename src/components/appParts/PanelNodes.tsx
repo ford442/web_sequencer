@@ -6,19 +6,19 @@ import { SongMode } from '../SongMode'
 import { SessionLauncher } from '../SessionLauncher'
 import { MobileTransportDock } from '../MobileTransportDock'
 import { LyricTrack } from '../LyricTrack'
+import { redoHuman, undoHuman, useUndoAvailability } from '../../collab/liveProject'
 
 const SONG_KEYS = [
     'isSongModeOpen', 'songStructure', 'currentSongMeasure', 'backgroundImage', 'setBackgroundImage',
     'handleSongModeToggle', 'handleSongStructureUpdate', 'handleEditSongStructure',
-    'undoSongStructure', 'redoSongStructure', 'handleAddMeasure', 'handleRemoveMeasure',
+    'handleAddMeasure', 'handleRemoveMeasure',
     'handleExportXM', 'isSongModeActive', 'setIsSongModeActive',
 ] as const
 
 export const SongModeNode = React.memo(() => {
     const s = useAppStateSlice(SONG_KEYS)
-    // Derived by calling the (stable) undo helpers, so the flags stay fresh.
-    const canUndoSong = useAppStateSelector((state) => state.canUndoSong())
-    const canRedoSong = useAppStateSelector((state) => state.canRedoSong())
+    // The project's undo (every bound edit, not just the song record).
+    const { canUndo: canUndoSong, canRedo: canRedoSong } = useUndoAvailability(s.isSongModeOpen)
     return (
         <SongMode
             isVisible={s.isSongModeOpen}
@@ -29,8 +29,8 @@ export const SongModeNode = React.memo(() => {
             onToggle={s.handleSongModeToggle}
             onUpdateStep={s.handleSongStructureUpdate}
             onEditStructure={s.handleEditSongStructure}
-            onUndoSong={s.undoSongStructure}
-            onRedoSong={s.redoSongStructure}
+            onUndoSong={undoHuman}
+            onRedoSong={redoHuman}
             canUndoSong={canUndoSong}
             canRedoSong={canRedoSong}
             onAddMeasure={s.handleAddMeasure}
@@ -46,14 +46,13 @@ const SESSION_KEYS = [
     'isSessionOpen', 'sessionDocument', 'sessionPlayingSlots', 'isSessionCapturing',
     'setIsSessionOpen', 'launchSessionClip', 'launchSessionScene', 'stopSessionTrack',
     'stopSessionAll', 'setSessionQuantization', 'beginSessionCapture', 'finishSessionCapture',
-    'undoSession', 'redoSession', 'loadSessionPack', 'sessionPackFiles', 'setSessionDocument',
+    'loadSessionPack', 'sessionPackFiles', 'setSessionDocument',
     'editArrangement', 'setIsArrangementOpen',
 ] as const
 
 export const SessionNode = React.memo(() => {
     const s = useAppStateSlice(SESSION_KEYS)
-    const canUndo = useAppStateSelector((state) => state.canUndoSession())
-    const canRedo = useAppStateSelector((state) => state.canRedoSession())
+    const { canUndo, canRedo } = useUndoAvailability(s.isSessionOpen)
     // The playhead lives in a ref, so it never triggers a render by itself; it
     // is re-read on each store update, as it was when `App` re-rendered.
     const currentStep = useAppStateSelector((state) => state.currentStepRef.current)
@@ -78,8 +77,8 @@ export const SessionNode = React.memo(() => {
                 s.editArrangement(() => captured);
                 s.setIsArrangementOpen(true);
             }}
-            onUndo={s.undoSession}
-            onRedo={s.redoSession}
+            onUndo={undoHuman}
+            onRedo={redoHuman}
             canUndo={canUndo}
             canRedo={canRedo}
             onLoadPack={s.loadSessionPack}
@@ -96,13 +95,11 @@ const ArrangementView = lazy(() => import('../ArrangementView'))
 const ARRANGEMENT_KEYS = [
     'isArrangementOpen', 'setIsArrangementOpen', 'arrangement', 'editArrangement',
     'activeTrackSlots', 'isSongModeActive', 'setIsSongModeActive',
-    'undoSongStructure', 'redoSongStructure',
 ] as const
 
 const ArrangementBody = React.memo(() => {
     const s = useAppStateSlice(ARRANGEMENT_KEYS)
-    const canUndo = useAppStateSelector((state) => state.canUndoSong())
-    const canRedo = useAppStateSelector((state) => state.canRedoSong())
+    const { canUndo, canRedo } = useUndoAvailability()
     const stepCount = useTransportMixStore((m) => m.stepCount)
     const timeSignature = useTransportMixStore((m) => m.timeSignature)
     const trackLengths = useTransportMixStore((m) => m.trackLengths)
@@ -116,8 +113,8 @@ const ArrangementBody = React.memo(() => {
                 isSongModeActive={s.isSongModeActive}
                 onSetIsSongModeActive={s.setIsSongModeActive}
                 onEdit={s.editArrangement}
-                onUndo={s.undoSongStructure}
-                onRedo={s.redoSongStructure}
+                onUndo={undoHuman}
+                onRedo={redoHuman}
                 canUndo={canUndo}
                 canRedo={canRedo}
                 onClose={() => s.setIsArrangementOpen(false)}

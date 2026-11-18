@@ -83,16 +83,20 @@ export const SONG_FIELD_SUBSYSTEM: Readonly<Record<keyof SavedSongData, Exclude<
 };
 
 /**
- * Transaction origins of the doc's own plumbing. P2's per-editor undo tracks
- * editor origins; none of these is one, so none of them is ever undone.
+ * Transaction origins of the doc's own plumbing. Per-editor undo (history.ts)
+ * tracks editor origins; none of these is one, so none of them is ever undone.
  */
 export const DOC_ORIGINS = {
     /** A project save (autosave, retry) written into the doc. */
     save: 'hyphon:save',
     /** Frames read back from the project's update log. */
     log: 'hyphon:log',
-    /** A doc created from a project that had no log yet. */
+    /** A doc created from a project that had no log yet, or from the stores. */
     seed: 'hyphon:seed',
+    /** A song load or import replacing the project (clears undo). */
+    load: 'hyphon:load',
+    /** State the transport writes while it plays (RBS per-slot knob recall). */
+    playback: 'hyphon:playback',
 } as const;
 
 /** Root map for the document's own bookkeeping (not song data). */

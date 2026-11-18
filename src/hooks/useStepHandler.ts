@@ -73,6 +73,7 @@ import { groupSimultaneous } from '../sequencer/noteFx/chain';
 import { noteFxEventsForStep } from '../sequencer/noteFx/runtime';
 import type { FxNoteEvent, NoteFxTrack } from '../sequencer/noteFx/types';
 import { MACRO_AUTOMATION_PARAMS, MACRO_AUTOMATION_TARGETS, macroControlValue } from '../engines/MacroParams';
+import { liveProject } from '../collab/liveProject';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
 const _midiScratch: number[] = [];
@@ -460,18 +461,12 @@ export const useStepHandler = ({
                             bass2: bass2Ref.current,
                         },
                     );
-                    if (applied.synthA) {
-                        synthARef.current = applied.synthA;
-                        setSynthA?.(applied.synthA);
-                    }
-                    if (applied.synthB) {
-                        synthBRef.current = applied.synthB;
-                        setSynthB?.(applied.synthB);
-                    }
-                    if (applied.bass2) {
-                        bass2Ref.current = applied.bass2;
-                        setBass2?.(applied.bass2);
-                    }
+                    // The transport's own write, not an edit: never an undo step.
+                    liveProject.edit('playback', () => {
+                        if (applied.synthA) { synthARef.current = applied.synthA; setSynthA?.(applied.synthA); }
+                        if (applied.synthB) { synthBRef.current = applied.synthB; setSynthB?.(applied.synthB); }
+                        if (applied.bass2) { bass2Ref.current = applied.bass2; setBass2?.(applied.bass2); }
+                    });
                 };
                 recall('partA', frame.partA.slot);
                 recall('partB', frame.partB.slot);
