@@ -30,6 +30,7 @@ import { transportMixStore } from '@/stores/transportMixStore';
 import { arrangementStore, sessionDocumentStore } from '@/stores/songRecordStore';
 import { automationStore } from '@/stores/automationStore';
 import { noteFxStore } from '@/stores/noteFxStore';
+import { NOTE_FX_TRACKS } from '@/sequencer/noteFx/types';
 import { normalizeArrangement, projectArrangement } from '@/arrangement/model';
 import { migrateTrackStorage } from '@/utils/trackStorageUtils';
 import type { TimeSignature } from '@/utils/musicTheory';
@@ -196,8 +197,9 @@ const automationBinding: DocBinding = {
     },
 };
 
-const noteFxRead = memoByKey((_chains: ReturnType<typeof noteFxStore.getSnapshot>): SongFieldValues => ({
-    noteFx: noteFxStore.hasChains() ? noteFxStore.exportChains() : undefined,
+// Only note-FX tracks count (`noteFxStore.hasChains`), as the save format has always had it.
+const noteFxRead = memoByKey((chains: ReturnType<typeof noteFxStore.getSnapshot>): SongFieldValues => ({
+    noteFx: NOTE_FX_TRACKS.some((track) => chains[track] !== undefined) ? noteFxStore.exportChains() : undefined,
 }));
 const noteFxBinding: DocBinding = {
     name: 'noteFx',

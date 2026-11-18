@@ -27,6 +27,7 @@ export function startLiveProject(): ProjectRuntime {
         canRedo: (editor) => r.history.canRedo(editor),
         jumpTo: (id) => r.history.jumpTo(id),
         beginStep: (editor) => r.history.beginStep(editor),
+        beginGesture: () => r.beginGesture(),
         stepLabels: (editor) => r.history.stepLabels(editor),
         getHistorySnapshot: () => r.history.getSnapshot(),
         subscribeHistory: (listener) => r.subscribeHistory(listener),

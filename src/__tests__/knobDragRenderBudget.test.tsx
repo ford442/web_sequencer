@@ -10,6 +10,8 @@ import RackNode from '@/components/appParts/RackNode';
 import { SequencerGrid } from '@/components/appParts/SequencerNode';
 import KeyboardNode from '@/components/appParts/KeyboardNode';
 import { BottomBar } from '@/components/BottomBar';
+import { liveProject } from '@/collab/liveProject';
+import { startLiveProject, stopLiveProject } from '@/collab/liveProjectRuntime';
 
 vi.mock('@/services/AISongStorage', () => ({
     AISongStorage: {
@@ -22,10 +24,11 @@ vi.mock('@/services/AISongStorage', () => ({
  * Render budget for a knob drag during playback (#1597 P2 acceptance).
  *
  * A drag is a stream of `handleSynthChange` calls — one per pointer move —
- * while the transport runs. Binding the instrument params to the project doc
- * must not add renders: the doc write happens in the store listener, the
- * audio engine hears the knob through `onParamChange` (no React), and only the
- * rack (which draws the knob) and its provider commit.
+ * while the transport runs, here with the project runtime attached (every
+ * move is written into the doc). Binding the instrument params to the doc
+ * must not add renders: the doc write happens in the store listener, outside
+ * React, and only the rack (which draws the knob) and its provider commit.
+ * The whole drag is one undo step.
  *
  * The numbers below were measured on the tree before the doc binding landed:
  * three Profiler commits per move and one RackNode render per move. They are
@@ -87,6 +90,7 @@ describe('knob drag render budget', () => {
             commits += 1;
         };
         try {
+            startLiveProject();
             let driver: Driver = { drag: () => {}, play: () => {} };
             render(
                 <Profiler id="app" onRender={onRender}>
@@ -103,6 +107,7 @@ describe('knob drag render budget', () => {
             commits = 0;
             const before = Object.fromEntries(Object.entries(regions).map(([name, r]) => [name, r.count()]));
 
+            liveProject.beginGesture();
             for (let i = 1; i <= MOVES; i += 1) {
                 act(() => driver.drag(i / (MOVES + 1)));
             }
@@ -117,8 +122,13 @@ describe('knob drag render budget', () => {
             expect(renders.SequencerGrid).toBe(0);
             expect(renders.KeyboardNode).toBe(0);
             expect(renders.BottomBar).toBe(0);
+            // Every move reached the doc, coalesced into one labelled step.
+            expect(liveProject.getSnapshot().entries.map((e) => e.label)).toEqual([
+                expect.stringMatching(/^Synth A: Cutoff \d+ → \d+$/),
+            ]);
         } finally {
             Object.values(regions).forEach((r) => r.restore());
+            stopLiveProject();
         }
     });
 });

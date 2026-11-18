@@ -150,6 +150,38 @@ describe('ProjectRuntime: one tab', () => {
         expect(tab.pattern.get().kick).toBe(kickBefore);
     });
 
+    it('quick gestures of the same kind join one step; another kind starts a new one', () => {
+        const tab = createTab();
+        // Eight separate clicks on the grid (each a new gesture), in quick succession.
+        for (const i of [0, 2, 4, 6, 8, 10, 12, 14]) {
+            tab.runtime.beginGesture();
+            tab.pattern.set((p) => {
+                const next = [...p.kick.steps];
+                next[i] = { note: 'C4', velocity: 1 };
+                return { ...p, kick: { steps: next } };
+            });
+        }
+        // A knob drag right after: a different kind of edit.
+        tab.runtime.beginGesture();
+        tab.params.set((p) => ({ synthA: { ...p.synthA, filterCutoff: 0.7 } }));
+        tab.runtime.beginGesture();
+        tab.params.set((p) => ({ synthA: { ...p.synthA, filterCutoff: 0.71 } }));
+        expect(tab.runtime.history.getSnapshot().entries.map((e) => e.label)).toEqual([
+            'paint 8 steps (Kick)',
+            'Synth A: Cutoff 0.42 → 0.71',
+        ]);
+        tab.runtime.history.undo();
+        tab.runtime.history.undo();
+        expect(painted(tab, 'kick')).toEqual([]);
+        // After an undo, the next gesture is a new step even of the same kind.
+        tab.runtime.beginGesture();
+        tab.params.set((p) => ({ synthA: { ...p.synthA, filterCutoff: 0.5 } }));
+        tab.runtime.history.redo();
+        expect(tab.runtime.history.getSnapshot().entries.map((e) => [e.label, e.done])).toEqual([
+            ['Synth A: Cutoff 0.42 → 0.5', true],
+        ]);
+    });
+
     it('jumps to any step of the history', () => {
         const tab = createTab();
         paint(tab, 'kick', [0]);

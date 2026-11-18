@@ -27,6 +27,7 @@ export interface LiveProjectRuntime {
     canRedo(editor: EditorKind): boolean;
     jumpTo(id: string): boolean;
     beginStep(editor: EditorKind): void;
+    beginGesture(): void;
     stepLabels(editor: EditorKind): string[];
     getHistorySnapshot(): HistorySnapshot;
     subscribeHistory(listener: () => void): () => void;
@@ -93,9 +94,13 @@ export const liveProject = {
         return runtime?.jumpTo(id) ?? false;
     },
 
-    /** The next human change starts a new undo step (a new pointer gesture, a key press). */
+    /**
+     * A new pointer gesture or key press began: its first edit starts a new
+     * undo step, unless it continues the same kind of edit (see
+     * `ProjectRuntime.beginGesture`).
+     */
     beginGesture(): void {
-        runtime?.beginStep('human');
+        runtime?.beginGesture();
     },
 
     beginStep(editor: EditorKind): void {
@@ -146,10 +151,8 @@ export function useUndoAvailability(active = true): { canUndo: boolean; canRedo:
 
 /** Undo / redo this tab's last human step (Ctrl/Cmd+Z, Shift+Z, the panels' buttons). */
 export const undoHuman = (): void => {
-    liveProject.beginGesture();
     liveProject.undo('human');
 };
 export const redoHuman = (): void => {
-    liveProject.beginGesture();
     liveProject.redo('human');
 };

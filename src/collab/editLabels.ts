@@ -237,6 +237,17 @@ const DESCRIBERS: Array<[SongField, (before: Json, after: Json) => string | null
     ['activeTrackSlots', (a, b) => (same(a, b) ? null : 'switch pattern slot')],
 ];
 
+/** Fields in the order they name a step; also what makes two edits "the same kind". */
+export const FIELD_PRECEDENCE: readonly SongField[] = [
+    ...DESCRIBERS.map(([field]) => field),
+    ...(Object.keys(MIXER_NAMES) as SongField[]),
+];
+
+/** The field that names an edit touching `fields` (the kind of edit it is). */
+export function primaryField(fields: readonly SongField[]): SongField | undefined {
+    return FIELD_PRECEDENCE.find((field) => fields.includes(field)) ?? fields[0];
+}
+
 /** A short name for the edit that took `before` to `after` (fields absent from both are ignored). */
 export function describeEdit(before: SongFieldValues, after: SongFieldValues): string {
     const changed = (field: SongField) => (field in before || field in after) && !same(before[field], after[field]);

@@ -26,6 +26,7 @@ import { DOC_ORIGINS, createProjectDoc } from './doc';
 import { readSongFromDoc } from './codec';
 import { changedSongFields, isEmptySong, readField, writeField } from './fields';
 import { EditorOrigin, ProjectHistory, type EditContext, type EditorKind, type ProjectHistoryOptions } from './history';
+import { primaryField } from './editLabels';
 import type { EditScope } from './liveProject';
 import { jsonEqual, type Json } from './yjson';
 
@@ -94,6 +95,10 @@ export class ProjectRuntime {
     private depth = 0;
     private context: EditContext | null = null;
     private destroyed = false;
+    /** A new gesture began; its first human write decides whether it is a new step. */
+    private gesturePending = false;
+    /** Fields the human step being captured has written (its kind is their primary field). */
+    private readonly humanStepFields = new Set<SongField>();
     private releaseHistory: () => void = () => {};
 
     constructor(options: ProjectRuntimeOptions) {
@@ -153,6 +158,17 @@ export class ProjectRuntime {
         }
     }
 
+    /**
+     * A new pointer gesture or key press began. Its first human edit starts a
+     * new undo step unless it is the same kind as the step being captured
+     * (painting more cells, turning the same knob) — then it joins that step,
+     * the way typing joins one undo step in a text editor. The undo manager's
+     * capture timeout still ends a step after a pause.
+     */
+    beginGesture(): void {
+        this.gesturePending = true;
+    }
+
     /** Write any store change not yet in the doc (stores are synchronous, so normally none). */
     syncAll(): void {
         for (const binding of this.bindings) this.onStoreChange(binding);
@@ -207,6 +223,7 @@ export class ProjectRuntime {
             this.scope = scope;
             this.scopeLabel = label ?? this.scopeLabel;
             if (scope === 'human' || scope === 'agent') this.currentHistory.beginStep(scope);
+            if (scope === 'human') this.humanStepFields.clear();
         }
         this.explicitScope = true;
         return { saved, keepOuter, scope };
@@ -261,6 +278,7 @@ export class ProjectRuntime {
         const values = binding.read();
         const changes = binding.fields.filter((field) => values[field] !== this.synced.get(field));
         if (changes.length === 0) return;
+        if (this.scope === 'human' && !this.explicitScope) this.markGesture(changes);
         const context = (this.context ??= { before: {}, after: {}, label: this.scopeLabel });
         for (const field of changes) {
             if (!(field in context.before)) context.before[field] = this.synced.get(field);
@@ -273,6 +291,15 @@ export class ProjectRuntime {
                 this.synced.set(field, values[field]);
             }
         }, this.originFor(this.scope));
+    }
+
+    private markGesture(changes: readonly SongField[]): void {
+        if (this.gesturePending && primaryField(changes) !== primaryField([...this.humanStepFields])) {
+            this.currentHistory.beginStep('human');
+            this.humanStepFields.clear();
+        }
+        this.gesturePending = false;
+        for (const field of changes) this.humanStepFields.add(field);
     }
 
     private seedFromStores(): void {
@@ -294,6 +321,8 @@ export class ProjectRuntime {
 
     private readonly onAfterTransaction = (transaction: Y.Transaction): void => {
         if (transaction.meta.get(FROM_STORES) || this.destroyed) return;
+        // An undo or redo ends the step being captured (Yjs stops capturing too).
+        if (transaction.origin === this.currentHistory.managers.human) this.humanStepFields.clear();
         const fields = changedSongFields(this.currentDoc, transaction);
         if (fields.size > 0) this.project(fields, false);
     };
