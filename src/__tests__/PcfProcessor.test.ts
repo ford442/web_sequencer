@@ -9,6 +9,9 @@
 //   • Automation override drives cutoff directly
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { EventType } from '../shared/rt/eventLayout';
+import { MessageEventSink, type EventPort } from '../shared/rt/eventTransport';
+import { PCF_CANCEL_SCHEDULED, PCF_PARAM_CLEAR, PcfParam } from '../shared/rt/pcfEvents';
 
 // ---------------------------------------------------------------------------
 // Minimal AudioWorklet global stubs
@@ -558,6 +561,125 @@ describe('PcfProcessor', () => {
         expect(timeline).toEqual([]);
         expect(out).toEqual(src);
       }
+    });
+  });
+
+  describe('frame-stamped automation records (#1497 follow-up P1)', () => {
+    const BLOCK = 128;
+
+    /** A processor on a record route, as PcfEffect.init leaves it on a page without shared memory. */
+    function onRoute(): { proc: StubAudioWorkletProcessor; sink: MessageEventSink } {
+      const proc = getProcessor();
+      const port: EventPort = { postMessage: (message) => proc.port.dispatchMessage(message) };
+      const sink = new MessageEventSink(port);
+      proc.port.dispatchMessage({ type: 'attach-events', data: sink.transport });
+      // Bypass until an override engages the filter: the frame it engages on
+      // is the first output sample that differs from the input.
+      proc.port.dispatchMessage({ type: 'set-enabled', data: false });
+      return { proc, sink };
+    }
+
+    /** Render `blocks` blocks of a Nyquist-rate square (any low-pass changes it at once). */
+    function render(proc: StubAudioWorkletProcessor, blocks: number): { input: Float32Array; output: Float32Array } {
+      const input = new Float32Array(blocks * BLOCK);
+      const output = new Float32Array(blocks * BLOCK);
+      for (let i = 0; i < input.length; i++) input[i] = i % 2 === 0 ? 0.5 : -0.5;
+      for (let b = 0; b < blocks; b++) {
+        const L = input.subarray(b * BLOCK, (b + 1) * BLOCK);
+        const out = makeStereoOutput(BLOCK);
+        proc.process([[L, L.slice()]], out, {});
+        output.set(out[0][0], b * BLOCK);
+      }
+      return { input, output };
+    }
+
+    /** Frames where the output leaves / rejoins the dry input. */
+    function filteredRanges(input: Float32Array, output: Float32Array): Array<[number, number]> {
+      const ranges: Array<[number, number]> = [];
+      let start = -1;
+      for (let i = 0; i <= input.length; i++) {
+        const wet = i < input.length && output[i] !== input[i];
+        if (wet && start < 0) start = i;
+        if (!wet && start >= 0) {
+          ranges.push([start, i]);
+          start = -1;
+        }
+      }
+      return ranges;
+    }
+
+    it('applies a cutoff record on its own frame, inside the block it falls in', () => {
+      const { proc, sink } = onRoute();
+      sink.push(300, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.flush();
+      const { input, output } = render(proc, 4);
+      expect(filteredRanges(input, output)).toEqual([[300, 4 * BLOCK]]);
+    });
+
+    it('orders records by frame, not by arrival, and clears an override on its frame', () => {
+      const { proc, sink } = onRoute();
+      sink.push(400, EventType.Param, PcfParam.CutoffHz, PCF_PARAM_CLEAR);
+      sink.push(130, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.flush();
+      const { input, output } = render(proc, 4);
+      expect(filteredRanges(input, output)).toEqual([[130, 400]]);
+    });
+
+    it('keeps a record for a later block until its frame comes', () => {
+      const { proc, sink } = onRoute();
+      render(proc, 2);
+      sink.push(5 * BLOCK + 17, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.flush();
+      const { input, output } = render(proc, 6);
+      // Rendering resumed at frame 2 * BLOCK.
+      expect(filteredRanges(input, output)).toEqual([[3 * BLOCK + 17, 6 * BLOCK]]);
+    });
+
+    it('drops the records waiting for their frame on PCF_CANCEL_SCHEDULED, and keeps later ones', () => {
+      const { proc, sink } = onRoute();
+      sink.push(200, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.push(0, PCF_CANCEL_SCHEDULED, 0, 0);
+      sink.push(450, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.flush();
+      const { input, output } = render(proc, 4);
+      expect(filteredRanges(input, output)).toEqual([[450, 4 * BLOCK]]);
+    });
+
+    it('a record due before the block it arrives in lands on that block\'s first frame', () => {
+      const { proc, sink } = onRoute();
+      render(proc, 3);
+      sink.push(10, EventType.Param, PcfParam.CutoffHz, 800);
+      sink.flush();
+      const { input, output } = render(proc, 2);
+      expect(filteredRanges(input, output)).toEqual([[0, 2 * BLOCK]]);
+    });
+
+    it('resonance and env-amount records override the knobs, and PCF_PARAM_CLEAR hands them back', () => {
+      const { proc, sink } = onRoute();
+      const state = proc as unknown as { automationResonanceMidi: number; automationEnvAmountNorm: number };
+      sink.push(0, EventType.Param, PcfParam.ResonanceMidi, 200);
+      sink.push(0, EventType.Param, PcfParam.EnvAmountNorm, 0.25);
+      sink.flush();
+      render(proc, 1);
+      expect(state.automationResonanceMidi).toBe(127);
+      expect(state.automationEnvAmountNorm).toBe(0.25);
+      sink.push(0, EventType.Param, PcfParam.ResonanceMidi, PCF_PARAM_CLEAR);
+      sink.push(0, EventType.Param, PcfParam.EnvAmountNorm, PCF_PARAM_CLEAR);
+      sink.flush();
+      render(proc, 1);
+      expect(state.automationResonanceMidi).toBe(-1);
+      expect(state.automationEnvAmountNorm).toBe(-1);
+    });
+
+    it('renders a block with no records due exactly as before (one segment)', () => {
+      const plain = getProcessor();
+      const { proc } = onRoute();
+      for (const p of [plain, proc]) {
+        p.port.dispatchMessage({ type: 'set-enabled', data: true });
+        p.port.dispatchMessage({ type: 'set-pattern', data: [127, 0, 64, 0] });
+        p.port.dispatchMessage({ type: 'set-transport', data: { playing: true, bpm: 140, stepIndex: 0 } });
+      }
+      expect(render(proc, 16).output).toEqual(render(plain, 16).output);
     });
   });
 

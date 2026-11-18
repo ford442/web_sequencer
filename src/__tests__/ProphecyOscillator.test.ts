@@ -14,7 +14,7 @@
  *  - DEFAULT_PROPHECY_PARAMS has sensible range values
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ProphecyOscillator } from '../engines/ProphecyOscillator';
 import { ProphecyParam, DEFAULT_PROPHECY_PARAMS } from '../engines/ProphecyParams';
 import type { ProphecyParams } from '../engines/ProphecyParams';
@@ -297,5 +297,38 @@ describe('DEFAULT_PROPHECY_PARAMS', () => {
 
     it('portamento defaults to 0 (no glide)', () => {
         expect(DEFAULT_PROPHECY_PARAMS.portamento).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Automation on the frame clock (#1497 follow-up P1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ProphecyManager.scheduleParamAtTime', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('sends a PARAM_SET on the frame of its audio time, on the route its notes use, with no timer', async () => {
+        vi.useFakeTimers();
+        const { ProphecyManager } = await import('../engines/ProphecyManager');
+        const { osc, mockPostMessage } = makeReadyOscillator();
+        const manager = new ProphecyManager();
+        (manager as any).partA = osc;
+        (manager as any).audioContext = { currentTime: 1.0, sampleRate: 48000 };
+
+        // A vowel change and the note it belongs to, both 50 ms ahead.
+        manager.scheduleParamAtTime('partA', 'vowel', 0.5, 1.05);
+        manager.noteOnPartA(60, 100, 1.05);
+        manager.scheduleParamAtTime('partA', 'formantShift', 0.25, 1.1);
+
+        expect(vi.getTimerCount()).toBe(0);
+        expect(postedRecords(mockPostMessage).map((e) => [e.frame, e.type, e.target, e.value])).toEqual([
+            [50400, EventType.Param, ProphecyParam.VOWEL, 2],
+            [50400, EventType.NoteOn, 60, 100],
+            [52800, EventType.Param, ProphecyParam.FORMANT_SHIFT, 0.25],
+        ]);
+        // The snapshot follows what was scheduled.
+        expect((osc as any).params.vowel).toBe(2);
     });
 });

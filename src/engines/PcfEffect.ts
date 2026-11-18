@@ -7,7 +7,9 @@
  * - Loading PCF settings from imported .rbs files
  * - Real-time parameter control
  * - Transport synchronization
- * - External automation lane driving
+ * - External automation lane driving, as frame-stamped PARAM_SET records on
+ *   the control plane (#1497 follow-up P1): `setAutomation*(value, audioTime)`
+ *   lands on the frame of `audioTime`, not on a main-thread timer
  *
  * Usage:
  * ```typescript
@@ -23,6 +25,10 @@ import { log } from '@/utils/log';
 import type { PcfSettings } from '@/importers/rbs/types';
 import pcfProcessorUrl from '../audio-worklets/pcf-processor.ts?worker&url';
 import { loadWorkletModule } from '../audio/runtime/workletRegistry';
+import { VoiceEventRoute } from '../audio/controlPlane/VoiceEventRoute';
+import { EventField } from '@/shared/rt/eventLayout';
+import { PCF_CANCEL_SCHEDULED, PCF_PARAM_CLEAR, PcfParam } from '@/shared/rt/pcfEvents';
+import { detectHyphonNativeEnvironment, selectHyphonNativeThreading } from './hyphonNativeVariant';
 
 /** Filter type numeric constants matching the processor */
 const FILTER_TYPE_MAP: Record<string, number> = {
@@ -67,6 +73,8 @@ export class PcfEffect {
     private inputGain: GainNode;
     private outputGain: GainNode;
     private initialized = false;
+    /** Automation records to the worklet (#1497 follow-up P1); open while there is a worklet. */
+    private readonly events = new VoiceEventRoute();
 
     // Current state
     private _enabled = false;
@@ -272,37 +280,76 @@ export class PcfEffect {
     /**
      * Set automation-driven cutoff (overrides pattern modulation).
      * Pass -1 or undefined to return to pattern-driven mode.
+     * @param audioTime Context time the change lands on (its frame); omitted
+     *                  or past, the worklet's next block.
      */
-    setAutomationCutoff(cutoffHz: number | undefined): void {
-        if (cutoffHz === undefined || cutoffHz < 0) {
-            this.sendMessage('set-automation', { cutoffHz: -1 });
-        } else {
-            this.sendMessage('set-automation', { cutoffHz });
-        }
+    setAutomationCutoff(cutoffHz: number | undefined, audioTime?: number): void {
+        const clear = cutoffHz === undefined || !Number.isFinite(cutoffHz) || cutoffHz < 0;
+        this.automationParam(PcfParam.CutoffHz, clear ? PCF_PARAM_CLEAR : cutoffHz, audioTime);
     }
 
     /**
      * Set automation-driven resonance (overrides the base resonance param).
      * @param resonanceMidi 0-127 MIDI-range resonance; pass null/undefined to clear override.
+     * @param audioTime     Context time the change lands on; omitted, the next block.
      */
-    setAutomationResonance(resonanceMidi: number | null | undefined): void {
-        if (resonanceMidi === null || resonanceMidi === undefined) {
-            this.sendMessage('set-automation', { resonanceMidi: null });
-        } else {
-            this.sendMessage('set-automation', { resonanceMidi: Math.max(0, Math.min(127, resonanceMidi)) });
-        }
+    setAutomationResonance(resonanceMidi: number | null | undefined, audioTime?: number): void {
+        const clear = resonanceMidi === null || resonanceMidi === undefined || !Number.isFinite(resonanceMidi);
+        this.automationParam(
+            PcfParam.ResonanceMidi,
+            clear ? PCF_PARAM_CLEAR : Math.max(0, Math.min(127, resonanceMidi)),
+            audioTime,
+        );
     }
 
     /**
      * Set automation-driven envelope amount (overrides the base envAmount param).
      * @param envAmountNorm 0-1 normalised envelope amount; pass null/undefined to clear override.
+     * @param audioTime     Context time the change lands on; omitted, the next block.
      */
-    setAutomationEnvAmount(envAmountNorm: number | null | undefined): void {
-        if (envAmountNorm === null || envAmountNorm === undefined) {
-            this.sendMessage('set-automation', { envAmountNorm: null });
-        } else {
-            this.sendMessage('set-automation', { envAmountNorm: Math.max(0, Math.min(1, envAmountNorm)) });
-        }
+    setAutomationEnvAmount(envAmountNorm: number | null | undefined, audioTime?: number): void {
+        const clear = envAmountNorm === null || envAmountNorm === undefined || !Number.isFinite(envAmountNorm);
+        this.automationParam(
+            PcfParam.EnvAmountNorm,
+            clear ? PCF_PARAM_CLEAR : Math.max(0, Math.min(1, envAmountNorm)),
+            audioTime,
+        );
+    }
+
+    /**
+     * Drop the automation changes sent for frames that have not played yet
+     * (a transport stop: the lookahead already sent the next steps' values).
+     * Changes sent after this call are kept.
+     */
+    cancelScheduledAutomation(): void {
+        // Nothing can be waiting on a route that was never opened.
+        if (!this.workletNode || !this.events.isOpen) return;
+        this.events.stage[EventField.type] = PCF_CANCEL_SCHEDULED;
+        this.events.commit();
+    }
+
+    private automationParam(param: number, value: number, audioTime: number | undefined): void {
+        if (this.openEvents()) this.events.param(param, value, audioTime);
+    }
+
+    /**
+     * Open the worklet's control-plane route on the first automation record:
+     * a shared ring where the page can share memory with the worklet (the
+     * policy the voices follow), batched port messages elsewhere. Lazily, so
+     * an offline render's PCF, which takes its automation up front as a
+     * timeline and is never disposed, holds no route on the app's bus.
+     */
+    private openEvents(): boolean {
+        if (!this.workletNode) return false;
+        if (this.events.isOpen) return true;
+        const sharedMemory = selectHyphonNativeThreading(undefined, detectHyphonNativeEnvironment()).threading === 'pthread';
+        const transport = this.events.open(this.workletNode.port, {
+            sampleRate: this.audioContext.sampleRate,
+            sharedMemory,
+            voiceRing: false,
+        });
+        this.sendMessage('attach-events', transport);
+        return true;
     }
 
     /**
@@ -314,7 +361,10 @@ export class PcfEffect {
         this._enabled = false;
         this._edited = false;
         this.sendMessage('set-enabled', false);
-        this.sendMessage('set-automation', { cutoffHz: null, resonanceMidi: null, envAmountNorm: null });
+        this.cancelScheduledAutomation();
+        this.setAutomationCutoff(undefined);
+        this.setAutomationResonance(null);
+        this.setAutomationEnvAmount(null);
         this.notify();
     }
 
@@ -331,6 +381,7 @@ export class PcfEffect {
      * Disconnect and clean up resources.
      */
     dispose(): void {
+        this.events.close();
         if (this.workletNode) {
             this.workletNode.disconnect();
             this.workletNode = null;

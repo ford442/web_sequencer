@@ -105,7 +105,7 @@ The worklet cannot import, so its `midiToHz` / `midiToQ` repeat
 
 | Source | Path |
 |--------|------|
-| `master.pcf*` lanes | `AutomationScheduler` → `pcfLaneFanout` → `PcfEffect.setAutomation*` (and placed PCFs that follow the master lanes). Units come from `pcfLaneOverride` (`laneResolver.ts`): cutoff `20 × 1000^v` Hz, resonance `v × 127`, env amount `v` |
+| `master.pcf*` lanes | `AutomationScheduler` → `pcfLaneFanout` → `PcfEffect.setAutomation*(value, audioTime)` (and placed PCFs that follow the master lanes): a `PARAM_SET` record on the step's frame, which the worklet splits its block on ([control plane](../wasm/VOICE_CORE.md#js-worklets-on-the-bus)). A transport stop drops the values still waiting for their frame. Units come from `pcfLaneOverride` (`laneResolver.ts`): cutoff `20 × 1000^v` Hz, resonance `v × 127`, env amount `v` |
 | Imported `pcfFilter` | `applyPcfFilterToEffect` on song load / RBS import. It calls `reset()` first, so a song without a PCF gets a clean master |
 | Transport | `useAppState` restarts the pattern at step 0 on play, freezes it on stop and follows tempo changes (`broadcastPcfTransport`, which also steps placed PCF nodes) |
 | Patch bay | The PCF panel (`PatchController.setPcf`); see [pcf-node.md](pcf-node.md) |

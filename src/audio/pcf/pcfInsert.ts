@@ -65,11 +65,17 @@ export interface PcfNodeRequest {
 /** Builds a PCF node's ports (`ports.pcf` set), or `null` to bridge it. */
 export type PcfNodeProvider = (context: BaseAudioContext, request: PcfNodeRequest) => GraphPortPair | null;
 
-/** The automation-override surface the scheduler and lane watcher drive. */
+/**
+ * The automation-override surface the scheduler and lane watcher drive. A
+ * change with `audioTime` lands on that frame in the worklet (#1497 follow-up
+ * P1); without, on its next block.
+ */
 export interface PcfLaneTarget {
-    setAutomationCutoff(cutoffHz: number | undefined): void;
-    setAutomationResonance(resonanceMidi: number | null | undefined): void;
-    setAutomationEnvAmount(envAmountNorm: number | null | undefined): void;
+    setAutomationCutoff(cutoffHz: number | undefined, audioTime?: number): void;
+    setAutomationResonance(resonanceMidi: number | null | undefined, audioTime?: number): void;
+    setAutomationEnvAmount(envAmountNorm: number | null | undefined, audioTime?: number): void;
+    /** Drop the changes sent for frames not yet played (transport stop). */
+    cancelScheduledAutomation(): void;
 }
 
 export interface PcfInsertOptions {
@@ -182,19 +188,25 @@ export class PcfInsert implements PcfLaneTarget {
         this.effect.setTransport(playing, bpm, stepIndex);
     }
 
-    setAutomationCutoff(cutoffHz: number | undefined): void {
-        this.effect.setAutomationCutoff(cutoffHz);
+    setAutomationCutoff(cutoffHz: number | undefined, audioTime?: number): void {
+        this.effect.setAutomationCutoff(cutoffHz, audioTime);
     }
 
-    setAutomationResonance(resonanceMidi: number | null | undefined): void {
-        this.effect.setAutomationResonance(resonanceMidi);
+    setAutomationResonance(resonanceMidi: number | null | undefined, audioTime?: number): void {
+        this.effect.setAutomationResonance(resonanceMidi, audioTime);
     }
 
-    setAutomationEnvAmount(envAmountNorm: number | null | undefined): void {
-        this.effect.setAutomationEnvAmount(envAmountNorm);
+    setAutomationEnvAmount(envAmountNorm: number | null | undefined, audioTime?: number): void {
+        this.effect.setAutomationEnvAmount(envAmountNorm, audioTime);
+    }
+
+    cancelScheduledAutomation(): void {
+        this.effect.cancelScheduledAutomation();
     }
 
     clearAutomation(): void {
+        // Values the lookahead already sent must not re-apply after the clear.
+        this.effect.cancelScheduledAutomation();
         this.effect.setAutomationCutoff(undefined);
         this.effect.setAutomationResonance(null);
         this.effect.setAutomationEnvAmount(null);
@@ -274,17 +286,21 @@ export function broadcastPcfTransport(
 export function pcfLaneFanout(master: PcfLaneTarget): PcfLaneTarget {
     const followers = () => [...live].filter((insert) => !insert.master && insert.followsMasterLanes);
     return {
-        setAutomationCutoff(cutoffHz) {
-            master.setAutomationCutoff(cutoffHz);
-            for (const insert of followers()) insert.setAutomationCutoff(cutoffHz);
+        setAutomationCutoff(cutoffHz, audioTime) {
+            master.setAutomationCutoff(cutoffHz, audioTime);
+            for (const insert of followers()) insert.setAutomationCutoff(cutoffHz, audioTime);
         },
-        setAutomationResonance(resonanceMidi) {
-            master.setAutomationResonance(resonanceMidi);
-            for (const insert of followers()) insert.setAutomationResonance(resonanceMidi);
+        setAutomationResonance(resonanceMidi, audioTime) {
+            master.setAutomationResonance(resonanceMidi, audioTime);
+            for (const insert of followers()) insert.setAutomationResonance(resonanceMidi, audioTime);
         },
-        setAutomationEnvAmount(envAmountNorm) {
-            master.setAutomationEnvAmount(envAmountNorm);
-            for (const insert of followers()) insert.setAutomationEnvAmount(envAmountNorm);
+        setAutomationEnvAmount(envAmountNorm, audioTime) {
+            master.setAutomationEnvAmount(envAmountNorm, audioTime);
+            for (const insert of followers()) insert.setAutomationEnvAmount(envAmountNorm, audioTime);
+        },
+        cancelScheduledAutomation() {
+            master.cancelScheduledAutomation();
+            for (const insert of followers()) insert.cancelScheduledAutomation();
         },
     };
 }

@@ -2,6 +2,11 @@
 // Pattern Controlled Filter (PCF) AudioWorklet Processor
 // Implements ReBirth-style pattern-driven filter modulation as a real-time audio effect.
 
+import { EventField, EventType, createEventFields } from '../shared/rt/eventLayout';
+import { createEventInbox, type EventInbox } from '../shared/rt/eventTransport';
+import { PendingEventQueue } from '../shared/rt/pendingEvents';
+import { PCF_CANCEL_SCHEDULED, PCF_PARAM_CLEAR, PcfParam } from '../shared/rt/pcfEvents';
+
 /** Clamp a value to the [0, 1] range. */
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
 /** Clamp a value to the [0, 127] MIDI range. */
@@ -68,6 +73,12 @@ interface PcfProcessorOptions {
  *  - { type: 'set-enabled', data: boolean }
  *  - { type: 'set-automation', data: PcfAutomationData }
  *  - { type: 'set-timeline', data: PcfTimelineEvent[] }
+ *  - { type: 'attach-events', data: EventTransport }  (the EventBus route)
+ *
+ * Automation from the scheduler arrives as PARAM_SET records on the route
+ * (src/shared/rt/pcfEvents.ts), stamped with their frame. Each block drains
+ * the inbox, then renders in segments split on the frames of the records
+ * that fall inside it, so a lane point lands on its frame (#1497 follow-up P1).
  *
  * The filter runs while the pattern PCF is enabled *or* an automation cutoff
  * override is active, so master `pcfCutoff` lanes are heard on songs that do
@@ -132,6 +143,14 @@ class PcfProcessor extends AudioWorkletProcessor {
     private timeline: PcfTimelineEvent[] = [];
     private timelineIndex = 0;
 
+    // Control plane: frame-stamped automation records (#1497 follow-up P1).
+    private inbox: EventInbox | null = null;
+    private readonly pending = new PendingEventQueue();
+    /** One record in EventField order: typed storage, so draining allocates nothing. */
+    private readonly fields = createEventFields();
+    /** Block clock for scopes without `currentFrame` (unit tests). */
+    private nextFallbackFrame = 0;
+
     // Cached invariant math for the hot path
     private baseHz = 20;
     private readonly maxHz = 20000; // midiToHz(127)
@@ -157,6 +176,7 @@ class PcfProcessor extends AudioWorkletProcessor {
     }
 
     private handleMessage(event: MessageEvent): void {
+        if (this.inbox?.receive(event.data)) return;
         const { type, data } = event.data;
         this.applyMessage(type, data);
     }
@@ -222,6 +242,52 @@ class PcfProcessor extends AudioWorkletProcessor {
                 this.applyAutomation(data as PcfAutomationData | null);
                 break;
             }
+            case 'attach-events': {
+                this.inbox = createEventInbox(data);
+                this.pending.clear();
+                break;
+            }
+        }
+    }
+
+    // ── Control plane ────────────────────────────────────────────────────
+
+    /** Move every record the main thread sent into the frame-ordered queue. */
+    private drainInbox(): void {
+        const inbox = this.inbox;
+        if (!inbox) return;
+        const f = this.fields;
+        while (inbox.popInto(f)) {
+            if (f[EventField.type] === PCF_CANCEL_SCHEDULED) {
+                this.pending.clear();
+            } else {
+                this.pending.push(f);
+            }
+        }
+    }
+
+    /** Apply every queued record whose frame is at or before `frame`. */
+    private applyDueEvents(frame: number): void {
+        const pending = this.pending;
+        const f = this.fields;
+        while (pending.nextFrame() <= frame && pending.shift(f)) {
+            if (f[EventField.type] === EventType.Param) this.applyParamEvent(f[EventField.target], f[EventField.value]);
+        }
+    }
+
+    /** One PARAM_SET: an automation override set, or cleared with PCF_PARAM_CLEAR. */
+    private applyParamEvent(param: number, value: number): void {
+        const clear = value === PCF_PARAM_CLEAR || !Number.isFinite(value);
+        switch (param) {
+            case PcfParam.CutoffHz:
+                this.automationCutoffHz = clear || value < 0 ? -1 : value;
+                break;
+            case PcfParam.ResonanceMidi:
+                this.automationResonanceMidi = clear ? -1 : clampMidi(value);
+                break;
+            case PcfParam.EnvAmountNorm:
+                this.automationEnvAmountNorm = clear ? -1 : clamp01(value);
+                break;
         }
     }
 
@@ -362,6 +428,108 @@ class PcfProcessor extends AudioWorkletProcessor {
         this.a2 = a2 / a0;
     }
 
+    /**
+     * Render frames [from, to) of the block: bypass, or the pattern/automation
+     * filter with its transport, envelope and cutoff smoothing advanced by the
+     * segment's length.
+     */
+    private renderSegment(
+        inputL: Float32Array,
+        inputR: Float32Array,
+        outputL: Float32Array,
+        outputR: Float32Array,
+        stereo: boolean,
+        from: number,
+        to: number,
+    ): void {
+        const frames = to - from;
+        if (frames <= 0) return;
+
+        // Bypass: pass through unmodified. A cutoff override engages the
+        // filter on its own — master PCF lanes play without the pattern PCF.
+        if (!this.enabled && this.automationCutoffHz < 0) {
+            if (this.filtering) {
+                // Leaving the filter: drop its state so re-engaging cannot click.
+                this.z1L = this.z2L = this.z1R = this.z2R = 0;
+                this.filtering = false;
+            }
+            for (let i = from; i < to; i++) outputL[i] = inputL[i];
+            if (stereo) for (let i = from; i < to; i++) outputR[i] = inputR[i];
+            return;
+        }
+
+        this.filtering = true;
+
+        // Advance transport and compute target cutoff at segment rate
+        // (recompute coefficients once per segment to reduce CPU)
+        if (this.playing) {
+            this.sampleCounter += frames;
+            while (this.sampleCounter >= this.samplesPerStep) {
+                this.sampleCounter -= this.samplesPerStep;
+                this.currentStep = (this.currentStep + 1) % this.patternLength;
+                this.triggerStep();
+            }
+        }
+
+        // Apply envelope decay for the segment's duration
+        this.refreshEnvelopeBlockDecay(frames);
+        this.envelopeLevel *= this.envelopeBlockDecay;
+
+        // Calculate target cutoff for this segment
+        let targetHz: number;
+        if (this.automationCutoffHz >= 0) {
+            targetHz = this.automationCutoffHz;
+        } else {
+            const modRange = (this.maxHz - this.baseHz) * this.envelopeLevel;
+            targetHz = this.baseHz + modRange;
+        }
+
+        // Smooth cutoff and recompute coefficients once per segment
+        this.currentCutoffHz += (targetHz - this.currentCutoffHz) * this.smoothingCoeff * frames;
+        if (Math.abs(this.currentCutoffHz - this.targetCutoffHz) > 0.5) {
+            this.targetCutoffHz = this.currentCutoffHz;
+            // Use automation resonance override when active, else the base resonance.
+            const resonanceForCoeffs = this.automationResonanceMidi >= 0
+                ? this.automationResonanceMidi
+                : this.resonance;
+            this.computeCoefficients(this.currentCutoffHz, resonanceForCoeffs);
+        }
+
+        // Apply biquad filter (Direct Form II Transposed)
+        if (stereo) {
+            for (let i = from; i < to; i++) {
+                // Left channel
+                const xL = inputL[i];
+                const yL = this.b0 * xL + this.z1L;
+                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
+                this.z2L = this.b2 * xL - this.a2 * yL;
+                outputL[i] = yL;
+
+                // Right channel
+                const xR = inputR[i];
+                const yR = this.b0 * xR + this.z1R;
+                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
+                this.z2R = this.b2 * xR - this.a2 * yR;
+                outputR[i] = yR;
+            }
+        } else {
+            for (let i = from; i < to; i++) {
+                // Left channel
+                const xL = inputL[i];
+                const yL = this.b0 * xL + this.z1L;
+                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
+                this.z2L = this.b2 * xL - this.a2 * yL;
+                outputL[i] = yL;
+
+                // Right channel: state kept so a later stereo block carries on.
+                const xR = inputR[i];
+                const yR = this.b0 * xR + this.z1R;
+                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
+                this.z2R = this.b2 * xR - this.a2 * yR;
+            }
+        }
+    }
+
     process(inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
         const input = inputs[0];
         const output = outputs[0];
@@ -388,89 +556,21 @@ class PcfProcessor extends AudioWorkletProcessor {
             }
         }
 
-        // Bypass: pass through unmodified. A cutoff override engages the
-        // filter on its own — master PCF lanes play without the pattern PCF.
-        if (!this.enabled && this.automationCutoffHz < 0) {
-            if (this.filtering) {
-                // Leaving the filter: drop its state so re-engaging cannot click.
-                this.z1L = this.z2L = this.z1R = this.z2R = 0;
-                this.filtering = false;
-            }
-            outputL.set(inputL);
-            if (output[1]) outputR.set(inputR);
-            return true;
-        }
+        const blockStart = typeof currentFrame === 'number' ? currentFrame : this.nextFallbackFrame;
+        this.nextFallbackFrame = blockStart + blockSize;
+        this.drainInbox();
 
-        this.filtering = true;
-
-        // Advance transport and compute target cutoff at block rate
-        // (recompute coefficients once per block to reduce CPU)
-        if (this.playing) {
-            this.sampleCounter += blockSize;
-            while (this.sampleCounter >= this.samplesPerStep) {
-                this.sampleCounter -= this.samplesPerStep;
-                this.currentStep = (this.currentStep + 1) % this.patternLength;
-                this.triggerStep();
-            }
-        }
-
-        // Apply envelope decay for block duration
-        this.refreshEnvelopeBlockDecay(blockSize);
-        this.envelopeLevel *= this.envelopeBlockDecay;
-
-        // Calculate target cutoff for this block
-        let targetHz: number;
-        if (this.automationCutoffHz >= 0) {
-            targetHz = this.automationCutoffHz;
-        } else {
-            const modRange = (this.maxHz - this.baseHz) * this.envelopeLevel;
-            targetHz = this.baseHz + modRange;
-        }
-
-        // Smooth cutoff and recompute coefficients once per block
-        this.currentCutoffHz += (targetHz - this.currentCutoffHz) * this.smoothingCoeff * blockSize;
-        if (Math.abs(this.currentCutoffHz - this.targetCutoffHz) > 0.5) {
-            this.targetCutoffHz = this.currentCutoffHz;
-            // Use automation resonance override when active, else the base resonance.
-            const resonanceForCoeffs = this.automationResonanceMidi >= 0
-                ? this.automationResonanceMidi
-                : this.resonance;
-            this.computeCoefficients(this.currentCutoffHz, resonanceForCoeffs);
-        }
-
-        // Apply biquad filter (Direct Form II Transposed)
-        if (output[1]) {
-            for (let i = 0; i < blockSize; i++) {
-                // Left channel
-                const xL = inputL[i];
-                const yL = this.b0 * xL + this.z1L;
-                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
-                this.z2L = this.b2 * xL - this.a2 * yL;
-                outputL[i] = yL;
-
-                // Right channel
-                const xR = inputR[i];
-                const yR = this.b0 * xR + this.z1R;
-                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
-                this.z2R = this.b2 * xR - this.a2 * yR;
-                outputR[i] = yR;
-            }
-        } else {
-            for (let i = 0; i < blockSize; i++) {
-                // Left channel
-                const xL = inputL[i];
-                const yL = this.b0 * xL + this.z1L;
-                this.z1L = this.b1 * xL - this.a1 * yL + this.z2L;
-                this.z2L = this.b2 * xL - this.a2 * yL;
-                outputL[i] = yL;
-
-                // Right channel
-                const xR = inputR[i];
-                const yR = this.b0 * xR + this.z1R;
-                this.z1R = this.b1 * xR - this.a1 * yR + this.z2R;
-                this.z2R = this.b2 * xR - this.a2 * yR;
-                // outputR[i] = yR;  // outputR defaults to output[0], which is outputL. No need to write twice.
-            }
+        // Render up to each due record's frame, apply it, carry on: a record
+        // lands on its own frame, not on the block it arrived in. With nothing
+        // due inside the block this is one segment, as before.
+        const stereo = output[1] !== undefined;
+        let offset = 0;
+        while (offset < blockSize) {
+            this.applyDueEvents(blockStart + offset);
+            const next = this.pending.nextFrame() - blockStart;
+            const end = next < blockSize ? next : blockSize;
+            this.renderSegment(inputL, inputR, outputL, outputR, stereo, offset, end);
+            offset = end;
         }
 
         return true;

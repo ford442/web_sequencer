@@ -264,22 +264,24 @@ export class ProphecyOscillator {
      * Set a single synthesis parameter.
      * @param paramId  A `ProphecyParam.*` constant.
      * @param value    Normalised value (range depends on parameter — see ProphecyParams.ts).
+     * @param audioTime Context time the change lands on: a PARAM_SET record on
+     *                  that frame. Omitted or past, the voice's next block.
      */
-    setParam(paramId: number, value: number): void {
-        if (this.workletNode) this.events.param(paramId, value);
+    setParam(paramId: number, value: number, audioTime?: number): void {
+        if (this.workletNode) this.events.param(paramId, value, audioTime);
     }
 
     // Convenience setters that also update the internal snapshot
-    setWaveform(v: number)      { this.params.waveform     = v; this.setParam(ProphecyParam.WAVEFORM,      v); }
-    setVowel(v: number)         { this.params.vowel        = v; this.setParam(ProphecyParam.VOWEL,         v); }
-    setVolume(v: number)        { this.params.volume       = v; this.setParam(ProphecyParam.VOLUME,        v); }
-    setAttack(v: number)        { this.params.attack       = v; this.setParam(ProphecyParam.ATTACK,        v); }
-    setDecay(v: number)         { this.params.decay        = v; this.setParam(ProphecyParam.DECAY,         v); }
-    setSustain(v: number)       { this.params.sustain      = v; this.setParam(ProphecyParam.SUSTAIN,       v); }
-    setRelease(v: number)       { this.params.release      = v; this.setParam(ProphecyParam.RELEASE,       v); }
-    setPortamento(v: number)    { this.params.portamento   = v; this.setParam(ProphecyParam.PORTAMENTO,    v); }
-    setFormantShift(v: number)  { this.params.formantShift = v; this.setParam(ProphecyParam.FORMANT_SHIFT, v); }
-    setResonance(v: number)     { this.params.resonance    = v; this.setParam(ProphecyParam.RESONANCE,     v); }
+    setWaveform(v: number, audioTime?: number)     { this.params.waveform     = v; this.setParam(ProphecyParam.WAVEFORM,      v, audioTime); }
+    setVowel(v: number, audioTime?: number)        { this.params.vowel        = v; this.setParam(ProphecyParam.VOWEL,         v, audioTime); }
+    setVolume(v: number, audioTime?: number)       { this.params.volume       = v; this.setParam(ProphecyParam.VOLUME,        v, audioTime); }
+    setAttack(v: number, audioTime?: number)       { this.params.attack       = v; this.setParam(ProphecyParam.ATTACK,        v, audioTime); }
+    setDecay(v: number, audioTime?: number)        { this.params.decay        = v; this.setParam(ProphecyParam.DECAY,         v, audioTime); }
+    setSustain(v: number, audioTime?: number)      { this.params.sustain      = v; this.setParam(ProphecyParam.SUSTAIN,       v, audioTime); }
+    setRelease(v: number, audioTime?: number)      { this.params.release      = v; this.setParam(ProphecyParam.RELEASE,       v, audioTime); }
+    setPortamento(v: number, audioTime?: number)   { this.params.portamento   = v; this.setParam(ProphecyParam.PORTAMENTO,    v, audioTime); }
+    setFormantShift(v: number, audioTime?: number) { this.params.formantShift = v; this.setParam(ProphecyParam.FORMANT_SHIFT, v, audioTime); }
+    setResonance(v: number, audioTime?: number)    { this.params.resonance    = v; this.setParam(ProphecyParam.RESONANCE,     v, audioTime); }
 
     // ── Audio routing ─────────────────────────────────────────────────────────
 
