@@ -52,7 +52,9 @@ export type GraphNodeFactory =
     | 'macroVoice'
     | 'drumkitVoice'
     | 'samplerVoice'
-    | 'harmonizerBus';
+    | 'harmonizerBus'
+    // One per audio track (#1629): the audio clip player's output for that track.
+    | 'audioTrackVoice';
 
 export interface BiquadFilterConfig {
     type: BiquadFilterType;

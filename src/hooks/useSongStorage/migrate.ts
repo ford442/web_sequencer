@@ -2,7 +2,7 @@
  * Loaded songs, made current (#1597 P2 split of `useSongStorage`). Pure: no
  * stores, no engine.
  *
- * `normalizeLoadedSong` turns any saved song (v1–v5, an import's output) into
+ * `normalizeLoadedSong` turns any saved song (v1–v6, an import's output) into
  * the bound fields at the current schema, exactly as the old `loadCloudData`
  * did field by field: legacy meters resolve to 32 steps 4/4 straight, v1–v4
  * song structures become arrangements, sampler banks gain their mode and
@@ -17,6 +17,7 @@ import { DEFAULT_BASS2_PARAMS } from '@/constants';
 import { convertHyphonLanes } from '@/stores/automationStore';
 import { normalizeSongNoteFx } from '@/sequencer/noteFx/params';
 import { normalizeArrangement, projectArrangement, songStructureToArrangement } from '@/arrangement/model';
+import { audioTrackStateOf } from '@/arrangement/audioTracks';
 import { migrateSavedSongSession } from '@/session/migrate';
 import { resolveSongMeter } from '@/utils/songMeter';
 import {
@@ -88,6 +89,8 @@ export function normalizeLoadedSong(song: SavedSongData, current: Partial<SavedS
             ? songStructureToArrangement(song.songStructure as Array<Partial<Record<TrackKey, unknown>>>, meter.stepCount)
             : normalizeArrangement(current.arrangement));
     const noteFx = normalizeSongNoteFx(song.noteFx);
+    // v6 (#1629): a v5 song has no audio tracks, and loads with none.
+    const audio = audioTrackStateOf(song, arrangement);
     return {
         pattern: song.pattern ?? current.pattern,
         params,
@@ -103,6 +106,8 @@ export function normalizeLoadedSong(song: SavedSongData, current: Partial<SavedS
         ...(arrangement
             ? { arrangement, songStructure: projectArrangement(arrangement, meter.stepCount) }
             : {}),
+        audioTracks: audio.tracks.length > 0 ? [...audio.tracks] : undefined,
+        media: Object.keys(audio.media).length > 0 ? { ...audio.media } : undefined,
         session: migrateSavedSongSession(song.version, song.session, migrateTrackStorage(song.trackStorage ?? {})),
         // Absent clears: a loaded song replaces every lane and chain.
         automationLanes: song.automationLanes && song.automationLanes.length > 0 ? song.automationLanes : undefined,

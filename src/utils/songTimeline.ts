@@ -2,7 +2,7 @@ import { NUM_STEPS } from '@/constants';
 import type { Pattern, PartSequence } from '@/types';
 import type { TrackKey } from '@/constants/appDefaults';
 import { tilePartSequence, trackLoopLength, type TrackLengths } from '@/utils/songMeter';
-import type { Arrangement, ArrangementClip } from '@/types/song';
+import type { Arrangement, PatternClip } from '@/types/song';
 import { lastClipEnd, songStructureToArrangement } from '@/arrangement/model';
 import { clipLocalStep } from '@/arrangement/playback';
 
@@ -41,7 +41,7 @@ const SYNTH_TRACKS = ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', '
 function writeClip(
     out: PartSequence,
     seq: PartSequence | null | undefined,
-    clip: ArrangementClip,
+    clip: PatternClip,
     loopLength: number,
     totalSteps: number,
 ): void {
@@ -58,8 +58,9 @@ function writeClip(
 }
 
 /**
- * Walk the arrangement's clips into flat per-track sequences. The export ends
- * at the last clip's end (trailing silence before the loop point is dropped);
+ * Walk the arrangement's pattern clips into flat per-track sequences. The export
+ * ends at the last clip's end, audio clips included (trailing silence before the
+ * loop point is dropped);
  * gaps between clips are rests, exactly as the live player leaves them.
  */
 export function resolveArrangementTimeline(
@@ -78,6 +79,8 @@ export function resolveArrangementTimeline(
     };
 
     for (const clip of arrangement.clips) {
+        // Audio clips (#1629) are rendered from the media store, not from steps.
+        if (clip.kind === 'audio') continue;
         const loopLength = trackLoopLength(loopMeter, clip.track);
         const stored = trackStorage[clip.track]?.[clip.patternSlot] ?? null;
         if (clip.track === 'sampler') {

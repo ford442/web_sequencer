@@ -5,6 +5,7 @@ import { createDefaultSessionDocument } from '../defaults';
 import { secondsPerStep } from '../quantize';
 import { captureEventsToArrangement } from '../capture';
 import type { SessionCaptureEvent, TransportClockSnapshot } from '../types';
+import type { PatternClip } from '../../types/song';
 
 function clock(step: number): TransportClockSnapshot {
     return {
@@ -45,7 +46,7 @@ describe('captureEventsToArrangement', () => {
         const arr = captureEventsToArrangement(engine.disarmCapture(), { stepsPerMeasure: 16, endStep });
 
         const kick = arr.clips.filter((c) => c.track === 'kick');
-        expect(kick.map((c) => [c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
+        expect((kick as PatternClip[]).map((c) => [c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
             [0, 0, 16],
             // Queued at step 8, quantized to the next bar; runs to the release (40 → bar 48).
             [1, 16, 32],
@@ -58,7 +59,7 @@ describe('captureEventsToArrangement', () => {
             [ev(36, 'kick', 2), ev(40, 'snare', 1), ev(44, 'kick', null, 'stop')],
             { stepsPerMeasure: 16 },
         );
-        expect(arr.clips.map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
+        expect((arr.clips as PatternClip[]).map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
             ['kick', 2, 4, 8],
             ['snare', 1, 8, 8],
         ]);
@@ -68,7 +69,7 @@ describe('captureEventsToArrangement', () => {
     it('keeps clip identity where the Song Mode compile collapsed it', () => {
         // Two launches inside one measure: Song Mode kept only the last one.
         const arr = captureEventsToArrangement([ev(0, 'kick', 0), ev(8, 'kick', 1)], { stepsPerMeasure: 32 });
-        expect(arr.clips.map((c) => [c.patternSlot, c.startStep, c.lengthSteps])).toEqual([[0, 0, 8], [1, 8, 24]]);
+        expect((arr.clips as PatternClip[]).map((c) => [c.patternSlot, c.startStep, c.lengthSteps])).toEqual([[0, 0, 8], [1, 8, 24]]);
     });
 
     it('returns an empty one-measure arrangement for no events', () => {

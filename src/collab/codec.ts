@@ -67,6 +67,8 @@ export const SONG_SHAPE_RULES = createShapeRules({
     'arrangement.clips': 'list',
     'arrangement.clips.*.lanes': 'list',
     'arrangement.clips.*.lanes.*.points': 'list',
+    // Audio tracks (#1629): matched by id, so two peers adding one each both land.
+    audioTracks: 'list',
     automationLanes: 'list',
     'automationLanes.*.points': 'list',
     'session.scenes': 'list',

@@ -17,8 +17,15 @@
  *   Prophecy A/B, Macro A/B → Synth A/B bus · drum kit → masterGain
  *   sustain → masterGain · Rubber Band voices → sampler bus
  *   choir L/R panners → choir sum → masterGain
+ *   audio tracks 1–8 (#1629) → masterGain
+ *
+ * The audio track sockets are always there, used or not, so a song gaining an
+ * audio track never needs a graph rebuild; the clip player's fader, pan and
+ * mute act inside its worklet, and anything cabled between a socket and the
+ * master is that track's insert chain.
  */
 
+import { AUDIO_TRACK_KEYS } from '@/constants/song';
 import { isEngineVoiceFactory } from './engineVoices';
 import type { AudioGraphConfig, GraphEdgeSpec, GraphNodeSpec } from './types';
 
@@ -53,6 +60,11 @@ export function open303StripIds(voice: Open303VoiceId): Open303StripIds {
         gain: `${voice}Gain`,
         pan: `${voice}Pan`,
     };
+}
+
+/** Patch node id of an audio track's socket: `audio-3` → `audioTrack3`. */
+export function audioTrackNodeId(voice: string): string {
+    return `audioTrack${voice.slice('audio-'.length)}`;
 }
 
 /** Engine-layer edge. `replaces` is the pre-Phase-C edge this one supersedes. */
@@ -158,6 +170,14 @@ const ENGINE_LAYER_NODES: readonly GraphNodeSpec[] = [
         config: { voice: 'stretch' },
     },
     { id: 'choirSum', label: 'Choir Sum', fixed: true, factory: 'harmonizerBus', role: 'choirBus' },
+    ...AUDIO_TRACK_KEYS.map((voice, i): GraphNodeSpec => ({
+        id: audioTrackNodeId(voice),
+        label: `Audio ${i + 1}`,
+        fixed: true,
+        factory: 'audioTrackVoice',
+        role: 'instrumentSource',
+        config: { voice },
+    })),
 ];
 
 const ENGINE_LAYER_EDGES: readonly EngineLayerEdge[] = [
@@ -181,6 +201,8 @@ const ENGINE_LAYER_EDGES: readonly EngineLayerEdge[] = [
         replaces: { from: 'choirRightPanner', to: 'masterGain' },
     },
     { from: 'choirSum', to: 'masterGain' },
+    // Audio tracks enter dry, like the drums: an imported mix is not coloured by default.
+    ...AUDIO_TRACK_KEYS.map((voice) => ({ from: audioTrackNodeId(voice), to: 'masterGain' })),
 ];
 
 /** Engine-layer nodes, for the stock patch. */

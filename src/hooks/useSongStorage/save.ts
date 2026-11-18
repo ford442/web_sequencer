@@ -87,6 +87,8 @@ export async function buildSongData(sources: SaveSources): Promise<SavedSongData
         arrangement: bound.arrangement,
         // Song Mode projection for readers that predate the arrangement.
         songStructure: bound.songStructure,
+        ...optional('audioTracks', bound.audioTracks as SavedSongData['audioTracks']),
+        ...optional('media', bound.media as SavedSongData['media']),
         session: bound.session,
         embeddedSamples,
         ttsPhrases: bound.ttsPhrases,

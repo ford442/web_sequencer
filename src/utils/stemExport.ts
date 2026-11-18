@@ -29,6 +29,8 @@ import {
     type SampleRatePref,
 } from './audioContextPolicy';
 import { trackMuteSoloStore } from '../stores/trackMuteSoloStore';
+import { audioTrackStore } from '../stores/audioTrackStore';
+import type { AudioTrackState } from '../arrangement/audioTracks';
 import { noteFxStore } from '../stores/noteFxStore';
 import { measurePassStarts } from '../sequencer/noteFx/chain';
 import { noteFxLaneLookup } from '../sequencer/noteFx/runtime';
@@ -47,7 +49,16 @@ import {
 } from '../audio/offline/offlineLaneAutomation';
 import { getMasterPcf } from '../audio/pcf/masterPcf';
 import type { PcfSettings } from '../importers/rbs/types';
-import { createOfflineBuffer } from '../audio/offline/createOfflineContext';
+import {
+    alignBufferLength,
+    channelsToBuffer,
+    downloadBlob,
+    silentBuffer,
+    stemFileName,
+    throwIfAborted,
+    type StemId,
+} from './stemExportBuffers';
+import { renderAudioTrackStems } from './stemExportAudioTracks';
 import {
     createMixBus,
     type MixBus,
@@ -190,6 +201,8 @@ export interface StemExportInput {
     /** Per-track audibility. Defaults to the live mute/solo store. */
     isTrackAudible?: StemExportMuteSolo;
     songStructure: { [key in TrackKey]: number | null }[];
+    /** Audio tracks and media of the song (#1629). Defaults to the live store. */
+    audioTracks?: AudioTrackState;
     /** Linear arrangement (#1342). When present, song-mode export walks its clips. */
     arrangement?: import('../types').Arrangement;
     trackStorage: Record<TrackKey, (import('../types').PartSequence | import('../types').PartSequence[] | null)[]>;
@@ -220,13 +233,7 @@ export interface StemExportInput {
     pcfSettings?: PcfSettings | null;
 }
 
-export type StemId =
-    | 'partA'
-    | 'partB'
-    | 'bass2'
-    | 'drums'
-    | `sampler-bank-${number}`
-    | 'master';
+export type { StemId } from './stemExportBuffers';
 
 const STEM_RENDER_ORDER: Array<{ id: StemId; label: string }> = [
     { id: 'partA', label: 'Rendering LEAD (partA)…' },
@@ -243,61 +250,6 @@ const STEM_RENDER_ORDER: Array<{ id: StemId; label: string }> = [
     { id: 'sampler-bank-8', label: 'Rendering sampler bank 8…' },
     { id: 'master', label: 'Building master stem…' },
 ];
-
-/** An all-zero stem, used in place of rendering a track the mix has silenced. */
-function silentBuffer(targetLength: number, sampleRate: number): AudioBuffer {
-    return createOfflineBuffer({ channels: 2, length: targetLength, sampleRate });
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-    if (signal?.aborted) {
-        throw new DOMException('Export cancelled', 'AbortError');
-    }
-}
-
-function alignBufferLength(buffer: AudioBuffer, targetLength: number, sampleRate: number): AudioBuffer {
-    if (buffer.length === targetLength) return buffer;
-
-    const channels = buffer.numberOfChannels;
-    const out = createOfflineBuffer({ channels, length: targetLength, sampleRate });
-
-    for (let ch = 0; ch < channels; ch++) {
-        const src = buffer.getChannelData(ch);
-        const dst = out.getChannelData(ch);
-        const copyLen = Math.min(src.length, targetLength);
-        dst.set(src.subarray(0, copyLen));
-    }
-
-    return out;
-}
-
-/** Wrap mix-bus output channels in an AudioBuffer for the WAV encoder. */
-function channelsToBuffer(channels: Float32Array[], targetLength: number, sampleRate: number): AudioBuffer {
-    const count = channels.length;
-    const out = createOfflineBuffer({ channels: count, length: targetLength, sampleRate });
-    for (let ch = 0; ch < count; ch++) {
-        out.getChannelData(ch).set(channels[ch].subarray(0, out.length));
-    }
-    return out;
-}
-
-function stemFileName(id: StemId): string {
-    if (id.startsWith('sampler-bank-')) {
-        return `stems/${id}.wav`;
-    }
-    return `stems/${id}.wav`;
-}
-
-export function downloadBlob(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
 
 /** The files a stem export writes, before they are zipped. */
 export interface StemFiles {
@@ -406,7 +358,20 @@ export async function renderStemFiles(
     const stems = new Map<StemId, AudioBuffer>();
     /** Stretch banks the offline vocal host could not render: no stem, never dry. */
     const vocalUnsupported = new Map<number, string>();
-    const totalStages = STEM_RENDER_ORDER.length;
+    // Audio tracks (#1629): one stem each, rendered up front, summed before the master.
+    const audio = useSongMode && input.arrangement
+        ? await renderAudioTrackStems({
+            arrangement: input.arrangement, audio: input.audioTracks ?? audioTrackStore.getSnapshot(),
+            tempo: input.tempo, sampleRate, frames: targetLength,
+            isAudible: (track) => trackMuteSoloStore.isAudible(track),
+        })
+        : { stems: [], missingMedia: [] };
+    const renderOrder = [
+        ...STEM_RENDER_ORDER.slice(0, -1),
+        ...audio.stems.map((stem) => ({ id: stem.id as StemId, label: `Rendering ${stem.id}…` })),
+        ...STEM_RENDER_ORDER.slice(-1),
+    ];
+    const totalStages = renderOrder.length;
 
     // The dry master is built as the stems arrive (#1341): each audible stem
     // is streamed into the bus right after it renders, so the C++ sum runs in
@@ -419,9 +384,9 @@ export async function renderStemFiles(
     let dryMaster: { engine: MixBusEngine; peaks: number[] } | null = null;
 
     try {
-        for (let stage = 0; stage < STEM_RENDER_ORDER.length; stage++) {
+        for (let stage = 0; stage < renderOrder.length; stage++) {
             throwIfAborted(signal);
-            const { id, label } = STEM_RENDER_ORDER[stage];
+            const { id, label } = renderOrder[stage];
             onProgress?.(stage / totalStages, label);
 
             let buffer: AudioBuffer;
@@ -510,6 +475,10 @@ export async function renderStemFiles(
                             continue;
                         }
                         buffer = bankStem.buffer;
+                    } else if (id.startsWith('audio-')) {
+                        const stem = audio.stems.find((a) => a.id === id);
+                        audible = stem?.audible ?? false;
+                        buffer = channelsToBuffer(stem?.channels ?? [], targetLength, sampleRate);
                     } else {
                         const mixed = await masterMix.finish();
                         dryMaster = { engine: mixed.engine, peaks: mixed.peaks };
@@ -650,6 +619,8 @@ export async function renderStemFiles(
         /** Automation lanes the stems play, and the routed ones they cannot (#1384). */
         automation: automation.report,
         stems: Array.from(stems.keys()),
+        /** Media the audio tracks use that this browser's media store lacks (silent in the stems). */
+        ...(audio.missingMedia.length ? { missingMedia: audio.missingMedia } : {}),
         silencedTracks: (
             ['partA', 'partB', 'bass2', 'kick', 'snare', 'closedHat', 'openHat', 'sampler'] as TrackKey[]
         ).filter((t) => !isAudible(t)),
@@ -686,6 +657,8 @@ export async function exportStemsToZip(
     options.onProgress?.(1, 'Creating ZIP…');
     return createZipBlob(entries);
 }
+
+export { downloadBlob };
 
 export async function exportStemsDownload(
     input: StemExportInput,

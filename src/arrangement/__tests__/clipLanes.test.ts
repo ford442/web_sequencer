@@ -7,7 +7,7 @@ import {
     resolveLaneValuesAtStep,
     resolveOpen303ParamSteps,
 } from '@/audio/automation/laneResolver';
-import type { Arrangement, ArrangementClip } from '@/types/song';
+import type { Arrangement, PatternClip } from '@/types/song';
 import type { UnifiedAutomationLane } from '@/types/automation';
 
 /** Clip-local automation (#1494): model, layering, and one resolver for live and offline. */
@@ -26,7 +26,7 @@ function lane(points: Array<[number, number]>, parameter = 'filterCutoff', id = 
     };
 }
 
-function clip(partial: Partial<ArrangementClip> & Pick<ArrangementClip, 'id' | 'startStep' | 'lengthSteps'>): ArrangementClip {
+function clip(partial: Partial<PatternClip> & Pick<PatternClip, 'id' | 'startStep' | 'lengthSteps'>): PatternClip {
     return { track: 'partA', patternSlot: 0, loop: true, ...partial };
 }
 
@@ -34,23 +34,23 @@ function clip(partial: Partial<ArrangementClip> & Pick<ArrangementClip, 'id' | '
 const sweep = () => lane([[0, 0], [15, 0.75]]);
 
 function stepsOf(arr: Arrangement, id: string): number[] | undefined {
-    return arr.clips.find((c) => c.id === id)?.lanes?.[0].points.map((p) => p.step);
+    return (arr.clips as PatternClip[]).find((c) => c.id === id)?.lanes?.[0].points.map((p) => p.step);
 }
 
 describe('clip lanes — model', () => {
     it('overlap trim keeps the surviving clip its own lanes; the winner keeps its lanes', () => {
         let arr = placeClip(createArrangement(32), clip({ id: 'a', startStep: 0, lengthSteps: 32, lanes: [sweep()] }));
         arr = placeClip(arr, clip({ id: 'b', startStep: 16, lengthSteps: 16, lanes: [lane([[0, 1]], 'filterResonance', 'l2')] }));
-        const a = arr.clips.find((c) => c.id === 'a')!;
+        const a = (arr.clips as PatternClip[]).find((c) => c.id === 'a')!;
         expect(a.lengthSteps).toBe(16);
         expect(a.lanes).toEqual([sweep()]);
-        expect(arr.clips.find((c) => c.id === 'b')!.lanes?.[0].parameter).toBe('filterResonance');
+        expect((arr.clips as PatternClip[]).find((c) => c.id === 'b')!.lanes?.[0].parameter).toBe('filterResonance');
     });
 
     it('a split shifts the right half lanes so the automation stays on the song timeline', () => {
         let arr = placeClip(createArrangement(32), clip({ id: 'a', startStep: 0, lengthSteps: 32, lanes: [lane([[0, 0], [20, 1]])] }));
         arr = placeClip(arr, clip({ id: 'mid', startStep: 8, lengthSteps: 4 }));
-        const tail = arr.clips.find((c) => c.track === 'partA' && c.startStep === 12)!;
+        const tail = (arr.clips as PatternClip[]).find((c) => c.track === 'partA' && c.startStep === 12)!;
         expect(tail.offsetSteps).toBe(12);
         expect(tail.lanes?.[0].points.map((p) => p.step)).toEqual([-12, 8]);
         expect(stepsOf(arr, 'a')).toEqual([0, 20]);
@@ -68,8 +68,8 @@ describe('clip lanes — model', () => {
         const base = placeClip(createArrangement(16), clip({ id: 'a', startStep: 0, lengthSteps: 16 }));
         const withLane = setClipLanes(base, 'a', [sweep()]);
         expect(withLane).not.toBe(base);
-        expect(withLane.clips[0].lanes).toHaveLength(1);
-        expect('lanes' in setClipLanes(withLane, 'a', []).clips[0]).toBe(false);
+        expect((withLane.clips as PatternClip[])[0].lanes).toHaveLength(1);
+        expect('lanes' in (setClipLanes(withLane, 'a', []).clips as PatternClip[])[0]).toBe(false);
     });
 
     it('shiftClipLanes leaves no lanes alone', () => {
@@ -85,7 +85,7 @@ describe('clip lanes — persistence', () => {
         };
         const arr = normalizeArrangement(JSON.parse(JSON.stringify(raw)))!;
         expect(arr).toEqual(raw);
-        expect('lanes' in arr.clips[0]).toBe(false);
+        expect('lanes' in (arr.clips as PatternClip[])[0]).toBe(false);
     });
 
     it('clip lanes survive a save/load round trip; malformed points are dropped and sorted', () => {

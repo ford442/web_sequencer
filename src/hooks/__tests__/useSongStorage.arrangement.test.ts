@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useSongStorage, type SongStorageDeps } from '../useSongStorage';
 import { transportMixStore } from '../../stores/transportMixStore';
 import { UPDATED_INITIAL_PATTERN } from '../../constants/appDefaults';
-import type { Arrangement, SavedSongData } from '../../types';
+import type { Arrangement, PatternClip, SavedSongData } from '../../types';
 import { createArrangement, placeClip } from '../../arrangement/model';
 import { createEmptyMeasure } from '../../utils/songModeEditing';
 import { arrangementStore } from '../../stores/songRecordStore';
@@ -35,7 +35,7 @@ describe('useSongStorage arrangement (v5)', () => {
     const deps = makeDeps(trimmed);
     const { result } = renderHook(() => useSongStorage(deps));
     const data = await result.current.getSongData();
-    expect(data.version).toBe(5);
+    expect(data.version).toBe(6);
     expect(data.arrangement).toEqual(trimmed);
     const structure = data.songStructure as Array<Record<string, number | null>>;
     expect(structure).toHaveLength(4);
@@ -61,7 +61,7 @@ describe('useSongStorage arrangement (v5)', () => {
     await act(() => result.current.loadCloudData(v4, 'song'));
     const loaded = arrangementStore.getSnapshot();
     expect(loaded.lengthSteps).toBe(72);
-    expect(loaded.clips.map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
+    expect((loaded.clips as PatternClip[]).map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps])).toEqual([
       ['kick', 0, 0, 24],
       ['snare', 3, 48, 24],
     ]);

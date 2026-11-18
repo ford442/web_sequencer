@@ -37,16 +37,16 @@ function makeDeps(): SongStorageDeps {
 describe('useSongStorage song meter', () => {
   afterEach(() => transportMixStore.reset());
 
-  it('writes the meter with the current schema version (5)', async () => {
+  it('writes the meter with the current schema version (6)', async () => {
     transportMixStore.setStepCount(24);
     transportMixStore.setTimeSignature([3, 4]);
     transportMixStore.setTrackLength('closedHat', 12);
     transportMixStore.setSwing(62);
     const { result } = renderHook(() => useSongStorage(makeDeps()));
     const data = await result.current.getSongData();
-    expect(SAVED_SONG_DATA_VERSION).toBe(5);
+    expect(SAVED_SONG_DATA_VERSION).toBe(6);
     expect(data).toMatchObject({
-      version: 5,
+      version: 6,
       stepCount: 24,
       timeSignature: [3, 4],
       trackLengths: { closedHat: 12 },

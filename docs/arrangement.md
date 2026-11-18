@@ -1,7 +1,8 @@
 # Arrangement timeline (#1342)
 
 The arrangement is the song's **linear record**: clips on a timeline, played by
-the one worklet clock. It is a third document on the song next to the pattern
+the one worklet clock. Since v6 a clip is a pattern clip or an audio clip
+(`kind`); audio clips are in [audio-tracks.md](audio-tracks.md). It is a third document on the song next to the pattern
 slots (`trackStorage`) and the session grid. It is not a second transport.
 
 | Surface | What it is |

@@ -5,7 +5,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ArrangementView, type ArrangementViewProps } from '../ArrangementView';
 import { createArrangement, placeClip } from '@/arrangement/model';
 import { arrangementPlayhead } from '@/arrangement/playhead';
-import type { Arrangement } from '@/types';
+import type { Arrangement, PatternClip } from '@/types';
 import type { TrackKey } from '@/constants/appDefaults';
 
 const SLOTS = { partA: 0, partB: 0, bass2: 0, kick: 2, snare: 0, closedHat: 0, openHat: 0, sampler: 0 } as Record<TrackKey, number>;
@@ -129,7 +129,7 @@ describe('ArrangementView', () => {
         const before = edits.length;
         fireEvent.click(editor, { clientX: 8 + (560 - 16) * 0.5, clientY: 12 });
         expect(edits.length).toBe(before + 1);
-        const clip = edits[edits.length - 1].clips.find((c) => c.id === 'clip-1')!;
+        const clip = edits[edits.length - 1].clips.find((c) => c.id === 'clip-1') as PatternClip;
         expect(clip.lanes).toHaveLength(1);
         expect(clip.lanes![0]).toMatchObject({ target: 'synthA', parameter: 'filterCutoff' });
         // Half way across a 16-step clip: clip-local step 8, not song step 24.

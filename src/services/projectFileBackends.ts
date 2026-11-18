@@ -10,6 +10,12 @@ export interface ProjectFileBackend {
     writeFile(path: string, data: Uint8Array | string): Promise<void>;
     readFile(path: string): Promise<Uint8Array | null>;
     readText(path: string): Promise<string | null>;
+    /**
+     * Bytes `[start, end)` of a file (clamped to its size), or null when it does
+     * not exist. The media store pages audio through this (#1629); a backend
+     * without it is read whole.
+     */
+    readRange?(path: string, start: number, end: number): Promise<Uint8Array | null>;
     exists(path: string): Promise<boolean>;
     deleteFile(path: string): Promise<void>;
     /** Immediate child directory names under `dirPath` (no trailing slash). */
@@ -34,6 +40,10 @@ class MemoryBackend implements ProjectFileBackend {
     readText(path: string): Promise<string | null> {
         const bytes = this.files.get(path);
         return Promise.resolve(bytes ? new TextDecoder().decode(bytes) : null);
+    }
+    readRange(path: string, start: number, end: number): Promise<Uint8Array | null> {
+        const bytes = this.files.get(path);
+        return Promise.resolve(bytes ? bytes.slice(Math.max(0, start), Math.max(start, end)) : null);
     }
     exists(path: string): Promise<boolean> {
         return Promise.resolve(this.files.has(path));
@@ -135,6 +145,11 @@ class IdbBackend implements ProjectFileBackend {
         const bytes = await this.readFile(path);
         return bytes ? new TextDecoder().decode(bytes) : null;
     }
+    async readRange(path: string, start: number, end: number): Promise<Uint8Array | null> {
+        // IndexedDB stores the file as one record: read it, keep the range.
+        const bytes = await this.readFile(path);
+        return bytes ? bytes.slice(Math.max(0, start), Math.max(start, end)) : null;
+    }
     async exists(path: string): Promise<boolean> {
         const key = await this.runRequest('readonly', (store) => store.getKey(path));
         return key !== undefined;
@@ -184,9 +199,14 @@ interface OpfsWritable {
     write(data: Uint8Array | string): Promise<void>;
     close(): Promise<void>;
 }
+interface OpfsFile {
+    readonly size: number;
+    arrayBuffer(): Promise<ArrayBuffer>;
+    slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> };
+}
 interface OpfsFileHandle {
     kind: 'file';
-    getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
+    getFile(): Promise<OpfsFile>;
     createWritable(): Promise<OpfsWritable>;
 }
 interface OpfsDirectoryHandle {
@@ -245,6 +265,17 @@ class OpfsBackend implements ProjectFileBackend {
     async readText(path: string): Promise<string | null> {
         const bytes = await this.readFile(path);
         return bytes ? new TextDecoder().decode(bytes) : null;
+    }
+    async readRange(path: string, start: number, end: number): Promise<Uint8Array | null> {
+        const { dirs, name } = this.split(path);
+        const dir = await this.getDir(dirs, false);
+        if (!dir) return null;
+        try {
+            const file = await (await dir.getFileHandle(name)).getFile();
+            return new Uint8Array(await file.slice(Math.max(0, start), Math.max(start, end)).arrayBuffer());
+        } catch {
+            return null;
+        }
     }
     async exists(path: string): Promise<boolean> {
         return (await this.readFile(path)) !== null;
