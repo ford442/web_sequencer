@@ -24,6 +24,7 @@ import type { CoproducerExportFormat, CoproducerHost } from './host';
 import { BASS2_FIELD, COPRODUCER_TRACKS, LANE_PARAMETERS, isMacroKnob, knobsFor, type CoproducerTrack } from './knobs';
 import { measureRender } from './measure';
 import { TRACK_NAME, diffSongs, songModeRows, type SongChange } from './songDiff';
+import { isPatternClip } from '../../arrangement/model';
 import {
     arrange,
     editPattern,
@@ -177,7 +178,8 @@ function getSong(host: CoproducerHost): CoproducerToolResult {
     }
     const activeSlots = Object.fromEntries(COPRODUCER_TRACKS.map((t) => [t, song.activeTrackSlots?.[AI_TRACK_TO_TRACK_KEY[t]] ?? 0]));
     const arrangementView = songArrangement(song);
-    const clips = arrangementView.clips.map((c) => ({
+    // Audio clips (#1629) are reported by exportAISong's losses; tools for them come in P5.
+    const clips = arrangementView.clips.filter(isPatternClip).map((c) => ({
         id: c.id,
         track: TRACK_NAME[c.track],
         pattern: slotPatternId(c.patternSlot),

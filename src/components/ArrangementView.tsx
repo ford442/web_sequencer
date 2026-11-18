@@ -8,6 +8,10 @@
  * The focused clip's own automation lanes (#1494) are edited below the
  * inspector, in clip-local steps.
  *
+ * Audio tracks (#1629) sit under the pattern lanes: drop an audio file on
+ * any lane (or use IMPORT) to put it on the timeline as an audio clip. Audio
+ * clips move and trim like pattern clips (`arrangement/AudioTrackLanes.tsx`).
+ *
  * Edits preview locally and commit once on release, so a drag is one undo
  * step. The playhead follows the worklet step via `arrangementPlayhead`,
  * never React state.
@@ -15,8 +19,16 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TrackKey } from '../constants/appDefaults';
 import { MAX_TRACK_PATTERN_SLOTS } from '../constants';
-import type { Arrangement, ArrangementClip } from '../types';
-import { addClip, arrangementEnd, clipEnd, lastClipEnd, removeClip, setArrangementLength, updateClip } from '../arrangement/model';
+import type { Arrangement, ArrangementClip, AudioClip, AudioTrackKey, PatternClip } from '../types';
+import {
+    addClip, arrangementEnd, clipEnd, isAudioClip, isPatternClip, lastClipEnd, removeClip, setArrangementLength, updateClip,
+    type ClipPatch,
+} from '../arrangement/model';
+import { addAudioTrack, updateAudioTrack } from '../arrangement/audioTracks';
+import { audioTrackStore } from '../stores/audioTrackStore';
+import { useValueStore } from '../stores/valueStore';
+import { AudioClipInspector, AudioTrackLanes, type AudioClipHandlers } from './arrangement/AudioTrackLanes';
+import { audioFilesOf, useAudioImport } from './arrangement/useAudioImport';
 import { arrangementPlayhead } from '../arrangement/playhead';
 import { trackLoopLength, transportGrid, type SongMeter } from '../utils/songMeter';
 import { SONG_MODE_TRACKS } from '../utils/songModeEditing';
@@ -90,6 +102,10 @@ export const ArrangementView = memo(function ArrangementView({
     const [drag, setDrag] = useState<DragState | null>(null);
     const playheadRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [dropActive, setDropActive] = useState(false);
+    const audio = useValueStore(audioTrackStore);
+    const { status: importStatus, importFiles } = useAudioImport(onEdit, setSelectedId);
 
     const { stepsPerBar, stepsPerBeat } = transportGrid(meter);
     const pxPerStep = BAR_WIDTH[zoom] / stepsPerBar;
@@ -114,7 +130,7 @@ export const ArrangementView = memo(function ArrangementView({
         return arrangementPlayhead.subscribe(place);
     }, [pxPerStep]);
 
-    const commit = useCallback((id: string, patch: Partial<Omit<ArrangementClip, 'id'>>) => {
+    const commit = useCallback((id: string, patch: ClipPatch) => {
         onEdit((prev) => updateClip(prev, id, patch));
     }, [onEdit]);
 
@@ -139,6 +155,35 @@ export const ArrangementView = memo(function ArrangementView({
         for (const clip of arrangement.clips) if (clip.track === track) end = Math.max(end, clipEnd(clip));
         addClipAt(track, end);
     }, [addClipAt, arrangement.clips]);
+
+    // ---- audio files (#1629) ----
+
+    /** Song step under a pointer x (snapped like a drag), and the audio lane under it, if any. */
+    const dropTarget = useCallback((e: React.DragEvent<HTMLElement>): { step: number; track: AudioTrackKey | null } => {
+        const el = scrollRef.current;
+        const rect = el?.getBoundingClientRect();
+        const clientX = Number.isFinite(e.clientX) ? e.clientX : 0;
+        const x = (rect ? clientX - rect.left + el!.scrollLeft : 0) - HEADER_WIDTH;
+        const step = Math.max(0, Math.floor(x / pxPerStep / snap) * snap) || 0;
+        const lane = (e.target as HTMLElement | null)?.closest?.('[data-audio-track]')?.getAttribute('data-audio-track');
+        return { step, track: (lane as AudioTrackKey | null | undefined) ?? null };
+    }, [pxPerStep, snap]);
+
+    const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDropActive(true);
+    }, []);
+
+    const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        setDropActive(false);
+        const files = audioFilesOf(e.dataTransfer?.files);
+        if (files.length === 0) return;
+        e.preventDefault();
+        const { step, track } = dropTarget(e);
+        void importFiles(files, track, step);
+    }, [dropTarget, importFiles]);
 
     const removeSelected = useCallback(() => {
         if (!selectedId) return;
@@ -219,7 +264,7 @@ export const ArrangementView = memo(function ArrangementView({
             e.preventDefault();
             onEdit((prev) => removeClip(prev, clip.id));
             setSelectedId(null);
-        } else if (e.key === 'l' || e.key === 'L') {
+        } else if ((e.key === 'l' || e.key === 'L') && isPatternClip(clip)) {
             e.preventDefault();
             commit(clip.id, { loop: !clip.loop });
         } else if (e.key === 'Escape') {
@@ -229,16 +274,28 @@ export const ArrangementView = memo(function ArrangementView({
 
     // ---- render ----
 
-    const clipsByTrack = useMemo(() => {
-        const map = new Map<TrackKey, ArrangementClip[]>();
+    const { patternClips, audioClips } = useMemo(() => {
+        const pattern = new Map<string, PatternClip[]>();
+        const audioByTrack = new Map<string, AudioClip[]>();
         for (const clip of arrangement.clips) {
             const shown = drag?.id === clip.id ? drag.preview : clip;
-            const list = map.get(clip.track) ?? [];
-            list.push(shown);
-            map.set(clip.track, list);
+            if (isAudioClip(shown)) audioByTrack.set(shown.track, [...(audioByTrack.get(shown.track) ?? []), shown]);
+            else pattern.set(shown.track, [...(pattern.get(shown.track) ?? []), shown]);
         }
-        return map;
+        return { patternClips: pattern, audioClips: audioByTrack };
     }, [arrangement.clips, drag]);
+
+    const audioHandlers = useMemo<AudioClipHandlers>(() => ({
+        onPointerDown: onClipPointerDown,
+        onPointerMove: onClipPointerMove,
+        onPointerUp: onClipPointerUp,
+        onPointerCancel: () => setDrag(null),
+        onKeyDown: onClipKeyDown,
+        onFocus: setSelectedId,
+        onLanePointerDown: () => setSelectedId(null),
+        describe: (clip) => `at ${position(clip.startStep, stepsPerBar, stepsPerBeat)}, ${bars(clip.lengthSteps, stepsPerBar)}`,
+    }), [onClipKeyDown, onClipPointerDown, onClipPointerMove, onClipPointerUp, stepsPerBar, stepsPerBeat]);
+    const laneRows = SONG_MODE_TRACKS.length + audio.tracks.length + (audio.tracks.length < 8 ? 1 : 0);
 
     const btn = 'px-2.5 py-1 text-[10px] font-bold rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500';
     const idle = 'bg-zinc-800 text-gray-400 border-zinc-700 hover:bg-zinc-700 hover:text-gray-200';
@@ -283,6 +340,36 @@ export const ArrangementView = memo(function ArrangementView({
                 >
                     + BAR
                 </button>
+                <button
+                    type="button"
+                    aria-label="Add an audio track"
+                    onClick={() => audioTrackStore.set((prev) => addAudioTrack(prev).state)}
+                    disabled={audio.tracks.length >= 8}
+                    className={`${btn} ${idle} disabled:opacity-40`}
+                >
+                    + AUDIO
+                </button>
+                <button type="button" aria-label="Import audio files onto a new audio track" onClick={() => fileInputRef.current?.click()} className={`${btn} ${idle}`}>
+                    IMPORT
+                </button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*,.wav,.flac,.mp3,.ogg,.m4a,.aac"
+                    multiple
+                    hidden
+                    data-testid="arrangement-audio-input"
+                    onChange={(e) => {
+                        const files = audioFilesOf(e.target.files);
+                        e.target.value = '';
+                        void importFiles(files, null, 0);
+                    }}
+                />
+                {importStatus.kind !== 'idle' && (
+                    <span role="status" className={`font-mono text-[10px] ${importStatus.kind === 'error' ? 'text-red-400' : 'text-gray-400'}`}>
+                        {importStatus.text}
+                    </span>
+                )}
                 <div className="flex-1" />
                 <button type="button" onClick={onUndo} disabled={!canUndo} aria-label="Undo your last edit (Ctrl/Cmd+Z)" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">UNDO</span></button>
                 <button type="button" onClick={onRedo} disabled={!canRedo} aria-label="Redo your last undone edit (Ctrl/Cmd+Shift+Z)" className={`${btn} ${idle} disabled:opacity-40`}><span aria-hidden="true">REDO</span></button>
@@ -301,8 +388,14 @@ export const ArrangementView = memo(function ArrangementView({
                 </button>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-auto custom-scrollbar bg-[#0a0d10]">
-                <div className="relative" style={{ width: HEADER_WIDTH + laneWidth, height: RULER_HEIGHT + SONG_MODE_TRACKS.length * ROW_HEIGHT }}>
+            <div
+                ref={scrollRef}
+                className={`flex-1 overflow-auto custom-scrollbar bg-[#0a0d10] ${dropActive ? 'outline outline-2 outline-teal-400/60 -outline-offset-2' : ''}`}
+                onDragOver={onDragOver}
+                onDragLeave={() => setDropActive(false)}
+                onDrop={onDrop}
+            >
+                <div className="relative" style={{ width: HEADER_WIDTH + laneWidth, height: RULER_HEIGHT + laneRows * ROW_HEIGHT }}>
                     {/* Ruler */}
                     <div className="sticky top-0 z-20 flex h-[22px] bg-[#0d1014] border-b border-gray-800" style={{ width: HEADER_WIDTH + laneWidth }}>
                         <div className="sticky left-0 z-10 shrink-0 bg-[#0d1014] border-r border-gray-800" style={{ width: HEADER_WIDTH }} />
@@ -344,7 +437,7 @@ export const ArrangementView = memo(function ArrangementView({
                             >
                                 {/* Past the loop point */}
                                 <div className="absolute inset-y-0 right-0 bg-black/40 pointer-events-none" style={{ left: loopEnd * pxPerStep }} />
-                                {(clipsByTrack.get(row.key) ?? []).map((clip) => {
+                                {(patternClips.get(row.key) ?? []).map((clip) => {
                                     const patternLen = trackLoopLength(meter, clip.track);
                                     const isSelected = clip.id === selectedId;
                                     const width = Math.max(4, clip.lengthSteps * pxPerStep);
@@ -404,6 +497,21 @@ export const ArrangementView = memo(function ArrangementView({
                         </div>
                     ))}
 
+                    <AudioTrackLanes
+                        tracks={audio.tracks}
+                        media={audio.media}
+                        clipsByTrack={audioClips}
+                        selectedId={selectedId}
+                        rowHeight={ROW_HEIGHT}
+                        headerWidth={HEADER_WIDTH}
+                        laneWidth={laneWidth}
+                        pxPerStep={pxPerStep}
+                        barPx={stepsPerBar * pxPerStep}
+                        loopEnd={loopEnd}
+                        handlers={audioHandlers}
+                        importing={importStatus.kind === 'busy'}
+                    />
+
                     {/* Playhead */}
                     <div
                         ref={playheadRef}
@@ -416,7 +524,19 @@ export const ArrangementView = memo(function ArrangementView({
 
             {/* Selected clip inspector */}
             <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-t border-cyan-900/30 bg-[#0d1014] shrink-0 font-mono text-[10px] text-gray-400 min-h-[40px]">
-                {selected ? (
+                {selected && isAudioClip(selected) ? (
+                    <AudioClipInspector
+                        clip={selected}
+                        track={audio.tracks.find((t) => t.id === selected.track) ?? null}
+                        media={audio.media[selected.mediaId] ?? null}
+                        position={position(selected.startStep, stepsPerBar, stepsPerBeat)}
+                        onClipGain={(gainDb) => commit(selected.id, { gainDb })}
+                        onClipLength={(lengthSteps) => commit(selected.id, { lengthSteps })}
+                        onTrackStrip={(id, patch) => audioTrackStore.set((prev) => updateAudioTrack(prev, id, patch))}
+                        onDelete={removeSelected}
+                        buttonClass={btn}
+                    />
+                ) : selected ? (
                     <>
                         <span className="font-bold text-gray-200">
                             {SONG_MODE_TRACKS.find((r) => r.key === selected.track)?.label} @ {position(selected.startStep, stepsPerBar, stepsPerBeat)}
@@ -463,10 +583,10 @@ export const ArrangementView = memo(function ArrangementView({
                         </button>
                     </>
                 ) : (
-                    <span>Double-click a lane or press + to add a clip · drag to move · drag edges to trim · arrows move, Shift+arrows resize, L loop, Del delete</span>
+                    <span>Double-click a lane or press + to add a clip · drop an audio file to add an audio clip · drag to move · drag edges to trim · arrows move, Shift+arrows resize, L loop, Del delete</span>
                 )}
             </div>
-            {selected && <ClipLanePanel key={selected.id} clip={selected} onEdit={onEdit} />}
+            {selected && isPatternClip(selected) && <ClipLanePanel key={selected.id} clip={selected} onEdit={onEdit} />}
         </section>
     );
 });

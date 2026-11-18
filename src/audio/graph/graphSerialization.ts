@@ -56,6 +56,7 @@ const KNOWN_FACTORIES: ReadonlySet<string> = new Set<GraphNodeFactory>([
     'drumkitVoice',
     'samplerVoice',
     'harmonizerBus',
+    'audioTrackVoice',
 ]);
 
 const KNOWN_ROLES: ReadonlySet<string> = new Set<GraphNodeRole>([

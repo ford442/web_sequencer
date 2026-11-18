@@ -7,6 +7,7 @@ import { arrangementPlayhead } from '../../arrangement/playhead'
 import { transportPlayhead } from '../../sequencer/transportPlayhead'
 import type { MainSequencerHandle } from '../../components/MainSequencer'
 import type { SessionLaunchEngine } from '../../session/SessionLaunchEngine'
+import { audioClips } from '../../audio/audioTracks/audioClips'
 
 /**
  * What follows the scheduler's play state: the UI's `isPlaying`, the session
@@ -60,5 +61,6 @@ export function useTransportLifecycle(deps: {
         sessionEngineRef.current?.resetTransport();
         automationStore.clearLiveValues();
         automationSchedulerRef.current?.cancelAll();
+        audioClips.stopAll();
     }, [schedPlaying, songMeasureRef, setCurrentSongMeasure, isFirstStepRef, sessionEngineRef, sequencerRef, currentStepRef, automationSchedulerRef]);
 }

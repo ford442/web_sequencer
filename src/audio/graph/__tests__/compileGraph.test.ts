@@ -129,10 +129,14 @@ describe('CLASSIC_ELECTRIBE_GRAPH config', () => {
         ]);
     });
 
-    it('routes drums, sustain and the choir sum to masterDryInput (masterGain)', () => {
+    it('routes drums, sustain, the choir sum and the audio tracks to masterDryInput (masterGain)', () => {
         const dryEdges = CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.to === 'masterGain');
         const sources = dryEdges.map((e) => e.from).sort();
-        expect(sources).toEqual(['choirSum', 'drumkit', 'masterCompressor', 'samplerSustain']);
+        expect(sources).toEqual([
+            'audioTrack1', 'audioTrack2', 'audioTrack3', 'audioTrack4',
+            'audioTrack5', 'audioTrack6', 'audioTrack7', 'audioTrack8',
+            'choirSum', 'drumkit', 'masterCompressor', 'samplerSustain',
+        ]);
         const intoChoir = CLASSIC_ELECTRIBE_GRAPH.edges.filter((e) => e.to === 'choirSum');
         expect(intoChoir.map((e) => e.from).sort()).toEqual(['choirLeftPanner', 'choirRightPanner']);
     });

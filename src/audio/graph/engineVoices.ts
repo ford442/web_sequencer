@@ -27,7 +27,8 @@ export type EngineVoiceFactory =
     | 'macroVoice'
     | 'drumkitVoice'
     | 'samplerVoice'
-    | 'harmonizerBus';
+    | 'harmonizerBus'
+    | 'audioTrackVoice';
 
 export const ENGINE_VOICE_FACTORIES: ReadonlySet<GraphNodeFactory> = new Set<EngineVoiceFactory>([
     'open303Voice',
@@ -36,6 +37,7 @@ export const ENGINE_VOICE_FACTORIES: ReadonlySet<GraphNodeFactory> = new Set<Eng
     'drumkitVoice',
     'samplerVoice',
     'harmonizerBus',
+    'audioTrackVoice',
 ]);
 
 export function isEngineVoiceFactory(factory: string): factory is EngineVoiceFactory {

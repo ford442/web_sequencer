@@ -4,12 +4,13 @@
  */
 import { TRACK_KEYS } from '@/constants';
 import type { TrackKey } from '@/constants/appDefaults';
-import type { Arrangement, ArrangementClip } from '@/types/song';
+import type { Arrangement, PatternClip } from '@/types/song';
 import type { UnifiedAutomationLane } from '@/types/automation';
 import { trackLoopLength, type SongMeter } from '@/utils/songMeter';
-import { clipEnd } from './model';
+import { clipEnd, isPatternClip } from './model';
 
-type ClipIndex = Record<TrackKey, ArrangementClip[]>;
+/** Pattern clips per pattern track. Audio clips have their own index (`audioClips.ts`). */
+type ClipIndex = Record<TrackKey, PatternClip[]>;
 
 // Arrangements are immutable, so the per-track index is cached by identity.
 const indexCache = new WeakMap<Arrangement, ClipIndex>();
@@ -19,7 +20,7 @@ export function arrangementIndex(arrangement: Arrangement): ClipIndex {
     if (!index) {
         index = {} as ClipIndex;
         for (const key of TRACK_KEYS) index[key] = [];
-        for (const clip of arrangement.clips) index[clip.track].push(clip);
+        for (const clip of arrangement.clips) if (isPatternClip(clip)) index[clip.track].push(clip);
         for (const key of TRACK_KEYS) index[key].sort((a, b) => a.startStep - b.startStep);
         indexCache.set(arrangement, index);
     }
@@ -27,7 +28,7 @@ export function arrangementIndex(arrangement: Arrangement): ClipIndex {
 }
 
 /** Clip sounding on `track` at song step `pos`, or null (binary search). */
-export function clipAt(arrangement: Arrangement, track: TrackKey, pos: number): ArrangementClip | null {
+export function clipAt(arrangement: Arrangement, track: TrackKey, pos: number): PatternClip | null {
     const clips = arrangementIndex(arrangement)[track];
     let lo = 0;
     let hi = clips.length - 1;
@@ -51,7 +52,7 @@ export function clipAt(arrangement: Arrangement, track: TrackKey, pos: number): 
  * loops at the track's loop length (meter, not a hardcoded 32); a non-looping
  * clip plays it once.
  */
-export function clipLocalStep(clip: ArrangementClip, pos: number, loopLength: number): number {
+export function clipLocalStep(clip: PatternClip, pos: number, loopLength: number): number {
     const t = (clip.offsetSteps ?? 0) + (pos - clip.startStep);
     const len = Math.max(1, loopLength);
     if (clip.loop) return t % len;
@@ -100,13 +101,13 @@ export function resolveArrangementFrame(
 // ---------------------------------------------------------------------------
 
 // Clips are immutable values, so each clip's song-timeline lanes are built once.
-const songLaneCache = new WeakMap<ArrangementClip, UnifiedAutomationLane[]>();
+const songLaneCache = new WeakMap<PatternClip, UnifiedAutomationLane[]>();
 
 /**
  * A clip's lanes on the song timeline: points moved to `startStep + local`,
  * read at the song position (`timeline: 'song'`), in scope for every pattern.
  */
-export function clipLanesOnSongTimeline(clip: ArrangementClip): UnifiedAutomationLane[] {
+export function clipLanesOnSongTimeline(clip: PatternClip): UnifiedAutomationLane[] {
     let out = songLaneCache.get(clip);
     if (!out) {
         out = (clip.lanes ?? []).map((lane) => ({
@@ -124,9 +125,9 @@ export function clipLanesOnSongTimeline(clip: ArrangementClip): UnifiedAutomatio
 // One-entry memo: consecutive steps usually sit in the same clips, so the
 // layered list is rebuilt only when a clip boundary or the song lanes change.
 let memoSong: readonly UnifiedAutomationLane[] | null = null;
-let memoClips: ArrangementClip[] = [];
+let memoClips: PatternClip[] = [];
 let memoOut: UnifiedAutomationLane[] = [];
-const scratchClips: ArrangementClip[] = [];
+const scratchClips: PatternClip[] = [];
 
 /**
  * The lanes that play at `songStep`: the lanes of every clip sounding there,

@@ -9,7 +9,7 @@
  *
  *   patterns     pattern, trackStorage, activeTrackSlots, trackParamStorage
  *   tracks       params, noteFx
- *   mixer        tempo, swing, stepCount, timeSignature, trackLengths, ambianceUrl
+ *   mixer        tempo, swing, stepCount, timeSignature, trackLengths, ambianceUrl, audioTracks
  *   arrangement  arrangement, songStructure
  *   session      session
  *   automation   automationLanes, rbsTrakEvents
@@ -17,7 +17,8 @@
  *   wam2Slots    wam2
  *   lyrics       ttsPhrases (a slot array of `Y.Text`, so two people can type at once)
  *   meta         version, midiMappings, rbsLoopStart, rbsLoopEnd
- *   assets       embeddedSamples, backgroundImage (opaque strings — see ProjectStore)
+ *   assets       embeddedSamples, backgroundImage (opaque strings — see ProjectStore),
+ *                media (refs into the media store by hash, never the audio itself)
  *   extra        any field this table does not know yet (forward compatibility)
  *
  * The `doc` root map holds the document's own bookkeeping (`DOC_INFO_KEYS`).
@@ -80,6 +81,8 @@ export const SONG_FIELD_SUBSYSTEM: Readonly<Record<keyof SavedSongData, Exclude<
     wam2: 'wam2Slots',
     session: 'session',
     audioGraph: 'patchBay',
+    audioTracks: 'mixer',
+    media: 'assets',
 };
 
 /**

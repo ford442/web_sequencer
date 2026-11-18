@@ -13,14 +13,14 @@ import {
     updateClip,
 } from '../model';
 import { createEmptyMeasure } from '@/utils/songModeEditing';
-import type { Arrangement, ArrangementClip } from '@/types/song';
+import type { Arrangement, PatternClip } from '@/types/song';
 import type { SongMeasure } from '@/types/songMode';
 
 function measure(cells: Partial<SongMeasure>): SongMeasure {
     return { ...createEmptyMeasure(), ...cells };
 }
 
-function clip(partial: Partial<ArrangementClip> & Pick<ArrangementClip, 'id' | 'startStep' | 'lengthSteps'>): ArrangementClip {
+function clip(partial: Partial<PatternClip> & Pick<PatternClip, 'id' | 'startStep' | 'lengthSteps'>): PatternClip {
     return { track: 'kick', patternSlot: 0, loop: true, ...partial };
 }
 
@@ -35,7 +35,7 @@ describe('songStructureToArrangement (v1–v4 migration)', () => {
         const structure = [measure({ kick: 0, partA: 3 }), measure({}), measure({ kick: 1 })];
         const arr = songStructureToArrangement(structure, 32);
         expect(arr.lengthSteps).toBe(96);
-        expect(arr.clips.map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps, c.loop])).toEqual([
+        expect((arr.clips as PatternClip[]).map((c) => [c.track, c.patternSlot, c.startStep, c.lengthSteps, c.loop])).toEqual([
             ['partA', 3, 0, 32, true],
             ['kick', 0, 0, 32, true],
             ['kick', 1, 64, 32, true],
@@ -169,6 +169,6 @@ describe('normalizeArrangement', () => {
         })!;
         expect(kickSpans(arr)).toEqual([[0, 8, 0], [8, 16, 0]]);
         expect(new Set(arr.clips.map((c) => c.id)).size).toBe(2);
-        expect(arr.clips.every((c) => c.loop)).toBe(true);
+        expect((arr.clips as PatternClip[]).every((c) => c.loop)).toBe(true);
     });
 });

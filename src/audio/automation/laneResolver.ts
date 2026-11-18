@@ -350,7 +350,7 @@ export function resolveLaneTimeline(
   timeline: LaneTimeline,
 ): ResolvedLaneValue[][] {
   const out: ResolvedLaneValue[][] = [];
-  const hasClipLanes = timeline.songMode && !!timeline.arrangement?.clips.some((c) => c.lanes?.length);
+  const hasClipLanes = timeline.songMode && !!timeline.arrangement?.clips.some((c) => c.kind !== 'audio' && c.lanes?.length);
   if (lanes.length === 0 && !hasClipLanes) {
     for (let g = 0; g < timeline.totalSteps; g++) out.push([]);
     return out;

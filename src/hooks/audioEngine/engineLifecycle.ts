@@ -25,6 +25,7 @@ import { loadingProgressStore } from '../../stores/loadingProgressStore';
 import { startGlitchMonitor, stopGlitchMonitor } from '../../utils/workletPerfBridge';
 import { buildClassicElectribeGraph } from '../../audio/graph';
 import { findEngineVoice } from '../../audio/graph/engineVoices';
+import { audioClips } from '../../audio/audioTracks/audioClips';
 import {
     PatchController,
     buildPreset,
@@ -450,6 +451,10 @@ export async function initializeAudioContextAndEngines(
         }
     }
 
+    // Audio clips (#1629): the player plugs into the patch's audio track sockets
+    // and builds its worklet once the song has an audio clip.
+    audioClips.attach(context, graph);
+
     return { context, masterBusInput };
 }
 
@@ -478,6 +483,7 @@ export async function teardownAudioEngine(
     safely('prophecy', () => refs.prophecyManagerRef.current?.cleanup());
     safely('macro', () => refs.macroManagerRef.current?.cleanup());
     safely('drumkit', () => refs.drumKitEngineRef.current?.dispose());
+    safely('audioClips', () => audioClips.detach());
     safely('sustain', () => {
         const node = refs.sustainNodeRef.current;
         if (node) {

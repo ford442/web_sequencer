@@ -33,7 +33,7 @@ import type {
   TrackKey,
   UnifiedAutomationLane,
 } from '../../types';
-import type { ArrangementClip } from '../../types/song';
+import type { PatternClip } from '../../types/song';
 import type { SongStructure } from '../../types/songMode';
 import { TRACK_KEYS } from '../../constants';
 import { normalizeArrangement, projectArrangement, songStructureToArrangement } from '../../arrangement/model';
@@ -323,7 +323,7 @@ function samplerEntry(song: SavedSongData, bank: number, steps: AINoteEvent[], w
 }
 
 /** A clip one Song Mode cell maps back to, and nothing more. */
-function isGridClip(clip: ArrangementClip, spm: number): boolean {
+function isGridClip(clip: PatternClip, spm: number): boolean {
   const aligned = clip.startStep % spm === 0 && clip.lengthSteps % spm === 0 && (clip.offsetSteps ?? 0) === 0;
   return aligned && (clip.loop || clip.lengthSteps === spm);
 }
@@ -335,6 +335,10 @@ function songRows(song: SavedSongData, steps: number, ex: Exporter): SongStructu
   if (arrangement.clips.length === 0) return [];
   arrangement.clips.forEach((clip) => {
     const where = `arrangement ${clip.track} clip ${clip.id}`;
+    if (clip.kind === 'audio') {
+      ex.lose(where, 'audio clips are not in the AI format');
+      return;
+    }
     if (!isGridClip(clip, steps)) ex.lose(where, 'trimmed, offset or one-shot clip — exported as the Song Mode measure it covers most of');
     if (clip.lanes?.length) ex.lose(where, 'clip automation lanes are not in the AI format');
   });

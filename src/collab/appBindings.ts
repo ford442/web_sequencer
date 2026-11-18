@@ -7,6 +7,7 @@
  *   tempo, swing, stepCount, timeSignature, trackLengths, ambianceUrl
  *                      transportMixStore (the mixer subsystem)
  *   arrangement, songStructure   arrangementStore (songStructure is its projection)
+ *   audioTracks, media           audioTrackStore (#1629)
  *   session            sessionDocumentStore
  *   automationLanes    automationStore
  *   noteFx             noteFxStore
@@ -28,6 +29,8 @@ import { instrumentStore, type InstrumentParams } from '@/stores/instrumentStore
 import { samplerBanksStore } from '@/stores/samplerBanksStore';
 import { transportMixStore } from '@/stores/transportMixStore';
 import { arrangementStore, sessionDocumentStore } from '@/stores/songRecordStore';
+import { audioTrackStore } from '@/stores/audioTrackStore';
+import { audioTrackStateOf, type AudioTrackState } from '@/arrangement/audioTracks';
 import { automationStore } from '@/stores/automationStore';
 import { noteFxStore } from '@/stores/noteFxStore';
 import { NOTE_FX_TRACKS } from '@/sequencer/noteFx/types';
@@ -170,6 +173,24 @@ const arrangementBinding: DocBinding = {
     },
 };
 
+// Empty values are absent, as the save format writes them.
+const audioTracksRead = memoByKey((s: AudioTrackState): SongFieldValues => ({
+    audioTracks: s.tracks.length > 0 ? s.tracks : undefined,
+    media: Object.keys(s.media).length > 0 ? s.media : undefined,
+}));
+
+const audioTracksBinding: DocBinding = {
+    name: 'audioTracks',
+    fields: ['audioTracks', 'media'],
+    subscribe: audioTrackStore.subscribe,
+    version: audioTrackStore.getSnapshot,
+    read: () => audioTracksRead(audioTrackStore.getSnapshot()),
+    apply(values) {
+        // Runs after the arrangement binding, so every audio clip's track exists.
+        audioTrackStore.set(audioTrackStateOf(values, arrangementStore.getSnapshot()));
+    },
+};
+
 const sessionBinding: DocBinding = {
     name: 'session',
     fields: ['session'],
@@ -251,6 +272,7 @@ export function createAppBindings(): DocBinding[] {
         samplerBanksBinding,
         mixerBinding,
         arrangementBinding,
+        audioTracksBinding,
         sessionBinding,
         automationBinding,
         noteFxBinding,

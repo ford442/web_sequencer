@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createArrangement, placeClip } from '../model';
 import { clipAt, clipLocalStep, createArrangementFrame, resolveArrangementFrame } from '../playback';
-import type { ArrangementClip } from '@/types/song';
+import type { PatternClip } from '@/types/song';
 
-function clip(partial: Partial<ArrangementClip> & Pick<ArrangementClip, 'id' | 'startStep' | 'lengthSteps'>): ArrangementClip {
+function clip(partial: Partial<PatternClip> & Pick<PatternClip, 'id' | 'startStep' | 'lengthSteps'>): PatternClip {
     return { track: 'kick', patternSlot: 0, loop: true, ...partial };
 }
 

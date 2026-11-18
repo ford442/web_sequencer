@@ -13,6 +13,7 @@ import type {
 import type { MainSequencerHandle } from '../components/MainSequencer';
 import type { TrackKey } from '../constants/appDefaults';
 import { noteToMidi, midiToNote, tunedNoteToFrequency, swingPercentToClock } from '../utils/musicTheory';
+import { applyInversion } from '../sequencer/chordInversion';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { EMPTY_SEQ, EMPTY_SAMPLER_SEQUENCE } from '../constants/appDefaults';
 import { TRACK_KEYS } from '../constants';
@@ -74,10 +75,9 @@ import { noteFxEventsForStep } from '../sequencer/noteFx/runtime';
 import type { FxNoteEvent, NoteFxTrack } from '../sequencer/noteFx/types';
 import { MACRO_AUTOMATION_PARAMS, MACRO_AUTOMATION_TARGETS, macroControlValue } from '../engines/MacroParams';
 import { liveProject } from '../collab/liveProject';
+import { audioClips } from '../audio/audioTracks/audioClips';
 
 // Module-level scratch buffers for single-threaded main-thread use to avoid GC on hot path
-const _midiScratch: number[] = [];
-const _noteScratch: string[] = [];
 const _liveValuesKeys: string[] = [];
 const _liveValuesScratch: Record<string, number> = {};
 const _continuousSamplerParams = new Set([
@@ -87,52 +87,6 @@ const _continuousSamplerParams = new Set([
 const _schedulerLanesScratch: UnifiedAutomationLane[] = [];
 const _bankParamsScratch: Partial<SamplerBankParams> = {};
 const _chordScratch: string[] = [];
-
-function applyInversion(notes: string | string[], inversionVal: number): string | string[] {
-    const isArray = Array.isArray(notes);
-    const len = isArray ? (notes).length : 1;
-    if (len <= 1) return notes;
-
-    // Cheap exit before any parsing: the voices that sound are at most `len`,
-    // so no fewer inversions than this can come out of the count below.
-    if (Math.round(inversionVal * (len - 1)) === 0) return notes;
-
-    // Fill + convert in one pass (no .map allocation). Names that do not
-    // parse never sound, so they drop out of the voicing.
-    let count = 0;
-    _midiScratch.length = len;
-    for (let i = 0; i < len; i++) {
-        const midi = noteToMidi((notes as string[])[i]);
-        if (midi !== null) _midiScratch[count++] = midi;
-    }
-    _midiScratch.length = count;
-    if (count <= 1) return notes;
-
-    // An inversion count is a share of the voices that sound: a chord of three
-    // names with one that does not parse has one inversion to give, not two
-    // (two would lift both voices an octave — a transposition, not an inversion).
-    const numInversions = Math.round(inversionVal * (count - 1));
-    if (numInversions === 0) return notes;
-
-    // Sort ascending in place
-    _midiScratch.sort((a, b) => a - b);
-
-    // Rotate without shift() — O(n) total instead of O(n²)
-    for (let inv = 0; inv < numInversions; inv++) {
-        const lowest = _midiScratch[0];
-        for (let i = 0; i < count - 1; i++) {
-            _midiScratch[i] = _midiScratch[i + 1];
-        }
-        _midiScratch[count - 1] = lowest + 12;
-    }
-
-    // Convert back — return a fresh array so callers can keep it
-    _noteScratch.length = count;
-    for (let i = 0; i < count; i++) {
-        _noteScratch[i] = midiToNote(_midiScratch[i]);
-    }
-    return _noteScratch;
-}
 
 export interface UseStepHandlerOptions {
     audioEngine: AudioEngine | null;
@@ -399,6 +353,7 @@ export const useStepHandler = ({
             songPosRef.current = pos;
             songPosAbsRef.current = absStep;
             atStepTime(() => arrangementPlayhead.publish(pos));
+            audioClips.onSongStep(arrangement, pos, time, absStep, tempo); // audio clips (#1629)
 
             const measure = Math.floor(pos / spm);
             if (measure !== songMeasureRef.current) {
@@ -474,8 +429,9 @@ export const useStepHandler = ({
             }
         }
 
-        // Off the linear player (pattern / session): the timeline playhead hides.
+        // Off the linear player (pattern / session): the timeline playhead hides, audio clips stop.
         if (!arrangementSteps && arrangementPlayhead.get() >= 0) atStepTime(() => arrangementPlayhead.publish(-1));
+        if (!arrangementSteps) audioClips.offSong(time);
 
         // Song position song-timeline lanes are read at (linear player only).
         const laneSongStep = arrangementSteps ? songPosRef.current : undefined;

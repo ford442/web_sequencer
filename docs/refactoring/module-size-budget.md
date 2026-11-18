@@ -99,7 +99,7 @@ and a shrunk file to prove the ratchet bites both ways.
 | 822 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
 | 1120 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
 | 906 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
-| 970 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
+| 926 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
 | 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
 | 723 | `src/components/WaveformDisplay.tsx` | un-triaged |
 | 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |

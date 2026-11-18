@@ -120,7 +120,7 @@ export function resolveMasterPcfTimeline(
   startTime = 0,
 ): PcfTimelineEvent[] {
   if (!lanes.some((l) => l.target === 'master' && PCF_PARAMETERS.has(l.parameter))
-    && !timeline.arrangement?.clips.some((c) => c.lanes?.some((l) => l.target === 'master'))) {
+    && !timeline.arrangement?.clips.some((c) => c.kind !== 'audio' && c.lanes?.some((l) => l.target === 'master'))) {
     return [];
   }
   const resolved = resolveLaneTimeline(lanes, timeline);

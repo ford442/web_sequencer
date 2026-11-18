@@ -38,8 +38,8 @@ describe('trackStorageUtils', () => {
     expect(slots.snare).toBe(0);
   });
 
-  it('exports schema version 5 (session launcher + song meter + arrangement)', () => {
-    expect(SAVED_SONG_DATA_VERSION).toBe(5);
+  it('exports schema version 6 (session launcher + song meter + arrangement + audio clips)', () => {
+    expect(SAVED_SONG_DATA_VERSION).toBe(6);
     expect(MAX_TRACK_PATTERN_SLOTS).toBe(32);
   });
 });

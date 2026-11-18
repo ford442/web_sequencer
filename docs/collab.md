@@ -50,7 +50,7 @@ Yjs-free `updateLog.ts`.
 |----------|--------------------------------------|
 | `patterns` | `pattern`, `trackStorage`, `activeTrackSlots`, `trackParamStorage` |
 | `tracks` | `params`, `noteFx` |
-| `mixer` | `tempo`, `swing`, `stepCount`, `timeSignature`, `trackLengths`, `ambianceUrl` (what `transportMixStore` owns) |
+| `mixer` | `tempo`, `swing`, `stepCount`, `timeSignature`, `trackLengths`, `ambianceUrl` (what `transportMixStore` owns), `audioTracks` (`audioTrackStore`, #1629) |
 | `arrangement` | `arrangement`, `songStructure` |
 | `session` | `session` |
 | `automation` | `automationLanes`, `rbsTrakEvents` |
@@ -58,7 +58,7 @@ Yjs-free `updateLog.ts`.
 | `wam2Slots` | `wam2` |
 | `lyrics` | `ttsPhrases` — a slot array of `Y.Text`, so two people can type one phrase |
 | `meta` | `version`, `midiMappings`, `rbsLoopStart`, `rbsLoopEnd` |
-| `assets` | `embeddedSamples`, `backgroundImage` (opaque strings; see Persistence) |
+| `assets` | `embeddedSamples`, `backgroundImage` (opaque strings; see Persistence), `media` (refs into the media store by hash, bound with `audioTracks`) |
 | `extra` | any top-level field the table does not know yet |
 | `doc` | bookkeeping: `version` (`PROJECT_DOC_VERSION`), `keyOrder` |
 
@@ -125,8 +125,9 @@ undone.
   (`useSongStorage/save.ts`). In a session, the app loads from the document.
 - **Blobs stay out of the doc.** Sample banks and the background image remain content-addressed
   files; the doc holds the song without them (`loadProjectSnapshot`). The codec still carries them
-  (the `assets` map) so it is lossless on its own; blob refs in the doc come with the audio tracks
-  epic.
+  (the `assets` map) so it is lossless on its own. Audio clips' media is referenced by hash
+  (`media`, #1629; see [audio-tracks.md](audio-tracks.md)): the doc holds the reference, the media
+  store the audio.
 - **Locking.** Log writes are read-modify-write under a per-project lock: a Web Lock
   (`hyphon-project:<id>`) across tabs where the browser has them, and a promise chain within a page.
 - **Compaction.** A session rewrites the log as one frame holding the whole merged doc once peers

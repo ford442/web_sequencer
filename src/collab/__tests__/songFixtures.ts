@@ -150,7 +150,7 @@ export function kitchenSinkSong(base: SavedSongData): SavedSongData {
     });
     return {
         ...base,
-        version: 5,
+        version: 6,
         swing: 58,
         stepCount: 32,
         timeSignature: [7, 8],
@@ -174,8 +174,27 @@ export function kitchenSinkSong(base: SavedSongData): SavedSongData {
                     offsetSteps: 4,
                     lanes: [lane('clip-lane')] as NonNullable<SavedSongData['automationLanes']>,
                 },
+                {
+                    kind: 'audio',
+                    id: 'clip-3',
+                    track: 'audio-2',
+                    mediaId: 'ab'.repeat(32),
+                    startStep: 16,
+                    lengthSteps: 40,
+                    offsetSteps: 2,
+                    offsetFrames: 1234,
+                    gainDb: -3.5,
+                    fadeInFrames: 480,
+                    warp: 'off',
+                    sourceBpm: 96,
+                },
             ],
         },
+        audioTracks: [
+            { id: 'audio-1', name: 'Vox', gainDb: 0, pan: 0 },
+            { id: 'audio-2', name: 'Gtr ünïcödé', gainDb: -6, pan: -0.25 },
+        ],
+        media: { ['ab'.repeat(32)]: { name: 'gtr take 3.wav', sampleRate: 44100, channels: 2, frames: 441000 } },
         session: createDefaultSessionDocument(),
         audioGraph: { schemaVersion: 1, presetId: 'classic-electribe' },
         pcfFilter: {

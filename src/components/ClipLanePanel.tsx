@@ -8,7 +8,7 @@
  * a head trim shifts their origin (`updateClip`).
  */
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import type { Arrangement, ArrangementClip, AutomationLanePoint, UnifiedAutomationLane } from '../types';
+import type { Arrangement, AutomationLanePoint, PatternClip, UnifiedAutomationLane } from '../types';
 import { setClipLanes } from '../arrangement/model';
 import { CLIP_LANE_TARGET } from '../arrangement/clipLanes';
 import { generateLaneId } from '../stores/automationStore';
@@ -38,8 +38,14 @@ const CLIP_LANE_PARAMS: Partial<Record<UnifiedAutomationLane['target'], Readonly
 };
 CLIP_LANE_PARAMS.synthB = CLIP_LANE_PARAMS.synthA;
 
+/** The lanes of pattern clip `id` in `arrangement` (none for an audio clip). */
+function lanesOf(arrangement: Arrangement, id: string): UnifiedAutomationLane[] {
+    const clip = arrangement.clips.find((c) => c.id === id);
+    return clip && clip.kind !== 'audio' ? clip.lanes ?? [] : [];
+}
+
 export interface ClipLanePanelProps {
-    clip: ArrangementClip;
+    clip: PatternClip;
     onEdit: (updater: (prev: Arrangement) => Arrangement) => void;
 }
 
@@ -68,12 +74,12 @@ export const ClipLanePanel = memo(function ClipLanePanel({ clip, onEdit }: ClipL
             scope: 'song',
             enabled: true,
         };
-        onEdit((prev) => setClipLanes(prev, clip.id, [...(prev.clips.find((c) => c.id === clip.id)?.lanes ?? []), next]));
+        onEdit((prev) => setClipLanes(prev, clip.id, [...lanesOf(prev, clip.id), next]));
         setSelectedLaneId(next.id);
     }, [clip.id, lanes, onEdit, param, params, target]);
 
     const removeLane = useCallback((id: string) => {
-        onEdit((prev) => setClipLanes(prev, clip.id, (prev.clips.find((c) => c.id === clip.id)?.lanes ?? []).filter((l) => l.id !== id)));
+        onEdit((prev) => setClipLanes(prev, clip.id, lanesOf(prev, clip.id).filter((l) => l.id !== id)));
     }, [clip.id, onEdit]);
 
     const changePoints = useCallback((points: AutomationLanePoint[]) => {
@@ -81,7 +87,7 @@ export const ClipLanePanel = memo(function ClipLanePanel({ clip, onEdit }: ClipL
         onEdit((prev) => setClipLanes(
             prev,
             clip.id,
-            (prev.clips.find((c) => c.id === clip.id)?.lanes ?? []).map((l) => (l.id === lane.id ? { ...l, points } : l)),
+            lanesOf(prev, clip.id).map((l) => (l.id === lane.id ? { ...l, points } : l)),
         ));
     }, [clip.id, lane, onEdit]);
 
