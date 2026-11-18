@@ -59,7 +59,9 @@ interface AudioClip {
 
 `audioTrackStore` (`src/stores/audioTrackStore.ts`) is bound like the other
 stores (`appBindings.ts`), so an import is one undo step ("import vox.wav"),
-and two tabs importing different files both keep theirs. The media table holds
+and two tabs importing different files both keep theirs. Strip and clip edits
+are named steps too: "Audio 1: Fader 0 dB → -6 dB", "Clip gain 0 dB → -3 dB",
+"split clip" (`collab/editLabels.ts`). The media table holds
 references by hash, not blobs. Peers on one origin share the media store.
 
 ## Media store

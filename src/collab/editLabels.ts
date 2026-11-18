@@ -198,29 +198,90 @@ function clipsById(arrangement: Json): Map<string, Obj> {
     return out;
 }
 
+/** The one key `prev` and `next` differ in, as `[key, from, to]`; null when none or several. */
+function soleChange(prev: Obj, next: Obj): [string, Json, Json] | null {
+    const keys = [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((key) => !same(prev[key], next[key]));
+    return keys.length === 1 ? [keys[0], prev[keys[0]], next[keys[0]]] : null;
+}
+
+const dB = (value: Json) => `${formatValue(value)} dB`;
+
+function describeClipEdit(prev: Obj, next: Obj): string {
+    const change = soleChange(prev, next);
+    if (change?.[0] === 'gainDb') return `Clip gain ${dB(change[1])} → ${dB(change[2])}`;
+    if (change?.[0] === 'fadeInFrames' || change?.[0] === 'fadeOutFrames') return 'edit clip fades';
+    return 'edit clip';
+}
+
+const clipEnd = (clip: Obj) => Number(clip.startStep) + Number(clip.lengthSteps);
+
 function describeArrangement(before: Json, after: Json): string | null {
     const a = clipsById(before);
     const b = clipsById(after);
-    const added = [...b.keys()].filter((id) => !a.has(id)).length;
+    const added = [...b.keys()].filter((id) => !a.has(id));
     const removed = [...a.keys()].filter((id) => !b.has(id)).length;
-    let moved = 0;
-    let resized = 0;
-    let edited = 0;
+    const moved: string[] = [];
+    const resized: string[] = [];
+    const edited: string[] = [];
     for (const [id, next] of b) {
         const prev = a.get(id);
         if (!prev || prev === next || same(prev, next)) continue;
-        if (prev.startStep !== next.startStep || prev.track !== next.track) moved++;
-        else if (prev.lengthSteps !== next.lengthSteps || prev.offsetSteps !== next.offsetSteps) resized++;
-        else edited++;
+        // A head trim moves the start too, but keeps the end: it is a resize.
+        if (prev.track !== next.track || (prev.startStep !== next.startStep && prev.lengthSteps === next.lengthSteps)) moved.push(id);
+        else if (prev.startStep !== next.startStep || prev.lengthSteps !== next.lengthSteps || prev.offsetSteps !== next.offsetSteps) resized.push(id);
+        else edited.push(id);
     }
-    const kinds = [added, removed, moved, resized, edited].filter((n) => n > 0).length;
+    const counts = [added.length, removed, moved.length, resized.length, edited.length];
+    const kinds = counts.filter((n) => n > 0).length;
     if (kinds === 0) return same(before, after) ? null : 'edit arrangement';
-    if (kinds > 1) return `edit ${plural(added + removed + moved + resized + edited, 'clip')}`;
-    if (added) return added === 1 ? 'add clip' : `add ${added} clips`;
+    if (kinds === 2 && added.length === 1 && resized.length === 1) {
+        // A split: the left part is shortened and the right part starts where it now ends.
+        const left = b.get(resized[0])!;
+        const right = b.get(added[0])!;
+        if (left.track === right.track && clipEnd(left) === right.startStep) return 'split clip';
+    }
+    if (kinds > 1) return `edit ${plural(counts.reduce((sum, n) => sum + n, 0), 'clip')}`;
+    if (added.length) return added.length === 1 ? 'add clip' : `add ${added.length} clips`;
     if (removed) return removed === 1 ? 'delete clip' : `delete ${removed} clips`;
-    if (moved) return moved === 1 ? 'move clip' : `move ${moved} clips`;
-    if (resized) return resized === 1 ? 'resize clip' : `resize ${resized} clips`;
-    return edited === 1 ? 'edit clip' : `edit ${edited} clips`;
+    if (moved.length) return moved.length === 1 ? 'move clip' : `move ${moved.length} clips`;
+    if (resized.length) return resized.length === 1 ? 'resize clip' : `resize ${resized.length} clips`;
+    return edited.length === 1 ? describeClipEdit(a.get(edited[0])!, b.get(edited[0])!) : `edit ${edited.length} clips`;
+}
+
+function tracksById(tracks: Json): Map<string, Obj> {
+    const out = new Map<string, Obj>();
+    for (const track of Array.isArray(tracks) ? tracks : []) if (isObj(track) && typeof track.id === 'string') out.set(track.id, track);
+    return out;
+}
+
+const trackName = (track: Obj) => (typeof track.name === 'string' && track.name ? track.name : String(track.id));
+
+const AUDIO_STRIP_NAMES: Record<string, string> = { gainDb: 'Fader', pan: 'Pan' };
+
+/** Audio tracks (#1629): "add Audio 1", "Audio 1: Fader 0 dB → -6 dB", "rename Audio 1 → Vox". */
+function describeAudioTracks(before: Json, after: Json): string | null {
+    const a = tracksById(before);
+    const b = tracksById(after);
+    const added = [...b.values()].filter((t) => !a.has(t.id as string));
+    const removed = [...a.values()].filter((t) => !b.has(t.id as string));
+    const changed = [...b.values()].filter((t) => a.has(t.id as string) && !same(a.get(t.id as string), t));
+    const total = added.length + removed.length + changed.length;
+    if (total === 0) return null;
+    if (total > 1) {
+        if (added.length === total) return `add ${added.length} audio tracks`;
+        if (removed.length === total) return `remove ${removed.length} audio tracks`;
+        return `edit ${plural(total, 'audio track')}`;
+    }
+    if (added.length) return `add ${trackName(added[0])}`;
+    if (removed.length) return `remove ${trackName(removed[0])}`;
+    const next = changed[0];
+    const prev = a.get(next.id as string)!;
+    const change = soleChange(prev, next);
+    if (!change) return `edit ${trackName(next)}`;
+    const [key, from, to] = change;
+    if (key === 'name') return `rename ${trackName(prev)} → ${trackName(next)}`;
+    const value = key === 'gainDb' ? dB : formatValue;
+    return `${trackName(next)}: ${AUDIO_STRIP_NAMES[key] ?? humanizeKey(key)} ${value(from)} → ${value(to)}`;
 }
 
 /** Field order of precedence: the first one that changed names the step. */
@@ -228,6 +289,7 @@ const DESCRIBERS: Array<[SongField, (before: Json, after: Json) => string | null
     ['pattern', describePattern],
     ['params', describeParams],
     ['arrangement', describeArrangement],
+    ['audioTracks', describeAudioTracks],
     ['automationLanes', (a, b) => (same(a ?? [], b ?? []) ? null : 'edit automation')],
     ['session', (a, b) => (same(a, b) ? null : 'edit session')],
     ['audioGraph', (a, b) => (same(a, b) ? null : 'edit patch')],

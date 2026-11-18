@@ -1,8 +1,8 @@
 /**
  * The app's real stores bound to the project doc (#1597 P2): an edit in each
  * bound domain — pattern, knobs, mixer, track storage, automation,
- * arrangement, session, note FX, patch bay — lands in the doc as one labelled
- * human step, and undo / redo put the store back.
+ * arrangement, audio tracks, session, note FX, patch bay — lands in the doc as
+ * one labelled human step, and undo / redo put the store back.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { liveProject } from '../liveProject';
@@ -13,6 +13,8 @@ import { instrumentStore } from '@/stores/instrumentStore';
 import { samplerBanksStore } from '@/stores/samplerBanksStore';
 import { transportMixStore } from '@/stores/transportMixStore';
 import { arrangementStore, sessionDocumentStore } from '@/stores/songRecordStore';
+import { audioTrackStore } from '@/stores/audioTrackStore';
+import { addAudioTrack, updateAudioTrack } from '@/arrangement/audioTracks';
 import { automationStore } from '@/stores/automationStore';
 import { noteFxStore } from '@/stores/noteFxStore';
 import { defaultNoteFxChain } from '@/sequencer/noteFx/types';
@@ -25,6 +27,7 @@ function resetStores(): void {
     instrumentStore.reset();
     transportMixStore.reset();
     arrangementStore.reset();
+    audioTrackStore.reset();
     sessionDocumentStore.reset();
     automationStore.reset();
     noteFxStore.reset();
@@ -108,6 +111,12 @@ describe('app bindings: every bound domain is undoable', () => {
             label: /^add clip$/,
         },
         {
+            name: 'audio tracks',
+            read: () => audioTrackStore.getSnapshot().tracks.length,
+            write: () => audioTrackStore.set((s) => addAudioTrack(s).state),
+            label: /^add Audio 1$/,
+        },
+        {
             name: 'session',
             read: () => sessionDocumentStore.getSnapshot().quantization,
             write: () => sessionDocumentStore.set((d) => ({ ...d, quantization: d.quantization === 'bar' ? 'beat' : 'bar' })),
@@ -143,6 +152,19 @@ describe('app bindings: every bound domain is undoable', () => {
             expect(c.read()).toEqual(after);
         });
     }
+});
+
+describe('app bindings: audio track strips', () => {
+    it('a fader move is one step named after the track, and undo puts it back', () => {
+        liveProject.edit('load', () => audioTrackStore.set((s) => addAudioTrack(s).state));
+        liveProject.beginGesture();
+        audioTrackStore.set((s) => updateAudioTrack(s, 'audio-1', { gainDb: -3 }));
+        audioTrackStore.set((s) => updateAudioTrack(s, 'audio-1', { gainDb: -6 }));
+        expect(labels()).toEqual(['Audio 1: Fader 0 dB → -6 dB']);
+        expect(liveProject.readField('audioTracks')).toEqual([{ id: 'audio-1', name: 'Audio 1', gainDb: -6, pan: 0 }]);
+        expect(liveProject.undo()).toBe(true);
+        expect(audioTrackStore.getSnapshot().tracks[0].gainDb).toBe(0);
+    });
 });
 
 describe('app bindings: the save format', () => {
