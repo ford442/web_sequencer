@@ -163,7 +163,8 @@ class IdbBackend implements ProjectFileBackend {
         const keys = await this.runRequest('readonly', (store) => store.getAllKeys(range));
         const names = new Set<string>();
         for (const key of keys) {
-            const seg = String(key).slice(prefix.length).split('/')[0];
+            if (typeof key !== 'string') continue;
+            const seg = key.slice(prefix.length).split('/')[0];
             if (seg) names.add(seg);
         }
         return [...names];

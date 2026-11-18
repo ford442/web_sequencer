@@ -34,6 +34,13 @@ export interface AudioContextProbeRequest {
   extras?: AudioContextCreateExtras;
 }
 
+/** `context.sinkId` as a string: Chromium reports a string, or an AudioSinkInfo object for `{ type: 'none' }`. */
+function describeSinkId(sink: unknown): string {
+  if (typeof sink === 'string') return sink;
+  if (sink && typeof sink === 'object') return 'none';
+  return typeof sink === 'number' || typeof sink === 'boolean' ? String(sink) : '';
+}
+
 /**
  * Construct + resume synchronously (callers invoke this from a real click
  * listener); only the resume promise is awaited afterwards.
@@ -46,10 +53,7 @@ export async function probeAudioContext(req: AudioContextProbeRequest): Promise<
 
   const withMembers = ctx as AudioContext & { sinkId?: unknown; renderQuantumSize?: unknown };
   const sink = withMembers.sinkId;
-  // Chromium reports a string, or an AudioSinkInfo object for `{ type: 'none' }`.
-  const contextSinkId = 'sinkId' in ctx
-    ? (typeof sink === 'string' ? sink : sink && typeof sink === 'object' ? 'none' : String(sink ?? ''))
-    : null;
+  const contextSinkId = 'sinkId' in ctx ? describeSinkId(sink) : null;
 
   await resumed;
   return {
@@ -71,6 +75,6 @@ export async function probeAudioContext(req: AudioContextProbeRequest): Promise<
 
 export async function closeProbeContexts(): Promise<number> {
   const all = opened.splice(0);
-  await Promise.all(all.map((c) => (c.state === 'closed' ? undefined : c.close().catch(() => undefined))));
+  await Promise.all(all.map((c) => (c.state === 'closed' ? Promise.resolve() : c.close().catch(() => undefined))));
   return all.length;
 }
