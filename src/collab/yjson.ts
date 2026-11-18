@@ -43,6 +43,12 @@ export type ShapeRules = (path: JsonPath) => ShapeKind;
 
 /** Keys that start with this are reserved for the representation itself. */
 const RESERVED_PREFIX = '\u0001';
+/**
+ * An own `__proto__` key inside an atom, as stored. Yjs decodes an atom object
+ * with `obj[key] = value`, so a raw `__proto__` would swap the decoded
+ * object's prototype on every peer that receives it and the key would be gone.
+ */
+const STORED_PROTO_KEY = `${RESERVED_PREFIX}__proto__`;
 /** Length register of a `'slots'` map. */
 const SLOTS_LENGTH_KEY = `${RESERVED_PREFIX}len`;
 /** Fields that give a list element its identity, in order of preference. */
@@ -102,6 +108,42 @@ function childPath(path: JsonPath, key: string | number): string[] {
     return [...path, String(key)];
 }
 
+function needsAtomEscape(value: Json): boolean {
+    if (value === null || typeof value !== 'object') return false;
+    if (Array.isArray(value)) return value.some(needsAtomEscape);
+    return Object.entries(value).some(([key, item]) =>
+        key === '__proto__' || key.startsWith(RESERVED_PREFIX) || needsAtomEscape(item));
+}
+
+function escapeAtomKeys(value: Json): Json {
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(escapeAtomKeys);
+    const out: JsonObject = {};
+    for (const [key, item] of Object.entries(value)) {
+        out[key === '__proto__' ? STORED_PROTO_KEY : escapeKey(key)] = escapeAtomKeys(item);
+    }
+    return out;
+}
+
+/**
+ * The data key for a key stored inside an atom. Atoms written before keys
+ * were escaped hold their keys raw; any key that is not an escape reads as
+ * itself.
+ */
+function unescapeAtomKey(stored: string): string {
+    if (stored === STORED_PROTO_KEY) return '__proto__';
+    return stored.startsWith(RESERVED_PREFIX + RESERVED_PREFIX) ? stored.slice(1) : stored;
+}
+
+/**
+ * An atom as stored: `value` itself, unless an object in it has a
+ * `__proto__` or reserved-prefix key; those keys are escaped (`readY` undoes
+ * it). Ordinary atoms are stored exactly as before.
+ */
+function storedAtom(value: Json): Json {
+    return needsAtomEscape(value) ? escapeAtomKeys(value) : value;
+}
+
 /** Fresh Yjs content (or a plain atom) for `value` at `path`. */
 export function createY(value: Json, path: JsonPath, rules: ShapeRules): unknown {
     if (typeof value === 'string') {
@@ -112,7 +154,7 @@ export function createY(value: Json, path: JsonPath, rules: ShapeRules): unknown
     }
     if (Array.isArray(value)) {
         const kind = arrayKind(value, path, rules);
-        if (kind === 'atom') return value;
+        if (kind === 'atom') return storedAtom(value);
         if (kind === 'slots') {
             const slots = new Y.Map<unknown>();
             slots.set(SLOTS_LENGTH_KEY, value.length);
@@ -126,7 +168,7 @@ export function createY(value: Json, path: JsonPath, rules: ShapeRules): unknown
         return list;
     }
     if (isObject(value)) {
-        if (rules(path) === 'atom') return value;
+        if (rules(path) === 'atom') return storedAtom(value);
         const map = new Y.Map<unknown>();
         for (const [key, item] of Object.entries(value)) {
             map.set(escapeKey(key), createY(item, childPath(path, key), rules));
@@ -136,11 +178,12 @@ export function createY(value: Json, path: JsonPath, rules: ShapeRules): unknown
     return value;
 }
 
-function cloneJson(value: Json): Json {
+/** A stored atom as JSON: a copy, with its keys unescaped. */
+function readAtom(value: Json): Json {
     if (value === null || typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map(cloneJson);
+    if (Array.isArray(value)) return value.map(readAtom);
     const out: JsonObject = {};
-    for (const [key, item] of Object.entries(value)) assignKey(out, key, cloneJson(item));
+    for (const [key, item] of Object.entries(value)) assignKey(out, unescapeAtomKey(key), readAtom(item));
     return out;
 }
 
@@ -169,7 +212,7 @@ export function readY(value: unknown): Json {
     }
     if (value instanceof Y.AbstractType) return null;
     // Atoms come back by reference from Yjs; never hand out doc internals.
-    return value === undefined ? null : cloneJson(value as Json);
+    return value === undefined ? null : readAtom(value as Json);
 }
 
 function slotsLength(map: Y.Map<unknown>): number {
@@ -246,7 +289,7 @@ function reconcileInPlace(current: unknown, value: Json, path: JsonPath, rules: 
     }
     if (current instanceof Y.AbstractType) return false;
     // An atom: keep it only when it already holds this value.
-    return jsonEqual(current as Json, value);
+    return jsonEqual(current as Json, storedAtom(value));
 }
 
 function reconcileObject(map: Y.Map<unknown>, value: JsonObject, path: JsonPath, rules: ShapeRules): void {

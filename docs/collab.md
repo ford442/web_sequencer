@@ -79,7 +79,10 @@ song JSON.
 
 The rules (`SONG_SHAPE_RULES` in `codec.ts`) are consulted only when content is created. Reading is
 self-describing, so a build with different rules still reads the document. Keys that start with
-`\u0001` are reserved for the representation; data keys that do are escaped.
+`\u0001` are reserved for the representation; data keys that do are escaped. Inside an atom, so is
+`__proto__`: Yjs decodes an atom object with `obj[key] = value`, so a raw `__proto__` key swapped the
+received object's prototype and was lost on every other peer. Atoms without such keys are stored
+exactly as before, and an atom key that is not an escape reads as itself.
 
 Reconciling a snapshot (`writeSongToDoc`) changes only what differs: writing the song the document
 holds emits no update, and one step edit is one small update. List reconciliation keeps an
