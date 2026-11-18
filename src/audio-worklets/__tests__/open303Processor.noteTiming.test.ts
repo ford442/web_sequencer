@@ -137,7 +137,7 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
       sampleRate: SAMPLE_RATE,
       isThreaded: true,
       variant: 'threaded',
-      memoryPages: 2048,
+      memoryPages: 512,
       exportMap: {},
     });
     expect(voice.port.posted.map((m) => m.type)).toContain('ready');
@@ -295,7 +295,7 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
       bus = new (registered.get('open303-processor')!)();
       await bus.port.deliver({
         type: 'init-wasm',
-        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 2048, exportMap: {}, events: sink.transport },
+        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 512, exportMap: {}, events: sink.transport },
       });
       expect(bus.port.posted.map((m) => m.type)).toContain('ready');
       calls = [];
@@ -347,7 +347,7 @@ describe('open303-processor on the voice-core event API (#1344)', () => {
       const earlySink = kind === 'ring' ? new RingEventSink(32) : new MessageEventSink({ postMessage: (m) => earlyPosted.push(m) }, 32);
       const init = early.port.deliver({
         type: 'init-wasm',
-        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 2048, exportMap: {}, events: earlySink.transport },
+        data: { wasmBytes: new ArrayBuffer(8), sampleRate: SAMPLE_RATE, isThreaded: true, memoryPages: 512, exportMap: {}, events: earlySink.transport },
       });
       earlySink.push(0, VoiceEvent.Param, 7, 0.5);
       earlySink.flush();

@@ -95,13 +95,13 @@ jobs:
             public/rubberband.wasm
             src/audio-worklets/rubberband-lib.js
             .cache/native/
-          key: perf-rubberband-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'package.json') }}
+          key: perf-rubberband-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'tools/hyphon_native_exports.mjs', 'tools/check_rubberband_module.mjs', 'package.json') }}
 
       # src/wasm/ is gitignored build output. The perf tier does not stub WASM,
       # it builds it: audioExport.perf.test.ts and useAudioEngine.perf.test.tsx
       # import audioExport/trackFreezer .wasm?init and fail to resolve without
-      # it. AssemblyScript only — `build:wasm` would also pull in Rust and
-      # Emscripten, which no perf test touches.
+      # it. AssemblyScript only: the voice module (`build:native`'s emcc world)
+      # is touched by no perf test.
       - name: Build AssemblyScript WASM (perf tier needs the real modules)
         run: |
           pnpm run build:wasm:oscillators
@@ -114,7 +114,7 @@ jobs:
       # loadRubberBandFxModule(), which requires public/rubberband.wasm and
       # src/audio-worklets/rubberband-lib.js. The perf tier does not stub WASM
       # (docs/PERFORMANCE_BUDGET.md), so build it. Standalone module only —
-      # no Rust, no hyphon_native.
+      # no hyphon_native.
       - name: Build Rubber Band WASM (vocalFx.perf.test.ts needs the real module)
         run: pnpm run build:wasm:rubberband
 

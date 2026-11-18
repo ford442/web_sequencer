@@ -130,6 +130,9 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   // rebuild every em++ world, not only the voice module (whose emscripten/**
   // walk below picks both up anyway).
   const EMCC_PIN_INPUTS = ['emscripten/toolchain.json', 'emscripten/toolchain_env.sh'];
+  // One export manifest for all three em++ modules (#1596 follow-up P3): editing
+  // the rubberband or mixBus section must rebuild that module, not just the voices.
+  const EXPORT_SURFACE_INPUTS = ['emscripten/wasm_export_manifest.json', 'tools/hyphon_native_exports.mjs'];
   const emccFiles = walkFiles(repoRoot, 'emscripten', {
     excludeDirNames: new Set(['temp_build', 'temp_build_rubberband', 'tests']),
   }).filter((rel) => !RUBBERBAND_OWNED.has(rel) && !MIX_BUS_OWNED.has(rel));
@@ -184,6 +187,8 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       inputs: [
         ...rubberbandSrc.map(fileInput),
         ...[...RUBBERBAND_OWNED].sort().map(fileInput),
+        ...EXPORT_SURFACE_INPUTS.map(fileInput),
+        fileInput('tools/check_rubberband_module.mjs'),
         ...EMCC_PIN_INPUTS.map(fileInput),
         fileInput(budgetRel),
       ],
@@ -199,6 +204,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       rebuildCommand: 'pnpm run build:wasm:mixbus',
       inputs: [
         ...[...MIX_BUS_OWNED].sort().map(fileInput),
+        ...EXPORT_SURFACE_INPUTS.map(fileInput),
         fileInput('tools/check_mix_bus_module.mjs'),
         ...EMCC_PIN_INPUTS.map(fileInput),
         fileInput(budgetRel),

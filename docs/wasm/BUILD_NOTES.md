@@ -13,6 +13,8 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Plaits sources (macro voices)](#plaits-sources)
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
+- [Fixed voice memory (no growth)](#fixed-voice-memory)
+- [Denormal guards](#denormal-guards)
 - [`-ffast-math`](#fast-math)
 - [wasm-opt / link optimisation](#wasm-opt)
 - [Rubber Band + mix bus at `-O3 -flto`](#standalone-link-profiles)
@@ -195,7 +197,7 @@ into a non-pthread module):
 |---|---|---|
 | Artifacts | `public/hyphon_native.{js,wasm}` | `public/hyphon_native.st.{js,wasm}` |
 | Export map | `public/hyphon_wasm_export_map.json` | `public/hyphon_wasm_export_map.st.json` (byte-identical) |
-| Threading | `-pthread -s PTHREAD_POOL_SIZE=4` | none |
+| Threading | `-pthread -s PTHREAD_POOL_SIZE=0` (shared memory + atomics, no workers) | none |
 | Memory | imported, `shared: true` — budget key `hyphonNative` | imported, plain `ArrayBuffer` — budget key `hyphonNativeSt` |
 | Sources / exports | voices only, `--no-entry` | identical |
 | Link opt | `-O3 -flto` (see [wasm-opt](#wasm-opt)) | identical |
@@ -230,9 +232,9 @@ Open303 at 4× oversample, 3× JC303, 3× live high-fid at 2×, and 2× Prophecy
 192 kHz with 4096-frame blocks, peak about **2 MB** of heap above the 1 MB
 stack + data. Re-measured 2026-10-13 on the 6.0.9 `-O3 -flto` build with the drum
 kit added (`render_hyphon_native_parity.mjs heap`): 0.45 MB of voice heap, 1.47 MB
-high-water. `initialMemoryMb: 16` is 8× the older, larger figure. Because the memory is not
-shared, growing toward the 512 MB ceiling is an ordinary buffer grow, not a new
-SharedArrayBuffer reservation.
+high-water. Since #1596's follow-up the ST memory is **fixed** at 16 MB like the
+pthread one — no growth, see [Fixed voice memory](#fixed-voice-memory) for the
+all-slots ceiling it holds.
 
 **WebKit evidence.** In a standalone AudioWorklet probe on Playwright WebKit 26.5
 (v2311) and Chromium, `hyphon_native.st.wasm` instantiates with plain memory,
@@ -277,7 +279,7 @@ Two independent reasons, one of which is simply that it was never used there:
 | Module | Built by | Memory | Imported memory? |
 |---|---|---|---|
 | `public/hyphon_native.wasm` | `emscripten/build.sh` | `wasm_memory_budget.json#hyphonNative` | **yes** — the worklets pass one in, so `initial` must match exactly |
-| `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` | no — the module owns its memory |
+| `public/rubberband.wasm` | `emscripten/build_rubberband.sh` | `wasm_memory_budget.json#rubberband` — fixed, never grows | no — the module owns its memory |
 | `public/mix_bus.wasm` | `emscripten/build_mix_bus.sh` | `#mixBus` — fixed, never grows | no — owns it, zero imports |
 | `src/wasm/*.wasm` | `asc` (see the AS matrix) | `#assemblyScript` (pages) | no |
 
@@ -348,9 +350,9 @@ Same flags as the stretcher: `-msimd128`, `-DNO_THREADING`, no `-ffast-math`.
   `src/audio-worklets/rubberband/__tests__/nativeVocalFx.test.ts`. Bump
   `RB_FX_ABI_VERSION` whenever the layout changes. The worklet refuses a mismatched
   module and falls back to TS.
-- **Memory.** One stretcher, one FX chain and a 30 s vocal fit in the 64 MB initial
-  heap with no growth (asserted by the integration test), so the `rubberband` budget
-  is unchanged.
+- **Memory.** One stretcher, one FX chain and a 30 s vocal fit in the 64 MB heap
+  (asserted by the integration test). The heap is fixed now:
+  [Rubber Band: plain C ABI, fixed memory](#rubberband-fixed-memory).
 - **emcc 4+ glue.** `build_rubberband.sh` now declares `INCOMING_MODULE_JS_API`
   (`wasmBinary`, `locateFile`, …) and exports `HEAPF32` / `HEAPF64`. Without the
   first, the glue ignores `Module.wasmBinary` and aborts inside the AudioWorklet,
@@ -513,7 +515,8 @@ and then:
 ## Four Worlds memory budget
 
 **Source of truth: `emscripten/wasm_memory_budget.json`.** `emscripten/build.sh`
-reads it for `-s INITIAL_MEMORY` / `-s MAXIMUM_MEMORY` / `-s STACK_SIZE`, and
+reads it for `-s INITIAL_MEMORY` / `-s STACK_SIZE` (the memory is fixed: no
+`MAXIMUM_MEMORY`, see [Fixed voice memory](#fixed-voice-memory)), and
 `src/audio-worklets/hyphonNativeImports.ts` mirrors it for the imported
 `WebAssembly.Memory`. `src/__tests__/wasmMemoryBudget.test.ts` fails CI if the two
 drift apart — this matters because the worklets instantiate the module with an
@@ -523,8 +526,9 @@ degrade, it fails instantiation outright.
 | Setting | Before | Now |
 |---|---|---|
 | `INITIAL_MEMORY` | 512 MB (8192 pages), then 128 MB | **32 MB (512 pages)** — measured, see below |
-| `MAXIMUM_MEMORY` | unset (16384 pages in JS only) | 1024 MB (16384 pages) |
-| `STACK_SIZE` | default (64 KB) | 8 MB |
+| `MAXIMUM_MEMORY` | unset (16384 pages in JS only), then 1024 MB | **= initial** (`ALLOW_MEMORY_GROWTH=0`) |
+| `STACK_SIZE` | default (64 KB), then 8 MB | **64 KB** — measured high-water < 1 KB |
+| `PTHREAD_POOL_SIZE` | 4 | **0** — nothing creates a thread |
 
 ### Why 512 MB was the wrong default
 
@@ -542,7 +546,7 @@ in `createHyphonMemory()`, which now distinguishes "no SharedArrayBuffer" from
 | Consumer | Steady | Peak | Notes |
 |---|---|---|---|
 | Emscripten runtime + static data | ~6 MB | ~6 MB | glue, wavetables (analytic; measured below: < 0.1 MB) |
-| Stack (`STACK_SIZE`) | 8 MB | 8 MB | reserved; the 64 KB default is what the `__handle_stack_overflow` workaround in `open303-processor.ts` was fighting |
+| Stack (`STACK_SIZE`) | 8 MB | 8 MB | reserved (now 64 KB: [measured](#fixed-voice-memory)). The `__handle_stack_overflow` the jc303 build used to report was a false positive of uninitialised stack limits (`configureWasmStack`), not a real overflow |
 | 3 × Open303 / JC303 voices | ~2 MB | ~4 MB | per-instance state + oversampled scratch |
 | Prophecy voice | ~1 MB | ~2 MB | |
 | Analog drumkit (one handle) | ~0.5 MB | ~1 MB | kick/snare/hats share the voice module |
@@ -581,9 +585,9 @@ rendered 8 blocks (`node tools/render_hyphon_native_parity.mjs heap`):
 
 The 3.1.51 `-O1` build measures the same 0.45 MB of voice heap. Almost all of the
 pthread figure is the 8 MB `STACK_SIZE`. `initialMemoryMb: 32` leaves ~23 MB of
-heap — about 50× the measured voice set — before the first grow, which is still
-available up to 1 GB. A quarter of the old `shared: true` reservation is what
-mobile Safari and 4 GB Chromebooks fail on.
+heap — about 50× the measured voice set. (Growth up to 1 GB was still on then; it
+is off now — [Fixed voice memory](#fixed-voice-memory).) A quarter of the old
+`shared: true` reservation is what mobile Safari and 4 GB Chromebooks fail on.
 
 TTS/Pyodide is **not** in this budget: Pyodide is a separate WASM runtime with its
 own heap (`src/pyodide/bootstrap.ts` loads it; it never shared a heap with
@@ -602,11 +606,141 @@ performance.measureUserAgentSpecificMemory?.().then(console.log);
 console.log('hyphon heap MB', memory.buffer.byteLength / 1048576);
 ```
 
-If the worklet reports growth past 32 MB during normal playback, raise
-`initialMemoryMb` in the budget JSON. The test caps it at 256 MB deliberately:
-going above that should be a measured decision, not a default.
+The memory no longer grows, so the in-tree ceiling check is
+`hyphonNativeFixedMemory.integration.test.ts` (every voice slot, below). If it
+fails, raise `initialMemoryMb` in the budget JSON. The test caps it at 256 MB
+deliberately: going above that should be a measured decision, not a default.
+
+<a id="fixed-voice-memory"></a>
+## Fixed voice memory (no growth)
+
+Both `hyphon_native` profiles link with **`-s ALLOW_MEMORY_GROWTH=0`**. The
+module declares `maximum == initial`, `createHyphonMemory()` imports exactly the
+budget's pages (a larger `maximum` would be a `LinkError`), and
+`emscripten_resize_heap` answers *no*, warning once. A `malloc` past the heap
+returns `NULL`, and the voice's `*_init` returns 0 (jc303 allocates its
+`Open303` with `new (std::nothrow)`: under `-fno-exceptions` a plain `new` would
+`abort()`).
+
+**Why.** In the pthread profile the heap is a `SharedArrayBuffer`. Growing it from
+inside the AudioWorklet replaces the buffer under every `HEAPF32` view and the
+event rings, mid-quantum. Nothing on the voice path needs growth: the voice set
+is a fixed number of statically declared slots, and each slot's buffers are sized
+by `*_init`, by block size.
+
+**The ceiling, measured** (2026-11-17, emcc 6.0.13 `-O3 -flto`, node,
+`node tools/render_hyphon_native_parity.mjs slots`). Every slot of every
+`HYPHON_EXPORT_VOICE` engine is created: 16 Open303 at 4× oversample, 16 JC303,
+16 high-fid at 2×, 8 Prophecy, 8 drum kits and 8 macro parts. Each is initialised at
+`NATIVE_VOICE_MAX_BLOCK_FRAMES` (4096), sent a note and rendered:
+
+| | pthread (32 MB) | ST (16 MB) |
+|---|---:|---:|
+| High-water, all 72 slots | 13.5 MB | 13.5 MB |
+| …at 48 / 96 / 192 / 384 / 768 kHz | identical | identical |
+| Worst-case live set (`heap`, 14 voices) | 4.0 MB | 3.9 MB |
+
+Heap per voice depends on the block size, not the sample rate, so this is a
+hard ceiling. A session cannot ask for more than every slot at the largest block.
+`src/__tests__/hyphonNativeFixedMemory.integration.test.ts` runs `slots` on both
+built modules and checks the memory import limits. `emscripten/build.sh` checks
+the limits at link time too (`check_hyphon_st_module.mjs --fixed-memory-mb`).
+Adding a voice, slots or per-voice buffers that no longer fit fails there.
+
+**32 vs 48 MB (the iOS question from #1596).** It stays 32. WebKit always loads the
+ST build (`hyphonNativeVariant.ts`), whose memory is a plain 16 MB `ArrayBuffer`,
+so iOS never makes the shared reservation at all. The pthread build's 32 MB is
+2.4× the all-slots ceiling. 48 MB would only grow the `shared: true`
+reservation that low-RAM Chromebooks refuse.
+
+**Stack: 8 MB → 64 KB.** The debug build links `emscripten/core/stack_probe.cpp`
+(manifest bucket `debug`, `tools/hyphon_native_exports.mjs --profile debug`). It
+paints the free stack between the linker's `__stack_low` / `__stack_high`, and
+`render_hyphon_native_parity.mjs stack` reads back the deepest overwritten word
+after running the worst-case set, the event path (`*_push_event` + `*_render`)
+and all 24 macro engines. The result is **0.3 KB on both profiles**, about the
+probe's own 256-byte guard. clang keeps the DSP state in wasm locals, so the
+linear-memory stack holds almost nothing. The probe reads linker symbols, not
+`emscripten_stack_get_end()`, because the hand-instantiating worklets never run
+`emscripten_stack_init()`. `-O1` frames are at least the `-O3` ones, so this
+is an upper bound. 64 KB (Emscripten's default) is 200× it.
+
+```bash
+pnpm run build:emcc:debug
+node tools/render_hyphon_native_parity.mjs stack --wasm public/hyphon_native.wasm --map public/hyphon_wasm_export_map.json
+node tools/render_hyphon_native_parity.mjs stack --wasm public/hyphon_native.st.wasm --map public/hyphon_wasm_export_map.st.json
+```
+
+**Pthread pool: 4 → 0.** Nothing in the module creates a thread (no
+`pthread_create`, `std::thread` or `std::async`). The worklets instantiate the wasm
+by hand, so the glue that would have spawned the pool never ran. `-pthread` stays
+for the shared memory and atomics the event rings need.
+
+**Null test.** All 37 renders of `render_hyphon_native_parity.mjs render`
+(the 303 models, drums, Prophecy, macro) are bit-identical before and after, on
+both profiles.
 
 ---
+
+<a id="denormal-guards"></a>
+## Denormal guards (#1596 follow-up P4)
+
+WebAssembly floats are IEEE with gradual underflow: there is no flush-to-zero
+(FTZ / DAZ) mode to switch on. A filter or envelope ringing down after a note
+decays into subnormals, and on x86 every operation that reads one costs a
+~100-cycle microcode assist. The Plaits sources get their guards at staging time
+([`tools/plaits_wasm_patches.mjs`](#plaits-sources)). The other voices'
+wrappers zero their recursive state themselves, once per render block, with
+`hyphon::flushDenormal` / `flushDenormals` (`emscripten/core/voice.h`):
+
+| Wrapper | State flushed at each block end | Measured before (60 s tail after a note) |
+|---|---|---|
+| `jc303_wrapper.cpp` (rosic) | output before the double→float narrowing; amp / filter envelopes, the two RC smoothers, de-clicker + notch biquads, three one-poles, the ladder's four stages and feedback high-pass, the 12-word elliptic anti-alias filter | **11,141 of 22,500 silent blocks** consume subnormals: the float output from ~4 s, rosic's own double state from ~35 s, for good |
+| `open303_wrapper.cpp` | Moog ladder integrators | none |
+| `highfid303_wrapper.cpp` | diode-ladder stages, osc low-pass, feedback high-pass | none |
+| `prophecy_wrapper.cpp` | each active voice's four formant biquads | none (idle voices stop processing) |
+| `drumkit_wrapper.cpp` | snare noise band-pass, both hats' high-pass + band-pass | none (hits deactivate at −100 dB) |
+
+A sweep of 208 configurations found subnormals only in jc303, and in every one
+of its configurations. The sweep covered all 7 open303 models × cutoff ×
+resonance × decay × 1× / 4× oversampling, every Prophecy waveform × resonance ×
+release, and every drum pad of both kits at decays up to 5 s. The other four are
+guarded anyway, so that a parameter path the sweep missed stays clean. Each guard
+runs once per block, a handful of compares per 128 frames.
+
+**Thresholds.** Float state is zeroed below 1e-15 (−300 dBFS, `flushDenormal`).
+rosic keeps its state in double, and its filter envelope feeds the cutoff
+exponent, so zeroing it at 1e-15 moved the last bits of a still-sounding
+release (−312 dBFS, but not bit-identical). It is zeroed just above the double
+subnormal range instead (`flushSubnormalState`, 1e-300). rosic's double output
+sample is zeroed below 1e-30 before it narrows to float (`flushForNarrowing`):
+that is the one value whose *float* goes subnormal first. Per block is enough:
+nothing decays from the threshold to the subnormal range inside one.
+
+rosic is the pinned `jc303_wasm` submodule and is never patched. Its state is
+`protected`, so the wrapper reaches it with member pointers formed inside derived
+classes (`rosic_state` in `jc303_wrapper.cpp`), and no rosic header changes.
+
+**The test.** `emscripten/tests/denormal_tail_test.cpp` runs in `pnpm test:native`.
+It builds each of the five engines twice: guards off, so `flushDenormal` is the
+identity (`-DHYPHON_DENORMAL_GUARD=0`, report only), and guards on. It renders a
+note released at 0.5 s and then 60 s of silence. After every block it reads the
+x86 MXCSR denormal-operand flag, the hardware's own record that a subnormal was
+consumed, which is deterministic where a timing threshold is not. The guarded
+build must show:
+
+- no silent-tail block with the flag set;
+- mean tail-block CPU ≤ 2× the sounding blocks', a loose check against the
+  10–100× of a denormal tail;
+- output bit-identical to the unguarded build until the tail (after the last
+  sample ≥ 2^-40), and within 1e-9 inside it.
+
+Every engine passes. The wasm render-parity set is still bit-identical, 36/36 on
+both profiles.
+
+To find a new site, the Plaits recipe works here too. Unmask DM in MXCSR, catch
+`SIGFPE`, and read the backtrace
+([macro-voices.md](../audio-engine/macro-voices.md#denormals)).
 
 <a id="plaits-sources"></a>
 ## Plaits sources (macro voices)
@@ -797,36 +931,66 @@ stretcher, spread over Rubber Band's many TUs, is where cross-TU inlining pays.
 | `mix_bus.wasm` | 730 | 880 | +150 (the explicit SIMD peak) |
 
 <a id="rubberband-memory-growth"></a>
-### Rubber Band memory growth: kept, and tested
+<a id="rubberband-fixed-memory"></a>
+### Rubber Band: plain C ABI, fixed memory, no exceptions (#1596 follow-up P2)
 
-`rubberband.wasm` runs in an AudioWorklet with `ALLOW_MEMORY_GROWTH=1`; a grow
-replaces the memory's `ArrayBuffer` and detaches every `HEAPF32` / `HEAPF64` view
-made before it. **Decision: keep growth** (initial 64 MB, max 256 MB, unchanged),
-because the one allocation that scales with user input has no bound:
-`loadBuffer` copies the whole sample into the heap (`rb_fx_sample_alloc`), and
-nothing caps sample length. A fixed heap would turn a long sample into a load
-failure. Everything else is small: a build with an **8 MB** initial heap never
-grew through all five stretcher renders above (R3 finer stereo included) — the
-"~40 MB finer-engine stretch transient" quoted when the module split out does
-not reproduce on the real-time engine both worklets use — and
-`nativeVocalFx.integration.test.ts` already pins a 30 s vocal session at zero
-growth inside 64 MB. So in practice a grow happens on `loadBuffer`, outside
-`process()`.
+`rubberband.wasm` used to be the odd module out: embind (`--bind`, `-frtti`),
+JS-trampoline exceptions (`-fexceptions`, so every `invoke_*` crossed into JS),
+`ALLOW_MEMORY_GROWTH=1` (64 → 256 MB), a `std::vector` of channel pointers built on
+every `process()` / `retrieve()`, and an embind class whose `getTimeRatio` /
+`getPitchScale` were declared in TS but never bound. That last one meant
+`setStretchProfile` threw on the shipped build. It now matches the voice module:
 
-What makes growth safe is that no view outlives a call that can allocate. The
-calls that can are `_malloc`, `rb_fx_create`, `rb_fx_sample_alloc`,
-`rb_fx_window_alloc` and the stretcher's `process` / `retrieve` /
-`setTimeRatio` / `setPitchScale`; the per-block `rb_fx_process`,
-`rb_fx_render_grains` and `rb_fx_advance_lfo` work in buffers sized up front and
-never allocate. The glue reassigns `Module.HEAPF32` / `HEAPF64` on every grow,
-and the worklets read them after each such call; `NativeVocalFx` re-derives its
-cached channel views when the buffer changes.
-`src/__tests__/rubberbandHeapGrowth.integration.test.ts` proves it: it drives the
-real `RubberBandProcessor` (stream, freeze granulator, FX chain) and
-`sustain-processor` on the real module twice, once untouched and once with the
-heap forced to grow right after **every** allocating call returns, and requires
-bit-identical output. Reading `HEAPF32` before `retrieve()` instead of after
-fails it at the second block.
+- **ABI.** `emscripten/rubberband_wrapper.cpp` is `extern "C"` over an opaque
+  handle: `rb_create` / `rb_destroy` / `rb_reset` / `rb_set_time_ratio` /
+  `rb_set_pitch_scale` / `rb_get_*` / `rb_available` / `rb_process` /
+  `rb_retrieve`, with `rb_abi_version`. The handle owns fixed channel-pointer
+  arrays (up to 8 channels), so the per-block calls do no heap work of their own.
+  `src/audio-worklets/rubberband/stretcher.ts` wraps it in a `RubberBandStretcher`
+  class with the old method names. `rubberband-processor.ts` (live vocal and the
+  offline vocal host, which runs the same class) and `sustain-processor.ts`
+  construct that instead of `module.RubberBandStretcher`.
+- **Flags.** `-fno-exceptions -fno-rtti -DNO_EXCEPTIONS`, no `--bind`, no
+  `-s WASM=1`. Rubber Band never catches. Under `NO_EXCEPTIONS` its few throw
+  sites (allocation failure, an FFT/resampler implementation error) `abort()`, which
+  is what an uncaught throw did before. `tools/check_rubberband_module.mjs` fails
+  the build if the glue carries embind or the C++ exception runtime, or if the memory
+  can grow. The module's import/export names are minified, so the glue is where those
+  runtimes show.
+- **Memory: fixed at 64 MB** (`ALLOW_MEMORY_GROWTH=0`, `ABORTING_MALLOC=0`). Growth
+  was kept before because `loadBuffer` copies the whole, uncapped sample into the
+  heap. Now a sample the heap cannot hold fails `rb_fx_sample_alloc`, which returns
+  NULL: the sample buffer is a nullable `calloc`, not a `std::vector` that would
+  `abort()` under `-fno-exceptions`. The worklet then runs that sample on the
+  TypeScript FX chain, reported as `FX_BACKEND: ts`, and the stretcher keeps
+  streaming it from JS. 64 MB holds 15.0 M sample frames (5.2 min of 48 kHz mono,
+  measured) next to a live stretcher and FX chain. The benchmark below ran 12 R3
+  stretchers inside it.
+- **Chorus ring.** `rubberband_fx.cpp` sized the chorus delay ring at a literal
+  48000 samples. It is now `2 × 22 ms × sampleRate`, from the rate `rb_fx_create`
+  receives. The longest tap is 22 ms, and a ring longer than the longest delay
+  never changes a sample.
+
+**Golden render.** The stretcher on the rb_* build is **bit-identical** to the
+embind build on all four stretch profiles (vocal, harmonic, fast, R3 finer), with
+pitch and time ratio moving every block. The hashes from the last embind build are
+committed in `src/test/fixtures/rubberbandStretcherGolden.json` and checked by
+`src/__tests__/rubberbandFixedHeap.integration.test.ts`. A one-off run of the full
+`RubberBandProcessor` session (stream, freeze granulator, FX chain, stereo) and of
+`sustain-processor` was also bit-identical. The same test drives both worklets on
+the fixed heap and the long-sample fallback, and replaces
+`rubberbandHeapGrowth.integration.test.ts`: with no growth there is nothing left to
+inject.
+
+**Size and CPU** (emcc 6.0.13 `-O3 -flto`, `scripts/benchmark_rubberband_engines.mjs`,
+mean per-quantum CPU summed over every voice count and pitch, new / old):
+
+| | embind + `-fexceptions` | C ABI, no exceptions |
+|---|---:|---:|
+| `rubberband.wasm` | 456,505 B | 399,949 B (−12 %) |
+| `rubberband-lib.js` | 99,066 B | 57,731 B (−42 %) |
+| CPU, R2 profiles (vocal / harmonic / fast) | 1.00 | 0.89–1.06 (noise) |
+| CPU, R3 profiles (vocal / harmonic) | 1.00 | 0.73–0.82 |
 
 ### Why the export map is checked against the binary too
 
@@ -841,15 +1005,35 @@ resolve a single function. `check_wasm_export_map.mjs` therefore also takes
 
 ## Export surface
 
-`emscripten/wasm_export_manifest.json` declares the module's contract, and is
-the **only** list of it: `build.sh` passes exactly `required` + `optional` to
-`EXPORTED_FUNCTIONS` via `tools/hyphon_native_exports.mjs` (#1344). Add an
-export to the manifest, never to `build.sh`.
+`emscripten/wasm_export_manifest.json` declares the contract of **all three** em++
+modules, and is the **only** list of each. The top-level buckets are
+`hyphon_native` (#1344). The `rubberband` and `mixBus` sections were added in
+#1596 follow-up P3, replacing the hand-kept `RB_FX_EXPORTS` / `MIX_BUS_EXPORTS`
+arrays and their TS twins. Each build script passes exactly its module to
+`EXPORTED_FUNCTIONS` via `tools/hyphon_native_exports.mjs [--module rubberband|mixBus]`.
+Add an export to the manifest, never to a build script.
 
 - **required** — called by shipped worklet/engine code. A build missing one is broken.
 - **optional** — built, but not (yet) called by shipped code.
-- **runtime** — added by Emscripten itself (pthread internals, `main`); never requested.
+- **runtime** — added by Emscripten itself (pthread internals, `main`; mix_bus's
+  standalone stack helpers); never requested.
+- **debug** — linked into the debug profile only (the hyphon_native stack probe).
 - anything else present is flagged as export bloat.
+
+The same three lists feed all the tooling:
+
+| | hyphon_native | rubberband | mix_bus |
+|---|---|---|---|
+| Typed for TS (`pnpm run gen:native-types`) | `src/shared/rt/hyphonNativeExports.ts` | `src/shared/rt/rubberbandExports.ts` (`RUBBERBAND_STRETCHER_EXPORTS`, `RUBBERBAND_FX_EXPORTS`, `RubberBandExports`) | `src/shared/rt/mixBusExports.ts` |
+| Consumed by | worklets via the export map | `rubberband/stretcher.ts`, `rubberband/nativeVocalFx.ts` | `mixBusKernel.ts`, `check_mix_bus_module.mjs` |
+| Binary checked by | `check_wasm_export_map.mjs` (map, glue, wasm) | `check_rubberband_module.mjs` (glue `Module._x` set == section) | `check_mix_bus_module.mjs` (wasm exports == section + runtime) |
+
+`pnpm run check:exports` runs all three checks whenever the artifacts exist.
+`pnpm run check:native-types` fails when a generated file is stale **or** when code
+under `src/`, `scripts/` or `tools/` calls a native export that no section
+declares. It scans for `x.name(` / `x._name(` and quoted `'name'` with a module's
+prefix: a voice prefix or `hyphon_stack_`, `rb_`, or `mix_bus_`. Such a caller
+compiles and then fails at run time with `undefined is not a function`.
 
 Engines on the shared voice core get their generic exports from
 `HYPHON_EXPORT_VOICE(prefix, …)` — `prefix_create`, `_destroy`, `_init`,
@@ -960,7 +1144,6 @@ Current flags (`package.json`), one script per module:
 ```
 --optimize --converge --optimizeLevel 3
 --enable simd --enable bulk-memory
---enable threads          (oscillators only)
 --initialMemory 128–384 pages
 --exportRuntime --bindings esm
 ```
@@ -973,7 +1156,7 @@ asserted by `src/__tests__/wasmCompileFlags.test.ts`.
 |---|---|---|---|---|
 | SIMD (`simd128`) | ✅ 91+ | ✅ 89+ | ✅ 16.4+ | ✅ |
 | Bulk memory | ✅ | ✅ | ✅ 15+ | ✅ |
-| Threads + SharedArrayBuffer | ✅ (COOP/COEP) | ✅ (COOP/COEP) | ⚠️ COOP/COEP required; historically flaky inside AudioWorklets on iOS | ✅ oscillators only |
+| Threads + SharedArrayBuffer | ✅ (COOP/COEP) | ✅ (COOP/COEP) | ⚠️ COOP/COEP required; historically flaky inside AudioWorklets on iOS | ❌ dropped (#1596 follow-up P5) — `oscillators.ts` uses no atomics and `WasmOscillator.ts` runs it on its own non-shared memory; the module without the flag is byte-identical |
 | Reference types | ✅ | ✅ | ✅ 15+ | ❌ dropped — nothing needs it |
 | Relaxed SIMD | ✅ 114+ | ✅ 120+ | ⚠️ recent only | ❌ dropped — see below |
 | **WasmGC (`--target wasm-gc`)** | ✅ 119+ | ✅ 120+ | ⚠️ **the risk** — trails the others; older supported Safari refuses the module outright | ❌ dropped |

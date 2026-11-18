@@ -149,6 +149,8 @@ struct OnePoleHP {
     }
 
     void reset() { x1 = y1 = 0.0f; }
+
+    void flushDenormals() { hyphon::flushDenormals(x1, y1); }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,6 +182,13 @@ struct DiodeLadderFilter {
         y1 = y2 = y3 = y4 = 0.0f;
         oscLpY = 0.0f;
         feedbackHp.reset();
+    }
+
+    /** Once per block: zero ladder / feedback state below -300 dBFS (wasm has no FTZ). */
+    void flushDenormals()
+    {
+        hyphon::flushDenormals(y1, y2, y3, y4, oscLpY);
+        feedbackHp.flushDenormals();
     }
 
     void setCutoffResonance(float cutoffHz, float resonance01)
@@ -493,6 +502,7 @@ struct HighFid303Engine {
             for (int i = 0; i < numFrames; ++i) {
                 output[i] = renderSampleAt(srEff);
             }
+            filter.flushDenormals();
             return;
         }
 
@@ -504,6 +514,7 @@ struct HighFid303Engine {
             }
             output[i] = acc * invN;
         }
+        filter.flushDenormals();
     }
 
     void render(float* out, int numFrames) { process(out, numFrames); }

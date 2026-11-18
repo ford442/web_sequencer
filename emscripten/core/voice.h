@@ -594,12 +594,71 @@ private:
 
 // ── Denormal guard ──────────────────────────────────────────────────────────
 
+// HYPHON_DENORMAL_GUARD=0 turns the guard into the identity. Only
+// emscripten/tests/denormal_tail_test.cpp builds that way: to show what each guard
+// buys, and that the guarded render equals the unguarded one until the tail.
+#ifndef HYPHON_DENORMAL_GUARD
+#define HYPHON_DENORMAL_GUARD 1
+#endif
+
 /**
  * Zero a value too small to hear (< -300 dBFS) before it goes subnormal.
- * Use on IIR / feedback state, once per sample or per block.
+ * Use on IIR / feedback state, once per sample or per block. WebAssembly has no
+ * flush-to-zero mode, and on x86 every operation on a subnormal costs a ~100-cycle
+ * microcode assist (BUILD_NOTES#denormal-guards).
  */
 inline float flushDenormal(float x) {
+#if HYPHON_DENORMAL_GUARD
     return std::fabs(x) < 1.0e-15f ? 0.0f : x;
+#else
+    return x;
+#endif
+}
+
+/**
+ * Zero a double sample that would narrow to a subnormal FLOAT (< 1.2e-38), with
+ * eight decades of margin so the gain stage after it cannot make one either.
+ * Not 1e-15: a still-ringing release crosses zero through samples that small, and
+ * zeroing those would move audible output.
+ */
+inline double flushForNarrowing(double x) {
+#if HYPHON_DENORMAL_GUARD
+    return std::fabs(x) < 1.0e-30 ? 0.0 : x;
+#else
+    return x;
+#endif
+}
+
+/**
+ * Zero DOUBLE state just above the double subnormal range (2.2e-308), not at
+ * -300 dBFS. For state that feeds a control path — an envelope in a cutoff
+ * exponent — zeroing at 1e-15 moves the last bits of audible output; at 1e-300
+ * pow(2, x) and every sum it enters are unchanged, and a state that decays at
+ * hundreds of dB per second still needs far longer than a block to fall the
+ * remaining eight decades into the subnormal range.
+ */
+inline double flushSubnormalState(double x) {
+#if HYPHON_DENORMAL_GUARD
+    return std::fabs(x) < 1.0e-300 ? 0.0 : x;
+#else
+    return x;
+#endif
+}
+
+/**
+ * flushDenormal in place on every argument: the once-per-block form for an
+ * engine's recursive state. Once per 128-frame block is enough — a state decays
+ * a fraction of a dB per block, nowhere near from 1e-15 to the subnormal range.
+ */
+template <class... T>
+inline void flushDenormals(T&... state) {
+    ((state = flushDenormal(state)), ...);
+}
+
+/** Same over an array of state (filter stages, a delay line's taps). */
+template <class T, size_t N>
+inline void flushDenormals(T (&state)[N]) {
+    for (T& x : state) x = flushDenormal(x);
 }
 
 }  // namespace hyphon

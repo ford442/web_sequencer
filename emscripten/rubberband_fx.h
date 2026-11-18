@@ -78,6 +78,7 @@ struct RbFx;
 int rb_fx_abi_version(void);
 int rb_fx_param_count(void);
 
+/** Null on bad arguments or when the fixed heap has no room. */
 RbFx* rb_fx_create(double sampleRate, int maxFrames);
 void rb_fx_destroy(RbFx* fx);
 
@@ -94,7 +95,11 @@ void rb_fx_seed(RbFx* fx, uint32_t seed);
 /** Clears the syllable filter hold state (the worklet's noteOn). */
 void rb_fx_note_on(RbFx* fx);
 
-/** (Re)allocates the owned sample buffer; the caller fills the returned span. */
+/**
+ * (Re)allocates the owned sample buffer; the caller fills the returned span.
+ * Null for frames > 0 means the module's fixed heap cannot hold the sample (the
+ * worklet then runs that sample on the TypeScript FX chain).
+ */
 float* rb_fx_sample_alloc(RbFx* fx, int frames);
 /** (Re)allocates a custom grain window; len 0 clears it and returns null. */
 float* rb_fx_window_alloc(RbFx* fx, int kind, int len);

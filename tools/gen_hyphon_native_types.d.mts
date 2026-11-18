@@ -2,6 +2,8 @@ export const EXPORTS_OUTPUT: string;
 export const EVENT_SCHEMA: string;
 export const EVENT_LAYOUT_TS: string;
 export const EVENT_LAYOUT_H: string;
+export const RUBBERBAND_EXPORTS_OUTPUT: string;
+export const MIX_BUS_EXPORTS_OUTPUT: string;
 
 export interface EventSchemaField {
   name: string;
@@ -52,3 +54,6 @@ export function generateEventLayoutH(schema?: EventSchema): string;
 export function generate(schema?: EventSchema): string;
 export function generatedFiles(): Array<{ rel: string; text: string }>;
 export function staleGeneratedFiles(): string[];
+export function generateRubberbandExports(): string;
+export function generateMixBusExports(): string;
+export function unknownExportCallers(options?: { files?: string[] }): Array<{ file: string; line: number; name: string; module: string }>;

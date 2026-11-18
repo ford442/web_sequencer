@@ -24,6 +24,14 @@
  *   # heap high-water mark of a full voice set (wasm_memory_budget.json evidence)
  *   node tools/render_hyphon_native_parity.mjs heap --wasm … --map … [--sr 192000 --block 4096]
  *
+ *   # main-stack high-water mark of the same voice set (STACK_SIZE evidence);
+ *   # needs the DEBUG build — the probe is linked into that profile only
+ *   node tools/render_hyphon_native_parity.mjs stack --wasm … --map … [--sr 192000 --block 4096]
+ *
+ *   # fill EVERY voice slot at the largest block the worklets allow and render: the
+ *   # fixed (non-growing) memory must hold them all (exit 1 if a slot fails)
+ *   node tools/render_hyphon_native_parity.mjs slots --wasm … --map … [--sr 192000 --block 4096]
+ *
  *   # CPU of the macro (Plaits) voices: every engine, 8 voices, as % of a quantum
  *   node tools/render_hyphon_native_parity.mjs macro-cpu --wasm … --map … [--sr 48000 --seconds 2 --mode held|sequenced]
  */
@@ -86,7 +94,9 @@ function instantiate(wasmPath, mapPath) {
   const key = threaded ? 'hyphonNative' : 'hyphonNativeSt';
   const memory = new WebAssembly.Memory({
     initial: (budget[key].initialMemoryMb * 1024 * 1024) / WASM_PAGE,
-    maximum: (budget[key].maximumMemoryMb * 1024 * 1024) / WASM_PAGE,
+    // Fixed-size modules (ALLOW_MEMORY_GROWTH=0) declare maximum == initial and
+    // carry no maximumMemoryMb.
+    maximum: ((budget[key].maximumMemoryMb ?? budget[key].initialMemoryMb) * 1024 * 1024) / WASM_PAGE,
     shared: threaded,
   });
 
@@ -422,17 +432,14 @@ function baselines(args) {
  * in use; it is sampled before any voice exists and after every voice has
  * rendered (internal buffers are sized lazily on the first process call).
  */
-function heap(args) {
-  const api = instantiate(args.wasm, args.map);
-  const { fn, memory } = api;
-  const sr = Number(args.sr ?? 192000);
-  const block = Number(args.block ?? 4096);
-  const probe = () => {
-    const p = fn('malloc')(16);
-    fn('free')(p);
-    return p;
-  };
-  const before = probe();
+/**
+ * The worst-case live voice set the memory budget is sized for: 3x Open303 at 4x
+ * oversample, 3x JC303, 3x high-fid at 2x, 2x Prophecy, the drum kit and, when
+ * built, SYNTH A + SYNTH B on macro engines with all 8 voices sounding. Returns
+ * one render-a-block thunk per voice.
+ */
+function worstCaseVoiceSet(api, sr, block) {
+  const { fn } = api;
   const voices = [];
   const scratch = fn('malloc')(block * 4);
   const add = (prefix, init, setup, process) => {
@@ -467,6 +474,21 @@ function heap(args) {
       );
     }
   }
+  return voices;
+}
+
+function heap(args) {
+  const api = instantiate(args.wasm, args.map);
+  const { fn, memory } = api;
+  const sr = Number(args.sr ?? 192000);
+  const block = Number(args.block ?? 4096);
+  const probe = () => {
+    const p = fn('malloc')(16);
+    fn('free')(p);
+    return p;
+  };
+  const before = probe();
+  const voices = worstCaseVoiceSet(api, sr, block);
   for (let b = 0; b < 8; b++) for (const run of voices) run();
   const after = probe();
   const mb = (n) => Number((n / 1048576).toFixed(3));
@@ -483,14 +505,145 @@ function heap(args) {
   console.log(JSON.stringify(out, null, 2));
 }
 
+/**
+ * Main-stack high-water mark of the worst-case voice set (wasm_memory_budget.json
+ * stackSizeMb evidence). Needs a build with the emscripten/core/stack_probe.cpp
+ * exports — the DEBUG profile (`pnpm run build:emcc:debug`). Its -O1 frames are
+ * at least the -O3 release frames, so the number is an upper bound. Covers init,
+ * the immediate *_process path, and the event path the worklets actually render
+ * through (*_push_event + *_render, HYPHON_EXPORT_VOICE).
+ */
+function stack(args) {
+  const api = instantiate(args.wasm, args.map);
+  const { fn, has } = api;
+  if (!has('hyphon_stack_high_water')) {
+    console.error('This wasm has no stack probe — build it with: pnpm run build:emcc:debug');
+    process.exit(2);
+  }
+  const sr = Number(args.sr ?? 192000);
+  const block = Number(args.block ?? 4096);
+  fn('hyphon_stack_paint')();
+  const voices = worstCaseVoiceSet(api, sr, block);
+  // Event path: one voice per HYPHON_EXPORT_VOICE engine, a NOTE_ON (TRIGGER for
+  // the kit) at frame 0, then whole blocks through *_render.
+  const NOTE_ON = 1;
+  const TRIGGER = 5;
+  for (const [prefix, type, target, value] of [
+    ['open303', NOTE_ON, 36, 120],
+    ['jc303', NOTE_ON, 36, 120],
+    ['highfid303', NOTE_ON, 36, 120],
+    ['prophecy', NOTE_ON, 48, 1],
+    ['drumkit', TRIGGER, 0, 1],
+    ['macro', NOTE_ON, 48, 0.8],
+  ]) {
+    if (!has(`${prefix}_render`)) continue;
+    const h = fn(`${prefix}_create`)();
+    fn(`${prefix}_init`)(h, sr, block);
+    fn(`${prefix}_push_event`)(h, 0, type, target, value, 0.5, 0.5, 0.5, 0.5);
+    voices.push(() => fn(`${prefix}_render`)(h, 0, block));
+  }
+  for (let b = 0; b < 8; b++) for (const run of voices) run();
+  // Every macro (Plaits) engine: several keep small scratch arrays on the stack.
+  if (has('macro_engine_count')) {
+    const h = fn('macro_create')();
+    fn('macro_init')(h, sr, block);
+    for (let e = 0; e < fn('macro_engine_count')(); e++) {
+      fn('macro_set_param_now')(h, 0 /* MACRO_ENGINE */, e);
+      for (let n = 0; n < 8; n++) fn('macro_note_on')(h, 48 + n, 0.8);
+      for (let b = 0; b < 4; b++) fn('macro_process')(h, block);
+    }
+  }
+  const used = fn('hyphon_stack_high_water')();
+  const size = fn('hyphon_stack_size')();
+  const kb = (n) => Number((n / 1024).toFixed(1));
+  console.log(JSON.stringify({
+    wasm: path.basename(args.wasm),
+    sampleRate: sr,
+    block,
+    voices: voices.length,
+    stackSizeKb: kb(size),
+    highWaterKb: kb(used),
+    highWaterPct: Number(((100 * used) / size).toFixed(2)),
+  }, null, 2));
+}
+
+/** Slot counts of HYPHON_EXPORT_VOICE(prefix, Type, Slots) in emscripten/*_wrapper.cpp. */
+function voiceSlotCounts() {
+  const dir = new URL('../emscripten/', import.meta.url);
+  const counts = {};
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('_wrapper.cpp')) continue;
+    const src = fs.readFileSync(new URL(f, dir), 'utf8');
+    for (const m of src.matchAll(/^HYPHON_EXPORT_VOICE\((\w+),\s*\w+,\s*(\d+)\)/gm)) counts[m[1]] = Number(m[2]);
+  }
+  return counts;
+}
+
+/**
+ * Every voice slot of every engine created, initialised at the largest block
+ * (NATIVE_VOICE_MAX_BLOCK_FRAMES), oversampled where the engine can, sounding a
+ * note, and rendered. The voice module's memory is fixed (ALLOW_MEMORY_GROWTH=0,
+ * BUILD_NOTES#fixed-voice-memory), so this is the ceiling the budget must hold:
+ * no slot may fail to create, init or render. Heap per voice depends on the block
+ * size, not the sample rate.
+ */
+function slots(args) {
+  const api = instantiate(args.wasm, args.map);
+  const { fn, has, memory } = api;
+  const sr = Number(args.sr ?? 192000);
+  const block = Number(args.block ?? 4096);
+  const expected = voiceSlotCounts();
+  const NOTE_ON = 1;
+  const TRIGGER = 5;
+  const oversample = { open303: 4, highfid303: 2 };
+  const created = {};
+  const failures = [];
+  const runs = [];
+  for (const [prefix, slotCount] of Object.entries(expected)) {
+    if (!has(`${prefix}_create`)) continue;
+    created[prefix] = 0;
+    for (let i = 0; i < slotCount; i++) {
+      const h = fn(`${prefix}_create`)();
+      if (!h) {
+        failures.push(`${prefix}_create #${i}`);
+        break;
+      }
+      if (!fn(`${prefix}_init`)(h, sr, block)) failures.push(`${prefix}_init #${i}`);
+      if (oversample[prefix] && has(`${prefix}_set_oversample`)) fn(`${prefix}_set_oversample`)(h, oversample[prefix]);
+      const kit = prefix === 'drumkit';
+      fn(`${prefix}_push_event`)(h, 0, kit ? TRIGGER : NOTE_ON, kit ? 0 : 40, prefix.endsWith('303') ? 120 : 1, 0.5, 0.5, 0.5, 0.5);
+      runs.push([`${prefix} #${i}`, () => fn(`${prefix}_render`)(h, 0, block)]);
+      created[prefix]++;
+    }
+  }
+  for (let b = 0; b < 4; b++) {
+    for (const [label, run] of runs) if (!run() && b === 0) failures.push(`${label} render`);
+  }
+  const p = fn('malloc')(16);
+  fn('free')(p);
+  const mb = (n) => Number((n / 1048576).toFixed(3));
+  console.log(JSON.stringify({
+    wasm: path.basename(args.wasm),
+    sampleRate: sr,
+    block,
+    slots: created,
+    highWaterMb: mb(p),
+    memoryMb: mb(memory.buffer.byteLength),
+    failures,
+  }, null, 2));
+  if (failures.length) process.exit(1);
+}
+
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._.shift();
 if (cmd === 'render') render(args);
 else if (cmd === 'compare') compare(args);
 else if (cmd === 'baselines') baselines(args);
 else if (cmd === 'heap') heap(args);
+else if (cmd === 'stack') stack(args);
+else if (cmd === 'slots') slots(args);
 else if (cmd === 'macro-cpu') macroCpu(args);
 else {
-  console.error('Usage: render_hyphon_native_parity.mjs render|compare|baselines|heap|macro-cpu … (see header)');
+  console.error('Usage: render_hyphon_native_parity.mjs render|compare|baselines|heap|stack|slots|macro-cpu … (see header)');
   process.exit(2);
 }

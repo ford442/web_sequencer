@@ -164,7 +164,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── build.sh                  # Voice module (hyphon_native), both threading profiles
 │   ├── build_rubberband.sh       # Rubberband-only build
 │   ├── build_mix_bus.sh          # Offline mix bus (#1341)
-│   ├── toolchain.json            # THE Emscripten pin (6.0.9) + Pyodide pin
+│   ├── toolchain.json            # THE Emscripten pin (6.0.13) + Pyodide pin
 │   ├── toolchain_env.sh          # Sourced by every em++ script; refuses any other emcc
 │   ├── rubberband_wrapper.cpp    # Rubberband C++ interface
 │   └── pre.js / rubberband-pre.js
@@ -313,6 +313,12 @@ python3 voice-mixer.py
 
 This project has **four distinct build environments**. **Never mix their build steps or toolchains**:
 
+**No worklet-loaded wasm may grow memory or throw.** Every module an AudioWorklet
+instantiates (`hyphon_native` both profiles, `rubberband`) links with
+`ALLOW_MEMORY_GROWTH=0` and `-fno-exceptions`, with no embind
+(`src/__tests__/wasmCompileFlags.test.ts`; `docs/wasm/BUILD_NOTES.md#fixed-voice-memory`).
+Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
+
 ### 1. AssemblyScript World (`/assembly`)
 - **Source**: `*.ts` files with `// @mode: assemblyscript` header
 - **Build**: `pnpm run build:wasm:oscillators`, `build:wasm:freezer`, `build:wasm:fft`, `build:wasm:audioexport`, `build:wasm:xmexport`
@@ -334,7 +340,7 @@ This project has **four distinct build environments**. **Never mix their build s
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
 - **Output**: `public/hyphon_native.{js,wasm}` (pthread) and `public/hyphon_native.st.{js,wasm}` (single-threaded); no `.worker.js` — the pinned emcc inlines pthread workers
-- **Requires**: Emscripten **6.0.9** (`emscripten/toolchain.json`); `emscripten/toolchain_env.sh` fails the build on any other version
+- **Requires**: Emscripten **6.0.13** (`emscripten/toolchain.json`); `emscripten/toolchain_env.sh` fails the build on any other version
 - **Release link**: `-O3 -flto`, no embind, no `main()`; `tools/render_hyphon_native_parity.mjs` is the gate for compiler / flag changes (`docs/wasm/BUILD_NOTES.md#render-parity`)
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`), macro / Plaits (`macro_wrapper.cpp`)
 - **Requires** the `third_party/eurorack` and `third_party/stmlib` submodules for the macro voices (`git submodule update --init --depth 1 third_party/eurorack third_party/stmlib`); `build.sh` names them when missing
@@ -344,6 +350,7 @@ This project has **four distinct build environments**. **Never mix their build s
 - **Build**: `pnpm run build:wasm:rubberband`
 - **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
 - **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
+- **ABI**: plain `extern "C"` `rb_*` (stretcher) and `rb_fx_*` (vocal FX) over opaque handles: no embind, no exceptions, fixed 64 MB memory. TS callers use `src/audio-worklets/rubberband/stretcher.ts` (`docs/wasm/BUILD_NOTES.md#rubberband-fixed-memory`).
 
 ### 3c. Mix Bus World (`emscripten/mix_bus.cpp` + `emscripten/build_mix_bus.sh`)
 - **Build**: `pnpm run build:wasm:mixbus`
@@ -531,7 +538,7 @@ Located in `.github/workflows/`:
 1. **CI** (`ci.yml`)
    - Triggers on push/PR to `main`
    - Runs on `ubuntu-latest`
-   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Rust (wasm32 target) → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`)
+   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`). No Rust: `rust-audio` is bench-only and `openrb338` opt-in.
 
 2. **Diagnostic Build & Test** (`debug_build.yml`)
    - Triggers on push/PR to `main`/`master` and `workflow_dispatch`
@@ -692,7 +699,7 @@ interface Note {
 
 WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
 
-1. **Emscripten 6.0.9** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.9 && ./emsdk activate 6.0.9`. The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
+1. **Emscripten 6.0.13** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.13 && ./emsdk activate 6.0.13`. The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
 2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
 3. **Git submodules**: `git submodule update --init --recursive` (required for `jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices).
 

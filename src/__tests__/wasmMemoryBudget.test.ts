@@ -29,18 +29,18 @@ const budget = JSON.parse(
     pageSizeBytes: number;
     hyphonNative: {
         initialMemoryMb: number;
-        maximumMemoryMb: number;
+        maximumMemoryMb?: number;
         stackSizeMb: number;
         pthreadPoolSize: number;
     };
     hyphonNativeSt: {
         initialMemoryMb: number;
-        maximumMemoryMb: number;
+        maximumMemoryMb?: number;
         stackSizeMb: number;
     };
     rubberband: {
         initialMemoryMb: number;
-        maximumMemoryMb: number;
+        maximumMemoryMb?: number;
         stackSizeMb: number;
     };
     mixBus: {
@@ -67,13 +67,24 @@ describe('hyphon_native memory budget', () => {
         expect(HYPHON_NATIVE_MIN_MEMORY_PAGES).toBe(expectedPages);
     });
 
-    it('worklet maximum memory matches the budget', () => {
-        const expectedPages = (budget.hyphonNative.maximumMemoryMb * 1024 * 1024) / WASM_PAGE_BYTES;
-        expect(HYPHON_NATIVE_MAX_MEMORY_PAGES).toBe(expectedPages);
+    it('is fixed-size: no maximum in the budget, and the worklet maximum is the initial size', () => {
+        // ALLOW_MEMORY_GROWTH=0 (BUILD_NOTES#fixed-voice-memory): the module declares
+        // maximum == initial, so a larger imported maximum is a LinkError.
+        expect(budget.hyphonNative).not.toHaveProperty('maximumMemoryMb');
+        expect(HYPHON_NATIVE_MAX_MEMORY_PAGES).toBe(HYPHON_NATIVE_MIN_MEMORY_PAGES);
     });
 
-    it('initial memory stays under the maximum', () => {
-        expect(budget.hyphonNative.initialMemoryMb).toBeLessThan(budget.hyphonNative.maximumMemoryMb);
+    it('has no pthread pool: nothing in the voice module creates a thread', () => {
+        expect(budget.hyphonNative.pthreadPoolSize).toBe(0);
+        expect(buildSh).toContain('-s PTHREAD_POOL_SIZE=$PTHREAD_POOL_SIZE');
+    });
+
+    it('sizes the stack from the measured high-water mark, not the old 8 MB', () => {
+        // tools/render_hyphon_native_parity.mjs stack (debug build): < 1 KB used.
+        for (const key of ['hyphonNative', 'hyphonNativeSt'] as const) {
+            expect(budget[key].stackSizeMb, key).toBeLessThanOrEqual(0.25);
+            expect(budget[key].stackSizeMb * 1048576 % 16, `${key} stack must be 16-byte aligned`).toBe(0);
+        }
     });
 
     it('keeps the mobile-friendly ceiling on the initial reservation', () => {
@@ -85,8 +96,9 @@ describe('hyphon_native memory budget', () => {
     it('build.sh derives its link flags from the budget file rather than literals', () => {
         expect(buildSh).toContain('wasm_memory_budget.json');
         expect(buildSh).toContain('-s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb');
-        expect(buildSh).toContain('-s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb');
-        // No hardcoded INITIAL_MEMORY left behind.
+        expect(buildSh).toContain('-s STACK_SIZE=${STACK_SIZE_BYTES}');
+        // Fixed memory: no MAXIMUM_MEMORY, and no hardcoded INITIAL_MEMORY left behind.
+        expect(buildSh).not.toContain('MAXIMUM_MEMORY');
         expect(buildSh).not.toMatch(/INITIAL_MEMORY=\d+mb/);
     });
 
@@ -118,9 +130,10 @@ describe('hyphon_native memory budget', () => {
 describe('hyphon_native single-threaded (st) memory budget', () => {
     const mbToPages = (mb: number) => (mb * 1024 * 1024) / WASM_PAGE_BYTES;
 
-    it('worklet ST page constants match the budget', () => {
+    it('worklet ST page constants match the budget (fixed size)', () => {
         expect(HYPHON_NATIVE_ST_MIN_MEMORY_PAGES).toBe(mbToPages(budget.hyphonNativeSt.initialMemoryMb));
-        expect(HYPHON_NATIVE_ST_MAX_MEMORY_PAGES).toBe(mbToPages(budget.hyphonNativeSt.maximumMemoryMb));
+        expect(budget.hyphonNativeSt).not.toHaveProperty('maximumMemoryMb');
+        expect(HYPHON_NATIVE_ST_MAX_MEMORY_PAGES).toBe(HYPHON_NATIVE_ST_MIN_MEMORY_PAGES);
     });
 
     it('artifact table routes each profile to its own budget', () => {
@@ -139,14 +152,12 @@ describe('hyphon_native single-threaded (st) memory budget', () => {
 
     it('is smaller than the pthread reservation', () => {
         expect(budget.hyphonNativeSt.initialMemoryMb).toBeLessThan(budget.hyphonNative.initialMemoryMb);
-        expect(budget.hyphonNativeSt.initialMemoryMb).toBeLessThan(budget.hyphonNativeSt.maximumMemoryMb);
     });
 
     it('build.sh links the ST profile from the budget, without pthreads', () => {
         expect(buildSh).toContain('hyphonNativeSt.initialMemoryMb');
         expect(buildSh).toContain('-s INITIAL_MEMORY=${ST_INITIAL_MEMORY_MB}mb');
-        expect(buildSh).toContain('-s MAXIMUM_MEMORY=${ST_MAXIMUM_MEMORY_MB}mb');
-        expect(buildSh).toContain('-s STACK_SIZE=${ST_STACK_SIZE_MB}mb');
+        expect(buildSh).toContain('-s STACK_SIZE=${ST_STACK_SIZE_BYTES}');
         const stLink = /ST_LINK_FLAGS="([^"]*)"/.exec(buildSh)?.[1] ?? '';
         expect(stLink).toContain('-s IMPORTED_MEMORY=1');
         expect(stLink).not.toMatch(/-pthread\b|USE_PTHREADS|PTHREAD_POOL_SIZE|pyodide_bootstrap/);
@@ -183,15 +194,18 @@ describe('Rubber Band module split', () => {
         expect(buildSh).not.toMatch(/-DUSE_SPEEX/);
     });
 
-    it('has its own budget entry and build script that reads it', () => {
+    it('has its own fixed budget entry and a build script that reads it', () => {
         expect(budget.rubberband.initialMemoryMb).toBeGreaterThan(0);
-        expect(budget.rubberband.initialMemoryMb).toBeLessThan(budget.rubberband.maximumMemoryMb);
+        // Fixed (ALLOW_MEMORY_GROWTH=0, BUILD_NOTES#rubberband-fixed-memory).
+        expect(budget.rubberband).not.toHaveProperty('maximumMemoryMb');
         expect(rubberbandSh).toContain('wasm_memory_budget.json');
         expect(rubberbandSh).toContain('rubberband.initialMemoryMb');
         expect(rubberbandSh).toContain('-s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb');
-        expect(rubberbandSh).toContain('-s MAXIMUM_MEMORY=${MAXIMUM_MEMORY_MB}mb');
+        expect(rubberbandSh).not.toContain('MAXIMUM_MEMORY');
         expect(rubberbandSh).toContain('-s STACK_SIZE=${STACK_SIZE_MB}mb');
         expect(rubberbandSh).not.toMatch(/INITIAL_MEMORY=\d+/);
+        // The linked module is checked against the same number.
+        expect(rubberbandSh).toContain('check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$GLUE_JS" "$INITIAL_MEMORY_MB"');
     });
 
     it('is a registered build world with a package script', () => {

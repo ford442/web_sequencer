@@ -7,6 +7,7 @@
  *   3. One Emscripten pin, enforced by every em++ script and read by every CI job;
  *      the voice module links at -O3 + LTO with no embind / main() / OpenMP.
  *   4. index.html boots with no remote script and no `unsafe-eval`.
+ *   5. No module an AudioWorklet loads may grow its memory or throw.
  *
  * See docs/wasm/BUILD_NOTES.md.
  */
@@ -146,11 +147,14 @@ describe('AssemblyScript browser matrix', () => {
         }
     });
 
-    it('keeps threads on the oscillators module only', () => {
-        expect(packageJson.scripts['build:wasm:oscillators']).toContain('--enable threads');
-        for (const name of asScripts.filter((n) => n !== 'build:wasm:oscillators')) {
+    it('enables threads on no module: none uses atomics or shared memory', () => {
+        // The oscillators' --enable threads was dead: assembly/oscillators.ts has
+        // no atomics and WasmOscillator.ts uses the module's own non-shared memory
+        // (the module built without it is byte-identical).
+        for (const name of asScripts) {
             expect(packageJson.scripts[name], name).not.toContain('--enable threads');
         }
+        expect(read('assembly/oscillators.ts')).not.toMatch(/\batomic\.|Atomics/);
     });
 
     it('keeps the capability probe available for a future relaxed kernel', () => {
@@ -243,8 +247,8 @@ describe('voice module link (hyphon_native)', () => {
     });
 
     it('fails the build if libomp / embind / emscripten_run_script reach either wasm', () => {
-        expect(code).toContain('check_hyphon_st_module.mjs" "${OUTPUT_ST_JS%.js}.wasm"');
-        expect(code).toContain('check_hyphon_st_module.mjs" --symbols-only "${OUTPUT_JS%.js}.wasm"');
+        expect(code).toContain('check_hyphon_st_module.mjs" --fixed-memory-mb "$ST_INITIAL_MEMORY_MB" "${OUTPUT_ST_JS%.js}.wasm"');
+        expect(code).toContain('check_hyphon_st_module.mjs" --symbols-only --fixed-memory-mb "$INITIAL_MEMORY_MB" "${OUTPUT_JS%.js}.wasm"');
     });
 
     it('emits no pthread *.worker.js shim (the pinned emcc inlines workers)', () => {
@@ -252,10 +256,109 @@ describe('voice module link (hyphon_native)', () => {
         expect(code).not.toContain('worker.js');
     });
 
-    it('release and emcc builds re-check the linked wasm, not only glue', () => {
-        expect(packageJson.scripts['build:release']).toContain('--wasm public/hyphon_native.wasm');
-        expect(packageJson.scripts['build:release:changed']).toContain('--wasm public/hyphon_native.wasm');
+    it('release and emcc builds re-check the linked wasm, not only glue — both profiles', () => {
+        for (const script of ['build:release', 'build:release:changed']) {
+            const cmd = packageJson.scripts[script];
+            expect(cmd, script).toContain('--glue public/hyphon_native.js --wasm public/hyphon_native.wasm');
+            expect(cmd, script).toContain(
+                '--map public/hyphon_wasm_export_map.st.json --glue public/hyphon_native.st.js --wasm public/hyphon_native.st.wasm',
+            );
+        }
         expect(code).toContain('--wasm');
+    });
+});
+
+describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => {
+    // Every em++ module an AudioWorklet instantiates. Growing memory there replaces
+    // the buffer under every heap view (for a SAB, mid-quantum); an exception in
+    // JS-trampoline mode crosses into JS on every invoke_*. AGENTS.md: "no
+    // worklet-loaded wasm may grow memory or throw". (mix_bus runs in a Worker.)
+    const workletModules = {
+        'emscripten/build.sh': buildSh,
+        'emscripten/build_rubberband.sh': rubberbandSh,
+    };
+
+    it('passes ALLOW_MEMORY_GROWTH=0 (and ABORTING_MALLOC=0, so malloc fails soft) and never =1', () => {
+        for (const [name, src] of Object.entries(workletModules)) {
+            const code = withoutShellComments(src);
+            expect(code, name).toContain('-s ALLOW_MEMORY_GROWTH=0');
+            expect(code, name).toContain('-s ABORTING_MALLOC=0');
+            expect(code, name).not.toMatch(/ALLOW_MEMORY_GROWTH=1/);
+            expect(code, name).not.toContain('MAXIMUM_MEMORY');
+        }
+    });
+
+    it('builds without embind, exceptions or RTTI', () => {
+        for (const [name, src] of Object.entries(workletModules)) {
+            const code = withoutShellComments(src);
+            expect(code, name).not.toContain('--bind');
+            expect(code, name).not.toMatch(/-fexceptions|-fwasm-exceptions|-frtti/);
+            expect(code, name).toContain('-fno-exceptions');
+            // Redundant on the 6.x pin (the default), and noise in a flags audit.
+            expect(code, name).not.toMatch(/-s WASM=1\b/);
+        }
+    });
+
+    it('Rubber Band is a plain C ABI: no EMSCRIPTEN_BINDINGS, and its throw sites compiled out', () => {
+        const wrapper = withoutJsLineComments(read('emscripten/rubberband_wrapper.cpp'));
+        expect(wrapper).not.toContain('EMSCRIPTEN_BINDINGS');
+        expect(wrapper).not.toContain('emscripten/bind.h');
+        expect(wrapper).toContain('extern "C"');
+        expect(wrapper).not.toMatch(/std::vector/);
+        const code = withoutShellComments(rubberbandSh);
+        expect(code).toContain('-DNO_EXCEPTIONS');
+        expect(code).toContain('-fno-rtti');
+        expect(code).not.toContain('EMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES');
+        // Each worklet loader goes through the typed rb_* wrapper, never an embind class.
+        for (const f of ['src/audio-worklets/rubberband-processor.ts', 'src/audio-worklets/sustain-processor.ts']) {
+            const src = read(f);
+            expect(src, f).toContain("from \"./rubberband/stretcher\"");
+            expect(src, f).not.toContain('module.RubberBandStretcher');
+        }
+    });
+
+    it('takes every memory size from wasm_memory_budget.json and checks the linked wasm against it', () => {
+        expect(withoutShellComments(rubberbandSh)).toContain('check_rubberband_module.mjs');
+        expect(buildSh).toContain('hyphonNative.initialMemoryMb');
+        expect(buildSh).toContain('hyphonNativeSt.initialMemoryMb');
+        expect(withoutShellComments(buildSh)).toContain('--fixed-memory-mb "$ST_INITIAL_MEMORY_MB"');
+        expect(withoutShellComments(buildSh)).toContain('--fixed-memory-mb "$INITIAL_MEMORY_MB"');
+    });
+
+    it('links the stack probe into the debug profile only', () => {
+        const code = withoutShellComments(buildSh);
+        expect(code).toMatch(/if \[ "\$BUILD_PROFILE" = "debug" \]; then\s*\n\s*compile_cpp "\$SCRIPT_DIR\/core\/stack_probe\.cpp"/);
+        expect(code).toContain('hyphon_native_exports.mjs" --profile "$BUILD_PROFILE"');
+    });
+});
+
+describe('repo hygiene (#1596 follow-up P5)', () => {
+    it('rubberband/ is vendored, not a submodule', () => {
+        expect(read('.gitmodules')).not.toMatch(/submodule "rubberband"/);
+        expect(withoutShellComments(rubberbandSh)).not.toContain('submodule update');
+    });
+
+    it('no CI workflow installs or caches Rust (rust-audio is bench-only, openrb338 opt-in)', () => {
+        for (const f of readdirSync(join(REPO_ROOT, '.github/workflows')).filter((n) => n.endsWith('.yml'))) {
+            const yml = read(`.github/workflows/${f}`);
+            expect(yml, f).not.toContain('dtolnay/rust-toolchain');
+            expect(yml, f).not.toMatch(/rust-audio\/(target|src|Cargo)/);
+            expect(yml, f).not.toContain('public/rust-wasm/');
+        }
+    });
+
+    it('openrb338 is built with SIMD like every other shipped-capable module', () => {
+        expect(read('openrb338/build.sh')).toMatch(/RUSTFLAGS="\$\{RUSTFLAGS:-\} -C target-feature=\+simd128" \\\n\s*cargo build --release --target wasm32-unknown-unknown/);
+    });
+
+    it('the docs name the real toolchain pin', () => {
+        const pin = toolchain.emscripten.version;
+        for (const f of ['CLAUDE.md', 'AGENTS.md']) {
+            const doc = read(f);
+            expect(doc, f).toContain(`Emscripten ${pin}`);
+            expect(doc, f).not.toMatch(/Emscripten \*{0,2}6\.0\.(?!13\b)\d+/);
+        }
+        expect(read('AGENTS.md')).toContain('No worklet-loaded wasm may grow memory or throw');
     });
 });
 

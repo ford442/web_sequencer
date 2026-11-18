@@ -47,11 +47,13 @@ describe('rb_fx ABI stays in step with the C++ header', () => {
     expect(header).toContain(`#define RB_FX_ABI_VERSION ${RB_FX_ABI_VERSION}`);
   });
 
-  it('build_rubberband.sh exports exactly the functions the worklet probes for', () => {
-    const list = buildSh.match(/RB_FX_EXPORTS=\(([^)]*)\)/);
-    expect(list).not.toBeNull();
-    const exported = list![1].trim().split(/\s+/).map((fn) => `_${fn}`);
-    expect(exported.sort()).toEqual([...RB_FX_REQUIRED_EXPORTS].sort());
+  it('build_rubberband.sh exports exactly the functions the worklet probes for (one manifest)', () => {
+    // Both come from the `rubberband` section of wasm_export_manifest.json now.
+    expect(buildSh).toContain('hyphon_native_exports.mjs" --module rubberband');
+    expect(buildSh).not.toMatch(/RB_FX_EXPORTS=\(/);
+    const manifest = JSON.parse(read('emscripten/wasm_export_manifest.json')) as { rubberband: { required: string[] } };
+    const fx = manifest.rubberband.required.filter((n) => n.startsWith('rb_fx_')).map((n) => `_${n}`);
+    expect(fx).toEqual([...RB_FX_REQUIRED_EXPORTS]);
     for (const name of RB_FX_REQUIRED_EXPORTS) {
       expect(header).toContain(`${name.slice(1)}(`);
     }

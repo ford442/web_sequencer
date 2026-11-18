@@ -1,0 +1,13 @@
+// Fixture for src/__tests__/wasmExportManifest.modules.test.ts: callers of native
+// exports that wasm_export_manifest.json does NOT declare. Not compiled (.txt), and
+// outside the check:native-types walk (it only reads .ts / .tsx / .mts / .mjs).
+module._rb_set_sample_rate(handle, 48000);
+const fx = '_rb_fx_reverb';
+exports.mix_bus_rms(128);
+fn('open303_set_cutoff');
+api.hyphon_stack_reset();
+// Declared names and non-exports pass:
+module._rb_create(48000, 1, 0, 1, 1);
+fn('open303_render');
+const prefix = 'rb_fx_';
+const dir = 'jc303_wasm';

@@ -79,6 +79,34 @@ else
     echo
 fi
 
+# #1596 follow-up P4: no silent tail consumes a subnormal (wasm has no FTZ).
+# Each engine is built twice — guards off (report only, dumps the render) and on
+# (asserts a clean 60 s tail, flat CPU, and the off render bit for bit until the
+# tail). See emscripten/tests/denormal_tail_test.cpp.
+DENORMAL_DUMP="$TMP/denormal_unguarded"
+mkdir -p "$DENORMAL_DUMP"
+for engine in OPEN303 JC303 HIGHFID303 PROPHECY DRUMKIT; do
+    extra=()
+    if [ "$engine" = JC303 ]; then
+        if ! compgen -G "$OPEN303_DSP/*.cpp" > /dev/null; then
+            echo "Skipping denormal_tail_test [jc303] (jc303_wasm submodule not checked out)."
+            continue
+        fi
+        extra=(-Wno-strict-aliasing -Wno-unused-parameter -Wno-aggressive-loop-optimizations
+               -I "$OPEN303_DSP" -I "$SCRIPT_DIR/../../jc303_wasm/src/dsp" "$OPEN303_DSP"/*.cpp)
+    fi
+    for guard in 0 1; do
+        echo "Compiling denormal_tail_test [$engine, guards $guard]…"
+        g++ -std=c++17 -O2 -Wall -Wextra -DDT_ENGINE_"$engine" -DHYPHON_DENORMAL_GUARD=$guard \
+            -I "$SCRIPT_DIR/emscripten_stub" \
+            "$SCRIPT_DIR/denormal_tail_test.cpp" "${extra[@]}" \
+            -o "$TMP/denormal_tail_${engine}_$guard"
+    done
+    "$TMP/denormal_tail_${engine}_0" --dump "$DENORMAL_DUMP"
+    "$TMP/denormal_tail_${engine}_1" --compare "$DENORMAL_DUMP"
+    echo
+done
+
 # macro-* voices: the Plaits sources from the pinned third_party submodules,
 # staged with the wasm denormal guards exactly as emscripten/build.sh compiles
 # them (tools/plaits_sources.mjs). Skipped when the submodules are absent.

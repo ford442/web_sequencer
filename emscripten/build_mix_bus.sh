@@ -64,16 +64,11 @@ else
     LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"
 fi
 
-# Keep in step with MIX_BUS_REQUIRED_EXPORTS in
-# src/audio/offline/mixBus/mixBusKernel.ts (checked below).
-MIX_BUS_EXPORTS=(
-    mix_bus_abi_version mix_bus_block_frames
-    mix_bus_in_ptr mix_bus_acc_ptr
-    mix_bus_accumulate mix_bus_peak
-)
-EXPORTED_FUNCTIONS='['
-for fn in "${MIX_BUS_EXPORTS[@]}"; do EXPORTED_FUNCTIONS+="\"_${fn}\", "; done
-EXPORTED_FUNCTIONS="${EXPORTED_FUNCTIONS%, }]"
+# EXPORTED_FUNCTIONS come from the `mixBus` section of
+# emscripten/wasm_export_manifest.json; gen:native-types types the same list for
+# src/audio/offline/mixBus/mixBusKernel.ts, and check_mix_bus_module.mjs (below)
+# checks the binary against it.
+EXPORTED_FUNCTIONS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs" --module mixBus)"
 
 OUTPUT_WASM="$REPO_ROOT/public/mix_bus.wasm"
 

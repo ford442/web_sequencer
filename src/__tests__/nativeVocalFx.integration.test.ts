@@ -10,6 +10,8 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { repoRoot } from '@/test/helpers/requireRepoArtifacts';
 import { NativeVocalFx, type RubberBandFxModule } from '@/audio-worklets/rubberband/nativeVocalFx';
+import { RubberBandStretcher, assertRubberBandStretcherModule } from '@/audio-worklets/rubberband/stretcher';
+import { getStretchProfileOptions } from '@/engines/rubberband/stretchProfiles';
 import { TsVocalFx, type VocalFxBlock } from '@/audio-worklets/rubberband/vocalFx';
 import { SpectralBandProcessor } from '@/audio-worklets/rubberband/spectralEffects';
 import {
@@ -296,19 +298,15 @@ describe('spectral path compresses once', () => {
 });
 
 describe('memory budget', () => {
-  it('stretcher + FX chain + 30 s vocal stay inside rubberband.initialMemoryMb (no growth)', async () => {
+  it('stretcher + FX chain + 30 s vocal fit the fixed rubberband.initialMemoryMb heap', async () => {
     const budget = JSON.parse(readFileSync(join(repoRoot(), 'emscripten/wasm_memory_budget.json'), 'utf8'));
-    const fresh = await loadRubberBandFxModule() as typeof wasm & {
-      RubberBandStretcher: new (...args: number[]) => {
-        getSamplesRequired(): number; available(): number; setPitchScale(s: number): void;
-        process(ptr: number, n: number, final: boolean): void; retrieve(ptr: number, n: number): number;
-      };
-    };
+    const fresh = await loadRubberBandFxModule();
+    assertRubberBandStretcherModule(fresh);
     const initialBytes = budget.rubberband.initialMemoryMb * 1024 * 1024;
     expect(fresh.HEAPF32.buffer.byteLength).toBe(initialBytes);
 
-    // Same shape as the worklet: one finer + formant-preserving stretcher, one FX chain.
-    const stretcher = new fresh.RubberBandStretcher(SAMPLE_RATE, 1, 1 | 32 | 1048576, 1, 1);
+    // Same shape as the worklet: one real-time, formant-preserving stretcher, one FX chain.
+    const stretcher = new RubberBandStretcher(fresh, SAMPLE_RATE, 1, getStretchProfileOptions('vocal'), 1, 1);
     const fx = new NativeVocalFx(fresh, SAMPLE_RATE, QUANTUM, SEED);
     const vocal = makeVocalSignal(SAMPLE_RATE, 30);
     fx.setSampleBuffer(vocal);
@@ -333,7 +331,10 @@ describe('memory budget', () => {
       fx.process(block, left, right);
     }
 
-    expect(fresh.HEAPF32.buffer.byteLength, 'rubberband heap grew; raise the budget only with a measurement').toBe(initialBytes);
+    // The memory is fixed (ALLOW_MEMORY_GROWTH=0): it cannot have grown, and the
+    // whole session ran without a failed allocation.
+    expect(fresh.HEAPF32.buffer.byteLength).toBe(initialBytes);
     fx.dispose();
+    stretcher.delete();
   });
 });

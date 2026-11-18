@@ -29,10 +29,6 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - name: Read Emscripten pin
         # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
@@ -62,10 +58,8 @@ jobs:
             public/hyphon_native.st.js
             public/hyphon_native.st.wasm
             public/hyphon_wasm_export_map.st.json
-            public/rust-wasm/
-            rust-audio/target
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed
@@ -94,10 +88,6 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - name: Read Emscripten pin
         # The one pin (BUILD_NOTES#toolchain-pin); build scripts refuse any other emcc.
@@ -127,10 +117,8 @@ jobs:
             public/hyphon_native.st.js
             public/hyphon_native.st.wasm
             public/hyphon_wasm_export_map.st.json
-            public/rust-wasm/
-            rust-audio/target
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'rust-audio/src/**', 'rust-audio/Cargo.lock', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed

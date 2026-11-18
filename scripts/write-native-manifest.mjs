@@ -57,18 +57,18 @@ function isHyphonSt(world, rel) {
 
 function artifactMeta(rel, world) {
   if (isHyphonSt(world, rel)) return { threaded: false, requiresCoopCoep: false };
-  const threaded =
-    world.world === 'emcc' ||
-    (world.world === 'assemblyscript' && rel.includes('oscillators'));
+  // No AssemblyScript module is built with threads (#1596 follow-up P5).
+  const threaded = world.world === 'emcc';
   const requiresCoopCoep = world.world === 'emcc';
   return { threaded, requiresCoopCoep };
 }
 
 function memoryFor(world, budget, rel) {
   if (isHyphonSt(world, rel)) {
+    // Fixed memory (ALLOW_MEMORY_GROWTH=0): the maximum IS the initial size.
     return {
       initialMb: budget.hyphonNativeSt.initialMemoryMb,
-      maximumMb: budget.hyphonNativeSt.maximumMemoryMb,
+      maximumMb: budget.hyphonNativeSt.initialMemoryMb,
       stackMb: budget.hyphonNativeSt.stackSizeMb,
       pthreadPoolSize: 0,
     };
@@ -76,16 +76,17 @@ function memoryFor(world, budget, rel) {
   if (world.world === 'emcc') {
     return {
       initialMb: budget.hyphonNative.initialMemoryMb,
-      maximumMb: budget.hyphonNative.maximumMemoryMb,
+      maximumMb: budget.hyphonNative.initialMemoryMb,
       stackMb: budget.hyphonNative.stackSizeMb,
       pthreadPoolSize: budget.hyphonNative.pthreadPoolSize,
     };
   }
   if (world.world === 'rubberband') {
     // Owns its memory (not imported by the worklet), and NO_THREADING: no pool.
+    // Fixed (ALLOW_MEMORY_GROWTH=0) like the voice module: maximum == initial.
     return {
       initialMb: budget.rubberband.initialMemoryMb,
-      maximumMb: budget.rubberband.maximumMemoryMb,
+      maximumMb: budget.rubberband.initialMemoryMb,
       stackMb: budget.rubberband.stackSizeMb,
       pthreadPoolSize: 0,
     };
@@ -104,10 +105,10 @@ function memoryFor(world, budget, rel) {
 
 function linkFlagsFor(world, rel) {
   if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
-  const flags = ['ALLOW_MEMORY_GROWTH=1'];
-  if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', ...flags];
-  if (world.world === 'emcc') flags.unshift('-pthread');
-  return flags;
+  if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=0'];
+  if (world.world === 'emcc') return ['-pthread', 'ALLOW_MEMORY_GROWTH=0'];
+  // rubberband: no worklet-loaded module grows its memory (AGENTS.md).
+  return ['ALLOW_MEMORY_GROWTH=0'];
 }
 
 export function buildNativeManifest({ repoRoot = defaultRepoRoot(), profile = 'release' } = {}) {

@@ -88,7 +88,7 @@ The project has multiple WASM builds with specific purposes:
 - `build:wasm:oscillators` - AssemblyScript oscillator engines
 - `build:wasm:freezer` - Track freezer/time-stretch prep
 - `bench:wasm:rust` - Rust bench crate only; not part of `build:native` (#1294)
-- `build:emcc` - Voice module `hyphon_native` (Emscripten 6.0.9, pinned in `emscripten/toolchain.json`; `-O3 -flto`)
+- `build:emcc` - Voice module `hyphon_native` (Emscripten 6.0.13, pinned in `emscripten/toolchain.json`; `-O3 -flto`)
 
 ⚠️ **Important:** Individual WASM rebuilds may be needed after changes. The main `dev` and `build` commands handle this, but specific engine changes may require targeted rebuilds.
 
@@ -163,6 +163,7 @@ npm run build     # Ensure production build succeeds
 ## Common Tasks & Gotchas
 
 ### Adding Audio Features
+- No worklet-loaded wasm may grow memory or throw (`ALLOW_MEMORY_GROWTH=0`, `-fno-exceptions`, no embind); exports are declared in `emscripten/wasm_export_manifest.json`
 - Understand the audio engine pipeline in `src/hooks/audioEngine/`
 - Test with Web Audio context lifecycle (suspend/resume)
 - WASM modules must be properly imported async

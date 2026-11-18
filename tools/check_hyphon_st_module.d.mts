@@ -8,3 +8,4 @@ export interface WasmImportEntry {
 }
 export function parseWasmImports(buf: ArrayBuffer | Uint8Array): WasmImportEntry[];
 export function checkSingleThreadedModule(buf: ArrayBuffer | Uint8Array): string[];
+export function checkFixedMemory(buf: ArrayBuffer | Uint8Array, memoryMb: number): string[];

@@ -10,7 +10,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-cargo build --release --target wasm32-unknown-unknown --lib
+# +simd128 like every other shipped-capable module (hyphon_native, rubberband,
+# mix_bus build -msimd128; the AssemblyScript ones --enable simd). Only on the wasm
+# build: RUSTFLAGS would otherwise reach the host `cargo test` below, where
+# simd128 is not a target feature. --verify proves the output stays bit-exact.
+RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128" \
+  cargo build --release --target wasm32-unknown-unknown --lib
 mkdir -p pkg
 cp target/wasm32-unknown-unknown/release/hyphon_openrb338.wasm pkg/openrb338.wasm
 echo "openrb338.wasm: $(wc -c < pkg/openrb338.wasm) bytes -> openrb338/pkg/openrb338.wasm"

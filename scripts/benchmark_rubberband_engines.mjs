@@ -19,6 +19,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { loadRubberBandFxModule, makeVocalSignal, QUANTUM } from '../src/test/helpers/vocalFxHarness.ts';
 import { RUBBERBAND_OPTIONS, getStretchProfileOptions } from '../src/engines/rubberband/stretchProfiles.ts';
+import { RubberBandStretcher, assertRubberBandStretcherModule } from '../src/audio-worklets/rubberband/stretcher.ts';
 
 const SAMPLE_RATE = 48000;
 const QUANTUM_US = (QUANTUM / SAMPLE_RATE) * 1e6;
@@ -50,10 +51,11 @@ function percentile(sorted, p) {
 }
 
 function runCase(wasm, vocal, ioPtr, mask, pitch, voices) {
+  assertRubberBandStretcherModule(wasm);
   const heapBefore = wasm.HEAPF32.buffer.byteLength;
   const voiceStates = [];
   for (let v = 0; v < voices; v++) {
-    const s = new wasm.RubberBandStretcher(SAMPLE_RATE, 1, mask, 1.0, 1.0);
+    const s = new RubberBandStretcher(wasm, SAMPLE_RATE, 1, mask, 1.0, 1.0);
     s.setPitchScale(pitch);
     // Stagger read cursors so voices are not phase-locked to the same frame.
     voiceStates.push({ s, cursor: (v * 4801) % (vocal.length - IO_FRAMES) });
@@ -77,8 +79,8 @@ function runCase(wasm, vocal, ioPtr, mask, pitch, voices) {
     if (q >= WARMUP_QUANTA) times[q - WARMUP_QUANTA] = us;
   }
   const heapAfter = wasm.HEAPF32.buffer.byteLength;
-  const latency = voiceStates[0].s.getLatency?.() ?? null;
-  for (const st of voiceStates) st.s.delete?.();
+  const latency = voiceStates[0].s.getLatency();
+  for (const st of voiceStates) st.s.delete();
 
   const sorted = Float64Array.from(times).sort();
   const mean = times.reduce((a, b) => a + b, 0) / times.length;
