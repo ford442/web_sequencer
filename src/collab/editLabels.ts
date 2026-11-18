@@ -110,8 +110,8 @@ function describePattern(before: Json, after: Json): string | null {
     for (const [key, next] of b) {
         const prev = a.get(key);
         if (prev === next) continue;
-        const prevSteps = Array.isArray(prev?.steps) ? prev.steps : [];
-        const nextSteps = Array.isArray(next.steps) ? next.steps : [];
+        const prevSteps = Array.isArray(prev?.steps) ? (prev.steps as unknown[]) : [];
+        const nextSteps = Array.isArray(next.steps) ? (next.steps as unknown[]) : [];
         const length = Math.max(prevSteps.length, nextSteps.length);
         for (let i = 0; i < length; i++) {
             const p = prevSteps[i] ?? null;
@@ -149,9 +149,10 @@ function paramChanges(before: Json, after: Json): Array<[string, string, Json, J
         for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
             if (a[key] === b[key]) continue;
             if (isObj(a[key]) && isObj(b[key])) {
-                for (const sub of new Set([...Object.keys(a[key] as Obj), ...Object.keys(b[key] as Obj)])) {
-                    const x = (a[key] as Obj)[sub];
-                    const y = (b[key] as Obj)[sub];
+                const inner = { a: a[key], b: b[key] };
+                for (const sub of new Set([...Object.keys(inner.a), ...Object.keys(inner.b)])) {
+                    const x = inner.a[sub];
+                    const y = inner.b[sub];
                     if (!same(x, y)) out.push([instrument, sub, x, y]);
                 }
             } else if (!same(a[key], b[key])) {

@@ -1,5 +1,5 @@
 import { type SynthParams } from '../types';
-import { tunedNoteToFrequency } from '../constants';
+import { tunedNoteToFrequency } from '../constants/tuning';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type ParsedWaveform } from '../utils/waveformParser';
 import { logEngineFallback, logWaveformSubstitution } from '../utils/engineTelemetry';

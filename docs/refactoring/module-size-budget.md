@@ -93,15 +93,13 @@ and a shrunk file to prove the ratchet bites both ways.
 | 703 | `src/engines/Open303Oscillator.ts` | tracked follow-up — the `openrb338-unavailable` branch (#1537) tipped it over; split plan: move `attachStatusListener` + the high-fid / openrb fallback handlers into a sibling `open303StatusListener.ts` |
 | 1019 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below; 975 → 1019 for per-material pipelines (#1581) — the cap shader itself lives in `knobCapShader.ts` |
 | 774 | `src/components/PhonemePainter.tsx` | un-triaged |
-| 966 | `src/hooks/useAppState.tsx` | mega-hook; phase 1 (`uiModalsStore`) landed in #1259, phase 2 (transport/mix) in this PR, phases 3–6 remain (see file header) |
 | 901 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
 | 839 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
 | 786 | `src/utils/xmExport.ts` | un-triaged |
 | 822 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
 | 1120 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
-| 986 | `src/hooks/useSongStorage.ts` | justified exception — see split plan below |
 | 906 | `src/__tests__/AutomationScheduler.test.ts` | test file, un-triaged |
-| 975 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
+| 970 | `src/hooks/useStepHandler.ts` | un-triaged — note FX dispatch (#1345) went in as shared per-track helpers (`buildSynthNoteParams`, `playSynthNotes`, `bass2SynthParams`, `buildBankParams`); those helpers are the natural split line |
 | 741 | `src/__tests__/wasmMigration.test.ts` | test file, un-triaged |
 | 723 | `src/components/WaveformDisplay.tsx` | un-triaged |
 | 720 | `src/engines/rubberband/FormantShifter.ts` | un-triaged |
@@ -165,11 +163,17 @@ browser before landing them. Recorded here as a plan for a focused follow-up:
   `EnvelopeSection.tsx`, `ModulationSection.tsx`, `EffectsSection.tsx`, each
   taking the voice params slice and setter it needs; `SamplerVoicePanel.tsx`
   keeps the tab/accordion shell.
-- **`src/hooks/useSongStorage.ts` (770 lines):** one hook covering save,
-  load, import (legacy schema migration) and export. Split along those seams
-  into `useSongStorage/{save,load,migrate,export}.ts`, each a plain function
-  taking the state it needs rather than a hook, with `useSongStorage.ts` left
-  as the thin hook that wires them to component state.
+- **`src/hooks/useSongStorage.ts`** — **resolved** (#1597 P2): 986 → 360
+  lines. Split along exactly this plan into
+  `useSongStorage/{save,load,migrate,export}.ts`, plain functions over the
+  project doc and the stores; the hook only binds them to the engine, toasts
+  and the import modals.
+- **`src/hooks/useAppState.tsx`** — **resolved** (#1597 P2): 966 → 387
+  lines. The song's state moved into doc-bound stores (pattern, instrument
+  patches, arrangement, session), the engine-sync effects, transport
+  lifecycle and boot sequence into `appState/useEngineParamSync.ts`,
+  `useTransportLifecycle.ts` and `useBootSequence.ts`, and the return value
+  spreads each sub-hook's result instead of restating every field.
 
 **`LatencyCompensator.ts` (was 1005 lines, deleted 2026-08-24):** a second,
 unwired MIDI/timing system (`NoteScheduler`, `LatencyCompensator`,

@@ -11,14 +11,15 @@
 
 import { useSyncExternalStore, type SetStateAction } from 'react';
 
+/** Members are arrow-typed: each is passed around bare (`useSyncExternalStore(store.subscribe, ...)`). */
 export interface ValueStore<T> {
-    subscribe(listener: () => void): () => void;
-    getSnapshot(): T;
+    readonly subscribe: (listener: () => void) => () => void;
+    readonly getSnapshot: () => T;
     /** Same contract as a React state setter; a no-op when the value is unchanged. */
-    set(action: SetStateAction<T>): void;
+    readonly set: (action: SetStateAction<T>) => void;
     /** Always equal to `getSnapshot()`. */
     readonly ref: { current: T };
-    reset(): void;
+    readonly reset: () => void;
 }
 
 export function createValueStore<T>(initial: T | (() => T)): ValueStore<T> {
@@ -27,14 +28,14 @@ export function createValueStore<T>(initial: T | (() => T)): ValueStore<T> {
     const listeners = new Set<() => void>();
     const ref = { current: value };
     const store: ValueStore<T> = {
-        subscribe(listener) {
+        subscribe: (listener) => {
             listeners.add(listener);
             return () => {
                 listeners.delete(listener);
             };
         },
         getSnapshot: () => value,
-        set(action) {
+        set: (action) => {
             const next = typeof action === 'function' ? (action as (prev: T) => T)(value) : action;
             // A caller may have written the ref ahead of the set; keep them equal.
             ref.current = next;

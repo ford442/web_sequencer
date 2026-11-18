@@ -48,10 +48,11 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 export function preserveIdentity(prev: unknown, next: unknown): unknown {
     if (prev === next) return prev;
     if (Array.isArray(prev) && Array.isArray(next)) {
-        let changed = prev.length !== next.length;
-        const out = next.map((item, i) => {
-            const kept = i < prev.length ? preserveIdentity(prev[i], item) : item;
-            if (kept !== prev[i]) changed = true;
+        const before = prev as unknown[];
+        let changed = before.length !== next.length;
+        const out = (next as unknown[]).map((item, i) => {
+            const kept = i < before.length ? preserveIdentity(before[i], item) : item;
+            if (kept !== before[i]) changed = true;
             return kept;
         });
         return changed ? out : prev;

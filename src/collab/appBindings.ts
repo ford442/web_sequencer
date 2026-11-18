@@ -203,7 +203,7 @@ const noteFxBinding: DocBinding = {
     name: 'noteFx',
     fields: ['noteFx'],
     subscribe: noteFxStore.subscribe,
-    version: noteFxStore.getSnapshot,
+    version: () => noteFxStore.getSnapshot(),
     read: () => noteFxRead(noteFxStore.getSnapshot()),
     apply(values) {
         noteFxStore.importChains(values.noteFx);

@@ -152,10 +152,11 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
         }
     }, [audioEngine, showToast, rbsArrangementExtrasRef, trakEventsRef]);
 
-    const handleSaveSong = useCallback(async (slot: number) => {
+    const handleSaveSong = useCallback((slot: number) => {
         const snapshot = buildSongSnapshot();
         samplerBanksStore.setSongStorage((prev) => { const copy = [...prev]; copy[slot] = snapshot; return copy; });
         samplerBanksStore.setActiveSongSlot(slot);
+        return Promise.resolve();
     }, []);
 
     const loadSong = useCallback((slot: number) => {

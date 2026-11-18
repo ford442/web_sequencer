@@ -1,35 +1,35 @@
 /**
- * Composes the app's ~25 state/handler sub-hooks into one object. That object
- * is a fresh reference on every render, so it must never be handed to
- * consumers directly: `AppStateProvider` (src/contexts/AppStateContext.tsx)
- * publishes it to an external store (src/stores/appStateStore.ts) and
- * components read it through `useAppStateSlice(KEYS)` /
- * `useAppStateSelector(fn)`, re-rendering only when the fields they selected
- * change. Function fields are published as stable proxies to the latest
- * closure, so selecting a handler never re-renders anything.
+ * The app's composition root: wires the state stores and handler sub-hooks
+ * into one object. That object is a fresh reference on every render, so it
+ * must never be handed to consumers directly: `AppStateProvider`
+ * (src/contexts/AppStateContext.tsx) publishes it to an external store
+ * (src/stores/appStateStore.ts) and components read it through
+ * `useAppStateSlice(KEYS)` / `useAppStateSelector(fn)`, re-rendering only when
+ * the fields they selected change. Function fields are published as stable
+ * proxies to the latest closure, so selecting a handler never re-renders
+ * anything.
  *
  * Rules for consumers:
  *   - Select the fields a component *renders*; do not destructure the whole
  *     state (`useAppStateContext()` is deprecated and follows every change).
  *   - A handler's identity no longer signals a changed closure. Derive values
- *     by calling the function inside a selector
- *     (`useAppStateSelector((s) => s.canUndoSong())`), not in a `useMemo`
- *     keyed on the function.
+ *     by calling the function inside a selector, not in a `useMemo` keyed on
+ *     the function.
  *   - Values built here must be referentially stable when their contents are —
  *     a fresh array/object each render invalidates every selector and
  *     `useMemo` downstream (see `useStableFlags` in useHardwarePanels.tsx).
  *   - `src/__tests__/appRenderBudget.test.tsx` gates this: a pattern edit may
  *     re-render `SequencerGrid` only.
  *
- * Some state also lives in `useSyncExternalStore` slice stores under
- * src/stores/ (uiModalsStore, transportMixStore, samplerBanksStore,
- * trackMuteSoloStore, ...). Those wrappers (`src/hooks/appState/use*State.ts`)
+ * The song's data lives in `useSyncExternalStore` stores under src/stores/
+ * (pattern, instrument patches, sampler banks, transport/mix, arrangement,
+ * session, automation, note FX), each bound to the project doc (#1597 P2,
+ * src/collab/appBindings.ts): the doc is the source of truth, undo and
+ * collaboration go through it. The `src/hooks/appState/use*State.ts` wrappers
  * keep this function returning the same field names; a component that needs
- * only one flag can also subscribe to its store directly, which skips the
- * provider entirely.
+ * one value can subscribe to its store directly, which skips the provider.
  */
-import { log } from '@/utils/log';
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
 import { useScheduler } from './useScheduler'
@@ -41,26 +41,14 @@ import { useStableKnobConfig } from './useStableKnobConfig'
 import { useSongStorage } from './useSongStorage'
 import { useProjectAutosave } from './useProjectAutosave'
 import { useTTSPreloader } from './useTTSPreloader'
-import { SupertonicService } from '../services/Supertonic'
-import { loadingProgressStore } from '../stores/loadingProgressStore'
-import { reportTtsAvailability } from '../services/ttsAvailability'
-import { automationStore } from '../stores/automationStore';
-import { AutomationScheduler } from '../audio/automation/AutomationScheduler';
-import { getWamHost } from '../audio/wam';
-import type { PcfEffect } from '../engines/PcfEffect';
-import { broadcastPcfTransport } from '../audio/pcf/pcfInsert';
-import { resolveRealtimeTB303Model } from '../engines/TB303Models';
-import { applyTrackParamSlotToEngine } from '../importers/rbs/applyImportedEngineState';
-import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
-
 import { swingPercentToClock } from '../utils/musicTheory'
 import type { ResolvedTrakEvent } from '../types'
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
     getClosedHatControls, getOpenHatControls, getSamplerControls,
 } from '../utils/knobConfigs'
-
+import { patternStore, usePatternStore } from '../stores/patternStore'
 import { useSelectionHandlers } from './appState/useSelectionHandlers'
 import { useClipboardHandlers } from './appState/useClipboardHandlers'
 import { usePatternHandlers } from './appState/usePatternHandlers'
@@ -82,47 +70,19 @@ import { useSessionPacks } from './appState/useSessionPacks'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
-import { arrangementPlayhead } from '../arrangement/playhead'
-import { transportPlayhead } from '../sequencer/transportPlayhead'
-import { macroEngineForWaveform } from '../engines/MacroParams'
-import { patternStore, usePatternStore } from '../stores/patternStore'
+import { useEngineParamSync } from './appState/useEngineParamSync'
+import { useTransportLifecycle } from './appState/useTransportLifecycle'
+import { useBootSequence } from './appState/useBootSequence'
+import { recallTrackParamSlot } from './appState/trackSlotRecall'
 
 export function useAppState() {
-
     const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const ui = useUIModalsState()
+    const { showToast } = ui
+    useGamepad()
 
-    const {
-        isVoiceEditorOpen, setIsVoiceEditorOpen,
-        isCloudLibraryOpen, setIsCloudLibraryOpen,
-        isAISongModalOpen, setIsAISongModalOpen,
-        isRbsImportModalOpen, setIsRbsImportModalOpen,
-        isSmfImportModalOpen, setIsSmfImportModalOpen,
-        isExportModalOpen, setIsExportModalOpen,
-        isLyricTrackVisible, setIsLyricTrackVisible,
-        isShortcutsHelpOpen, setIsShortcutsHelpOpen,
-        showGamepadDebug, setShowGamepadDebug,
-        isGenerating, setIsGenerating,
-        hasStarted, setHasStarted,
-        forceScriptProcessorFallback, setForceScriptProcessorFallback,
-        is3DMode, setIs3DMode,
-        toast, setToast,
-        showToast,
-    } = useUIModalsState();
-
-    useGamepad();
-
-    const {
-        tempo, setTempo, tempoRef,
-        swing, setSwing,
-        stepCount,
-        lastFreqRef,
-        ambianceUrl, setAmbianceUrl,
-        backgroundImage, setBackgroundImage,
-        masterVolume, setMasterVolume,
-        masterSaturation, setMasterSaturation,
-        globalPan, setGlobalPan,
-        reverbType, setReverbType,
-    } = useTransportMixState();
+    const mix = useTransportMixState()
+    const { tempo, tempoRef } = mix
 
     const { audioEngine, isReady, initializeAudio, onParamChange, drumKitEngineRef, prophecyManagerRef, macroManagerRef } = useAudioEngine(pyodide, tempo)
     // Core sequencer transport only needs the Web Audio engine — it never touches
@@ -132,425 +92,136 @@ export function useAppState() {
 
     useTTSPreloader()
 
-    const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes');
-    const [automationParam, setAutomationParam] = useState('formantShift');
+    const [viewMode, setViewMode] = useState<'notes' | 'automation'>('notes')
+    const [automationParam, setAutomationParam] = useState('formantShift')
+    const [melodicMode, setMelodicMode] = useState(false)
 
-    const [melodicMode, setMelodicMode] = useState(false);
+    const banks = useSamplerBanksState(audioEngine)
+    const { trackStorageRef, activeTrackSlotsRef, activeSamplerBank, activeSamplerBankRef, ttsPhrases } = banks
 
-    const {
-        trackStorage, setTrackStorage, trackStorageRef,
-        activeTrackSlots, setActiveTrackSlots, activeTrackSlotsRef,
-        songStorage, setSongStorage,
-        activeSongSlot, setActiveSongSlot,
-        activeSamplerBank, setActiveSamplerBank, activeSamplerBankRef,
-        activeAlignment, setActiveAlignment,
-        sampleBuffers, setSampleBuffers,
-        loadedBanks,
-        multisampleReady,
-        multisampleProcessing,
-        ttsPhrases, setTtsPhrases,
-        lastSamplerMidiRef,
-        lastSamplerFormantRef,
-        sliceHighlightRef,
-    } = useSamplerBanksState(audioEngine);
-
-    const handleStart = async () => {
-        log.debug("Initialization sequence started...");
-        setHasStarted(true);
-        try {
-            // WebKit can hang inside AudioWorklet addModule; don't leave the
-            // INITIALIZING overlay up forever (Playwright then waits 120s).
-            await Promise.race([
-                initializeAudio(),
-                new Promise<void>((resolve) => {
-                    window.setTimeout(() => {
-                        // Say so: a hung init step otherwise looks like a booted
-                        // engine that never plays (#1492).
-                        const { isLoading, currentStep } = loadingProgressStore.getState();
-                        if (isLoading) {
-                            console.warn(
-                                `[Boot] audio engine init still pending after 45 s (step: ${currentStep ?? 'unknown'}); ` +
-                                'showing the UI anyway — playback waits for the engine',
-                            );
-                        }
-                        resolve();
-                    }, 45_000);
-                }),
-            ]);
-        } catch (e) {
-            console.error("Failed to start system:", e);
-        } finally {
-            setIsInitialized(true);
-            log.debug("Audio Engine Initialized");
-        }
-        loadingProgressStore.startStep('ttsEngine');
-        void SupertonicService.getInstance().init().then(() => {
-            reportTtsAvailability(SupertonicService.getInstance().getUnavailableReason());
-        }).catch((e: unknown) => {
-            console.warn('Supertonic TTS failed to init:', e);
-            loadingProgressStore.failStep(
-                'ttsEngine',
-                e instanceof Error ? e : new Error(String(e)),
-                true,
-            );
-        });
-    };
+    const boot = useBootSequence({ initializeAudio, setHasStarted: ui.setHasStarted })
 
     // The live pattern is a store bound to the project doc; its ref is always current.
     const pattern = usePatternStore()
     const setPattern = patternStore.set
     const patternRef = patternStore.ref
-    const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
     const [isAutomationRecording, setIsAutomationRecording] = useState(false)
 
-    const {
-        selectedTrack, setSelectedTrack,
-        contextMenu, setContextMenu,
-        isNoteDragging, setIsNoteDragging,
-        noteDragRef,
-        currentScale, setCurrentScale,
-        currentScaleRef,
-        selection, setSelection,
-        isSelecting, setIsSelecting,
-        clipboard, setClipboard,
-        isDrawing, setIsDrawing,
-        drawMode, setDrawMode,
-        zoomLevel, setZoomLevel,
-    } = usePatternEditState();
+    const edit = usePatternEditState()
+    const song = useSongModeState()
+    const { rbsArrangementExtrasRef, isSongModeActive, setIsSongModeActive } = song
+    const session = useSessionState()
+    const inst = useInstrumentState(drumKitEngineRef)
+    const { synthA, synthB, bass2, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef } = inst
 
-    const {
-        isSongModeOpen, setIsSongModeOpen,
-        isArrangementOpen, setIsArrangementOpen,
-        isSongModeActive, setIsSongModeActive,
-        arrangement, setArrangement,
-        arrangementRef,
-        songStructure, setSongStructure,
-        editSongStructure: handleEditSongStructure, editArrangement,
-        currentSongMeasure, setCurrentSongMeasure,
-        songStructureRef,
-        isSongModeActiveRef,
-        songMeasureRef,
-        isFirstStepRef,
-        rbsArrangementExtrasRef,
-    } = useSongModeState();
+    const automationSchedulerRef = useEngineParamSync({
+        audioEngine, isReady, synthA, synthB, bass2, macroManagerRef, prophecyManagerRef,
+    })
 
-    const session = useSessionState();
+    const sequencerRef = useRef<MainSequencerHandle>(null)
+    const currentStepRef = useRef(-1)
+    const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null)
+    const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map())
 
-    const {
-        synthA, setSynthA, synthARef, updateSynthA,
-        synthB, setSynthB, synthBRef, updateSynthB,
-        bass2, setBass2, bass2Ref, updateBass2,
-        kick, setKick, kickRef, updateKick,
-        snare, setSnare, snareRef, updateSnare,
-        closedHat, setClosedHat, closedHatRef, updateClosedHat,
-        openHat, setOpenHat, openHatRef, updateOpenHat,
-        drumKit, drumKitRef, updateDrumKit,
-        sampler, setSampler, samplerRef, updateSampler,
-    } = useInstrumentState(drumKitEngineRef);
+    const voice = useSamplerVoiceState({
+        audioEngine, sampler: inst.sampler, activeSamplerBank, activeSamplerBankRef,
+        samplerRef, setSampler: inst.setSampler, currentStepRef,
+    })
 
-    // A macro part hears its panel at once: knob moves and model switches are
-    // pushed now (changed values only), overriding whatever the next notes
-    // already queued. Notes still apply their own patch on their frame.
-    useEffect(() => {
-        const engine = macroEngineForWaveform(synthA.waveform);
-        const mgr = macroManagerRef?.current;
-        if (engine && mgr?.canPlay('partA', engine)) mgr.applyParamsNow('partA', synthA, engine);
-    }, [synthA, macroManagerRef, isReady]);
-    useEffect(() => {
-        const engine = macroEngineForWaveform(synthB.waveform);
-        const mgr = macroManagerRef?.current;
-        if (engine && mgr?.canPlay('partB', engine)) mgr.applyParamsNow('partB', synthB, engine);
-    }, [synthB, macroManagerRef, isReady]);
-
-    const sequencerRef = useRef<MainSequencerHandle>(null);
-    const currentStepRef = useRef(-1);
-
-    const {
-        samplerVoiceParamsRef,
-        samplerVoiceParams,
-        setSamplerVoiceParams,
-        harmonizerConfig,
-        setHarmonizerConfig,
-        isHarmonizeActive,
-        setIsHarmonizeActive,
-        handleHarmonizerConfigChange,
-        handleSamplerVoiceChange,
-    } = useSamplerVoiceState({
-        audioEngine, sampler, activeSamplerBank, activeSamplerBankRef,
-        samplerRef, setSampler, currentStepRef,
-    });
-
-    const automationSchedulerRef = useRef<AutomationScheduler | null>(null);
-    const trakEventsRef = useRef<ResolvedTrakEvent[] | null>(null);
-    useEffect(() => {
-        const ctx = audioEngine?.context;
-        const open303Engine = audioEngine?.open303Engine;
-        const mgr = open303Engine instanceof Open303Manager ? open303Engine : null;
-        const pcf: PcfEffect | null = audioEngine?.pcfEffect ?? null;
-        if (ctx) {
-            if (!automationSchedulerRef.current) {
-                automationSchedulerRef.current = new AutomationScheduler(ctx, mgr ?? null, { ppq: 192 });
-            } else {
-                automationSchedulerRef.current.setOpen303Manager(mgr ?? null);
-            }
-            automationSchedulerRef.current.setPcfEffect(pcf);
-            if (prophecyManagerRef) {
-                automationSchedulerRef.current.setProphecyManager(prophecyManagerRef.current ?? null);
-            }
-            automationSchedulerRef.current.setMacroManager(macroManagerRef?.current ?? null);
-            automationSchedulerRef.current.setWamHost(getWamHost());
-        }
-    }, [audioEngine, prophecyManagerRef, macroManagerRef]);
-
-    useEffect(() => {
-        const mgr = audioEngine?.open303Engine;
-        if (!(mgr instanceof Open303Manager)) return;
-        // normalize + realtime resolve: persist high-fid ids in song state, but
-        // AudioWorklet always gets a realtime-safe voice (stock for offline-only).
-        if (typeof mgr.syncModel303Settings === 'function') {
-            mgr.syncModel303Settings({
-                lead: resolveRealtimeTB303Model(synthA.model303, synthA.engine303, {
-                    reportFallback: true,
-                    subsystem: 'synthA-model303',
-                }),
-                bass1: resolveRealtimeTB303Model(synthB.model303, synthB.engine303, {
-                    reportFallback: true,
-                    subsystem: 'synthB-model303',
-                }),
-                bass2: resolveRealtimeTB303Model(bass2.model303, bass2.engine303, {
-                    reportFallback: true,
-                    subsystem: 'bass2-model303',
-                }),
-            });
-        } else if (typeof mgr.syncEngine303Settings === 'function') {
-            mgr.syncEngine303Settings({
-                lead: synthA.engine303 ?? 'open303',
-                bass1: synthB.engine303 ?? 'open303',
-                bass2: bass2.engine303 ?? 'open303',
-            });
-        }
-    }, [audioEngine, synthA.engine303, synthB.engine303, bass2.engine303, synthA.model303, synthB.model303, bass2.model303]);
-
-    // Live high-fid A/B + diode-ladder coefficients (L2/L3). Runs after the
-    // model sync above so A/B engages against the voice that was just set.
-    useEffect(() => {
-        const mgr = audioEngine?.open303Engine;
-        if (!(mgr instanceof Open303Manager) || typeof mgr.syncModel303Extras !== 'function') return;
-        mgr.syncModel303Extras({
-            lead: synthA.model303Extra,
-            bass1: synthB.model303Extra,
-            bass2: bass2.model303Extra,
-        });
-    }, [audioEngine, synthA.model303Extra, synthB.model303Extra, bass2.model303Extra, synthA.model303, synthB.model303, bass2.model303]);
-
-    const activeKeyboardNotesRef = useRef<Map<string, number>>(new Map());
-
-    const {
-        updateStorageForTrack,
-        handlePatternChange,
-        handleStepToggle,
-        handlePitchChange,
-        handlePhonemeUpdate,
-        handleNoteSelect,
-        handleNoteLengthChange,
-        handleNotePropertyChange,
-        handleClearPattern,
-        handleTrackSlotClick,
-        handleSelectRow,
-        handleEditLength,
-        handleReplaceTrackSteps,
-        handleReplaceManyTrackSteps,
-        handlePasteTrackSteps,
-    } = usePatternHandlers({
+    const patternHandlers = usePatternHandlers({
         patternRef, setPattern, activeSamplerBankRef,
-        contextMenu, setContextMenu, setSelection,
-        trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
-        setSelectedTrack,
-        onTrackSlotRecall: (track, slotIndex) => {
-            if (track !== 'partA' && track !== 'partB' && track !== 'bass2') return;
-            const storage = rbsArrangementExtrasRef.current?.trackParamStorage;
-            if (!storage) return;
-            const open303 = audioEngine?.open303Engine instanceof Open303Manager
-                ? audioEngine.open303Engine
-                : null;
-            const applied = applyTrackParamSlotToEngine(
-                storage,
-                track,
-                slotIndex,
-                open303,
-                {
-                    synthA: synthARef.current,
-                    synthB: synthBRef.current,
-                    bass2: bass2Ref.current,
-                },
-            );
-            if (applied.synthA) {
-                synthARef.current = applied.synthA;
-                setSynthA(applied.synthA);
-            }
-            if (applied.synthB) {
-                synthBRef.current = applied.synthB;
-                setSynthB(applied.synthB);
-            }
-            if (applied.bass2) {
-                bass2Ref.current = applied.bass2;
-                setBass2(applied.bass2);
-            }
-        },
-    });
+        contextMenu: edit.contextMenu, setContextMenu: edit.setContextMenu, setSelection: edit.setSelection,
+        trackStorageRef, activeTrackSlotsRef, setTrackStorage: banks.setTrackStorage, setActiveTrackSlots: banks.setActiveTrackSlots,
+        setSelectedTrack: edit.setSelectedTrack,
+        onTrackSlotRecall: (track, slotIndex) =>
+            recallTrackParamSlot(track, slotIndex, audioEngine, rbsArrangementExtrasRef.current?.trackParamStorage),
+    })
+    const { updateStorageForTrack } = patternHandlers
 
-    const { handleSelectionStart, handleSelectionEnter, handleSelectionEnd } = useSelectionHandlers(
-        selection, isSelecting, setSelection, setIsSelecting,
-    );
+    const selectionHandlers = useSelectionHandlers(edit.selection, edit.isSelecting, edit.setSelection, edit.setIsSelecting)
 
-    const { handleCopy, handlePaste } = useClipboardHandlers({
-        selection, selectedTrack, clipboard, setClipboard, setPattern, setSelection,
+    const clipboardHandlers = useClipboardHandlers({
+        selection: edit.selection, selectedTrack: edit.selectedTrack, clipboard: edit.clipboard,
+        setClipboard: edit.setClipboard, setPattern, setSelection: edit.setSelection,
         patternRef, activeSamplerBankRef, updateStorageForTrack, showToast,
-        handleSelectionEnd, audioEngine,
-    });
+        handleSelectionEnd: selectionHandlers.handleSelectionEnd, audioEngine,
+    })
 
     const { onStep } = useStepHandler({
-        audioEngine,
-        tempo,
-        onParamChange,
-        currentStepRef,
-        sequencerRef,
-        patternRef,
-        lastFreqRef,
-        lastSamplerMidiRef,
-        lastSamplerFormantRef,
-        synthARef,
-        synthBRef,
-        bass2Ref,
-        kickRef,
-        snareRef,
-        closedHatRef,
-        openHatRef,
-        samplerRef,
-        samplerVoiceParamsRef,
+        audioEngine, tempo, onParamChange, currentStepRef, sequencerRef, patternRef,
+        lastFreqRef: mix.lastFreqRef,
+        lastSamplerMidiRef: banks.lastSamplerMidiRef,
+        lastSamplerFormantRef: banks.lastSamplerFormantRef,
+        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
+        samplerVoiceParamsRef: voice.samplerVoiceParamsRef,
         activeSamplerBankRef,
-        sliceHighlightRef,
-        isSongModeActiveRef,
-        arrangementRef,
-        currentScaleRef,
-        songMeasureRef,
-        isFirstStepRef,
+        sliceHighlightRef: banks.sliceHighlightRef,
+        isSongModeActiveRef: song.isSongModeActiveRef,
+        arrangementRef: song.arrangementRef,
+        currentScaleRef: edit.currentScaleRef,
+        songMeasureRef: song.songMeasureRef,
+        isFirstStepRef: song.isFirstStepRef,
         trackStorageRef,
-        setCurrentSongMeasure,
-        automationSchedulerRef,
-        trakEventsRef,
-        rbsArrangementExtrasRef,
-        setSynthA,
-        setSynthB,
-        setBass2,
+        setCurrentSongMeasure: song.setCurrentSongMeasure,
+        automationSchedulerRef, trakEventsRef, rbsArrangementExtrasRef,
+        setSynthA: inst.setSynthA, setSynthB: inst.setSynthB, setBass2: inst.setBass2,
         sessionEngineRef: session.sessionEngineRef,
         sessionClockRef: session.sessionClockRef,
         setIsSongModeActive,
         onSessionTick: session.setPlayingSlots,
     })
 
-    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, stepCount, onStep, isEngineReady, audioEngine?.context ?? null, swingPercentToClock(swing))
+    const { isPlaying: schedPlaying, setIsPlaying: setSchedPlaying } = useScheduler(tempo, mix.stepCount, onStep, isEngineReady, audioEngine?.context ?? null, swingPercentToClock(mix.swing))
 
-    useEffect(() => {
-        session.sessionClockRef.current.tempo = tempo;
-    }, [tempo, session.sessionClockRef]);
-    useEffect(() => setIsPlaying(schedPlaying), [schedPlaying])
+    useTransportLifecycle({
+        schedPlaying, tempo, audioEngine, setIsPlaying,
+        setCurrentSongMeasure: song.setCurrentSongMeasure,
+        songMeasureRef: song.songMeasureRef,
+        isFirstStepRef: song.isFirstStepRef,
+        sequencerRef, currentStepRef, automationSchedulerRef,
+        sessionClockRef: session.sessionClockRef,
+        sessionEngineRef: session.sessionEngineRef,
+    })
 
-    // Master PCF pattern: restart on play, freeze on stop, follow the tempo.
-    const pcfEffect = audioEngine?.pcfEffect ?? null;
-    const pcfPlayingRef = useRef(false);
-    useEffect(() => {
-        if (!pcfEffect) return;
-        const started = schedPlaying && !pcfPlayingRef.current;
-        pcfPlayingRef.current = schedPlaying;
-        // Placed PCF nodes step with the master.
-        broadcastPcfTransport(pcfEffect, schedPlaying, tempo, started ? 0 : undefined);
-    }, [schedPlaying, tempo, pcfEffect]);
-
-    useEffect(() => {
-        if (!schedPlaying) {
-            songMeasureRef.current = 0;
-            setCurrentSongMeasure(0);
-            isFirstStepRef.current = true;
-            arrangementPlayhead.publish(-1);
-            transportPlayhead.stop();
-            if (sequencerRef.current) sequencerRef.current.setHighlight(-1);
-            currentStepRef.current = -1;
-            session.sessionEngineRef.current?.resetTransport();
-            automationStore.clearLiveValues();
-            automationSchedulerRef.current?.cancelAll();
-        }
-    }, [schedPlaying, songMeasureRef, setCurrentSongMeasure, isFirstStepRef, session.sessionEngineRef]);
-
-    const {
-        adjustTempo,
-        handleTempoHoldStart,
-        handleTempoHoldEnd,
-        handleTempoKeyDown,
-        handlePanic,
-        handlePlayToggle,
-        tempoHoldIntervalRef,
-        tempoHoldTimeoutRef,
-    } = useTransportHandlers({
-        isInitialized, isReady, initializeAudio, setIsInitialized,
-        audioEngine, setSchedPlaying, setTempo,
+    const transport = useTransportHandlers({
+        isInitialized: boot.isInitialized, isReady, initializeAudio, setIsInitialized: boot.setIsInitialized,
+        audioEngine, setSchedPlaying, setTempo: mix.setTempo,
         activeKeyboardNotesRef,
-    });
+    })
 
-    const { handleAutomationChange, handleKnobRecordToggle, handleAutomationNudge, handleAutomationPunchIn, handleAutomationLaneAction } = useAutomationHandlers({
+    const automationHandlers = useAutomationHandlers({
         automationParam, patternRef, setPattern, activeSamplerBankRef,
         updateStorageForTrack, currentStepRef, schedPlaying,
-        isAutomationRecording, isSongModeActive, activeTrackSlotsRef, isSongModeActiveRef,
-    });
+        isAutomationRecording, isSongModeActive, activeTrackSlotsRef, isSongModeActiveRef: song.isSongModeActiveRef,
+    })
 
-    const {
-        handleMasterVolume,
-        handleMasterVolumeKeyDown,
-        handleMasterVolumeReset,
-        handleMasterSaturation,
-        handleMasterSaturationKeyDown,
-        handleMasterSaturationReset,
-        handleGlobalPan,
-        handleGlobalPanKeyDown,
-        handleGlobalPanReset,
-        handleReverbType,
-    } = useMasterHandlers({
-        setMasterVolume, setMasterSaturation, setGlobalPan, setReverbType,
+    const masterHandlers = useMasterHandlers({
+        setMasterVolume: mix.setMasterVolume, setMasterSaturation: mix.setMasterSaturation,
+        setGlobalPan: mix.setGlobalPan, setReverbType: mix.setReverbType,
         audioEngine, currentStepRef,
-    });
+    })
 
-    const {
-        handleSynthChange,
-        handleBass2Change,
-        handleKickChange,
-        handleSnareChange,
-        handleClosedHatChange,
-        handleOpenHatChange,
-        handleSamplerChange,
-        handleSamplerParamChange,
-        onSynthAParamChange,
-        onSynthBParamChange,
-        onBass2ParamChange,
-    } = useSynthParamHandlers({
-        updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare,
-        updateClosedHat, updateOpenHat, setSampler, activeSamplerBank,
-        currentStepRef, samplerRef,
-    });
+    const synthHandlers = useSynthParamHandlers({
+        updateSynthA: inst.updateSynthA, updateSynthB: inst.updateSynthB, updateBass2: inst.updateBass2,
+        updateKick: inst.updateKick, updateSnare: inst.updateSnare,
+        updateClosedHat: inst.updateClosedHat, updateOpenHat: inst.updateOpenHat, setSampler: inst.setSampler,
+        activeSamplerBank, currentStepRef, samplerRef,
+    })
 
     const midiHandlers = useMemo(
         () => ({
-            handleSynthChange,
-            handleBass2Change,
-            handleKickChange,
-            handleSnareChange,
-            handleClosedHatChange,
-            handleOpenHatChange,
-            handleSamplerChange,
-            setMasterVolume,
-            setMasterSaturation,
-            setGlobalPan,
+            handleSynthChange: synthHandlers.handleSynthChange,
+            handleBass2Change: synthHandlers.handleBass2Change,
+            handleKickChange: synthHandlers.handleKickChange,
+            handleSnareChange: synthHandlers.handleSnareChange,
+            handleClosedHatChange: synthHandlers.handleClosedHatChange,
+            handleOpenHatChange: synthHandlers.handleOpenHatChange,
+            handleSamplerChange: synthHandlers.handleSamplerChange,
+            setMasterVolume: mix.setMasterVolume,
+            setMasterSaturation: mix.setMasterSaturation,
+            setGlobalPan: mix.setGlobalPan,
             setAudioMasterVolume: (v: number) => audioEngine?.setMasterVolume?.(v),
             setAudioMasterSaturation: (v: number) => audioEngine?.setMasterSaturation?.(v),
             setAudioGlobalPan: (v: number) => audioEngine?.setGlobalPan?.(v),
@@ -558,358 +229,143 @@ export function useAppState() {
             handleSessionControl: session.handleSessionMidi,
         }),
         [
-            handleSynthChange, handleBass2Change, handleKickChange, handleSnareChange,
-            handleClosedHatChange, handleOpenHatChange, handleSamplerChange,
-            setMasterVolume, setMasterSaturation, setGlobalPan, audioEngine,
-            session.handleSessionMidi,
+            synthHandlers.handleSynthChange, synthHandlers.handleBass2Change, synthHandlers.handleKickChange,
+            synthHandlers.handleSnareChange, synthHandlers.handleClosedHatChange, synthHandlers.handleOpenHatChange,
+            synthHandlers.handleSamplerChange, mix.setMasterVolume, mix.setMasterSaturation, mix.setGlobalPan,
+            audioEngine, session.handleSessionMidi,
         ],
-    );
+    )
+    useMidi({ handlers: midiHandlers, showToast })
 
-    useMidi({ handlers: midiHandlers, showToast });
-
-    const { mode: transportSyncMode } = useTransportSyncStore();
-    const tempoLocked = transportSyncMode === 'slave';
+    const { mode: transportSyncMode } = useTransportSyncStore()
+    const tempoLocked = transportSyncMode === 'slave'
     const slavePlayLabel = transportSyncMode === 'slave'
         ? (schedPlaying ? '■ UNARM' : '◎ ARM')
-        : undefined;
+        : undefined
 
-    const { handleLoadSample } = useSampleHandlers({
+    const sampleHandlers = useSampleHandlers({
         audioEngine, activeSamplerBank, ttsPhrases,
-        setSampleBuffers, setSampler, setActiveAlignment,
-    });
+        setSampleBuffers: banks.setSampleBuffers, setSampler: inst.setSampler, setActiveAlignment: banks.setActiveAlignment,
+    })
 
-    const {
-        handleTtsPhraseChange,
-        handleGenerateTTS,
-        handleTextToDrums,
-        handleLyricApply,
-    } = useLyricHandlers({
+    const lyricHandlers = useLyricHandlers({
         audioEngine, patternRef, tempoRef, activeSamplerBankRef, samplerRef,
-        setPattern, setSampler, setTtsPhrases, setIsGenerating, setIsLyricTrackVisible,
-        ttsPhrases, activeSamplerBank, handleLoadSample, updateStorageForTrack, showToast,
-        setActiveAlignment, currentScale, setCurrentScale,
-    });
+        setPattern, setSampler: inst.setSampler, setTtsPhrases: banks.setTtsPhrases,
+        setIsGenerating: ui.setIsGenerating, setIsLyricTrackVisible: ui.setIsLyricTrackVisible,
+        ttsPhrases, activeSamplerBank, handleLoadSample: sampleHandlers.handleLoadSample, updateStorageForTrack, showToast,
+        setActiveAlignment: banks.setActiveAlignment, currentScale: edit.currentScale, setCurrentScale: edit.setCurrentScale,
+    })
 
-    const {
-        handleDrumPadPlay,
-        handleKeyboardPlay,
-        handleKeyboardStop,
-        handleRightMouseDown,
-        handleGlobalMouseMove,
-        handleGlobalMouseUp,
-        handleDrawEnter,
-    } = useKeyboardHandlers({
-        audioEngine, selectedTrack, isRecording, isPlaying, isNoteDragging, isDrawing,
-        activeSamplerBank, setPattern, setIsNoteDragging, setIsDrawing, setDrawMode, setContextMenu,
+    const keyboardHandlers = useKeyboardHandlers({
+        audioEngine, selectedTrack: edit.selectedTrack, isRecording, isPlaying,
+        isNoteDragging: edit.isNoteDragging, isDrawing: edit.isDrawing,
+        activeSamplerBank, setPattern, setIsNoteDragging: edit.setIsNoteDragging, setIsDrawing: edit.setIsDrawing,
+        setDrawMode: edit.setDrawMode, setContextMenu: edit.setContextMenu,
         patternRef, activeSamplerBankRef, currentStepRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef,
-        samplerRef, samplerVoiceParamsRef, activeKeyboardNotesRef, noteDragRef,
+        samplerRef, samplerVoiceParamsRef: voice.samplerVoiceParamsRef, activeKeyboardNotesRef, noteDragRef: edit.noteDragRef,
         updateStorageForTrack,
-    });
+    })
 
-    const { handleAutoMix } = useAutoMix({
-        patternRef, updateSynthA, updateSynthB, updateBass2, updateKick, updateSnare,
-        updateClosedHat, updateOpenHat, setSampler, setMasterVolume, audioEngine,
+    const autoMix = useAutoMix({
+        patternRef, updateSynthA: inst.updateSynthA, updateSynthB: inst.updateSynthB, updateBass2: inst.updateBass2,
+        updateKick: inst.updateKick, updateSnare: inst.updateSnare,
+        updateClosedHat: inst.updateClosedHat, updateOpenHat: inst.updateOpenHat, setSampler: inst.setSampler,
+        setMasterVolume: mix.setMasterVolume, audioEngine,
         synthA, synthB,
-    });
+    })
 
-    const {
-        handleSongModeToggle,
-        handleSongStructureUpdate,
-        handleAddMeasure,
-        handleRemoveMeasure,
-        handleExportXM,
-        buildXmExport,
-    } = useSongHandlers({
-        songStructure, setSongStructure, setIsSongModeOpen,
-        patternRef, songStructureRef, arrangementRef, trackStorageRef, tempoRef,
+    const songHandlers = useSongHandlers({
+        songStructure: song.songStructure, setSongStructure: song.setSongStructure, setIsSongModeOpen: song.setIsSongModeOpen,
+        patternRef, songStructureRef: song.songStructureRef, arrangementRef: song.arrangementRef, trackStorageRef, tempoRef,
         synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        audioEngine, pyodide, sampleBuffers, showToast,
-    });
+        audioEngine, pyodide, sampleBuffers: banks.sampleBuffers, showToast,
+    })
 
-    const {
-        getSongData, getBankData, getPatternData,
-        exportSongToFile, exportRbsToFile, exportSmfToFile, buildRbsExport, buildSmfExport, importSongFromFile,
-        handleSaveSong, loadSong, loadCloudData,
-        handleAISongImport, loadImportedAISong, handleRbsImport, handleSmfImport,
-        isImportingAISong, aiImportProgress, aiImportStage, aiImportError,
-        setIsImportingAISong, setAiImportStage, setAiImportProgress,
-        isExportingRbs, isExportingSmf,
-    } = useSongStorage({
+    const storage = useSongStorage({
         audioEngine, showToast,
-        setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
-        setDrumKit: updateDrumKit,
+        setIsAISongModalOpen: ui.setIsAISongModalOpen,
+        setIsRbsImportModalOpen: ui.setIsRbsImportModalOpen,
+        setIsSmfImportModalOpen: ui.setIsSmfImportModalOpen,
+        setDrumKit: inst.updateDrumKit,
         setIsSongModeActive,
         isSongModeActive,
         rbsArrangementExtrasRef,
         trakEventsRef,
-    });
+    })
 
-    const { pendingRestore, restoreProject, dismissRestore, projectStoreBackend } = useProjectAutosave({
-        getSongData,
-        isInitialized,
-    });
+    const autosave = useProjectAutosave({ getSongData: storage.getSongData, isInitialized: boot.isInitialized })
 
-    const { synthAChild, synthBChild, bass2Child, samplerChild } = useHardwarePanels({
-        synthA, synthB, bass2, sampler,
-        updateSynthA, updateSynthB, updateBass2, updateSampler,
+    const panels = useHardwarePanels({
+        synthA, synthB, bass2, sampler: inst.sampler,
+        updateSynthA: inst.updateSynthA, updateSynthB: inst.updateSynthB, updateBass2: inst.updateBass2, updateSampler: inst.updateSampler,
         audioEngine,
-        isVoiceEditorOpen, setIsVoiceEditorOpen,
-        handleTtsPhraseChange, handleGenerateTTS,
-        handleSamplerParamChange, handleLoadSample,
+        isVoiceEditorOpen: ui.isVoiceEditorOpen, setIsVoiceEditorOpen: ui.setIsVoiceEditorOpen,
+        handleTtsPhraseChange: lyricHandlers.handleTtsPhraseChange, handleGenerateTTS: lyricHandlers.handleGenerateTTS,
+        handleSamplerParamChange: synthHandlers.handleSamplerParamChange, handleLoadSample: sampleHandlers.handleLoadSample,
         melodicMode, setMelodicMode,
-        handleHarmonizerConfigChange,
-    });
+        handleHarmonizerConfigChange: voice.handleHarmonizerConfigChange,
+    })
 
-    const synthAControls = useStableKnobConfig(getSynthControls, synthA);
-    const synthBControls = useStableKnobConfig(getSynthControls, synthB);
-    const bass2Controls = useStableKnobConfig(getBass2Controls, bass2);
-    const kickControls = useStableKnobConfig(getKickControls, kick);
-    const snareControls = useStableKnobConfig(getSnareControls, snare);
-    const closedHatControls = useStableKnobConfig(getClosedHatControls, closedHat);
-    const openHatControls = useStableKnobConfig(getOpenHatControls, openHat);
-    const samplerControls = useStableKnobConfig(getSamplerControls, sampler[activeSamplerBank]);
+    const synthAControls = useStableKnobConfig(getSynthControls, synthA)
+    const synthBControls = useStableKnobConfig(getSynthControls, synthB)
+    const bass2Controls = useStableKnobConfig(getBass2Controls, bass2)
+    const kickControls = useStableKnobConfig(getKickControls, inst.kick)
+    const snareControls = useStableKnobConfig(getSnareControls, inst.snare)
+    const closedHatControls = useStableKnobConfig(getClosedHatControls, inst.closedHat)
+    const openHatControls = useStableKnobConfig(getOpenHatControls, inst.openHat)
+    const samplerControls = useStableKnobConfig(getSamplerControls, inst.sampler[activeSamplerBank])
 
     // Session pack import / export (previews first; loads only on an explicit confirm).
     const sessionPackFiles = useSessionPacks({
         sessionDocumentRef: session.sessionDocumentRef,
         setSessionDocument: session.setSessionDocument,
         trackStorageRef,
-        setTrackStorage,
+        setTrackStorage: banks.setTrackStorage,
         synthARef,
         synthBRef,
-        updateSynthA,
-        updateSynthB,
-    });
+        updateSynthA: inst.updateSynthA,
+        updateSynthB: inst.updateSynthB,
+    })
 
     return {
-        isVoiceEditorOpen, setIsVoiceEditorOpen,
-        isCloudLibraryOpen, setIsCloudLibraryOpen,
-        isAISongModalOpen, setIsAISongModalOpen,
-        isRbsImportModalOpen, setIsRbsImportModalOpen,
-        isSmfImportModalOpen, setIsSmfImportModalOpen,
-        isExportModalOpen, setIsExportModalOpen,
-        isLyricTrackVisible, setIsLyricTrackVisible,
-        isShortcutsHelpOpen, setIsShortcutsHelpOpen,
-        showGamepadDebug, setShowGamepadDebug,
-        isGenerating, setIsGenerating,
-        hasStarted, setHasStarted,
-        forceScriptProcessorFallback, setForceScriptProcessorFallback,
-        is3DMode, setIs3DMode,
-        toast, setToast,
-        showToast,
+        ...ui,
+        ...mix,
+        ...banks,
+        ...edit,
+        ...song,
+        ...inst,
+        ...voice,
+        ...boot,
+        ...autosave,
+        ...patternHandlers,
+        ...selectionHandlers,
+        ...clipboardHandlers,
+        ...transport,
+        ...automationHandlers,
+        ...masterHandlers,
+        ...synthHandlers,
+        ...sampleHandlers,
+        ...lyricHandlers,
+        ...keyboardHandlers,
+        ...autoMix,
+        ...songHandlers,
+        ...storage,
+        ...panels,
         pyodide, isPyodideReady, pyodideStatus,
-        lastFreqRef,
         audioEngine, isReady, initializeAudio, onParamChange,
         isEngineReady,
-        pattern, setPattern,
-        tempo, setTempo,
-        swing, setSwing,
-        currentStepRef,
-        isInitialized, setIsInitialized,
-        pendingRestore, restoreProject, dismissRestore, projectStoreBackend,
+        pattern, setPattern, patternRef,
+        currentStepRef, sequencerRef, activeKeyboardNotesRef,
         isPlaying, setIsPlaying,
         isRecording, setIsRecording,
         isAutomationRecording, setIsAutomationRecording,
-        selectedTrack, setSelectedTrack,
-        ambianceUrl, setAmbianceUrl,
-        backgroundImage, setBackgroundImage,
-        masterVolume, setMasterVolume,
-        masterSaturation, setMasterSaturation,
-        globalPan, setGlobalPan,
-        reverbType, setReverbType,
-        isSongModeOpen, setIsSongModeOpen,
-        isArrangementOpen, setIsArrangementOpen,
-        isSongModeActive, setIsSongModeActive,
-        songStructure, setSongStructure,
-        arrangement, editArrangement,
-        currentSongMeasure, setCurrentSongMeasure,
-        contextMenu, setContextMenu,
-        isNoteDragging, setIsNoteDragging,
         viewMode, setViewMode,
         automationParam, setAutomationParam,
         melodicMode, setMelodicMode,
-        activeAlignment, setActiveAlignment,
-        lastSamplerMidiRef,
-        lastSamplerFormantRef,
-        currentScale, setCurrentScale,
-        sliceHighlightRef,
-        selection, setSelection,
-        isSelecting, setIsSelecting,
-        clipboard, setClipboard,
-        isDrawing, setIsDrawing,
-        drawMode, setDrawMode,
-        zoomLevel, setZoomLevel,
-        trackStorage, setTrackStorage,
-        activeTrackSlots, setActiveTrackSlots,
-        activeTrackSlotsRef,
-        songStorage, setSongStorage,
-        activeSongSlot, setActiveSongSlot,
-        activeSamplerBank, setActiveSamplerBank,
-        activeSamplerBankRef,
-        sampleBuffers, setSampleBuffers,
-        loadedBanks,
-        multisampleReady,
-        multisampleProcessing,
-        ttsPhrases, setTtsPhrases,
-        synthA, setSynthA,
-        synthARef,
-        updateSynthA,
-        synthB, setSynthB,
-        synthBRef,
-        updateSynthB,
-        bass2, setBass2,
-        bass2Ref,
-        updateBass2,
-        kick, setKick,
-        kickRef,
-        updateKick,
-        snare, setSnare,
-        snareRef,
-        updateSnare,
-        closedHat, setClosedHat,
-        closedHatRef,
-        updateClosedHat,
-        openHat, setOpenHat,
-        openHatRef,
-        updateOpenHat,
-        drumKit,
-        drumKitRef,
-        updateDrumKit,
-        sampler, setSampler,
-        samplerRef,
-        updateSampler,
-        samplerVoiceParamsRef,
-        samplerVoiceParams, setSamplerVoiceParams,
-        harmonizerConfig, setHarmonizerConfig,
-        isHarmonizeActive, setIsHarmonizeActive,
-        handleStart,
-        handleAutoMix,
-        handlePanic,
-        handlePlayToggle,
-        adjustTempo,
-        handleTempoHoldStart,
-        handleTempoHoldEnd,
-        handleTempoKeyDown,
-        handleMasterVolume,
-        handleMasterVolumeKeyDown,
-        handleMasterVolumeReset,
-        handleMasterSaturation,
-        handleMasterSaturationKeyDown,
-        handleMasterSaturationReset,
-        handleGlobalPan,
-        handleGlobalPanKeyDown,
-        handleGlobalPanReset,
-        handleReverbType,
-        updateStorageForTrack,
-        handleCopy,
-        handlePaste,
-        handleAutomationChange,
-        handlePitchChange,
-        handlePhonemeUpdate,
-        handlePatternChange,
-        handleStepToggle,
-        handleKeyboardPlay,
-        handleKeyboardStop,
-        handleDrumPadPlay,
-        handleRightMouseDown,
-        handleGlobalMouseMove,
-        handleGlobalMouseUp,
-        handleDrawEnter,
-        handleSelectionStart,
-        handleSelectionEnter,
-        handleSelectionEnd,
-        handleNoteSelect,
-        handleNoteLengthChange,
-        handleNotePropertyChange,
-        handleClearPattern,
-        handleTrackSlotClick,
-        handleSelectRow,
-        handleEditLength,
-        handleReplaceTrackSteps,
-        handleReplaceManyTrackSteps,
-        handlePasteTrackSteps,
-        handleSongModeToggle,
-        handleSongStructureUpdate,
-        handleEditSongStructure,
-        handleAddMeasure,
-        handleExportXM,
-        buildXmExport,
-        handleRemoveMeasure,
-        handleLoadSample,
-        handleSynthChange,
-        handleBass2Change,
-        handleKickChange,
-        handleSnareChange,
-        handleClosedHatChange,
-        handleOpenHatChange,
-        handleKnobRecordToggle,
-        handleAutomationNudge,
-        handleAutomationPunchIn,
-        handleAutomationLaneAction,
-        handleSamplerChange,
-        handleSamplerParamChange,
-        handleTtsPhraseChange,
-        handleGenerateTTS,
-        handleTextToDrums,
-        handleLyricApply,
-        onSynthAParamChange,
-        onSynthBParamChange,
-        onBass2ParamChange,
-        handleHarmonizerConfigChange,
-        handleSamplerVoiceChange,
-        synthAControls,
-        synthBControls,
-        bass2Controls,
-        kickControls,
-        snareControls,
-        closedHatControls,
-        openHatControls,
-        samplerControls,
-        synthAChild,
-        synthBChild,
-        bass2Child,
-        samplerChild,
-        getSongData,
-        getBankData,
-        getPatternData,
-        exportSongToFile,
-        exportRbsToFile,
-        exportSmfToFile,
-        buildRbsExport,
-        buildSmfExport,
-        importSongFromFile,
-        handleSaveSong,
-        loadSong,
-        loadCloudData,
-        handleAISongImport,
-        loadImportedAISong,
-        handleRbsImport,
-        handleSmfImport,
-        isImportingAISong,
-        aiImportProgress,
-        aiImportStage,
-        aiImportError,
-        setIsImportingAISong,
-        setAiImportStage,
-        setAiImportProgress,
-        isExportingRbs,
-        isExportingSmf,
-        patternRef,
-        songStructureRef,
-        // Per-slot 303 knobs (`trackParamStorage`) and other .rbs / AI song extras; the agent hook reads and writes them.
-        rbsArrangementExtrasRef,
-        isSongModeActiveRef,
-        currentScaleRef,
-        trackStorageRef,
-        songMeasureRef,
-        isFirstStepRef,
-        sequencerRef,
-        tempoRef,
-        tempoHoldIntervalRef,
-        tempoHoldTimeoutRef,
-        activeKeyboardNotesRef,
-        noteDragRef,
+        handleEditSongStructure: song.editSongStructure,
+        synthAControls, synthBControls, bass2Controls, kickControls,
+        snareControls, closedHatControls, openHatControls, samplerControls,
         tempoLocked,
         slavePlayLabel,
         isSessionOpen: session.isSessionOpen,
@@ -926,6 +382,6 @@ export function useAppState() {
         beginSessionCapture: session.beginCapture,
         finishSessionCapture: session.finishCapture,
         sessionPackFiles,
-        loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage, { synthA: updateSynthA, synthB: updateSynthB }),
+        loadSessionPack: (id: string) => session.loadPack(id, banks.setTrackStorage, { synthA: inst.updateSynthA, synthB: inst.updateSynthB }),
     }
 }

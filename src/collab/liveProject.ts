@@ -116,16 +116,15 @@ export const liveProject = {
         return runtime?.readSong() ?? null;
     },
 
-    subscribe(listener: () => void): () => void {
+    // Arrows: passed bare to useSyncExternalStore.
+    subscribe: (listener: () => void): (() => void) => {
         listeners.add(listener);
         return () => {
             listeners.delete(listener);
         };
     },
 
-    getSnapshot(): HistorySnapshot {
-        return runtime?.getHistorySnapshot() ?? EMPTY;
-    },
+    getSnapshot: (): HistorySnapshot => runtime?.getHistorySnapshot() ?? EMPTY,
 };
 
 /** The project's undo history (re-renders when it changes). */
