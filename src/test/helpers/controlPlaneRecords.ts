@@ -18,12 +18,28 @@ interface MockPost {
 
 /** Every record posted so far, oldest first. Flushes the app's bus first, so staged records count. */
 export function postedRecords(postMessage: MockPost): EventRecord[] {
+  engineEventBus.flushAll(); // before reading the calls: the flush adds to them
+  return recordsIn(postMessage.mock.calls.map(([message]) => message));
+}
+
+/**
+ * The records in a list of port messages (a fake port that keeps what it was
+ * sent, in an array the flush appends to), oldest first. Flushes the app's
+ * bus first, so staged records count.
+ */
+export function recordsIn(messages: readonly unknown[]): EventRecord[] {
   engineEventBus.flushAll();
   const inbox = new EventInbox({ kind: 'message', capacity: 1 << 12 });
-  for (const [message] of postMessage.mock.calls) inbox.receive(message);
+  for (const message of messages) inbox.receive(message);
   const out: EventRecord[] = [];
   for (let e = createEventRecord(); inbox.pop(e); e = createEventRecord()) out.push(e);
   return out;
+}
+
+/** The port messages that are not record batches, in order. */
+export function controlMessagesIn<T>(messages: readonly T[]): T[] {
+  engineEventBus.flushAll();
+  return messages.filter((message) => !isEventBatchMessage(message));
 }
 
 /** The `type` of every posted message that is not a record batch, in order. */

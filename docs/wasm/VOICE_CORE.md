@@ -182,8 +182,11 @@ same 32-byte `hyphon::Event`, the layout the C++ ring already consumes.
 (P1). Since P2 the ring layout is shared with C++ too, so on the pthread build
 the main thread writes a voice's own native ring in place. Drum hits, Prophecy
 notes and params, and 303 notes and params go over the bus, and each one's
-transport stop is a record. Automation, mutes, MIDI input and telemetry move
-over in P3–P5.
+transport stop is a record. Since the follow-up's P1, worklet-param automation
+does too: the Prophecy lanes and the master `pcf*` lanes are `PARAM_SET`
+records on the frame of their step, where they used to wait on a main-thread
+`setTimeout` (see [JS worklets on the bus](#js-worklets-on-the-bus)). Mutes,
+MIDI input and telemetry move over in the follow-up's P2–P4.
 
 ### One schema, two languages
 
@@ -280,6 +283,28 @@ before the first await), `receiveEvents(data)` (first in `onmessage`),
 before a cancel. It decodes with `popInto` and passes the fields straight to
 `*_push_event`. `nextEvent` pops one record for a processor that routes records
 itself.
+
+### JS worklets on the bus
+
+A worklet that renders in JS has no C++ queue to hand records to. It drains
+its `EventInbox` at block start into a `PendingEventQueue`
+(`src/shared/rt/pendingEvents.ts`): records sorted by frame, ties in arrival
+order, held in one Float64Array, allocation-free, refusing (and counting) the
+newest when full. It then renders the block in segments split on the frames
+of the records due inside it, so a record lands on its own frame. A record
+already past lands on the first frame of the block it arrives in.
+
+The PCF (`pcf-processor`) is the first. `PcfEffect.init` opens a
+`VoiceEventRoute` (a SAB ring where the voices' shared-memory policy allows
+one, batched messages elsewhere) and sends its transport in an
+`attach-events` message. `setAutomationCutoff / Resonance / EnvAmount(value,
+audioTime?)` send a `PARAM_SET` whose target is a `PcfParam` id
+(`src/shared/rt/pcfEvents.ts`) and whose value `PCF_PARAM_CLEAR` (-1) clears
+the override. The engine-private `PCF_CANCEL_SCHEDULED` (`kEngine`) drops the
+records still waiting for their frame: `AutomationScheduler.cancelAll` sends
+it on a transport stop, so the values the lookahead sent for steps that will
+not play never land. Offline renders still hand the PCF its whole automation
+up front (`processorOptions.timeline`).
 
 ### A voice's ring, written in place (P2)
 

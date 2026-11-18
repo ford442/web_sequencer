@@ -14,8 +14,9 @@
  * For each scheduled value the scheduler:
  *   - Uses `AudioParam.setValueAtTime` + `linearRampToValueAtTime` when a
  *     native AudioParam is available (e.g. StereoPanner.pan, GainNode.gain).
- *   - Falls back to time-aligned `setTimeout` for AudioWorklet params that are
- *     driven via `postMessage` (Open303 filter cutoff, resonance, envMod …).
+ *   - Otherwise sends a frame-stamped record on the engine's control-plane
+ *     route (#1497): the 303, Prophecy, macro and PCF worklets apply it on the
+ *     frame of its audio time. No main-thread timer is involved.
  *
  * Song-mode arrangement: when `advanceSongStructure` is provided the scheduler
  * calls it at bar boundaries so the active pattern slots advance in sync with
@@ -147,8 +148,6 @@ export class AutomationScheduler {
   private readonly rampDuration: number;
   private readonly ppq: number;
 
-  /** setTimeout handles for PCF params (no native AudioParam scheduling). */
-  private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
   /** Coalesce duplicate lane/TRAK events in the same 1 ms audio-time bucket. */
   private recentScheduleBuckets = new Map<string, number>();
 
@@ -289,10 +288,8 @@ export class AutomationScheduler {
    * Call this when playback stops.
    */
   cancelAll(): void {
-    for (const id of this.pendingTimeouts) {
-      clearTimeout(id);
-    }
-    this.pendingTimeouts = [];
+    // The PCF holds what the lookahead sent until its frame: drop it.
+    if (this.pcfEffect) pcfLaneFanout(this.pcfEffect).cancelScheduledAutomation();
     this.recentScheduleBuckets.clear();
   }
 
@@ -306,8 +303,8 @@ export class AutomationScheduler {
    * For AudioParam-backed nodes (pan, gain) the value is scheduled directly via
    * the Web Audio API scheduling methods so the change is sample-accurate.
    *
-   * For worklet-based nodes the change is dispatched via a time-aligned
-   * `setTimeout` that fires just before the target audio time.
+   * For worklet-based nodes the change is a record stamped with the frame of
+   * `audioTime`, which the worklet applies on that frame.
    */
   private _effectiveAudioTime(audioTime: number, target?: string, parameter?: string): number {
     const nowAudio = this.ctx.currentTime;
@@ -327,14 +324,6 @@ export class AutomationScheduler {
     const prev = this.recentScheduleBuckets.get(key);
     if (prev === bucket) return true;
     this.recentScheduleBuckets.set(key, bucket);
-    return false;
-  }
-
-  private _isBackpressured(): boolean {
-    if (this.pendingTimeouts.length >= PLAYBACK_THRESHOLDS.maxPendingAutomation) {
-      playbackHealthMonitor.recordBackpressure('automation-pending-cap');
-      return true;
-    }
     return false;
   }
 
@@ -395,19 +384,8 @@ export class AutomationScheduler {
       }
       case 'master': {
         if (!this.pcfEffect) return;
-        if (this._isBackpressured()) return;
-        const pcf = this.pcfEffect;
         const effectiveTime = this._effectiveAudioTime(audioTime, target, parameter);
-        const nowAudio = this.ctx.currentTime;
-        const delayMs = Math.max(0, (effectiveTime - nowAudio) * 1000);
-        if (delayMs < 1) {
-          this._applyPcfParam(pcf, parameter, value);
-        } else {
-          const id = setTimeout(() => {
-            this._applyPcfParam(pcf, parameter, value);
-          }, delayMs);
-          this.pendingTimeouts.push(id);
-        }
+        this._applyPcfParam(this.pcfEffect, parameter, value, effectiveTime);
         break;
       }
       case 'wam': {
@@ -458,16 +436,17 @@ export class AutomationScheduler {
    * @param pcf       The active PcfEffect instance.
    * @param parameter RBS/automation parameter name (pcfCutoff | pcfResonance | pcfEnvAmount).
    * @param value     Normalised 0–1 value (from automation lane or TRAK event).
+   * @param audioTime Context time the change lands on, as a frame in the worklet.
    */
-  private _applyPcfParam(pcf: PcfEffect, parameter: string, value: number): void {
+  private _applyPcfParam(pcf: PcfEffect, parameter: string, value: number, audioTime: number): void {
     // Same conversion the offline renders use (`pcfLaneOverride`).
     const override = pcfLaneOverride(parameter, value);
     if (!override) return;
     // The master PCF, plus any placed PCF that follows the master lanes.
     const target = pcfLaneFanout(pcf);
-    if (override.cutoffHz !== undefined) target.setAutomationCutoff(override.cutoffHz);
-    if (override.resonanceMidi !== undefined) target.setAutomationResonance(override.resonanceMidi);
-    if (override.envAmountNorm !== undefined) target.setAutomationEnvAmount(override.envAmountNorm);
+    if (override.cutoffHz !== undefined) target.setAutomationCutoff(override.cutoffHz, audioTime);
+    if (override.resonanceMidi !== undefined) target.setAutomationResonance(override.resonanceMidi, audioTime);
+    if (override.envAmountNorm !== undefined) target.setAutomationEnvAmount(override.envAmountNorm, audioTime);
   }
 }
 

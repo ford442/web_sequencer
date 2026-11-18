@@ -22,6 +22,9 @@ import {
     registerPcfInsert,
 } from '../pcfInsert';
 import { engineDegradationStore } from '../../../stores/engineDegradationStore';
+import { controlMessagesIn, recordsIn } from '@/test/helpers/controlPlaneRecords';
+import { EventType } from '@/shared/rt/eventLayout';
+import { PCF_CANCEL_SCHEDULED, PCF_PARAM_CLEAR, PcfParam } from '@/shared/rt/pcfEvents';
 
 interface FakeParam {
     value: number;
@@ -195,11 +198,18 @@ describe('PcfInsert', () => {
         pcf.setFollowMasterLanes(true);
         const messages = posted.at(-1)!;
         messages.length = 0;
+        // A lane value the lookahead sent for a step 1 s ahead.
+        pcf.setAutomationCutoff(500, 1);
         pcf.setFollowMasterLanes(false);
-        expect(messages).toEqual([
-            { type: 'set-automation', data: { cutoffHz: -1 } },
-            { type: 'set-automation', data: { resonanceMidi: null } },
-            { type: 'set-automation', data: { envAmountNorm: null } },
+        // Records on the effect's route, opened by the first one: what the
+        // lookahead sent is dropped, then each override clears on the next block.
+        expect(controlMessagesIn(messages).map((m) => m.type)).toEqual(['attach-events']);
+        expect(recordsIn(messages).map(({ type, target, value, frame }) => ({ type, target, value, frame }))).toEqual([
+            { type: EventType.Param, target: PcfParam.CutoffHz, value: 500, frame: 48000 }, // no sampleRate on the fake: the route stamps at 48 kHz
+            { type: PCF_CANCEL_SCHEDULED, target: 0, value: 0, frame: 0 },
+            { type: EventType.Param, target: PcfParam.CutoffHz, value: PCF_PARAM_CLEAR, frame: 0 },
+            { type: EventType.Param, target: PcfParam.ResonanceMidi, value: PCF_PARAM_CLEAR, frame: 0 },
+            { type: EventType.Param, target: PcfParam.EnvAmountNorm, value: PCF_PARAM_CLEAR, frame: 0 },
         ]);
     });
 
@@ -223,18 +233,29 @@ describe('live registry', () => {
         const own = provider(context, { nodeId: 'b', config: {} })!.pcf!;
         const followCut = vi.spyOn(following, 'setAutomationCutoff');
         const ownCut = vi.spyOn(own, 'setAutomationCutoff');
-        const master = { setAutomationCutoff: vi.fn(), setAutomationResonance: vi.fn(), setAutomationEnvAmount: vi.fn() };
+        const master = {
+            setAutomationCutoff: vi.fn(),
+            setAutomationResonance: vi.fn(),
+            setAutomationEnvAmount: vi.fn(),
+            cancelScheduledAutomation: vi.fn(),
+        };
 
         const fanout = pcfLaneFanout(master);
-        fanout.setAutomationCutoff(440);
-        expect(master.setAutomationCutoff).toHaveBeenCalledWith(440);
-        expect(followCut).toHaveBeenCalledWith(440);
+        fanout.setAutomationCutoff(440, 1.5);
+        expect(master.setAutomationCutoff).toHaveBeenCalledWith(440, 1.5);
+        expect(followCut).toHaveBeenCalledWith(440, 1.5);
         expect(ownCut).not.toHaveBeenCalled();
 
         // Read at call time: a node that starts following is picked up.
         own.setFollowMasterLanes(true);
-        fanout.setAutomationCutoff(880);
-        expect(ownCut).toHaveBeenCalledWith(880);
+        fanout.setAutomationCutoff(880, 2);
+        expect(ownCut).toHaveBeenCalledWith(880, 2);
+
+        // A transport stop reaches every PCF the lanes drive.
+        const followCancel = vi.spyOn(following, 'cancelScheduledAutomation');
+        fanout.cancelScheduledAutomation();
+        expect(master.cancelScheduledAutomation).toHaveBeenCalledOnce();
+        expect(followCancel).toHaveBeenCalledOnce();
     });
 
     it('steps placed PCFs with the master transport, and late ones join in tempo', () => {

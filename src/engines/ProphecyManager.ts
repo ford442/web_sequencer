@@ -139,8 +139,9 @@ export class ProphecyManager {
     }
 
     /**
-     * Schedule a Prophecy parameter at an AudioContext time (not rAF).
-     * Worklet params are dispatched via a wall-clock delay derived from the audio clock.
+     * Schedule a Prophecy parameter at an AudioContext time: a PARAM_SET
+     * record on the frame of `audioTime`, on the same route (and clock) as the
+     * part's notes, so a vowel change lands with the note it belongs to.
      */
     scheduleParamAtTime(
         part: 'partA' | 'partB',
@@ -151,27 +152,16 @@ export class ProphecyManager {
         const osc = part === 'partA' ? this.partA : this.partB;
         if (!osc || !this.audioContext) return;
 
-        const nowAudio = this.audioContext.currentTime;
-        const delayMs = Math.max(0, (audioTime - nowAudio) * 1000);
-
-        const apply = () => {
-            switch (param) {
-                case 'vowel':
-                    osc.setVowel(Math.round(Math.max(0, Math.min(4, value * 4))));
-                    break;
-                case 'portamento':
-                    osc.setPortamento(Math.max(0, Math.min(1, value)));
-                    break;
-                case 'formantShift':
-                    osc.setFormantShift(Math.max(0, Math.min(1, value)));
-                    break;
-            }
-        };
-
-        if (delayMs < 1) {
-            apply();
-        } else {
-            setTimeout(apply, delayMs);
+        switch (param) {
+            case 'vowel':
+                osc.setVowel(Math.round(Math.max(0, Math.min(4, value * 4))), audioTime);
+                break;
+            case 'portamento':
+                osc.setPortamento(Math.max(0, Math.min(1, value)), audioTime);
+                break;
+            case 'formantShift':
+                osc.setFormantShift(Math.max(0, Math.min(1, value)), audioTime);
+                break;
         }
     }
 

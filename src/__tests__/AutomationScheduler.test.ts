@@ -11,7 +11,7 @@ import type { Open303Manager } from '../engines/Open303Manager';
  *  - trakCtrlToTargetParam() (via scheduleFromTrakEvents integration)
  *  - scheduleFromLanes()  — step-indexed lane scheduling
  *  - scheduleFromTrakEvents() — tick-indexed TRAK event scheduling
- *  - cancelAll()          — clears pending setTimeout handles
+ *  - cancelAll()          — drops the PCF changes the lookahead already sent
  *
  * @see Issue #669 — automation foundation
  * @see Issue #671 — RBS TRAK events
@@ -86,6 +86,7 @@ function makePcfEffect() {
     setAutomationCutoff: vi.fn(),
     setAutomationResonance: vi.fn(),
     setAutomationEnvAmount: vi.fn(),
+    cancelScheduledAutomation: vi.fn(),
   };
 }
 
@@ -202,7 +203,7 @@ describe('AutomationScheduler — construction', () => {
 // ---------------------------------------------------------------------------
 
 describe('AutomationScheduler.cancelAll', () => {
-  it('cancels pending PCF timeouts so they do not fire', () => {
+  it('drops the PCF changes the lookahead already sent (the worklet holds them until their frame)', () => {
     const ctx = makeAudioContext(0);
     const mgr = makeOpen303Manager();
     const pcf = makePcfEffect();
@@ -217,9 +218,11 @@ describe('AutomationScheduler.cancelAll', () => {
     automationStore.addLane(lane);
 
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0.1);
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number), 0.1);
     scheduler.cancelAll();
-    vi.runAllTimers();
-    expect(pcf.setAutomationCutoff).not.toHaveBeenCalled();
+    expect(pcf.cancelScheduledAutomation).toHaveBeenCalledOnce();
+    // Nothing is left on a main-thread timer.
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('can be called multiple times without error', () => {
@@ -560,8 +563,8 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     scheduler.scheduleFromLanes([lane], 0, 1, 0.5, 0);
     vi.runAllTimers();
 
-    // value 0.5 → pcfMidiNormToHz(0.5) ≈ 632 Hz
-    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
+    // value 0.5 → pcfMidiNormToHz(0.5) ≈ 632 Hz, on the step's audio time
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number), 0);
     const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
     expect(actualHz).toBeCloseTo(testPcfMidiNormToHz(0.5), 1);
   });
@@ -584,7 +587,7 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     vi.runAllTimers();
 
     expect(pcf.setAutomationResonance).toHaveBeenCalledWith(
-      expect.closeTo(127, 1)
+      expect.closeTo(127, 1), 0
     );
   });
 
@@ -606,7 +609,7 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     vi.runAllTimers();
 
     expect(pcf.setAutomationEnvAmount).toHaveBeenCalledWith(
-      expect.closeTo(0.75, 3)
+      expect.closeTo(0.75, 3), 0
     );
   });
 
@@ -655,7 +658,7 @@ describe('AutomationScheduler PCF automation via scheduleFromLanes', () => {
     });
     scheduler.scheduleFromLanes([sweep], 0, 1, 0.5, 0);
     vi.runAllTimers();
-    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.closeTo(20, 6));
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.closeTo(20, 6), 0);
   });
 });
 
@@ -680,7 +683,8 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number));
+    // tick 24 at 120 BPM, 24 PPQ: one beat in, 0.5 s
+    expect(pcf.setAutomationCutoff).toHaveBeenCalledWith(expect.any(Number), 0.5);
     const actualHz = (pcf.setAutomationCutoff as ReturnType<typeof vi.fn>).mock.calls[0][0] as number;
     expect(actualHz).toBeCloseTo(testPcfMidiNormToHz(64 / 127), 1);
   });
@@ -696,7 +700,7 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationResonance).toHaveBeenCalledWith(expect.closeTo(100, 0));
+    expect(pcf.setAutomationResonance).toHaveBeenCalledWith(expect.closeTo(100, 0), 0.25);
   });
 
   it('routes PCF amount TRAK event on PCF track to setAutomationEnvAmount', () => {
@@ -710,7 +714,7 @@ describe('AutomationScheduler PCF automation via scheduleFromTrakEvents', () => 
     scheduler.scheduleFromTrakEvents(events, 120, 0, 0, 96);
     vi.runAllTimers();
 
-    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledWith(expect.closeTo(64 / 127, 3));
+    expect(pcf.setAutomationEnvAmount).toHaveBeenCalledWith(expect.closeTo(64 / 127, 3), 0.125);
   });
 
   it('does not call PCF methods when pcfEffect is null', () => {

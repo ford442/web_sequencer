@@ -9,6 +9,10 @@ import {
 } from '../masterPcf';
 import { PcfEffect } from '../../../engines/PcfEffect';
 import { engineDegradationStore } from '../../../stores/engineDegradationStore';
+import { controlMessagesIn, recordsIn } from '@/test/helpers/controlPlaneRecords';
+import { engineEventBus } from '../../controlPlane/EventBus';
+import { EventType } from '@/shared/rt/eventLayout';
+import { PCF_CANCEL_SCHEDULED, PCF_PARAM_CLEAR, PcfParam } from '@/shared/rt/pcfEvents';
 
 function stubPcf() {
     return {
@@ -149,10 +153,26 @@ describe('createMasterPcf', () => {
 
         posted.length = 0;
         pcf!.reset();
-        expect(posted).toEqual([
-            { type: 'set-enabled', data: false },
-            { type: 'set-automation', data: { cutoffHz: null, resonanceMidi: null, envAmountNorm: null } },
+        // No automation yet, so no route until the clears open it.
+        expect(controlMessagesIn(posted).map((m) => (m as { type: string }).type)).toEqual(['set-enabled', 'attach-events']);
+        expect(recordsIn(posted).map(({ type, target, value }) => ({ type, target, value }))).toEqual([
+            { type: EventType.Param, target: PcfParam.CutoffHz, value: PCF_PARAM_CLEAR },
+            { type: EventType.Param, target: PcfParam.ResonanceMidi, value: PCF_PARAM_CLEAR },
+            { type: EventType.Param, target: PcfParam.EnvAmountNorm, value: PCF_PARAM_CLEAR },
         ]);
+
+        // Once a lane has sent values, a reset drops them before clearing.
+        pcf!.setAutomationCutoff(500, 2);
+        engineEventBus.flushAll();
+        posted.length = 0;
+        pcf!.reset();
+        expect(recordsIn(posted).map(({ type }) => type)).toEqual([
+            PCF_CANCEL_SCHEDULED,
+            EventType.Param,
+            EventType.Param,
+            EventType.Param,
+        ]);
+        pcf!.dispose();
         log.mockRestore();
     });
 });
