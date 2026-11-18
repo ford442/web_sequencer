@@ -1,17 +1,19 @@
 /**
  * The co-producer host over the live app state: `window.__HYPHON_AGENT__.coproducer`.
  *
- * `getSong` reads what the save path writes (`useSongStorage.getSongData`)
- * minus the audio: no embedded samples, so a tool call never encodes WAVs and
- * no sample data ever reaches the model. `commit` writes back only the parts
- * an edit changed, through the setters the UI uses — live-pattern steps go
- * through `handleReplaceManyTrackSteps`, the piano roll's commit (pattern undo
- * included), and arrangement edits through `editArrangement` — so the
- * transport keeps running and nothing is reloaded.
+ * `getSong` reads what the save path writes (the project doc's bound fields,
+ * see `useSongStorage/save.ts`) minus the audio: no embedded samples, so a
+ * tool call never encodes WAVs and no sample data ever reaches the model.
+ * `commit` writes back only the parts an edit changed, through the setters
+ * the UI uses — live-pattern steps go through `handleReplaceManyTrackSteps`,
+ * the piano roll's commit, and arrangement edits through `editArrangement` —
+ * so the transport keeps running and nothing is reloaded.
  *
- * Each commit records the song before it under its label; `undo` puts that
- * song back the same way, so undoing every step of a turn returns the
- * snapshot it started from.
+ * Each tool call is one `agent` edit of the project doc (#1597 P2): one
+ * transaction under the co-producer's own origin, so it is one step of the
+ * co-producer's undo history, labelled with the tool call, and the human's
+ * Ctrl/Cmd+Z never undoes it (nor does `undo` here undo the human's edits).
+ * Undoing every step of a turn returns the song it started from.
  */
 
 import type { AppState } from '../../contexts/AppStateContext';
@@ -24,7 +26,9 @@ import { migrateTrackStorage } from '../../utils/trackStorageUtils';
 import { resolveSongMeter } from '../../utils/songMeter';
 import { exportAISong, type AISongExport, type AISongExportOptions } from '../../importers/ai-song/exportAISong';
 import type { AgentExportResult, AgentRenderResult } from '../agentApi';
-import type { CoproducerExportFormat, CoproducerHost, CoproducerUndoStep } from './host';
+import type { CoproducerExportFormat, CoproducerHost } from './host';
+import { liveProject } from '../../collab/liveProject';
+import { readBoundSong } from '../../hooks/useSongStorage/save';
 import { COPRODUCER_TOOLS, runCoproducerTool, type CoproducerToolDefinition, type CoproducerToolResult } from './tools';
 
 /** `window.__HYPHON_AGENT__.coproducer`. */
@@ -57,36 +61,28 @@ type Storage = Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
 
 /** The open song as the save path writes it, without audio. */
 export function songSnapshot(s: AppState): SavedSongData {
-    const meter = transportMixStore.getMeter();
-    const lanes = automationStore.exportLanes();
+    const bound = readBoundSong();
     const trackParamStorage = s.rbsArrangementExtrasRef.current?.trackParamStorage;
+    const optional = <K extends keyof SavedSongData>(key: K, value: SavedSongData[K] | undefined) =>
+        (value === undefined ? {} : { [key]: value }) as Partial<SavedSongData>;
     return {
         version: SAVED_SONG_DATA_VERSION,
-        pattern: s.patternRef.current,
-        params: {
-            synthA: s.synthARef.current,
-            synthB: s.synthBRef.current,
-            bass2: s.bass2Ref.current,
-            kick: s.kickRef.current,
-            snare: s.snareRef.current,
-            closedHat: s.closedHatRef.current,
-            openHat: s.openHatRef.current,
-            sampler: s.samplerRef.current,
-        },
-        trackStorage: s.trackStorage as unknown as Record<string, unknown>,
-        activeTrackSlots: s.activeTrackSlots,
-        arrangement: s.arrangement,
-        songStructure: s.songStructure,
-        tempo: s.tempo,
-        stepCount: meter.stepCount,
-        timeSignature: meter.timeSignature,
-        swing: meter.swing,
-        ...(Object.keys(meter.trackLengths).length > 0 ? { trackLengths: meter.trackLengths } : {}),
-        ttsPhrases: s.ttsPhrases,
-        ...(lanes.length > 0 ? { automationLanes: lanes } : {}),
-        ...(noteFxStore.hasChains() ? { noteFx: noteFxStore.exportChains() } : {}),
-        ...(trackParamStorage ? { trackParamStorage } : {}),
-    };
+        pattern: bound.pattern,
+        params: bound.params,
+        trackStorage: bound.trackStorage,
+        activeTrackSlots: bound.activeTrackSlots,
+        arrangement: bound.arrangement,
+        songStructure: bound.songStructure,
+        tempo: bound.tempo,
+        stepCount: bound.stepCount,
+        timeSignature: bound.timeSignature,
+        swing: bound.swing,
+        ...optional('trackLengths', bound.trackLengths as SavedSongData['trackLengths']),
+        ttsPhrases: bound.ttsPhrases,
+        ...optional('automationLanes', bound.automationLanes as SavedSongData['automationLanes']),
+        ...optional('noteFx', bound.noteFx as SavedSongData['noteFx']),
+        ...optional('trackParamStorage', trackParamStorage),
+    } as SavedSongData;
 }
 
 const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
@@ -109,28 +105,32 @@ function liveEdits(prev: SavedSongData, next: SavedSongData): Array<{ trackKey: 
     return edits;
 }
 
-/** Write the parts of `next` that differ from `prev` through the app's own setters. */
+/**
+ * Write the parts of `next` that differ from `prev` through the app's own
+ * setters. Compared by value: `prev` is read fresh from the doc, so identity
+ * says nothing.
+ */
 function applySong(s: AppState, prev: SavedSongData, next: SavedSongData): void {
     const edits = liveEdits(prev, next);
     if (edits.length > 0) s.handleReplaceManyTrackSteps(edits);
-    if (next.trackStorage !== prev.trackStorage) s.setTrackStorage(migrateTrackStorage(next.trackStorage) as Storage);
+    if (!same(next.trackStorage, prev.trackStorage)) s.setTrackStorage(migrateTrackStorage(next.trackStorage) as Storage);
     if (!same(next.activeTrackSlots, prev.activeTrackSlots)) s.setActiveTrackSlots(next.activeTrackSlots as Record<TrackKey, number>);
 
     const p = next.params;
     const q = prev.params;
-    if (p.synthA !== q.synthA) { s.synthARef.current = p.synthA; s.setSynthA(p.synthA); }
-    if (p.synthB !== q.synthB) { s.synthBRef.current = p.synthB; s.setSynthB(p.synthB); }
-    if (p.bass2 && p.bass2 !== q.bass2) { s.bass2Ref.current = p.bass2; s.setBass2(p.bass2); }
-    if (p.kick !== q.kick) { s.kickRef.current = p.kick; s.setKick(p.kick); }
-    if (p.snare !== q.snare) { s.snareRef.current = p.snare; s.setSnare(p.snare); }
-    if (p.closedHat !== q.closedHat) { s.closedHatRef.current = p.closedHat; s.setClosedHat(p.closedHat); }
-    if (p.openHat !== q.openHat) { s.openHatRef.current = p.openHat; s.setOpenHat(p.openHat); }
-    if (p.sampler !== q.sampler) { s.samplerRef.current = p.sampler; s.setSampler(p.sampler); }
+    if (!same(p.synthA, q.synthA)) s.setSynthA(p.synthA);
+    if (!same(p.synthB, q.synthB)) s.setSynthB(p.synthB);
+    if (p.bass2 && !same(p.bass2, q.bass2)) s.setBass2(p.bass2);
+    if (!same(p.kick, q.kick)) s.setKick(p.kick);
+    if (!same(p.snare, q.snare)) s.setSnare(p.snare);
+    if (!same(p.closedHat, q.closedHat)) s.setClosedHat(p.closedHat);
+    if (!same(p.openHat, q.openHat)) s.setOpenHat(p.openHat);
+    if (!same(p.sampler, q.sampler)) s.setSampler(p.sampler);
 
     if (next.tempo !== prev.tempo) s.setTempo(next.tempo);
     const meter = resolveSongMeter(next);
     if (!same(meter, resolveSongMeter(prev))) transportMixStore.applyMeter(meter);
-    if (next.arrangement && next.arrangement !== prev.arrangement) {
+    if (next.arrangement && !same(next.arrangement, prev.arrangement)) {
         const arrangement = next.arrangement;
         s.editArrangement(() => arrangement);
     }
@@ -143,7 +143,6 @@ function applySong(s: AppState, prev: SavedSongData, next: SavedSongData): void 
 }
 
 export function createAppCoproducer(deps: AppHostDeps): { coproducer: HyphonAgentCoproducer; exportAISong: (options?: AISongExportOptions) => AISongExport } {
-    const steps: CoproducerUndoStep[] = [];
     const downloads: Array<{ filename: string; base64: string }> = [];
     const state = deps.getState;
 
@@ -157,16 +156,14 @@ export function createAppCoproducer(deps: AppHostDeps): { coproducer: HyphonAgen
     const host: CoproducerHost = {
         getSong: () => songSnapshot(state()),
         async commit(song, label) {
-            const before = songSnapshot(state());
-            steps.push({ label, before });
-            applySong(state(), before, song);
+            liveProject.edit('agent', () => applySong(state(), songSnapshot(state()), song), label);
             await deps.settle(50);
         },
         async load(song, label) {
-            steps.push({ label, before: songSnapshot(state()) });
             const s = state();
             if (s.isPlaying) await s.handlePlayToggle();
-            await s.loadImportedAISong(song);
+            // A load inside the agent's edit is that step, not a history reset.
+            await liveProject.editAsync('agent', () => s.loadImportedAISong(song), label);
             await deps.settle();
         },
         render: (options) => deps.renderMix(options),
@@ -182,11 +179,9 @@ export function createAppCoproducer(deps: AppHostDeps): { coproducer: HyphonAgen
         coproducer: {
             tools: () => COPRODUCER_TOOLS,
             run: (name, input) => runCoproducerTool(name, input, host),
-            history: () => steps.map((step) => step.label),
+            history: () => liveProject.stepLabels('agent'),
             async undo() {
-                const step = steps.pop();
-                if (!step) return false;
-                applySong(state(), songSnapshot(state()), step.before);
+                if (!liveProject.undo('agent')) return false;
                 await deps.settle(50);
                 return true;
             },

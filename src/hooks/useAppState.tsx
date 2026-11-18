@@ -34,7 +34,6 @@ import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
 import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
-import { useUndoRedo } from './useUndoRedo'
 import { useGamepad } from './useGamepad'
 import { useMidi } from './useMidi'
 import { useTransportSyncStore } from '../stores/transportSyncStore'
@@ -56,10 +55,7 @@ import { Open303Manager } from '../engines/Open303Manager';
 import type { MainSequencerHandle } from '../components/MainSequencer'
 
 import { swingPercentToClock } from '../utils/musicTheory'
-import type { Pattern, ResolvedTrakEvent } from '../types'
-import {
-    UPDATED_INITIAL_PATTERN,
-} from '../constants/appDefaults'
+import type { ResolvedTrakEvent } from '../types'
 import {
     getBass2Controls, getSynthControls, getKickControls, getSnareControls,
     getClosedHatControls, getOpenHatControls, getSamplerControls,
@@ -83,13 +79,13 @@ import { useUIModalsState } from './appState/useUIModalsState'
 import { useSongModeState } from './appState/useSongModeState'
 import { useSessionState } from './appState/useSessionState'
 import { useSessionPacks } from './appState/useSessionPacks'
-import { useSongStructureEditor } from './useSongStructureEditor'
 import { usePatternEditState } from './appState/usePatternEditState'
 import { useSamplerBanksState } from './appState/useSamplerBanksState'
 import { useTransportMixState } from './appState/useTransportMixState'
 import { arrangementPlayhead } from '../arrangement/playhead'
 import { transportPlayhead } from '../sequencer/transportPlayhead'
 import { macroEngineForWaveform } from '../engines/MacroParams'
+import { patternStore, usePatternStore } from '../stores/patternStore'
 
 export function useAppState() {
 
@@ -200,8 +196,10 @@ export function useAppState() {
         });
     };
 
-    const [pattern, setPattern] = useState<Pattern>(UPDATED_INITIAL_PATTERN)
-    const undoRedo = useUndoRedo<Pattern>(50)
+    // The live pattern is a store bound to the project doc; its ref is always current.
+    const pattern = usePatternStore()
+    const setPattern = patternStore.set
+    const patternRef = patternStore.ref
     const [isInitialized, setIsInitialized] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
@@ -229,6 +227,7 @@ export function useAppState() {
         arrangement, setArrangement,
         arrangementRef,
         songStructure, setSongStructure,
+        editSongStructure: handleEditSongStructure, editArrangement,
         currentSongMeasure, setCurrentSongMeasure,
         songStructureRef,
         isSongModeActiveRef,
@@ -238,16 +237,6 @@ export function useAppState() {
     } = useSongModeState();
 
     const session = useSessionState();
-
-    const {
-        editSongStructure: handleEditSongStructure,
-        editArrangement,
-        undoSongStructure,
-        redoSongStructure,
-        canUndoSong,
-        canRedoSong,
-        clearSongUndo,
-    } = useSongStructureEditor(songStructureRef, setSongStructure, arrangementRef, setArrangement);
 
     const {
         synthA, setSynthA, synthARef, updateSynthA,
@@ -274,9 +263,6 @@ export function useAppState() {
         const mgr = macroManagerRef?.current;
         if (engine && mgr?.canPlay('partB', engine)) mgr.applyParamsNow('partB', synthB, engine);
     }, [synthB, macroManagerRef, isReady]);
-
-    const patternRef = useRef(pattern);
-    useEffect(() => { patternRef.current = pattern; }, [pattern]);
 
     const sequencerRef = useRef<MainSequencerHandle>(null);
     const currentStepRef = useRef(-1);
@@ -378,7 +364,7 @@ export function useAppState() {
         handleReplaceManyTrackSteps,
         handlePasteTrackSteps,
     } = usePatternHandlers({
-        patternRef, setPattern, undoRedo, activeSamplerBankRef,
+        patternRef, setPattern, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
         setSelectedTrack,
@@ -421,7 +407,7 @@ export function useAppState() {
 
     const { handleCopy, handlePaste } = useClipboardHandlers({
         selection, selectedTrack, clipboard, setClipboard, setPattern, setSelection,
-        patternRef, activeSamplerBankRef, undoRedo, updateStorageForTrack, showToast,
+        patternRef, activeSamplerBankRef, updateStorageForTrack, showToast,
         handleSelectionEnd, audioEngine,
     });
 
@@ -509,7 +495,7 @@ export function useAppState() {
         tempoHoldTimeoutRef,
     } = useTransportHandlers({
         isInitialized, isReady, initializeAudio, setIsInitialized,
-        audioEngine, setSchedPlaying, setTempo, undoRedo, setPattern,
+        audioEngine, setSchedPlaying, setTempo,
         activeKeyboardNotesRef,
     });
 
@@ -650,17 +636,6 @@ export function useAppState() {
         setIsImportingAISong, setAiImportStage, setAiImportProgress,
         isExportingRbs, isExportingSmf,
     } = useSongStorage({
-        patternRef, tempoRef,
-        synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef,
-        trackStorageRef, activeTrackSlotsRef, songStructureRef, arrangementRef,
-        sessionDocumentRef: session.sessionDocumentRef,
-        setSessionDocument: session.setSessionDocument,
-        ambianceUrl, backgroundImage, sampleBuffers, ttsPhrases,
-        songStorage, pattern, tempo, trackStorage,
-        setPattern, setTempo, setAmbianceUrl, setBackgroundImage,
-        setSynthA, setSynthB, setBass2, setKick, setSnare, setClosedHat, setOpenHat, setSampler,
-        setTrackStorage, setActiveTrackSlots, setArrangement, setSampleBuffers, setTtsPhrases,
-        setSongStorage, setActiveSongSlot,
         audioEngine, showToast,
         setIsAISongModalOpen, setIsRbsImportModalOpen, setIsSmfImportModalOpen,
         setDrumKit: updateDrumKit,
@@ -730,7 +705,6 @@ export function useAppState() {
         pattern, setPattern,
         tempo, setTempo,
         swing, setSwing,
-        undoRedo,
         currentStepRef,
         isInitialized, setIsInitialized,
         pendingRestore, restoreProject, dismissRestore, projectStoreBackend,
@@ -862,11 +836,6 @@ export function useAppState() {
         handleExportXM,
         buildXmExport,
         handleRemoveMeasure,
-        undoSongStructure,
-        redoSongStructure,
-        canUndoSong,
-        canRedoSong,
-        clearSongUndo,
         handleLoadSample,
         handleSynthChange,
         handleBass2Change,
@@ -956,10 +925,6 @@ export function useAppState() {
         setSessionQuantization: session.setQuantization,
         beginSessionCapture: session.beginCapture,
         finishSessionCapture: session.finishCapture,
-        undoSession: session.undoSession,
-        redoSession: session.redoSession,
-        canUndoSession: session.canUndoSession,
-        canRedoSession: session.canRedoSession,
         sessionPackFiles,
         loadSessionPack: (id: string) => session.loadPack(id, setTrackStorage, { synthA: updateSynthA, synthB: updateSynthB }),
     }

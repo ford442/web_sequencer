@@ -24,7 +24,10 @@ export type EditorKind = 'human' | 'agent';
 
 /** A transaction origin for one local editor. Identity is what Yjs compares. */
 export class EditorOrigin {
-    constructor(readonly kind: EditorKind) {}
+    readonly kind: EditorKind;
+    constructor(kind: EditorKind) {
+        this.kind = kind;
+    }
 }
 
 export interface HistoryEntry {
@@ -93,11 +96,10 @@ export class ProjectHistory {
     private dirty = true;
     private readonly labelCache = new WeakMap<StepMeta, { after: SongFieldValues; label: string }>();
 
-    constructor(
-        doc: Y.Doc,
-        readonly origins: Record<EditorKind, EditorOrigin>,
-        options: ProjectHistoryOptions = {},
-    ) {
+    readonly origins: Record<EditorKind, EditorOrigin>;
+
+    constructor(doc: Y.Doc, origins: Record<EditorKind, EditorOrigin>, options: ProjectHistoryOptions = {}) {
+        this.origins = origins;
         this.now = options.now ?? Date.now;
         this.maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
         const scope = songRootTypes(doc);

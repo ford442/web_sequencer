@@ -27,9 +27,3 @@ export interface CoproducerHost {
     /** Build a file of the song and offer it to the user. */
     exportFile(format: CoproducerExportFormat): Promise<AgentExportResult>;
 }
-
-/** One committed co-producer step: its label and the song before it. */
-export interface CoproducerUndoStep {
-    label: string;
-    before: SavedSongData;
-}

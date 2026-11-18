@@ -50,7 +50,8 @@ export function songRootTypes(doc: Y.Doc): Y.Map<unknown>[] {
  * type up to its subsystem root map.
  */
 export function changedSongFields(doc: Y.Doc, transaction: Y.Transaction): Set<SongField> {
-    const roots = new Map<Y.AbstractType<unknown>, Subsystem>();
+    // Keyed by identity only, so any Yjs type will do as a key.
+    const roots = new Map<object, Subsystem>();
     for (const subsystem of SUBSYSTEMS) roots.set(subsystemMap(doc, subsystem), subsystem);
     const fields = new Set<SongField>();
     const addStored = (subsystem: Subsystem, stored: string | null) => {
@@ -65,15 +66,16 @@ export function changedSongFields(doc: Y.Doc, transaction: Y.Transaction): Set<S
             return;
         }
         // Climb to the child of a root; its key in the root is the field.
-        let current: Y.AbstractType<unknown> = type;
-        while (current._item !== null) {
-            const parent = current._item.parent as Y.AbstractType<unknown>;
+        let item: Y.Item | null = type._item;
+        while (item !== null) {
+            const parent = item.parent as { _item?: Y.Item | null } | null;
+            if (!parent || !('_item' in parent)) return;
             const root = roots.get(parent);
             if (root) {
-                addStored(root, current._item.parentSub);
+                addStored(root, item.parentSub);
                 return;
             }
-            current = parent;
+            item = parent._item ?? null;
         }
     });
     return fields;

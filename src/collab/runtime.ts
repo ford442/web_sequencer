@@ -26,9 +26,8 @@ import { DOC_ORIGINS, createProjectDoc } from './doc';
 import { readSongFromDoc } from './codec';
 import { changedSongFields, isEmptySong, readField, writeField } from './fields';
 import { EditorOrigin, ProjectHistory, type EditContext, type EditorKind, type ProjectHistoryOptions } from './history';
+import type { EditScope } from './liveProject';
 import { jsonEqual, type Json } from './yjson';
-
-export type EditScope = EditorKind | 'load' | 'playback';
 
 export interface ProjectRuntimeOptions {
     bindings: readonly DocBinding[];

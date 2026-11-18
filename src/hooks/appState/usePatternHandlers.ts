@@ -5,12 +5,10 @@ import { gridColumns } from '@/utils/songMeter'
 import { midiToNote, noteToMidi } from '@/utils/musicTheory'
 import type { Note, Pattern, PartSequence, PhonemeData } from '@/types'
 import type { TrackKey } from '@/constants/appDefaults'
-import type { useUndoRedo } from '@/hooks/useUndoRedo'
 import type { PropertyChangeKey } from '@/components/note-selector/types'
 import { updateSamplerStep, updateTrackStep, updateSamplerRange, updateTrackRange } from './patternUpdates'
 import { pasteSteps } from '@/utils/clipboardUtils'
 
-type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>
 type TrackStorage = Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
 /** Minimal event shape handleStepToggle needs — real pointer events and test mocks both satisfy it. */
 interface StepToggleEvent {
@@ -23,7 +21,6 @@ interface StepToggleEvent {
 export function usePatternHandlers(deps: {
     patternRef: React.MutableRefObject<Pattern>;
     setPattern: React.Dispatch<React.SetStateAction<Pattern>>;
-    undoRedo: UndoRedo;
     activeSamplerBankRef: React.MutableRefObject<number>;
     contextMenu: { x: number; y: number; track: TrackKey; step: number } | null;
     setContextMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number; track: TrackKey; step: number } | null>>;
@@ -36,7 +33,7 @@ export function usePatternHandlers(deps: {
     onTrackSlotRecall?: (track: TrackKey, slotIndex: number) => void;
 }) {
     const {
-        patternRef, setPattern, undoRedo, activeSamplerBankRef,
+        patternRef, setPattern, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection,
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots,
         setSelectedTrack, onTrackSlotRecall,
@@ -52,7 +49,6 @@ export function usePatternHandlers(deps: {
     }, [setTrackStorage, activeTrackSlotsRef]);
 
     const handlePatternChange = useCallback((rowKey: keyof Pattern, i: number, _subIndex?: number | unknown, updates?: { length?: number, slide?: boolean, chord?: string[], sliceIndex?: number }) => {
-        undoRedo.push(patternRef.current);
         const prev = patternRef.current;
         const copy = { ...prev };
         let changedSequence;
@@ -93,7 +89,7 @@ export function usePatternHandlers(deps: {
         }
         setPattern(copy);
         updateStorageForTrackInner(rowKey as TrackKey, changedSequence);
-    }, [updateStorageForTrackInner, undoRedo, patternRef, activeSamplerBankRef, setPattern]);
+    }, [updateStorageForTrackInner, patternRef, activeSamplerBankRef, setPattern]);
 
     const handleStepToggle = useCallback((rowKey: TrackKey, index: number, e: StepToggleEvent) => {
         if (e.altKey) { e.preventDefault(); let step = null; if (rowKey === 'sampler') { step = patternRef.current.sampler[activeSamplerBankRef.current].steps[index]; } else { step = patternRef.current[rowKey].steps[index]; } if (step) { handlePatternChange(rowKey, index, undefined, { slide: !step.slide }); } return; }
@@ -302,7 +298,6 @@ export function usePatternHandlers(deps: {
     const handleReplaceManyTrackSteps = useCallback((edits: ReadonlyArray<{ trackKey: TrackKey; bankIndex: number; steps: (Note | null)[] }>) => {
         if (edits.length === 0) return;
         const prev = patternRef.current;
-        undoRedo.push(prev);
         let next: Pattern = prev;
         const touched = new Set<TrackKey>();
         for (const { trackKey, bankIndex, steps } of edits) {
@@ -322,7 +317,7 @@ export function usePatternHandlers(deps: {
         for (const trackKey of touched) {
             updateStorageForTrackInner(trackKey, trackKey === 'sampler' ? next.sampler : next[trackKey]);
         }
-    }, [undoRedo, patternRef, setPattern, updateStorageForTrackInner]);
+    }, [patternRef, setPattern, updateStorageForTrackInner]);
 
     /**
      * Replace one track's steps as a single undoable edit (piano roll, #1345).
@@ -340,11 +335,10 @@ export function usePatternHandlers(deps: {
         const prev = patternRef.current;
         const next = pasteSteps(prev, clip, trackKey, targetStep, bankIndex);
         if (next === prev) return;
-        undoRedo.push(prev);
         patternRef.current = next;
         setPattern(next);
         updateStorageForTrackInner(trackKey, trackKey === 'sampler' ? next.sampler : next[trackKey]);
-    }, [undoRedo, patternRef, setPattern, updateStorageForTrackInner]);
+    }, [patternRef, setPattern, updateStorageForTrackInner]);
 
     const handleEditLength = useCallback((k: TrackKey, i: number, len: number) => {
         handlePatternChange(k, i, undefined, { length: len });

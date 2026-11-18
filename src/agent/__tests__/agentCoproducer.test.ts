@@ -1,8 +1,10 @@
 /**
  * The co-producer through the agent hook (`window.__HYPHON_AGENT__`), headless:
- * `createAgentApi` over an app state whose setters behave like the app's. A
- * scripted turn reads the song, edits it with three tools, and undoing every
- * step gives back the song it started from, byte for byte.
+ * `createAgentApi` over an app state whose setters are the app's own stores,
+ * bound to a running project runtime (#1597 P2). A scripted turn reads the
+ * song, edits it with three tools — each one step of the co-producer's undo
+ * history — and undoing every step gives back the song it started from, byte
+ * for byte, while the human's history stays empty.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,11 +13,17 @@ import songMode from '../../../test-fixtures/ai-song/song-mode.json';
 import type { AppState } from '../../contexts/AppStateContext';
 import { AISongImporter, type AISongData } from '../../importers/ai-song';
 import { exportAISong } from '../../importers/ai-song/exportAISong';
-import { projectArrangement, songStructureToArrangement } from '../../arrangement/model';
 import { automationStore } from '../../stores/automationStore';
 import { transportMixStore } from '../../stores/transportMixStore';
-import { resolveSongMeter } from '../../utils/songMeter';
-import { migrateTrackStorage } from '../../utils/trackStorageUtils';
+import { instrumentStore } from '../../stores/instrumentStore';
+import { patternStore } from '../../stores/patternStore';
+import { samplerBanksStore } from '../../stores/samplerBanksStore';
+import { arrangementStore, sessionDocumentStore } from '../../stores/songRecordStore';
+import { noteFxStore } from '../../stores/noteFxStore';
+import { liveProject } from '../../collab/liveProject';
+import { startLiveProject, stopLiveProject } from '../../collab/liveProjectRuntime';
+import { loadSongData } from '../../hooks/useSongStorage/load';
+import { normalizeSamplerParams } from '../../hooks/useSongStorage/migrate';
 import type { Arrangement } from '../../types/song';
 import type { Note, Pattern, SavedSongData, TrackKey } from '../../types';
 import { createAgentApi, createAgentStateHandle, type HyphonAgentApi } from '../agentApi';
@@ -31,55 +39,18 @@ function importStrict(ai: unknown): SavedSongData {
 
 /**
  * The app state `AgentBridge` publishes, loaded with `song` the way
- * `loadCloudData` loads one. Every setter commits a new snapshot.
+ * `loadCloudData` loads one. Its setters are the stores' own.
  */
-function fakeApp(song: SavedSongData) {
-    const meter = resolveSongMeter(song);
-    transportMixStore.applyMeter(meter);
-    automationStore.importLanes(song.automationLanes ?? []);
-    const ref = <T>(current: T) => ({ current });
-    const arrangement: Arrangement = song.arrangement
-        ?? songStructureToArrangement(song.songStructure as Array<Partial<Record<TrackKey, unknown>>>, meter.stepCount);
-    const patternRef = ref(song.pattern);
-    const undoRedo = { push: vi.fn() };
-    const s: Record<string, unknown> = {
-        pattern: song.pattern,
-        patternRef,
-        trackStorage: migrateTrackStorage(song.trackStorage),
-        activeTrackSlots: song.activeTrackSlots,
-        arrangement,
-        songStructure: projectArrangement(arrangement, meter.stepCount),
-        tempo: song.tempo,
-        ttsPhrases: Array(8).fill('Hello World'),
-        isPlaying: false,
-        rbsArrangementExtrasRef: ref({ trackParamStorage: song.trackParamStorage }),
-        undoRedo,
-        synthARef: ref(song.params.synthA),
-        synthBRef: ref(song.params.synthB),
-        bass2Ref: ref(song.params.bass2),
-        kickRef: ref(song.params.kick),
-        snareRef: ref(song.params.snare),
-        closedHatRef: ref(song.params.closedHat),
-        openHatRef: ref(song.params.openHat),
-        samplerRef: ref(song.params.sampler),
-    };
-    const handle = createAgentStateHandle({ ...s } as unknown as AppState);
-    const commit = () => handle.publish({ ...s } as unknown as AppState);
-    const setter = (field: string) => (value: unknown) => {
-        s[field] = typeof value === 'function' ? (value as (prev: unknown) => unknown)(s[field]) : value;
-        commit();
-    };
-    for (const [field, name] of [
-        ['synthA', 'setSynthA'], ['synthB', 'setSynthB'], ['bass2', 'setBass2'], ['kick', 'setKick'], ['snare', 'setSnare'],
-        ['closedHat', 'setClosedHat'], ['openHat', 'setOpenHat'], ['sampler', 'setSampler'],
-        ['trackStorage', 'setTrackStorage'], ['activeTrackSlots', 'setActiveTrackSlots'], ['tempo', 'setTempo'],
-        ['ttsPhrases', 'setTtsPhrases'], ['pattern', 'setPattern'],
-    ]) s[name] = setter(field);
+async function fakeApp(song: SavedSongData) {
+    startLiveProject();
+    const rbsArrangementExtrasRef = { current: null as AppState['rbsArrangementExtrasRef']['current'] };
+    await loadSongData(song, { audioEngine: null, setSampleBuffers: () => {}, rbsExtrasRef: rbsArrangementExtrasRef });
+    const refs = instrumentStore.refs;
+    const set = <K extends keyof typeof refs>(key: K) => (value: unknown) =>
+        instrumentStore.set(key, value as never);
     // The piano roll's commit (`usePatternHandlers.handleReplaceManyTrackSteps`).
     const replaceMany = vi.fn((edits: Array<{ trackKey: TrackKey; bankIndex: number; steps: (Note | null)[] }>) => {
-        const prev = patternRef.current;
-        undoRedo.push(prev);
-        let next: Pattern = prev;
+        let next: Pattern = patternStore.getSnapshot();
         for (const { trackKey, bankIndex, steps } of edits) {
             if (trackKey === 'sampler') {
                 const sampler = [...next.sampler];
@@ -89,49 +60,68 @@ function fakeApp(song: SavedSongData) {
                 next = { ...next, [trackKey]: { ...next[trackKey], steps } };
             }
         }
-        patternRef.current = next;
-        s.pattern = next;
-        commit();
+        patternStore.set(next);
     });
-    const editArrangement = vi.fn((updater: (prev: Arrangement) => Arrangement) => {
-        const next = updater(s.arrangement as Arrangement);
-        s.arrangement = next;
-        s.songStructure = projectArrangement(next, transportMixStore.getMeter().stepCount);
-        commit();
-    });
-    s.handleReplaceManyTrackSteps = replaceMany;
-    s.editArrangement = editArrangement;
-    s.buildSmfExport = () => Promise.resolve({ success: true, blob: new Blob([new Uint8Array([77, 84, 104, 100])]), filename: 'song.mid', warnings: [] });
-    commit();
+    const editArrangement = vi.fn((updater: (prev: Arrangement) => Arrangement) => arrangementStore.set(updater));
+    const s: Record<string, unknown> = {
+        isPlaying: false,
+        rbsArrangementExtrasRef,
+        patternRef: patternStore.ref,
+        synthARef: refs.synthA,
+        synthBRef: refs.synthB,
+        bass2Ref: refs.bass2,
+        kickRef: refs.kick,
+        snareRef: refs.snare,
+        closedHatRef: refs.closedHat,
+        openHatRef: refs.openHat,
+        samplerRef: refs.sampler,
+        setSynthA: set('synthA'), setSynthB: set('synthB'), setBass2: set('bass2'), setKick: set('kick'),
+        setSnare: set('snare'), setClosedHat: set('closedHat'), setOpenHat: set('openHat'), setSampler: set('sampler'),
+        setTrackStorage: samplerBanksStore.setTrackStorage,
+        setActiveTrackSlots: samplerBanksStore.setActiveTrackSlots,
+        setTtsPhrases: samplerBanksStore.setTtsPhrases,
+        setTempo: transportMixStore.setTempo,
+        handleReplaceManyTrackSteps: replaceMany,
+        editArrangement,
+        buildSmfExport: () => Promise.resolve({ success: true, blob: new Blob([new Uint8Array([77, 84, 104, 100])]), filename: 'song.mid', warnings: [] }),
+    };
+    const handle = createAgentStateHandle(s as unknown as AppState);
     const api: HyphonAgentApi = createAgentApi(handle);
-    return { api, replaceMany, editArrangement, undoRedo, snapshot: () => songSnapshot(handle.getSnapshot()) };
+    return { api, replaceMany, editArrangement, snapshot: () => songSnapshot(handle.getSnapshot()) };
 }
 
 const json = (value: unknown) => JSON.stringify(value);
 
-beforeEach(() => {
+function resetStores(): void {
+    stopLiveProject();
     automationStore.reset();
     transportMixStore.reset();
-});
-afterEach(() => {
-    automationStore.reset();
-    transportMixStore.reset();
-});
+    instrumentStore.reset();
+    patternStore.reset();
+    arrangementStore.reset();
+    sessionDocumentStore.reset();
+    noteFxStore.reset();
+}
+
+beforeEach(resetStores);
+afterEach(resetStores);
 
 describe('window.__HYPHON_AGENT__.exportAISong', () => {
-    it('reads the open song back as the AI song it was imported from', () => {
+    it('reads the open song back as the AI song it was imported from', async () => {
         const song = importStrict(full);
-        const { api } = fakeApp(song);
+        const { api } = await fakeApp(song);
         const out = api.exportAISong({ meta: META });
         expect(out.losses).toEqual([]);
-        expect(out.song).toEqual(exportAISong(song, { meta: META }).song);
+        // The load path gives sampler banks their mode and nested expressiveness.
+        const loaded = { ...song, params: { ...song.params, sampler: normalizeSamplerParams(song.params.sampler) } };
+        expect(out.song).toEqual(exportAISong(loaded, { meta: META }).song);
         expect(out.song.tracks?.synthA?.notes).toHaveLength(7);
     });
 });
 
 describe('window.__HYPHON_AGENT__.coproducer', () => {
     it('drives a scripted multi-tool turn, one undo step per edit, and undoes it to a byte-identical song', async () => {
-        const { api, replaceMany, editArrangement, undoRedo, snapshot } = fakeApp(importStrict(songMode));
+        const { api, replaceMany, editArrangement, snapshot } = await fakeApp(importStrict(songMode));
         const start = json(snapshot());
         const run = async <T>(name: string, input: unknown) => {
             const result = await api.coproducer.run(name, input);
@@ -147,9 +137,8 @@ describe('window.__HYPHON_AGENT__.coproducer', () => {
             track: 'closedHat', slot: 0, edits: [{ step: 3, action: 'set', velocity: 0.7 }, { step: 2, action: 'clear' }],
         });
         expect(edit.patterns[0]).toMatchObject({ track: 'closedHat', slot: 0, changedSteps: 2 });
-        // The live slot went through the piano roll's commit, pattern undo included.
+        // The live slot went through the piano roll's commit.
         expect(replaceMany).toHaveBeenCalledTimes(1);
-        expect(undoRedo.push).toHaveBeenCalledTimes(1);
         expect(snapshot().pattern.closedHat.steps[3]).toMatchObject({ velocity: 0.7 });
 
         await run('set_params', { track: 'bass2', knobs: { filterCutoff: 450, envMod: 0.8 }, swing: 57 });
@@ -167,6 +156,13 @@ describe('window.__HYPHON_AGENT__.coproducer', () => {
             'Co-producer: arrange (1 op)',
         ]);
         expect(json(snapshot())).not.toBe(start);
+        // One step per tool call, all the co-producer's; none of them is the human's.
+        expect(liveProject.getSnapshot().entries.map((e) => [e.editor, e.label])).toEqual([
+            ['agent', 'Co-producer: edit_pattern closedHat slot 0'],
+            ['agent', 'Co-producer: set_params bass2'],
+            ['agent', 'Co-producer: arrange (1 op)'],
+        ]);
+        expect(liveProject.canUndo('human')).toBe(false);
 
         while (await api.coproducer.undo()) { /* revert the turn */ }
         expect(api.coproducer.history()).toEqual([]);
@@ -174,7 +170,7 @@ describe('window.__HYPHON_AGENT__.coproducer', () => {
     });
 
     it('answers an invalid input with an error and commits nothing', async () => {
-        const { api, snapshot } = fakeApp(importStrict(full));
+        const { api, snapshot } = await fakeApp(importStrict(full));
         const before = json(snapshot());
         const result = await api.coproducer.run('edit_pattern', { track: 'synthA', slot: 0, edits: [{ step: 0, action: 'set', note: 'X9' }] });
         expect(result.isError).toBe(true);
@@ -185,14 +181,14 @@ describe('window.__HYPHON_AGENT__.coproducer', () => {
 
     it('never puts sample audio in what it reads', async () => {
         const song = importStrict(full);
-        const { api } = fakeApp({ ...song, embeddedSamples: { 0: 'data:audio/wav;base64,UklGRg==' } });
+        const { api } = await fakeApp({ ...song, embeddedSamples: { 0: 'data:audio/wav;base64,UklGRg==' } });
         const read = await api.coproducer.run('get_song', {});
         expect(read.content).not.toContain('UklGRg');
         expect(read.content).not.toContain('embeddedSamples');
     });
 
     it('offers an exported file for download', async () => {
-        const { api } = fakeApp(importStrict(full));
+        const { api } = await fakeApp(importStrict(full));
         const result = await api.coproducer.run('export', { format: 'mid' });
         expect(JSON.parse(result.content)).toEqual({ offered: 'song.mid', bytes: 4, warnings: [] });
         expect(api.coproducer.downloads().map((d) => d.filename)).toEqual(['song.mid']);

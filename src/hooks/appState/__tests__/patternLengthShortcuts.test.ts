@@ -3,10 +3,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useTransportHandlers } from '../useTransportHandlers';
 import { transportMixStore } from '../../../stores/transportMixStore';
 import { nudgePatternLength } from '../../../utils/meterActions';
-import type { Pattern } from '../../../types';
-import type { useUndoRedo } from '../../useUndoRedo';
-
-type UndoRedo = ReturnType<typeof useUndoRedo<Pattern>>;
 
 const deps = () => ({
     isInitialized: true,
@@ -16,8 +12,6 @@ const deps = () => ({
     audioEngine: null,
     setSchedPlaying: vi.fn(),
     setTempo: vi.fn(),
-    undoRedo: { undo: vi.fn(), redo: vi.fn() } as unknown as UndoRedo,
-    setPattern: vi.fn(),
     activeKeyboardNotesRef: { current: new Map<string, number>() },
 });
 

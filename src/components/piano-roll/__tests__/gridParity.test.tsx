@@ -1,15 +1,18 @@
 /**
  * Acceptance (#1345): an edit made in the piano roll produces exactly the
  * pattern the same edit makes on the step grid, and goes through the same
- * undo history and track storage.
+ * undo history (the project doc's, #1597 P2) and track storage.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import type { Note, Pattern, PartSequence } from '@/types';
 import type { TrackKey } from '@/constants/appDefaults';
-import { useUndoRedo } from '@/hooks/useUndoRedo';
 import { usePatternHandlers } from '@/hooks/appState/usePatternHandlers';
+import { liveProject } from '@/collab/liveProject';
+import { startLiveProject, stopLiveProject } from '@/collab/liveProjectRuntime';
+import { patternStore } from '@/stores/patternStore';
+import { samplerBanksStore } from '@/stores/samplerBanksStore';
 import { drawNote, resizeNotes, toggleSlide } from '../model/rollEdits';
 
 type TrackStorage = Record<TrackKey, (PartSequence | PartSequence[] | null)[]>;
@@ -36,7 +39,6 @@ function useHarness() {
             return next;
         });
     };
-    const undoRedo = useUndoRedo<Pattern>(50);
     const activeSamplerBankRef = useRef(0);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackKey; step: number } | null>(null);
     const [storage, setStorageState] = useState<TrackStorage>(() => ({
@@ -55,12 +57,12 @@ function useHarness() {
         partA: 0, partB: 0, bass2: 0, kick: 0, snare: 0, closedHat: 0, openHat: 0, sampler: 0,
     });
     const handlers = usePatternHandlers({
-        patternRef, setPattern, undoRedo, activeSamplerBankRef,
+        patternRef, setPattern, activeSamplerBankRef,
         contextMenu, setContextMenu, setSelection: () => {},
         trackStorageRef, activeTrackSlotsRef, setTrackStorage, setActiveTrackSlots: () => {},
         setSelectedTrack: () => {},
     });
-    return { pattern, patternRef, storage, undoRedo, setContextMenu, ...handlers };
+    return { pattern, patternRef, storage, setContextMenu, ...handlers };
 }
 
 const toggleEvent = { altKey: false, ctrlKey: false, metaKey: false, preventDefault: () => {} };
@@ -110,14 +112,47 @@ describe('piano roll ↔ step grid parity', () => {
         expect(roll.result.current.pattern.partB).toEqual(grid.result.current.pattern.partB);
     });
 
-    it('edits a specific sampler bank and is one undo step', () => {
+    it('edits a specific sampler bank', () => {
         const h = renderHook(() => useHarness());
         const before = h.result.current.pattern;
         const edit = drawNote(before.sampler[3].steps, 0, 72);
         act(() => h.result.current.handleReplaceTrackSteps('sampler', 3, edit.steps as (Note | null)[]));
         expect(h.result.current.pattern.sampler[3].steps[0]).toMatchObject({ note: 'C5' });
         expect(h.result.current.pattern.sampler[0]).toBe(before.sampler[0]);
-        expect(h.result.current.undoRedo.undo()).toBe(before);
+    });
+
+    describe('on the live pattern store', () => {
+        afterEach(() => {
+            stopLiveProject();
+            patternStore.reset();
+        });
+
+        it('a roll edit (pattern + track storage) is one undo step of the project history', () => {
+            startLiveProject();
+            const h = renderHook(() => usePatternHandlers({
+                patternRef: patternStore.ref, setPattern: patternStore.set,
+                activeSamplerBankRef: { current: 0 },
+                contextMenu: null, setContextMenu: () => {}, setSelection: () => {},
+                trackStorageRef: samplerBanksStore.getSnapshot().trackStorageRef,
+                activeTrackSlotsRef: samplerBanksStore.getSnapshot().activeTrackSlotsRef,
+                setTrackStorage: samplerBanksStore.setTrackStorage,
+                setActiveTrackSlots: samplerBanksStore.setActiveTrackSlots,
+                setSelectedTrack: () => {},
+            }));
+            const before = patternStore.getSnapshot();
+            const storageBefore = samplerBanksStore.getSnapshot().trackStorage;
+            const edit = drawNote(before.sampler[3].steps, 0, 72);
+            liveProject.beginGesture();
+            act(() => h.result.current.handleReplaceTrackSteps('sampler', 3, edit.steps as (Note | null)[]));
+            expect(patternStore.getSnapshot().sampler[3].steps[0]).toMatchObject({ note: 'C5' });
+            expect(liveProject.getSnapshot().entries.map((e) => e.label)).toEqual(['paint 1 step (Sampler bank 4)']);
+
+            act(() => {
+                liveProject.undo();
+            });
+            expect(patternStore.getSnapshot()).toEqual(before);
+            expect(samplerBanksStore.getSnapshot().trackStorage).toEqual(storageBefore);
+        });
     });
 
     it('pastes with the grid paste rules', () => {
