@@ -3,7 +3,8 @@ import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { Toast } from '../Toast'
 import { CrashRecoveryPrompt } from '@/components/CrashRecoveryPrompt'
 import { StartOverlay } from '../StartOverlay'
-import { useHyphonNativeReady } from '../../hooks/useHyphonNativeReady'
+import { useHyphonNativeStatus } from '../../hooks/useHyphonNativeReady'
+import { requestPythonEngine, usePythonEngine } from '../../pyodide/pythonEngineStore'
 import { LoadingOverlay } from '../LoadingOverlay'
 import { AISongImportOverlay } from '../AISongImportOverlay'
 
@@ -37,7 +38,7 @@ export const CrashRecoveryNode = React.memo(() => {
     )
 })
 
-const START_KEYS = ['hasStarted', 'handleStart', 'isPyodideReady', 'pyodideStatus'] as const
+const START_KEYS = ['hasStarted', 'handleStart'] as const
 
 /**
  * True only when WebGPU can actually be used: `navigator.gpu` exists AND
@@ -62,17 +63,20 @@ function useWebGpuAdapterAvailable(): boolean {
 }
 
 export const StartOverlayNode = React.memo(() => {
-    const { hasStarted, handleStart, isPyodideReady, pyodideStatus } = useAppStateSlice(START_KEYS)
+    const { hasStarted, handleStart } = useAppStateSlice(START_KEYS)
     const hasWebGpu = useWebGpuAdapterAvailable()
-    const hasNativeModule = useHyphonNativeReady()
+    const nativeStatus = useHyphonNativeStatus()
+    const python = usePythonEngine()
+    const onLoadPython = useCallback(() => void requestPythonEngine('start-overlay'), [])
     if (hasStarted) return null
     return (
         <StartOverlay
             onStart={() => void handleStart()}
-            isPyodideReady={isPyodideReady}
-            pyodideStatus={pyodideStatus}
+            nativeStatus={nativeStatus}
             hasWebGpu={hasWebGpu}
-            hasNativeModule={hasNativeModule}
+            pythonStatus={python.status}
+            pythonReason={python.reason}
+            onLoadPython={onLoadPython}
         />
     )
 })

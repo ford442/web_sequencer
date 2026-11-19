@@ -54,9 +54,9 @@ export async function initializeHyphonAudio(
   const overlay = page.getByTestId('start-overlay');
   const startBtn = page.getByTestId('initialize-system');
 
-  // Overlay paints as soon as React mounts; the button stays disabled until
-  // hyphon_native + vendored Pyodide (numpy/scipy) finish. Firefox/WebKit on a
-  // loaded runner take ~70s+ — 90s was racing the scipy wheel.
+  // Overlay paints as soon as React mounts; the button stays disabled only
+  // until the hyphon_native probe settles (ready, or failed with the JS
+  // fallbacks active). Python (Pyodide) is on-demand and never gates it.
   await overlay.waitFor({ state: 'visible', timeout: 90_000 });
   await expect(startBtn).toBeEnabled({ timeout: 180_000 });
 

@@ -8,7 +8,7 @@
 // @future-plan: Move findLoopPoints and audioBufferToMono to WASM for large buffer processing
 
 import { log } from '@/utils/log';
-import type { PartSequence, SynthParams, KickParams, SnareParams, HatParams } from '@/types';
+import type { PartSequence, SynthParams } from '@/types';
 // @ts-ignore
 const initTrackFreezer = async () => {
     const m = await import('../wasm/trackFreezer.wasm?init');
@@ -128,46 +128,6 @@ export const freezeSynthTrack = async (
         'freeze_synth_track',
         JSON.stringify(sequence.steps),
         JSON.stringify(pythonParams),
-    );
-
-    // Create AudioBuffer from result
-    const buffer = createOfflineBuffer({ channels: 1, length: audioData.length, sampleRate });
-    buffer.getChannelData(0).set(audioData);
-
-    return buffer;
-};
-
-/**
- * Freezes a drum track using Python's offline rendering
- */
-export const freezeDrumTrack = async (
-    pyodide: PyodideLike,
-    sequence: PartSequence,
-    params: KickParams | SnareParams | HatParams,
-    drumType: 'kick' | 'snare' | 'closedHat' | 'openHat',
-    options: FreezeOptions
-): Promise<AudioBuffer> => {
-    if (!pyodide) throw new Error('Pyodide not initialized');
-
-    const sampleRate = freezeSampleRate(options);
-
-    // Map drum type to simpler Python type
-    const pyDrumType = drumType === 'kick' ? 'kick' :
-        drumType === 'snare' ? 'snare' : 'hat';
-
-    // Prepare params for Python
-    const pythonParams = {
-        bpm: options.bpm,
-        ...params
-    };
-
-    // Call Python freezer
-    const audioData = callPyodideFreeze(
-        pyodide,
-        'freeze_drum_track',
-        JSON.stringify(sequence.steps),
-        JSON.stringify(pythonParams),
-        pyDrumType,
     );
 
     // Create AudioBuffer from result

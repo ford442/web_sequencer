@@ -4,13 +4,16 @@
 // The skipFilter logic prevents double-filtering when WASM/Pyodide handle it.
 // See engines directory for the actual performance-critical implementations.
 
-import type { SynthParams, KickParams, SnareParams, HatParams } from '@/types';
+import type { SynthParams, KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '@/types';
 import { getTunedFrequency, type ScaleDefinition } from '@/utils/musicTheory';
 import type { PyodideLike } from '@/utils/pyodideBuffers';
 import { resolveExportSampleRate } from '@/utils/audioContextPolicy';
 import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/createOfflineContext';
 import { macroEngineForWaveform } from '@/engines/MacroParams';
 import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
+import { renderDrumkitBuffer } from '@/audio/offline/OfflineDrumKitEngine';
+import { DrumKitEngine } from '@/engines/DrumKitEngine';
+import { instrumentStore } from '@/stores/instrumentStore';
 import { noteToMidi } from '@/utils/musicTheory';
 import { fetchPublicArrayBuffer } from '@/utils/publicAsset';
 
@@ -253,147 +256,116 @@ export async function renderSynthToBuffer(
     return await offlineCtx.startRendering();
 }
 
+/** How long one hit's buffer runs: the voice's own tail, with a floor per sound. */
+function drumHitDuration(sound: DrumSound, params: KickParams | SnareParams | HatParams): number {
+    const floor = sound === 'closedHat' || sound === 'openHat' ? 0.3 : 0.5;
+    return params.decay ? Math.max(floor, params.decay * (sound === 'snare' ? 1.5 : 1.2)) : floor;
+}
+
+export interface RenderDrumOptions {
+    /** The kit the hit sounds in; defaults to the one the user is sequencing. */
+    kit?: DrumKitType;
+    /**
+     * An explicit Python render: the Pyodide `generate_kick` / `generate_snare` /
+     * `generate_hat` table generators instead of the live kit. Never the default —
+     * the bounce is the kit the user sequenced unless the caller asks for this.
+     */
+    python?: PyodideLike | null;
+}
+
 /**
- * Renders a drum sound to an AudioBuffer.
+ * Renders a drum sound to an AudioBuffer (mono).
+ *
+ * The same kit the live engine plays: the `drumkit_*` voice in hyphon_native,
+ * rendered offline with the live trigger arguments. If that wasm is not
+ * available the live engine's own Web Audio fallback kit renders instead
+ * (DrumKitEngine.play), so the sound degrades the way live playback does.
+ * Python is only used when `options.python` asks for it.
  */
 export async function renderDrumToBuffer(
-    sound: 'kick' | 'snare' | 'closedHat' | 'openHat',
+    sound: DrumSound,
     params: KickParams | SnareParams | HatParams,
-    pyodide?: PyodideLike | null,
     sampleRate: number = resolveExportSampleRate(),
+    options: RenderDrumOptions = {},
 ): Promise<AudioBuffer> {
-    // Estimate duration based on params or defaults
-    let duration = sound === 'snare' ? 0.5 : (sound === 'kick' ? 0.5 : 0.3);
+    const duration = drumHitDuration(sound, params);
 
-    // If we have decay param, use it to ensure buffer is long enough
-    if (params.decay) {
-        duration = Math.max(duration, params.decay * (sound === 'snare' ? 1.5 : 1.2));
+    if (options.python) {
+        const buffer = renderDrumWithPython(options.python, sound, params, sampleRate);
+        if (buffer) return buffer;
+        // A failed explicit Python render drops to the live kit, below.
     }
 
-    // Try Pyodide Generation first
-    if (pyodide) {
-        try {
-            let pyProxy: PyodideResultProxy;
-            if (sound === 'kick') {
-                const p = params as KickParams;
-                pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume) as PyodideResultProxy;
-            } else if (sound === 'snare') {
-                const p = params as SnareParams;
-                pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume) as PyodideResultProxy;
-            } else {
-                const p = params as HatParams;
-                pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume) as PyodideResultProxy;
-            }
+    const kit = options.kit ?? instrumentStore.drumKitRef.current;
+    const native = await renderDrumkitBuffer(
+        {
+            kit,
+            hits: [{ sound, params, startSeconds: 0 }],
+            durationSeconds: duration,
+            sampleRate,
+        },
+        1,
+    );
+    if (native) return native;
 
-            const audioSamples = pyProxy.toJs({ array_buffer_type: "float32" });
-            pyProxy.destroy();
+    return renderDrumFallbackKit(sound, params, kit, duration, sampleRate);
+}
 
-            if (audioSamples && audioSamples.length > 0) {
-                 // Return directly (Offline context not strictly needed if we just want the buffer,
-                 // but existing code returns Promise<AudioBuffer>)
-                 // We can construct an AudioBuffer from the float array.
-                 // We need an AudioContext to createBuffer. Since we are in browser, we can use offline one or main one.
-                 // Let's use OfflineAudioContext just to create the buffer object cleanly.
-                 const buffer = createOfflineBuffer({ channels: 1, length: audioSamples.length, sampleRate });
-                 buffer.getChannelData(0).set(audioSamples);
-                 return buffer;
-            }
-        } catch (e) {
-            console.error(`Pyodide drum export error (${sound}):`, e);
-            // Fallthrough to approximation
+/** Explicit Python render of one hit; null when the generator is missing or fails. */
+function renderDrumWithPython(
+    pyodide: PyodideLike,
+    sound: DrumSound,
+    params: KickParams | SnareParams | HatParams,
+    sampleRate: number,
+): AudioBuffer | null {
+    try {
+        let pyProxy: PyodideResultProxy;
+        if (sound === 'kick') {
+            const p = params as KickParams;
+            pyProxy = pyodide.globals.get('generate_kick')(p.pitch, p.decay, p.tone, p.volume) as PyodideResultProxy;
+        } else if (sound === 'snare') {
+            const p = params as SnareParams;
+            pyProxy = pyodide.globals.get('generate_snare')(p.decay, p.tone, p.noise, p.volume) as PyodideResultProxy;
+        } else {
+            const p = params as HatParams;
+            pyProxy = pyodide.globals.get('generate_hat')(p.pitch, p.decay, p.volume) as PyodideResultProxy;
         }
-    }
 
-    // Fallback Approximation (Existing Code)
+        const audioSamples = pyProxy.toJs({ array_buffer_type: 'float32' });
+        pyProxy.destroy();
+
+        if (audioSamples && audioSamples.length > 0) {
+            const buffer = createOfflineBuffer({ channels: 1, length: audioSamples.length, sampleRate });
+            buffer.getChannelData(0).set(audioSamples);
+            return buffer;
+        }
+    } catch (e) {
+        console.error(`Pyodide drum render error (${sound}):`, e);
+    }
+    return null;
+}
+
+/**
+ * The live engine's own fallback kit (DrumKitEngine without its worklet) on an
+ * offline context: what a hit sounds like live when the native module is down.
+ */
+async function renderDrumFallbackKit(
+    sound: DrumSound,
+    params: KickParams | SnareParams | HatParams,
+    kit: DrumKitType,
+    duration: number,
+    sampleRate: number,
+): Promise<AudioBuffer> {
     const offlineCtx = createOfflineContext({ channels: 1, durationSeconds: duration, sampleRate });
-    const time = 0;
+    const out = offlineCtx.createGain();
+    out.connect(offlineCtx.destination);
 
-    const gain = offlineCtx.createGain();
-    gain.connect(offlineCtx.destination);
+    const noise = offlineCtx.createBuffer(1, Math.ceil(sampleRate * duration), sampleRate);
+    const data = noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
 
-    if (sound === 'kick') {
-        const p = params as KickParams;
-        const osc = offlineCtx.createOscillator();
-        // Use params.pitch if available (KickParams has pitch)
-        osc.frequency.setValueAtTime(p.pitch, time);
-        osc.frequency.exponentialRampToValueAtTime(0.01, time + p.decay);
-
-        const env = offlineCtx.createGain();
-        env.gain.setValueAtTime(p.volume, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
-
-        osc.connect(env);
-        env.connect(gain);
-        osc.start(time);
-        osc.stop(time + p.decay);
-    }
-    else if (sound === 'snare') {
-        const p = params as SnareParams;
-        // Noise
-        const bufferSize = sampleRate * duration;
-        const buffer = offlineCtx.createBuffer(1, bufferSize, sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        const noiseSrc = offlineCtx.createBufferSource();
-        noiseSrc.buffer = buffer;
-
-        const noiseEnv = offlineCtx.createGain();
-        // Mix noise based on p.noise
-        const noiseMix = Math.min(1, Math.max(0, (p.noise - 1000) / 7000));
-
-        noiseEnv.gain.setValueAtTime(p.volume * noiseMix, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
-
-        // Tone
-        const osc = offlineCtx.createOscillator();
-        osc.type = 'triangle';
-        // Use p.tone for frequency
-        osc.frequency.setValueAtTime(p.tone, time);
-
-        const toneEnv = offlineCtx.createGain();
-        // Tone volume inverse to noise? Or independent?
-        toneEnv.gain.setValueAtTime(p.volume * (1 - noiseMix * 0.5), time);
-        toneEnv.gain.exponentialRampToValueAtTime(0.01, time + p.decay * 0.5);
-
-        noiseSrc.connect(noiseEnv);
-        noiseEnv.connect(gain);
-
-        osc.connect(toneEnv);
-        toneEnv.connect(gain);
-
-        noiseSrc.start(time);
-        osc.start(time);
-    }
-    else {
-        // Hats
-        const p = params as HatParams;
-         // Noise
-        const bufferSize = sampleRate * duration;
-        const buffer = offlineCtx.createBuffer(1, bufferSize, sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        const noiseSrc = offlineCtx.createBufferSource();
-        noiseSrc.buffer = buffer;
-
-        // Highpass
-        const filter = offlineCtx.createBiquadFilter();
-        filter.type = 'highpass';
-        filter.frequency.value = Math.max(1000, 8000 + (p.pitch || 0));
-
-        const env = offlineCtx.createGain();
-        env.gain.setValueAtTime(p.volume, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + p.decay);
-
-        noiseSrc.connect(filter);
-        filter.connect(env);
-        env.connect(gain);
-
-        noiseSrc.start(time);
-    }
-
-    return await offlineCtx.startRendering();
+    // DrumKitEngine is typed on the live context; the fallback path only uses
+    // the node factories an offline context shares with it.
+    new DrumKitEngine(kit).play(offlineCtx as unknown as AudioContext, out, noise, sound, params, 0);
+    return offlineCtx.startRendering();
 }

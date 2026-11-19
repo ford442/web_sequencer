@@ -15,14 +15,14 @@
  */
 
 import type { MacroSynthParams, SynthParams } from '../../types';
+import { hasMacroApi } from '../../audio-worklets/hyphonNativeImports';
+import { logWaveformSubstitution } from '../../utils/engineTelemetry';
 import {
-    buildHyphonWasmImports,
-    HYPHON_NATIVE_ARTIFACTS,
-    hasMacroApi,
-    normalizeWasmExports,
-} from '../../audio-worklets/hyphonNativeImports';
-import { configureWasmStack } from '../../audio-worklets/hyphonNativeSession';
-import { loadHyphonWasmExportMap, logWaveformSubstitution, resolvePublicAsset } from '../../utils/engineTelemetry';
+    instantiateOfflineNativeFromBytes,
+    loadOfflineNative,
+    resetOfflineNativeForTests,
+    type OfflineNativeInstance,
+} from './offlineNative';
 import { createOfflineBuffer } from './createOfflineContext';
 import { getPitchOffsetSemitones } from '../../utils/pitchOffset';
 import { MacroParam, macroNativeParams, resolveMacroParams, type MacroEngineInfo } from '../../engines/MacroParams';
@@ -155,28 +155,13 @@ export function renderMacroOffline(api: OfflineMacroApi, request: OfflineMacroRe
     return [left, right];
 }
 
-let loading: Promise<OfflineMacroApi> | null = null;
-
 /**
- * The offline instance: fetched, compiled and instantiated once per page and
- * reused (each render takes its own handle). Rejects — and is retried on the
- * next call — when the wasm is missing or has no macro_* API.
+ * The macro API on the shared offline instance (each render takes its own
+ * handle). Rejects — and is retried on the next call — when the wasm is
+ * missing or has no macro_* API.
  */
-export function loadOfflineMacroApi(): Promise<OfflineMacroApi> {
-    if (!loading) {
-        loading = instantiateOfflineMacro();
-        loading.catch(() => {
-            loading = null;
-        });
-    }
-    return loading;
-}
-
-async function instantiateOfflineMacro(): Promise<OfflineMacroApi> {
-    const artifact = HYPHON_NATIVE_ARTIFACTS.st;
-    const response = await fetch(resolvePublicAsset(artifact.wasm));
-    if (!response.ok) throw new Error(`${artifact.wasm} fetch HTTP ${response.status}`);
-    return instantiateOfflineMacroFromBytes(await response.arrayBuffer(), await loadHyphonWasmExportMap('st'));
+export async function loadOfflineMacroApi(): Promise<OfflineMacroApi> {
+    return macroApiOf(await loadOfflineNative());
 }
 
 /** Instantiate the single-threaded hyphon_native from its bytes + export map (tests, workers). */
@@ -184,28 +169,10 @@ export async function instantiateOfflineMacroFromBytes(
     bytes: BufferSource,
     exportMap: Record<string, string>,
 ): Promise<OfflineMacroApi> {
-    const module = await WebAssembly.compile(bytes);
+    return macroApiOf(await instantiateOfflineNativeFromBytes(bytes, exportMap));
+}
 
-    let instance: WebAssembly.Instance | null = null;
-    let memory: WebAssembly.Memory | null = null;
-    const built = buildHyphonWasmImports(
-        module,
-        {
-            getWasmInstance: () => instance,
-            getImportedMemory: () => memory,
-            setImportedMemory: (m) => {
-                memory = m;
-            },
-            onHeapUpdate: () => {},
-            logPrefix: '[OfflineMacro]',
-        },
-        { isThreaded: false },
-    );
-    instance = await WebAssembly.instantiate(module, built.imports);
-    const exports = normalizeWasmExports(instance.exports, exportMap) as Record<string, unknown>;
-    configureWasmStack(exports);
-    memory = built.memory ?? (instance.exports as { memory?: WebAssembly.Memory }).memory ?? null;
-    if (!memory) throw new Error('hyphon_native has no memory');
+function macroApiOf({ exports, memory }: OfflineNativeInstance): OfflineMacroApi {
     if (!hasMacroApi(exports)) throw new Error('hyphon_native has no macro_* API (built before the macro family)');
     return { ...(exports as unknown as Omit<OfflineMacroApi, 'memory'>), memory };
 }
@@ -250,6 +217,6 @@ export async function renderMacroBuffer(request: OfflineMacroRequest, channels: 
 
 /** Test hook: forget the cached instance and the substitution reports. */
 export function resetOfflineMacroApiForTests(): void {
-    loading = null;
+    resetOfflineNativeForTests();
     reportedOffline.clear();
 }

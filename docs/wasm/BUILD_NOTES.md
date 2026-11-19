@@ -1309,8 +1309,10 @@ crashed doing it, which is why `main.tsx` carried a WebKit E2E stub.)
 Now:
 
 - `src/pyodide/bootstrap.ts` is a plain ES module; the engine's Python is
-  `src/pyodide/hyphon_engine.py`, imported with `?raw`. `usePyodideEngine` imports
-  the bootstrap lazily, so both land in their own chunk. The global contract
+  `src/pyodide/hyphon_engine.py`, imported with `?raw`. `pythonEngineStore.ts`
+  imports the bootstrap lazily and only when something asks for Python (a
+  `pyodide-*` waveform, an explicit Python render, the overlay's LOAD control),
+  so both land in their own chunk that a default session never fetches. The global contract
   (`hyphonPyodide`, `hyphonPyodideReady`, the `hyphon-pyodide-ready` / `-error`
   events) is unchanged.
 - `emscripten/main.cpp` and `pyodide_bootstrap.js` are deleted; both voice
@@ -1318,7 +1320,8 @@ Now:
 - The StartOverlay's "NATIVE MODULE" line comes from
   `src/engines/hyphonNativeProbe.ts`: it fetches the profile the first voice will
   select and `WebAssembly.validate`s it — no instantiation, and the bytes warm the
-  HTTP / service-worker cache for the worklet. `mainThreadNativeModuleGuard.test.ts`
+  HTTP / service-worker cache for the worklet. It is the only thing that gates
+  `INITIALIZE SYSTEM`: ready, or failed with the JS fallbacks active. `mainThreadNativeModuleGuard.test.ts`
   fails if main-thread code `import()`s the glue or reads a global `Module` again.
 - The inline `HYPHON_PYODIDE_BASE_URL` script in `index.html` is gone; the
   bootstrap derives the base from `import.meta.env.BASE_URL` (the global still
