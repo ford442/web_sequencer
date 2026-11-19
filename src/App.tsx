@@ -21,6 +21,7 @@ import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
 import { PatchBay } from './components/PatchBay'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
+import { RecoveredTakesGate } from './components/RecoveredTakesGate'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
@@ -98,6 +99,7 @@ export const App: React.FC = () => {
             <ToastNode />
             <UpdateAvailableToast />
             <CrashRecoveryNode />
+            <RecoveredTakesGate />
             {backgroundImage && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0"></div>}
             <StartOverlayNode />
             <LoadingOverlayNode />

@@ -18,6 +18,7 @@ For a quick-start overview see the root [README.md](../README.md).
 | [collab.md](collab.md) | Collaboration (#1597): project Yjs document, codec, ProjectStore v2 update log, local provider |
 | [arrangement.md](arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [audio-tracks.md](audio-tracks.md) | Audio tracks (#1629): audio clips (schema v6), media store, import, clip player, stems |
+| [audio-recording.md](audio-recording.md) | Audio recording (#1498 P1): input picker, raw input, take ring, OPFS WAV / RF64 writer, recovery |
 | [piano-roll.md](piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
 | [note-fx.md](note-fx.md) | Note FX chain (arp / ratchet / chord / euclid / humanize): pure steps → events, identical live and offline, automation, freeze to pattern |
 | [PERFORMANCE_BUDGET.md](PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |

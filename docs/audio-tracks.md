@@ -7,7 +7,9 @@ audio track, played by the same clock as the patterns.
 import, static playback (`warp: 'off'`) and audio-track stems. P2 adds
 waveform peaks, GPU waveforms on the timeline, and fade / gain / slip / split
 editing with undo. Recording (P3), warp (P4), and freeze / bundles /
-co-producer tools (P5) come next.
+co-producer tools (P5) come next. The input side of recording (raw input,
+lossless takes in OPFS, crash recovery) is in [audio-recording.md](audio-recording.md)
+(#1498 P1).
 
 ## Model (song schema v6)
 
