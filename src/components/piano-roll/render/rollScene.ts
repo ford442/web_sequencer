@@ -116,7 +116,11 @@ export interface RollScene {
 
 const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
 
-class QuadWriter {
+/**
+ * Appends quads, clipped to a region, growing as needed. Shared with the
+ * arrangement's waveform scene (#1629), which draws on the same renderers.
+ */
+export class QuadWriter {
     private data: Float32Array<ArrayBuffer>;
     count = 0;
 

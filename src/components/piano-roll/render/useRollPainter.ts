@@ -8,26 +8,21 @@
  * a React component and an idle roll submits nothing.
  *
  * Backend: WebGPU through `startGpuCanvasSession` (a lost device is rebuilt
- * on the restored one), Canvas2D on a second canvas when the probe fails.
+ * on the restored one), Canvas2D on a second canvas when the probe fails
+ * (`useQuadCanvas`, shared with the arrangement's waveforms).
  */
-import { useEffect, useMemo, useState, type RefObject } from 'react';
+import { useMemo, type RefObject } from 'react';
 import type { TrackKey } from '@/types';
-import { engineDegradationStore } from '@/stores/engineDegradationStore';
 import { engineTelemetry } from '@/utils/engineTelemetry';
-import { startGpuCanvasSession } from '@/webgpu/gpuCanvasSession';
 import { playheadPosition, transportPlayhead } from '@/sequencer/transportPlayhead';
 import { DEFAULT_LAYOUT, type RollLayout } from '../model/rollGeometry';
 import { buildRollScene, playheadQuad, type RollScene, type RollSceneInput } from './rollScene';
-import {
-    createCanvas2dRollRenderer,
-    createGpuRollRenderer,
-    type RollBackend,
-    type RollRenderer,
-} from './rollRenderers';
+import type { RollBackend, RollRenderer } from './rollRenderers';
+import { useQuadCanvas, type QuadPainter } from './useQuadCanvas';
 
 export type SceneInputWithoutLayout = Omit<RollSceneInput, 'layout'>;
 
-export class RollPainter {
+export class RollPainter implements QuadPainter {
     layout: RollLayout = { ...DEFAULT_LAYOUT };
     private input: SceneInputWithoutLayout | null = null;
     private renderer: RollRenderer | null = null;
@@ -115,70 +110,9 @@ export function useRollPainter(
     canvas2dRef: RefObject<HTMLCanvasElement | null>,
 ): { painter: RollPainter; backend: RollBackend | 'pending' } {
     const painter = useMemo(() => new RollPainter(), []);
-    const [backend, setBackend] = useState<RollBackend | 'pending'>('pending');
-
-    // WebGPU session on the shared device.
-    useEffect(() => {
-        const canvas = gpuCanvasRef.current;
-        if (!canvas) return;
-        return startGpuCanvasSession(canvas, {
-            alphaMode: 'opaque',
-            create: (device, surface) => {
-                const renderer = createGpuRollRenderer(device, surface);
-                painter.setRenderer(renderer);
-                return {
-                    dispose() {
-                        if (painter.getRenderer() === renderer) painter.setRenderer(null);
-                        renderer.dispose();
-                    },
-                };
-            },
-            onActive: () => {
-                engineDegradationStore.resolve(DEGRADATION_ID);
-                setBackend('webgpu');
-            },
-            onUnavailable: (reason) => {
-                engineDegradationStore.report({
-                    id: DEGRADATION_ID,
-                    subsystem: DEGRADATION_ID,
-                    category: 'gpu',
-                    message: 'Piano roll using Canvas2D fallback',
-                    reason,
-                    status: 'active',
-                    activeBackend: 'canvas-2d',
-                    requestedBackend: 'webgpu',
-                    retryable: false,
-                });
-                setBackend('canvas2d');
-            },
-        });
-    }, [gpuCanvasRef, painter]);
-
-    // Canvas2D fallback.
-    useEffect(() => {
-        if (backend !== 'canvas2d') return;
-        const canvas = canvas2dRef.current;
-        if (!canvas) return;
-        const renderer = createCanvas2dRollRenderer(canvas);
-        if (!renderer) return;
-        painter.setRenderer(renderer);
-        return () => {
-            if (painter.getRenderer() === renderer) painter.setRenderer(null);
-            renderer.dispose();
-        };
-    }, [backend, canvas2dRef, painter]);
-
-    // One frame loop for the panel's lifetime.
-    useEffect(() => {
-        if (typeof requestAnimationFrame === 'undefined') return;
-        let raf = 0;
-        const loop = (now: number) => {
-            painter.tick(now);
-            raf = requestAnimationFrame(loop);
-        };
-        raf = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(raf);
-    }, [painter]);
-
+    const backend = useQuadCanvas(painter, gpuCanvasRef, canvas2dRef, {
+        degradationId: DEGRADATION_ID,
+        fallbackMessage: 'Piano roll using Canvas2D fallback',
+    });
     return { painter, backend };
 }
