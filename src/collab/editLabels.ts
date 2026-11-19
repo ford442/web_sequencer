@@ -209,7 +209,9 @@ const dB = (value: Json) => `${formatValue(value)} dB`;
 function describeClipEdit(prev: Obj, next: Obj): string {
     const change = soleChange(prev, next);
     if (change?.[0] === 'gainDb') return `Clip gain ${dB(change[1])} → ${dB(change[2])}`;
-    if (change?.[0] === 'fadeInFrames' || change?.[0] === 'fadeOutFrames') return 'edit clip fades';
+    if (change?.[0] === 'fadeInFrames') return 'fade in clip';
+    if (change?.[0] === 'fadeOutFrames') return 'fade out clip';
+    if (change?.[0] === 'offsetFrames') return 'slip clip';
     return 'edit clip';
 }
 

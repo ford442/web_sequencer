@@ -9,6 +9,10 @@
  *   `startGpuCanvasSession`, so a lost device is replaced by a fresh pipeline.
  * - **Canvas2D** — the fallback when the probe fails: the same quads as
  *   `fillRect`s.
+ *
+ * The arrangement's waveforms (#1629) draw on the same renderers, over the
+ * lanes behind them: `transparent` clears to nothing instead of the roll's
+ * background.
  */
 import { canvasBufferSize, syncCanvasSize, type ConfiguredCanvas } from '@/webgpu/configureCanvas';
 import type { RollLayout } from '../model/rollGeometry';
@@ -19,7 +23,13 @@ export type RollBackend = 'webgpu' | 'canvas2d';
 export interface RollFrame {
     scene: RollScene;
     playhead: Float32Array<ArrayBuffer> | null;
-    layout: RollLayout;
+    /** The CSS-pixel size the quads are laid out in. */
+    layout: Pick<RollLayout, 'width' | 'height'>;
+}
+
+export interface QuadRendererOptions {
+    /** Clear to transparent (a canvas drawn over other content) instead of the roll background. */
+    transparent?: boolean;
 }
 
 export interface RollRenderer {
@@ -67,7 +77,8 @@ function nextCapacity(count: number): number {
 }
 
 /** Build the instanced-quad pipeline for `surface` on `device`. */
-export function createGpuRollRenderer(device: GPUDevice, surface: ConfiguredCanvas): RollRenderer {
+export function createGpuRollRenderer(device: GPUDevice, surface: ConfiguredCanvas, options: QuadRendererOptions = {}): RollRenderer {
+    const clearValue = options.transparent ? { r: 0, g: 0, b: 0, a: 0 } : { r: 0.02, g: 0.024, b: 0.03, a: 1 };
     const module = device.createShaderModule({ label: 'piano-roll-quads', code: ROLL_QUAD_WGSL });
     const bindGroupLayout = device.createBindGroupLayout({
         label: 'piano-roll-view',
@@ -143,7 +154,7 @@ export function createGpuRollRenderer(device: GPUDevice, surface: ConfiguredCanv
             const pass = encoder.beginRenderPass({
                 colorAttachments: [{
                     view: surface.context.getCurrentTexture().createView(),
-                    clearValue: { r: 0.02, g: 0.024, b: 0.03, a: 1 },
+                    clearValue,
                     loadOp: 'clear',
                     storeOp: 'store',
                 }],
@@ -188,7 +199,7 @@ function cssColor(r: number, g: number, b: number, a: number): string {
 }
 
 /** The fallback: same quads, drawn with `fillRect`. Null when the canvas has no 2D context. */
-export function createCanvas2dRollRenderer(canvas: HTMLCanvasElement): RollRenderer | null {
+export function createCanvas2dRollRenderer(canvas: HTMLCanvasElement, options: QuadRendererOptions = {}): RollRenderer | null {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     const fillQuads = (data: Float32Array, count: number) => {
@@ -206,8 +217,12 @@ export function createCanvas2dRollRenderer(canvas: HTMLCanvasElement): RollRende
             if (canvas.width !== w) canvas.width = w;
             if (canvas.height !== h) canvas.height = h;
             ctx.setTransform(w / Math.max(1, layout.width), 0, 0, h / Math.max(1, layout.height), 0, 0);
-            ctx.fillStyle = '#05060a';
-            ctx.fillRect(0, 0, layout.width, layout.height);
+            if (options.transparent) {
+                ctx.clearRect(0, 0, layout.width, layout.height);
+            } else {
+                ctx.fillStyle = '#05060a';
+                ctx.fillRect(0, 0, layout.width, layout.height);
+            }
             fillQuads(scene.quads, scene.count);
             if (playhead) fillQuads(playhead, 1);
         },

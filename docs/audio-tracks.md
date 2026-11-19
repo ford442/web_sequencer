@@ -3,10 +3,11 @@
 Audio clips on the arrangement timeline: an imported or recorded file on an
 audio track, played by the same clock as the patterns.
 
-**Status: P1.** Schema v6, the codec, the media store, drag-and-drop import,
-static playback (`warp: 'off'`), and audio-track stems. Waveforms and editing
-handles (P2), recording (P3), warp (P4), and freeze / bundles / co-producer
-tools (P5) come next.
+**Status: P2.** P1 built schema v6, the codec, the media store, drag-and-drop
+import, static playback (`warp: 'off'`) and audio-track stems. P2 adds
+waveform peaks, GPU waveforms on the timeline, and fade / gain / slip / split
+editing with undo. Recording (P3), warp (P4), and freeze / bundles /
+co-producer tools (P5) come next.
 
 ## Model (song schema v6)
 
@@ -86,6 +87,40 @@ media/<sha256>.f32    "HYMF" · u32le header length · JSON header · planar flo
   browser reads goes through `decodeAudioData` at the live context's rate.
   More than two channels are mixed down to stereo.
 
+## Waveform peaks (P2)
+
+```
+media/<sha256>.peaks   "HYMP" · u32le header length · JSON header · int16 LE min/max
+```
+
+- **Pyramid** (`src/audio/media/peaks.ts`). Level 0 holds the min and max of
+  every channel over each 256-frame bucket (the last one may be shorter).
+  Each next level merges pairs of buckets, up to a single bucket. Values are
+  int16 at ±32767 = ±1.0: a min rounds down and a max up, so a drawn peak is
+  never quieter than the audio, and louder samples clamp at full scale. A
+  3-minute stereo file at 48 kHz takes about 540 KB.
+- **Reads.** `peakRange(pyramid, from, to)` reads the coarsest level whose
+  buckets are no longer than the range, so a pixel column costs at most a
+  few buckets at any zoom. A range can widen by up to one bucket (under a
+  pixel at ARR's zooms), and is never narrower than the audio.
+- **The file** is derived from the media and deterministic, like the media
+  file. One whose version, layout or sizes this build does not expect reads
+  as missing and is rebuilt. `MediaStore.remove` deletes it with the media.
+- **Builds.** The import builds peaks from the audio it has just decoded and
+  stores them (`importAudioFile`). Media without current peaks is built in
+  `src/workers/mediaPeaks.worker.ts`, which opens the same OPFS / IndexedDB
+  store, pages the audio through `PeakBuilder` and writes the file, so the
+  page never holds the audio. On IndexedDB, which keeps a file as one record,
+  the file is read once instead of a page at a time. The result does not
+  depend on how the audio was chunked.
+- **Cache** (`src/audio/media/peakCache.ts`). `request(ids)` loads the stored
+  file, or else asks the worker. It falls back to a build on the main thread
+  when there is no Worker API, the store is on the in-memory backend (a
+  worker would not see it), or the worker cannot see the media or dies. It
+  remembers media the store does not hold until `prime` or `retry`, holds at
+  most 64 pyramids (least recently used first out), and bumps `version` on
+  every change.
+
 ## Playback
 
 ```
@@ -150,9 +185,40 @@ ARR (`ArrangementView` + `src/components/arrangement/`):
   step under the pointer), on any other lane or on the drop row (each file gets
   a new track), or use **IMPORT** / **+ AUDIO**. A clip is as long as its file
   at the current tempo.
-- **Editing.** Move, trim either edge and delete with the pattern-clip pointer
-  and keyboard handlers. The inspector edits clip gain, length, the track's
-  fader and pan.
+- **Waveforms** (P2, `AudioWaveformCanvas.tsx`, `waveformScene.ts`). One
+  canvas sits behind the clip blocks, as tall as the audio lanes and as wide as
+  the lanes in view. It is `position: sticky`, and the scene is drawn for the
+  scroll offset: a canvas as wide as the song would not fit a GPU texture. It
+  uses the piano roll's quad renderers through `useQuadCanvas` (WebGPU on the
+  shared device, Canvas2D fallback, transparent clear). Each CSS pixel column
+  of a clip is one bar: the min / max of the source frames that column plays
+  (`clipSourceFrameAt`, the same mapping the voice uses, swing included),
+  scaled by clip gain and fades. A column past full scale after clip gain is
+  red. A fade shades the clip above its ramp and draws the ramp. While peaks
+  load, a clip shows its zero line. `WaveformPainter` draws only when the
+  input, the view or the peak cache changed, so an idle timeline submits
+  nothing.
+- **Editing** (`clipDrag.ts`: pure previews, patches, split points). Every
+  drag previews locally and commits once, on release: one undo step.
+
+  | Gesture | Edit | Snap |
+  |---------|------|------|
+  | drag the body / an edge | move / trim (a head trim keeps the audio in place) | grid; Shift = step |
+  | drag the top-left / top-right handle | fade-in / fade-out (`fadeInFrames` / `fadeOutFrames`), never past the other fade | free |
+  | drag the top-middle handle up / down | clip gain, 0.5 dB per px (Shift 0.1), −96…+24 dB | free |
+  | Alt + drag the body | slip: the audio moves under the clip (`offsetFrames`, 0 … media length) | grid; Shift = pixel |
+  | Alt + click (any clip) | split at the click | grid, else step |
+  | S or Ctrl/Cmd+E on a focused clip | split at the playhead when it is inside the clip, else in the middle | grid, else step |
+  | ↑ / ↓ on a focused audio clip | clip gain ±1 dB (Alt ±0.1) | — |
+
+  The handles show when a clip is hovered or selected, on clips at least
+  40 px wide. The inspector edits clip gain, length, fade-in, fade-out and
+  slip (in ms at the media's rate), the track's fader and pan, and has
+  **SPLIT** for both clip kinds. The history names each step: "fade in clip",
+  "fade out clip", "slip clip", "split clip", "Clip gain 0 dB → -3 dB",
+  "resize clip". `updateClip` keeps an edited audio clip valid: whole frames,
+  `offsetFrames` ≥ 0, gain clamped to the clip range, and a zero fade left
+  out.
 
 ## Tests
 
@@ -162,9 +228,18 @@ ARR (`ArrangementView` + `src/components/arrangement/`):
 - Media format, WAV decoder, store, import: `src/audio/media/__tests__/mediaStore.test.ts`.
 - Live path end to end and the null test: `src/audio/audioTracks/__tests__/audioClipPlayer.test.ts`.
 - Stems: `src/utils/__tests__/stemExport.audioTracks.test.ts`.
-- ARR: `src/components/__tests__/ArrangementView.audio.test.tsx`.
+- ARR: `src/components/__tests__/ArrangementView.audio.test.tsx` (import,
+  handles, slip, split, keys, inspector, the waveform layer).
+- Peaks: `src/audio/media/__tests__/peaks.test.ts` (pyramid against brute
+  force, chunking, file, store builds, import) and `peakCache.test.ts`
+  (stored file, worker, fallbacks, missing media, LRU).
+- Step ↔ seconds and source frames: `src/audio/audioTracks/__tests__/clipTiming.test.ts`.
+- Scene, painter and editing math: `src/components/arrangement/__tests__/`
+  (`waveformScene`, `waveformPainter`, `clipDrag`).
+- Undo: `src/collab/__tests__/appBindings.test.ts` (trim, split, fades, gain
+  and slip as named steps, undone back to the import).
 
-## Not in P1
+## Not built yet
 
 - **Decode.** WebCodecs `AudioDecoder` (it needs a demuxer per container) and
   decoding in a worker. Today non-WAV files decode with `decodeAudioData` on the
@@ -172,9 +247,13 @@ ARR (`ArrangementView` + `src/components/arrangement/`):
 - **Pager in a worker.** The pager reads the media store from the main thread.
   A feed holds about 0.68 s, so a main-thread stall up to that long is
   absorbed.
-- **Not yet built.** Waveforms and fade / gain handles (P2); recording (P3);
-  `repitch` / `stretch` and BPM detection (P4); freeze to audio, project bundles
-  with media, garbage collection of unused media, the AI-song format and
-  co-producer tools (P5).
+- **Later slices.** Recording (P3); `repitch` / `stretch` and BPM detection
+  (P4); freeze to audio, project bundles with media, garbage collection of
+  unused media (and their peaks), the AI-song format and co-producer tools
+  (P5).
+- **Waveforms, not in P2.** The canvas is drawn on the main thread: the
+  OffscreenCanvas work of the control-plane issue does not exist yet. Lanes
+  draw stereo as one merged min / max (the pyramid keeps both channels). Fades
+  are linear, like the voice's. Pattern clips can be split but not slipped.
 - **XM and `.rbs` exports** leave audio clips out. The AI-song export reports
   them as not exportable.

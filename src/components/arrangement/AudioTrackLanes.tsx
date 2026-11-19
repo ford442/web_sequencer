@@ -1,8 +1,13 @@
 /**
- * The arrangement's audio lanes (#1629 P1): one row per audio track under the
+ * The arrangement's audio lanes (#1629): one row per audio track under the
  * pattern lanes, a drop row to add one, and the inspector of a focused audio
  * clip. Clips move and trim with the same pointer and keyboard handlers as
- * pattern clips (`ArrangementView`); waveforms come with P2.
+ * pattern clips (`ArrangementView`).
+ *
+ * A clip block is see-through: its waveform is drawn on the canvas behind
+ * the lanes (`AudioWaveformCanvas`). Hovering or selecting it shows three
+ * handles on its top edge: the fade-in (left, at the end of the fade), the
+ * fade-out (right) and the gain (middle, drag up / down).
  */
 
 import React, { memo } from 'react';
@@ -10,7 +15,9 @@ import type { AudioClip, AudioTrack, AudioTrackKey, MediaRef } from '../../types
 import { MAX_AUDIO_TRACKS } from '../../constants';
 import { AUDIO_CLIP_GAIN_DB_RANGE } from '../../arrangement/model';
 import { AUDIO_TRACK_GAIN_DB_RANGE } from '../../arrangement/audioTracks';
+import type { StepClock } from '../../audio/audioTracks/clipTiming';
 import { trackMuteSoloStore, useTrackMuteSolo } from '../../stores/trackMuteSoloStore';
+import { fadeWidthsPx } from './clipDrag';
 
 export const AUDIO_LANE_COLOR = '#2dd4bf';
 
@@ -35,6 +42,8 @@ export interface AudioTrackLanesProps {
     headerWidth: number;
     laneWidth: number;
     pxPerStep: number;
+    /** The song clock: where a fade, measured in frames, ends on the grid. */
+    clock: StepClock;
     barPx: number;
     loopEnd: number;
     handlers: AudioClipHandlers;
@@ -45,8 +54,11 @@ function mediaName(media: Readonly<Record<string, MediaRef>>, id: string): strin
     return media[id]?.name || 'missing media';
 }
 
+/** Hidden until the clip is hovered or selected; still grabbable, like a DAW's corner handles. */
+const HANDLE = 'absolute top-0 z-[1] rounded-b-sm bg-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.6)] transition-opacity';
+
 export const AudioTrackLanes = memo(function AudioTrackLanes({
-    tracks, media, clipsByTrack, selectedId, rowHeight, headerWidth, laneWidth, pxPerStep, barPx, loopEnd, handlers, importing,
+    tracks, media, clipsByTrack, selectedId, rowHeight, headerWidth, laneWidth, pxPerStep, clock, barPx, loopEnd, handlers, importing,
 }: AudioTrackLanesProps) {
     const { muted, soloed } = useTrackMuteSolo();
     const pad = 'w-5 h-5 text-[9px] font-bold leading-none rounded border focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500';
@@ -79,7 +91,15 @@ export const AudioTrackLanes = memo(function AudioTrackLanes({
                             {(clipsByTrack.get(track.id) ?? []).map((clip) => {
                                 const isSelected = clip.id === selectedId;
                                 const name = mediaName(media, clip.mediaId);
-                                const missing = !media[clip.mediaId];
+                                const ref = media[clip.mediaId] ?? null;
+                                const missing = !ref;
+                                const width = Math.max(4, clip.lengthSteps * pxPerStep);
+                                const fades = fadeWidthsPx(clip, ref, clock, pxPerStep);
+                                // Fade handles sit at the end of their fade, clear of the trim edges.
+                                const fadeInX = Math.min(Math.max(6, fades.fadeIn - 4), width - 22);
+                                const fadeOutX = Math.max(Math.min(width - 14, width - fades.fadeOut - 4), 14);
+                                const handles = !missing && width >= 40;
+                                const shown = isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100';
                                 return (
                                     <div
                                         key={clip.id}
@@ -88,13 +108,13 @@ export const AudioTrackLanes = memo(function AudioTrackLanes({
                                         data-clip-id={clip.id}
                                         aria-pressed={isSelected}
                                         aria-label={`${track.name} audio clip, ${name}, ${handlers.describe(clip)}${clip.gainDb ? `, ${clip.gainDb} dB` : ''}`}
-                                        className={`absolute top-[3px] bottom-[3px] rounded-[4px] border overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${isSelected ? 'ring-1 ring-white/70' : ''}`}
+                                        className={`group absolute top-[3px] bottom-[3px] rounded-[4px] border overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${isSelected ? 'ring-1 ring-white/70' : ''}`}
                                         style={{
                                             left: clip.startStep * pxPerStep,
-                                            width: Math.max(4, clip.lengthSteps * pxPerStep),
+                                            width,
                                             background: missing
                                                 ? 'repeating-linear-gradient(135deg, rgba(239,68,68,0.25) 0 4px, transparent 4px 8px)'
-                                                : `linear-gradient(180deg, ${AUDIO_LANE_COLOR}55, ${AUDIO_LANE_COLOR}22)`,
+                                                : `linear-gradient(180deg, ${AUDIO_LANE_COLOR}2e, ${AUDIO_LANE_COLOR}12)`,
                                             borderColor: isSelected ? '#fff' : `${AUDIO_LANE_COLOR}aa`,
                                         }}
                                         onPointerDown={(e) => handlers.onPointerDown(e, clip)}
@@ -105,11 +125,18 @@ export const AudioTrackLanes = memo(function AudioTrackLanes({
                                         onKeyDown={(e) => handlers.onKeyDown(e, clip)}
                                         onFocus={() => handlers.onFocus(clip.id)}
                                     >
-                                        <span className="absolute left-1.5 top-0.5 right-2 truncate font-mono text-[10px] font-bold text-white/90 pointer-events-none">
+                                        <span className="absolute left-1.5 top-0.5 max-w-[calc(100%-12px)] truncate rounded-sm bg-black/45 px-1 font-mono text-[10px] font-bold leading-[13px] text-white/90 pointer-events-none">
                                             ♪ {name}{clip.gainDb ? ` ${clip.gainDb > 0 ? '+' : ''}${clip.gainDb} dB` : ''}
                                         </span>
                                         <span className="absolute inset-y-0 left-0 w-[6px] cursor-ew-resize" aria-hidden="true" />
                                         <span className="absolute inset-y-0 right-0 w-[6px] cursor-ew-resize bg-white/10" aria-hidden="true" />
+                                        {handles && (
+                                            <>
+                                                <span data-handle="fadeIn" aria-hidden="true" title="Fade in" className={`${HANDLE} ${shown} w-2 h-2 cursor-ew-resize`} style={{ left: fadeInX }} />
+                                                <span data-handle="gain" aria-hidden="true" title="Clip gain (drag up / down)" className={`${HANDLE} ${shown} w-3 h-1.5 cursor-ns-resize`} style={{ left: width / 2 - 6 }} />
+                                                <span data-handle="fadeOut" aria-hidden="true" title="Fade out" className={`${HANDLE} ${shown} w-2 h-2 cursor-ew-resize`} style={{ left: fadeOutX }} />
+                                            </>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -140,9 +167,9 @@ export interface AudioClipInspectorProps {
     track: AudioTrack | null;
     media: MediaRef | null;
     position: string;
-    onClipGain: (gainDb: number) => void;
-    onClipLength: (lengthSteps: number) => void;
+    onClipPatch: (patch: Partial<Pick<AudioClip, 'gainDb' | 'lengthSteps' | 'fadeInFrames' | 'fadeOutFrames' | 'offsetFrames'>>) => void;
     onTrackStrip: (id: AudioTrackKey, patch: Partial<Pick<AudioTrack, 'gainDb' | 'pan'>>) => void;
+    onSplit: () => void;
     onDelete: () => void;
     buttonClass: string;
 }
@@ -155,11 +182,30 @@ function numberField(value: string, min: number, max: number, onValue: (n: numbe
     return clamped;
 }
 
+/** Frames as milliseconds at `rate`, to 0.1 ms. */
+function framesToMs(frames: number, rate: number): number {
+    return Math.round((frames / rate) * 10000) / 10;
+}
+
+function msToFrames(ms: number, rate: number): number {
+    return Math.max(0, Math.round((ms / 1000) * rate));
+}
+
 export const AudioClipInspector = memo(function AudioClipInspector({
-    clip, track, media, position, onClipGain, onClipLength, onTrackStrip, onDelete, buttonClass,
+    clip, track, media, position, onClipPatch, onTrackStrip, onSplit, onDelete, buttonClass,
 }: AudioClipInspectorProps) {
     const input = 'w-14 bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500';
     const seconds = media ? (media.frames / media.sampleRate).toFixed(1) : null;
+    // Fades and slip are in source frames; without the media's rate they cannot be shown in time.
+    const msField = (id: string, label: string, frames: number, max: number, onFrames: (frames: number) => void) => media && (
+        <label htmlFor={id} className="flex items-center gap-1">
+            {label}
+            <input id={id} type="number" step={1} min={0} max={framesToMs(max, media.sampleRate)} value={framesToMs(frames, media.sampleRate)}
+                onChange={(e) => numberField(e.target.value, 0, framesToMs(max, media.sampleRate), (ms) => onFrames(Math.min(max, msToFrames(ms, media.sampleRate))))}
+                className={input} />
+            ms
+        </label>
+    );
     return (
         <>
             <span className="font-bold text-gray-200">{track?.name ?? clip.track} @ {position}</span>
@@ -169,15 +215,18 @@ export const AudioClipInspector = memo(function AudioClipInspector({
             <label htmlFor="arr-audio-gain" className="flex items-center gap-1">
                 CLIP
                 <input id="arr-audio-gain" type="number" step={0.5} min={AUDIO_CLIP_GAIN_DB_RANGE[0]} max={AUDIO_CLIP_GAIN_DB_RANGE[1]} value={clip.gainDb}
-                    onChange={(e) => numberField(e.target.value, AUDIO_CLIP_GAIN_DB_RANGE[0], AUDIO_CLIP_GAIN_DB_RANGE[1], onClipGain)} className={input} />
+                    onChange={(e) => numberField(e.target.value, AUDIO_CLIP_GAIN_DB_RANGE[0], AUDIO_CLIP_GAIN_DB_RANGE[1], (gainDb) => onClipPatch({ gainDb }))} className={input} />
                 dB
             </label>
             <label htmlFor="arr-audio-length" className="flex items-center gap-1">
                 LENGTH
                 <input id="arr-audio-length" type="number" min={1} value={clip.lengthSteps}
-                    onChange={(e) => numberField(e.target.value, 1, 1 << 20, (n) => onClipLength(Math.round(n)))} className={input} />
+                    onChange={(e) => numberField(e.target.value, 1, 1 << 20, (n) => onClipPatch({ lengthSteps: Math.round(n) }))} className={input} />
                 steps
             </label>
+            {msField('arr-audio-fade-in', 'FADE IN', clip.fadeInFrames ?? 0, media?.frames ?? 0, (fadeInFrames) => onClipPatch({ fadeInFrames }))}
+            {msField('arr-audio-fade-out', 'FADE OUT', clip.fadeOutFrames ?? 0, media?.frames ?? 0, (fadeOutFrames) => onClipPatch({ fadeOutFrames }))}
+            {msField('arr-audio-slip', 'SLIP', clip.offsetFrames, media?.frames ?? 0, (offsetFrames) => onClipPatch({ offsetFrames }))}
             {track && (
                 <>
                     <label htmlFor="arr-audio-fader" className="flex items-center gap-1">
@@ -193,6 +242,9 @@ export const AudioClipInspector = memo(function AudioClipInspector({
                     </label>
                 </>
             )}
+            <button type="button" onClick={onSplit} title="Split at the playhead, or in the middle (S)" className={`${buttonClass} bg-zinc-800 text-gray-400 border-zinc-700 hover:bg-zinc-700 hover:text-gray-200`}>
+                SPLIT
+            </button>
             <button type="button" onClick={onDelete} className={`${buttonClass} text-red-400 border-red-900/60 bg-red-950/30 hover:bg-red-900/40`}>
                 DELETE
             </button>

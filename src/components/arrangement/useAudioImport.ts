@@ -16,6 +16,7 @@ import { audioTrackStore } from '../../stores/audioTrackStore';
 import { transportMixStore } from '../../stores/transportMixStore';
 import { liveProject } from '../../collab/liveProject';
 import { importAudioFile } from '../../audio/media/importAudioFile';
+import { peakCache } from '../../audio/media/peakCache';
 
 export interface AudioImportStatus {
     kind: 'idle' | 'busy' | 'done' | 'error';
@@ -88,6 +89,7 @@ export function useAudioImport(onEdit: (updater: (prev: Arrangement) => Arrangem
             setStatus({ kind: 'busy', text: `Importing ${file.name}…` });
             try {
                 const media = await importAudioFile(file);
+                peakCache.prime(media.mediaId, media.peaks);
                 const result = placeImportedMedia(onEdit, media, lane, startStep);
                 if ('error' in result) {
                     errors.push(result.error);

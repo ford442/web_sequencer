@@ -38,6 +38,39 @@ export function stepSpanSeconds(from: number, to: number, fromParity: number, cl
     return seconds;
 }
 
+/**
+ * Seconds from song step 0 to song step `step`, which may be fractional (a
+ * point inside a step: the step's length is spread evenly over it) or
+ * negative (an anchor before the song start). Song step 0 is on even clock
+ * parity, as in the offline render. For whole steps,
+ * `songStepSeconds(b) - songStepSeconds(a)` is `stepSpanSeconds(a, b, a & 1)`.
+ */
+export function songStepSeconds(step: number, clock: StepClock): number {
+    const T = 60 / (Math.max(1, clock.tempo) * 4);
+    const shift = clock.swing * T * 0.5;
+    const whole = Math.floor(step);
+    const odd = (whole & 1) === 1;
+    return whole * T + (odd ? shift : 0) + (step - whole) * (odd ? T - shift : T + shift);
+}
+
+/** The (fractional) song step `seconds` after song step 0: the inverse of `songStepSeconds`. */
+export function songStepAtSeconds(seconds: number, clock: StepClock): number {
+    const T = 60 / (Math.max(1, clock.tempo) * 4);
+    const long = T + clock.swing * T * 0.5;
+    const pair = Math.floor(seconds / (2 * T));
+    const rest = seconds - pair * 2 * T;
+    return rest < long ? 2 * pair + rest / long : 2 * pair + 1 + (rest - long) / Math.max(1e-9, 2 * T - long);
+}
+
+/**
+ * The source frame (fractional) a `warp: 'off'` clip plays at song step
+ * `step`, in the media's own frames. It may lie outside the media (before its
+ * first frame or past its last), where the clip is silent.
+ */
+export function clipSourceFrameAt(clip: AudioClip, step: number, clock: StepClock, mediaRate: number): number {
+    return clip.offsetFrames + (songStepSeconds(step, clock) - songStepSeconds(clipAnchorStep(clip), clock)) * mediaRate;
+}
+
 /** The anchor step of a clip: where source frame `offsetFrames` sounds. */
 export function clipAnchorStep(clip: AudioClip): number {
     return clip.startStep - (clip.offsetSteps ?? 0);

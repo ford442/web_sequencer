@@ -13,6 +13,9 @@
  *
  * Playback pages audio through `readFrames`: one channel's frames are one
  * contiguous range of the file, read without loading the rest of it.
+ *
+ *   media/<sha256>.peaks   its waveform peaks (`peaks.ts`), derived from the
+ *                          audio, so a missing or outdated one is rebuilt
  */
 
 import { detectBackend, type ProjectFileBackend } from '@/services/projectFileBackends';
@@ -25,6 +28,7 @@ import {
     type MediaHeader,
 } from './mediaFile';
 import { MEDIA_ID_PATTERN } from '@/constants/song';
+import { PeakBuilder, encodePeakFile, parsePeakFile, type PeakPyramid } from './peaks';
 
 export const MEDIA_ROOT = 'media';
 
@@ -49,6 +53,13 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 export function mediaPath(id: string): string {
     return `${MEDIA_ROOT}/${id}.f32`;
 }
+
+export function peaksPath(id: string): string {
+    return `${MEDIA_ROOT}/${id}.peaks`;
+}
+
+/** Frames per channel `buildPeaks` reads at a time (1 MiB of float32). */
+const PEAK_PAGE_FRAMES = 1 << 18;
 
 export class MediaStore {
     private backendPromise: Promise<ProjectFileBackend> | null = null;
@@ -135,11 +146,57 @@ export class MediaStore {
         return out;
     }
 
-    /** Delete one piece of media. The caller makes sure no song references it. */
+    /** Which backend the store sits on (a worker only sees the same files on a persistent one). */
+    async backendKind(): Promise<ProjectFileBackend['kind']> {
+        return (await this.backend()).kind;
+    }
+
+    /** The stored peaks of `id`; null when there are none this build reads (missing, corrupt, older format). */
+    async readPeaks(id: string): Promise<PeakPyramid | null> {
+        if (!MEDIA_ID_PATTERN.test(id)) return null;
+        const bytes = await (await this.backend()).readFile(peaksPath(id));
+        return bytes ? parsePeakFile(bytes) : null;
+    }
+
+    async writePeaks(id: string, pyramid: PeakPyramid): Promise<void> {
+        if (!MEDIA_ID_PATTERN.test(id)) throw new Error(`Bad media id ${id}`);
+        await (await this.backend()).writeFile(peaksPath(id), encodePeakFile(pyramid));
+    }
+
+    /**
+     * Build the peaks of `id` from its stored audio, a page at a time, so the
+     * file is never in memory whole — except on IndexedDB, which keeps a file
+     * as one record and is read once. Null when the store does not hold `id`
+     * (or it shrank while being read). Does not write the result.
+     */
+    async buildPeaks(id: string, pageFrames = PEAK_PAGE_FRAMES): Promise<PeakPyramid | null> {
+        const header = await this.header(id);
+        if (!header) return null;
+        const backend = await this.backend();
+        const whole = backend.kind === 'idb' || !backend.readRange ? await backend.readFile(mediaPath(id)) : null;
+        const builder = new PeakBuilder(header.channels, header.frames);
+        const page = Math.max(1 << 8, Math.floor(pageFrames));
+        for (let from = 0; from < header.frames; from += page) {
+            const n = Math.min(page, header.frames - from);
+            const frames = whole
+                ? Array.from({ length: header.channels }, (_, c) => {
+                    const [a, b] = channelByteRange(header, c, from, n);
+                    return bytesToFloat32(whole.subarray(a, b));
+                })
+                : await this.readFrames(id, from, n);
+            if (!frames || frames.some((ch) => ch.length !== n)) return null;
+            builder.push(frames);
+        }
+        return builder.finish();
+    }
+
+    /** Delete one piece of media and its peaks. The caller makes sure no song references it. */
     async remove(id: string): Promise<void> {
         if (!MEDIA_ID_PATTERN.test(id)) return;
         this.headers.delete(id);
-        await (await this.backend()).deleteFile(mediaPath(id));
+        const backend = await this.backend();
+        await backend.deleteFile(mediaPath(id));
+        await backend.deleteFile(peaksPath(id));
     }
 }
 

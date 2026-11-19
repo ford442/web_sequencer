@@ -10,7 +10,11 @@
  *
  * Audio tracks (#1629) sit under the pattern lanes: drop an audio file on
  * any lane (or use IMPORT) to put it on the timeline as an audio clip. Audio
- * clips move and trim like pattern clips (`arrangement/AudioTrackLanes.tsx`).
+ * clips move and trim like pattern clips (`arrangement/AudioTrackLanes.tsx`),
+ * and draw their waveform on one canvas behind the lanes
+ * (`arrangement/AudioWaveformCanvas.tsx`). Their top handles drag the fades
+ * and the gain; Alt + drag slips the audio under the clip. Alt + click, S or
+ * Ctrl/Cmd+E splits any clip (`arrangement/clipDrag.ts`).
  *
  * Edits preview locally and commit once on release, so a drag is one undo
  * step. The playhead follows the worklet step via `arrangementPlayhead`,
@@ -21,13 +25,19 @@ import type { TrackKey } from '../constants/appDefaults';
 import { MAX_TRACK_PATTERN_SLOTS } from '../constants';
 import type { Arrangement, ArrangementClip, AudioClip, AudioTrackKey, PatternClip } from '../types';
 import {
-    addClip, arrangementEnd, clipEnd, isAudioClip, isPatternClip, lastClipEnd, removeClip, setArrangementLength, updateClip,
+    addClip, arrangementEnd, clipEnd, isAudioClip, isPatternClip, lastClipEnd, removeClip, setArrangementLength, splitClip, updateClip,
     type ClipPatch,
 } from '../arrangement/model';
 import { addAudioTrack, updateAudioTrack } from '../arrangement/audioTracks';
 import { audioTrackStore } from '../stores/audioTrackStore';
 import { useValueStore } from '../stores/valueStore';
+import { useTransportMixStore } from '../stores/transportMixStore';
+import { swingPercentToClock } from '../utils/musicTheory';
 import { AudioClipInspector, AudioTrackLanes, type AudioClipHandlers } from './arrangement/AudioTrackLanes';
+import { AudioWaveformCanvas } from './arrangement/AudioWaveformCanvas';
+import {
+    CLICK_SLOP_PX, clipDragPatch, clipDragPreview, keyboardSplitStep, splitStepNear, type ClipDragMode,
+} from './arrangement/clipDrag';
 import { audioFilesOf, useAudioImport } from './arrangement/useAudioImport';
 import { arrangementPlayhead } from '../arrangement/playhead';
 import { trackLoopLength, transportGrid, type SongMeter } from '../utils/songMeter';
@@ -60,17 +70,23 @@ const BAR_WIDTH: Record<ArrangementZoom, number> = { bar: 192, '4bars': 64 };
 /** Extra empty bars drawn past the loop point, so there is room to drop clips. */
 const TAIL_BARS = 4;
 
-type DragMode = 'move' | 'end' | 'start';
-
 interface DragState {
     id: string;
-    mode: DragMode;
+    mode: ClipDragMode;
     pointerId: number;
     originX: number;
+    originY: number;
+    /** Song step under the pointer when it went down (where an Alt + click splits). */
+    downStep: number;
+    /** The pointer travelled past `CLICK_SLOP_PX`: an Alt press is a slip, not a split. */
+    moved: boolean;
     clip: ArrangementClip;
     /** Preview of the clip under the pointer; committed on release. */
     preview: ArrangementClip;
 }
+
+/** `data-handle` of an audio clip's top handles → the drag they start. */
+const HANDLE_MODES = new Map<string, ClipDragMode>([['fadeIn', 'fadeIn'], ['fadeOut', 'fadeOut'], ['gain', 'gain']]);
 
 function bars(steps: number, stepsPerBar: number): string {
     const b = steps / stepsPerBar;
@@ -106,6 +122,9 @@ export const ArrangementView = memo(function ArrangementView({
     const [dropActive, setDropActive] = useState(false);
     const audio = useValueStore(audioTrackStore);
     const { status: importStatus, importFiles } = useAudioImport(onEdit, setSelectedId);
+    const tempo = useTransportMixStore((m) => m.tempo);
+    const swing = useTransportMixStore((m) => m.swing);
+    const clock = useMemo(() => ({ tempo, swing: swingPercentToClock(swing) }), [swing, tempo]);
 
     const { stepsPerBar, stepsPerBeat } = transportGrid(meter);
     const pxPerStep = BAR_WIDTH[zoom] / stepsPerBar;
@@ -191,6 +210,23 @@ export const ArrangementView = memo(function ArrangementView({
         setSelectedId(null);
     }, [onEdit, selectedId]);
 
+    /** Split a clip at `at` (a song step strictly inside it); the left half keeps the id and the selection. */
+    const splitAt = useCallback((id: string, at: number | null) => {
+        if (at === null) return;
+        onEdit((prev) => splitClip(prev, id, at).arrangement);
+    }, [onEdit]);
+
+    const splitByKey = useCallback((clip: ArrangementClip) => {
+        splitAt(clip.id, keyboardSplitStep(clip, arrangementPlayhead.get(), snap));
+    }, [snap, splitAt]);
+
+    const gridFor = useCallback((clip: ArrangementClip) => ({
+        pxPerStep,
+        snap,
+        clock,
+        media: isAudioClip(clip) ? audio.media[clip.mediaId] ?? null : null,
+    }), [audio.media, clock, pxPerStep, snap]);
+
     // ---- pointer editing ----
 
     const onClipPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>, clip: ArrangementClip) => {
@@ -198,54 +234,38 @@ export const ArrangementView = memo(function ArrangementView({
         e.stopPropagation();
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const mode: DragMode = x >= rect.width - EDGE_PX ? 'end' : x <= EDGE_PX ? 'start' : 'move';
+        const handle = (e.target as HTMLElement | null)?.closest?.('[data-handle]')?.getAttribute('data-handle');
+        const mode: ClipDragMode = (handle ? HANDLE_MODES.get(handle) : undefined)
+            ?? (e.altKey ? 'alt' : x >= rect.width - EDGE_PX ? 'end' : x <= EDGE_PX ? 'start' : 'move');
         e.currentTarget.setPointerCapture?.(e.pointerId);
         setSelectedId(clip.id);
-        setDrag({ id: clip.id, mode, pointerId: e.pointerId, originX: e.clientX, clip, preview: clip });
-    }, []);
+        setDrag({
+            id: clip.id, mode, pointerId: e.pointerId, originX: e.clientX, originY: e.clientY,
+            downStep: clip.startStep + x / pxPerStep, moved: false, clip, preview: clip,
+        });
+    }, [pxPerStep]);
 
     const onClipPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
-        const unit = e.shiftKey ? 1 : snap;
-        const delta = Math.round((e.clientX - drag.originX) / pxPerStep / unit) * unit;
-        const { clip } = drag;
-        let preview: ArrangementClip;
-        if (drag.mode === 'move') {
-            preview = { ...clip, startStep: Math.max(0, clip.startStep + delta) };
-        } else if (drag.mode === 'end') {
-            preview = { ...clip, lengthSteps: Math.max(1, clip.lengthSteps + delta) };
-        } else {
-            const shift = Math.min(clip.lengthSteps - 1, Math.max(-clip.startStep, delta));
-            // A head trim keeps the notes where they are; extending left past
-            // the pattern start is not possible, so the offset floors at 0.
-            const offset = Math.max(0, (clip.offsetSteps ?? 0) + shift);
-            const applied = offset - (clip.offsetSteps ?? 0);
-            preview = {
-                ...clip,
-                startStep: clip.startStep + applied,
-                lengthSteps: clip.lengthSteps - applied,
-                offsetSteps: offset,
-            };
-        }
-        setDrag({ ...drag, preview });
-    }, [drag, pxPerStep, snap]);
+        const moved = drag.moved || Math.hypot(e.clientX - drag.originX, e.clientY - drag.originY) > CLICK_SLOP_PX;
+        // An Alt press stays a click (a split) until the pointer travels.
+        const preview = drag.mode === 'alt' && !moved
+            ? drag.clip
+            : clipDragPreview(drag, e.clientX, e.clientY, e.shiftKey, gridFor(drag.clip));
+        setDrag({ ...drag, moved, preview });
+    }, [drag, gridFor]);
 
     const onClipPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         if (!drag || e.pointerId !== drag.pointerId) return;
         const { id, clip, preview } = drag;
         setDrag(null);
-        if (
-            preview.startStep !== clip.startStep ||
-            preview.lengthSteps !== clip.lengthSteps ||
-            preview.offsetSteps !== clip.offsetSteps
-        ) {
-            commit(id, {
-                startStep: preview.startStep,
-                lengthSteps: preview.lengthSteps,
-                offsetSteps: preview.offsetSteps,
-            });
+        if (drag.mode === 'alt' && !drag.moved) {
+            splitAt(id, splitStepNear(clip, drag.downStep, e.shiftKey ? 1 : snap));
+            return;
         }
-    }, [commit, drag]);
+        const patch = clipDragPatch(clip, preview);
+        if (patch) commit(id, patch);
+    }, [commit, drag, snap, splitAt]);
 
     const onLaneDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>, track: TrackKey) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -255,7 +275,17 @@ export const ArrangementView = memo(function ArrangementView({
 
     const onClipKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>, clip: ArrangementClip) => {
         const unit = e.altKey ? 1 : snap;
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const command = e.ctrlKey || e.metaKey;
+        if (((e.key === 's' || e.key === 'S') && !command && !e.altKey) || (command && (e.key === 'e' || e.key === 'E'))) {
+            e.preventDefault();
+            // Not a note for the computer keyboard, too.
+            e.stopPropagation();
+            splitByKey(clip);
+        } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isAudioClip(clip)) {
+            e.preventDefault();
+            const step = (e.key === 'ArrowUp' ? 1 : -1) * (e.altKey ? 0.1 : 1);
+            commit(clip.id, { gainDb: Math.round((clip.gainDb + step) * 10) / 10 });
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
             e.preventDefault();
             const dir = e.key === 'ArrowRight' ? 1 : -1;
             if (e.shiftKey) commit(clip.id, { lengthSteps: Math.max(1, clip.lengthSteps + dir * unit) });
@@ -270,7 +300,7 @@ export const ArrangementView = memo(function ArrangementView({
         } else if (e.key === 'Escape') {
             setSelectedId(null);
         }
-    }, [commit, onEdit, snap]);
+    }, [commit, onEdit, snap, splitByKey]);
 
     // ---- render ----
 
@@ -284,6 +314,7 @@ export const ArrangementView = memo(function ArrangementView({
         }
         return { patternClips: pattern, audioClips: audioByTrack };
     }, [arrangement.clips, drag]);
+    const shownAudioClips = useMemo(() => [...audioClips.values()].flat(), [audioClips]);
 
     const audioHandlers = useMemo<AudioClipHandlers>(() => ({
         onPointerDown: onClipPointerDown,
@@ -497,6 +528,21 @@ export const ArrangementView = memo(function ArrangementView({
                         </div>
                     ))}
 
+                    {audio.tracks.length > 0 && (
+                        <AudioWaveformCanvas
+                            scrollRef={scrollRef}
+                            top={RULER_HEIGHT + SONG_MODE_TRACKS.length * ROW_HEIGHT}
+                            headerWidth={HEADER_WIDTH}
+                            laneWidth={laneWidth}
+                            rowHeight={ROW_HEIGHT}
+                            tracks={audio.tracks}
+                            clips={shownAudioClips}
+                            media={audio.media}
+                            pxPerStep={pxPerStep}
+                            clock={clock}
+                            selectedId={selectedId}
+                        />
+                    )}
                     <AudioTrackLanes
                         tracks={audio.tracks}
                         media={audio.media}
@@ -506,6 +552,7 @@ export const ArrangementView = memo(function ArrangementView({
                         headerWidth={HEADER_WIDTH}
                         laneWidth={laneWidth}
                         pxPerStep={pxPerStep}
+                        clock={clock}
                         barPx={stepsPerBar * pxPerStep}
                         loopEnd={loopEnd}
                         handlers={audioHandlers}
@@ -530,9 +577,9 @@ export const ArrangementView = memo(function ArrangementView({
                         track={audio.tracks.find((t) => t.id === selected.track) ?? null}
                         media={audio.media[selected.mediaId] ?? null}
                         position={position(selected.startStep, stepsPerBar, stepsPerBeat)}
-                        onClipGain={(gainDb) => commit(selected.id, { gainDb })}
-                        onClipLength={(lengthSteps) => commit(selected.id, { lengthSteps })}
+                        onClipPatch={(patch) => commit(selected.id, patch)}
                         onTrackStrip={(id, patch) => audioTrackStore.set((prev) => updateAudioTrack(prev, id, patch))}
+                        onSplit={() => splitByKey(selected)}
                         onDelete={removeSelected}
                         buttonClass={btn}
                     />
@@ -578,12 +625,15 @@ export const ArrangementView = memo(function ArrangementView({
                             />
                             LOOP
                         </label>
+                        <button type="button" onClick={() => splitByKey(selected)} title="Split at the playhead, or in the middle (S)" className={`${btn} ${idle}`}>
+                            SPLIT
+                        </button>
                         <button type="button" onClick={removeSelected} className={`${btn} text-red-400 border-red-900/60 bg-red-950/30 hover:bg-red-900/40`}>
                             DELETE
                         </button>
                     </>
                 ) : (
-                    <span>Double-click a lane or press + to add a clip · drop an audio file to add an audio clip · drag to move · drag edges to trim · arrows move, Shift+arrows resize, L loop, Del delete</span>
+                    <span>Double-click a lane or press + to add a clip · drop an audio file to add an audio clip · drag to move · drag edges to trim · Alt+click or S splits · audio: top handles fade and gain, Alt+drag slips · arrows move, Shift+arrows resize, ↑↓ gain, L loop, Del delete</span>
                 )}
             </div>
             {selected && isPatternClip(selected) && <ClipLanePanel key={selected.id} clip={selected} onEdit={onEdit} />}
