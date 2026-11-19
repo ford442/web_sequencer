@@ -19,7 +19,8 @@ import { getLastWebGpuProbe, restartWebGpuDevice } from './engines/backends/webg
 
 // The voice module is instantiated only inside the AudioWorklet session; the
 // main thread just checks it is reachable (StartOverlay "NATIVE MODULE").
-// Pyodide boots from usePyodideEngine (src/pyodide/bootstrap.ts).
+// Python (src/pyodide/bootstrap.ts) is not started here: it loads on demand
+// through src/pyodide/pythonEngineStore.ts.
 void probeHyphonNative()
 
 /**

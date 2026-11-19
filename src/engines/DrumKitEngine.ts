@@ -12,7 +12,7 @@
  */
 
 import type { KickParams, SnareParams, HatParams, DrumSound, DrumKitType } from '@/types';
-import { KIT_CHARACTER, kitToNativeId, DRUMKIT_VOICE, type KitSynthCharacter } from './DrumKitCharacter';
+import { KIT_CHARACTER, kitToNativeId, drumTriggerArgs, DRUMKIT_VOICE, type KitSynthCharacter } from './DrumKitCharacter';
 import {
     engineTelemetry,
     loadHyphonWasmExportMap,
@@ -311,29 +311,7 @@ export class DrumKitEngine {
     pan: number,
   ): void {
     const voice = DRUMKIT_VOICE[sound];
-    let a = 0;
-    let b = 0;
-    let c = 0;
-    let d = 0;
-    if (sound === 'kick') {
-      const p = params as KickParams;
-      a = p.pitch;
-      b = p.decay;
-      c = p.tone;
-      d = p.volume;
-    } else if (sound === 'snare') {
-      const p = params as SnareParams;
-      a = p.tone;
-      b = p.decay;
-      c = p.noise;
-      d = p.volume;
-    } else {
-      const p = params as HatParams;
-      a = p.pitch;
-      b = p.decay;
-      c = p.volume;
-      d = 0;
-    }
+    const [a, b, c, d] = drumTriggerArgs(sound, params);
     const frame = this.events.frameAt(audioTime);
     // Same frame, pan first: the trigger latches it. Staged in place, so the
     // hit's doubles are never boxed on their way into the ring.

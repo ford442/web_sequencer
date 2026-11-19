@@ -3,7 +3,7 @@
  * Web Audio fallback. Keep in sync with emscripten/drumkit_wrapper.cpp.
  */
 
-import type { DrumKitType } from '@/types';
+import type { DrumKitType, DrumSound, HatParams, KickParams, SnareParams } from '@/types';
 
 export const DRUMKIT_VOICE = {
   kick: 0,
@@ -53,4 +53,25 @@ export const KIT_CHARACTER: Record<DrumKitType, KitSynthCharacter> = {
 
 export function kitToNativeId(kit: DrumKitType): number {
   return kit === '909' ? 1 : 0;
+}
+
+/**
+ * The four trigger arguments (a..d) the native drum voice takes for a hit:
+ * the one packing the live worklet and the offline render share, so a bounce
+ * is built from the numbers the live engine would have played.
+ */
+export function drumTriggerArgs(
+  sound: DrumSound,
+  params: KickParams | SnareParams | HatParams,
+): [a: number, b: number, c: number, d: number] {
+  if (sound === 'kick') {
+    const p = params as KickParams;
+    return [p.pitch, p.decay, p.tone, p.volume];
+  }
+  if (sound === 'snare') {
+    const p = params as SnareParams;
+    return [p.tone, p.decay, p.noise, p.volume];
+  }
+  const p = params as HatParams;
+  return [p.pitch, p.decay, p.volume, 0];
 }

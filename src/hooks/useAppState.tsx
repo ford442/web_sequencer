@@ -32,6 +32,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useAudioEngine } from './useAudioEngine'
 import { usePyodideEngine } from './usePyodideEngine'
+import { useRequestPythonForWaveforms } from './useRequestPythonForWaveforms'
 import { useScheduler } from './useScheduler'
 import { useStepHandler } from './useStepHandler'
 import { useGamepad } from './useGamepad'
@@ -76,7 +77,7 @@ import { useBootSequence } from './appState/useBootSequence'
 import { recallTrackParamSlot } from './appState/trackSlotRecall'
 
 export function useAppState() {
-    const { pyodide, isPyodideReady, pyodideStatus } = usePyodideEngine()
+    const { pyodide } = usePyodideEngine()
     const ui = useUIModalsState()
     const { showToast } = ui
     useGamepad()
@@ -115,6 +116,8 @@ export function useAppState() {
     const session = useSessionState()
     const inst = useInstrumentState(drumKitEngineRef)
     const { synthA, synthB, bass2, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef } = inst
+    // Python loads only for a part that actually selects a pyodide-* waveform.
+    useRequestPythonForWaveforms([synthA.waveform, synthB.waveform])
 
     const automationSchedulerRef = useEngineParamSync({
         audioEngine, isReady, synthA, synthB, bass2, macroManagerRef, prophecyManagerRef,
@@ -352,7 +355,7 @@ export function useAppState() {
         ...songHandlers,
         ...storage,
         ...panels,
-        pyodide, isPyodideReady, pyodideStatus,
+        pyodide,
         audioEngine, isReady, initializeAudio, onParamChange,
         isEngineReady,
         pattern, setPattern, patternRef,

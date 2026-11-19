@@ -7,7 +7,7 @@ import type {
     SamplerBankParams,
     Bass2Params,
 } from '../types';
-import { freezeSynthTrack, freezeDrumTrack } from './trackFreezer';
+import { freezeSynthTrack } from './trackFreezer';
 import { renderSynthToBuffer, renderDrumToBuffer, type RenderSynthEngines, type SynthFilterCurve } from './renderAudio';
 import type { PatternAutomation } from '../audio/offline/offlineLaneAutomation';
 import { getTunedFrequency, midiToNote } from './musicTheory';
@@ -337,25 +337,18 @@ export async function renderDrumPattern(
     params: KickParams | SnareParams | HatParams,
     options: PatternRenderOptions,
 ): Promise<AudioBuffer> {
-    const { sequence, tempo, sampleRate, signal, engines } = options;
+    const { sequence, tempo, sampleRate, signal } = options;
     throwIfAborted(signal);
 
-    if (engines?.pyodide) {
-        const mono = await freezeDrumTrack(engines.pyodide, sequence, params, drumType, {
-            bpm: tempo,
-            sampleRate,
-        });
-        throwIfAborted(signal);
-        return monoToStereo(mono, sampleRate);
-    }
-
+    // Every hit is the live kit (see renderDrumToBuffer). The Python drum
+    // freezer is a different kit and is not on the default path.
     return renderWithOfflineSteps(
         sequence,
         tempo,
         sampleRate,
         async (step) => {
             if (!sequence.steps[step]) return null;
-            return renderDrumToBuffer(drumType, params, engines?.pyodide, sampleRate);
+            return renderDrumToBuffer(drumType, params, sampleRate);
         },
         signal,
     );

@@ -498,8 +498,8 @@ Global ignores include: `dist/`, `emsdk/`, `assembly/`, `emscripten/`, `jc303_wa
 #### E2E smoke path (how to drive the UI)
 
 1. **Boot** — `initializeHyphonAudio(page)`. Navigates with `?e2e=1`, waits for
-   `INITIALIZE SYSTEM` to be *enabled* (it stays disabled until the Pyodide
-   bootstrap reports ready), clicks it with a real gesture (required to unlock
+   `INITIALIZE SYSTEM` to be *enabled* (it stays disabled until the
+   hyphon_native probe settles; Python/Pyodide never gates it), clicks it with a real gesture (required to unlock
    the AudioContext, especially on WebKit), then waits out the LoadingOverlay
    and dismisses HelpTip pins / toasts that would steal clicks.
 2. **The rack mounts ONE module at a time** — `Rack` renders
@@ -680,7 +680,7 @@ interface Note {
 
 5. **AudioWorklet not loading**: Worklets must be loaded from the same origin or with proper CORS. Vite dev server handles this; production servers must be configured accordingly.
 
-6. **Pyodide initialization**: `usePyodideEngine` lazily imports `src/pyodide/bootstrap.ts`, which loads the vendored runtime from `public/pyodide/` (`pnpm run vendor:pyodide`; no CDN) and sets `globalThis.hyphonPyodide` / fires `hyphon-pyodide-ready`. It no longer has anything to do with `hyphon_native`.
+6. **Pyodide initialization (on demand)**: the Python table engine is not on the playback path and nothing loads it at boot. `src/pyodide/pythonEngineStore.ts` starts it when something asks — a `pyodide-*` waveform (`useRequestPythonForWaveforms`), `requestPythonEngine()` for an explicit Python render, or the start overlay's LOAD control — by dynamically importing `src/pyodide/bootstrap.ts`, which loads the vendored runtime from `public/pyodide/` (`pnpm run vendor:pyodide`; no CDN) and sets `globalThis.hyphonPyodide` / fires `hyphon-pyodide-ready`. A timeout or missing `public/pyodide/` is a degradation report (`python-table-engine`, retryable), not a disabled transport; `pyodide-*` waveforms then fall back through `BackendRegistry`. `renderDrumToBuffer` renders the live drum kit (offline `drumkit_*` voice); `generate_kick/snare/hat` run only for an explicit `options.python` render.
 
 7. **JC-303 submodule not found**: Run `git submodule update --init jc303_wasm`
 

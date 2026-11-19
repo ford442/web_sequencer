@@ -636,7 +636,7 @@ export const buildSongXM = async (
     mod.instruments.push(instB);
 
     // Kick
-    const bufKick = await renderDrumToBuffer('kick', params.kick, engines?.pyodide, sampleRate);
+    const bufKick = await renderDrumToBuffer('kick', params.kick, sampleRate);
     const pitchKick = calculateXMPitchParams(bufKick.sampleRate);
     const dataKick = normalizeAndConvertTo16Bit(bufKick.getChannelData(0));
     
@@ -652,7 +652,7 @@ export const buildSongXM = async (
     mod.instruments.push(instKick);
 
     // Snare
-    const bufSnare = await renderDrumToBuffer('snare', params.snare, engines?.pyodide, sampleRate);
+    const bufSnare = await renderDrumToBuffer('snare', params.snare, sampleRate);
     const pitchSnare = calculateXMPitchParams(bufSnare.sampleRate);
     const dataSnare = normalizeAndConvertTo16Bit(bufSnare.getChannelData(0));
 
@@ -668,7 +668,7 @@ export const buildSongXM = async (
     mod.instruments.push(instSnare);
 
     // CH
-    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, engines?.pyodide, sampleRate);
+    const bufCH = await renderDrumToBuffer('closedHat', params.closedHat, sampleRate);
     const pitchCH = calculateXMPitchParams(bufCH.sampleRate);
     const dataCH = normalizeAndConvertTo16Bit(bufCH.getChannelData(0));
 
@@ -684,7 +684,7 @@ export const buildSongXM = async (
     mod.instruments.push(instCH);
 
     // OH
-    const bufOH = await renderDrumToBuffer('openHat', params.openHat, engines?.pyodide, sampleRate);
+    const bufOH = await renderDrumToBuffer('openHat', params.openHat, sampleRate);
     const pitchOH = calculateXMPitchParams(bufOH.sampleRate);
     const dataOH = normalizeAndConvertTo16Bit(bufOH.getChannelData(0));
 
