@@ -2,9 +2,10 @@ import { log } from '@/utils/log';
 import { ensureRunning } from '../../audio/runtime/AudioRuntime';
 import { loadWorkletModule } from '../../audio/runtime/workletRegistry';
 import { attachWorkletPerf } from '../../utils/workletPerfBridge';
-import { isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
+import { engineTelemetry, isAppleWebKit, logEngineFallback } from '../../utils/engineTelemetry';
+import { deriveStepLookaheadMs } from './stepLookahead';
 import type { ClockStepMessage } from '../../shared/rt/clock';
-import { STEP_LOOKAHEAD_MS, type StepCallback, type TransportClock, type TransportSyncTelemetry } from './types';
+import { type StepCallback, type TransportClock, type TransportSyncTelemetry } from './types';
 
 function ensureClockModule(context: AudioContext): Promise<void> {
   // The registry keeps one load per context, so a re-init context loads it too.
@@ -32,12 +33,32 @@ export class InternalClockAdapter implements TransportClock {
   private stepWatchdog: ReturnType<typeof setTimeout> | null = null;
   /** The worklet never answered, so the main-thread timer is the clock source. */
   private workletUnresponsive = false;
+  /** Current step lookahead (ms), derived from the context's latency; see stepLookahead.ts. */
+  private lookaheadMs: number;
 
   constructor(context: AudioContext, tempo: number, swing: number, steps: number) {
     this.context = context;
     this.tempo = tempo;
     this.swing = swing;
     this.steps = steps;
+    this.lookaheadMs = deriveStepLookaheadMs(context);
+  }
+
+  /** Lookahead (ms) the clock is currently using — worklet and main-thread fallback alike. */
+  getLookaheadMs(): number {
+    return this.lookaheadMs;
+  }
+
+  /**
+   * Re-derive the lookahead from the context (outputLatency can change while
+   * running, e.g. a Bluetooth sink). Posts `setLookahead` when it moved.
+   */
+  refreshLookahead(force = false): void {
+    const next = deriveStepLookaheadMs(this.context);
+    if (!force && Math.abs(next - this.lookaheadMs) < 0.5) return;
+    this.lookaheadMs = next;
+    this.clockNode?.port.postMessage({ type: 'setLookahead', lookahead: next / 1000 });
+    engineTelemetry.recordStepLookahead(next);
   }
 
   async ensureStarted(): Promise<void> {
@@ -48,6 +69,9 @@ export class InternalClockAdapter implements TransportClock {
       if (this.context.state === 'suspended') {
         await ensureRunning('programmatic', this.context);
       }
+
+      this.lookaheadMs = deriveStepLookaheadMs(this.context);
+      engineTelemetry.recordStepLookahead(this.lookaheadMs);
 
       if (isAppleWebKit()) {
         logEngineFallback(
@@ -82,6 +106,7 @@ export class InternalClockAdapter implements TransportClock {
             this.clearStepWatchdog();
             log.info('[Clock] source: clock-processor AudioWorklet');
           }
+          this.refreshLookahead();
           const { step, audioTime, absStep } = e.data as ClockStepMessage;
           for (const cb of this.stepListeners) cb(step, audioTime, absStep);
         }
@@ -92,7 +117,7 @@ export class InternalClockAdapter implements TransportClock {
       node.port.postMessage({ type: 'setTempo', tempo: this.tempo });
       node.port.postMessage({ type: 'setSwing', swing: this.swing });
       node.port.postMessage({ type: 'setSteps', steps: this.steps });
-      node.port.postMessage({ type: 'setLookahead', lookahead: STEP_LOOKAHEAD_MS / 1000 });
+      node.port.postMessage({ type: 'setLookahead', lookahead: this.lookaheadMs / 1000 });
       node.port.postMessage({ type: 'start' });
 
       node.connect(this.context.destination);
@@ -157,14 +182,14 @@ export class InternalClockAdapter implements TransportClock {
       logEngineFallback(
         'clock',
         'wasm-worklet',
-        `clock-processor posted no step within ${STEP_LOOKAHEAD_MS} ms of start; using main-thread timer`,
+        `clock-processor posted no step within ${Math.round(this.lookaheadMs)} ms of start; using main-thread timer`,
       );
       node.port.postMessage({ type: 'stop' });
       node.disconnect();
       this.clockNode = null;
       this.workletUnresponsive = true;
       this.startMainThreadClock();
-    }, STEP_LOOKAHEAD_MS);
+    }, this.lookaheadMs);
   }
 
   private clearStepWatchdog(): void {
@@ -191,9 +216,10 @@ export class InternalClockAdapter implements TransportClock {
 
   private tickMainThreadClock(): void {
     if (!this.running) return;
+    this.refreshLookahead();
     const now = this.context.currentTime;
     // Same lookahead as the worklet clock: post each step early, stamped with its time.
-    while (this.mainThreadNextAt <= now + STEP_LOOKAHEAD_MS / 1000) {
+    while (this.mainThreadNextAt <= now + this.lookaheadMs / 1000) {
       const audioTime = this.mainThreadNextAt;
       const step = this.mainThreadNextStep;
       const absStep = this.mainThreadAbsStep;

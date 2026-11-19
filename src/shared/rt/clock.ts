@@ -21,7 +21,9 @@ export const BPM_MAX = 300;
 export const AUDIO_SCHEDULE_LOOKAHEAD_MS = 8;
 
 /**
- * How early the internal clock posts a step (ms) — #1344 P5. The step keeps
+ * FLOOR of how early the internal clock posts a step (ms) — #1344 P5. The
+ * actual lookahead is derived from the live context (deriveStepLookaheadMs in
+ * src/midi/clock/stepLookahead.ts) and never goes below this. The step keeps
  * its exact audioTime; posting it early lets the main thread schedule the
  * step's notes before their frame is rendered, so the voice worklets apply
  * them on that sample rather than at the next block after the message round
@@ -32,6 +34,10 @@ export const AUDIO_SCHEDULE_LOOKAHEAD_MS = 8;
  * from its next pass.
  */
 export const STEP_LOOKAHEAD_MS = 40;
+/** Main-thread hop (React work, GC) added on top of the context's latency (ms). */
+export const STEP_LOOKAHEAD_MARGIN_MS = 25;
+/** Ceiling so the deferred playhead does not feel late (ms). */
+export const STEP_LOOKAHEAD_MAX_MS = 150;
 
 /** Holdover after clock loss: multiples of estimated beat period. */
 export const HOLDOVER_BEAT_PERIODS = 2;
