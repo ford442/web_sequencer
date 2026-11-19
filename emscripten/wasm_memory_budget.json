@@ -35,7 +35,10 @@
       "`render_hyphon_native_parity.mjs slots` (every one of the 72 voice slots at 4096-frame",
       "blocks, 4x / 2x oversample, sounding): 13.5 MB at any sample rate — 2.4x inside 32 MB.",
       "Stack 8 MB → 64 KB: the debug-build probe (`… stack`) measures a < 1 KB high-water.",
-      "pthreadPoolSize 4 → 0: nothing creates a thread (BUILD_NOTES#fixed-voice-memory)."
+      "pthreadPoolSize 4 → 0: nothing creates a thread (BUILD_NOTES#fixed-voice-memory).",
+      "2026-11-19 re-measure on the 6.0.13 pin (-O3 -flto, node, `render_hyphon_native_parity.mjs",
+      "heap` / `slots`, 192 kHz / 4096-frame blocks): heap 1.82 MB static + stack, 2.19 MB voice",
+      "heap, 4.01 MB peak; all 72 slots 13.56 MB. 32 MB fixed is 2.4x the all-slots ceiling."
     ],
     "initialMemoryMb": 32,
     "stackSizeMb": 0.0625,
@@ -62,7 +65,9 @@
       "2026-11-02, #1497 P2: the same +0.57 MB of static inbox rings (unused here: the",
       "memory is not shared, so routes stay on batched messages) — still well inside 16 MB.",
       "2026-11-17, #1596 follow-up P1: FIXED like the pthread build; stack 1 MB → 64 KB. The",
-      "all-slots ceiling (13.5 MB) fits 16 MB, enforced by hyphonNativeFixedMemory.integration."
+      "all-slots ceiling (13.5 MB) fits 16 MB, enforced by hyphonNativeFixedMemory.integration.",
+      "2026-11-19 re-measure on the 6.0.13 pin (same tool and settings): heap 1.81 MB static +",
+      "stack, 2.13 MB voice heap, 3.94 MB peak; all 72 slots 13.54 MB of the 16 MB."
     ],
     "initialMemoryMb": 16,
     "stackSizeMb": 0.0625
@@ -70,8 +75,9 @@
   "rubberband": {
     "$comment": [
       "Standalone public/rubberband.wasm, built by emscripten/build_rubberband.sh and",
-      "instantiated by src/audio-worklets/{rubberband,sustain}-processor.ts through",
-      "createRubberBandModule(). This module owns its memory (it is NOT imported), so",
+      "instantiated by src/audio-worklets/{rubberband,sustain}-processor.ts by hand",
+      "(rubberband/instantiate.ts, no glue since #1596 follow-up P3). This module owns",
+      "its memory (it is NOT imported, it is the module's `memory` export), so",
       "the contract is that build_rubberband.sh reads these numbers instead of carrying",
       "literals, and tools/check_rubberband_module.mjs checks the linked module.",
       "FIXED since #1596 follow-up P2 (ALLOW_MEMORY_GROWTH=0, no maximumMemoryMb,",

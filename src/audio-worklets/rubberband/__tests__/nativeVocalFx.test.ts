@@ -71,13 +71,10 @@ describe('build_rubberband.sh keeps the worklet loadable', () => {
     expect(buildSh).toMatch(/^\s*-DNO_THREADING \\$/m);
   });
 
-  it('accepts Module.wasmBinary (worklets cannot fetch; emcc 4+ drops it by default)', () => {
-    const api = buildSh.match(/INCOMING_MODULE_JS_API='([^']*)'/);
-    expect(api).not.toBeNull();
-    expect(JSON.parse(api![1])).toEqual(expect.arrayContaining(['wasmBinary', 'locateFile']));
+  it('emits no glue: the worklets instantiate the bytes the main thread fetched (#1596 follow-up P3)', () => {
+    expect(buildSh).not.toMatch(/INCOMING_MODULE_JS_API|MODULARIZE/);
+    expect(buildSh).toContain('-lexports.js');
   });
-
-
 
   it('native-worlds rebuilds the rubberband world when the FX sources change', async () => {
     // @ts-expect-error - plain .mjs build script

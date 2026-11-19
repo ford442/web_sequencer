@@ -263,8 +263,13 @@ describe('voice module link (hyphon_native)', () => {
             expect(cmd, script).toContain(
                 '--map public/hyphon_wasm_export_map.st.json --glue public/hyphon_native.st.js --wasm public/hyphon_native.st.wasm',
             );
+            // A just-built artifact that is missing fails; it does not warn and exit 0.
+            expect(cmd.match(/check_wasm_export_map\.mjs --require-artifacts/g), script).toHaveLength(2);
         }
         expect(code).toContain('--wasm');
+        const ci = read('.github/workflows/ci.yml');
+        expect(ci).toContain('check:exports --require-artifacts --glue public/hyphon_native.js --wasm public/hyphon_native.wasm');
+        expect(ci).toContain('check:exports --require-artifacts --skip-modules --map public/hyphon_wasm_export_map.st.json');
     });
 });
 
@@ -314,6 +319,24 @@ describe('worklet-loaded wasm is real-time safe: fixed memory, no throw', () => 
             const src = read(f);
             expect(src, f).toContain("from \"./rubberband/stretcher\"");
             expect(src, f).not.toContain('module.RubberBandStretcher');
+        }
+    });
+
+    it('Rubber Band has no Emscripten glue: the worklets instantiate the wasm by hand (#1596 follow-up P3)', () => {
+        const code = withoutShellComments(rubberbandSh);
+        expect(code).not.toMatch(/MODULARIZE|EXPORT_ES6|EXPORT_NAME|EXPORTED_RUNTIME_METHODS|--pre-js|--bind/);
+        // Readable import/export names: instantiate.ts binds them by name.
+        expect(code).toContain('-lexports.js');
+        expect(code).toContain('--no-entry');
+        // The JS emcc writes goes to the temp dir, never into src/.
+        expect(code).not.toContain('src/audio-worklets/rubberband-lib');
+        expect(existsSync(join(REPO_ROOT, 'src/audio-worklets/rubberband-lib.js'))).toBe(false);
+        expect(existsSync(join(REPO_ROOT, 'src/audio-worklets/rubberband-lib.d.ts'))).toBe(false);
+        expect(existsSync(join(REPO_ROOT, 'emscripten/rubberband-pre.js'))).toBe(false);
+        for (const f of ['src/audio-worklets/rubberband-processor.ts', 'src/audio-worklets/sustain-processor.ts']) {
+            const src = read(f);
+            expect(src, f).toContain('from "./rubberband/instantiate"');
+            expect(src, f).not.toContain('rubberband-lib');
         }
     });
 

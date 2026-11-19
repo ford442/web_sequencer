@@ -53,7 +53,7 @@ mkdir -p "$TEMP_ROOT"
 # Rubber Band is NOT part of this module. It is built separately by
 # emscripten/build_rubberband.sh into public/rubberband.wasm, which is what
 # src/audio-worklets/{rubberband,sustain}-processor.ts actually instantiate
-# (via createRubberBandModule). Linking it here only shared its ~40 MB stretch
+# (rubberband/instantiate.ts). Linking it here only shared its ~40 MB stretch
 # transient with the live 303 voices' heap for no caller.
 # See docs/wasm/BUILD_NOTES.md#module-split.
 

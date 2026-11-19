@@ -10,7 +10,7 @@ export type RbHandle = number;
 /** A vocal FX chain from rb_fx_create (an RbFx*), 0 = none. */
 export type RbFxHandle = number;
 
-/** The stretcher C ABI (rubberband_wrapper.cpp), as glue Module properties. */
+/** The stretcher C ABI (rubberband_wrapper.cpp), as instantiateRubberBand() module properties. */
 export const RUBBERBAND_STRETCHER_EXPORTS = [
   '_rb_abi_version',
   '_rb_create',
@@ -29,7 +29,7 @@ export const RUBBERBAND_STRETCHER_EXPORTS = [
   '_rb_retrieve',
 ] as const;
 
-/** The native vocal FX chain (rubberband_fx.cpp), as glue Module properties. */
+/** The native vocal FX chain (rubberband_fx.cpp), as instantiateRubberBand() module properties. */
 export const RUBBERBAND_FX_EXPORTS = [
   '_rb_fx_abi_version',
   '_rb_fx_param_count',
@@ -47,7 +47,7 @@ export const RUBBERBAND_FX_EXPORTS = [
   '_rb_fx_process',
 ] as const;
 
-/** createRubberBandModule() exports: each manifest name as `Module._name`. */
+/** instantiateRubberBand() exports (src/audio-worklets/rubberband/instantiate.ts): each manifest name as `module._name`. */
 export interface RubberBandExports {
   _malloc(bytes: number): RbPtr;
   _free(ptr: RbPtr): void;

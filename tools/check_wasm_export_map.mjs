@@ -24,12 +24,19 @@
  *      (tools/check_rubberband_module.mjs — exact export set, fixed memory, no
  *      embind / exceptions) and public/mix_bus.wasm (tools/check_mix_bus_module.mjs).
  *      `--skip-modules` leaves them out (emscripten/build.sh checks only its own).
+ *   7. With `--wasm`: the voice binary imports a memory FIXED at its budget
+ *      (initial == maximum == wasm_memory_budget.json's hyphonNative[St]
+ *      initialMemoryMb; `.st.wasm` selects the single-threaded entry).
  *
  * Usage:
  *   node tools/check_wasm_export_map.mjs [--map <file>] [--glue <hyphon_native.js>] [--wasm <file>]
+ *                                        [--require-artifacts] [--skip-modules]
  *
- * Exit codes: 0 ok / 1 validation failure / 0 with a warning when the map is
- * absent (WASM artifacts are gitignored, so a source-only CI job skips cleanly).
+ * Exit codes: 0 ok / 1 validation failure. Without --require-artifacts an absent
+ * map or module is a warning and exit 0 (WASM artifacts are gitignored, so the
+ * source-only lint job skips cleanly). --require-artifacts — used wherever the
+ * artifacts were just built (CI's native job, build:release) — makes every absent
+ * artifact a failure, so a build that silently produced nothing cannot pass.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,6 +45,7 @@ import { parseExportMap } from './extract_wasm_export_map.mjs';
 import { staleGeneratedFiles } from './gen_hyphon_native_types.mjs';
 import { checkRubberBandModule } from './check_rubberband_module.mjs';
 import { checkMixBusModule } from './check_mix_bus_module.mjs';
+import { checkFixedMemory } from './check_hyphon_st_module.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -48,6 +56,7 @@ function parseArgs(argv) {
     glue: null,
     wasm: null,
     skipModules: false,
+    requireArtifacts: false,
   };
   for (let i = 2; i < argv.length; i++) {
     const next = argv[i + 1];
@@ -56,6 +65,7 @@ function parseArgs(argv) {
     else if (argv[i] === '--glue') { args.glue = next; i++; }
     else if (argv[i] === '--wasm') { args.wasm = next; i++; }
     else if (argv[i] === '--skip-modules') { args.skipModules = true; }
+    else if (argv[i] === '--require-artifacts') { args.requireArtifacts = true; }
     else {
       console.error(`Unknown argument: ${argv[i]}`);
       process.exit(1);
@@ -81,18 +91,21 @@ if (!args.skipModules) {
   const moduleErrors = [];
   const rel = (p) => path.join(REPO_ROOT, p);
   const rbWasm = rel('public/rubberband.wasm');
-  const rbGlue = rel('src/audio-worklets/rubberband-lib.js');
-  if (fs.existsSync(rbWasm) && fs.existsSync(rbGlue)) {
+  if (fs.existsSync(rbWasm)) {
     const budget = JSON.parse(fs.readFileSync(rel('emscripten/wasm_memory_budget.json'), 'utf8'));
-    for (const p of checkRubberBandModule(fs.readFileSync(rbWasm), fs.readFileSync(rbGlue, 'utf8'), budget.rubberband.initialMemoryMb)) {
+    for (const p of checkRubberBandModule(fs.readFileSync(rbWasm), budget.rubberband.initialMemoryMb)) {
       moduleErrors.push(`public/rubberband.wasm: ${p}`);
     }
+  } else if (args.requireArtifacts) {
+    moduleErrors.push('public/rubberband.wasm not found (--require-artifacts): run pnpm run build:wasm:rubberband');
   } else {
     console.warn('[export-map] public/rubberband.wasm not built — skipping its check (pnpm run build:wasm:rubberband).');
   }
   const mixBus = rel('public/mix_bus.wasm');
   if (fs.existsSync(mixBus)) {
     for (const p of checkMixBusModule(fs.readFileSync(mixBus))) moduleErrors.push(`public/mix_bus.wasm: ${p}`);
+  } else if (args.requireArtifacts) {
+    moduleErrors.push('public/mix_bus.wasm not found (--require-artifacts): run pnpm run build:wasm:mixbus');
   } else {
     console.warn('[export-map] public/mix_bus.wasm not built — skipping its check (pnpm run build:wasm:mixbus).');
   }
@@ -104,6 +117,13 @@ if (!args.skipModules) {
 }
 
 if (!fs.existsSync(args.map)) {
+  if (args.requireArtifacts) {
+    console.error(
+      `[export-map] FAILED\n\n- ${path.relative(REPO_ROOT, args.map)} not found (--require-artifacts): ` +
+      'run pnpm run build:emcc\n',
+    );
+    process.exit(1);
+  }
   console.warn(
     `[export-map] ${path.relative(REPO_ROOT, args.map)} not found — ` +
     'skipping (build WASM artifacts with `pnpm run build:emcc` to check them).',
@@ -190,6 +210,12 @@ if (args.wasm) {
         `Could not compile ${path.relative(REPO_ROOT, args.wasm)} to read its exports: ` +
         `${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+    // 7. The voice module's memory is fixed at its budget (#1596 follow-up P1/P2).
+    const budget = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'emscripten/wasm_memory_budget.json'), 'utf8'));
+    const profile = args.wasm.endsWith('.st.wasm') ? 'hyphonNativeSt' : 'hyphonNative';
+    for (const p of checkFixedMemory(fs.readFileSync(args.wasm), budget[profile].initialMemoryMb)) {
+      errors.push(`${path.relative(REPO_ROOT, args.wasm)} (${profile}): ${p}`);
     }
     if (binaryExports) {
       const absent = Object.entries(map)

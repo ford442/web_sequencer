@@ -102,19 +102,18 @@ else
     LINK_PROFILE_FLAGS="-O3 -flto -s ASSERTIONS=0"
 fi
 
-GLUE_JS="$REPO_ROOT/src/audio-worklets/rubberband-lib.js"
-
-# The worklets have no fetch: they hand createRubberBandModule() the bytes the
-# main thread fetched. emcc 4+ dropped `wasmBinary` from the default
-# INCOMING_MODULE_JS_API, so without the explicit list below the glue silently
-# ignores Module.wasmBinary and aborts with "both async and sync fetching of the
-# wasm failed" inside the AudioWorklet.
+# No glue: the worklets instantiate public/rubberband.wasm by hand
+# (src/audio-worklets/rubberband/instantiate.ts), the way the voice worklets
+# instantiate hyphon_native. emcc still writes a JS file next to the wasm; it goes
+# to the temp dir and is deleted with it. Nothing generated is committed, so a
+# local rebuild cannot dirty the tree.
 #
-# Likewise the HEAP views: since emcc 4 the glue keeps HEAPF32 / HEAPF64 as
-# module-local vars and only puts them on the Module object when they are named
-# in EXPORTED_RUNTIME_METHODS. The worklets (and the vocal-FX harness) read
-# module.HEAPF32 / HEAPF64 for every block, so without them stretch output is
-# written into `undefined`.
+# -lexports.js links no code; it is emcc's switch for keeping wasm import/export
+# NAMES unminified at -O2+ (same as build.sh). instantiate.ts satisfies imports by
+# name and reads exports by name, so minified letters would be unusable.
+#
+# --no-entry: a reactor, no main(). instantiate.ts runs __wasm_call_ctors.
+OUT_JS="$TEMP_DIR/rubberband.mjs"
 
 # EXPORTED_FUNCTIONS come from the `rubberband` section of
 # emscripten/wasm_export_manifest.json — the stretcher (rb_*, rubberband_wrapper.cpp)
@@ -151,24 +150,18 @@ em++ $OPT_FLAGS \
     -s ABORTING_MALLOC=0 \
     -s INITIAL_MEMORY=${INITIAL_MEMORY_MB}mb \
     -s STACK_SIZE=${STACK_SIZE_MB}mb \
-    -s MODULARIZE=1 \
-    -s EXPORT_ES6=1 \
-    -s EXPORT_NAME='createRubberBandModule' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "getValue", "setValue", "HEAPF32", "HEAPF64"]' \
     -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
-    -s INCOMING_MODULE_JS_API='["wasmBinary", "locateFile", "print", "printErr", "onAbort"]' \
     -s ENVIRONMENT='web,worker' \
-    --pre-js "$SCRIPT_DIR/rubberband-pre.js" \
-    -o "$GLUE_JS"
+    -lexports.js \
+    --no-entry \
+    -o "$OUT_JS"
 
-# The compiler writes rubberband-lib.wasm next to the glue; the worklet host
-# fetches it from public/ as rubberband.wasm.
-mv "$REPO_ROOT/src/audio-worklets/rubberband-lib.wasm" "$REPO_ROOT/public/rubberband.wasm"
+mv "$TEMP_DIR/rubberband.wasm" "$REPO_ROOT/public/rubberband.wasm"
 
-# No embind, no exception runtime, and a memory that cannot grow.
-node "$REPO_ROOT/tools/check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$GLUE_JS" "$INITIAL_MEMORY_MB"
+# No embind, no exception runtime, a memory that cannot grow, exactly the manifest's
+# exports, and only imports instantiate.ts implements.
+node "$REPO_ROOT/tools/check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$INITIAL_MEMORY_MB"
 
 rm -rf "$TEMP_DIR"
 
-echo "✅ Glue:  src/audio-worklets/rubberband-lib.js"
 echo "✅ Wasm:  public/rubberband.wasm"

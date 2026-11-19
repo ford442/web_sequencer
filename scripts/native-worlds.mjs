@@ -194,7 +194,6 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       ],
       outputs: [
         'public/rubberband.wasm',
-        'src/audio-worklets/rubberband-lib.js',
       ],
       toolchain: 'emcc',
     },
