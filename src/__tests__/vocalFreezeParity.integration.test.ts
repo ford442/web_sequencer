@@ -43,7 +43,7 @@ let ProcessorCtor: new () => Processor;
 const clock = { currentTime: 0 };
 
 beforeAll(async () => {
-  requireRepoArtifacts(['public/rubberband.wasm', 'src/audio-worklets/rubberband-lib.js']);
+  requireRepoArtifacts(['public/rubberband.wasm']);
   vi.stubGlobal('AudioWorkletProcessor', class {
     port = { postMessage: () => {}, onmessage: null };
   });

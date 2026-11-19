@@ -266,8 +266,9 @@ the offline [mix bus](#mix-bus) is in it.
 Two independent reasons, one of which is simply that it was never used there:
 
 1. **Nothing called it.** `src/audio-worklets/rubberband-processor.ts` and
-   `sustain-processor.ts` instantiate `createRubberBandModule()` — the glue from
-   `emscripten/build_rubberband.sh` — and fetch `public/rubberband.wasm`. The
+   `sustain-processor.ts` instantiate `public/rubberband.wasm` from
+   `emscripten/build_rubberband.sh` (by hand since
+   [#1596 follow-up P3](#rubberband-no-glue); through its glue before). The
    embind `RubberBandStretcher` class linked into `hyphon_native` had no caller in
    the app at all. `main.cpp` and `audio_dsp.cpp` never referenced Rubber Band.
 2. **It shared a heap with live playback.** The finer-engine stereo stretch is
@@ -874,8 +875,9 @@ the voice module's release profile:
 | `mix_bus.wasm` | `-O3 -ffast-math -flto` (the one fast-math TU) | `-O3 -flto` (was `-O1`) |
 
 Debug profiles are unchanged (`-O1 -g3`, IEEE). Neither module needs `-lexports.js`:
-Rubber Band is only ever instantiated through its own glue
-(`createRubberBandModule`, regenerated with the wasm), and the mix bus is a
+Rubber Band was then only instantiated through its own glue
+(`createRubberBandModule`; it links `-lexports.js` since it lost the glue, see
+[#rubberband-no-glue](#rubberband-no-glue)), and the mix bus is a
 `STANDALONE_WASM` reactor whose export names are not minified
 (`tools/check_mix_bus_module.mjs` checks them after every build).
 `src/__tests__/wasmCompileFlags.test.ts` pins both profiles.
@@ -991,6 +993,55 @@ mean per-quantum CPU summed over every voice count and pitch, new / old):
 | `rubberband-lib.js` | 99,066 B | 57,731 B (−42 %) |
 | CPU, R2 profiles (vocal / harmonic / fast) | 1.00 | 0.89–1.06 (noise) |
 | CPU, R3 profiles (vocal / harmonic) | 1.00 | 0.73–0.82 |
+
+### Rubber Band without glue (#1596 follow-up P3)
+<a id="rubberband-no-glue"></a>
+
+`rubberband.wasm` was the last module still loaded through Emscripten glue: the
+`MODULARIZE` factory `createRubberBandModule()`, committed as
+`src/audio-worklets/rubberband-lib.js` with a hand-kept `.d.ts`. A local rebuild
+rewrote that file (the `--pre-js` path and the order of emitted helpers), so
+`git status` could be dirty after `build:native` on any checkout path other than
+CI's. The glue, its `.d.ts` and `emscripten/rubberband-pre.js` are gone.
+
+- **Link.** `build_rubberband.sh` drops `MODULARIZE`, `EXPORT_ES6`, `EXPORT_NAME`,
+  `EXPORTED_RUNTIME_METHODS`, `INCOMING_MODULE_JS_API` and `--pre-js`, and adds
+  `-lexports.js` (unminified import / export names, as in `build.sh`) and
+  `--no-entry`. The JS file emcc still writes goes to the temp dir and is deleted
+  with it. Only `public/rubberband.wasm` (gitignored) is produced, so a rebuild
+  cannot dirty the tree. Memory stays fixed at 64 MB.
+- **Instantiate.** `src/audio-worklets/rubberband/instantiate.ts` compiles the
+  bytes the main thread fetched, satisfies the 14 imports by name (`env`:
+  `__assert_fail`, `_abort_js`, `emscripten_resize_heap` → 0,
+  `emscripten_date_now`, `_emscripten_runtime_keepalive_clear`, `_setitimer_js`;
+  WASI: `proc_exit`, `fd_write` → line-buffered console, `fd_read`, `fd_seek`,
+  `fd_close`, `environ_*`, `clock_time_get`), runs `__wasm_call_ctors`, and returns
+  the same shape the glue did: `module._rb_create` … plus `HEAPU8` / `HEAPF32` /
+  `HEAPF64` views of the module's own `memory` export. `stretcher.ts`,
+  `nativeVocalFx.ts` and both worklets are otherwise unchanged. An abort, `exit`
+  or failed assert throws `RubberBandAbort`.
+- **Check.** `tools/check_rubberband_module.mjs` now reads the wasm only. It fails
+  on minified names, on any import outside the manifest's `rubberband.imports` (the
+  set `instantiate.ts` implements, held equal by
+  `src/__tests__/rubberbandInstantiate.test.ts`), on embind / `__cxa_*` /
+  `invoke_*` imports, on a missing `required` export, and on any export outside
+  `required` + `runtime` (`memory`, `__wasm_call_ctors`, `_emscripten_timeout`).
+- **Parity.** The stretcher golden (all four profiles) and the full
+  `RubberBandProcessor` / `sustain-processor` sessions in
+  `rubberbandFixedHeap.integration.test.ts` are bit-identical, and so are
+  `vocalFreezeParity` and `nativeVocalFx.integration`.
+- **Size** (emcc 6.0.13): `rubberband.wasm` 399,949 → 400,710 B (+761 B of
+  readable names); the 57,671 B glue is gone from the worklet bundles.
+
+### Voice export-map check: fixed memory, and a missing artifact fails
+
+`check_wasm_export_map.mjs --wasm <hyphon_native[.st].wasm>` also checks that the
+binary imports a memory fixed at its budget (initial == maximum ==
+`hyphonNative[St].initialMemoryMb`), the same check `build.sh` runs after linking.
+`--require-artifacts` turns an absent map, `rubberband.wasm` or `mix_bus.wasm` into
+a failure instead of a warning and exit 0. CI's native job and `build:release` pass
+it for both voice profiles. The source-only lint job builds no wasm, so
+`pnpm lint` keeps the warning there.
 
 ### Why the export map is checked against the binary too
 
@@ -1358,7 +1409,7 @@ made such a header fail.
 **What it does**:
 - Clones/updates rubberband library
 - Compiles C++ wrapper with Emscripten
-- Generates `src/audio-worklets/rubberband-lib.js` and `public/rubberband.wasm`
+- Generates `public/rubberband.wasm` only (no glue: [#rubberband-no-glue](#rubberband-no-glue))
 
 ### 2. Compile Rubberband Audio Worklet
 **Source**: `src/audio-worklets/rubberband-processor.ts`

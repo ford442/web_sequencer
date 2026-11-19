@@ -167,7 +167,7 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── toolchain.json            # THE Emscripten pin (6.0.13) + Pyodide pin
 │   ├── toolchain_env.sh          # Sourced by every em++ script; refuses any other emcc
 │   ├── rubberband_wrapper.cpp    # Rubberband C++ interface
-│   └── pre.js / rubberband-pre.js
+│   └── pre.js
 ├── jc303_wasm/                   # TB-303 clone (git submodule) — only src/dsp/open303 is compiled, into hyphon_native
 ├── rubberband/                   # Rubberband library source (in-repo, not submodule)
 ├── third_party/                  # Pinned DSP submodules: eurorack (Plaits) + stmlib — macro voices
@@ -348,7 +348,7 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 
 ### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
 - **Build**: `pnpm run build:wasm:rubberband`
-- **Output**: `public/rubberband.wasm` + `src/audio-worklets/rubberband-lib.js`
+- **Output**: `public/rubberband.wasm` only. No glue: the worklets instantiate it by hand (`src/audio-worklets/rubberband/instantiate.ts`, `docs/wasm/BUILD_NOTES.md#rubberband-no-glue`)
 - **Why separate**: its ~40 MB stretch transient must not share a heap with the live 303 voices, and nothing ever called it through `hyphon_native`. See `docs/wasm/BUILD_NOTES.md#module-split`.
 - **ABI**: plain `extern "C"` `rb_*` (stretcher) and `rb_fx_*` (vocal FX) over opaque handles: no embind, no exceptions, fixed 64 MB memory. TS callers use `src/audio-worklets/rubberband/stretcher.ts` (`docs/wasm/BUILD_NOTES.md#rubberband-fixed-memory`).
 

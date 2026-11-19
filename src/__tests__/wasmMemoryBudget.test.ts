@@ -184,7 +184,7 @@ describe('Rubber Band module split', () => {
     // Rubber Band's finer-engine stereo stretch was the dominant transient in the
     // hyphon_native budget (~40 MB of a ~114 MB peak) while sharing a heap with the
     // live 303 voices — and nothing ever called it there: the worklets have always
-    // gone through createRubberBandModule() against the standalone artifact.
+    // instantiated the standalone artifact (now by hand: rubberband/instantiate.ts).
     it('is not compiled into hyphon_native', () => {
         expect(buildSh).not.toMatch(/rubberband_wrapper\.cpp/);
         expect(buildSh).not.toMatch(/RUBBERBAND_SRC/);
@@ -205,7 +205,7 @@ describe('Rubber Band module split', () => {
         expect(rubberbandSh).toContain('-s STACK_SIZE=${STACK_SIZE_MB}mb');
         expect(rubberbandSh).not.toMatch(/INITIAL_MEMORY=\d+/);
         // The linked module is checked against the same number.
-        expect(rubberbandSh).toContain('check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$GLUE_JS" "$INITIAL_MEMORY_MB"');
+        expect(rubberbandSh).toContain('check_rubberband_module.mjs" "$REPO_ROOT/public/rubberband.wasm" "$INITIAL_MEMORY_MB"');
     });
 
     it('is a registered build world with a package script', () => {

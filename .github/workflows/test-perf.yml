@@ -93,7 +93,6 @@ jobs:
         with:
           path: |
             public/rubberband.wasm
-            src/audio-worklets/rubberband-lib.js
             .cache/native/
           key: perf-rubberband-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('emscripten/**', 'rubberband/src/**', 'tools/hyphon_native_exports.mjs', 'tools/check_rubberband_module.mjs', 'package.json') }}
 
@@ -111,8 +110,8 @@ jobs:
           pnpm run build:wasm:xmexport
 
       # vocalFx.perf.test.ts measures the real Rubber Band vocal-FX module via
-      # loadRubberBandFxModule(), which requires public/rubberband.wasm and
-      # src/audio-worklets/rubberband-lib.js. The perf tier does not stub WASM
+      # loadRubberBandFxModule(), which requires public/rubberband.wasm (instantiated
+      # by hand; there is no glue). The perf tier does not stub WASM
       # (docs/PERFORMANCE_BUDGET.md), so build it. Standalone module only —
       # no hyphon_native.
       - name: Build Rubber Band WASM (vocalFx.perf.test.ts needs the real module)

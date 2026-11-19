@@ -135,12 +135,15 @@
   ],
   "rubberband": {
     "$comment": [
-      "public/rubberband.wasm (emscripten/build_rubberband.sh). Glue Module properties are",
-      "these names with a leading underscore (Module._rb_create). rb_* is the stretcher",
-      "(rubberband_wrapper.cpp, wrapped by src/audio-worklets/rubberband/stretcher.ts), rb_fx_*",
-      "the vocal FX chain (rubberband_fx.cpp, rubberband/nativeVocalFx.ts). tools/",
-      "check_rubberband_module.mjs fails on a missing name or on one listed here that the",
-      "glue does not publish, and on any extra the glue does."
+      "public/rubberband.wasm (emscripten/build_rubberband.sh). There is no glue: the worklets",
+      "instantiate the wasm by hand (src/audio-worklets/rubberband/instantiate.ts) and expose",
+      "each export as these names with a leading underscore (module._rb_create). rb_* is the",
+      "stretcher (rubberband_wrapper.cpp, wrapped by src/audio-worklets/rubberband/stretcher.ts),",
+      "rb_fx_* the vocal FX chain (rubberband_fx.cpp, rubberband/nativeVocalFx.ts).",
+      "tools/check_rubberband_module.mjs reads the linked wasm (names are unminified:",
+      "-lexports.js) and fails on a missing `required` name, on any export in neither",
+      "`required` nor `runtime`, and on any import not in `imports` — the exact set",
+      "instantiate.ts implements (src/__tests__/rubberbandInstantiate.test.ts)."
     ],
     "required": [
       "malloc",
@@ -174,7 +177,32 @@
       "rb_fx_render_grains",
       "rb_fx_exit_freeze",
       "rb_fx_process"
-    ]
+    ],
+    "runtime": [
+      "memory",
+      "__wasm_call_ctors",
+      "_emscripten_timeout"
+    ],
+    "imports": {
+      "env": [
+        "__assert_fail",
+        "_abort_js",
+        "emscripten_resize_heap",
+        "emscripten_date_now",
+        "_emscripten_runtime_keepalive_clear",
+        "_setitimer_js"
+      ],
+      "wasi_snapshot_preview1": [
+        "proc_exit",
+        "fd_write",
+        "fd_read",
+        "fd_seek",
+        "fd_close",
+        "environ_sizes_get",
+        "environ_get",
+        "clock_time_get"
+      ]
+    }
   },
   "mixBus": {
     "$comment": [
