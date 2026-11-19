@@ -50,6 +50,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/collab.md](docs/collab.md) | Collaboration (#1597): the project as a Yjs document — subsystem maps, the lossless `SavedSongData` codec, ProjectStore v2's `doc.ylog`, the BroadcastChannel provider, `?collab=local`; stores bound to the doc, per-editor undo and the history panel (P2) |
 | [docs/arrangement.md](docs/arrangement.md) | Arrangement timeline: clips, linear player, Song Mode projection, v5 schema, capture |
 | [docs/audio-tracks.md](docs/audio-tracks.md) | Audio tracks (#1629): audio clips on the arrangement (schema v6), the content-addressed media store, drag-and-drop import, the streamed clip player worklet, patch sockets, audio-track stems |
+| [docs/audio-recording.md](docs/audio-recording.md) | Audio recording (#1498 P1): the input picker and raw input constraints, the `recorder-processor` take ring, the OPFS WAV / RF64 take writer worker, crash recovery, sampler REC |
 | [docs/piano-roll.md](docs/piano-roll.md) | Piano roll: a view over `PartSequence.steps`, pure edits through the pattern handlers, WebGPU / Canvas2D quad renderer, keyboard + screen reader |
 | [docs/note-fx.md](docs/note-fx.md) | Note FX chain (arp / ratchet / chord / euclid / humanize): pure steps → events, identical live and offline, automation, freeze to pattern |
 | [docs/PERFORMANCE_BUDGET.md](docs/PERFORMANCE_BUDGET.md) | Audio-thread budget, auto-degrade order, offline 303 metrics |

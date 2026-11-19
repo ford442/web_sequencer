@@ -21,6 +21,7 @@ import {
   setStoredAudioOutput,
   supportsSetSinkId,
 } from '../utils/audioOutputDevice';
+import { createHudInputSection } from './engineHudInput';
 import { getOscillatorRegistry } from '../engines/backends/BackendRegistry';
 import { BACKEND_LABELS } from '../engines/backends/OscillatorBackend';
 import { getLastWebGpuProbe, restartWebGpuDevice } from '../engines/backends/webgpuProbe';
@@ -84,6 +85,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   let visible = new URLSearchParams(location.search).get('hud') === '1';
   let audioOutputDevices: MediaDeviceInfo[] = [];
   let sinkListError: string | null = null;
+  const inputSection = createHudInputSection(() => render());
   let reinitError: string | null = null;
   let gpuRestartPending = false;
 
@@ -379,7 +381,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
       : '';
     const wamSection = `<div class="subheader">WAM2 slots</div>${wamRows || '<div class="row"><div style="flex:1;opacity:0.7">none mounted</div></div>'}${coop}`;
 
-    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${gpuSessionSection}${liveSection}${heapSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn" aria-label="Download engine telemetry report">Download Report</button><button type="button" id="hud-copy-btn" aria-label="Copy engine telemetry to clipboard">Copy JSON</button></div>`;
+    container.innerHTML = `<div class="header">Engine HUD</div>${summary}${syncSection}${latencySection}${sinkSection}${inputSection.html()}${gpuSessionSection}${liveSection}${heapSection}${offlineSection}${backendSection}<div class="subheader">Worklets</div>${workletRows}${degradeNote}${wamSection}<div class="subheader">Subsystems</div>${rows}<div class="hud-actions"><button type="button" id="hud-export-btn" aria-label="Download engine telemetry report">Download Report</button><button type="button" id="hud-copy-btn" aria-label="Copy engine telemetry to clipboard">Copy JSON</button></div>`;
   }
 
   // Event delegation: render() replaces innerHTML every 500ms, so per-render
@@ -387,6 +389,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   container.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+    if (inputSection.onClick(target)) return;
     if (target.classList.contains('hud-wam-edit')) {
       const slotId = target.getAttribute('data-slot');
       const host = getWamHost();
@@ -486,6 +489,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
 
   container.addEventListener('change', (e) => {
     const target = e.target as HTMLElement | null;
+    if (target && inputSection.onChange(target)) return;
     if (!target || target.id !== 'hud-sink-select') return;
     const select = target as HTMLSelectElement;
     const deviceId = select.value;

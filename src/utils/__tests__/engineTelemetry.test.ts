@@ -38,6 +38,7 @@ const fakeRuntime = {
   masterBudgetPercent: 42,
   totalUnderruns: 3,
   outputLatencyMs: 12.5,
+  stepLookaheadMs: 40,
   glitches: [],
   worklets: {
     clock: { cpuPercent: 5, underruns: 0, lastProcessUs: 100, lastQuantumUs: 2666, lastUpdate: Date.now() },
