@@ -105,6 +105,7 @@ export class EngineTelemetry {
     renderSizeHintRequested: null,
     renderQuantumSize: null,
     contextOptionFallback: null,
+    stepLookaheadMs: null,
     latencyHint: null,
     transportSync: null,
     wam2Slots: [],
@@ -173,6 +174,10 @@ export class EngineTelemetry {
     if (this.runtime.glitches.length > MAX_GLITCH_EVENTS) {
       this.runtime.glitches.shift();
     }
+  }
+
+  recordStepLookahead(ms: number): void {
+    this.runtime.stepLookaheadMs = ms;
   }
 
   recordOutputLatency(latencyMs: number): void {
@@ -443,6 +448,7 @@ export class EngineTelemetry {
       renderSizeHintRequested: this.runtime.renderSizeHintRequested,
       renderQuantumSize: this.runtime.renderQuantumSize,
       contextOptionFallback: this.runtime.contextOptionFallback,
+      stepLookaheadMs: this.runtime.stepLookaheadMs,
       transportSync: this.runtime.transportSync,
       wam2Slots: this.runtime.wam2Slots.slice(),
       wam2Constraints: this.runtime.wam2Constraints,

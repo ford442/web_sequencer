@@ -111,6 +111,8 @@ export type RuntimeTelemetry = {
   renderQuantumSize: number | null;
   /** Why renderSizeHint / constructor sinkId was dropped (null if honoured). */
   contextOptionFallback: string | null;
+  /** Step lookahead the internal clock was given, derived from the live context's latency (ms). */
+  stepLookaheadMs: number | null;
   transportSync: TransportSyncTelemetry | null;
   wam2Slots: Wam2SlotTelemetry[];
   wam2Constraints: Wam2RuntimeConstraints | null;
@@ -220,6 +222,8 @@ export interface RuntimeSnapshot {
   renderQuantumSize: number | null;
   /** Why renderSizeHint / constructor sinkId was dropped (null if honoured). */
   contextOptionFallback: string | null;
+  /** Step lookahead the internal clock was given, derived from the live context's latency (ms). */
+  stepLookaheadMs: number | null;
   /** MIDI transport sync telemetry (master/slave/internal). */
   transportSync: TransportSyncTelemetry | null;
   /** WAM2 host slots (Phase A compatibility spike). */
