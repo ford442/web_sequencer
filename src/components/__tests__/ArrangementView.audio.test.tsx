@@ -6,20 +6,27 @@ import type { Arrangement, AudioClip } from '@/types';
 import type { TrackKey } from '@/constants/appDefaults';
 import { createArrangement, placeClip } from '@/arrangement/model';
 import { EMPTY_AUDIO_TRACK_STATE } from '@/arrangement/audioTracks';
+import { arrangementPlayhead } from '@/arrangement/playhead';
+import { buildPeaks } from '@/audio/media/peaks';
+import { peakCache } from '@/audio/media/peakCache';
 import { audioTrackStore } from '@/stores/audioTrackStore';
 import { trackMuteSoloStore } from '@/stores/trackMuteSoloStore';
 import { transportMixStore } from '@/stores/transportMixStore';
 import { mediaLengthSteps } from '../arrangement/useAudioImport';
 
 const MEDIA = 'f'.repeat(64);
-vi.mock('@/audio/media/importAudioFile', () => ({
-    importAudioFile: vi.fn((file: File) => Promise.resolve({
-        mediaId: 'f'.repeat(64),
-        ref: { name: file.name, sampleRate: 48000, channels: 2, frames: 48000 * 2 },
-        created: true,
-        decoder: 'wav',
-    })),
-}));
+vi.mock('@/audio/media/importAudioFile', async () => {
+    const { buildPeaks: peaksOf } = await import('@/audio/media/peaks');
+    return {
+        importAudioFile: vi.fn((file: File) => Promise.resolve({
+            mediaId: 'f'.repeat(64),
+            ref: { name: file.name, sampleRate: 48000, channels: 2, frames: 48000 * 2 },
+            created: true,
+            decoder: 'wav',
+            peaks: peaksOf([new Float32Array(48000 * 2), new Float32Array(48000 * 2)]),
+        })),
+    };
+});
 
 const { ArrangementView } = await import('../ArrangementView');
 
@@ -62,6 +69,7 @@ describe('ArrangementView audio tracks (#1629)', () => {
     afterEach(() => {
         act(() => audioTrackStore.set(EMPTY_AUDIO_TRACK_STATE));
         trackMuteSoloStore.reset();
+        arrangementPlayhead.publish(-1);
     });
 
     it('shows an audio lane with its clips, mute and solo', () => {
@@ -113,5 +121,98 @@ describe('ArrangementView audio tracks (#1629)', () => {
         expect(mediaLengthSteps({ frames: 48000, sampleRate: 48000 }, 120)).toBe(8);
         expect(mediaLengthSteps({ frames: 48001, sampleRate: 48000 }, 120)).toBe(9);
         expect(mediaLengthSteps({ frames: 1, sampleRate: 48000 }, 120)).toBe(1);
+    });
+});
+
+/** A 2 s stereo file at 48 kHz on Audio 1, and one clip of it at 120 BPM: a step is 6000 frames, 12 px. */
+function editHarness(patch: Partial<AudioClip> = {}) {
+    transportMixStore.setTempo(120);
+    audioTrackStore.set({
+        tracks: [{ id: 'audio-1', name: 'Vox', gainDb: 0, pan: 0 }],
+        media: { [MEDIA]: { name: 'vox.wav', sampleRate: 48000, channels: 2, frames: 96000 } },
+    });
+    const clip: AudioClip = {
+        kind: 'audio', id: 'clip-1', track: 'audio-1', mediaId: MEDIA, startStep: 16, lengthSteps: 16,
+        offsetFrames: 0, gainDb: 0, warp: 'off', ...patch,
+    };
+    render(<Harness initial={placeClip(createArrangement(64), clip)} />);
+    const block = screen.getByRole('button', { name: /^Vox audio clip/ });
+    block.getBoundingClientRect = () => ({ left: 0, width: 192, top: 0, height: 28, right: 192, bottom: 28, x: 0, y: 0, toJSON: () => ({}) });
+    return block;
+}
+
+function dragOn(block: HTMLElement, target: Element, from: [number, number], to: [number, number], init: { altKey?: boolean; shiftKey?: boolean } = {}) {
+    fireEvent.pointerDown(target, { button: 0, clientX: from[0], clientY: from[1], pointerId: 7, ...init });
+    fireEvent.pointerMove(block, { clientX: to[0], clientY: to[1], pointerId: 7, ...init });
+    fireEvent.pointerUp(block, { clientX: to[0], clientY: to[1], pointerId: 7, ...init });
+}
+
+describe('ArrangementView audio clip editing (#1629 P2)', () => {
+    afterEach(() => {
+        act(() => audioTrackStore.set(EMPTY_AUDIO_TRACK_STATE));
+        arrangementPlayhead.publish(-1);
+    });
+
+    it('drags the fades and the gain from the clip\'s top handles, one commit each', () => {
+        const block = editHarness();
+        const handle = (name: string) => block.querySelector(`[data-handle="${name}"]`)!;
+        dragOn(block, handle('fadeIn'), [10, 2], [22, 2]);
+        expect(latest().clips[0]).toMatchObject({ fadeInFrames: 6000 });
+        dragOn(block, handle('fadeOut'), [180, 2], [156, 2]);
+        expect(latest().clips[0]).toMatchObject({ fadeInFrames: 6000, fadeOutFrames: 12000 });
+        dragOn(block, handle('gain'), [96, 2], [96, -10]);
+        expect(latest().clips[0]).toMatchObject({ gainDb: 6 });
+        expect(latest().clips[0]).toMatchObject({ startStep: 16, lengthSteps: 16, offsetFrames: 0 });
+    });
+
+    it('slips the audio with Alt + drag and splits with Alt + click', () => {
+        const block = editHarness({ offsetFrames: 48000 });
+        // One beat (4 steps, 48 px) later: the anchor now plays 24000 frames in.
+        dragOn(block, block, [60, 10], [108, 10], { altKey: true });
+        expect(latest().clips).toHaveLength(1);
+        expect(latest().clips[0]).toMatchObject({ startStep: 16, offsetFrames: 24000 });
+        // A click at step 16 + 5.2 splits on the beat at 20.
+        dragOn(block, block, [62, 10], [62, 10], { altKey: true });
+        expect(latest().clips.map((c) => [c.id, c.startStep, c.lengthSteps, c.offsetSteps ?? 0])).toEqual([
+            ['clip-1', 16, 4, 0],
+            ['clip-2', 20, 12, 4],
+        ]);
+    });
+
+    it('splits with S at the playhead or in the middle, and nudges gain with the arrows', () => {
+        const block = editHarness();
+        fireEvent.keyDown(block, { key: 'ArrowUp' });
+        fireEvent.keyDown(block, { key: 'ArrowDown', altKey: true });
+        expect(latest().clips[0]).toMatchObject({ gainDb: 0.9 });
+        fireEvent.keyDown(block, { key: 's' });
+        expect(latest().clips.map((c) => [c.startStep, c.lengthSteps])).toEqual([[16, 8], [24, 8]]);
+        arrangementPlayhead.publish(18);
+        fireEvent.keyDown(screen.getAllByRole('button', { name: /^Vox audio clip/ })[0], { key: 'e', ctrlKey: true });
+        expect(latest().clips.map((c) => [c.startStep, c.lengthSteps])).toEqual([[16, 2], [18, 6], [24, 8]]);
+    });
+
+    it('edits fades and slip in milliseconds in the inspector', () => {
+        const block = editHarness();
+        fireEvent.focus(block);
+        fireEvent.change(screen.getByLabelText(/^FADE IN/), { target: { value: '250' } });
+        fireEvent.change(screen.getByLabelText(/^FADE OUT/), { target: { value: '10.5' } });
+        fireEvent.change(screen.getByLabelText(/^SLIP/), { target: { value: '1000' } });
+        expect(latest().clips[0]).toMatchObject({ fadeInFrames: 12000, fadeOutFrames: 504, offsetFrames: 48000 });
+        fireEvent.change(screen.getByLabelText(/^FADE IN/), { target: { value: '0' } });
+        expect(latest().clips[0]).not.toHaveProperty('fadeInFrames');
+        fireEvent.click(screen.getByRole('button', { name: 'SPLIT' }));
+        expect(latest().clips).toHaveLength(2);
+    });
+
+    it('draws the waveforms on a canvas behind the audio lanes, asking for their peaks', () => {
+        const request = vi.spyOn(peakCache, 'request');
+        peakCache.prime(MEDIA, buildPeaks([new Float32Array(96000)]));
+        editHarness();
+        const layer = screen.getByTestId('arrangement-waveforms');
+        expect(layer).toHaveAttribute('aria-hidden', 'true');
+        expect(layer.style.top).toBe(`${22 + 8 * 34}px`);
+        expect(layer.querySelector('canvas')).not.toBeNull();
+        expect(request).toHaveBeenCalledWith(new Set([MEDIA]));
+        request.mockRestore();
     });
 });

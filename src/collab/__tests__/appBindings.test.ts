@@ -18,9 +18,9 @@ import { addAudioTrack, updateAudioTrack } from '@/arrangement/audioTracks';
 import { automationStore } from '@/stores/automationStore';
 import { noteFxStore } from '@/stores/noteFxStore';
 import { defaultNoteFxChain } from '@/sequencer/noteFx/types';
-import { placeClip } from '@/arrangement/model';
+import { placeClip, splitClip, updateClip } from '@/arrangement/model';
 import { getActivePatchController, restorePatchFromSong } from '@/audio/graph';
-import type { SavedSongData, UnifiedAutomationLane } from '@/types';
+import type { Arrangement, AudioClip, SavedSongData, UnifiedAutomationLane } from '@/types';
 
 function resetStores(): void {
     patternStore.reset();
@@ -164,6 +164,43 @@ describe('app bindings: audio track strips', () => {
         expect(liveProject.readField('audioTracks')).toEqual([{ id: 'audio-1', name: 'Audio 1', gainDb: -6, pan: 0 }]);
         expect(liveProject.undo()).toBe(true);
         expect(audioTrackStore.getSnapshot().tracks[0].gainDb).toBe(0);
+    });
+});
+
+describe('app bindings: audio clip edits (#1629 P2)', () => {
+    it('trim, split, fades, gain and slip are named steps, each undone back to the import', () => {
+        const clip: AudioClip = {
+            kind: 'audio', id: 'clip-1', track: 'audio-1', mediaId: 'e'.repeat(64), startStep: 0, lengthSteps: 16,
+            offsetFrames: 0, gainDb: 0, warp: 'off',
+        };
+        liveProject.edit('load', () => {
+            audioTrackStore.set((s) => addAudioTrack(s).state);
+            arrangementStore.set((a) => placeClip(a, clip));
+        });
+        const steps: [string, (a: Arrangement) => Arrangement][] = [
+            ['resize clip', (a) => updateClip(a, 'clip-1', { startStep: 4, lengthSteps: 12, offsetSteps: 4 })],
+            ['split clip', (a) => splitClip(a, 'clip-1', 8).arrangement],
+            ['fade in clip', (a) => updateClip(a, 'clip-1', { fadeInFrames: 4800 })],
+            ['fade out clip', (a) => updateClip(a, 'clip-2', { fadeOutFrames: 9600 })],
+            ['Clip gain 0 dB → -3 dB', (a) => updateClip(a, 'clip-2', { gainDb: -3 })],
+            ['slip clip', (a) => updateClip(a, 'clip-1', { offsetFrames: 2400 })],
+        ];
+        const states = [arrangementStore.getSnapshot()];
+        for (const [, apply] of steps) {
+            // Edits of one kind within the capture window join one step; a pause ends it.
+            liveProject.beginStep('human');
+            liveProject.beginGesture();
+            arrangementStore.set(apply);
+            states.push(arrangementStore.getSnapshot());
+        }
+        expect(labels()).toEqual(steps.map(([label]) => label));
+        expect(liveProject.readField('arrangement')).toEqual(states.at(-1));
+        for (let i = states.length - 2; i >= 0; i--) {
+            expect(liveProject.undo()).toBe(true);
+            expect(arrangementStore.getSnapshot()).toEqual(states[i]);
+        }
+        expect(liveProject.redo()).toBe(true);
+        expect(arrangementStore.getSnapshot()).toEqual(states[1]);
     });
 });
 

@@ -79,6 +79,14 @@ describe('audio clips on the arrangement (v6)', () => {
         expect(removeClip(arrangement, id).clips).toEqual([]);
     });
 
+    it('keeps an edited audio clip valid: whole frames, gain in range, no zero fade (#1629 P2)', () => {
+        const arr = placeClip(createArrangement(64), audio({ id: 'a', startStep: 0, lengthSteps: 16, fadeInFrames: 480 }));
+        const edited = find(updateClip(arr, 'a', { fadeInFrames: 0, fadeOutFrames: 99.6, offsetFrames: -20, gainDb: 60 }), 'a');
+        expect(edited).not.toHaveProperty('fadeInFrames');
+        expect(edited).toMatchObject({ fadeOutFrames: 100, offsetFrames: 0, gainDb: 24 });
+        expect(find(updateClip(arr, 'a', { offsetFrames: 1234.4, gainDb: Number.NaN }), 'a')).toMatchObject({ offsetFrames: 1234, gainDb: 0 });
+    });
+
     it('leaves audio clips out of the Song Mode projection', () => {
         const arr = placeClip(createArrangement(32), audio({ id: 'a', startStep: 0, lengthSteps: 32 }));
         expect(projectArrangement(arr, 16).every((m) => Object.values(m).every((v) => v === null))).toBe(true);

@@ -200,6 +200,18 @@ export function addClip(
     return { arrangement: placeClip(arrangement, { ...clip, id } as ArrangementClip), id };
 }
 
+/** An edited audio clip kept valid: whole frames, gain in range, a zero fade left out. */
+function tidyAudioEdit(clip: AudioClip): void {
+    clip.offsetFrames = Math.max(0, Math.round(Number.isFinite(clip.offsetFrames) ? clip.offsetFrames : 0));
+    const [minDb, maxDb] = AUDIO_CLIP_GAIN_DB_RANGE;
+    clip.gainDb = Number.isFinite(clip.gainDb) ? Math.min(maxDb, Math.max(minDb, clip.gainDb)) : 0;
+    for (const key of ['fadeInFrames', 'fadeOutFrames'] as const) {
+        const frames = Math.round(clip[key] ?? 0);
+        if (Number.isFinite(frames) && frames > 0) clip[key] = frames;
+        else delete clip[key];
+    }
+}
+
 export function updateClip(
     arrangement: Arrangement,
     id: string,
@@ -212,6 +224,7 @@ export function updateClip(
     if (isAudioClip(clip) !== isAudioTrackKey(next.track)) return arrangement;
     next.startStep = Math.max(0, Math.round(next.startStep));
     next.lengthSteps = Math.max(1, Math.round(next.lengthSteps));
+    if (isAudioClip(next)) tidyAudioEdit(next);
     // A head trim moves `offsetSteps` and the lane origin together (#1494),
     // unless the patch brings its own lanes.
     const headShift = (next.offsetSteps ?? 0) - (clip.offsetSteps ?? 0);

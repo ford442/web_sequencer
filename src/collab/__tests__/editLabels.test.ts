@@ -43,8 +43,13 @@ describe('clip labels', () => {
     it('names a clip gain change', () => {
         expect(label({ arrangement: arrangement(clip('c1')) }, { arrangement: arrangement(clip('c1', { gainDb: -3 })) }))
             .toBe('Clip gain 0 dB → -3 dB');
-        expect(label({ arrangement: arrangement(clip('c1')) }, { arrangement: arrangement(clip('c1', { fadeInFrames: 480 })) }))
-            .toBe('edit clip fades');
+    });
+
+    it('names fade and slip edits (#1629 P2)', () => {
+        const before = { arrangement: arrangement(clip('c1')) };
+        expect(label(before, { arrangement: arrangement(clip('c1', { fadeInFrames: 480 })) })).toBe('fade in clip');
+        expect(label(before, { arrangement: arrangement(clip('c1', { fadeOutFrames: 480 })) })).toBe('fade out clip');
+        expect(label(before, { arrangement: arrangement(clip('c1', { offsetFrames: 1200 })) })).toBe('slip clip');
     });
 
     it('calls a head trim a resize and a drag along the lane a move', () => {

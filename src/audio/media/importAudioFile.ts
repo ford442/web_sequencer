@@ -7,6 +7,10 @@
  * rate, which is the rate it plays at anyway. More than two channels are mixed
  * down to stereo (even channels left, odd right): every audio track is a
  * stereo strip.
+ *
+ * The import also builds the media's waveform peaks from the audio it just
+ * decoded (one more pass over data it already holds) and stores them next
+ * to the media, so the timeline draws the clip without reading it back.
  */
 
 import type { MediaRef } from '@/types/song';
@@ -14,6 +18,7 @@ import { createOfflineContext } from '@/audio/offline/createOfflineContext';
 import { audioRuntime } from '@/audio/runtime/AudioRuntime';
 import { decodeWav, type DecodedAudio } from './wav';
 import { mediaStore, type MediaStore } from './MediaStore';
+import { buildPeaks, type PeakPyramid } from './peaks';
 
 /** Longest audio an import accepts (a full album side, not a mistake). */
 export const MAX_IMPORT_SECONDS = 60 * 60;
@@ -25,6 +30,8 @@ export interface ImportedMedia {
     created: boolean;
     /** How it was decoded. */
     decoder: 'wav' | 'browser';
+    /** Its waveform peaks (also in the store, next to the media). */
+    peaks: PeakPyramid;
 }
 
 export interface ImportAudioOptions {
@@ -84,10 +91,16 @@ export async function importAudioFile(
     }
     const planar = toStereo(decoded.channels);
     const stored = await store.put(planar, decoded.sampleRate);
+    const peaks = buildPeaks(planar);
+    // Peaks are derived: a write that fails costs a rebuild when the clip is drawn, not the import.
+    await store.writePeaks(stored.id, peaks).catch((err: unknown) => {
+        console.warn(`[import] ${name}: could not store waveform peaks:`, err);
+    });
     return {
         mediaId: stored.id,
         ref: { name, sampleRate: stored.sampleRate, channels: stored.channels, frames: stored.frames },
         created: stored.created,
         decoder,
+        peaks,
     };
 }
