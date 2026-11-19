@@ -131,7 +131,7 @@ export function usePatternHandlers(deps: {
             const newBank = { ...newSampler[bankIndex] };
             newBank.steps = [...newBank.steps];
             if (newBank.steps[step]) {
-                newBank.steps[step] = { ...newBank.steps[step]!, phonemes };
+                newBank.steps[step] = { ...newBank.steps[step], phonemes };
             } else {
                 newBank.steps[step] = { note: 'C4', velocity: 1, length: 1, phonemes };
             }
@@ -145,7 +145,7 @@ export function usePatternHandlers(deps: {
     const handleNoteSelect = useCallback((note: string) => {
         if (!contextMenu) return;
 
-        const trackKey = contextMenu.track as TrackKey;
+        const trackKey = contextMenu.track;
         const stepIndex = contextMenu.step;
 
         setPattern(prev => {

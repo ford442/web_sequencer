@@ -7,9 +7,10 @@
  *     StartOverlay E2E patch. Aliases are resolved the cheap way: any file
  *     that reads `window.AudioContext` / `webkitAudioContext` is flagged.
  *  2. No `.addModule(` outside the runtime — load through `loadWorkletModule`.
- *  3. No `.resume()` outside the runtime — call `ensureRunning`. The one
- *     exception is the offline vocal host's suspend/resume pair on a render
- *     context (not a gesture, not the live context).
+ *  3. No `.resume()` outside the runtime — call `ensureRunning`. The
+ *     exceptions are the offline vocal host's suspend/resume pair on a render
+ *     context, and the ?e2e=1 AudioContext probe's own throwaway contexts
+ *     (neither is the live context).
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -26,6 +27,9 @@ const CONSTRUCTOR_ALLOW = new Set([
 ]);
 const RESUME_ALLOW = new Set([
     'audio/offline/vocal/offlineVocalHost.ts', // suspend/resume pair on an OfflineAudioContext render
+    // ?e2e=1 only: resumes the throwaway contexts it builds through the factory
+    // to report what they negotiate (tests/audio-context-matrix.spec.ts), never the live one.
+    'e2e/audioContextProbe.ts',
 ]);
 
 const isTestFile = (p: string) =>
@@ -88,7 +92,7 @@ describe('audio runtime guards (#1596)', () => {
         expect(hits, `use loadWorkletModule(context, url, processorName):\n${hits.join('\n')}`).toEqual([]);
     });
 
-    it('resumes contexts only in the runtime (offline vocal host excepted)', () => {
+    it('resumes contexts only in the runtime (offline vocal host and the E2E probe excepted)', () => {
         const hits = offences(RESUMES, (p) => RESUME_ALLOW.has(p));
         expect(hits, `use ensureRunning(gesture):\n${hits.join('\n')}`).toEqual([]);
     });

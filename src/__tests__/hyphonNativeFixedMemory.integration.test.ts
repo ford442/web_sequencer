@@ -51,7 +51,7 @@ describe.each(PROFILES)('hyphon_native ($threading) fixed memory', ({ threading,
         expect(memory.maximum).toBe(artifact.maxMemoryPages);
     });
 
-    it('is instantiated with exactly that memory by the worklet path', async () => {
+    it('is instantiated with exactly that memory by the worklet path', () => {
         requireRepoArtifacts([wasmRel]);
         const memory = createHyphonMemory(artifact.minMemoryPages, artifact.sharedMemory);
         expect(memory.buffer.byteLength).toBe(artifact.minMemoryPages * 65536);

@@ -438,7 +438,7 @@ export const BottomBar = memo(function BottomBar({
 
                 {/* Tape Stop Button */}
                 <button type="button"
-                    onClick={() => audioEngine?.triggerTapeStop?.(2.0)}
+                    onClick={() => { audioEngine?.triggerTapeStop?.(2.0); }}
                     className="h-6 px-2 bg-amber-900/80 hover:bg-amber-800 text-amber-200 hover:text-amber-100 border border-amber-700 text-[10px] font-bold uppercase tracking-wider transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1014] rounded hover:scale-105 active:scale-95"
                     title="Tape Stop (Escape)"
                     aria-label="Trigger Tape Stop Effect"

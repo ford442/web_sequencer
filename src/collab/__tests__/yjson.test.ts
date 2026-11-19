@@ -141,6 +141,52 @@ describe('conflicting edits converge without losing the shape', () => {
     });
 });
 
+describe('atoms through the binary encoding', () => {
+    /** `{ [key]: value }` with `key` as an own property, even `__proto__`. */
+    const own = (key: string, value: Json): Json => {
+        const out = {};
+        Object.defineProperty(out, key, { value, enumerable: true, writable: true, configurable: true });
+        return out as Json;
+    };
+    const viaUpdate = (doc: Y.Doc): Json => {
+        const copy = new Y.Doc();
+        Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
+        return read(copy);
+    };
+
+    // fast-check found this one: a peer used to receive `{ blob: {} }`.
+    it('keep a __proto__ key on the peer that receives them', () => {
+        for (const blob of [own('__proto__', false), own('__proto__', { x: 1 }), [own('__proto__', null)]] as Json[]) {
+            const doc = makeDoc({ blob });
+            expect(JSON.stringify(viaUpdate(doc))).toBe(JSON.stringify({ blob }));
+            expect(JSON.stringify(read(doc))).toBe(JSON.stringify({ blob }));
+            const [a, b] = fork({}, { blob }, {});
+            expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+        }
+    });
+
+    it('keep keys that look like the escapes, and store ordinary atoms unchanged', () => {
+        const blob = { '\u0001x': 1, '\u0001__proto__': 2, '\u0001\u0001y': 3, plain: { a: [1] } } as Json;
+        const doc = makeDoc({ blob });
+        expect(viaUpdate(doc)).toEqual({ blob });
+        expect(read(doc)).toEqual({ blob });
+        expect(makeDoc({ blob: { a: [1, 2] } }).getMap('root').get('blob')).toEqual({ a: [1, 2] });
+    });
+
+    it('rewrite nothing when an escaped atom is written again', () => {
+        const doc = makeDoc({ blob: own('__proto__', 1) });
+        const before = Y.encodeStateVector(doc);
+        write(doc, { blob: own('__proto__', 1) });
+        expect(Y.encodeStateAsUpdate(doc, before).byteLength).toBeLessThanOrEqual(2);
+    });
+
+    it('read an atom stored before keys were escaped as it was written', () => {
+        const doc = new Y.Doc();
+        doc.getMap('root').set('blob', { '\u0001x': 1, y: 2 });
+        expect(read(doc)).toEqual({ blob: { '\u0001x': 1, y: 2 } });
+    });
+});
+
 describe('convergence (property)', () => {
     const value = fc.jsonValue({ maxDepth: 3 }) as fc.Arbitrary<Json>;
     const doc = fc.dictionary(fc.constantFrom('steps', 'clips', 'lyrics', 'blob', 'other'), value, { maxKeys: 4 });
