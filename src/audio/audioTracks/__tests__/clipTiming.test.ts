@@ -44,7 +44,8 @@ describe('clipSourceFrameAt', () => {
             expect(clipSourceFrameAt(clip, pos, clock, 44100)).toBeCloseTo(resampled.sourceStart + resampled.spec.frac, 6);
             // At the context rate it starts on the nearest whole frame.
             const exact = clipVoiceSpec(clip, pos, 0, (s) => s & 1, clock, 44100, media)!;
-            expect(Math.abs(clipSourceFrameAt(clip, pos, clock, 44100) - exact.sourceStart)).toBeLessThanOrEqual(0.5);
+            // 0.5 is a rounding tie; allow float noise there (seed 524158042 hit 0.5 + 3.6e-12).
+            expect(Math.abs(clipSourceFrameAt(clip, pos, clock, 44100) - exact.sourceStart)).toBeLessThanOrEqual(0.5 + 1e-9);
         }));
     });
 
