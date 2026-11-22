@@ -1,0 +1,69 @@
+name: Staging deploy
+
+# Manual: build the exact release bundle from a ref, deploy it to the STAGING
+# folder of the deploy host (never production), then verify the response headers
+# (COOP/COEP/CORP) and that the host serves this commit.
+#
+# One-time setup (repo settings, outside this workflow):
+#   secrets.DEPLOY_TOKEN              deploy token (same as production's)
+#   vars.DEPLOY_STAGING_ENDPOINT      bundle endpoint of a staging folder on the deploy host
+#   vars.STAGING_URL                  public URL of that folder, e.g. https://host/hyphon-staging/
+# The staging folder itself must exist server-side and be served with the same
+# COOP/COEP/CORP headers as production; this workflow fails if it is not.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or SHA to build and deploy to staging
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: true
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache pinned emscripten
+        uses: actions/cache@v4
+        with:
+          path: .cache/emsdk
+          key: emsdk-${{ runner.os }}-${{ hashFiles('emscripten/toolchain.json') }}
+
+      - name: Install pinned emscripten
+        run: pnpm run setup:emsdk
+
+      - name: Build release bundle (build + check-release-dist)
+        run: pnpm run build
+
+      - name: Deploy to staging
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_STAGING_ENDPOINT: ${{ vars.DEPLOY_STAGING_ENDPOINT }}
+        run: python3 deploy.py --target staging
+
+      - name: Verify headers and served commit
+        run: node scripts/check-deploy-headers.mjs "${{ vars.STAGING_URL }}" --expect-sha "$(git rev-parse HEAD)"

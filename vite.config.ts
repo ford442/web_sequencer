@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import type { Plugin, ResolvedConfig } from 'vite';
 import unitTestConfig from './vitest.unit.config.ts';
@@ -107,10 +108,31 @@ function hyphonThirdPartyNoticesPlugin(): Plugin {
   };
 }
 
+/**
+ * Stops `vite build` up front, with the exact command to run, when the generated
+ * native artifacts it imports (src/wasm/*.wasm, public/hyphon_native*.wasm, ...) are
+ * absent — instead of failing later with opaque UNRESOLVED_IMPORT errors.
+ * The logic lives in scripts/check-build-prereqs.mjs so `pnpm run build:web` and
+ * a bare `vite build` give the same answer.
+ */
+function hyphonBuildPrereqsPlugin(): Plugin {
+  return {
+    name: 'hyphon-build-prereqs',
+    apply: 'build',
+    buildStart() {
+      const script = path.join(import.meta.dirname, 'scripts', 'check-build-prereqs.mjs');
+      const result = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+      if (result.status !== 0) {
+        this.error(`\n${result.stderr || result.stdout || 'build prerequisites missing'}`);
+      }
+    },
+  };
+}
+
 export default mergeConfig(
   vitestSharedConfig,
   defineConfig({
-    plugins: [hyphonPrecacheManifestPlugin(), hyphonThirdPartyNoticesPlugin()],
+    plugins: [hyphonBuildPrereqsPlugin(), hyphonPrecacheManifestPlugin(), hyphonThirdPartyNoticesPlugin()],
     server: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

@@ -16,6 +16,7 @@ import { useCallback, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { Open303Manager } from '../engines/Open303Manager';
 import type { AudioEngine, Pattern, PartSequence, SavedSongData, DrumKitType, ResolvedTrakEvent } from '../types';
+import { CloudStorage } from '../services/CloudStorage';
 import type { CloudItemType } from '../services/CloudStorage';
 import type { AISongData } from '../importers/ai-song';
 import type { TrackKey } from '../constants/appDefaults';
@@ -260,7 +261,6 @@ export function useSongStorage(deps: SongStorageDeps): SongStorageReturn {
             setAiImportStage('uploading');
             setAiImportProgress(60);
             try {
-                const { CloudStorage } = await import('../services/CloudStorage');
                 await CloudStorage.uploadItem({
                     name: aiData.meta.title,
                     data: song,

@@ -38,6 +38,25 @@ function toolVersion(repoRoot, cmd, args) {
   }
 }
 
+/**
+ * emcc is usually not on PATH of the node process that writes the manifest (the
+ * build scripts source emscripten/toolchain_env.sh in their own bash), so resolve
+ * it the same way they do: through the pin-checking helper.
+ */
+function pinnedEmccVersion(repoRoot) {
+  try {
+    const r = spawnSync(
+      'bash',
+      ['-c', 'source emscripten/toolchain_env.sh >/dev/null 2>&1 && emcc -dumpversion'],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+    if (r.status !== 0) return null;
+    return r.stdout.trim().split('\n').pop() || null;
+  } catch {
+    return null;
+  }
+}
+
 function gitRev(repoRoot, dir = '.') {
   try {
     const r = spawnSync('git', ['-C', path.join(repoRoot, dir), 'rev-parse', 'HEAD'], {
@@ -147,7 +166,8 @@ export function buildNativeManifest({ repoRoot = defaultRepoRoot(), profile = 'r
     profile,
     toolchains: {
       emcc: toolVersion(repoRoot, 'emcc', ['-dumpversion']) ??
-        toolVersion(repoRoot, 'emcc', ['--version']),
+        toolVersion(repoRoot, 'emcc', ['--version']) ??
+        pinnedEmccVersion(repoRoot),
       rustc: toolVersion(repoRoot, 'rustc', ['--version']),
       asc: pkg.devDependencies?.assemblyscript ?? null,
       node: process.version,

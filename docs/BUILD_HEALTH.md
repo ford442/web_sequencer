@@ -31,7 +31,7 @@
 - `emcc` (Emscripten) — required by `build:emcc` and `build:wasm:jc303` (`tools/build_jc303_omp.sh`). **Genuinely absent** (not an npm dep).
 - ~~`wasm-opt` (binaryen) **and** `wasmedge` — required by `tools/optimize.sh`~~ — *superseded 2026-10-14: `tools/optimize.sh` is deleted; the pinned emsdk's in-band `wasm-opt` runs at the `-O3` link.*
 - `bench:wasm:rust` (`wasm-pack`) needs network to fetch crates. Bench-only since #1294 — not part of `build:native`.
-- `asc` / `wasm-pack` themselves are fine via `node_modules` (npx-runnable).
+- `asc` is fine via `node_modules`. `wasm-pack` is no longer an npm dependency (see docs/deployment/RELEASE_BUILD.md).
 
 The repo **commits prebuilt WASM** (`src/wasm/*.wasm`, `public/*.wasm`), which is why `vite build` succeeds despite the missing compilers — but it also **masks** that the WASM stages are unreproducible without a documented/pinned toolchain.
 
@@ -131,7 +131,7 @@ Run 2026-10-20 (UTC) in a fresh cloud container, Node 22.22.0, pnpm 12.3.4. **Ba
 
 | Command | Outcome |
 |---|---|
-| `pnpm install --frozen-lockfile` | exit 0. On a cold store the `wasm-pack` postinstall fails behind the sandbox proxy (GitHub release download → HTTP 405); `--ignore-scripts` works around it. `wasm-pack` is bench-only, so nothing the release needs depends on it |
+| `pnpm install --frozen-lockfile` | exit 0. (`wasm-pack` was removed from devDependencies in Release 1/5: its postinstall binary download failed on network-restricted machines. It is bench-only — `cargo install wasm-pack --locked`.) |
 | `pnpm run vendor:pyodide` | exit 0, v0.26.1 + numpy / scipy / openblas → `public/pyodide/` 76 MB |
 
 ### 3. `pnpm run build`

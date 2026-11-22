@@ -14,9 +14,24 @@ dist/ is re-validated by scripts/check-release-dist.mjs before anything is
 uploaded: this script ships whatever is on disk, so a passing build:release
 earlier is not evidence about the bundle in front of it.
 
+Targets:
+    production (default)  DEPLOY_ENDPOINT or the built-in endpoint above.
+    staging               --target staging. Needs DEPLOY_STAGING_ENDPOINT: the
+                          bundle endpoint of a staging folder on the deploy host
+                          (nothing is assumed -- the script refuses to guess and
+                          never falls back to production).
+
+Verification (the `curl -I` step): with --verify-url (or DEPLOY_VERIFY_URL) the
+script runs scripts/check-deploy-headers.mjs against the deployed URL after the
+upload: COOP/COEP/CORP on index.html and hyphon_native.wasm, and that the host
+serves this checkout's commit (native-artifacts.json). A failed check exits 1.
+You can run it on its own: `pnpm run check:deploy-headers -- <url>`.
+
 Usage:
     DEPLOY_TOKEN=... python deploy.py [--dry-run] [--include-sourcemaps]
                                       [--skip-checks]
+                                      [--target {production,staging}]
+                                      [--verify-url URL]
 """
 
 from __future__ import annotations
@@ -36,6 +51,7 @@ ENDPOINT = os.environ.get(
     "DEPLOY_ENDPOINT",
     "https://storage.noahcohn.com/api/deploy/web-sequencer/bundle",
 )
+STAGING_ENDPOINT = os.environ.get("DEPLOY_STAGING_ENDPOINT")
 REPO_ROOT = Path(__file__).resolve().parent
 DIST_DIR = REPO_ROOT / "dist"
 EXCLUDED_DIRS = {".git", "node_modules", "__pycache__"}
@@ -98,7 +114,21 @@ def _multipart_body(field_name: str, filename: str, data: bytes, content_type: s
     return body, f"multipart/form-data; boundary={boundary}"
 
 
-def upload(archive: bytes, token: str) -> None:
+def verify_deployed(url: str) -> bool:
+    """Run the header + served-commit check against the deployed URL."""
+    script = REPO_ROOT / "scripts" / "check-deploy-headers.mjs"
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, check=True, capture_output=True, text=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        sha = ""
+    cmd = ["node", str(script), url] + (["--expect-sha", sha] if sha else [])
+    print(f"verifying {url} ...")
+    return subprocess.run(cmd, cwd=REPO_ROOT, check=False).returncode == 0
+
+
+def upload(archive: bytes, token: str, endpoint: str = ENDPOINT) -> None:
     # API expects multipart form upload with field name archive|bundle|file
     # (not a raw application/zip body).
     body, content_type = _multipart_body(
@@ -108,7 +138,7 @@ def upload(archive: bytes, token: str) -> None:
         content_type="application/zip",
     )
     request = urllib.request.Request(
-        ENDPOINT,
+        endpoint,
         data=body,
         method="POST",
         headers={
@@ -140,7 +170,29 @@ def main() -> int:
         action="store_true",
         help="upload even if scripts/check-release-dist.mjs fails (last resort)",
     )
+    parser.add_argument(
+        "--target",
+        choices=("production", "staging"),
+        default="production",
+        help="where to deploy (staging needs DEPLOY_STAGING_ENDPOINT)",
+    )
+    parser.add_argument(
+        "--verify-url",
+        default=os.environ.get("DEPLOY_VERIFY_URL"),
+        help="after the upload, check COOP/COEP/CORP + served commit at this URL",
+    )
     args = parser.parse_args()
+
+    endpoint = ENDPOINT
+    if args.target == "staging":
+        if not STAGING_ENDPOINT:
+            print(
+                "error: --target staging needs DEPLOY_STAGING_ENDPOINT (the staging "
+                "folder's bundle endpoint); refusing to fall back to production",
+                file=sys.stderr,
+            )
+            return 1
+        endpoint = STAGING_ENDPOINT
 
     if not DIST_DIR.is_dir():
         print(f"error: {DIST_DIR} not found -- run the build first", file=sys.stderr)
@@ -174,9 +226,9 @@ def main() -> int:
         print("dry run -- not uploading")
         return 0
 
-    print(f"uploading to {ENDPOINT} ...")
+    print(f"uploading to {endpoint} ({args.target}) ...")
     try:
-        upload(archive, token)
+        upload(archive, token, endpoint)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace").strip()
         print(f"error: HTTP {exc.code} {detail}", file=sys.stderr)
@@ -186,6 +238,9 @@ def main() -> int:
         return 1
 
     print("deployed")
+    if args.verify_url and not verify_deployed(args.verify_url):
+        print("error: deployed, but the served bundle failed verification", file=sys.stderr)
+        return 1
     return 0
 
 

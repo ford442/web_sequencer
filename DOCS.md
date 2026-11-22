@@ -37,6 +37,7 @@ Only these markdown files may live at the repository root. `pnpm run check:root`
 | [docs/README.md](docs/README.md) | Subsystem doc index (duplicate navigation aid) |
 | [docs/DEVELOPER_CONTEXT.md](docs/DEVELOPER_CONTEXT.md) | Onboarding context and architecture overview |
 | [docs/BUILD_HEALTH.md](docs/BUILD_HEALTH.md) | CI/build health status and known issues |
+| [docs/deployment/RELEASE_BUILD.md](docs/deployment/RELEASE_BUILD.md) | Fresh-checkout release build, native artifacts without emsdk, justified build warnings, staging deploy + header check |
 | [docs/weekly_plan.md](docs/weekly_plan.md) | Current weekly focus, ideas, and completed tasks (auto-maintained) |
 | [docs/features-implementation.md](docs/features-implementation.md) | Feature implementation tracking notes |
 | [docs/plan.md](docs/plan.md) | High-level project planning notes |

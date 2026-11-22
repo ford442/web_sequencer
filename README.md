@@ -66,16 +66,21 @@ A separate Playwright smoke test (`tests/knob-canvas-smoke.spec.ts`) forces the 
 checks that knob canvases render non-blank output (no screenshot comparisons).
 
 ## Build
-The native build needs the submodules (`jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices):
+From a fresh clone (works on a network-restricted machine once the packages are fetched):
 ```bash
 git submodule update --init --depth 1 jc303_wasm third_party/eurorack third_party/stmlib
+pnpm install --frozen-lockfile
+pnpm run setup:emsdk        # pinned emcc into .cache/emsdk (linux-x64; or use your own emsdk)
+pnpm run build              # build:release — native + Pyodide + Vite + release gate (no JS source maps)
 ```
 
 ```bash
-pnpm run build              # build:release — native + export check + Vite (no JS source maps)
-pnpm run build:web          # typecheck + Vite using already-built artifacts
+pnpm run build:web          # typecheck + Vite using already-built artifacts (stops early if any are missing)
 pnpm run build:native:changed
 ```
+
+Prerequisites, the "no emsdk" path (restoring CI-built native artifacts), the justified build
+warnings and the staging deploy are in [docs/deployment/RELEASE_BUILD.md](docs/deployment/RELEASE_BUILD.md).
 
 ## Preview Production Build
 ```bash
@@ -84,7 +89,8 @@ pnpm run preview
 
 ## Deploy
 ```bash
-pnpm run deploy
+pnpm run deploy                                   # production (DEPLOY_TOKEN required)
+python deploy.py --target staging --verify-url …  # staging + COOP/COEP/CORP + served-commit check
 ```
 
 ## SVG Demo

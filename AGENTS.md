@@ -699,8 +699,8 @@ interface Note {
 
 WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
 
-1. **Emscripten 6.0.13** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.13 && ./emsdk activate 6.0.13`. The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
-2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (wasm-pack ships via `pnpm`; use `pnpm exec wasm-pack`).
+1. **Emscripten 6.0.13** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.13 && ./emsdk activate 6.0.13`. On linux-x64 `pnpm run setup:emsdk` installs the same pinned build into `.cache/emsdk` with no git/emsdk checkout (found automatically by `emscripten/toolchain_env.sh`). The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
+2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (`wasm-pack` is NOT an npm dependency — its postinstall download broke `pnpm install` offline; install it with `cargo install wasm-pack --locked`; `pnpm run bench:wasm:rust` tells you if it is missing).
 3. **Git submodules**: `git submodule update --init --recursive` (required for `jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices).
 
 ### First WASM build per workspace
@@ -738,7 +738,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 
 - **`pnpm run dev` is slow**: it always rebuilds all Four Worlds before Vite. Use `pnpm run dev:fast` after a successful `build:native` / `build:native:changed` when source hashes still match.
 - **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
-- **pnpm ignored build scripts**: if `wasm-pack` is missing, use `pnpm exec wasm-pack` (bundled in devDependencies).
+- **wasm-pack**: bench-only and not an npm dependency; `cargo install wasm-pack --locked` if you need `bench:wasm:rust`.
 - **Missing `src/wasm/oscillators.wasm`**: `wam-*` waveforms fall back down the documented chain to the JS oscillator and say so in the EngineHUD. Run `pnpm run build:wasm:oscillators`.
 
 ---

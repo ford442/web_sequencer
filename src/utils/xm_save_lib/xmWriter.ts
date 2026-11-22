@@ -617,7 +617,11 @@ export async function saveToFile(module: XMModule, filename: string): Promise<vo
   const writer = new XMWriter();
   const buffer = writer.write(module);
 
-  // Dynamic import for Node.js fs module
-  const { promises: fs } = await import('fs');
-  await fs.writeFile(filename, Buffer.from(buffer));
+  // Node.js only. The specifier is deliberately not a literal so the browser
+  // bundler does not try to resolve (and warn about externalizing) `fs`.
+  const nodeFs = 'node:fs/promises';
+  const fsp = (await import(/* @vite-ignore */ nodeFs)) as {
+    writeFile: (path: string, data: Uint8Array) => Promise<void>;
+  };
+  await fsp.writeFile(filename, new Uint8Array(buffer));
 }
