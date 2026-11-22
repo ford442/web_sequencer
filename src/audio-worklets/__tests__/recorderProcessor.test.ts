@@ -127,9 +127,9 @@ describe('recorder-processor', () => {
         const sab = createTakeRing(1 << 10, 1);
         const node = new Ctor({ processorOptions: { channels: 1, ring: sab } });
         node.port.deliver({ t: 'start' });
-        let frame = run(node, 256, 3);
+        const frame = run(node, 256, 3);
         node.port.deliver({ t: 'stop' });
-        frame = run(node, frame, 3);
+        run(node, frame, 3);
         const stopped = (node.port.posted as RecorderStatus[]).find((m) => m.t === 'stopped');
         expect(stopped).toEqual({ t: 'stopped', startFrame: 256, endFrame: 256 + 3 * BLOCK, frames: 3 * BLOCK, dropped: 0 });
     });
