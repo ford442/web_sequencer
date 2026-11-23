@@ -18,6 +18,9 @@ export async function verticalDragKnob(
     deltaYPixels: number,
     options: { shift?: boolean; alt?: boolean } = {}
 ): Promise<void> {
+    // Page-relative mouse coordinates only hit the knob when it is on screen: at the default
+    // 1280x720 viewport the rack sits below the fold and the drag lands on whatever is there.
+    await slider.scrollIntoViewIfNeeded();
     const box = await slider.boundingBox();
     if (!box) throw new Error('Knob slider has no bounding box');
 

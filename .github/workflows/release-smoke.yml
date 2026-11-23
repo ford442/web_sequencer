@@ -1,0 +1,89 @@
+name: Release smoke
+
+# Fast (< 5 min of test time) production smoke on every PR, against the BUILT dist/ served by
+# `vite preview` (tests/release-smoke.spec.ts, Chromium). It fails on any console.error / page
+# error, HTTP >= 400, failed request, a non-crossOriginIsolated page and a native engine that
+# fell back to JS. The slow 3-browser matrix stays in playwright-e2e.yml; the deployed-build
+# variant runs after each staging deploy (staging-deploy.yml, last step).
+#
+# Retries are off on purpose: a smoke that passes on the second attempt is a flaky release gate.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  smoke:
+    name: Smoke (built dist/, Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # third_party/eurorack + stmlib + jc303_wasm: the native build fails without them.
+          submodules: true
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Read Emscripten pin
+        id: emsdk-pin
+        run: echo "version=$(jq -r .emscripten.version emscripten/toolchain.json)" >> "$GITHUB_OUTPUT"
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ steps.emsdk-pin.outputs.version }}
+          no-cache: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Cache native artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/wasm/
+            public/hyphon_native.js
+            public/hyphon_native.wasm
+            public/hyphon_wasm_export_map.json
+            public/hyphon_native.st.js
+            public/hyphon_native.st.wasm
+            public/hyphon_wasm_export_map.st.json
+            .cache/native/
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
+
+      # Same release build the staging deploy ships (build + check-release-dist + native manifest).
+      - name: Build release bundle
+        run: pnpm run build:release:changed
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Playwright's webServer starts `vite preview` of dist/ (COOP/COEP from vite.config.ts).
+      - name: Release smoke
+        run: pnpm exec playwright test tests/release-smoke.spec.ts --project=chromium --workers=1 --retries=0 --reporter=github,list
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-report
+          path: |
+            release-smoke-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
