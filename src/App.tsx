@@ -30,7 +30,7 @@ import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 import { isAgentQuery } from './agent/agentQuery'
 import { collabModeFromSearch } from './collab/collabQuery'
-import { isChassisQuery } from './components/chassis/chassisModes'
+import { isChassisLayout } from './components/chassis/chassisModes'
 
 // Route-split: neither renders on first paint — each is behind a query-param
 // dev view or the 3D-mode switch — so keep them out of the entry chunk and
@@ -42,12 +42,14 @@ const AgentBridge = lazy(() => import('./agent/AgentBridge'));
 // Project doc runtime (#1597 P2), and with ?collab=local the collab session:
 // a lazy chunk, so Yjs stays out of the entry chunk.
 const CollabBridge = lazy(() => import('./collab/CollabBridge'));
-// Opt-in white chassis layout (?chassis=white): fetched only when asked for.
+// White chassis layout (the default; ?chassis=off opts out): its chunk is only fetched when it is used.
 const ChassisNode = lazy(() => import('./components/appParts/ChassisNode').then(module => ({ default: module.ChassisNode })));
 const AGENT_MODE = typeof location !== 'undefined' && isAgentQuery(location.search);
 const COLLAB_MODE = typeof location !== 'undefined' ? collabModeFromSearch(location.search) : null;
-// Opt-in white hardware chassis (#1580): `?chassis=white`. Default layout is untouched.
-const CHASSIS_MODE = typeof location !== 'undefined' && isChassisQuery(location.search);
+// White hardware chassis (#1580) is the default layout; `?chassis=off` selects the legacy dark rack.
+const CHASSIS_MODE = typeof location === 'undefined' || isChassisLayout(location.search);
+// Start fetching the chassis chunk now rather than when the first render reaches it.
+if (CHASSIS_MODE) void import('./components/appParts/ChassisNode');
 
 /**
  * Layout shell. It reads no app state of its own beyond the background image

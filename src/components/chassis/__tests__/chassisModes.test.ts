@@ -9,7 +9,7 @@ import {
     PANEL_CHASSIS_MODES,
     chassisModeHidesRack,
     getChassisFootprint,
-    isChassisQuery,
+    isChassisLayout,
     isPanelChassisMode,
     isSamplerChassisMode,
     resolveChassisMode,
@@ -107,12 +107,17 @@ describe('chassis modes (#1584)', () => {
         }
     });
 
-    it('opts in only on ?chassis / ?chassis=white / ?chassis=1', () => {
-        expect(isChassisQuery('?chassis=white')).toBe(true);
-        expect(isChassisQuery('?chassis')).toBe(true);
-        expect(isChassisQuery('?e2e=1&chassis=1')).toBe(true);
-        expect(isChassisQuery('')).toBe(false);
-        expect(isChassisQuery('?chassis=dark')).toBe(false);
-        expect(isChassisQuery('?visual-review=1')).toBe(false);
+    it('is the default layout and opts out only on ?chassis=off (and its aliases)', () => {
+        expect(isChassisLayout('')).toBe(true);
+        expect(isChassisLayout('?e2e=1')).toBe(true);
+        expect(isChassisLayout('?visual-review=1')).toBe(true);
+        expect(isChassisLayout('?chassis')).toBe(true);
+        expect(isChassisLayout('?chassis=white')).toBe(true);
+        expect(isChassisLayout('?e2e=1&chassis=1')).toBe(true);
+        expect(isChassisLayout('?chassis=unknown')).toBe(true);
+        for (const off of ['off', 'OFF', '0', 'false', 'no', 'none', 'plain', 'dark', 'classic']) {
+            expect(isChassisLayout(`?chassis=${off}`), off).toBe(false);
+        }
+        expect(isChassisLayout('?e2e=1&chassis=off')).toBe(false);
     });
 });

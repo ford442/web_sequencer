@@ -452,6 +452,21 @@
   overflow: auto;
 }
 
+/* Fit-content stage (HardwareChassis `fitContent`, the sampler): the mode height is the
+   minimum and the panel flows, so a panel taller than any footprint expands the stage
+   instead of being clipped by it. The height snaps (auto cannot transition). */
+.hyphon-chassis[data-stage-fit] .hyphon-chassis__stage {
+  height: auto;
+  min-height: var(--chassis-stage-h, 360px);
+  transition: none;
+}
+
+.hyphon-chassis[data-stage-fit] .hyphon-chassis__panel {
+  position: relative;
+  height: auto;
+  min-height: var(--chassis-stage-h, 100%);
+}
+
 @keyframes hyphon-chassis-panel-in {
   from {
     opacity: 0;

@@ -1,7 +1,7 @@
 /**
  * Expandable hardware chassis review (#1580) for `?visual-review=1`.
  * The demo panels are showcase-only stand-ins that exercise each mode's
- * footprint; the live layout hosts the real rack via `?chassis=white`.
+ * footprint; the live layout (the default; `?chassis=off` for the legacy dark rack) hosts the real rack.
  *
  * Stand-in panels use HardwareKnob (same cap renderer + material as the rack)
  * on a real `hyphon-rack-surface` plate. Importing HardwareModule here would
@@ -222,7 +222,7 @@ export const ChassisShowcase = memo(() => {
             <p className="text-[10px] text-gray-500 mb-3">
                 Mode keys morph the stage height and body width; the LED strip and key bed stay put.
                 PCF opens the filter plate with the patch bay beside it (offline patch here).
-                Live layout: <code>?chassis=white</code>.
+                Live layout: the default; <code>?chassis=off</code> selects the legacy dark rack.
                 {' '}
                 <button type="button" className="hyphon-btn hyphon-btn--ghost px-2 py-0.5 text-[10px]" aria-pressed={running} onClick={() => setRunning((r) => !r)}>
                     {running ? 'Stop playhead' : 'Run playhead'}

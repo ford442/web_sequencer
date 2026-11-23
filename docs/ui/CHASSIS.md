@@ -2,17 +2,18 @@
 
 The main instrument panels can sit inside one **transforming white hardware chassis**: a rounded white body with a fixed LED step strip on top, a fixed key bed at the bottom, and a stage between them that grows and narrows as you move between oscillator, drum, sampler, TTS, Voice Designer and PCF interfaces. It is meant to read as one instrument changing shape, not a stack of separate floating panels.
 
-Everything is **opt-in**. Without the flag the app renders exactly as before.
+The chassis is the **default layout**. `?chassis=off` (also `0`, `false`, `plain`, `dark`, `classic`) selects the legacy dark rack, which renders exactly as it did before the chassis. Everything that is chassis-only (cap knobs from the chassis material, panel art, the voice deck, the PCF plate) is still opted into through `ChassisKnobMaterialContext` / `data-chassis`, so panels outside a chassis are unchanged.
 
 | Try it | URL |
 |---|---|
-| Live app inside the chassis | `/?chassis=white` (also `?chassis` or `?chassis=1`) |
+| Live app inside the chassis | `/` (the default; `?chassis`, `?chassis=white`, `?chassis=1` also mean on) |
+| Live app, legacy dark rack | `/?chassis=off` |
 | Review page (no audio boot) | `/?visual-review=1` → *Expandable hardware chassis*, *Knob caps*, *Oscillator panel art* |
 
 ![Chassis, oscillator mode](chassis/chassis-osc.webp)
 ![Chassis, Voice Designer mode — wider and deeper stage, same anchors](chassis/chassis-vd.webp)
 ![Chassis, PCF mode — filter plate beside the patch bay (review page, offline patch)](chassis/chassis-pcf.webp)
-![Live app under ?chassis=white](chassis/live.webp)
+![Live app in the chassis (default layout)](chassis/live.webp)
 
 ---
 
@@ -62,7 +63,7 @@ The LED strip and key bed never move. Only `--chassis-stage-h` (stage height) an
 | Voice Designer | VD | 720 | 600 | 1180 | `below`, fits content | ✅ Sampler rack + expanded voice deck |
 | Filter (PCF) | PCF | 320 | 270 | 1000 | `side`, 50% | ✅ Filter plate + patch bay (panel mode) |
 
-The oscillator stage keeps the legacy rack height (380 px), so live panels do not reflow. The live mode keys select a track: OSC goes to Synth A (or keeps the current synth), DRM to Kick, SMP / TTS / VD to Sampler. The LCD badge names the track and, for synths, the oscillator family with its signature icon.
+The oscillator stage keeps the legacy rack height (380 px), so live panels do not reflow. The sampler views (SMP / TTS / VD) are the exception: the sampler panel (banks, slicing, TTS, voice editor) is about 2,000 px of content, so `HardwareChassis` runs them with `fitContent` — the footprint height is the minimum, the stage grows to the panel, and the sampler docks in flow under the knobs (`InlinePanelsContext`) instead of floating as a clipped overlay. The height snaps rather than morphs. The live mode keys select a track: OSC goes to Synth A (or keeps the current synth), DRM to Kick, SMP / TTS / VD to Sampler. The LCD badge names the track and, for synths, the oscillator family with its signature icon.
 
 ### Expansion modes: track modes and panel modes (#1586)
 
@@ -84,7 +85,7 @@ Every interface on the chassis expands and collapses the same way: a mode key (o
 
 ### Nothing floats outside the chassis
 
-Under `?chassis=white`, `App.tsx` no longer renders the collapsible *Patch Bay* `<details>` or the standalone master loudness strip under the instrument. The patch bay opens on the stage with the PCF key, and `MasterLoudnessMeter` is the chassis's **footer**: a fixed dark well under the key bed that never morphs, like the LED strip and key bed. The default layout keeps both where they were.
+In the chassis layout (the default), `App.tsx` no longer renders the collapsible *Patch Bay* `<details>` or the standalone master loudness strip under the instrument. The patch bay opens on the stage with the PCF key, and `MasterLoudnessMeter` is the chassis's **footer**: a fixed dark well under the key bed that never morphs, like the LED strip and key bed. The default layout keeps both where they were.
 
 Song mode, session, arrangement, piano roll, the lyric track and the modals are app views and overlays rather than instrument panels, so they stay outside the chassis.
 
@@ -149,7 +150,7 @@ Measured with `vite build` against `main` (`f6894c7`):
 
 - Code the default page now loads: about **+23 KB raw** (cap renderer + shader, art / icon components, chassis context). Measured as the entry plus its static import closure: 1,768,156 → 1,792,017 bytes.
 - Entry chunk: 234,157 → 222,975 bytes brotli (budget 262,000). Rolldown moved a few modules into separate preloaded chunks, so the entry is smaller even though the total grew.
-- `ChassisNode` + `HardwareChassis` are a lazy chunk fetched only under `?chassis`. The review sections are in the lazy `VisualStyleShowcase` chunk. They use `HardwareKnob`, not `HardwareModule`, on purpose: a static `HardwareModule` import from that chunk made Rolldown regroup the entry chunk (+47 KB raw).
+- `ChassisNode` + `HardwareChassis` are a lazy chunk. It is the default layout now, so `App.tsx` starts fetching it at module load; with `?chassis=off` it is never fetched. The review sections are in the lazy `VisualStyleShowcase` chunk. They use `HardwareKnob`, not `HardwareModule`, on purpose: a static `HardwareModule` import from that chunk made Rolldown regroup the entry chunk (+47 KB raw).
 
 ---
 
@@ -159,7 +160,7 @@ Measured with `vite build` against `main` (`f6894c7`):
 |---|---|
 | #1589 tokens + materials | Done: tokens, body / well / silkscreen / label, step-pad material (chassis LED strip), contrast test, live step grid (`.svg-step[data-on]` / `[data-playhead]`, SVG `fill` / `filter`), `DrumPads` `.live-pad` + `data-hit`, `LiveKeyboard` `data-key` / `data-down` + key LEDs (`ledNotes` prop), review section *White-chassis surfaces*. **Not yet:** nothing feeds `ledNotes` in the live layout (needs a scale / pattern source). |
 | #1581 knob 3D | Done: material contract, WGSL, Canvas 2D with cached static layers, classic SVG, LED dot, per-material GPU pipelines. |
-| #1584 container + expansion | Done: `HardwareChassis`, modes / footprints, mode badge, compact layout, live `?chassis=white`, secondary panel (`side` / `below`) with reveal, target-size hold (one content resize per morph), content fade after the size settles. |
+| #1584 container + expansion | Done: `HardwareChassis`, modes / footprints, mode badge, compact layout, live chassis layout, secondary panel (`side` / `below`) with reveal, target-size hold (one content resize per morph), content fade after the size settles. |
 | #1583 `public/osc` panels | Done for the oscillator columns (header faceplate). The `backdrop` variant exists for full-panel art. |
 | #1587 icons | Done: nine glyphs, used in the selector (on a chassis stage) and the LCD badge. |
 | #1585 oscillator migration | Synth A / B / Bass 2 render on the chassis plate with chassis knobs, art and icons. The controls themselves are unchanged. |

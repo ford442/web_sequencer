@@ -18,6 +18,7 @@ import {
 } from '../chassis/chassisModes';
 import { OSCILLATOR_ACCENT_HEX, OSCILLATOR_THEMES, waveformToOscillatorType } from '../oscillatorThemes';
 import type { TrackKey } from '../../constants/appDefaults';
+import { InlinePanelsContext } from './inlinePanelsContext';
 
 const CHASSIS_KEYS = [
     'selectedTrack', 'setSelectedTrack', 'synthA', 'synthB', 'bass2',
@@ -55,7 +56,7 @@ interface ChassisNodeProps {
 }
 
 /**
- * Live layout inside the white chassis (opt-in via `?chassis=white`, #1580):
+ * Live layout inside the white chassis (the default layout, #1580; `?chassis=off` opts out):
  * the step sequencer is the fixed top anchor, the key bed the fixed bottom
  * anchor, and the rack is the stage that morphs as the selected track moves
  * between oscillator, drum and sampler panels. The PCF key opens the filter
@@ -89,6 +90,10 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
     const showDeck = chassisModeHasVoiceDeck(mode);
     const showPcf = mode === 'pcf';
     const hideRack = chassisModeHidesRack(mode);
+    // Sampler views (SMP / TTS / VD): the sampler panel (banks, slicing, TTS, voice editor) is far
+    // taller than any footprint, so it docks in flow under the knobs and the stage grows to fit
+    // (the voice deck still opens beneath the rack in TTS / VD).
+    const fitSampler = isSamplerChassisMode(mode);
     const synth = selectedTrack === 'partA' ? synthA
         : selectedTrack === 'partB' ? synthB
             : selectedTrack === 'bass2' ? bass2
@@ -132,6 +137,7 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
             badgeDetail={badgeDetail}
             badgeIcon={themed ? <OscillatorSignatureIcon type={themed} className="hyphon-chassis__badge-icon" /> : undefined}
             compact={isCompact}
+            fitContent={fitSampler}
             ledStrip={(
                 <div className={isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}>
                     {sequencer}
@@ -156,7 +162,9 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
                 `below` secondary in TTS / VD, and in PCF it is hidden while the
                 filter plate takes the primary slot and the patch bay the
                 `side` secondary. */}
-            <div className="absolute inset-0" hidden={hideRack} data-testid="chassis-rack">{rack}</div>
+            <div className={fitSampler ? 'relative' : 'absolute inset-0'} hidden={hideRack} data-testid="chassis-rack">
+                <InlinePanelsContext.Provider value={fitSampler}>{rack}</InlinePanelsContext.Provider>
+            </div>
             {showPcf && <ChassisPcfPlate nodeId={pcfNode} onSelectNode={handleSelectPcfNode} />}
         </HardwareChassis>
     );
