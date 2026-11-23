@@ -108,7 +108,7 @@ async function engineHealth(): Promise<EngineHealth> {
 }
 
 /** Cold load → INITIALIZE SYSTEM → transport visible. Real click: it unlocks the AudioContext. */
-async function boot(query: string): Promise<void> {
+async function boot(query: string, overlayShot?: string): Promise<void> {
   await page.goto(url(query), { waitUntil: 'domcontentloaded' });
   // First, so a host missing COOP/COEP is reported as THE cause rather than as a pile of
   // downstream wasm/SharedArrayBuffer errors.
@@ -119,6 +119,7 @@ async function boot(query: string): Promise<void> {
   const start = page.getByTestId('initialize-system');
   await overlay.waitFor({ state: 'visible', timeout: 90_000 });
   await expect(start).toBeEnabled({ timeout: 120_000 });
+  if (overlayShot) await shot(overlayShot);
   await start.click();
   await overlay.waitFor({ state: 'hidden', timeout: 30_000 });
   await expect(page.getByText('INITIALIZING AUDIO ENGINE')).toBeHidden({ timeout: 120_000 });
@@ -150,7 +151,7 @@ async function expectDownload(label: string, trigger: () => Promise<void>, magic
 test('cold load (no test flags): isolated, boots, transport plays and stops', async () => {
   await step('cold load → INITIALIZE SYSTEM', async () => {
     // No ?e2e=1 here: this is the exact URL a user opens, service worker included.
-    await boot('');
+    await boot('', '00-start-overlay');
     await shot('01-boot');
   });
 
