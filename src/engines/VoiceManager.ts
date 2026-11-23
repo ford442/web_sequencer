@@ -6,7 +6,8 @@ import { logEngineFallback, logWaveformSubstitution } from '../utils/engineTelem
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { getOscillatorRegistry } from './backends/BackendRegistry';
 import { engineEntry } from './backends/engineCatalog';
-import { TABLE_DURATION_SEC, TABLE_REF_FREQ } from './backends/OscillatorBackend';
+import { TABLE_DURATION_SEC, TABLE_REF_FREQ, type RealtimeVoice } from './backends/OscillatorBackend';
+import type { VoiceSource } from './backends/BackendRegistry';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
 
@@ -16,6 +17,12 @@ export class Voice implements PoolableVoice {
 
     // Graph
     private source: OscillatorNode | AudioBufferSourceNode | null = null;
+    /**
+     * Live worklet source (`rust-*`, #1664), kept across notes so a voice does
+     * not create a node per note; handed back when the voice switches to a
+     * family that renders a table. At most one of `source`/`realtime` sounds.
+     */
+    private realtime: RealtimeVoice | null = null;
     private filter: BiquadFilterNode;
     private gain: GainNode;
     private dryGain: GainNode;
@@ -119,17 +126,25 @@ export class Voice implements PoolableVoice {
 
         const waveform = params.waveform;
         const parsed = parseWaveform(waveform);
-        const canReuse = this.source &&
+        const canReuse = (this.source || this.realtime) &&
                         this.isActive &&
                         slideFromFreq !== undefined &&
                         this.currentSourceType === waveform;
 
-        if (canReuse && this.source) {
+        if (canReuse) {
             // === LEGATO / SLIDE ===
-            if (this.source instanceof OscillatorNode) {
-                this.source.frequency.cancelScheduledValues(now);
-                this.source.frequency.setValueAtTime(slideFrom!, now);
-                this.source.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
+            // A live worklet source and an OscillatorNode both take Hz on an
+            // a-rate `frequency`, so a slide is scheduled the same way on either.
+            const hzParam = this.realtime?.frequency
+                ?? (this.source instanceof OscillatorNode ? this.source.frequency : null);
+            if (hzParam) {
+                hzParam.cancelScheduledValues(now);
+                hzParam.setValueAtTime(slideFrom!, now);
+                hzParam.exponentialRampToValueAtTime(freq, now + 0.1);
+                // The previous note may have scheduled its gate to close after
+                // its release (scheduleRelease); a slid note must not inherit
+                // that. The gate is already open, so this resets no phase.
+                this.realtime?.start(now, parsed.shape);
             } else if (this.source instanceof AudioBufferSourceNode) {
                 // The table's own reference pitch, reported by the backend that
                 // rendered it — not a hardcoded C4 (Pyodide and the PCM/GPU
@@ -160,31 +175,47 @@ export class Voice implements PoolableVoice {
             // family, and BackendRegistry walks the single documented fallback
             // order from there, publishing every step it takes. There are no
             // per-prefix `generate()` + looped-buffer branches here any more.
-            const rendered = this.renderLoop(parsed, params);
-            if (rendered) {
-                const src = this.context.createBufferSource();
-                src.buffer = rendered.buffer;
-                src.loop = true;
-                src.playbackRate.value = freq / rendered.baseFrequency;
-                createdSource = src;
-                baseFrequency = rendered.baseFrequency;
-            }
+            const chosen = this.chooseSource(parsed, params);
+            if (chosen?.kind === 'realtime') {
+                // Worklet-resident engine: the same node as last note when it
+                // was ours, else a pooled one. Gate + pitch are scheduled at
+                // `now`, so the note is sample accurate like an OscillatorNode.
+                const live = chosen.voice;
+                if (live !== this.realtime) {
+                    this.releaseRealtime();
+                    live.output.connect(this.filter);
+                    this.realtime = live;
+                }
+                live.frequency.cancelScheduledValues(now);
+                live.frequency.setValueAtTime(freq, now);
+                live.start(now, parsed.shape);
+            } else {
+                this.releaseRealtime();
+                if (chosen?.kind === 'loop') {
+                    const rendered = chosen.render;
+                    const src = this.context.createBufferSource();
+                    src.buffer = rendered.buffer;
+                    src.loop = true;
+                    src.playbackRate.value = freq / rendered.baseFrequency;
+                    createdSource = src;
+                    baseFrequency = rendered.baseFrequency;
+                }
 
-            // Final fallback: JS oscillator using the correct wave family so the
-            // user at least hears the right harmonic character while the engine is absent.
-            if (!createdSource) {
-                const osc = this.context.createOscillator();
-                osc.type = shapeToOscillatorType(parsed.shape);
-                osc.frequency.value = freq;
-                createdSource = osc;
-            }
+                // Final fallback: JS oscillator using the correct wave family so the
+                // user at least hears the right harmonic character while the engine is absent.
+                if (!createdSource) {
+                    const osc = this.context.createOscillator();
+                    osc.type = shapeToOscillatorType(parsed.shape);
+                    osc.frequency.value = freq;
+                    createdSource = osc;
+                }
 
-            this.source = createdSource;
+                this.source = createdSource;
+                this.source.connect(this.filter);
+                this.source.start(now);
+            }
             this.currentBaseFrequency = baseFrequency;
-
             this.currentSourceType = waveform;
-            this.source.connect(this.filter);
-            this.source.start(now);
 
             // Filter settings
             this.filter.type = 'lowpass';
@@ -253,6 +284,8 @@ export class Voice implements PoolableVoice {
                 this.source.stop(releaseEnd + 0.1);
             } catch {}
         }
+        // The live source stays this voice's; only its gate closes.
+        this.realtime?.stop(releaseEnd + 0.1);
 
         this.cleanupTimer = setTimeout(() => {
             this.isActive = false;
@@ -262,17 +295,15 @@ export class Voice implements PoolableVoice {
 
 
     /**
-     * Render the looped table for `parsed`, entering `BackendRegistry` at the
-     * backend the engine catalog names for that family.
+     * The source for `parsed`, entering `BackendRegistry` at the backend the
+     * engine catalog names for that family: a live worklet voice or a looped
+     * table, whichever that backend (or the first one below it) provides.
      *
      * Returns null when nothing in the chain could service the request — the
      * caller then builds an `OscillatorNode` of the right wave family, which is
      * the documented terminal step (`js`), not a silent substitution.
      */
-    private renderLoop(
-        parsed: ParsedWaveform,
-        params: SynthParams,
-    ): { buffer: AudioBuffer; baseFrequency: number } | null {
+    private chooseSource(parsed: ParsedWaveform, params: SynthParams): VoiceSource | null {
         if (parsed.legacyFrom && !Voice.reportedLegacy.has(parsed.legacyFrom)) {
             Voice.reportedLegacy.add(parsed.legacyFrom);
             logWaveformSubstitution(
@@ -307,14 +338,31 @@ export class Voice implements PoolableVoice {
             return null;
         }
 
-        return registry.renderLoopFrom(entry.backendId, this.context, {
-            frequency: TABLE_REF_FREQ,
-            duration: TABLE_DURATION_SEC,
-            sampleRate: this.context.sampleRate,
-            shape: parsed.shape,
-            cutoff: Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-            resonance: Math.max(0.1, params.filterResonance),
-        });
+        return registry.sourceFrom(
+            entry.backendId,
+            this.context,
+            {
+                frequency: TABLE_REF_FREQ,
+                duration: TABLE_DURATION_SEC,
+                sampleRate: this.context.sampleRate,
+                shape: parsed.shape,
+                cutoff: Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
+                resonance: Math.max(0.1, params.filterResonance),
+            },
+            this.realtime,
+        );
+    }
+
+    /** Hand the live source back to its backend (disconnects it from this voice). */
+    private releaseRealtime(): void {
+        if (!this.realtime) return;
+        const live = this.realtime;
+        this.realtime = null;
+        try {
+            live.release();
+        } catch {
+            /* teardown must not throw on the note path */
+        }
     }
 
     stop(time: number): void {
@@ -329,6 +377,8 @@ export class Voice implements PoolableVoice {
             } catch {}
             this.source = null;
         }
+        // Keep the live source (the next note very likely reuses it); just gate it.
+        this.realtime?.stop(time);
         this.isActive = false;
     }
 }

@@ -1,0 +1,9 @@
+# Ad-hoc `cargo build --target wasm32-unknown-unknown` / IDE codegen only.
+#
+# The shipped module is built by scripts/build-rust-osc.mjs (pnpm run
+# build:wasm:rust), which sets CARGO_ENCODED_RUSTFLAGS itself — +simd128 plus the
+# fixed memory and stack sizes from emscripten/wasm_memory_budget.json `rustOsc`
+# — and so replaces this list. Keep the target feature in step with it: the
+# kernel is written against core::arch::wasm32 v128.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

@@ -9,10 +9,13 @@ export type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficie
  * through `parseWaveform` + `ENGINE_CATALOG` (#1294) — nothing in this union
  * falls through to an undocumented `OscillatorNode`.
  *
- * `rust-*` and `cpp-*` were removed: neither had a worklet, both dumped (or in
- * cpp's case, failed to dump) a buffer on the main thread. Saved songs that
- * still contain them are rewritten by `LEGACY_WAVEFORM_ALIASES` (whose keys are
- * plain strings — the ids are no longer members of this union).
+ * `cpp-*` was removed: it had no renderer at all. Saved songs that still contain
+ * it are rewritten by `LEGACY_WAVEFORM_ALIASES` (whose keys are plain strings —
+ * the ids are not members of this union).
+ *
+ * `rust-*` is the Rust PolyBLEP kernel running in an AudioWorklet, one node per
+ * voice (#1664). It was removed in #1294 when it was a main-thread buffer dump;
+ * it came back as a worklet, and old `rust-saw` / `rust-sqr` songs load as-is.
  *
  * `macro-*` are the 24 models of the macro engine family (Plaits DSP, MIT) —
  * the id names the model; `SynthParams.macro` carries its knobs. The order
@@ -27,6 +30,7 @@ export type Waveform =
   | 'pyodide-saw' | 'pyodide-square' | 'pyodide-sine'
   | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
+  | 'rust-saw' | 'rust-sqr' | 'rust-tri' | 'rust-sin'
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
@@ -133,6 +137,7 @@ export type OscillatorType =
   | 'pyodide'      // Python/Pyodide software oscillators
   | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
+  | 'rust'         // Rust PolyBLEP kernel, AudioWorklet voice per synth voice (#1664)
   | 'macro';       // Macro engine family (Plaits DSP, polyphonic native worklet)
 
 export interface Bass2Params {

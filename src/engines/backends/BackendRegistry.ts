@@ -2,11 +2,11 @@
  * Ordered oscillator backend selection (#1034, collapsed in #1294).
  *
  * One place decides which backend is active, in one documented order:
- *   WebGPU → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
+ *   WebGPU → Rust OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
  *
  * This is now the *only* fallback order in the codebase. The realtime note
  * path enters the chain at the backend `engineCatalog` names for the selected
- * waveform family (`renderLoopFrom`) instead of running its own per-prefix
+ * waveform family (`sourceFrom`) instead of running its own per-prefix
  * ladder, so "which engine am I hearing?" has exactly one answer.
  *
  * Every step down that chain is recorded: telemetry resolution, the engine
@@ -21,6 +21,7 @@ import {
     type LoopRender,
     type OscillatorBackend,
     type OscillatorBackendId,
+    type RealtimeVoice,
 } from './OscillatorBackend';
 import type { WaveShape } from '../../utils/waveformParser';
 import { engineTelemetry, logWaveformSubstitution } from '../../utils/engineTelemetry';
@@ -51,6 +52,15 @@ export interface BackendResolution {
     reason?: string;
     ts: number;
 }
+
+/**
+ * What the realtime note path plays: a live worklet source, or a looped table.
+ * Null means the chain ran out and the caller builds the terminal
+ * `OscillatorNode` (the documented `js` step, published as such).
+ */
+export type VoiceSource =
+    | { kind: 'realtime'; voice: RealtimeVoice }
+    | { kind: 'loop'; render: LoopRender };
 
 export class BackendRegistry {
     private backends = new Map<OscillatorBackendId, OscillatorBackend>();
@@ -206,6 +216,10 @@ export class BackendRegistry {
                 skipped.push(`${backend.id}: cannot render "${req.shape}"`);
                 continue;
             }
+            if (!backend.capabilities.offline) {
+                skipped.push(`${backend.id}: realtime only (no offline render)`);
+                continue;
+            }
             try {
                 const samples = await backend.generate(req);
                 if (samples && samples.length > 0) {
@@ -239,18 +253,48 @@ export class BackendRegistry {
     }
 
     /**
-     * Synchronous realtime render, entering the chain at `startId`.
+     * Synchronous realtime render, entering the chain at `startId`, tables only.
      *
      * Returns the first loopable table the chain produces, or null when it ran
      * out (the caller's terminal step is an `OscillatorNode` of the right wave
-     * family). Every step down is published, so the HUD/telemetry always name
-     * the engine that actually sounded — there is no silent fall-through.
+     * family). Worklet-resident backends are skipped — use `sourceFrom` when
+     * the caller can play a live source. Every step down is published.
      */
     renderLoopFrom(
         startId: OscillatorBackendId,
         ctx: BaseAudioContext,
         req: GenerateRequest,
     ): LoopRender | null {
+        const source = this.walkFrom(startId, ctx, req, null, false);
+        return source?.kind === 'loop' ? source.render : null;
+    }
+
+    /**
+     * The realtime note path: enter the chain at `startId` and return the first
+     * source a backend can provide — a live worklet voice (`acquireVoice`) or a
+     * looped table (`renderLoop`) — or null when it ran out (terminal
+     * `OscillatorNode`). `reuse` is the voice's current live source, offered
+     * back to the backend that owns it so a voice keeps one node across notes.
+     *
+     * Every step down is published, so the HUD/telemetry always name the
+     * engine that actually sounded — there is no silent fall-through.
+     */
+    sourceFrom(
+        startId: OscillatorBackendId,
+        ctx: BaseAudioContext,
+        req: GenerateRequest,
+        reuse: RealtimeVoice | null = null,
+    ): VoiceSource | null {
+        return this.walkFrom(startId, ctx, req, reuse, true);
+    }
+
+    private walkFrom(
+        startId: OscillatorBackendId,
+        ctx: BaseAudioContext,
+        req: GenerateRequest,
+        reuse: RealtimeVoice | null,
+        allowRealtime: boolean,
+    ): VoiceSource | null {
         const chain = this.orderedFrom(startId);
         const skipped: string[] = [];
 
@@ -263,14 +307,25 @@ export class BackendRegistry {
                 skipped.push(`${backend.id}: cannot render "${req.shape}"`);
                 continue;
             }
-            if (!backend.renderLoop) {
-                // `js` has no table — it is the terminal OscillatorNode step.
-                skipped.push(`${backend.id}: no realtime table (terminal backend)`);
+            const realtime = allowRealtime && !!backend.acquireVoice;
+            if (!realtime && !backend.renderLoop) {
+                skipped.push(
+                    backend.acquireVoice
+                        ? `${backend.id}: live source only (caller asked for a table)`
+                        // `js` has no table — it is the terminal OscillatorNode step.
+                        : `${backend.id}: no realtime table (terminal backend)`,
+                );
                 continue;
             }
-            let render: LoopRender | null = null;
+            let source: VoiceSource | null = null;
             try {
-                render = backend.renderLoop(ctx, req);
+                if (realtime) {
+                    const voice = backend.acquireVoice!(ctx, reuse);
+                    if (voice) source = { kind: 'realtime', voice };
+                } else {
+                    const render = backend.renderLoop!(ctx, req);
+                    if (render) source = { kind: 'loop', render };
+                }
             } catch (e) {
                 skipped.push(`${backend.id}: threw (${e instanceof Error ? e.message : String(e)})`);
                 try {
@@ -280,8 +335,8 @@ export class BackendRegistry {
                 }
                 continue;
             }
-            if (!render) {
-                skipped.push(`${backend.id}: returned no table`);
+            if (!source) {
+                skipped.push(`${backend.id}: returned no ${realtime ? 'voice' : 'table'}`);
                 continue;
             }
             if (backend.id !== startId) {
@@ -290,11 +345,11 @@ export class BackendRegistry {
                     requested: startId,
                     degraded: true,
                     attempts: [],
-                    reason: skipped.join('; ') || 'preferred backend produced no table',
+                    reason: skipped.join('; ') || 'preferred backend produced no source',
                     ts: Date.now(),
                 });
             }
-            return render;
+            return source;
         }
 
         // Falling all the way through is the documented `js` outcome, not a bug

@@ -37,6 +37,7 @@ const OSCILLATOR_TYPES: OscillatorType[] = [
     'pyodide',
     'webgpu',
     'wam',
+    'rust',
     'macro',
 ];
 const ALL_WAVEFORMS: Waveform[] = OSCILLATOR_TYPES.flatMap((t) => getWaveformsForType(t));
@@ -90,11 +91,26 @@ describe('every waveform family resolves to a documented engine', () => {
         }
     });
 
-    it('no longer offers the retired rust-* / cpp-* families in the rack', () => {
+    it('no longer offers the retired cpp-* family in the rack', () => {
         for (const waveform of ALL_WAVEFORMS) {
-            expect(waveform.startsWith('rust-')).toBe(false);
             expect(waveform.startsWith('cpp-')).toBe(false);
         }
+    });
+
+    it('plays rust-* on the Rust backend, not a rewrite onto wam-* (#1664)', () => {
+        const rust = getWaveformsForType('rust');
+        expect(rust).toEqual(['rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin']);
+        for (const waveform of rust) {
+            const parsed = parseWaveform(waveform);
+            expect(parsed.engine).toBe('rust');
+            expect(parsed.legacyFrom).toBeUndefined();
+        }
+        expect(ENGINE_CATALOG.rust).toEqual({ kind: 'backend', backendId: 'rust', label: 'Rust OSC' });
+        // Songs saved before #1294 load onto the live family as-is.
+        expect(Object.keys(LEGACY_WAVEFORM_ALIASES).filter((k) => k.startsWith('rust-'))).toEqual([]);
+        // A rust-* part that cannot get a worklet drops one step, to the AS table.
+        const order = [...BACKEND_FALLBACK_ORDER];
+        expect(order.indexOf('wam')).toBe(order.indexOf('rust') + 1);
     });
 });
 
@@ -119,6 +135,8 @@ const ALLOWED_ENGINE_MODULES = [
     'MacroOscillator.ts',
     'Open303Oscillator.ts',
     'ProphecyOscillator.ts',
+    // Drives the rust-osc-processor AudioWorklet (rust-audio/, #1664).
+    'RustOscillator.ts',
     'WasmOscillator.ts',
     'WebGpuOscillator.ts',
 ].sort();
@@ -137,10 +155,26 @@ describe('no new decorative oscillator families', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('has no RustOscillator (rust-audio/ is a bench crate, not a voice)', () => {
-        expect(existsSync(join(SRC, 'engines', 'RustOscillator.ts'))).toBe(false);
-        const offenders = walk(SRC).filter((f) => /RustOscillator/.test(readFileSync(f, 'utf8')));
-        expect(offenders).toEqual([]);
+    it('RustOscillator drives an AudioWorklet and renders nothing on the main thread (#1664)', () => {
+        // #1294 removed rust-* for being a main-thread Float32Array looped
+        // through a buffer source. It may only come back as a worklet voice.
+        const source = readFileSync(join(SRC, 'engines', 'RustOscillator.ts'), 'utf8');
+        expect(source).toContain('new AudioWorkletNode(');
+        expect(source).not.toMatch(/createBuffer(Source)?\(/);
+        expect(source).not.toMatch(/new Float32Array\(/);
+        expect(source).not.toMatch(/\.exports\b/); // never instantiates the kernel here
+        // And nothing else in src/ renders rust-* any other way.
+        const kernelUsers = walk(SRC).filter((f) => /\.rosc_render\(/.test(readFileSync(f, 'utf8')));
+        // The realtime voice is the worklet; the only other caller is the
+        // offline (export/bounce) renderer, which runs the same kernel into a
+        // buffer that is played once — a pre-render, like WebGPU's.
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual([
+            'audio-worklets/rust-osc-processor.ts',
+            'audio/offline/OfflineRustOscEngine.ts',
+        ]);
+        // And the realtime note path cannot reach the offline renderer.
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/OfflineRustOsc|renderRustOsc/);
     });
 
     it('keeps VoiceManager free of per-engine generate()/buffer branches', () => {
@@ -152,8 +186,11 @@ describe('no new decorative oscillator families', () => {
         // Exactly one place builds a looped source, fed by BackendRegistry.
         const bufferSources = source.match(/createBufferSource\(\)/g) ?? [];
         expect(bufferSources).toHaveLength(1);
-        expect(source).toContain('renderLoopFrom');
+        expect(source).toContain('registry.sourceFrom(');
+        // Live worklet sources arrive through the contract type, never by name.
+        expect(source).not.toMatch(/AudioWorkletNode|rust-osc|RustOsc/);
         // And no resurrected per-prefix ladder.
         expect(source).not.toMatch(/parsed\.engine === '(wam|rust|cpp|wgsl|pyodide|wav)'/);
+        expect(source).not.toMatch(/backendId === '(rust|wam|webgpu|pyodide|wav)'/);
     });
 });

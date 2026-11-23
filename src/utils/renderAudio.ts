@@ -12,6 +12,9 @@ import { createOfflineBuffer, createOfflineContext } from '@/audio/offline/creat
 import { macroEngineForWaveform } from '@/engines/MacroParams';
 import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
 import { renderDrumkitBuffer } from '@/audio/offline/OfflineDrumKitEngine';
+import { renderRustOscOffline } from '@/audio/offline/OfflineRustOscEngine';
+import { parseWaveform } from '@/utils/waveformParser';
+import { logWaveformSubstitution } from '@/utils/engineTelemetry';
 import { DrumKitEngine } from '@/engines/DrumKitEngine';
 import { instrumentStore } from '@/stores/instrumentStore';
 import { noteToMidi } from '@/utils/musicTheory';
@@ -51,6 +54,9 @@ interface RenderSynthEngines {
 }
 
 export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
+
+/** The offline rust-* substitution is reported once, not once per rendered hit. */
+let rustOfflineSubstitutionReported = false;
 
 /**
  * Filter changes inside one rendered note (#1384): a 303 voice's automation
@@ -121,6 +127,33 @@ export async function renderSynthToBuffer(
                 customBuffer.getChannelData(0).set(rawData);
             }
         } catch(e) { console.error("WebGPU Export Error", e); }
+    }
+    else if (params.waveform.startsWith('rust-')) {
+        // Rust OSC (#1664): the live voice's own kernel, rendered offline. No
+        // filter in the kernel, so the biquad below applies — as in `Voice`.
+        const { shape } = parseWaveform(params.waveform);
+        try {
+            const rawData = await renderRustOscOffline({
+                shape,
+                hz: freqWithPitch,
+                frames: Math.ceil(duration * sampleRate),
+                sampleRate,
+            });
+            if (rawData) {
+                customBuffer = offlineCtx.createBuffer(1, rawData.length, sampleRate);
+                customBuffer.getChannelData(0).set(rawData);
+            } else if (!rustOfflineSubstitutionReported) {
+                // Once per session: a bounce calls this per hit.
+                rustOfflineSubstitutionReported = true;
+                logWaveformSubstitution(
+                    'oscillators',
+                    'rust',
+                    shape,
+                    shape,
+                    'rust_osc.wasm unavailable for the offline render; rendered on the JS oscillator',
+                );
+            }
+        } catch (e) { console.error('Rust OSC Export Error', e); }
     }
     else if (params.waveform.startsWith('wam-') && engines?.wasmEngine?.isReady) {
         // WASM

@@ -13,6 +13,7 @@ export const INTEGRATION_ARTIFACTS = [
   'public/hyphon_native.st.js',
   'public/hyphon_native.st.wasm',
   'public/mix_bus.wasm',
+  'public/rust_osc.wasm',
   'docs/audio-engine/303-baseline/jc303_canonical.wav',
 ] as const;
 

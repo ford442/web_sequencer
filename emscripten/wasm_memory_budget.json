@@ -104,6 +104,21 @@
     "initialMemoryMb": 2,
     "stackSizeMb": 1
   },
+  "rustOsc": {
+    "$comment": [
+      "public/rust_osc.wasm, the rust-* oscillator family (#1664): rust-audio/, built by",
+      "scripts/build-rust-osc.mjs (pnpm run build:wasm:rust), which passes these numbers to",
+      "wasm-ld as --initial-memory / --max-memory / -zstack-size, and checked by",
+      "tools/check_rust_osc_module.mjs. One instance per synth voice, each inside its own",
+      "AudioWorkletProcessor (src/audio-worklets/rust-osc-processor.ts). The module owns",
+      "its memory (not imported, not shared) and FIXED: no allocator, all state and the",
+      "2 x 1024-frame I/O buffers are statics (8 KiB + 16 B), so nothing can call",
+      "memory.grow. 2 pages = 16 KiB stack + ~8 KiB static data with ~100 KiB to spare;",
+      "9 live voices (SYNTH A 8 + SYNTH B 1) cost 1.1 MiB in total."
+    ],
+    "initialMemoryPages": 2,
+    "stackSizeBytes": 16384
+  },
   "assemblyScript": {
     "$comment": "--initialMemory is in 64 KiB pages, not MB.",
     "oscillatorsPages": 384,

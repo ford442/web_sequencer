@@ -10,15 +10,16 @@ import type { Waveform } from '../types';
  * drift apart, so a family can never fall through to `OscillatorNode`
  * undocumented.
  *
+ * `rust` is back (#1664) as what #1294 said it would have to be to return: a
+ * live AudioWorklet voice running the no_std SIMD kernel in `rust-audio/`, not
+ * a main-thread `Float32Array` looped through a buffer source.
+ *
  * Deliberately absent:
- *   - `rust`  — `rust-audio/` is a bench crate, not a live voice (it produced a
- *               main-thread `Float32Array` that was looped, duplicating the AS
- *               kernel). Legacy `rust-*` waveforms migrate to `wam-*`.
  *   - `cpp`   — never existed; the selector offered it and it silently played
  *               the JS oscillator. Legacy `cpp-*` waveforms migrate to `wam-*`.
  *   - `wasm`  — dead alias, no waveform prefix ever produced it.
  */
-export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | '303' | 'prophecy' | 'macro';
+export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | 'rust' | '303' | 'prophecy' | 'macro';
 export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin';
 
 const ENGINE_MAP: Record<string, OscEngineId> = {
@@ -26,6 +27,7 @@ const ENGINE_MAP: Record<string, OscEngineId> = {
     pyodide: 'pyodide',
     wgsl: 'wgsl',
     wam: 'wam',
+    rust: 'rust',
     '303': '303',
     prophecy: 'prophecy',
     // macro-<model>: the suffix names a model (MACRO_ENGINES), not a shape.
@@ -54,10 +56,11 @@ const SHAPE_ALIASES: Record<string, WaveShape> = {
  *
  * `cpp-rand` has no equivalent anywhere (there was never a C++ oscillator); it
  * maps to the saw table, which is why the substitution must be visible.
+ *
+ * `rust-saw` / `rust-sqr` are no longer here: the family is live again (#1664),
+ * so songs saved before #1294 play on the Rust kernel they were written for.
  */
 export const LEGACY_WAVEFORM_ALIASES: Record<string, Waveform> = {
-    'rust-saw': 'wam-saw',
-    'rust-sqr': 'wam-sqr',
     'cpp-sin': 'wam-sin',
     'cpp-saw': 'wam-saw',
     'cpp-sqr': 'wam-sqr',

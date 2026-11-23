@@ -13,6 +13,7 @@ const BASE_WAVEFORMS = {
   'pyodide-saw': 0, 'pyodide-square': 0, 'pyodide-sine': 0,
   'wgsl-saw': 0, 'wgsl-sqr': 0, 'wgsl-tri': 0, 'wgsl-sin': 0,
   'wam-saw': 0, 'wam-sqr': 0, 'wam-tri': 0, 'wam-sin': 0,
+  'rust-saw': 0, 'rust-sqr': 0, 'rust-tri': 0, 'rust-sin': 0,
   'wav-saw': 0, 'wav-sqr': 0,
   '303-saw': 0, '303-sqr': 0,
   'prophecy-saw': 0, 'prophecy-sqr': 0, 'prophecy-tri': 0, 'prophecy-pulse': 0,

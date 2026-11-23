@@ -25,13 +25,13 @@ source maps). It exits non-zero if any of them fails.
 |---|---|---|
 | Submodules (`jc303_wasm`, `third_party/{eurorack,stmlib}`) | Open303 DSP and Plaits sources compiled into `hyphon_native` | the emcc world fails to find sources |
 | Pinned Emscripten (`emscripten/toolchain.json`) | builds `public/hyphon_native*`, `rubberband.wasm`, `mix_bus.wasm` | `emscripten/toolchain_env.sh` refuses any other emcc and prints how to install the pin |
+| Rust stable + `rustup target add wasm32-unknown-unknown` | builds `public/rust_osc.wasm`, the `rust-*` oscillator voices (#1664) | `scripts/build-rust-osc.mjs` names the missing cargo / target; `check-release-dist` fails without the file |
 | Network to `cdn.jsdelivr.net` (build time only) | `vendor:pyodide` vendors the same-origin Pyodide runtime (~76 MB) | `check-release-dist` **fails** (it used to only warn) |
 | `pnpm install` | `asc` (AssemblyScript) lives in `node_modules`; `pnpm run …` puts it on PATH | — |
 
 `wasm-pack` is **not** an npm dependency any more. Its postinstall downloaded a GitHub release
-binary and failed `pnpm install` on restricted networks; it is only needed for
-`pnpm run bench:wasm:rust` (not part of any build). Install it out of band
-(`cargo install wasm-pack --locked`); the script says so if it is missing.
+binary and failed `pnpm install` on restricted networks. Nothing needs it now: the Rust world
+(`pnpm run build:wasm:rust`) builds with plain `cargo` and the crate has no dependencies.
 
 ### Building the web bundle without the native toolchain
 

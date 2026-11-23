@@ -325,17 +325,23 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 - **Output**: `src/wasm/*.wasm` (created at build time; not present in a clean checkout)
 - **Bridge**: Corresponding engine files in `src/engines/`
 
-### 2. Rust bench crate (`/rust-audio`) — **not shipped**
-- `rust-audio/` is a benchmark crate only (#1294). It is not a native world,
-  `build:native` does not build it, and nothing in `src/` imports it.
-- Its oscillator produced a naive saw/square + biquad on the **main thread**,
-  looped through an `AudioBufferSourceNode` — a duplicate of the
-  AssemblyScript kernel with no SIMD and no worklet, so the `rust-*` waveform
-  family was removed.
-- **Bench build** (opt in): `pnpm run bench:wasm:rust` → `rust-audio/pkg/`.
-- Bringing it back into the app means owning a kernel the other worlds do not
-  (e.g. a SIMD wavetable/granular voice **inside a worklet**) and registering
-  as an `OscillatorBackend` — see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`.
+### 2. Rust World (`/rust-audio`) — the `rust-*` oscillator voices (#1664)
+- **Source**: `rust-audio/src/lib.rs`, a `no_std` cdylib (no dependencies, no
+  wasm-bindgen, no allocator) exporting a plain C ABI (`rosc_*`, declared in
+  `emscripten/wasm_export_manifest.json#rustOsc`).
+- **Build**: `pnpm run build:wasm:rust` → `public/rust_osc.wasm` (the `rust-osc`
+  native world; `build:native` builds it). Needs `rustup target add
+  wasm32-unknown-unknown`. Flags (`+simd128`, fixed memory, stack) come from
+  `emscripten/wasm_memory_budget.json#rustOsc`; `tools/check_rust_osc_module.mjs`
+  rejects a growable, importing or scalar-only module.
+- **Runtime**: one `rust-osc-processor` AudioWorklet node per synth voice
+  (`src/engines/RustOscillator.ts`, `RustWorkletBackend`). Never a main-thread
+  buffer — that is what #1294 removed; `oscillatorEngineContract.test.ts`
+  keeps it out.
+- **Tests**: `cargo test --release` in `rust-audio/` (scalar reference: alias
+  energy, sine accuracy, DC, hostile input); `rustOscVoice.realWasm.test.ts`
+  (integration tier: SIMD bit-identical to scalar, processor gate timing).
+- See `docs/wasm/BUILD_NOTES.md#rust-osc`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
@@ -538,7 +544,7 @@ Located in `.github/workflows/`:
 1. **CI** (`ci.yml`)
    - Triggers on push/PR to `main`
    - Runs on `ubuntu-latest`
-   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`). No Rust: `rust-audio` is bench-only and `openrb338` opt-in.
+   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`). Rust: `rustup target add wasm32-unknown-unknown` for `rust-audio` (the `rust-*` voices); `openrb338` stays opt-in.
 
 2. **Diagnostic Build & Test** (`debug_build.yml`)
    - Triggers on push/PR to `main`/`master` and `workflow_dispatch`
@@ -700,7 +706,7 @@ interface Note {
 WASM artifacts are gitignored; a fresh checkout needs a one-time native toolchain install before the first dev session:
 
 1. **Emscripten 6.0.13** (the pin in `emscripten/toolchain.json`, which CI reads): clone to `$HOME/emsdk`, run `./emsdk install 6.0.13 && ./emsdk activate 6.0.13`. On linux-x64 `pnpm run setup:emsdk` installs the same pinned build into `.cache/emsdk` with no git/emsdk checkout (found automatically by `emscripten/toolchain_env.sh`). The build scripts find `$HOME/emsdk` themselves (or set `HYPHON_EMSDK`) and refuse any other version.
-2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` (`wasm-pack` is NOT an npm dependency — its postinstall download broke `pnpm install` offline; install it with `cargo install wasm-pack --locked`; `pnpm run bench:wasm:rust` tells you if it is missing).
+2. **Rust wasm32 target**: `rustup target add wasm32-unknown-unknown` — `build:native` builds `public/rust_osc.wasm` with plain `cargo` (no wasm-pack, no wasm-bindgen); `pnpm run build:wasm:rust` tells you if cargo or the target is missing.
 3. **Git submodules**: `git submodule update --init --recursive` (required for `jc303_wasm`, and `third_party/eurorack` + `third_party/stmlib` for the macro voices).
 
 ### First WASM build per workspace
@@ -738,7 +744,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 
 - **`pnpm run dev` is slow**: it always rebuilds all Four Worlds before Vite. Use `pnpm run dev:fast` after a successful `build:native` / `build:native:changed` when source hashes still match.
 - **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
-- **wasm-pack**: bench-only and not an npm dependency; `cargo install wasm-pack --locked` if you need `bench:wasm:rust`.
+- **wasm-pack**: not used. `rust-audio/` builds with plain `cargo` (`pnpm run build:wasm:rust`).
 - **Missing `src/wasm/oscillators.wasm`**: `wam-*` waveforms fall back down the documented chain to the JS oscillator and say so in the EngineHUD. Run `pnpm run build:wasm:oscillators`.
 
 ---

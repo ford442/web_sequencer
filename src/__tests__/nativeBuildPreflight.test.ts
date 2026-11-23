@@ -85,9 +85,9 @@ describe('native preflight', () => {
     // The standalone public/jc303* world is retired: JC303 runs inside hyphon_native.
     expect(byId.jc303).toBeUndefined();
     expect(byId['as-oscillators']).toBe('pnpm run build:wasm:oscillators');
-    // rust-audio/ is a bench crate (#1294): nothing in the app loads
-    // public/rust-wasm/, so it is not a native world and `build:native` must
-    // not demand a Rust toolchain.
+    // rust-audio/ is the rust-* oscillator family again (#1664): its own world,
+    // rebuilt by its own command, so a kernel edit never re-links hyphon_native.
+    expect(byId['rust-osc']).toBe('pnpm run build:wasm:rust');
     expect(byId.rust).toBeUndefined();
   });
 

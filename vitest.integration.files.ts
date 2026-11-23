@@ -23,4 +23,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/__tests__/hyphonNativeFixedMemory.integration.test.ts',
   // The macro (Plaits) voice on the real wasm: worklet stereo + offline == live.
   'src/audio-worklets/__tests__/macroVoice.realWasm.test.ts',
+  // The rust-* oscillator (#1664) on the real rust_osc.wasm: SIMD == scalar, band-limited, processor gate timing.
+  'src/audio-worklets/__tests__/rustOscVoice.realWasm.test.ts',
 ] as const;

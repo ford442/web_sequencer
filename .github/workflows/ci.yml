@@ -149,6 +149,11 @@ jobs:
           version: ${{ steps.emsdk-pin.outputs.version }}
           no-cache: false
 
+      - name: Rust wasm32 target
+        # rust-* oscillator voices (public/rust_osc.wasm, #1664). The runner
+        # image ships rustup + stable; the crate has no dependencies.
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -167,7 +172,7 @@ jobs:
             public/hyphon_native.st.wasm
             public/hyphon_wasm_export_map.st.json
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'rust-audio/**', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed
@@ -190,6 +195,7 @@ jobs:
             public/hyphon_wasm_export_map.st.json
             public/rubberband.wasm
             public/mix_bus.wasm
+            public/rust_osc.wasm
             .cache/native/
           if-no-files-found: error
           retention-days: 14

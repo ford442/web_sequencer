@@ -152,6 +152,12 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     'tools/plaits_wasm_patches.mjs',
   ];
 
+  // rust-* oscillator family (#1664): its own world, so a kernel edit rebuilds
+  // only public/rust_osc.wasm. The crate's target/ is cargo's cache, not input.
+  const rustOscSrc = walkFiles(repoRoot, 'rust-audio', {
+    excludeDirNames: new Set(['target', 'pkg']),
+  });
+
   return [
     ...asWorlds,
     {
@@ -210,6 +216,20 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
       ],
       outputs: ['public/mix_bus.wasm'],
       toolchain: 'emcc',
+    },
+    {
+      id: 'rust-osc',
+      world: 'rust',
+      rebuildCommand: 'pnpm run build:wasm:rust',
+      inputs: [
+        ...rustOscSrc.map(fileInput),
+        fileInput('scripts/build-rust-osc.mjs'),
+        fileInput('tools/check_rust_osc_module.mjs'),
+        fileInput('emscripten/wasm_export_manifest.json'),
+        fileInput(budgetRel),
+      ],
+      outputs: ['public/rust_osc.wasm'],
+      toolchain: 'cargo',
     },
   ];
 }
@@ -350,7 +370,10 @@ export function writeStamps(repoRoot, worlds, results, extra = {}) {
   );
 }
 
-/** Every assembly/*.ts and emscripten *.{cpp,h,js,json,sh} (except tests/) must be claimed. */
+/**
+ * Every assembly/*.ts, emscripten *.{cpp,h,js,json,sh} (except tests/) and
+ * rust-audio/ source must be claimed.
+ */
 export function unclaimedNativeSources(repoRoot, worlds = defineWorlds(repoRoot)) {
   const claimed = new Set();
   for (const world of worlds) {
@@ -362,6 +385,7 @@ export function unclaimedNativeSources(repoRoot, worlds = defineWorlds(repoRoot)
     ...walkFiles(repoRoot, 'assembly'),
     ...walkFiles(repoRoot, 'emscripten', { excludeDirNames: new Set(['temp_build', 'tests']) })
       .filter((rel) => /\.(cpp|h|js|json|sh|a)$/.test(rel)),
+    ...walkFiles(repoRoot, 'rust-audio', { excludeDirNames: new Set(['target', 'pkg']) }),
   ];
   return required.filter((rel) => !claimed.has(rel));
 }

@@ -119,13 +119,28 @@ function memoryFor(world, budget, rel) {
       pthreadPoolSize: 0,
     };
   }
+  if (world.world === 'rust') {
+    // Owns a fixed, unshared memory (wasm-ld --initial-memory = --max-memory).
+    const mb = (budget.rustOsc.initialMemoryPages * budget.pageSizeBytes) / (1024 * 1024);
+    return {
+      initialMb: mb,
+      maximumMb: mb,
+      stackMb: budget.rustOsc.stackSizeBytes / (1024 * 1024),
+      pthreadPoolSize: 0,
+    };
+  }
   return null;
 }
 
-function linkFlagsFor(world, rel) {
+function linkFlagsFor(world, rel, budget) {
   if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (world.world === 'emcc') return ['-pthread', 'ALLOW_MEMORY_GROWTH=0'];
+  if (world.world === 'rust') {
+    // Same flags scripts/build-rust-osc.mjs passes (fixed memory: max == initial).
+    const bytes = budget.rustOsc.initialMemoryPages * budget.pageSizeBytes;
+    return ['target-feature=+simd128', `--initial-memory=${bytes}`, `--max-memory=${bytes}`];
+  }
   // rubberband: no worklet-loaded module grows its memory (AGENTS.md).
   return ['ALLOW_MEMORY_GROWTH=0'];
 }
@@ -151,7 +166,7 @@ export function buildNativeManifest({ repoRoot = defaultRepoRoot(), profile = 'r
         threaded,
         requiresCoopCoep,
         memory: memoryFor(world, budget, rel),
-        linkFlags: linkFlagsFor(world, rel),
+        linkFlags: linkFlagsFor(world, rel, budget),
       });
     }
   }
