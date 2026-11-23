@@ -3,8 +3,10 @@ import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { RustOscillator } from '../../engines/RustOscillator';
+import { CppOscillator } from '../../engines/CppOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
 import {
+    CppWorkletBackend,
     JsOscillatorBackend,
     PyodideBackend,
     RustWorkletBackend,
@@ -114,6 +116,8 @@ export interface EngineLifecycleUrls {
     drumkitProcessorUrl: string;
     /** `rust-*` oscillator voices (#1664). */
     rustOscProcessorUrl: string;
+    /** `cpp-*` oscillator voices (#1665). */
+    cppOscProcessorUrl: string;
 }
 
 export interface EngineLifecycleResult {
@@ -205,20 +209,23 @@ export async function initializeAudioContextAndEngines(
 
     // Initialize oscillator backends through the shared registry. Every engine
     // is wrapped in an OscillatorBackend adapter so readiness is typed and the
-    // fallback chain (WebGPU → Rust OSC → WASM OSC → Pyodide → WAV PCM → JS)
-    // lives in one place — including for the realtime note path (#1294).
+    // fallback chain (WebGPU → Rust OSC → C++ OSC → WASM OSC → Pyodide →
+    // WAV PCM → JS) lives in one place — including for the realtime note path
+    // (#1294).
     //
     // There is exactly one WASM wavetable engine: the AssemblyScript kernel
-    // behind `WamWasmBackend`. `rust-*` is not a second one: it is a live
-    // AudioWorklet voice (#1664), never a main-thread table.
+    // behind `WamWasmBackend`. `rust-*` (#1664) and `cpp-*` (#1665) are not
+    // more of them: each is a live AudioWorklet voice, never a main-thread table.
     const registry = new BackendRegistry();
     const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
     const rustBackend = new RustWorkletBackend(new RustOscillator(urls.rustOscProcessorUrl));
+    const cppBackend = new CppWorkletBackend(new CppOscillator(urls.cppOscProcessorUrl));
     const wamBackend = new WamWasmBackend(new WasmOscillator());
     const pyodideBackend = new PyodideBackend();
     const wavBackend = new WavPcmBackend();
     registry.register(webGpuBackend);
     registry.register(rustBackend);
+    registry.register(cppBackend);
     registry.register(wamBackend);
     registry.register(pyodideBackend);
     registry.register(wavBackend);
@@ -234,8 +241,10 @@ export async function initializeAudioContextAndEngines(
 
     loadingProgressStore.startStep('wasmEngine');
     await wamBackend.init(context);
-    // Failure is logged by RustOscillator and leaves `rust-*` on the AS table.
-    await rustBackend.init(context);
+    // Independent worklets, probed concurrently. A failure is logged by its
+    // bridge and the registry walks that family down the chain: `rust-*` to
+    // C++ OSC (then the AS table), `cpp-*` to the AS table.
+    await Promise.all([rustBackend.init(context), cppBackend.init(context)]);
     loadingProgressStore.completeStep('wasmEngine');
 
     // Fails until a runtime attaches — the point of the call is to hand the

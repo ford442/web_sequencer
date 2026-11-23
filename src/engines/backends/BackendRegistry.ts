@@ -2,7 +2,7 @@
  * Ordered oscillator backend selection (#1034, collapsed in #1294).
  *
  * One place decides which backend is active, in one documented order:
- *   WebGPU → Rust OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
+ *   WebGPU → Rust OSC → C++ OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
  *
  * This is now the *only* fallback order in the codebase. The realtime note
  * path enters the chain at the backend `engineCatalog` names for the selected

@@ -196,6 +196,7 @@ jobs:
             public/rubberband.wasm
             public/mix_bus.wasm
             public/rust_osc.wasm
+            public/cpp_osc.wasm
             .cache/native/
           if-no-files-found: error
           retention-days: 14

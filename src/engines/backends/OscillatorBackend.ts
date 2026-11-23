@@ -16,6 +16,12 @@
  *     no_std SIMD PolyBLEP kernel (`rust-audio/`) instantiated inside one
  *     AudioWorkletProcessor per voice. It renders no table; it hands `Voice` a
  *     live source through `acquireVoice` (see `RealtimeVoice`).
+ *   - `cpp` — the second worklet-resident engine (#1665), and the first `cpp-*`
+ *     renderer that ever existed: a scalar, linear-phase windowed-sinc BLEP
+ *     kernel (`emscripten/cpp_osc.cpp`) in its own standalone module
+ *     (`public/cpp_osc.wasm`, not `hyphon_native`), one instance per voice.
+ *     It needs no WASM SIMD, so it also catches a `rust-*` part on a browser
+ *     that cannot run the Rust kernel.
  *   - `wav` / `webgpu` / `pyodide` — table producers (decoded asset, GPU
  *     pre-render, CPython pre-render). Real, but not realtime voices.
  *
@@ -26,7 +32,7 @@
  * `__tests__/oscillatorEngineContract.test.ts` enforces that.
  *
  * Every oscillator implementation (WebGPU, AssemblyScript WASM, Rust WASM,
- * WAV/PCM, plain JS) is wrapped in an adapter implementing this interface so
+ * C++ WASM, WAV/PCM, plain JS) is wrapped in an adapter implementing this interface so
  * that lifecycle code can select, probe and fall back across backends without
  * knowing anything about the concrete engine — and without `as any` readiness
  * checks.
@@ -41,7 +47,7 @@
 
 import type { WaveShape } from '../../utils/waveformParser';
 
-export type OscillatorBackendId = 'webgpu' | 'rust' | 'wam' | 'pyodide' | 'wav' | 'js';
+export type OscillatorBackendId = 'webgpu' | 'rust' | 'cpp' | 'wam' | 'pyodide' | 'wav' | 'js';
 
 /**
  * Ordered preference chain — best first. Selection walks this list and takes
@@ -51,13 +57,17 @@ export type OscillatorBackendId = 'webgpu' | 'rust' | 'wam' | 'pyodide' | 'wav' 
  * This array is the *only* fallback order in the codebase (#1294). Callers ask
  * the registry for a starting point; they never re-implement the walk.
  *
- * `rust` sits above `wam`: it is the realtime, band-limited voice, and a
- * `rust-*` part that cannot get it (no AudioWorklet, no WASM SIMD) drops to the
- * AssemblyScript table — logged — rather than straight to `OscillatorNode`.
+ * `rust` and `cpp` sit above `wam`: they are the realtime, band-limited
+ * voices. `cpp` is directly below `rust` because it is scalar — a `rust-*` part
+ * on a browser without WASM SIMD drops to the C++ kernel (still a live,
+ * band-limited voice) before the AssemblyScript table. A `cpp-*` part that
+ * cannot get its worklet (no AudioWorklet, module missing) drops to the table.
+ * Every step is logged; none goes straight to `OscillatorNode`.
  */
 export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
     'webgpu',
     'rust',
+    'cpp',
     'wam',
     'pyodide',
     'wav',
@@ -75,6 +85,7 @@ export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
 export const BACKEND_LABELS: Record<OscillatorBackendId, string> = {
     webgpu: 'WebGPU',
     rust: 'Rust OSC',
+    cpp: 'C++ OSC',
     wam: 'WASM OSC',
     pyodide: 'Pyodide',
     wav: 'WAV PCM',

@@ -89,6 +89,9 @@ describe('native preflight', () => {
     // rebuilt by its own command, so a kernel edit never re-links hyphon_native.
     expect(byId['rust-osc']).toBe('pnpm run build:wasm:rust');
     expect(byId.rust).toBeUndefined();
+    // cpp-* (#1665) is a standalone em++ module with its own world, not part of
+    // hyphon_native: a kernel edit rebuilds public/cpp_osc.wasm only.
+    expect(byId['cpp-osc']).toBe('pnpm run build:wasm:cpp');
   });
 
   type World = { id: string; outputs: string[]; inputs: { name: string }[] };
@@ -101,10 +104,16 @@ describe('native preflight', () => {
 
   it('rebuilds every em++ world when the Emscripten pin moves', () => {
     const worlds = defineWorlds(defaultRepoRoot()) as World[];
-    for (const id of ['emcc', 'rubberband', 'mixbus']) {
+    for (const id of ['emcc', 'rubberband', 'mixbus', 'cpp-osc']) {
       const world = worlds.find((w) => w.id === id);
       expect(world, id).toBeDefined();
       expect(world!.inputs.map((i) => i.name), id).toContain('emscripten/toolchain.json');
+    }
+    // The cpp-* kernel (#1665) is owned by its own world, never hyphon_native's.
+    const inputsOf = (id: string) => worlds.find((w) => w.id === id)?.inputs.map((i) => i.name) ?? [];
+    for (const owned of ['emscripten/cpp_osc.cpp', 'emscripten/build_cpp_osc.sh']) {
+      expect(inputsOf('emcc'), owned).not.toContain(owned);
+      expect(inputsOf('cpp-osc'), owned).toContain(owned);
     }
   });
 });

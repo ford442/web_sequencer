@@ -38,6 +38,7 @@ export const SYNTH_WAVEFORMS: readonly Waveform[] = [
     'wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin',
     'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin',
     'rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin',
+    'cpp-saw', 'cpp-sqr', 'cpp-tri', 'cpp-sin',
     'wav-saw', 'wav-sqr',
     '303-saw', '303-sqr',
     'prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse',

@@ -320,23 +320,41 @@ describe('Voice.startNote — native-worklet families', () => {
 // ── Retired waveform ids ─────────────────────────────────────────────────────
 
 describe('Voice.startNote — retired waveform ids', () => {
-    it.each([
-        ['cpp-sqr', 'sqr'],
-        ['cpp-rand', 'saw'],
-    ] as const)('renders %s on the WASM oscillator and reports the rewrite', (waveform, shape) => {
+    it('plays cpp-rand on the C++ saw and reports the rewrite (#1665)', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const cpp = new StubLiveBackend('cpp');
+        installRegistry(cpp, new StubBackend('wam'));
+
+        makeVoice().startNote(
+            { ...BASE_PARAMS, waveform: 'cpp-rand' as SynthParams['waveform'] },
+            'C4',
+            0,
+        );
+
+        expect(cpp.handedOut).toHaveLength(1);
+        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'saw');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
+    });
+
+    it('drops cpp-rand to the AS table, still reported, when the C++ worklet is not up', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const wam = new StubBackend('wam');
         installRegistry(wam);
 
         makeVoice().startNote(
-            { ...BASE_PARAMS, waveform: waveform as SynthParams['waveform'] },
+            { ...BASE_PARAMS, waveform: 'cpp-rand' as SynthParams['waveform'] },
             'C4',
             0,
         );
 
         expect(wam.renderLoopCalls).toBe(1);
-        expect(wam.lastRequest?.shape).toBe(shape);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
+        expect(wam.lastRequest?.shape).toBe('saw');
+        // The rewrite itself is reported once per id (the test above); the
+        // step down from C++ OSC is published on its own.
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('cpp');
+        expect(issue?.activeBackend).toBe('wam');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('C++ OSC → WASM OSC'));
     });
 });
 
@@ -347,11 +365,11 @@ function makeParamMock() {
 }
 
 /** A live source as a worklet-resident backend hands it out. */
-function makeLiveVoice() {
+function makeLiveVoice(backendId: OscillatorBackendId = 'rust') {
     const output = { connect: vi.fn(), disconnect: vi.fn() };
     const frequency = makeParamMock();
     const voice = {
-        backendId: 'rust' as const,
+        backendId,
         output: output as unknown as AudioNode,
         frequency: frequency as unknown as AudioParam,
         alive: true,
@@ -375,7 +393,7 @@ class StubLiveBackend extends StubBackend {
     acquireVoice(_ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null {
         this.acquireCalls.push(reuse);
         if (reuse && reuse.backendId === this.id && reuse.alive) return reuse;
-        const live = makeLiveVoice();
+        const live = makeLiveVoice(this.id);
         this.handedOut.push(live);
         return live.voice;
     }
@@ -478,6 +496,97 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         expect(wam.lastRequest?.shape).toBe('sin');
         const issue = engineDegradationStore.getIssue('oscillator-backend');
         expect(issue?.requestedBackend).toBe('rust');
+        expect(issue?.activeBackend).toBe('wam');
+        warn.mockRestore();
+    });
+
+    it('falls to the C++ OSC live voice, reported, when the Rust worklet is not up (no WASM SIMD)', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam');
+        const cpp = new StubLiveBackend('cpp');
+        installRegistry(new StubLiveBackend('rust', { ready: false }), cpp, wam);
+
+        makeVoice().startNote({ ...BASE_PARAMS, waveform: 'rust-tri' }, 'C4', 0);
+
+        expect(cpp.handedOut).toHaveLength(1);
+        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'tri');
+        expect(wam.renderLoopCalls).toBe(0);
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('rust');
+        expect(issue?.activeBackend).toBe('cpp');
+        warn.mockRestore();
+    });
+});
+
+// ── Worklet-resident engines (cpp-*, #1665) ──────────────────────────────────
+
+describe('Voice.startNote — worklet-resident cpp-* voices', () => {
+    it.each([
+        ['cpp-saw', 'saw'],
+        ['cpp-sqr', 'sqr'],
+        ['cpp-tri', 'tri'],
+        ['cpp-sin', 'sin'],
+    ] as const)('plays %s on the C++ live source — no OscillatorNode, no AS table', (waveform, shape) => {
+        const osc = makeOscillatorMock();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(osc, bufSrc);
+        const cpp = new StubLiveBackend('cpp');
+        const wam = new StubBackend('wam');
+        installRegistry(new StubLiveBackend('rust'), cpp, wam);
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform }, 'A4', 2);
+
+        expect(cpp.handedOut).toHaveLength(1);
+        const { voice, output, frequency } = cpp.handedOut[0];
+        expect(output.connect).toHaveBeenCalledTimes(1);
+        expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 2);
+        expect(voice.start).toHaveBeenCalledWith(2, shape);
+        // The C++ kernel is the source: nothing was substituted underneath it.
+        expect(wam.renderLoopCalls).toBe(0);
+        expect(bufSrc.start).not.toHaveBeenCalled();
+        expect(osc.start).not.toHaveBeenCalled();
+        // And cpp-* enters the chain at cpp — it never climbs to the Rust kernel.
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
+    });
+
+    it('keeps one live source across cpp-* notes, as the Rust voices do', () => {
+        const cpp = new StubLiveBackend('cpp');
+        installRegistry(cpp);
+        const v = makeVoice();
+
+        v.startNote({ ...BASE_PARAMS, waveform: 'cpp-sqr' }, 'C4', 0);
+        v.stopNote(0.5, BASE_PARAMS);
+        v.startNote({ ...BASE_PARAMS, waveform: 'cpp-tri' }, 'E4', 1);
+
+        expect(cpp.handedOut).toHaveLength(1);
+        expect(cpp.acquireCalls[1]).toBe(cpp.handedOut[0].voice);
+        expect(cpp.handedOut[0].voice.start).toHaveBeenLastCalledWith(1, 'tri');
+    });
+
+    it('hands the Rust source back when the part switches to cpp-*', () => {
+        const rust = new StubLiveBackend('rust');
+        const cpp = new StubLiveBackend('cpp');
+        installRegistry(rust, cpp);
+        const v = makeVoice();
+
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
+        v.startNote({ ...BASE_PARAMS, waveform: 'cpp-saw' }, 'C4', 1);
+
+        expect(rust.handedOut[0].voice.release).toHaveBeenCalledTimes(1);
+        expect(cpp.handedOut).toHaveLength(1);
+    });
+
+    it('falls to the AS table, reported, when the C++ worklet is not ready', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const wam = new StubBackend('wam');
+        installRegistry(new StubLiveBackend('cpp', { ready: false }), wam);
+
+        makeVoice().startNote({ ...BASE_PARAMS, waveform: 'cpp-sqr' }, 'C4', 0);
+
+        expect(wam.renderLoopCalls).toBe(1);
+        expect(wam.lastRequest?.shape).toBe('sqr');
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('cpp');
         expect(issue?.activeBackend).toBe('wam');
         warn.mockRestore();
     });

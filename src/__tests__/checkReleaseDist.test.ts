@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 import { rustOscWasmFixture, type RustOscFixtureVariant } from '../test/helpers/rustOscWasmFixture';
+import { cppOscWasmFixture, type CppOscFixtureVariant } from '../test/helpers/cppOscWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
 const SCRIPT = join(ROOT, 'scripts', 'check-release-dist.mjs');
@@ -41,6 +42,7 @@ const WORKLETS = [
     'prophecy-processor',
     'macro-processor',
     'rust-osc-processor',
+    'cpp-osc-processor',
     'drumkit-processor',
     'sustain-processor',
     'RubberBandProcessor',
@@ -60,6 +62,7 @@ const WORKLET_CHUNK_STEM: Record<string, string> = {
     'prophecy-processor': 'prophecy-processor',
     'macro-processor': 'macro-processor',
     'rust-osc-processor': 'rust-osc-processor',
+    'cpp-osc-processor': 'cpp-osc-processor',
     'drumkit-processor': 'drumkit-processor',
     'sustain-processor': 'sustain-processor',
     RubberBandProcessor: 'rubberband-processor',
@@ -130,6 +133,8 @@ interface DistOptions {
     mixBus?: MixBusFixtureVariant | null;
     /** dist/rust_osc.wasm (#1664); `null` leaves it out. */
     rustOsc?: RustOscFixtureVariant | null;
+    /** dist/cpp_osc.wasm (#1665); `null` leaves it out. */
+    cppOsc?: CppOscFixtureVariant | null;
     /** Bytes appended to hyphon_native.wasm as a custom section (still a valid module). */
     pthreadPadding?: number;
     /** A string the pthread binary must not contain (libomp / embind / run_script). */
@@ -159,6 +164,7 @@ function makeDist({
     stMemory = 'plain',
     mixBus = 'valid',
     rustOsc = 'valid',
+    cppOsc = 'valid',
     pthreadPadding = 0,
     pthreadMarker,
     notices = true,
@@ -233,6 +239,7 @@ function makeDist({
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
     if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
     if (rustOsc !== null) writeFileSync(join(dir, 'rust_osc.wasm'), rustOscWasmFixture(rustOsc));
+    if (cppOsc !== null) writeFileSync(join(dir, 'cpp_osc.wasm'), cppOscWasmFixture(cppOsc));
     for (const [rel, text] of Object.entries(extraRootFiles)) {
         mkdirSync(dirname(join(dir, rel)), { recursive: true });
         writeFileSync(join(dir, rel), text);
@@ -380,6 +387,25 @@ describe('check-release-dist WASM export gate', () => {
         ['scalar-only', 'v128 render path was not compiled in'],
     ] as const)('rejects a rust_osc.wasm with %s', (variant, message) => {
         const result = runCheck(makeDist({ rustOsc: variant }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain(message);
+    });
+
+    it('requires the cpp-* oscillator module to ship (#1665)', () => {
+        const result = runCheck(makeDist({ cppOsc: null }));
+
+        expect(result.status).toBe(1);
+        expect(result.output).toContain('dist/cpp_osc.wasm is missing');
+    });
+
+    it.each([
+        ['growable-memory', 'memory can grow'],
+        ['simd', 'module uses v128'],
+        ['wrong-abi', 'ABI version 2'],
+        ['missing-render', 'missing exports: cosc_render'],
+    ] as const)('rejects a cpp_osc.wasm with %s', (variant, message) => {
+        const result = runCheck(makeDist({ cppOsc: variant }));
 
         expect(result.status).toBe(1);
         expect(result.output).toContain(message);

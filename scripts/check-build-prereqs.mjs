@@ -36,7 +36,7 @@ if (asc.length) {
   out.push('    pnpm run build:wasm');
 }
 if (emcc.length) {
-  out.push('Emscripten (public/hyphon_native*, rubberband.wasm, mix_bus.wasm) — needs the pinned emcc:');
+  out.push('Emscripten (public/hyphon_native*, rubberband.wasm, mix_bus.wasm, cpp_osc.wasm) — needs the pinned emcc:');
   out.push('    pnpm run setup:emsdk && pnpm run build:native     # no emsdk checkout / git needed');
   out.push('  (or restore a CI-built set — see docs/deployment/RELEASE_BUILD.md#native-artifacts)');
 }

@@ -227,7 +227,7 @@ export function pcfSettingsToDevlPayload(pcf: PcfSettings): {
 
 const PROPHECY_PREFIX = 'prophecy-';
 /** Waveform prefixes with no ReBirth equivalent — exported as a TB-303 saw. */
-const UNSUPPORTED_WAVEFORM_PREFIXES = ['wav-', 'wgsl-', 'wam-', 'rust-', 'pyodide-'];
+const UNSUPPORTED_WAVEFORM_PREFIXES = ['wav-', 'wgsl-', 'wam-', 'rust-', 'cpp-', 'pyodide-'];
 
 export function collectExportWarnings(song: HyphonSong): string[] {
   const warnings: string[] = [];

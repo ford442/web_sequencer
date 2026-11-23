@@ -436,6 +436,22 @@
         },
         {
           "type": "string",
+          "const": "cpp-saw"
+        },
+        {
+          "type": "string",
+          "const": "cpp-sqr"
+        },
+        {
+          "type": "string",
+          "const": "cpp-tri"
+        },
+        {
+          "type": "string",
+          "const": "cpp-sin"
+        },
+        {
+          "type": "string",
           "const": "wav-saw"
         },
         {
@@ -470,7 +486,7 @@
           "$ref": "#/$defs/MacroWaveform"
         }
       ],
-      "description": "Selectable oscillator waveforms. Every prefix here resolves to a live engine through `parseWaveform` + `ENGINE_CATALOG` (#1294) — nothing in this union falls through to an undocumented `OscillatorNode`.\n\n`cpp-*` was removed: it had no renderer at all. Saved songs that still contain it are rewritten by `LEGACY_WAVEFORM_ALIASES` (whose keys are plain strings — the ids are not members of this union).\n\n`rust-*` is the Rust PolyBLEP kernel running in an AudioWorklet, one node per voice (#1664). It was removed in #1294 when it was a main-thread buffer dump; it came back as a worklet, and old `rust-saw` / `rust-sqr` songs load as-is.\n\n`macro-*` are the 24 models of the macro engine family (Plaits DSP, MIT) — the id names the model; `SynthParams.macro` carries its knobs. The order and ids are persisted: see MACRO_ENGINES in engines/MacroParams.ts.\n\n`wam-*` is Hyphon's AssemblyScript wavetable kernel and is labelled \"WASM OSC\" in the UI — it is NOT Web Audio Modules 2.0 (ADR 0001). The ids keep the `wam-` prefix so existing projects keep loading."
+      "description": "Selectable oscillator waveforms. Every prefix here resolves to a live engine through `parseWaveform` + `ENGINE_CATALOG` (#1294) — nothing in this union falls through to an undocumented `OscillatorNode`.\n\n`cpp-*` is the C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp, its own standalone public/cpp_osc.wasm) running in an AudioWorklet, one node per voice (#1665). It had no renderer at all before that — #1294 removed it for silently playing an OscillatorNode — and old `cpp-saw/sqr/tri/sin` songs now load as-is. `cpp-rand` never had a sound; `LEGACY_WAVEFORM_ALIASES` rewrites it (visibly) to `cpp-saw`.\n\n`rust-*` is the Rust PolyBLEP kernel running in an AudioWorklet, one node per voice (#1664). It was removed in #1294 when it was a main-thread buffer dump; it came back as a worklet, and old `rust-saw` / `rust-sqr` songs load as-is.\n\n`macro-*` are the 24 models of the macro engine family (Plaits DSP, MIT) — the id names the model; `SynthParams.macro` carries its knobs. The order and ids are persisted: see MACRO_ENGINES in engines/MacroParams.ts.\n\n`wam-*` is Hyphon's AssemblyScript wavetable kernel and is labelled \"WASM OSC\" in the UI — it is NOT Web Audio Modules 2.0 (ADR 0001). The ids keep the `wam-` prefix so existing projects keep loading."
     },
     "MacroWaveform": {
       "type": "string",

@@ -14,12 +14,15 @@ import type { Waveform } from '../types';
  * live AudioWorklet voice running the no_std SIMD kernel in `rust-audio/`, not
  * a main-thread `Float32Array` looped through a buffer source.
  *
+ * `cpp` exists for the first time (#1665). Before it, the selector offered it
+ * and it silently played the JS oscillator; now it is a live AudioWorklet voice
+ * running the C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp) from its
+ * own standalone module, public/cpp_osc.wasm.
+ *
  * Deliberately absent:
- *   - `cpp`   — never existed; the selector offered it and it silently played
- *               the JS oscillator. Legacy `cpp-*` waveforms migrate to `wam-*`.
  *   - `wasm`  — dead alias, no waveform prefix ever produced it.
  */
-export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | 'rust' | '303' | 'prophecy' | 'macro';
+export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | 'rust' | 'cpp' | '303' | 'prophecy' | 'macro';
 export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin';
 
 const ENGINE_MAP: Record<string, OscEngineId> = {
@@ -28,6 +31,7 @@ const ENGINE_MAP: Record<string, OscEngineId> = {
     wgsl: 'wgsl',
     wam: 'wam',
     rust: 'rust',
+    cpp: 'cpp',
     '303': '303',
     prophecy: 'prophecy',
     // macro-<model>: the suffix names a model (MACRO_ENGINES), not a shape.
@@ -54,18 +58,16 @@ const SHAPE_ALIASES: Record<string, WaveShape> = {
  * `legacyFrom` so the substitution reaches the HUD and telemetry instead of
  * being applied behind the user's back.
  *
- * `cpp-rand` has no equivalent anywhere (there was never a C++ oscillator); it
- * maps to the saw table, which is why the substitution must be visible.
+ * `cpp-rand` never made a sound of its own (there was no C++ oscillator at all
+ * when it was offered) and the kernel has no noise shape; it maps to the C++
+ * saw, which is why the substitution must be visible.
  *
- * `rust-saw` / `rust-sqr` are no longer here: the family is live again (#1664),
- * so songs saved before #1294 play on the Rust kernel they were written for.
+ * `rust-saw` / `rust-sqr` (#1664) and `cpp-saw/sqr/tri/sin` (#1665) are no
+ * longer here: those families are live, so old songs play on the kernel their
+ * prefix names.
  */
 export const LEGACY_WAVEFORM_ALIASES: Record<string, Waveform> = {
-    'cpp-sin': 'wam-sin',
-    'cpp-saw': 'wam-saw',
-    'cpp-sqr': 'wam-sqr',
-    'cpp-tri': 'wam-tri',
-    'cpp-rand': 'wam-saw',
+    'cpp-rand': 'cpp-saw',
 };
 
 /**

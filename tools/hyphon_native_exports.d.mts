@@ -1,4 +1,4 @@
-export const MANIFEST_MODULES: readonly ['hyphonNative', 'rubberband', 'mixBus'];
+export const MANIFEST_MODULES: readonly ['hyphonNative', 'rubberband', 'mixBus', 'cppOsc'];
 export type ManifestModule = (typeof MANIFEST_MODULES)[number];
 export interface ModuleSurface {
   required: string[];

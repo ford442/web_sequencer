@@ -126,6 +126,12 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     'emscripten/build_mix_bus.sh',
     'emscripten/mix_bus.cpp',
   ]);
+  // The cpp-* oscillator (#1665) is its own standalone module as well: a kernel
+  // edit rebuilds only public/cpp_osc.wasm, never the voice module.
+  const CPP_OSC_OWNED = new Set([
+    'emscripten/build_cpp_osc.sh',
+    'emscripten/cpp_osc.cpp',
+  ]);
   // The Emscripten pin and the script that enforces it: moving the pin must
   // rebuild every em++ world, not only the voice module (whose emscripten/**
   // walk below picks both up anyway).
@@ -135,7 +141,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   const EXPORT_SURFACE_INPUTS = ['emscripten/wasm_export_manifest.json', 'tools/hyphon_native_exports.mjs'];
   const emccFiles = walkFiles(repoRoot, 'emscripten', {
     excludeDirNames: new Set(['temp_build', 'temp_build_rubberband', 'tests']),
-  }).filter((rel) => !RUBBERBAND_OWNED.has(rel) && !MIX_BUS_OWNED.has(rel));
+  }).filter((rel) => !RUBBERBAND_OWNED.has(rel) && !MIX_BUS_OWNED.has(rel) && !CPP_OSC_OWNED.has(rel));
   const rubberbandSrc = walkFiles(repoRoot, 'rubberband/src', {
     excludeDirNames: new Set(['.git']),
   });
@@ -215,6 +221,20 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         fileInput(budgetRel),
       ],
       outputs: ['public/mix_bus.wasm'],
+      toolchain: 'emcc',
+    },
+    {
+      id: 'cpp-osc',
+      world: 'cpposc',
+      rebuildCommand: 'pnpm run build:wasm:cpp',
+      inputs: [
+        ...[...CPP_OSC_OWNED].sort().map(fileInput),
+        ...EXPORT_SURFACE_INPUTS.map(fileInput),
+        fileInput('tools/check_cpp_osc_module.mjs'),
+        ...EMCC_PIN_INPUTS.map(fileInput),
+        fileInput(budgetRel),
+      ],
+      outputs: ['public/cpp_osc.wasm'],
       toolchain: 'emcc',
     },
     {

@@ -91,6 +91,14 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-orange-300',
     badge: 'RS',
   },
+  cpp: {
+    label: 'C++ OSC',
+    accent: 'blue',
+    panelBg: 'bg-blue-950/30',
+    panelBorder: 'border-blue-500/30',
+    text: 'text-blue-300',
+    badge: 'C++',
+  },
   macro: {
     label: 'Macro',
     accent: 'cyan',
@@ -112,6 +120,7 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   webgpu: '/osc/webgpu.webp',
   wam: '/osc/wam.webp',
   rust: '/osc/rust.webp',
+  cpp: '/osc/cpp.webp',
   macro: '/osc/macro.webp',
 };
 
@@ -143,6 +152,7 @@ export const OSCILLATOR_PANEL_FOCUS: Record<OscillatorType, string> = {
   webgpu: '50% 20%',
   wam: '50% 22%',
   rust: '50% 20%',
+  cpp: '50% 20%',
   macro: '50% 18%',
 };
 
@@ -165,6 +175,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
   if (w.startsWith('rust-')) return 'rust';
+  if (w.startsWith('cpp-')) return 'cpp';
   if (w.startsWith('macro-')) return 'macro';
   return 'javascript';
 }
@@ -187,6 +198,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
     case 'rust': return 'rust-saw';
+    case 'cpp': return 'cpp-saw';
     case 'macro': return 'macro-va';
     default: return 'sawtooth';
   }
@@ -204,6 +216,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
     case 'rust': return ['rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin'];
+    case 'cpp': return ['cpp-saw', 'cpp-sqr', 'cpp-tri', 'cpp-sin'];
     case 'macro': return [...MACRO_WAVEFORMS];
     default: return ['sawtooth'];
   }
@@ -223,5 +236,6 @@ export const OSCILLATOR_ACCENT_HEX: Record<OscillatorType, string> = {
   webgpu: '#e879f9',     // fuchsia-400
   wam: '#fbbf24',        // amber-400
   rust: '#fb923c',       // orange-400
+  cpp: '#60a5fa',        // blue-400
   macro: '#22d3ee',      // cyan-400
 };

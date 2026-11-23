@@ -446,7 +446,7 @@ message, which doubles peak memory. That is not worth 100 ms.
 one renderer, and `BackendRegistry` owns the only fallback order there is:
 
 ```
-WebGPU → Rust OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
+WebGPU → Rust OSC → C++ OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
 ```
 
 A family enters that chain at its own backend and can only step *down* it,
@@ -456,6 +456,7 @@ every step published to telemetry and the HUD (`BackendRegistry.sourceFrom`).
 |---|---|---|---|
 | JS oscillator | *(none — `sawtooth`/`square`/…)* | `OscillatorNode` | graph-native, sample-accurate, **always available** |
 | Rust OSC | `rust-*` | `rust-audio/` → `public/rust_osc.wasm`, one `rust-osc-processor` AudioWorklet per voice | **worklet-resident** realtime voice ([below](#rust-osc)) |
+| C++ OSC | `cpp-*` | `emscripten/cpp_osc.cpp` → `public/cpp_osc.wasm` (standalone, not `hyphon_native`), one `cpp-osc-processor` AudioWorklet per voice | **worklet-resident** realtime voice ([below](#cpp-osc)) |
 | WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
 | WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
 | WebGPU | `wgsl-*` | `WebGpuOscillator`, tables pre-rendered at init | offline pre-render |
@@ -540,17 +541,76 @@ Pieces:
 Old songs saved with `rust-saw` / `rust-sqr` load onto this family as they were
 written; they are no longer rewritten to `wam-*`.
 
-### What was removed
+<a id="cpp-osc"></a>
 
-- **`cpp-*`** — never existed. The selector, panel and HUD copy shipped; the
-  renderer did not, so selecting it silently played an `OscillatorNode`. There
-  is no `CppOscillator.ts` and `src/engines/backends/__tests__/oscillatorEngineContract.test.ts`
-  fails the build if one appears.
+### `cpp-*`: a C++ oscillator that finally exists (#1665)
 
-It is rewritten onto `wam-*` by `LEGACY_WAVEFORM_ALIASES`
-(`src/utils/waveformParser.ts`) so existing songs keep playing, and the rewrite
-is reported through `logWaveformSubstitution` rather than applied silently.
-(#1665 makes it a real C++ family.)
+Until #1665 `cpp-*` had **no renderer at all**: the selector, panel and HUD copy
+shipped, and selecting it silently played an `OscillatorNode` (#1294 removed it
+for exactly that, and rewrote saved `cpp-*` ids onto `wam-*`). It is now a real
+C++ kernel, built the way the Rust OSC is shaped, with a different DSP so the
+two families are not one oscillator under two labels:
+
+| | Rust OSC (#1664) | C++ OSC (#1665) |
+|---|---|---|
+| Kernel | `rust-audio/src/lib.rs` | `emscripten/cpp_osc.cpp` |
+| Module | `public/rust_osc.wasm` (cargo) | `public/cpp_osc.wasm` (em++ `STANDALONE_WASM`, the `cpp-osc` native world) |
+| Band-limiting | 2-sample PolyBLEP / PolyBLAMP | **32-tap linear-phase windowed-sinc BLEP / BLAMP** (Blackman–Harris, 16 zero crossings, 128× tables built at init) |
+| Worst alias < 16 kHz, saw @ 3.5 kHz / 48 kHz | — | ≈ −90 dB (naive saw: ≈ −20 dB) |
+| Overshoot | none (residual too short to ring) | Gibbs, ≈ 1.17 peak on saw / square (up to 4/π ≈ 1.27 for a square whose fundamental is all that is left under Nyquist) — the price of a real band limit |
+| Latency | 0 | **16 samples** fixed (`cosc_latency()`; 0.33 ms at 48 kHz) |
+| Note onset | phase reset | phase reset **plus a band-limited step + corner from silence** |
+| SIMD | `simd128` required | **scalar** — runs where WASM SIMD does not |
+| Memory | fixed 2 pages | fixed 2 pages (`wasm_memory_budget.json#cppOsc`) |
+
+**Placement: a dedicated module, not `hyphon_native`.** The issue's question.
+`hyphon_native`'s heap is sized for its voices (303 / Prophecy / Macro / drums)
+and is one instance per worklet *family*; this oscillator is one instance *per
+synth voice* and owns 33 KiB of residual tables. Linking it into
+`hyphon_native` would multiply that heap by the voice count or force a shared
+voice table into a module whose budget does not plan for it. As its own
+`STANDALONE_WASM` reactor it has zero imports, no JS glue, a fixed 128 KiB
+memory per voice (1.1 MiB for all 9 synth voices) and its own native world, so a
+kernel edit never relinks the voice module (and vice versa).
+
+Pieces:
+
+- **Kernel** — `emscripten/cpp_osc.cpp`, C ABI `cosc_*` (listed in
+  `wasm_export_manifest.json#cppOsc`, typed by `gen:native-types` into
+  `src/shared/rt/cppOscExports.ts`). No allocator, no exceptions, no imports;
+  all state is static. The naive wave is written into a 32-slot delay line and
+  every discontinuity (saw wrap, both square edges) adds the BLEP residual, every
+  slope corner (triangle) the BLAMP residual, into the slots ahead of the read
+  point. The residual tables are integrated once in `cosc_init` (Simpson's rule
+  over trigonometric recurrences — no libm in the loop, ≈ 0.1–0.3 ms), stored per
+  one-sample segment with both endpoints so the step at τ = 0 is never
+  interpolated across.
+- **Build** — `pnpm run build:wasm:cpp` (`emscripten/build_cpp_osc.sh`): the
+  pinned em++, `-O3 -flto`, IEEE (no `-ffast-math`), **no `-msimd128`**,
+  `STANDALONE_WASM`, `ALLOW_MEMORY_GROWTH=0`, `INITIAL_MEMORY`/`STACK_SIZE` from
+  the budget, then `tools/check_cpp_osc_module.mjs` (zero imports, fixed unshared
+  memory of the budgeted size, exact export surface, no v128 in any signature or
+  local, ABI 1, a working init). `check-release-dist.mjs` re-checks
+  `dist/cpp_osc.wasm` and budgets it (`dist-budget.json#native`).
+- **Worklet** — `src/audio-worklets/cpp-osc-processor.ts`, the same node shape
+  as the Rust one (a-rate `frequency`, k-rate `shape`, a-rate `gate`; the module
+  arrives compiled in `processorOptions`; a closed gate writes nothing;
+  `process()` allocates nothing). A gate-open edge calls `cosc_reset(0)`.
+- **Bridge** — `src/engines/CppOscillator.ts` / `CppWorkletBackend`: fetch,
+  compile, `addModule`, probe voice; every failure is a named
+  `logEngineFallback('cpp', …)`.
+- **Offline** — `src/audio/offline/OfflineCppOscEngine.ts` runs the same module
+  through the same `instantiateCppOsc` + `cosc_reset(0)`, so a bounced note is
+  bit-identical to the played one (`cppOscVoice.realWasm.test.ts`).
+- **Fallback** — `cpp` sits directly below `rust` in `BACKEND_FALLBACK_ORDER`.
+  A `cpp-*` part with no worklet / module steps to the `wam` table; a `rust-*`
+  part on a browser without WASM SIMD now steps to the C++ OSC (still a live,
+  band-limited voice) before the table. Every step is published.
+
+Saved `cpp-saw` / `cpp-sqr` / `cpp-tri` / `cpp-sin` load onto this family as
+written. `cpp-rand` never made a sound of its own and the kernel has no noise
+shape, so `LEGACY_WAVEFORM_ALIASES` rewrites it to `cpp-saw` — reported through
+`logWaveformSubstitution`, not silently. An in-kernel resonant filter is #1673.
 
 ### Rules for adding one
 
@@ -565,9 +625,11 @@ and then:
    `BACKEND_FALLBACK_ORDER`. `VoiceManager` must not learn its name. A
    worklet-resident engine implements `acquireVoice` (a `RealtimeVoice`), a
    table producer `renderLoop` — `rust-*` is the worked example of the first.
-3. If it is C++, it compiles under `compile_cpp` (IEEE). Nothing in
-   `hyphon_native` uses `-ffast-math`; the offline `mix_bus.cpp` is the only
-   translation unit that does. See [`-ffast-math`](#fast-math).
+3. If it is C++, it is IEEE: under `compile_cpp` inside `hyphon_native`, or —
+   like `cpp_osc.cpp` — a standalone module with its own build script, budget
+   section, manifest section and checker. Nothing in `hyphon_native` uses
+   `-ffast-math`; the offline `mix_bus.cpp` is the only translation unit that
+   does. See [`-ffast-math`](#fast-math).
 4. If it is a worklet with imported memory, it reads
    `emscripten/wasm_memory_budget.json`, never a literal.
 
