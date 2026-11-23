@@ -1,3 +1,4 @@
+import { onAppError } from '@/utils/globalErrorHandlers'
 import { useEffect } from 'react'
 import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { useUIModalsStore } from '@/stores/uiModalsStore'
@@ -51,7 +52,15 @@ function EngineDegradationToasts() {
         engineDegradationStore.setToastHandler((message, type) => {
             showToast(message, type === 'error' ? 'error' : 'info')
         })
-        return () => engineDegradationStore.setToastHandler(null)
+        // Unhandled rejections / panel crashes: tell the user once, keep running.
+        let lastAt = 0
+        const off = onAppError((rec) => {
+            const now = Date.now()
+            if (now - lastAt < 8_000) return
+            lastAt = now
+            showToast(rec.panel ? `${rec.panel} hit an error and was reset — see console` : `Background error: ${rec.message.slice(0, 120)}`, 'error')
+        })
+        return () => { off(); engineDegradationStore.setToastHandler(null) }
     }, [showToast])
     return null
 }

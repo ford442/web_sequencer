@@ -26,6 +26,8 @@ import { EngineDegradationBanner } from './components/EngineDegradationBanner'
 import { PhoneNotice } from './components/PhoneNotice'
 import { RecoveredTakesGate } from './components/RecoveredTakesGate'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
+import { PanelErrorBoundary } from './components/errors/PanelErrorBoundary'
+import { IsolationNotice } from './components/errors/IsolationNotice'
 import { useCompactLayoutContext } from './contexts/compactLayoutStore'
 import { useSurfaceTexture } from './hooks/useSurfaceTexture'
 import { isAgentQuery } from './agent/agentQuery'
@@ -111,7 +113,7 @@ export const App: React.FC = () => {
 
             <AISongImportNode />
 
-            <ModalHosts />
+            <PanelErrorBoundary panel="modals"><ModalHosts /></PanelErrorBoundary>
             {AGENT_MODE && <Suspense fallback={null}><AgentBridge /></Suspense>}
             <Suspense fallback={null}><CollabBridge mode={COLLAB_MODE} /></Suspense>
 
@@ -119,12 +121,14 @@ export const App: React.FC = () => {
 
             <PhoneNotice />
             <EngineDegradationBanner />
+            <IsolationNotice />
 
-            <SongModeNode />
-
-            <SessionNode />
-            <ArrangementNode />
-            <PianoRollNode />
+            <PanelErrorBoundary panel="arrangement">
+                <SongModeNode />
+                <SessionNode />
+                <ArrangementNode />
+                <PianoRollNode />
+            </PanelErrorBoundary>
 
             <MobileTransportNode />
 
@@ -137,8 +141,8 @@ export const App: React.FC = () => {
                         <Suspense fallback={null}>
                             <ChassisNode
                                 isCompact={isCompact}
-                                sequencer={<SequencerNode />}
-                                rack={<RackNode />}
+                                sequencer={<PanelErrorBoundary panel="sequencer"><SequencerNode /></PanelErrorBoundary>}
+                                rack={<PanelErrorBoundary panel="mixer"><RackNode /></PanelErrorBoundary>}
                                 keyboard={<KeyboardNode />}
                                 master={<MasterLoudnessMeter />}
                             />
@@ -146,7 +150,7 @@ export const App: React.FC = () => {
                     </div>
                 ) : (
                     <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(55vh,520px)] min-h-[240px]' : 'h-[440px]'}`}>
-                        <SequencerNode />
+                        <PanelErrorBoundary panel="sequencer"><SequencerNode /></PanelErrorBoundary>
                     </div>
                 )}
                 <ContextMenuNode />
@@ -154,7 +158,7 @@ export const App: React.FC = () => {
                 {!CHASSIS_MODE && (
                     <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
                         <div className={`hyphon-rack-shell hyphon-rack-shell--expandable overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px] min-h-[380px]'}`}>
-                            <PlainRack><RackNode /></PlainRack>
+                            <PanelErrorBoundary panel="mixer"><PlainRack><RackNode /></PlainRack></PanelErrorBoundary>
                         </div>
                     </div>
                 )}
@@ -167,7 +171,7 @@ export const App: React.FC = () => {
                         {/* Master true-peak limiter + BS.1770 loudness meters, sitting
                             with the rack because it measures the master bus output. */}
                         <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                            <MasterLoudnessMeter />
+                            <PanelErrorBoundary panel="master"><MasterLoudnessMeter /></PanelErrorBoundary>
                         </div>
 
                         {/* Routing editor — collapsed by default so the rack stays the
