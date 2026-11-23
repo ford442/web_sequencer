@@ -33,19 +33,27 @@ function hyphonPrecacheManifestPlugin(): Plugin {
         : path.join(resolved.root, resolved.build.outDir);
       if (!fs.existsSync(outDir)) return;
 
-      // Runtime-cacheable-only assets are deliberately excluded from the
-      // eager precache list: they are large (the threaded hyphon_native.wasm
-      // build, the vendored Pyodide runtime) and are instead cached
-      // opportunistically by sw.js the first time the page fetches them.
-      const runtimeOnlyPatterns = [
-        /(^|\/)hyphon_native.*\.(wasm|js)$/,
-        /\.wasm$/,
-        /(^|\/)pyodide\//,
-        /(^|\/)wam\//,
-        /(^|\/)osc\//,
-        /\.(wav|mp3)$/,
-      ];
-      const shellExts = new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.woff', '.woff2']);
+      // What is precached: everything the boot path needs offline, hashed or
+      // not. The page's first load is never controlled by the worker (it only
+      // claims the page after install), so anything the page fetches during
+      // that load — hyphon_native*, rubberband.wasm, the default oscillator
+      // WAVs, osc/ art, the vowel pack, the WASM export maps — never went
+      // through sw.js's runtime cache-first path, and a second, offline load
+      // found those entries missing (engines silently dropping to their JS
+      // fallbacks, #1659). Precaching them by manifest is deterministic and
+      // atomic with install; the whole set is ~3 MB.
+      //
+      // What is not: the vendored Pyodide runtime (~76 MB, only the on-demand
+      // Python path touches it) and anything over PRECACHE_MAX_BYTES (the
+      // bundled onnxruntime-web wasm, ~24 MB, is never fetched same-origin).
+      // Those stay opportunistic: sw.js caches them the first time a
+      // controlled page asks for them.
+      const PRECACHE_MAX_BYTES = 2 * 1024 * 1024;
+      const neverPrecache = [/(^|\/)pyodide\//, /(^|\/)native-artifacts\.json$/];
+      const shellExts = new Set([
+        '.js', '.css', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.woff', '.woff2',
+        '.wasm', '.wav', '.mp3', '.json',
+      ]);
       const skipNames = new Set(['index.html', 'manifest.webmanifest', 'sw.js', 'precache-manifest.json']);
 
       function walk(dir: string, base = ''): string[] {
@@ -60,11 +68,19 @@ function hyphonPrecacheManifestPlugin(): Plugin {
       }
 
       const shell = ['./', './index.html', './manifest.webmanifest', './precache-manifest.json'];
+      const tooLarge: string[] = [];
       for (const rel of walk(outDir)) {
         if (rel.endsWith('.map') || skipNames.has(path.basename(rel))) continue;
         if (!shellExts.has(path.extname(rel))) continue;
-        if (runtimeOnlyPatterns.some((re) => re.test(rel))) continue;
+        if (neverPrecache.some((re) => re.test(rel))) continue;
+        if (fs.statSync(path.join(outDir, rel)).size > PRECACHE_MAX_BYTES) {
+          tooLarge.push(rel);
+          continue;
+        }
         shell.push(`./${rel}`);
+      }
+      if (tooLarge.length > 0) {
+        resolved.logger.info(`[precache] left to the runtime cache (over ${PRECACHE_MAX_BYTES} B): ${tooLarge.join(', ')}`);
       }
 
       const manifestBody = { generatedAt: Date.now(), shell };

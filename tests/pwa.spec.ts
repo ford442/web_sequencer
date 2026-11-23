@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { initializeHyphonAudio } from './helpers/boot';
+import { startEphemeralPreview, type EphemeralPreview } from './helpers/ephemeralPreview';
 
 /**
  * public/sw.js + the `hyphon-precache-manifest` Vite plugin (vite.config.ts).
@@ -28,32 +29,34 @@ test.describe('PWA service worker', () => {
     const isolated = await page.evaluate(() => window.crossOriginIsolated);
     expect(isolated).toBe(true);
   });
+});
 
-  // Skipped pending further investigation — tracked in https://github.com/ford442/web_sequencer/issues/1659
-  // (re-verified failing on Chromium for #1653: the start overlay never appears on the offline reload).
-  // Findings so far, from three CI attempts and their Playwright traces:
-  //  - webkit: page.reload() itself throws "WebKit encountered an internal
-  //    error" at the protocol level, deterministically, before any app code
-  //    runs — a Playwright WebKit driver limitation.
-  //  - chromium: after adding a 4s network timeout to every fetch() in
-  //    sw.js (a real, worthwhile fix — see its own commit — for a genuine
-  //    "fetch never settles" gap), the offline reload itself started
-  //    resolving quickly. But the trace then shows the main JS/CSS bundle —
-  //    already confirmed present in the precache before going offline —
-  //    failing with net::ERR_FAILED, which only happens when a service
-  //    worker's respondWith() promise rejects. The precache-hit path in
-  //    sw.js's fetch handler returns straight from `caches.match()` with no
-  //    network involved, so this should not be reachable; root cause not
-  //    yet identified from trace analysis alone (needs live devtools access
-  //    this environment doesn't have).
-  // crossOriginIsolated (the test above) still verifies the service worker
-  // itself installs, activates, and controls the page correctly on all
-  // three browsers with the same worker active.
-  test.skip('second load boots the app shell and plays a pattern fully offline', async ({ page, context }) => {
-    // First load: online, so the service worker can install and precache the
-    // shell, and runtime-cache the audio engine assets fetched during a
-    // normal boot (the hyphon_native wasm probeHyphonNative() validates, default
-    // oscillator samples) — see RUNTIME_CACHE_PATTERNS in sw.js.
+/**
+ * #1659. The page is served by a private `vite preview` that the test KILLS before the
+ * reload, so "offline" means the origin is unreachable for the page AND the service worker.
+ * `context.setOffline(true)` alone does not stop fetch() calls issued from the worker's own
+ * thread, which is why an earlier version of this test could neither fail for the right reason
+ * nor pass for the right reason (see docs/deployment/ADR_PWA_SERVICE_WORKER_COEP.md).
+ */
+test.describe('PWA offline second load (#1659)', () => {
+  const OFFLINE_PORT = 5174;
+  test.use({ baseURL: `http://127.0.0.1:${OFFLINE_PORT}` });
+  test.skip(
+    Boolean(process.env.DEPLOY_SMOKE_URL),
+    'needs a local dist/ preview it can stop; a deployed build cannot be taken offline',
+  );
+
+  let preview: EphemeralPreview | undefined;
+  test.beforeEach(async () => {
+    preview = await startEphemeralPreview(OFFLINE_PORT);
+  });
+  test.afterEach(async () => {
+    await preview?.stop();
+    preview = undefined;
+  });
+
+  test('second load boots the app shell and plays a pattern fully offline', async ({ page, context, browserName }) => {
+    // First load: online, so the service worker installs and precaches the shell.
     await initializeHyphonAudio(page, { query: 'e2e=1&pwa=1' });
 
     await expect
@@ -63,22 +66,32 @@ test.describe('PWA service worker', () => {
       })
       .toBe(true);
 
-    // Belt-and-suspenders: `controller` being set already implies install's
-    // waitUntil(precacheShell()) resolved (activate/clients.claim() run
-    // after it), but confirm the precache entry actually landed in Cache
-    // Storage before cutting the network.
-    await expect
-      .poll(
-        () =>
-          page.evaluate(async () => {
-            const keys = await caches.keys();
-            return keys.some((k) => k.startsWith('hyphon-precache-'));
-          }),
-        { timeout: 15_000 },
-      )
-      .toBe(true);
+    // `controller` set already implies install's waitUntil(precacheShell()) resolved; confirm
+    // what landed in Cache Storage is what the offline boot needs, before cutting the network:
+    // the hashed bundle AND the unhashed boot assets the page fetched during the (uncontrolled)
+    // first load, which no runtime cache-first path ever saw.
+    const precached = await page.evaluate(async () => {
+      const name = (await caches.keys()).find((k) => k.startsWith('hyphon-precache-'));
+      if (!name) return [];
+      return (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname);
+    });
+    expect(precached.some((p) => /\/assets\/index-[^/]+\.js$/.test(p))).toBe(true);
+    for (const asset of ['/hyphon_native.wasm', '/rubberband.wasm', '/saw.wav', '/samples/vowels/manifest.json']) {
+      expect(precached, `${asset} must be precached`).toContain(asset);
+    }
+    expect(precached.some((p) => p.includes('/pyodide/'))).toBe(false);
 
-    await context.setOffline(true);
+    // Take the network away for real: stop the origin, then also emulate offline.
+    await preview!.stop();
+    preview = undefined;
+    // Emulated offline on top (it also takes cross-origin fetches such as fonts offline), except on
+    // WebKit: there `page.reload()` after `context.setOffline(true)` throws "WebKit encountered an
+    // internal error" at the protocol level before any app code runs (the failure #1659 recorded).
+    // With the origin dead and no emulation WebKit reloads and boots fine, so that failure is the
+    // Playwright WebKit driver's offline emulation, not the app, and the dead origin is the real offline.
+    if (browserName !== 'webkit') await context.setOffline(true);
+    await expect(fetch(`http://127.0.0.1:${OFFLINE_PORT}/`, { signal: AbortSignal.timeout(2000) })).rejects.toThrow();
+
     try {
       await page.reload();
 
@@ -93,11 +106,29 @@ test.describe('PWA service worker', () => {
       await expect(playBtn).toBeVisible({ timeout: 60_000 });
 
       await playBtn.click();
-      await expect(
-        page.getByRole('button', { name: 'Stop Playback', exact: true }),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('button', { name: 'Stop Playback', exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Same engines as online, not a silent drop to the JS fallbacks: native voice module up,
+      // the AssemblyScript export engine loaded, the vowel pack found.
+      type Health = {
+        nativeStatus: string;
+        resolutions: Record<string, string | null>;
+        degradations: { id: string }[];
+      };
+      const h = await page.evaluate(
+        () =>
+          (
+            window as unknown as { __HYPHON_E2E__?: { getEngineHealth?: () => unknown } }
+          ).__HYPHON_E2E__?.getEngineHealth?.() as Health,
+      );
+      expect(h.nativeStatus).toBe('ready');
+      expect(h.resolutions.audioExport).toBe('wasm');
+      expect(h.degradations.map((d) => d.id)).not.toContain('vowel-samples');
+      expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true);
     } finally {
-      await context.setOffline(false);
+      if (browserName !== 'webkit') await context.setOffline(false);
     }
   });
 });
