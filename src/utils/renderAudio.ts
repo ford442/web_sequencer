@@ -13,6 +13,7 @@ import { macroEngineForWaveform } from '@/engines/MacroParams';
 import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
 import { renderDrumkitBuffer } from '@/audio/offline/OfflineDrumKitEngine';
 import { renderRustOscOffline } from '@/audio/offline/OfflineRustOscEngine';
+import { renderCppOscOffline } from '@/audio/offline/OfflineCppOscEngine';
 import { parseWaveform } from '@/utils/waveformParser';
 import { logWaveformSubstitution } from '@/utils/engineTelemetry';
 import { DrumKitEngine } from '@/engines/DrumKitEngine';
@@ -57,6 +58,8 @@ export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
 
 /** The offline rust-* substitution is reported once, not once per rendered hit. */
 let rustOfflineSubstitutionReported = false;
+/** Same for cpp-*. */
+let cppOfflineSubstitutionReported = false;
 
 /**
  * Filter changes inside one rendered note (#1384): a 303 voice's automation
@@ -154,6 +157,33 @@ export async function renderSynthToBuffer(
                 );
             }
         } catch (e) { console.error('Rust OSC Export Error', e); }
+    }
+    else if (params.waveform.startsWith('cpp-')) {
+        // C++ OSC (#1665): the live voice's own kernel, rendered offline. No
+        // filter in the kernel, so the biquad below applies — as in `Voice`.
+        const { shape } = parseWaveform(params.waveform);
+        try {
+            const rawData = await renderCppOscOffline({
+                shape,
+                hz: freqWithPitch,
+                frames: Math.ceil(duration * sampleRate),
+                sampleRate,
+            });
+            if (rawData) {
+                customBuffer = offlineCtx.createBuffer(1, rawData.length, sampleRate);
+                customBuffer.getChannelData(0).set(rawData);
+            } else if (!cppOfflineSubstitutionReported) {
+                // Once per session: a bounce calls this per hit.
+                cppOfflineSubstitutionReported = true;
+                logWaveformSubstitution(
+                    'oscillators',
+                    'cpp',
+                    shape,
+                    shape,
+                    'cpp_osc.wasm unavailable for the offline render; rendered on the JS oscillator',
+                );
+            }
+        } catch (e) { console.error('C++ OSC Export Error', e); }
     }
     else if (params.waveform.startsWith('wam-') && engines?.wasmEngine?.isReady) {
         // WASM

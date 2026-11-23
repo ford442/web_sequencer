@@ -5,7 +5,8 @@
  * ordered chain (which only knew webgpu/wam/rust/wav/js) and a ~130-line
  * per-prefix `if` ladder in `VoiceManager` (which knew wam/rust/wgsl/pyodide
  * and nothing about the registry). Families that appeared in neither — `cpp`
- * most of all — silently played an `OscillatorNode`.
+ * most of all — silently played an `OscillatorNode`. (`cpp` has had a real
+ * renderer since #1665.)
  *
  * Now every `OscEngineId` resolves here to exactly one of:
  *   - `kind: 'backend'` — a registered `OscillatorBackend`; the realtime note
@@ -43,9 +44,14 @@ export const ENGINE_CATALOG: Record<OscEngineId, EngineEntry> = {
     // compatibility only — it is NOT Web Audio Modules 2.0 (ADR 0001).
     wam: { kind: 'backend', backendId: 'wam', label: 'WASM OSC' },
     // Rust PolyBLEP kernel (rust-audio/), one AudioWorklet voice per synth voice
-    // (#1664). Enters the chain at `rust`; without a worklet or WASM SIMD it
-    // drops to the `wam` table, logged.
+    // (#1664). Enters the chain at `rust`; without WASM SIMD it drops to the
+    // scalar C++ OSC, without a worklet to the `wam` table — logged either way.
     rust: { kind: 'backend', backendId: 'rust', label: 'Rust OSC' },
+    // C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp, its own standalone
+    // public/cpp_osc.wasm), one AudioWorklet voice per synth voice (#1665).
+    // Before it, `cpp-*` had no renderer and played an OscillatorNode silently.
+    // Without a worklet or the module it drops to the `wam` table, logged.
+    cpp: { kind: 'backend', backendId: 'cpp', label: 'C++ OSC' },
     wgsl: { kind: 'backend', backendId: 'webgpu', label: 'WebGPU' },
     pyodide: { kind: 'backend', backendId: 'pyodide', label: 'Pyodide' },
     '303': { kind: 'native-worklet', owner: 'Open303Manager', label: 'Open303 / JC303' },

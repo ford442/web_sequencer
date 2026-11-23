@@ -11,6 +11,7 @@
 import type { WebGpuOscillator } from '../WebGpuOscillator';
 import type { WasmOscillator } from '../WasmOscillator';
 import type { RustOscillator } from '../RustOscillator';
+import type { CppOscillator } from '../CppOscillator';
 import { shapeToOscillatorType, type WaveShape } from '../../utils/waveformParser';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 import {
@@ -312,6 +313,65 @@ export class RustWorkletBackend extends BaseBackend {
 
     async init(ctx?: AudioContext): Promise<InitResult> {
         if (!ctx) return this.fail('no AudioContext — the Rust oscillator runs in an AudioWorklet');
+        const result = await this.engine.init(ctx);
+        return result.ok ? this.ok(result.reason) : this.fail(result.reason);
+    }
+
+    generate(): Promise<Float32Array | null> {
+        return Promise.resolve(null);
+    }
+
+    acquireVoice(ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null {
+        if (!this.isReady) return null;
+        return this.timed(() => this.engine.acquire(ctx, reuse));
+    }
+
+    dispose(): void {
+        super.dispose();
+        this.engine.dispose();
+    }
+}
+
+/**
+ * `cpp-*` (#1665): the C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp,
+ * public/cpp_osc.wasm), worklet-resident, one AudioWorkletNode per synth voice
+ * (`CppOscillator`). Same realtime shape as `RustWorkletBackend`: a live source
+ * through `acquireVoice`, no `renderLoop`, and `generate` is null (`offline:
+ * false`) — offline bounces run the same kernel through `OfflineCppOscEngine`.
+ */
+export class CppWorkletBackend extends BaseBackend {
+    readonly id = 'cpp' as const;
+    readonly capabilities: BackendCapabilities = {
+        // Scalar on purpose: it is what runs where WASM SIMD does not.
+        simd: false,
+        threads: false,
+        offline: false,
+        // One node per voice, no shared state: bounded by the graph, not the kernel.
+        polyphony: Number.POSITIVE_INFINITY,
+        shapes: ALL_SHAPES,
+    };
+
+    private readonly engine: CppOscillator;
+
+    constructor(engine: CppOscillator) {
+        super();
+        this.engine = engine;
+    }
+
+    get raw(): CppOscillator {
+        return this.engine;
+    }
+
+    get isSupported(): boolean {
+        return this.engine.isSupported;
+    }
+
+    get isReady(): boolean {
+        return this.initialized && this.engine.isReady;
+    }
+
+    async init(ctx?: AudioContext): Promise<InitResult> {
+        if (!ctx) return this.fail('no AudioContext — the C++ oscillator runs in an AudioWorklet');
         const result = await this.engine.init(ctx);
         return result.ok ? this.ok(result.reason) : this.fail(result.reason);
     }

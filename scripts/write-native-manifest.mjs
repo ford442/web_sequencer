@@ -119,6 +119,16 @@ function memoryFor(world, budget, rel) {
       pthreadPoolSize: 0,
     };
   }
+  if (world.world === 'cpposc') {
+    // STANDALONE_WASM, fixed (ALLOW_MEMORY_GROWTH=0): the maximum IS the initial size.
+    const mb = (budget.cppOsc.initialMemoryPages * budget.pageSizeBytes) / (1024 * 1024);
+    return {
+      initialMb: mb,
+      maximumMb: mb,
+      stackMb: budget.cppOsc.stackSizeBytes / (1024 * 1024),
+      pthreadPoolSize: 0,
+    };
+  }
   if (world.world === 'rust') {
     // Owns a fixed, unshared memory (wasm-ld --initial-memory = --max-memory).
     const mb = (budget.rustOsc.initialMemoryPages * budget.pageSizeBytes) / (1024 * 1024);
@@ -133,7 +143,7 @@ function memoryFor(world, budget, rel) {
 }
 
 function linkFlagsFor(world, rel, budget) {
-  if (world.world === 'mixbus') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
+  if (world.world === 'mixbus' || world.world === 'cpposc') return ['STANDALONE_WASM=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (isHyphonSt(world, rel)) return ['IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=0'];
   if (world.world === 'emcc') return ['-pthread', 'ALLOW_MEMORY_GROWTH=0'];
   if (world.world === 'rust') {

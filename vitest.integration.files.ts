@@ -25,4 +25,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/macroVoice.realWasm.test.ts',
   // The rust-* oscillator (#1664) on the real rust_osc.wasm: SIMD == scalar, band-limited, processor gate timing.
   'src/audio-worklets/__tests__/rustOscVoice.realWasm.test.ts',
+  // The cpp-* oscillator (#1665) on the real cpp_osc.wasm: band-limited, offline == live, processor gate timing.
+  'src/audio-worklets/__tests__/cppOscVoice.realWasm.test.ts',
 ] as const;

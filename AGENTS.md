@@ -350,7 +350,7 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 - **Release link**: `-O3 -flto`, no embind, no `main()`; `tools/render_hyphon_native_parity.mjs` is the gate for compiler / flag changes (`docs/wasm/BUILD_NOTES.md#render-parity`)
 - **Wrappers**: Open303 (`open303_wrapper.cpp`), authentic JC303 multi-instance (`jc303_wrapper.cpp`), Prophecy formant (`prophecy_wrapper.cpp`), macro / Plaits (`macro_wrapper.cpp`)
 - **Requires** the `third_party/eurorack` and `third_party/stmlib` submodules for the macro voices (`git submodule update --init --depth 1 third_party/eurorack third_party/stmlib`); `build.sh` names them when missing
-- **Not** Rubber Band or the offline mix bus — each is its own module (below). No `-ffast-math` here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
+- **Not** Rubber Band, the offline mix bus or the C++ OSC — each is its own module (below). No `-ffast-math` here; see `docs/wasm/BUILD_NOTES.md#fast-math`.
 
 ### 3b. Rubber Band World (`/rubberband` + `emscripten/build_rubberband.sh`)
 - **Build**: `pnpm run build:wasm:rubberband`
@@ -362,6 +362,13 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 - **Build**: `pnpm run build:wasm:mixbus`
 - **Output**: `public/mix_bus.wasm`: a standalone module with zero imports and fixed memory, and no JS glue
 - **Used by**: `src/workers/mixBus.worker.ts` only (stem-export drum/master sums, #1341). It is never on the main thread; the JS path is the fallback. See `docs/wasm/BUILD_NOTES.md#mix-bus`.
+
+### 3c'. C++ OSC World (`emscripten/cpp_osc.cpp` + `emscripten/build_cpp_osc.sh`) — the `cpp-*` oscillator voices (#1665)
+- **Build**: `pnpm run build:wasm:cpp` → `public/cpp_osc.wasm` (the `cpp-osc` native world; `build:native` builds it with the pinned em++)
+- **Output**: a `STANDALONE_WASM` reactor: zero imports, no JS glue, fixed 2-page memory (`wasm_memory_budget.json#cppOsc`), C ABI `cosc_*` (`wasm_export_manifest.json#cppOsc`, typed into `src/shared/rt/cppOscExports.ts`). **Scalar** on purpose (no `-msimd128`); `tools/check_cpp_osc_module.mjs` rejects a growable, importing or v128 module.
+- **Why separate**: one instance per synth voice, each with 33 KiB of BLEP/BLAMP tables — not something to multiply inside `hyphon_native`'s voice heap.
+- **Runtime**: one `cpp-osc-processor` AudioWorklet node per synth voice (`src/engines/CppOscillator.ts`, `CppWorkletBackend`); offline bounces via `src/audio/offline/OfflineCppOscEngine.ts`, bit-identical. Never a main-thread buffer (`oscillatorEngineContract.test.ts`).
+- **Tests**: `src/__tests__/cppOscModule.test.ts` (unit, hermetic); `cppOscVoice.realWasm.test.ts` (integration: alias floor, offline == live, processor gate timing). See `docs/wasm/BUILD_NOTES.md#cpp-osc`.
 
 ### 3d. openrb-338 World (`/openrb338`): **opt-in, not shipped**
 - **Source**: a standalone Rust crate (not in any workspace) holding openrb-338's bit-exact ReBirth 2.01 TB-303, with an adapter and a C ABI. **GPL-3.0-only**, with its own `LICENSE`. Toolchain pinned in `openrb338/rust-toolchain.toml`.

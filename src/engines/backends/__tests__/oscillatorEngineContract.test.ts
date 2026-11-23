@@ -7,6 +7,9 @@
  * `cpp-*`'s case, no implementation at all, falling through to `OscillatorNode`
  * while the UI claimed otherwise. Same class of hazard as the shadow playback
  * stacks guarded by `noDuplicateSamplerEntry.test.ts` (#1134 / #1155).
+ *
+ * `cpp-*` came back in #1665 the only way this file allows: a real C++ kernel
+ * (emscripten/cpp_osc.cpp → public/cpp_osc.wasm) running in an AudioWorklet.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -38,6 +41,7 @@ const OSCILLATOR_TYPES: OscillatorType[] = [
     'webgpu',
     'wam',
     'rust',
+    'cpp',
     'macro',
 ];
 const ALL_WAVEFORMS: Waveform[] = OSCILLATOR_TYPES.flatMap((t) => getWaveformsForType(t));
@@ -91,10 +95,23 @@ describe('every waveform family resolves to a documented engine', () => {
         }
     });
 
-    it('no longer offers the retired cpp-* family in the rack', () => {
-        for (const waveform of ALL_WAVEFORMS) {
-            expect(waveform.startsWith('cpp-')).toBe(false);
+    it('plays cpp-* on the C++ backend, not a rewrite onto wam-* (#1665)', () => {
+        const cpp = getWaveformsForType('cpp');
+        expect(cpp).toEqual(['cpp-saw', 'cpp-sqr', 'cpp-tri', 'cpp-sin']);
+        for (const waveform of cpp) {
+            const parsed = parseWaveform(waveform);
+            expect(parsed.engine).toBe('cpp');
+            expect(parsed.legacyFrom).toBeUndefined();
         }
+        expect(ENGINE_CATALOG.cpp).toEqual({ kind: 'backend', backendId: 'cpp', label: 'C++ OSC' });
+        // Songs saved with cpp-saw/sqr/tri/sin load onto the live family as-is;
+        // only cpp-rand (never a sound of its own) is rewritten, onto the C++ saw.
+        const cppAliases = Object.entries(LEGACY_WAVEFORM_ALIASES).filter(([k]) => k.startsWith('cpp-'));
+        expect(cppAliases).toEqual([['cpp-rand', 'cpp-saw']]);
+        // A cpp-* part that cannot get a worklet drops one step, to the AS table —
+        // never to OscillatorNode directly.
+        const order = [...BACKEND_FALLBACK_ORDER];
+        expect(order.indexOf('wam')).toBe(order.indexOf('cpp') + 1);
     });
 
     it('plays rust-* on the Rust backend, not a rewrite onto wam-* (#1664)', () => {
@@ -108,9 +125,11 @@ describe('every waveform family resolves to a documented engine', () => {
         expect(ENGINE_CATALOG.rust).toEqual({ kind: 'backend', backendId: 'rust', label: 'Rust OSC' });
         // Songs saved before #1294 load onto the live family as-is.
         expect(Object.keys(LEGACY_WAVEFORM_ALIASES).filter((k) => k.startsWith('rust-'))).toEqual([]);
-        // A rust-* part that cannot get a worklet drops one step, to the AS table.
+        // A rust-* part that cannot get the Rust kernel (no WASM SIMD) drops to the
+        // scalar C++ kernel — still a live band-limited voice — then the AS table.
         const order = [...BACKEND_FALLBACK_ORDER];
-        expect(order.indexOf('wam')).toBe(order.indexOf('rust') + 1);
+        expect(order.indexOf('cpp')).toBe(order.indexOf('rust') + 1);
+        expect(order.indexOf('wam')).toBe(order.indexOf('rust') + 2);
     });
 });
 
@@ -137,6 +156,8 @@ const ALLOWED_ENGINE_MODULES = [
     'ProphecyOscillator.ts',
     // Drives the rust-osc-processor AudioWorklet (rust-audio/, #1664).
     'RustOscillator.ts',
+    // Drives the cpp-osc-processor AudioWorklet (emscripten/cpp_osc.cpp, #1665).
+    'CppOscillator.ts',
     'WasmOscillator.ts',
     'WebGpuOscillator.ts',
 ].sort();
@@ -149,10 +170,31 @@ describe('no new decorative oscillator families', () => {
         expect(found).toEqual(ALLOWED_ENGINE_MODULES);
     });
 
-    it('has no CppOscillator, and no promise of one', () => {
-        expect(existsSync(join(SRC, 'engines', 'CppOscillator.ts'))).toBe(false);
-        const offenders = walk(SRC).filter((f) => /CppOscillator/.test(readFileSync(f, 'utf8')));
-        expect(offenders).toEqual([]);
+    it('CppOscillator drives an AudioWorklet and renders nothing on the main thread (#1665)', () => {
+        // cpp-* once had no renderer at all. It exists now only as a worklet
+        // voice; the bridge must not grow a main-thread render on the side.
+        const source = readFileSync(join(SRC, 'engines', 'CppOscillator.ts'), 'utf8');
+        expect(source).toContain('new AudioWorkletNode(');
+        expect(source).not.toMatch(/createBuffer(Source)?\(/);
+        expect(source).not.toMatch(/new Float32Array\(/);
+        expect(source).not.toMatch(/\.exports\b/); // never instantiates the kernel here
+        // And nothing else in src/ renders cpp-* any other way.
+        const kernelUsers = walk(SRC).filter((f) => /\.cosc_render\(/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual([
+            'audio-worklets/cpp-osc-processor.ts',
+            'audio/offline/OfflineCppOscEngine.ts',
+        ]);
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/OfflineCppOsc|renderCppOsc/);
+    });
+
+    it('builds the C++ kernel as its own module, not into hyphon_native (#1665)', () => {
+        // The voice module's heap is sized for its voices; a per-voice
+        // oscillator instance must not share or multiply it.
+        const build = readFileSync(join(ROOT, 'emscripten', 'build.sh'), 'utf8');
+        expect(build).not.toMatch(/cpp_osc/);
+        expect(existsSync(join(ROOT, 'emscripten', 'build_cpp_osc.sh'))).toBe(true);
+        expect(readFileSync(join(ROOT, 'emscripten', 'build_cpp_osc.sh'), 'utf8')).toMatch(/STANDALONE_WASM=1/);
     });
 
     it('RustOscillator drives an AudioWorklet and renders nothing on the main thread (#1664)', () => {
@@ -188,9 +230,9 @@ describe('no new decorative oscillator families', () => {
         expect(bufferSources).toHaveLength(1);
         expect(source).toContain('registry.sourceFrom(');
         // Live worklet sources arrive through the contract type, never by name.
-        expect(source).not.toMatch(/AudioWorkletNode|rust-osc|RustOsc/);
+        expect(source).not.toMatch(/AudioWorkletNode|rust-osc|RustOsc|cpp-osc|CppOsc/);
         // And no resurrected per-prefix ladder.
         expect(source).not.toMatch(/parsed\.engine === '(wam|rust|cpp|wgsl|pyodide|wav)'/);
-        expect(source).not.toMatch(/backendId === '(rust|wam|webgpu|pyodide|wav)'/);
+        expect(source).not.toMatch(/backendId === '(rust|cpp|wam|webgpu|pyodide|wav)'/);
     });
 });

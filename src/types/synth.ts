@@ -9,9 +9,12 @@ export type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficie
  * through `parseWaveform` + `ENGINE_CATALOG` (#1294) — nothing in this union
  * falls through to an undocumented `OscillatorNode`.
  *
- * `cpp-*` was removed: it had no renderer at all. Saved songs that still contain
- * it are rewritten by `LEGACY_WAVEFORM_ALIASES` (whose keys are plain strings —
- * the ids are not members of this union).
+ * `cpp-*` is the C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp, its own
+ * standalone public/cpp_osc.wasm) running in an AudioWorklet, one node per
+ * voice (#1665). It had no renderer at all before that — #1294 removed it for
+ * silently playing an OscillatorNode — and old `cpp-saw/sqr/tri/sin` songs now
+ * load as-is. `cpp-rand` never had a sound; `LEGACY_WAVEFORM_ALIASES` rewrites
+ * it (visibly) to `cpp-saw`.
  *
  * `rust-*` is the Rust PolyBLEP kernel running in an AudioWorklet, one node per
  * voice (#1664). It was removed in #1294 when it was a main-thread buffer dump;
@@ -31,6 +34,7 @@ export type Waveform =
   | 'wgsl-saw' | 'wgsl-sqr' | 'wgsl-tri' | 'wgsl-sin'
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'rust-saw' | 'rust-sqr' | 'rust-tri' | 'rust-sin'
+  | 'cpp-saw' | 'cpp-sqr' | 'cpp-tri' | 'cpp-sin'
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
@@ -138,6 +142,7 @@ export type OscillatorType =
   | 'webgpu'       // WGSL/WebGPU GPU oscillators (pre-rendered wavetables)
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
   | 'rust'         // Rust PolyBLEP kernel, AudioWorklet voice per synth voice (#1664)
+  | 'cpp'          // C++ windowed-sinc BLEP kernel, AudioWorklet voice per synth voice (#1665)
   | 'macro';       // Macro engine family (Plaits DSP, polyphonic native worklet)
 
 export interface Bass2Params {

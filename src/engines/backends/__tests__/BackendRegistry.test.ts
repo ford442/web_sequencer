@@ -96,8 +96,8 @@ describe('BackendRegistry ordering', () => {
         vi.restoreAllMocks();
     });
 
-    it('exposes the documented WebGPU → rust → wam → pyodide → wav → js chain', () => {
-        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'rust', 'wam', 'pyodide', 'wav', 'js']);
+    it('exposes the documented WebGPU → rust → cpp → wam → pyodide → wav → js chain', () => {
+        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'rust', 'cpp', 'wam', 'pyodide', 'wav', 'js']);
     });
 
     it('orders registered backends by preference, not registration order', () => {

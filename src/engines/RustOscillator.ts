@@ -329,9 +329,10 @@ export class RustOscillator {
                 : err != null ? JSON.stringify(err) : null;
         const detail = cause ? `${reason}: ${cause}` : reason;
         this.failure = detail;
-        // The registry drops rust-* to the WASM OSC table (not straight to JS);
-        // say so, since logEngineFallback's own wording names the JS oscillator.
-        logEngineFallback('rust', 'wasm-worklet', `${reason} — rust-* plays on WASM OSC (AssemblyScript) instead`, err);
+        // The registry drops rust-* to the C++ OSC (scalar, so it runs without
+        // WASM SIMD), then the WASM OSC table — not straight to JS; say so, since
+        // logEngineFallback's own wording names the JS oscillator.
+        logEngineFallback('rust', 'wasm-worklet', `${reason} — rust-* plays on C++ OSC (or WASM OSC) instead`, err);
         return { ok: false, reason: detail };
     }
 }

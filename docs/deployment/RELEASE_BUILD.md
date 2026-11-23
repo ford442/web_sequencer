@@ -24,7 +24,7 @@ source maps). It exits non-zero if any of them fails.
 | Prerequisite | Why | Failure you get without it |
 |---|---|---|
 | Submodules (`jc303_wasm`, `third_party/{eurorack,stmlib}`) | Open303 DSP and Plaits sources compiled into `hyphon_native` | the emcc world fails to find sources |
-| Pinned Emscripten (`emscripten/toolchain.json`) | builds `public/hyphon_native*`, `rubberband.wasm`, `mix_bus.wasm` | `emscripten/toolchain_env.sh` refuses any other emcc and prints how to install the pin |
+| Pinned Emscripten (`emscripten/toolchain.json`) | builds `public/hyphon_native*`, `rubberband.wasm`, `mix_bus.wasm`, `cpp_osc.wasm` (the `cpp-*` oscillator voices, #1665) | `emscripten/toolchain_env.sh` refuses any other emcc and prints how to install the pin |
 | Rust stable + `rustup target add wasm32-unknown-unknown` | builds `public/rust_osc.wasm`, the `rust-*` oscillator voices (#1664) | `scripts/build-rust-osc.mjs` names the missing cargo / target; `check-release-dist` fails without the file |
 | Network to `cdn.jsdelivr.net` (build time only) | `vendor:pyodide` vendors the same-origin Pyodide runtime (~76 MB) | `check-release-dist` **fails** (it used to only warn) |
 | `pnpm install` | `asc` (AssemblyScript) lives in `node_modules`; `pnpm run …` puts it on PATH | — |

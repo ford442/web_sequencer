@@ -16,7 +16,7 @@ actually controls — not all of `dist/`:
 |---|---|---|
 | Entry chunk (`dist/index.html`'s `<script type="module">`) | < 1.65 MB raw | ~1.50 MB |
 | Any single image asset (png/jpg/gif/webp/avif, anywhere in `dist/`) | < 512 KB | 31.7 KB (`knob-bezel.webp`) |
-| `dist/assets/` total, excluding `.wasm` | < 4.28 MB | 4.22 MB (2026-11-17, with session packs) |
+| `dist/assets/` total, excluding `.wasm` | < 4.295 MB | 4.29 MB (2026-11-23, with the C++ OSC, #1665) |
 
 `build:release` fails with the offending asset(s) and sizes when a budget is
 exceeded, plus the ten largest `dist/assets/` files for context.

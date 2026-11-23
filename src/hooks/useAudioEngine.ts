@@ -57,6 +57,7 @@ import prophecyProcessorUrl from '../audio-worklets/prophecy-processor.ts?worker
 import macroProcessorUrl from '../audio-worklets/macro-processor.ts?worker&url';
 import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&url';
 import rustOscProcessorUrl from '../audio-worklets/rust-osc-processor.ts?worker&url';
+import cppOscProcessorUrl from '../audio-worklets/cpp-osc-processor.ts?worker&url';
 import { attachPyodideOscillator } from '../engines/backends/BackendRegistry';
 import type { PyodideLike } from '../utils/pyodideBuffers';
 
@@ -231,6 +232,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 macroProcessorUrl,
                 drumkitProcessorUrl,
                 rustOscProcessorUrl,
+                cppOscProcessorUrl,
             }, precreated?.latencyHint, precreated);
 
             liveContextRef.current = context;

@@ -6,8 +6,8 @@ import type { OscillatorType } from '../../types';
  * `currentColor` so it takes the button / LCD colour it sits in. Each glyph
  * echoes the family's panel art: JS braces, PCM sample stems, Open303 square,
  * JC303 saw + pulse-width dot, Prophecy formant humps, Pyodide snake, WebGPU
- * hex core, WAM module blocks, Rust gear over a band-limited saw, Macro knob
- * cluster.
+ * hex core, WAM module blocks, Rust gear over a band-limited saw, C++ "C"
+ * with its two plus signs, Macro knob cluster.
  */
 const GLYPHS: Record<OscillatorType, React.ReactNode> = {
     javascript: (
@@ -51,6 +51,12 @@ const GLYPHS: Record<OscillatorType, React.ReactNode> = {
             <circle cx="8" cy="6" r="2" />
             <path d="M8 1.5v1.6M8 8.9v1.6M3.5 6h1.6M10.9 6h1.6M4.8 2.8l1.1 1.1M10.1 8.1l1.1 1.1M4.8 9.2l1.1-1.1M10.1 3.9l1.1-1.1" />
             <path d="M1.5 14.5 6 12v2.5l4.5-2.5v2.5l4-2.2" />
+        </>
+    ),
+    cpp: (
+        <>
+            <path d="M7.5 3.2a4.8 4.8 0 1 0 0 9.6" />
+            <path d="M8.8 8h2.8M10.2 6.6v2.8M12.4 8h2.8M13.8 6.6v2.8" />
         </>
     ),
     macro: (

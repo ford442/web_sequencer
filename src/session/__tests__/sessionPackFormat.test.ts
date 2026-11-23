@@ -509,14 +509,14 @@ describe('export helpers', () => {
 
   it('keeps only supported instrument fields, clamps them, and says what it dropped', () => {
     const { settings, dropped } = pickPackSynthSettings({
-      waveform: 'cpp-saw' as never, // retired id → rewritten to a live one
+      waveform: 'cpp-rand' as never, // retired id → rewritten to a live one
       filterCutoff: 99999,
       volume: Number.NaN,
       model303Extra: { liveAbA: 1 } as never,
       model303: 'not-a-voice' as never,
       macro: { harmonics: -3, polyphony: 20 },
     });
-    expect(settings.waveform).toBe('wam-saw');
+    expect(settings.waveform).toBe('cpp-saw');
     expect(settings.filterCutoff).toBe(20000);
     expect(settings.volume).toBeUndefined();
     expect(settings.macro).toEqual({ harmonics: 0, polyphony: 8 });

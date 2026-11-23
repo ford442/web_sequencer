@@ -10,7 +10,7 @@
  *       debug                        exported by the debug build profile only
  *                                    (--profile debug): the stack high-water probe
  *       runtime                      never passed — Emscripten adds these itself
- *   --module rubberband | mixBus     that section's `required` (+ `optional`)
+ *   --module rubberband | mixBus | cppOsc   that section's `required` (+ `optional`)
  *
  * Usage:
  *   node tools/hyphon_native_exports.mjs [--module <name>] [--manifest <file>] [--profile release|debug]
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The em++ modules the manifest declares. */
-export const MANIFEST_MODULES = ['hyphonNative', 'rubberband', 'mixBus'];
+export const MANIFEST_MODULES = ['hyphonNative', 'rubberband', 'mixBus', 'cppOsc'];
 
 /**
  * One module's buckets. hyphon_native's are the manifest's top level (they predate
