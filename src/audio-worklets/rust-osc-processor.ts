@@ -93,9 +93,9 @@ class RustOscProcessor extends AudioWorkletProcessor {
         if (!channel || !x || this.failed) return true;
 
         const frames = channel.length;
-        const freq = parameters.frequency!;
-        const gate = parameters.gate!;
-        const shape = Math.min(3, Math.max(0, Math.round(parameters.shape![0] ?? 0)));
+        const freq = parameters.frequency;
+        const gate = parameters.gate;
+        const shape = Math.min(3, Math.max(0, Math.round(parameters.shape[0] ?? 0)));
 
         for (let start = 0; start < frames; ) {
             const end = gateRunEnd(gate, frames, start);

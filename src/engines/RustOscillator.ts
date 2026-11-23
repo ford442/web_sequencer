@@ -324,7 +324,10 @@ export class RustOscillator {
 
     private fail(reason: string, err?: unknown): RustOscInitResult {
         this.isReady = false;
-        const detail = err instanceof Error ? `${reason}: ${err.message}` : err != null ? `${reason}: ${String(err)}` : reason;
+        const cause = err instanceof Error ? err.message
+            : typeof err === 'string' || typeof err === 'number' ? String(err)
+                : err != null ? JSON.stringify(err) : null;
+        const detail = cause ? `${reason}: ${cause}` : reason;
         this.failure = detail;
         // The registry drops rust-* to the WASM OSC table (not straight to JS);
         // say so, since logEngineFallback's own wording names the JS oscillator.

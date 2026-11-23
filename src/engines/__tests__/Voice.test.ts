@@ -385,20 +385,22 @@ class StubLiveBackend extends StubBackend {
 
 describe('Voice.startNote — worklet-resident rust-* voices', () => {
     it('plays rust-saw on a live source: connected to the filter, gated and pitched at the note time', () => {
-        const ctx = makeContext();
+        const osc = makeOscillatorMock();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(osc, bufSrc);
         const rust = new StubLiveBackend();
         installRegistry(rust, new StubBackend('wam'));
 
         makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'A4', 1.5);
 
         expect(rust.handedOut).toHaveLength(1);
-        const { voice, output, frequency } = rust.handedOut[0]!;
+        const { voice, output, frequency } = rust.handedOut[0];
         expect(output.connect).toHaveBeenCalledTimes(1);
         expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 1.5);
         expect(voice.start).toHaveBeenCalledWith(1.5, 'saw');
         // No table, no OscillatorNode: the worklet is the source.
-        expect(ctx.createBufferSource).not.toHaveBeenCalled();
-        expect(ctx.createOscillator).not.toHaveBeenCalled();
+        expect(bufSrc.start).not.toHaveBeenCalled();
+        expect(osc.start).not.toHaveBeenCalled();
     });
 
     it('keeps one live source across notes instead of creating a node per note', () => {
@@ -411,7 +413,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         v.startNote({ ...BASE_PARAMS, waveform: 'rust-tri' }, 'E4', 1);
 
         expect(rust.handedOut).toHaveLength(1);
-        const { voice, output } = rust.handedOut[0]!;
+        const { voice, output } = rust.handedOut[0];
         expect(rust.acquireCalls[1]).toBe(voice);
         expect(output.connect).toHaveBeenCalledTimes(1);
         expect(voice.start).toHaveBeenLastCalledWith(1, 'tri');
@@ -428,7 +430,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
         v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'G4', 0.25, 261.63);
 
-        const { voice, frequency } = rust.handedOut[0]!;
+        const { voice, frequency } = rust.handedOut[0];
         expect(frequency.exponentialRampToValueAtTime).toHaveBeenCalledWith(expect.closeTo(392, 0), 0.35);
         // Legato: the gate is re-asserted at the slide (cancelling the previous
         // note's scheduled close), never closed — so no phase reset.
@@ -444,14 +446,15 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         v.play({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0, 0.2); // schedules a close at 0.6
         v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'G4', 0.25, 261.63);
 
-        const { voice } = rust.handedOut[0]!;
+        const { voice } = rust.handedOut[0];
         expect(voice.stop).toHaveBeenCalledWith(0.2 + BASE_PARAMS.release + 0.1);
         // start() cancels gate events from 0.25 on, i.e. that close.
         expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw');
     });
 
     it('hands the live source back when the voice switches to a table family', () => {
-        const ctx = makeContext();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(makeOscillatorMock(), bufSrc);
         const rust = new StubLiveBackend();
         installRegistry(rust, new StubBackend('wam'));
         const v = makeVoice(ctx);
@@ -459,8 +462,8 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
         v.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 1);
 
-        expect(rust.handedOut[0]!.voice.release).toHaveBeenCalledTimes(1);
-        expect(ctx.createBufferSource).toHaveBeenCalledTimes(1);
+        expect(rust.handedOut[0].voice.release).toHaveBeenCalledTimes(1);
+        expect(bufSrc.start).toHaveBeenCalledTimes(1);
     });
 
     it('falls to the AS table, reported, when the Rust worklet is not ready', () => {

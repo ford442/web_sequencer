@@ -66,11 +66,11 @@ function renderRun(
 ): Float32Array {
     const x = instance();
     const { freq, out } = views(x);
-    const total = Array.from({ length: blocks }, (_, i) => sizes[i % sizes.length]!).reduce((a, b) => a + b, 0);
+    const total = Array.from({ length: blocks }, (_, i) => sizes[i % sizes.length]).reduce((a, b) => a + b, 0);
     const result = new Float32Array(total);
     let at = 0;
     for (let b = 0; b < blocks; b++) {
-        const n = sizes[b % sizes.length]!;
+        const n = sizes[b % sizes.length];
         const perSample = typeof hzAt === 'function';
         if (perSample) for (let i = 0; i < n; i++) freq[i] = hzAt(at + i);
         else freq[0] = hzAt;
@@ -83,7 +83,7 @@ function renderRun(
 
 function maxAbsDiff(a: Float32Array, b: Float32Array): number {
     let m = 0;
-    for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i]! - b[i]!));
+    for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - b[i]));
     return m;
 }
 

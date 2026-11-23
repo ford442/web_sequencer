@@ -316,7 +316,7 @@ export class RustWorkletBackend extends BaseBackend {
         return result.ok ? this.ok(result.reason) : this.fail(result.reason);
     }
 
-    generate(_req: GenerateRequest): Promise<Float32Array | null> {
+    generate(): Promise<Float32Array | null> {
         return Promise.resolve(null);
     }
 

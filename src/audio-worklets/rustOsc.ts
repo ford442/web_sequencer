@@ -76,7 +76,7 @@ export function hasRustOscApi(exports: unknown): exports is RustOscExports {
 
 /** Gate value at frame `i` of an a-rate param (one value when not automated). */
 export function gateOpenAt(gate: Float32Array, i: number): boolean {
-    return (gate.length > 1 ? gate[i]! : gate[0] ?? 0) >= 0.5;
+    return (gate.length > 1 ? gate[i] : gate[0] ?? 0) >= 0.5;
 }
 
 /**
@@ -89,8 +89,8 @@ export function gateOpenAt(gate: Float32Array, i: number): boolean {
  */
 export function gateRunEnd(gate: Float32Array, frames: number, start: number): number {
     if (gate.length <= 1) return frames;
-    const open = gate[start]! >= 0.5;
+    const open = gate[start] >= 0.5;
     let i = start + 1;
-    while (i < frames && (gate[i]! >= 0.5) === open) i++;
+    while (i < frames && (gate[i] >= 0.5) === open) i++;
     return i;
 }
