@@ -6,6 +6,7 @@ import TransportHeader from './components/appParts/TransportHeader'
 import SequencerNode from './components/appParts/SequencerNode'
 import ContextMenuNode from './components/appParts/ContextMenuNode'
 import RackNode from './components/appParts/RackNode'
+import { PlainRack } from './components/appParts/PlainRack'
 import { DarkRackKnobs } from './components/appParts/DarkRackKnobs'
 import KeyboardNode from './components/appParts/KeyboardNode'
 import { BottomBarNode } from './components/appParts/BottomBarNode'
@@ -148,8 +149,8 @@ export const App: React.FC = () => {
 
                 {!CHASSIS_MODE && (
                     <div className="w-full max-w-[1000px] mx-auto shrink-0 mt-2 px-2 sm:px-4">
-                        <div className={`hyphon-rack-shell overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px]'}`}>
-                            <DarkRackKnobs><RackNode /></DarkRackKnobs>
+                        <div className={`hyphon-rack-shell hyphon-rack-shell--expandable overflow-hidden ${isCompact ? 'h-[min(40vh,340px)] min-h-[260px]' : 'h-[380px] min-h-[380px]'}`}>
+                            <PlainRack><RackNode /></PlainRack>
                         </div>
                     </div>
                 )}

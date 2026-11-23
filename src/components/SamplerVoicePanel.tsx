@@ -5,6 +5,7 @@ import { LadderButton } from './sampler/LadderButton';
 import { VerticalKnob } from './sampler/VerticalKnob';
 import { HSlider } from './sampler/HSlider';
 import { noop } from '../utils/noop';
+import { usePlainRack } from './appParts/plainRackContext';
 
 interface SamplerVoicePanelProps {
     title: string;
@@ -504,33 +505,28 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
         formantSpread: 3
     };
 
+    // In the plain rack the sampler panel (banks, slicing, TTS, voice editor) docks in flow
+    // under the knobs and the shell grows to fit; elsewhere it stays a clipped overlay.
+    const docked = usePlainRack() && !!children;
     return (
-        <div className="relative w-full h-full flex flex-col">
+        <div className="relative w-full h-full flex flex-col" data-rack-expand={docked || undefined}>
             {/* Main WebGPU Knobs Area (ADSR, etc.) */}
             <div className="flex-1 relative">
                 <HardwareModule
-                    title={title}
-                    colorHex={colorHex}
-                    controls={controls}
-                    onParamChange={onParamChange}
-                    onRecordToggle={onRecordToggle}
-                    is3D={is3D}
-                    onMidiTouch={onMidiTouch}
-                    onMidiLearnStart={onMidiLearnStart}
-                    isMidiMapped={isMidiMapped}
-                    isMidiActive={isMidiActive}
-                    automationTarget={automationTarget}
-                    patternIndex={patternIndex}
-                    onAutomationNudge={onAutomationNudge}
-                    onAutomationPunchIn={onAutomationPunchIn}
+                    title={title} colorHex={colorHex} controls={controls} onParamChange={onParamChange}
+                    onRecordToggle={onRecordToggle} is3D={is3D}
+                    onMidiTouch={onMidiTouch} onMidiLearnStart={onMidiLearnStart}
+                    isMidiMapped={isMidiMapped} isMidiActive={isMidiActive}
+                    automationTarget={automationTarget} patternIndex={patternIndex}
+                    onAutomationNudge={onAutomationNudge} onAutomationPunchIn={onAutomationPunchIn}
                     onAutomationLaneAction={onAutomationLaneAction}
-                    expressionLedTarget={expressionLedTarget}
-                    expressionLedAnalyser={expressionLedAnalyser}
+                    expressionLedTarget={expressionLedTarget} expressionLedAnalyser={expressionLedAnalyser}
                     expressionLedFallbackColor={expressionLedFallbackColor}
                 >
-                    {children}
+                    {children && !docked && <div className="absolute top-2 left-[10%] right-[10%] max-h-[38%] pointer-events-auto z-10 overflow-y-auto">{children}</div>}
                 </HardwareModule>
             </div>
+            {docked && <div className="shrink-0 px-3 py-2" data-testid="sampler-dock">{children}</div>}
 
             {/* Sampler Voice Controls Panel */}
             <div className="min-h-[280px] bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t-2 border-purple-500/30 p-3 flex gap-4 shrink-0 relative overflow-y-auto overflow-x-hidden hyphon-chrome-panel">

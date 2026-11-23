@@ -338,7 +338,7 @@ export function useHardwarePanels(deps: {
     }, [bass2.waveform, bass2.engine303, bass2.model303, bass2.model303Extra, updateBass2, audioEngine]);
 
     const samplerChild = useMemo(() => (
-        <div className="absolute top-2 left-[10%] right-[10%] max-h-[38%] h-auto pointer-events-auto z-10 bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm overflow-y-auto">
+        <div className="pointer-events-auto bg-gray-900/90 rounded-lg border border-purple-500/30 backdrop-blur-sm">
             <SamplerPanel
                 params={sampler}
                 onChange={(u) => updateSampler(u)}
