@@ -20,15 +20,19 @@
 // hardcoded here.
 //
 // Caching strategy (see the ADR for the full per-asset-class rationale):
-//   - "shell": index.html, manifest.webmanifest, and the built JS/CSS bundle
-//     — precached eagerly at install time from precache-manifest.json, since
-//     Vite hashes those filenames and this static file can't know them.
-//   - Same-origin runtime assets (hyphon_native*.{wasm,js} and their worklet
-//     glue, wam/, osc/, pyodide/, default oscillator .wav samples) are
-//     cache-first but NOT eagerly precached — several run multiple MB
-//     (hyphon_native's threaded build, the vendored Pyodide runtime) — so
-//     they are cached the first time the page actually fetches them and
-//     served from cache on every load after, offline included.
+//   - "shell": index.html, manifest.webmanifest, the built JS/CSS bundle and
+//     everything else the boot path needs offline — hyphon_native*.{wasm,js},
+//     rubberband.wasm and the other small wasm engines, the default oscillator
+//     .wav samples, osc/ art, the vowel pack, the WASM export maps. All of it is
+//     precached eagerly at install time from precache-manifest.json (the
+//     hyphon-precache-manifest plugin lists it, ~7 MB in all). The page's first
+//     load is never controlled by this worker, so none of it could be left to
+//     the runtime cache: whatever the page fetched before the worker claimed it
+//     was simply never cached (#1659).
+//   - Same-origin assets the manifest leaves out — the vendored Pyodide runtime
+//     (~76 MB) and anything over the plugin's size cap — are cache-first at
+//     runtime: cached the first time a controlled page fetches them and served
+//     from cache on every load after, offline included.
 //   - Cross-origin requests (Google Fonts, the onnxruntime-web CDN JS/WASM
 //     Supertonic loads at runtime) are never intercepted. Under COEP
 //     require-corp they need a Cross-Origin-Resource-Policy header from the
@@ -55,6 +59,24 @@ const RUNTIME_CACHE_DIR_PREFIXES = ['pyodide/', 'wam/', 'osc/'].map(scopedPath);
 // Same-origin paths cached opportunistically (first fetch wins), never
 // eagerly precached — matched against the request URL's pathname.
 const RUNTIME_CACHE_PATTERNS = [/hyphon_native.*\.(wasm|js)$/, /\.wasm$/, /\.(wav|mp3)$/];
+
+// Cache lookups ignore `Vary`. The static host answers every asset with
+// `Vary: Origin`, and Chromium attaches an `Origin` request header to
+// same-origin `crossorigin` requests (every module script and stylesheet of the
+// Vite bundle). The entries below are stored from this worker's own
+// `fetch(url)`, which carries no `Origin`, so a plain `cache.match(request)`
+// misses every precached JS/CSS file: the handler then falls through to the
+// network and, offline, rejects respondWith() (net::ERR_FAILED, #1659). Matching
+// by URL string hit, matching by the real request did not. `Vary` says nothing
+// useful about same-origin build output, so it is not part of the cache key.
+const MATCH_OPTIONS = { ignoreVary: true };
+
+// An absolute, scope-relative cache key. `cache.put('./x')` would resolve
+// against this script's URL, which is the scope only for the default scope; this
+// states it.
+function shellKey(path) {
+  return new URL(path, self.registration.scope).href;
+}
 
 function withCorp(response) {
   if (!response || !response.ok) return response;
@@ -96,7 +118,7 @@ async function precacheShell() {
       try {
         const res = await fetch(url, { cache: 'no-store' });
         if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'network error'}`);
-        await cache.put(url, withCorp(res.clone()));
+        await cache.put(shellKey(url), withCorp(res.clone()));
       } catch (err) {
         console.error(`[sw] failed to precache required shell entry ${url}`, err);
         failed.push(url);
@@ -167,7 +189,7 @@ function isRuntimeCacheable(pathname) {
 async function cacheFirst(event, cacheName) {
   const { request } = event;
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, MATCH_OPTIONS);
   if (cached) return cached;
   // Deliberately unbounded: on a cold cache there is nothing to fall back to,
   // so a timeout can only convert a slow-but-working download (a ~47 MB scipy
@@ -193,7 +215,7 @@ self.addEventListener('fetch', (event) => {
           return await fetchWithTimeout(request);
         } catch {
           const cache = await caches.open(PRECACHE_NAME);
-          return (await cache.match('./index.html')) ?? Response.error();
+          return (await cache.match(shellKey('./index.html'), MATCH_OPTIONS)) ?? Response.error();
         }
       })(),
     );
@@ -202,19 +224,21 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     (async () => {
-      const precached = await (await caches.open(PRECACHE_NAME)).match(request);
+      const precached = await (await caches.open(PRECACHE_NAME)).match(request, MATCH_OPTIONS);
       if (precached) return precached;
 
-      if (isRuntimeCacheable(url.pathname)) {
-        return cacheFirst(event, RUNTIME_CACHE_NAME);
-      }
-
       try {
+        if (isRuntimeCacheable(url.pathname)) {
+          return await cacheFirst(event, RUNTIME_CACHE_NAME);
+        }
         return await fetchWithTimeout(request);
-      } catch (err) {
-        const runtimeCached = await (await caches.open(RUNTIME_CACHE_NAME)).match(request);
+      } catch {
+        const runtimeCached = await (await caches.open(RUNTIME_CACHE_NAME)).match(request, MATCH_OPTIONS);
         if (runtimeCached) return runtimeCached;
-        throw err;
+        // Not cached and the network is gone: answer with an explicit network
+        // error (what the page would see anyway) instead of rejecting the
+        // respondWith() promise.
+        return Response.error();
       }
     })(),
   );
