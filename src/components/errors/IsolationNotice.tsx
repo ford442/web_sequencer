@@ -1,13 +1,10 @@
+import { isolationMissing } from '@/utils/crossOriginIsolation'
+
 /**
  * Degraded-mode message when the page is not cross-origin isolated (COOP/COEP
  * headers stripped by a proxy/host), which removes SharedArrayBuffer and forces
  * the single-threaded native build.
  */
-export function isolationMissing(): boolean {
-  if (typeof window === 'undefined') return false
-  return typeof SharedArrayBuffer === 'undefined' || window.crossOriginIsolated === false
-}
-
 export const IsolationNotice: React.FC = () => {
   if (!isolationMissing()) return null
   return (
