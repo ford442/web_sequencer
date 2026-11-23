@@ -104,6 +104,14 @@
   overflow: hidden;
 }
 
+/* Plain rack only: a panel that marks itself data-rack-expand (the sampler, whose
+   bank / slicing / TTS controls are far taller than the knob rack) lets the shell
+   grow to its content instead of clipping it at the fixed height. */
+.hyphon-rack-shell--expandable:has([data-rack-expand]) {
+  height: auto;
+  overflow: visible;
+}
+
 .hyphon-sequencer-shell {
   background: var(--hyphon-bg-inset);
   border: 2px solid var(--hyphon-border-subtle);

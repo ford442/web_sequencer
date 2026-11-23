@@ -94,7 +94,7 @@ and a shrunk file to prove the ratchet bites both ways.
 | 1019 | `src/components/KnobGPUContext.ts` | un-triaged — behavioural, see "Two shapes" below; 975 → 1019 for per-material pipelines (#1581) — the cap shader itself lives in `knobCapShader.ts` |
 | 774 | `src/components/PhonemePainter.tsx` | un-triaged |
 | 901 | `src/components/appParts/RackNode.tsx` | justified exception — see split plan below |
-| 839 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
+| 835 | `src/components/SamplerVoicePanel.tsx` | justified exception — see split plan below |
 | 786 | `src/utils/xmExport.ts` | un-triaged |
 | 822 | `src/importers/rbs/types.ts` | flat type/declaration file — low priority, see "Two shapes" below |
 | 1120 | `src/importers/ai-song/AISongImporter.ts` | un-triaged — behavioural, see "Two shapes" below; the v1.1 song-block conversion (`convertSongBlock` and its helpers) is the natural split line |
