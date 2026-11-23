@@ -12,6 +12,7 @@ import type { WebGpuOscillator } from '../WebGpuOscillator';
 import type { WasmOscillator } from '../WasmOscillator';
 import type { RustOscillator } from '../RustOscillator';
 import type { CppOscillator } from '../CppOscillator';
+import type { DwgsOscillator } from '../DwgsOscillator';
 import { shapeToOscillatorType, type WaveShape } from '../../utils/waveformParser';
 import { engineTelemetry } from '../../utils/engineTelemetry';
 import {
@@ -372,6 +373,72 @@ export class CppWorkletBackend extends BaseBackend {
 
     async init(ctx?: AudioContext): Promise<InitResult> {
         if (!ctx) return this.fail('no AudioContext — the C++ oscillator runs in an AudioWorklet');
+        const result = await this.engine.init(ctx);
+        return result.ok ? this.ok(result.reason) : this.fail(result.reason);
+    }
+
+    generate(): Promise<Float32Array | null> {
+        return Promise.resolve(null);
+    }
+
+    acquireVoice(ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null {
+        if (!this.isReady) return null;
+        return this.timed(() => this.engine.acquire(ctx, reuse));
+    }
+
+    dispose(): void {
+        super.dispose();
+        this.engine.dispose();
+    }
+}
+
+/**
+ * `dwgs-*` (#1666): Korg's Digital Waveform Generator System as harmonic
+ * recipes rendered additively by a scalar Rust kernel (dwgs-audio/,
+ * public/dwgs_osc.wasm), worklet-resident, one AudioWorkletNode per synth voice
+ * (`DwgsOscillator`). Same realtime shape as `CppWorkletBackend` — a live source
+ * through `acquireVoice`, no `renderLoop`, `generate` null; offline bounces run
+ * the same kernel through `OfflineDwgsOscEngine`.
+ *
+ * `entryOnly`: its waves are its own, so no other family may fall back onto it.
+ * It accepts every basic shape only as the shape a `dwgs-*` part would fall
+ * back to; what it plays is the part's DWGS wave (`RealtimeVoice.start`'s
+ * `variant`).
+ */
+export class DwgsWorkletBackend extends BaseBackend {
+    readonly id = 'dwgs' as const;
+    readonly capabilities: BackendCapabilities = {
+        // Scalar: the additive loop is f64 and latency-bound, not lane-bound.
+        simd: false,
+        threads: false,
+        offline: false,
+        // One node per voice, no shared state: bounded by the graph, not the kernel.
+        polyphony: Number.POSITIVE_INFINITY,
+        shapes: ALL_SHAPES,
+        entryOnly: true,
+    };
+
+    private readonly engine: DwgsOscillator;
+
+    constructor(engine: DwgsOscillator) {
+        super();
+        this.engine = engine;
+    }
+
+    get raw(): DwgsOscillator {
+        return this.engine;
+    }
+
+    get isSupported(): boolean {
+        return this.engine.isSupported;
+    }
+
+    get isReady(): boolean {
+        return this.initialized && this.engine.isReady;
+    }
+
+    async init(ctx?: AudioContext): Promise<InitResult> {
+        if (!ctx) return this.fail('no AudioContext — the DWGS oscillator runs in an AudioWorklet');
         const result = await this.engine.init(ctx);
         return result.ok ? this.ok(result.reason) : this.fail(result.reason);
     }

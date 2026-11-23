@@ -160,6 +160,10 @@ The repository contains both `package-lock.json` and `pnpm-lock.yaml`. **CI/CD u
 │   ├── src/lib.rs                # WASM synthesis engine
 │   ├── Cargo.toml                # Rust package config
 │   └── Cargo.lock
+├── dwgs-audio/                   # DWGS oscillator kernel (Rust, no_std, #1666)
+│   ├── src/lib.rs                # additive harmonic-recipe waves + host tests
+│   ├── Cargo.toml
+│   └── Cargo.lock
 ├── emscripten/                   # C++ Emscripten build
 │   ├── build.sh                  # Voice module (hyphon_native), both threading profiles
 │   ├── build_rubberband.sh       # Rubberband-only build
@@ -342,6 +346,27 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
   energy, sine accuracy, DC, hostile input); `rustOscVoice.realWasm.test.ts`
   (integration tier: SIMD bit-identical to scalar, processor gate timing).
 - See `docs/wasm/BUILD_NOTES.md#rust-osc`.
+
+### 2b. DWGS World (`/dwgs-audio`) — the `dwgs-*` oscillator voices (#1666)
+- **What**: Korg's Digital Waveform Generator System, recovered from its orphan
+  panel art: 17 waves (saw, square, 14 harmonic-recipe digital waveforms,
+  keyboard-tracking noise) rendered **additively per sample**, so exactly
+  band-limited. See `docs/audio-engine/dwgs-oscillator.md`.
+- **Source**: `dwgs-audio/src/lib.rs`, a `no_std` cdylib (no dependencies, no
+  libm, no allocator), C ABI `dwgs_*` (`wasm_export_manifest.json#dwgsOsc`).
+- **Build**: `pnpm run build:wasm:dwgs` → `public/dwgs_osc.wasm` (the `dwgs-osc`
+  native world; same wasm32 target as `rust-audio`). **Scalar**: no target
+  feature. Memory/stack from `wasm_memory_budget.json#dwgsOsc`;
+  `tools/check_dwgs_osc_module.mjs` rejects a growable, importing or v128
+  module, a wrong wave count, or a wave that renders silence.
+- **Runtime**: one `dwgs-osc-processor` AudioWorklet node per synth voice
+  (`src/engines/DwgsOscillator.ts`, `DwgsWorkletBackend`). The backend is
+  `entryOnly`: it serves `dwgs-*` parts only and is never another family's
+  fallback. Wave ids live in `src/engines/dwgsWaves.ts` (persisted: append only).
+- **Tests**: `cargo test --release` in `dwgs-audio/`; `dwgsOscModule.test.ts`
+  (unit); `dwgsOscVoice.realWasm.test.ts` (integration: harmonics only, distinct
+  waves, offline == live, processor gate timing).
+- See `docs/wasm/BUILD_NOTES.md#dwgs-osc`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
@@ -551,7 +576,7 @@ Located in `.github/workflows/`:
 1. **CI** (`ci.yml`)
    - Triggers on push/PR to `main`
    - Runs on `ubuntu-latest`
-   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`). Rust: `rustup target add wasm32-unknown-unknown` for `rust-audio` (the `rust-*` voices); `openrb338` stays opt-in.
+   - Steps: checkout with submodules → setup pnpm (version from `packageManager`, pnpm 12) → setup Node 22 → setup Emscripten (version read from `emscripten/toolchain.json`) → install dependencies → build WASM → lint (continue-on-error) → test with Vitest (`--pool forks`). Rust: `rustup target add wasm32-unknown-unknown` for `rust-audio` and `dwgs-audio` (the `rust-*` and `dwgs-*` voices); `openrb338` stays opt-in.
 
 2. **Diagnostic Build & Test** (`debug_build.yml`)
    - Triggers on push/PR to `main`/`master` and `workflow_dispatch`
@@ -724,7 +749,7 @@ After `pnpm install`, with Emscripten sourced:
 pnpm run build:native    # AssemblyScript + hyphon_native + Rubber Band + mix bus (~2 min)
 ```
 
-Re-run `pnpm run build:native:changed` after changing `assembly/`, `rust-audio/`, `emscripten/`, or `jc303_wasm/` sources. `pnpm run check:native` / `dev:fast` fail closed and print the targeted command when stamps or outputs are stale.
+Re-run `pnpm run build:native:changed` after changing `assembly/`, `rust-audio/`, `dwgs-audio/`, `emscripten/`, or `jc303_wasm/` sources. `pnpm run check:native` / `dev:fast` fail closed and print the targeted command when stamps or outputs are stale.
 
 ### Running the main DAW locally
 
@@ -751,7 +776,7 @@ Only the **Vite dev server on port 5173** is required for interactive developmen
 
 - **`pnpm run dev` is slow**: it always rebuilds all Four Worlds before Vite. Use `pnpm run dev:fast` after a successful `build:native` / `build:native:changed` when source hashes still match.
 - **COOP/COEP headers**: Vite sets these automatically; required for threaded WASM (`SharedArrayBuffer`).
-- **wasm-pack**: not used. `rust-audio/` builds with plain `cargo` (`pnpm run build:wasm:rust`).
+- **wasm-pack**: not used. `rust-audio/` and `dwgs-audio/` build with plain `cargo` (`pnpm run build:wasm:rust`, `pnpm run build:wasm:dwgs`).
 - **Missing `src/wasm/oscillators.wasm`**: `wam-*` waveforms fall back down the documented chain to the JS oscillator and say so in the EngineHUD. Run `pnpm run build:wasm:oscillators`.
 
 ---

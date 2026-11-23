@@ -89,6 +89,7 @@ The project has multiple WASM builds with specific purposes:
 - `build:wasm:freezer` - Track freezer/time-stretch prep
 - `build:wasm:rust` - `rust-*` oscillator voices (`rust-audio/` → `public/rust_osc.wasm`, no_std SIMD, AudioWorklet); part of `build:native`, needs `rustup target add wasm32-unknown-unknown` (#1664)
 - `build:wasm:cpp` - `cpp-*` oscillator voices (`emscripten/cpp_osc.cpp` → `public/cpp_osc.wasm`, standalone em++ module, scalar windowed-sinc BLEP, AudioWorklet); part of `build:native` (#1665)
+- `build:wasm:dwgs` - `dwgs-*` oscillator voices (`dwgs-audio/` → `public/dwgs_osc.wasm`, Korg-style DWGS: additive harmonic-recipe waves, scalar no_std Rust, AudioWorklet); part of `build:native`, same wasm32 target as `build:wasm:rust` (#1666)
 - `build:emcc` - Voice module `hyphon_native` (Emscripten 6.0.13, pinned in `emscripten/toolchain.json`; `-O3 -flto`)
 
 ⚠️ **Important:** Individual WASM rebuilds may be needed after changes. The main `dev` and `build` commands handle this, but specific engine changes may require targeted rebuilds.

@@ -17,7 +17,7 @@ Unsupported combinations are disabled (not hidden) and any substitution is logge
 | **WASM OSC (AssemblyScript)** | 2-pole RBJ biquad | LP/BP/HP (after update) | 2 only | Currently hardcoded LP. Easy to add types. No 4-pole. |
 | **Rust** | TBD (bench is scalar LP) | LP/BP/HP planned | 2 (or 4 if implemented) | portable_simd path. Can do full matrix if written that way. |
 | **C++** | TBD (never implemented) | Depends on design | 2 or 4 | Can host either RBJ or a ladder. Ladder is mostly LP. |
-| **DWGS** | TBD (orphan art only) | Likely LP-focused | TBD | Waveguide / physical model; BP/HP may be approximate. |
+| **DWGS** | None in-kernel yet (#1674); the voice's `BiquadFilterNode` follows | LP/BP/HP via the biquad | 2 | Additive harmonic-recipe oscillator (Korg DWGS, #1666) — not a waveguide. Analog-style VCF after a digital wave, as on the DW-6000/8000. |
 | **WebGPU** | Offline table pre-render | LP/BP/HP possible | 2 (table bake) | Changing type/poles regenerates table. Not live-coefficient. |
 | **Pyodide** | Offline (NumPy/SciPy) | LP/BP/HP easy | 2 or 4 | SciPy filters support both. Offline only. |
 | **JS OscillatorNode** | Graph `BiquadFilterNode` | LP/BP/HP | 2 only | Terminal fallback. No 4-pole without extra nodes. |

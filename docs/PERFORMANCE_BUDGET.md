@@ -154,7 +154,8 @@ CDN URL survives into the bundle.
 size.
 
 The panel list is now honest (#1294): `cpp.webp` and `rust.webp` went with
-their retired oscillator families, `dwgs.webp` was an orphan, and
+their retired oscillator families, `dwgs.webp` was an orphan (all three are
+back with real engines: #1664, #1665, #1666 — `dwgs.webp` restored byte for byte), and
 `check-release-dist.mjs` fails the release if `dist/osc/` and
 `OSCILLATOR_PANEL_IMAGES` disagree in either direction — so unreferenced
 panel art cannot accumulate again.

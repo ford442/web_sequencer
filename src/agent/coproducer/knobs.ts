@@ -15,6 +15,7 @@ import type { AISongTrackName } from '../../importers/ai-song/types';
 import { VALID_PARAMETERS_BY_TARGET } from '../../importers/ai-song/automationParameters';
 import { laneDispatchGap } from '../../audio/automation/laneResolver';
 import { MACRO_ENGINES, MACRO_AUTOMATION_TARGETS, type MacroAutomationParam } from '../../engines/MacroParams';
+import { DWGS_WAVEFORMS } from '../../engines/dwgsWaves';
 import type { Waveform } from '../../types';
 
 /** Tracks as the AI song format names them. */
@@ -39,6 +40,7 @@ export const SYNTH_WAVEFORMS: readonly Waveform[] = [
     'wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin',
     'rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin',
     'cpp-saw', 'cpp-sqr', 'cpp-tri', 'cpp-sin',
+    ...DWGS_WAVEFORMS,
     'wav-saw', 'wav-sqr',
     '303-saw', '303-sqr',
     'prophecy-saw', 'prophecy-sqr', 'prophecy-tri', 'prophecy-pulse',

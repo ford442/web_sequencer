@@ -1,0 +1,26 @@
+[package]
+name = "dwgs_osc"
+version = "0.1.0"
+edition = "2021"
+description = "Hyphon `dwgs-*` oscillator family: a no_std, worklet-resident additive kernel in the spirit of Korg's Digital Waveform Generator System (#1666)"
+publish = false
+
+# No dependencies on purpose: the module is instantiated by hand inside an
+# AudioWorkletGlobalScope (src/audio-worklets/dwgs-osc-processor.ts) with an
+# empty import object. No wasm-bindgen, no allocator, no std, no libm.
+[dependencies]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = true
+
+[profile.dev]
+panic = "abort"

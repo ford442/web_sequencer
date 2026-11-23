@@ -180,8 +180,10 @@ describe('tool definitions', () => {
 
     it('knows every waveform the AI song schema allows', () => {
         const defs = aiSchema.$defs as Record<string, { enum?: string[]; anyOf?: Array<{ const?: string; $ref?: string }> }>;
+        // Literal members, plus the named sub-unions (MacroWaveform, DwgsWaveform).
         const fromSchema = (defs.Waveform.anyOf ?? []).flatMap((v) =>
-            v.const !== undefined ? [v.const] : v.$ref === '#/$defs/MacroWaveform' ? defs.MacroWaveform.enum ?? [] : []);
+            v.const !== undefined ? [v.const]
+                : v.$ref?.startsWith('#/$defs/') ? defs[v.$ref.slice('#/$defs/'.length)]?.enum ?? [] : []);
         expect(fromSchema.length).toBeGreaterThan(40);
         expect([...SYNTH_WAVEFORMS].sort()).toEqual([...fromSchema].sort());
     });

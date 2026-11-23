@@ -16,6 +16,11 @@ export type { HighFidCoefficients } from '../audio-worklets/liveHighFidCoefficie
  * load as-is. `cpp-rand` never had a sound; `LEGACY_WAVEFORM_ALIASES` rewrites
  * it (visibly) to `cpp-saw`.
  *
+ * `dwgs-*` is Hyphon's take on Korg's Digital Waveform Generator System
+ * (#1666): harmonic-recipe waves rendered additively by a Rust kernel
+ * (dwgs-audio/ → public/dwgs_osc.wasm) in an AudioWorklet, one node per voice.
+ * The mode existed before only as orphan panel art (deleted in #1294).
+ *
  * `rust-*` is the Rust PolyBLEP kernel running in an AudioWorklet, one node per
  * voice (#1664). It was removed in #1294 when it was a main-thread buffer dump;
  * it came back as a worklet, and old `rust-saw` / `rust-sqr` songs load as-is.
@@ -35,10 +40,21 @@ export type Waveform =
   | 'wam-saw' | 'wam-sqr' | 'wam-tri' | 'wam-sin'
   | 'rust-saw' | 'rust-sqr' | 'rust-tri' | 'rust-sin'
   | 'cpp-saw' | 'cpp-sqr' | 'cpp-tri' | 'cpp-sin'
+  | DwgsWaveform
   | 'wav-saw' | 'wav-sqr'
   | '303-saw' | '303-sqr'
   | 'prophecy-saw' | 'prophecy-sqr' | 'prophecy-tri' | 'prophecy-pulse'
   | MacroWaveform;
+
+/**
+ * The DWGS family (#1666), in kernel order (DWGS_WAVES in engines/dwgsWaves.ts):
+ * the suffix names a wave — a harmonic recipe, or the keyboard-tracking noise —
+ * not a basic shape. The order is persisted; append only.
+ */
+export type DwgsWaveform =
+  | 'dwgs-saw' | 'dwgs-sqr' | 'dwgs-piano' | 'dwgs-epiano' | 'dwgs-clav' | 'dwgs-organ'
+  | 'dwgs-brass' | 'dwgs-reed' | 'dwgs-strings' | 'dwgs-guitar' | 'dwgs-dist' | 'dwgs-bass'
+  | 'dwgs-digibass' | 'dwgs-bell' | 'dwgs-vox' | 'dwgs-sine' | 'dwgs-noise';
 
 /** The macro engine family, in native engine order (MACRO_ENGINES). */
 export type MacroWaveform =
@@ -143,6 +159,7 @@ export type OscillatorType =
   | 'wam'          // AssemblyScript WASM wavetable kernel — NOT Web Audio Modules 2.0
   | 'rust'         // Rust PolyBLEP kernel, AudioWorklet voice per synth voice (#1664)
   | 'cpp'          // C++ windowed-sinc BLEP kernel, AudioWorklet voice per synth voice (#1665)
+  | 'dwgs'         // DWGS additive harmonic-recipe waves (Rust), AudioWorklet voice per synth voice (#1666)
   | 'macro';       // Macro engine family (Plaits DSP, polyphonic native worklet)
 
 export interface Bass2Params {

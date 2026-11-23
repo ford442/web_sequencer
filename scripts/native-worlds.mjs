@@ -163,6 +163,10 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
   const rustOscSrc = walkFiles(repoRoot, 'rust-audio', {
     excludeDirNames: new Set(['target', 'pkg']),
   });
+  // dwgs-* oscillator family (#1666): same shape, its own crate and world.
+  const dwgsOscSrc = walkFiles(repoRoot, 'dwgs-audio', {
+    excludeDirNames: new Set(['target']),
+  });
 
   return [
     ...asWorlds,
@@ -249,6 +253,21 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         fileInput(budgetRel),
       ],
       outputs: ['public/rust_osc.wasm'],
+      toolchain: 'cargo',
+    },
+    {
+      id: 'dwgs-osc',
+      world: 'dwgs',
+      rebuildCommand: 'pnpm run build:wasm:dwgs',
+      inputs: [
+        ...dwgsOscSrc.map(fileInput),
+        fileInput('scripts/build-dwgs-osc.mjs'),
+        fileInput('tools/check_dwgs_osc_module.mjs'),
+        fileInput('tools/check_cpp_osc_module.mjs'),
+        fileInput('emscripten/wasm_export_manifest.json'),
+        fileInput(budgetRel),
+      ],
+      outputs: ['public/dwgs_osc.wasm'],
       toolchain: 'cargo',
     },
   ];
@@ -391,8 +410,8 @@ export function writeStamps(repoRoot, worlds, results, extra = {}) {
 }
 
 /**
- * Every assembly/*.ts, emscripten *.{cpp,h,js,json,sh} (except tests/) and
- * rust-audio/ source must be claimed.
+ * Every assembly/*.ts, emscripten *.{cpp,h,js,json,sh} (except tests/),
+ * rust-audio/ and dwgs-audio/ source must be claimed.
  */
 export function unclaimedNativeSources(repoRoot, worlds = defineWorlds(repoRoot)) {
   const claimed = new Set();
@@ -406,6 +425,7 @@ export function unclaimedNativeSources(repoRoot, worlds = defineWorlds(repoRoot)
     ...walkFiles(repoRoot, 'emscripten', { excludeDirNames: new Set(['temp_build', 'tests']) })
       .filter((rel) => /\.(cpp|h|js|json|sh|a)$/.test(rel)),
     ...walkFiles(repoRoot, 'rust-audio', { excludeDirNames: new Set(['target', 'pkg']) }),
+    ...walkFiles(repoRoot, 'dwgs-audio', { excludeDirNames: new Set(['target']) }),
   ];
   return required.filter((rel) => !claimed.has(rel));
 }

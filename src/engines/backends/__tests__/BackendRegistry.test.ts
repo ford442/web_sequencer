@@ -96,8 +96,8 @@ describe('BackendRegistry ordering', () => {
         vi.restoreAllMocks();
     });
 
-    it('exposes the documented WebGPU → rust → cpp → wam → pyodide → wav → js chain', () => {
-        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'rust', 'cpp', 'wam', 'pyodide', 'wav', 'js']);
+    it('exposes the documented (DWGS) → WebGPU → rust → cpp → wam → pyodide → wav → js chain', () => {
+        expect(BACKEND_FALLBACK_ORDER).toEqual(['dwgs', 'webgpu', 'rust', 'cpp', 'wam', 'pyodide', 'wav', 'js']);
     });
 
     it('orders registered backends by preference, not registration order', () => {
@@ -456,6 +456,92 @@ describe('BackendRegistry.sourceFrom', () => {
         expect(out?.backendId).toBe('wam');
         expect(rust.generateCalls).toBe(0);
         expect(engineDegradationStore.getIssue('oscillator-backend')?.reason).toContain('rust: realtime only');
+        warn.mockRestore();
+    });
+});
+
+/**
+ * DWGS (#1666) heads the order but is `entryOnly`: `dwgs-*` parts enter there
+ * and walk the chain below it, while no other family ever lands on it and the
+ * generic resolve()/generate() do not consider it.
+ */
+describe('BackendRegistry entry-only backends (dwgs)', () => {
+    const ctx = {
+        sampleRate: 44100,
+        createBuffer: (channels: number, length: number, sampleRate: number) => {
+            const data = new Float32Array(length);
+            return { length, numberOfChannels: channels, sampleRate, getChannelData: () => data } as unknown as AudioBuffer;
+        },
+    } as unknown as BaseAudioContext;
+
+    const entryOnly = (opts: { ready?: boolean } = {}) => {
+        const b = new StubRealtimeBackend('dwgs', opts);
+        b.capabilities = { ...b.capabilities, entryOnly: true };
+        return b;
+    };
+
+    beforeEach(() => {
+        engineDegradationStore.clear('oscillator-backend');
+    });
+
+    it('serves the family that enters at it, without degrading', () => {
+        const dwgs = entryOnly();
+        const registry = new BackendRegistry();
+        registry.register(dwgs);
+        registry.register(new StubRealtimeBackend('rust'));
+
+        const source = registry.sourceFrom('dwgs', ctx, REQ);
+        expect(source?.kind === 'realtime' && source.voice.backendId).toBe('dwgs');
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
+    });
+
+    it('walks the chain below it when its worklet is not ready, and reports it', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(entryOnly({ ready: false }));
+        registry.register(new StubBackend('webgpu', { ready: false }));
+        registry.register(new StubRealtimeBackend('rust'));
+
+        const source = registry.sourceFrom('dwgs', ctx, { ...REQ, shape: 'sqr' });
+        expect(source?.kind === 'realtime' && source.voice.backendId).toBe('rust');
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('dwgs');
+        expect(issue?.activeBackend).toBe('rust');
+        warn.mockRestore();
+    });
+
+    it('is never a fallback for another family', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const dwgs = entryOnly();
+        const registry = new BackendRegistry();
+        registry.register(dwgs);
+        registry.register(new StubBackend('webgpu', { ready: false }));
+        registry.register(new StubBackend('wam'));
+
+        // Ordered before webgpu, yet a wgsl-* part skips it on the way down.
+        expect(registry.sourceFrom('webgpu', ctx, REQ)?.kind).toBe('loop');
+        expect(dwgs.acquireCalls).toEqual([]);
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.reason ?? '').not.toContain('dwgs');
+        warn.mockRestore();
+    });
+
+    it('is not what a generic resolve() or generate() requests or picks', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const dwgs = entryOnly();
+        const registry = new BackendRegistry();
+        registry.register(dwgs);
+        registry.register(new StubBackend('wam'));
+        registry.register(new JsOscillatorBackend());
+
+        const resolution = registry.resolve();
+        expect(resolution.requested).toBe('wam');
+        expect(resolution.active).toBe('wam');
+        expect(resolution.attempts.map((a) => a.id)).not.toContain('dwgs');
+
+        const out = await registry.generate(REQ);
+        expect(out?.backendId).toBe('wam');
+        expect(dwgs.generateCalls).toBe(0);
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
         warn.mockRestore();
     });
 });

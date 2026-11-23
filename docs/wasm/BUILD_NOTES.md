@@ -446,17 +446,22 @@ message, which doubles peak memory. That is not worth 100 ms.
 one renderer, and `BackendRegistry` owns the only fallback order there is:
 
 ```
-WebGPU → Rust OSC → C++ OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
+(DWGS) → WebGPU → Rust OSC → C++ OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
 ```
 
 A family enters that chain at its own backend and can only step *down* it,
 every step published to telemetry and the HUD (`BackendRegistry.sourceFrom`).
+DWGS heads it as an **entry-only** backend (`BackendCapabilities.entryOnly`):
+`dwgs-*` parts enter there and walk everything below with each wave's nearest
+basic shape, but no other family ever falls *onto* DWGS, and the generic
+`resolve()` / `generate()` do not consider it ([below](#dwgs-osc)).
 
 | Family | Prefix | Renderer | Kind |
 |---|---|---|---|
 | JS oscillator | *(none — `sawtooth`/`square`/…)* | `OscillatorNode` | graph-native, sample-accurate, **always available** |
 | Rust OSC | `rust-*` | `rust-audio/` → `public/rust_osc.wasm`, one `rust-osc-processor` AudioWorklet per voice | **worklet-resident** realtime voice ([below](#rust-osc)) |
 | C++ OSC | `cpp-*` | `emscripten/cpp_osc.cpp` → `public/cpp_osc.wasm` (standalone, not `hyphon_native`), one `cpp-osc-processor` AudioWorklet per voice | **worklet-resident** realtime voice ([below](#cpp-osc)) |
+| DWGS | `dwgs-*` | `dwgs-audio/` → `public/dwgs_osc.wasm`, one `dwgs-osc-processor` AudioWorklet per voice | **worklet-resident**, entry-only: its own waves, not basic shapes ([below](#dwgs-osc)) |
 | WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
 | WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
 | WebGPU | `wgsl-*` | `WebGpuOscillator`, tables pre-rendered at init | offline pre-render |
@@ -611,6 +616,77 @@ Saved `cpp-saw` / `cpp-sqr` / `cpp-tri` / `cpp-sin` load onto this family as
 written. `cpp-rand` never made a sound of its own and the kernel has no noise
 shape, so `LEGACY_WAVEFORM_ALIASES` rewrites it to `cpp-saw` — reported through
 `logWaveformSubstitution`, not silently. An in-kernel resonant filter is #1673.
+
+<a id="dwgs-osc"></a>
+
+### `dwgs-*`: DWGS, recovered from its panel art (#1666)
+
+DWGS had **no code at all** — no engine id, no alias — only `public/osc/dwgs.jpg`
+(added in 0cdff156, converted to WebP, deleted as an orphan in #1294). The
+panel is the design: a Korg-badged **DWGS** module whose WAVEFORM SOURCE
+selector reads **SAW / SQR / NOISE / DIGITAL WAVEFORM**, with a selector knob.
+That is Korg's *Digital Waveform Generator System* (DW-6000 / DW-8000):
+single-cycle waves defined by additive synthesis — a recipe of harmonic levels
+per wave — played as a digital oscillator in front of a filter. It is **not** a
+digital waveguide; nothing in the history points that way. What the mode is,
+wave by wave, is in [`docs/audio-engine/dwgs-oscillator.md`](../audio-engine/dwgs-oscillator.md);
+this section is the build and placement.
+
+| | C++ OSC (#1665) | DWGS (#1666) |
+|---|---|---|
+| Kernel | `emscripten/cpp_osc.cpp` | `dwgs-audio/src/lib.rs` (Rust, `no_std`, no libm) |
+| Module | `public/cpp_osc.wasm` (em++) | `public/dwgs_osc.wasm` (cargo, the `dwgs-osc` native world) |
+| What it plays | saw / square / triangle / sine | **17 waves**: saw, square, 14 harmonic-recipe "digital waveforms", keyboard-tracking noise |
+| How | naive wave + windowed-sinc BLEP residuals | **additive, per sample**: one sin/cos of the phase, then a Chebyshev recurrence over the harmonics (f64, four interleaved chains) |
+| Band limit | ≈ −90 dB alias | **exact**: only harmonics below 0.45 fs are summed (faded in over 0.40–0.45 fs so slides never click) — no alias energy at all, at any pitch |
+| Latency | 16 samples | 0 |
+| Note onset | band-limited step from silence | every recipe is sine-phase, so a note started at phase 0 starts at 0 |
+| CPU (V8, Node 22, 128-frame block) | not measured here (the Rust OSC's PolyBLEP: ~0.6 µs) | **~17–20 µs below ~250 Hz** (all 96 harmonics audible), ~8 µs at 1 kHz, ~1 µs for noise — ≈ 0.7 % of a 48 kHz render quantum per voice, ≈ 6.5 % for all 9 synth voices at the bottom of the keyboard |
+| SIMD | scalar | scalar (the loop is f64 and latency-bound, not lane-bound) |
+| Memory | fixed 2 pages | fixed 2 pages (`wasm_memory_budget.json#dwgsOsc`): I/O buffers 8 KiB + 16 × 96 f64 amplitudes 12 KiB |
+| Size | 11 KB | 28.5 KB |
+
+**Why Rust.** Either language fits a scalar kernel with a C ABI. Rust was
+chosen because the crate builds with the toolchain `rust-*` already needs (no
+second em++ module to pin), and because a `no_std` cdylib makes "no imports, no
+allocator, no libm" a property of the compile rather than of a flag list.
+
+**Why entry-only.** Every other worklet engine plays *basic shapes*, so a family
+falling onto it changes engine, not timbre. DWGS plays its own waves: a
+`wav-saw` part landing on it would quietly become a DWGS saw. So it heads the
+order — nothing above it can fall onto it — and `walkFrom` skips any
+`entryOnly` backend that is not the start of the walk. In the other direction a
+`dwgs-*` part without its worklet walks WebGPU → Rust → C++ → WASM OSC → … with
+`DWGS_WAVES[i].fallback`, the nearest basic shape (published like every step).
+
+Pieces:
+
+- **Kernel** — `dwgs-audio/src/lib.rs`, C ABI `dwgs_*`
+  (`wasm_export_manifest.json#dwgsOsc`). `dwgs_init` evaluates the 16 recipes
+  (16 × 96 amplitudes) and scales each wave to RMS 0.5 — microseconds, once per
+  instance. `dwgs_reset` resets the phase and restarts the noise stream from its
+  fixed seed (so offline == live, noise included). Host tests: `cargo test` in
+  `dwgs-audio/` (sin/cos accuracy, equal RMS, alias energy < 1e-9, the band-edge
+  fade, onsets at zero, noise colour vs pitch, hostile input).
+- **Build** — `pnpm run build:wasm:dwgs` (`scripts/build-dwgs-osc.mjs`): `cargo
+  build --release --locked --target wasm32-unknown-unknown`, **no target
+  feature**, `--initial-memory = --max-memory` and `-zstack-size` from the budget,
+  then `tools/check_dwgs_osc_module.mjs` (zero imports, fixed unshared memory,
+  exact exports, no v128 — `usesV128` from the C++ checker — ABI 1, 17 waves,
+  and every wave renders something finite and non-silent).
+  `check-release-dist.mjs` re-checks `dist/dwgs_osc.wasm` and budgets it.
+- **Worklet** — `src/audio-worklets/dwgs-osc-processor.ts`: a-rate `frequency`,
+  **k-rate `wave`** (the kernel wave id), a-rate `gate`; same allocation-free
+  `process()` and gate walk as the Rust / C++ processors.
+- **Bridge** — `src/engines/DwgsOscillator.ts` / `DwgsWorkletBackend`. The wave
+  reaches the voice as `RealtimeVoice.start(when, shape, variant)`: `parseWaveform`
+  reports a `dwgs-*` suffix as `variant` (and its fallback shape as `shape`);
+  basic-wave engines ignore `variant`.
+- **Offline** — `src/audio/offline/OfflineDwgsOscEngine.ts`, bit-identical to the
+  live voice (`dwgsOscVoice.realWasm.test.ts`).
+
+An in-kernel filter is #1674; until then the voice's `BiquadFilterNode` follows,
+as for every family that plays through `Voice`.
 
 ### Rules for adding one
 

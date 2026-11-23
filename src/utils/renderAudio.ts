@@ -14,6 +14,8 @@ import { renderMacroBuffer } from '@/audio/offline/OfflineMacroEngine';
 import { renderDrumkitBuffer } from '@/audio/offline/OfflineDrumKitEngine';
 import { renderRustOscOffline } from '@/audio/offline/OfflineRustOscEngine';
 import { renderCppOscOffline } from '@/audio/offline/OfflineCppOscEngine';
+import { renderDwgsOscOffline } from '@/audio/offline/OfflineDwgsOscEngine';
+import { dwgsWaveIndex } from '@/engines/dwgsWaves';
 import { parseWaveform } from '@/utils/waveformParser';
 import { logWaveformSubstitution } from '@/utils/engineTelemetry';
 import { DrumKitEngine } from '@/engines/DrumKitEngine';
@@ -60,6 +62,8 @@ export type { RenderSynthEngines, WebGpuEngineLike, WasmEngineLike };
 let rustOfflineSubstitutionReported = false;
 /** Same for cpp-*. */
 let cppOfflineSubstitutionReported = false;
+/** Same for dwgs-*. */
+let dwgsOfflineSubstitutionReported = false;
 
 /**
  * Filter changes inside one rendered note (#1384): a 303 voice's automation
@@ -184,6 +188,33 @@ export async function renderSynthToBuffer(
                 );
             }
         } catch (e) { console.error('C++ OSC Export Error', e); }
+    }
+    else if (params.waveform.startsWith('dwgs-')) {
+        // DWGS (#1666): the live voice's own kernel, rendered offline. No
+        // filter in the kernel, so the biquad below applies — as in `Voice`.
+        const { shape, variant } = parseWaveform(params.waveform);
+        try {
+            const rawData = await renderDwgsOscOffline({
+                wave: Math.max(0, dwgsWaveIndex(variant)),
+                hz: freqWithPitch,
+                frames: Math.ceil(duration * sampleRate),
+                sampleRate,
+            });
+            if (rawData) {
+                customBuffer = offlineCtx.createBuffer(1, rawData.length, sampleRate);
+                customBuffer.getChannelData(0).set(rawData);
+            } else if (!dwgsOfflineSubstitutionReported) {
+                // Once per session: a bounce calls this per hit.
+                dwgsOfflineSubstitutionReported = true;
+                logWaveformSubstitution(
+                    'oscillators',
+                    'dwgs',
+                    variant ?? shape,
+                    shape,
+                    'dwgs_osc.wasm unavailable for the offline render; rendered on the JS oscillator',
+                );
+            }
+        } catch (e) { console.error('DWGS Export Error', e); }
     }
     else if (params.waveform.startsWith('wam-') && engines?.wasmEngine?.isReady) {
         // WASM

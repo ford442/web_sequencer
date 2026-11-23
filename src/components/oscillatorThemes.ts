@@ -1,5 +1,6 @@
 import type { OscillatorType, Waveform, Engine303 } from '../types/synth';
 import { MACRO_WAVEFORMS } from '../engines/MacroParams';
+import { DWGS_WAVEFORMS } from '../engines/dwgsWaves';
 
 /** Visual theme applied to the oscillator panel / overlay when this type is active. */
 export interface OscillatorTheme {
@@ -99,6 +100,14 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-blue-300',
     badge: 'C++',
   },
+  dwgs: {
+    label: 'DWGS',
+    accent: 'lime',
+    panelBg: 'bg-lime-950/30',
+    panelBorder: 'border-lime-500/30',
+    text: 'text-lime-300',
+    badge: 'DW',
+  },
   macro: {
     label: 'Macro',
     accent: 'cyan',
@@ -121,6 +130,7 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   wam: '/osc/wam.webp',
   rust: '/osc/rust.webp',
   cpp: '/osc/cpp.webp',
+  dwgs: '/osc/dwgs.webp',
   macro: '/osc/macro.webp',
 };
 
@@ -153,6 +163,7 @@ export const OSCILLATOR_PANEL_FOCUS: Record<OscillatorType, string> = {
   wam: '50% 22%',
   rust: '50% 20%',
   cpp: '50% 20%',
+  dwgs: '50% 18%',
   macro: '50% 18%',
 };
 
@@ -176,6 +187,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('wam-')) return 'wam';
   if (w.startsWith('rust-')) return 'rust';
   if (w.startsWith('cpp-')) return 'cpp';
+  if (w.startsWith('dwgs-')) return 'dwgs';
   if (w.startsWith('macro-')) return 'macro';
   return 'javascript';
 }
@@ -199,6 +211,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'wam': return 'wam-saw';
     case 'rust': return 'rust-saw';
     case 'cpp': return 'cpp-saw';
+    case 'dwgs': return 'dwgs-saw';
     case 'macro': return 'macro-va';
     default: return 'sawtooth';
   }
@@ -217,6 +230,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
     case 'rust': return ['rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin'];
     case 'cpp': return ['cpp-saw', 'cpp-sqr', 'cpp-tri', 'cpp-sin'];
+    case 'dwgs': return [...DWGS_WAVEFORMS];
     case 'macro': return [...MACRO_WAVEFORMS];
     default: return ['sawtooth'];
   }
@@ -237,5 +251,6 @@ export const OSCILLATOR_ACCENT_HEX: Record<OscillatorType, string> = {
   wam: '#fbbf24',        // amber-400
   rust: '#fb923c',       // orange-400
   cpp: '#60a5fa',        // blue-400
+  dwgs: '#a3e635',       // lime-400
   macro: '#22d3ee',      // cyan-400
 };

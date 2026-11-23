@@ -40,7 +40,7 @@ public/pyodide.js
 *.sw?
 _codeql_detected_source_root
 rust-audio/target
-rust-audio/target
+dwgs-audio/target
 .aider*
 emscripten/temp_build/
 

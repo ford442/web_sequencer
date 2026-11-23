@@ -22,6 +22,12 @@
  *     (`public/cpp_osc.wasm`, not `hyphon_native`), one instance per voice.
  *     It needs no WASM SIMD, so it also catches a `rust-*` part on a browser
  *     that cannot run the Rust kernel.
+ *   - `dwgs` — the third worklet-resident engine (#1666), and not a basic-wave
+ *     engine at all: Korg's Digital Waveform Generator System as harmonic
+ *     recipes rendered additively by a scalar Rust kernel (`dwgs-audio/`,
+ *     `public/dwgs_osc.wasm`), one instance per voice. Its waves are its own,
+ *     so it is `entryOnly`: it serves `dwgs-*` parts and is never the fallback
+ *     for another family (see `BackendCapabilities.entryOnly`).
  *   - `wav` / `webgpu` / `pyodide` — table producers (decoded asset, GPU
  *     pre-render, CPython pre-render). Real, but not realtime voices.
  *
@@ -47,7 +53,7 @@
 
 import type { WaveShape } from '../../utils/waveformParser';
 
-export type OscillatorBackendId = 'webgpu' | 'rust' | 'cpp' | 'wam' | 'pyodide' | 'wav' | 'js';
+export type OscillatorBackendId = 'dwgs' | 'webgpu' | 'rust' | 'cpp' | 'wam' | 'pyodide' | 'wav' | 'js';
 
 /**
  * Ordered preference chain — best first. Selection walks this list and takes
@@ -63,8 +69,13 @@ export type OscillatorBackendId = 'webgpu' | 'rust' | 'cpp' | 'wam' | 'pyodide' 
  * band-limited voice) before the AssemblyScript table. A `cpp-*` part that
  * cannot get its worklet (no AudioWorklet, module missing) drops to the table.
  * Every step is logged; none goes straight to `OscillatorNode`.
+ *
+ * `dwgs` heads the list because nothing may fall *into* it — it is
+ * `entryOnly` — while a `dwgs-*` part that cannot get its worklet walks the
+ * whole chain below it with the wave's nearest basic shape.
  */
 export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
+    'dwgs',
     'webgpu',
     'rust',
     'cpp',
@@ -83,6 +94,7 @@ export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
  * compatibility.
  */
 export const BACKEND_LABELS: Record<OscillatorBackendId, string> = {
+    dwgs: 'DWGS',
     webgpu: 'WebGPU',
     rust: 'Rust OSC',
     cpp: 'C++ OSC',
@@ -103,6 +115,13 @@ export interface BackendCapabilities {
     polyphony: number;
     /** Waveform families the backend renders natively. */
     shapes: readonly WaveShape[];
+    /**
+     * Serves only the family that enters the chain at it (`dwgs`, #1666): it is
+     * never a fallback for another family, and never the answer to a generic
+     * `resolve()` / `generate()`. Its sound is its own waves, so landing a
+     * `wav-saw` or `wgsl-saw` part on it would be a silent change of family.
+     */
+    entryOnly?: boolean;
 }
 
 export interface InitResult {
@@ -166,8 +185,12 @@ export interface RealtimeVoice {
     readonly backendId: OscillatorBackendId;
     readonly output: AudioNode;
     readonly frequency: AudioParam;
-    /** Open the gate at `when`, playing `shape`. A closed→open edge resets phase. */
-    start(when: number, shape: WaveShape): void;
+    /**
+     * Open the gate at `when`, playing `shape`. A closed→open edge resets phase.
+     * `variant` is the parsed waveform's timbre for families that have one
+     * (`dwgs`: the DWGS wave); basic-wave engines ignore it.
+     */
+    start(when: number, shape: WaveShape, variant?: string): void;
     /** Close the gate at `when`. */
     stop(when: number): void;
     /** True while the backend can still drive this voice (not released / disposed). */

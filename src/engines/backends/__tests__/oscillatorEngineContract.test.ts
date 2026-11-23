@@ -10,6 +10,8 @@
  *
  * `cpp-*` came back in #1665 the only way this file allows: a real C++ kernel
  * (emscripten/cpp_osc.cpp → public/cpp_osc.wasm) running in an AudioWorklet.
+ * `dwgs-*` (#1666), which had been panel art and nothing else, arrived the same
+ * way: a Rust kernel (dwgs-audio/ → public/dwgs_osc.wasm) in an AudioWorklet.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -25,6 +27,7 @@ import {
 } from '../../../utils/waveformParser';
 import { getWaveformsForType } from '../../../components/oscillatorThemes';
 import { macroEngineForWaveform } from '../../MacroParams';
+import { DWGS_WAVES } from '../../dwgsWaves';
 import type { OscillatorType, Waveform } from '../../../types';
 
 const ROOT = resolve(__dirname, '../../../..');
@@ -42,6 +45,7 @@ const OSCILLATOR_TYPES: OscillatorType[] = [
     'wam',
     'rust',
     'cpp',
+    'dwgs',
     'macro',
 ];
 const ALL_WAVEFORMS: Waveform[] = OSCILLATOR_TYPES.flatMap((t) => getWaveformsForType(t));
@@ -114,6 +118,27 @@ describe('every waveform family resolves to a documented engine', () => {
         expect(order.indexOf('wam')).toBe(order.indexOf('cpp') + 1);
     });
 
+    it('plays dwgs-* on the DWGS backend, each wave by name, with a basic-shape fallback (#1666)', () => {
+        const dwgs = getWaveformsForType('dwgs');
+        expect(dwgs).toEqual(DWGS_WAVES.map((w) => `dwgs-${w.suffix}`));
+        expect(new Set(dwgs).size).toBe(dwgs.length);
+        for (const [i, waveform] of dwgs.entries()) {
+            const parsed = parseWaveform(waveform);
+            expect(parsed.engine).toBe('dwgs');
+            expect(parsed.variant).toBe(DWGS_WAVES[i].suffix);
+            expect(parsed.shape).toBe(DWGS_WAVES[i].fallback);
+            expect(parsed.legacyFrom).toBeUndefined();
+        }
+        expect(ENGINE_CATALOG.dwgs).toEqual({ kind: 'backend', backendId: 'dwgs', label: 'DWGS' });
+        // Entry-only, at the head of the order: a dwgs-* part that cannot get its
+        // worklet walks every live engine below; nothing above can fall onto it.
+        expect(BACKEND_FALLBACK_ORDER[0]).toBe('dwgs');
+        // An unknown DWGS wave plays the DWGS saw rather than leaving the family.
+        expect(parseWaveform('dwgs-nope')).toEqual({ engine: 'dwgs', shape: 'saw', variant: 'saw', legacyFrom: undefined });
+        // Basic-wave ids carry no variant.
+        expect(parseWaveform('rust-saw').variant).toBeUndefined();
+    });
+
     it('plays rust-* on the Rust backend, not a rewrite onto wam-* (#1664)', () => {
         const rust = getWaveformsForType('rust');
         expect(rust).toEqual(['rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin']);
@@ -158,6 +183,8 @@ const ALLOWED_ENGINE_MODULES = [
     'RustOscillator.ts',
     // Drives the cpp-osc-processor AudioWorklet (emscripten/cpp_osc.cpp, #1665).
     'CppOscillator.ts',
+    // Drives the dwgs-osc-processor AudioWorklet (dwgs-audio/, #1666).
+    'DwgsOscillator.ts',
     'WasmOscillator.ts',
     'WebGpuOscillator.ts',
 ].sort();
@@ -186,6 +213,28 @@ describe('no new decorative oscillator families', () => {
         ]);
         const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
         expect(voiceManager).not.toMatch(/OfflineCppOsc|renderCppOsc/);
+    });
+
+    it('DwgsOscillator drives an AudioWorklet and renders nothing on the main thread (#1666)', () => {
+        const source = readFileSync(join(SRC, 'engines', 'DwgsOscillator.ts'), 'utf8');
+        expect(source).toContain('new AudioWorkletNode(');
+        expect(source).not.toMatch(/createBuffer(Source)?\(/);
+        expect(source).not.toMatch(/new Float32Array\(/);
+        expect(source).not.toMatch(/\.exports\b/); // never instantiates the kernel here
+        const kernelUsers = walk(SRC).filter((f) => /\.dwgs_render\(/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual([
+            'audio-worklets/dwgs-osc-processor.ts',
+            'audio/offline/OfflineDwgsOscEngine.ts',
+        ]);
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/OfflineDwgsOsc|renderDwgsOsc/);
+    });
+
+    it('builds the DWGS kernel as its own scalar module (#1666)', () => {
+        const build = readFileSync(join(ROOT, 'scripts', 'build-dwgs-osc.mjs'), 'utf8');
+        expect(build).not.toMatch(/simd128/);
+        expect(readFileSync(join(ROOT, 'emscripten', 'build.sh'), 'utf8')).not.toMatch(/dwgs/);
+        expect(readFileSync(join(ROOT, 'dwgs-audio', 'src', 'lib.rs'), 'utf8')).toMatch(/#!\[cfg_attr\(not\(test\), no_std\)\]/);
     });
 
     it('builds the C++ kernel as its own module, not into hyphon_native (#1665)', () => {
@@ -230,9 +279,9 @@ describe('no new decorative oscillator families', () => {
         expect(bufferSources).toHaveLength(1);
         expect(source).toContain('registry.sourceFrom(');
         // Live worklet sources arrive through the contract type, never by name.
-        expect(source).not.toMatch(/AudioWorkletNode|rust-osc|RustOsc|cpp-osc|CppOsc/);
+        expect(source).not.toMatch(/AudioWorkletNode|rust-osc|RustOsc|cpp-osc|CppOsc|dwgs-osc|DwgsOsc/);
         // And no resurrected per-prefix ladder.
-        expect(source).not.toMatch(/parsed\.engine === '(wam|rust|cpp|wgsl|pyodide|wav)'/);
-        expect(source).not.toMatch(/backendId === '(rust|cpp|wam|webgpu|pyodide|wav)'/);
+        expect(source).not.toMatch(/parsed\.engine === '(wam|rust|cpp|dwgs|wgsl|pyodide|wav)'/);
+        expect(source).not.toMatch(/backendId === '(rust|cpp|dwgs|wam|webgpu|pyodide|wav)'/);
     });
 });
