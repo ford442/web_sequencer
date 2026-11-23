@@ -59,6 +59,7 @@ describe('sequencer/ split has no stale abandoned duplicates', () => {
             'TrackSlotButton.tsx',
             'constants.ts',
             'playhead.ts',
+            'sequencerFit.ts',
             'stepHitGeometry.ts',
         ]);
     });

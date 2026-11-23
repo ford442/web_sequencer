@@ -18,6 +18,8 @@ import {
 import { RackPanelChrome } from './ui/RackPanelChrome';
 import type { HighlightTrackStep } from './sequencer/SequencerRow';
 import { sequencerCssWidth, sequencerViewBoxWidth } from './sequencer/stepHitGeometry';
+import { fitSequencerLayout, LEGACY_LAYOUT, SequencerLayoutContext } from './sequencer/sequencerFit';
+import { useCompactLayoutOptional } from '../contexts/CompactLayoutContext';
 import { useTransportMixStore } from '../stores/transportMixStore';
 import { gridColumns, trackLoopLength } from '../utils/songMeter';
 import { stepsPerBar as meterStepsPerBar, stepsPerBeat as meterStepsPerBeat } from '../utils/musicTheory';
@@ -91,6 +93,29 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     const [zoom, setZoom] = useState(zoomLevel);
 
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Measure the panel's content box so the grid can fill it (see sequencerFit.ts).
+    const compactLayout = useCompactLayoutOptional();
+    const [area, setArea] = useState({ width: 0, height: 0 });
+    useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const measure = () => {
+            const cs = getComputedStyle(el);
+            const width = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            const height = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+            setArea((prev) => (
+                Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1
+                    ? prev
+                    : { width: Math.max(0, width), height: Math.max(0, height) }
+            ));
+        };
+        measure();
+        if (typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
 
     // Sync external zoomLevel prop → local state (e.g. when app state loads a saved value).
     const [prevZoomLevel, setPrevZoomLevel] = useState(zoomLevel);
@@ -235,10 +260,21 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     );
 
 
+    // Melodic sampler mode draws a taller row of its own, and the compact (phone)
+    // layout is zoomed for touch targets, so both keep the fixed layout.
+    const keepFixedLayout = melodicMode || (compactLayout?.isCompact ?? false);
+    const fit = keepFixedLayout ? null : fitSequencerLayout({
+        columns,
+        zoom,
+        availWidth: area.width,
+        availHeight: area.height,
+    });
+    const layout = fit ?? LEGACY_LAYOUT;
+
     return (
         <div
             id="main-sequencer"
-            className="w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto overflow-y-hidden scrollbar-thin hyphon-sequencer-scroll touch-pan-x"
+            className={`w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto ${fit?.scrollY ? 'overflow-y-auto' : 'overflow-y-hidden'} scrollbar-thin hyphon-sequencer-scroll touch-pan-x`}
             ref={containerRef}
             onDoubleClick={handleDoubleClick}
             role="grid"
@@ -260,9 +296,17 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 </div>
             )}
 
-            <svg viewBox={`0 0 ${sequencerViewBoxWidth(columns)} 680`} style={{ width: sequencerCssWidth(columns), height: '100%', minWidth: '100%' }} preserveAspectRatio="xMinYMid meet" onContextMenu={(e) => e.preventDefault()}>
+            <svg
+                viewBox={fit ? `0 0 ${fit.viewBoxWidth} ${fit.viewBoxHeight}` : `0 0 ${sequencerViewBoxWidth(columns)} 680`}
+                style={fit
+                    ? { width: fit.cssWidth, height: fit.cssHeight, display: 'block' }
+                    : { width: sequencerCssWidth(columns), height: '100%', minWidth: '100%' }}
+                preserveAspectRatio={fit ? 'xMinYMin meet' : 'xMinYMid meet'}
+                onContextMenu={(e) => e.preventDefault()}
+            >
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>
                 <g transform="translate(100, 40)">
+                    <SequencerLayoutContext.Provider value={layout}>
                     {ROWS.map((row, rIdx) => {
                         // Use MelodicSequencerRow for sampler when in melodic mode
                         const isSamplerMelodic = row.key === 'sampler' && melodicMode;
@@ -327,6 +371,7 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                             />
                         );
                     })}
+                    </SequencerLayoutContext.Provider>
                 </g>
             </svg>
             {children}
