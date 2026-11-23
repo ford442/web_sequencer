@@ -21,7 +21,11 @@ const CONSOLE_IGNORE_RE =
   /Download the React DevTools|\[devtools\]|Supertonic TTS failed|EngineFallback|requestAdapter\(\) returned null|worklet ready timeout/i;
 
 export type BootOptions = {
-  /** Extra query string without leading `?`. Default: `e2e=1`. */
+  /**
+   * Extra query string without leading `?`. Default: `e2e=1`. `chassis=off` is appended unless
+   * the query sets `chassis` itself: the white chassis is the app's default layout, but these
+   * specs drive the legacy rack (fixed shell, `openRackModule`).
+   */
   query?: string;
   /** Skip console-error assertion. */
   allowConsoleNoise?: boolean;
@@ -48,7 +52,8 @@ export async function initializeHyphonAudio(
     page.on('pageerror', onPageError);
   }
 
-  const qs = options.query ?? 'e2e=1';
+  const base = options.query ?? 'e2e=1';
+  const qs = /(^|&)chassis(=|&|$)/.test(base) ? base : `${base}&chassis=off`;
   await page.goto(`/?${qs}`);
 
   const overlay = page.getByTestId('start-overlay');

@@ -5,7 +5,7 @@ import { LadderButton } from './sampler/LadderButton';
 import { VerticalKnob } from './sampler/VerticalKnob';
 import { HSlider } from './sampler/HSlider';
 import { noop } from '../utils/noop';
-import { usePlainRack } from './appParts/plainRackContext';
+import { useInlinePanels } from './appParts/inlinePanelsContext';
 
 interface SamplerVoicePanelProps {
     title: string;
@@ -505,9 +505,9 @@ export const SamplerVoicePanel: React.FC<SamplerVoicePanelProps> = React.memo(({
         formantSpread: 3
     };
 
-    // In the plain rack the sampler panel (banks, slicing, TTS, voice editor) docks in flow
-    // under the knobs and the shell grows to fit; elsewhere it stays a clipped overlay.
-    const docked = usePlainRack() && !!children;
+    // Where the host can grow (plain rack, chassis SMP) the sampler panel (banks, slicing, TTS,
+    // voice editor) docks in flow under the knobs; elsewhere it stays a clipped overlay.
+    const docked = useInlinePanels() && !!children;
     return (
         <div className="relative w-full h-full flex flex-col" data-rack-expand={docked || undefined}>
             {/* Main WebGPU Knobs Area (ADSR, etc.) */}

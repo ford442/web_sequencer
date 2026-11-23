@@ -126,6 +126,12 @@ export interface HardwareChassisProps {
     compact?: boolean;
     /** Override the mode's stage height (px). */
     stageHeight?: number;
+    /**
+     * Let the stage grow to its content instead of the mode's fixed height (the mode height
+     * becomes the minimum). For a panel taller than any footprint, like the sampler; the
+     * height snaps rather than morphs.
+     */
+    fitContent?: boolean;
     brand?: string;
     className?: string;
     'aria-label'?: string;
@@ -170,6 +176,7 @@ export const HardwareChassis = memo(({
     secondaryShare,
     compact = false,
     stageHeight,
+    fitContent = false,
     brand = 'HYPHON',
     className = '',
     'aria-label': ariaLabel,
@@ -267,6 +274,7 @@ export const HardwareChassis = memo(({
             data-chassis-mode={mode}
             data-chassis-theme={theme}
             data-secondary={secondaryOpen ? placement : undefined}
+            data-stage-fit={fitContent || undefined}
             className={`hyphon-chassis chassis-body ${className}`}
             style={style}
             aria-label={ariaLabel ?? `${brand} hardware chassis`}

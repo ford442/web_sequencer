@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { SamplerVoicePanel } from '../../SamplerVoicePanel';
 import { PlainRack } from '../PlainRack';
+import { InlinePanelsContext } from '../inlinePanelsContext';
 
 // The knob rack is irrelevant here: only where the sampler content is placed.
 vi.mock('../../HardwareModule', () => ({
@@ -38,7 +39,7 @@ describe('SamplerVoicePanel in the plain rack', () => {
         expect(container.innerHTML).not.toContain('max-h-[38%]');
     });
 
-    it('keeps the capped overlay inside the knob module everywhere else (chassis, showcases)', () => {
+    it('keeps the capped overlay inside the knob module everywhere else (showcases, non-docking chassis modes)', () => {
         const { container } = render(panel());
 
         expect(screen.queryByTestId('sampler-dock')).toBeNull();
@@ -55,5 +56,17 @@ describe('SamplerVoicePanel in the plain rack', () => {
         );
         expect(screen.queryByTestId('sampler-dock')).toBeNull();
         expect(container.querySelector('[data-rack-expand]')).toBeNull();
+    });
+
+    it('docks the same way when a chassis sampler view provides InlinePanelsContext', () => {
+        const { container, rerender } = render(
+            <InlinePanelsContext.Provider value>{panel()}</InlinePanelsContext.Provider>,
+        );
+        expect(within(screen.getByTestId('sampler-dock')).getByTestId('sampler-content')).toBeTruthy();
+        expect(container.querySelector('[data-rack-expand]')).not.toBeNull();
+
+        // Other chassis modes (OSC / DRM) provide false: the capped overlay stays.
+        rerender(<InlinePanelsContext.Provider value={false}>{panel()}</InlinePanelsContext.Provider>);
+        expect(screen.queryByTestId('sampler-dock')).toBeNull();
     });
 });

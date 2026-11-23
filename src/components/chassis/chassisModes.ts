@@ -163,8 +163,15 @@ export function chassisModeHidesRack(mode: ChassisMode): boolean {
     return isPanelChassisMode(mode);
 }
 
-/** `?chassis=white` (or `?chassis`) opts the live layout into the white chassis. */
-export function isChassisQuery(search: string): boolean {
+/** `?chassis=` values that opt out of the chassis, back to the legacy dark rack layout. */
+const CHASSIS_OFF_VALUES: ReadonlySet<string> = new Set(['off', '0', 'false', 'no', 'none', 'plain', 'dark', 'classic']);
+
+/**
+ * The white hardware chassis is the default layout. `?chassis=off` (also `0`,
+ * `false`, `plain`, `dark`, `classic`) opts back into the legacy dark rack;
+ * `?chassis`, `?chassis=white` and `?chassis=1` keep meaning "on".
+ */
+export function isChassisLayout(search: string): boolean {
     const value = new URLSearchParams(search).get('chassis');
-    return value !== null && (value === '' || value === 'white' || value === '1');
+    return value === null || !CHASSIS_OFF_VALUES.has(value.trim().toLowerCase());
 }
