@@ -13,3 +13,9 @@ export const ChassisKnobMaterialContext = createContext<KnobMaterial | null>(nul
 export function useChassisKnobMaterial(): KnobMaterial | null {
     return useContext(ChassisKnobMaterialContext);
 }
+
+/**
+ * The element of the deck under the oscillator knobs, set by a chassis host while that deck is open
+ * (oscillator mode on a 303 synth). `ChassisDeckPortal` renders into it; `null` everywhere else.
+ */
+export const ChassisDeckContext = createContext<HTMLElement | null>(null);

@@ -23,6 +23,7 @@ import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner'
 import type { AudioEngine, SynthParams, Bass2Params, SamplerParams, OscillatorType, TB303ModelId } from '../../types'
 import { waveformToOscillatorType, getDefaultWaveformForType, getOscillatorPanelClasses } from '../../components/oscillatorThemes'
 import { ChassisOnly } from '../../components/chassis/ChassisOnly'
+import { ChassisDeckPortal } from '../../components/chassis/ChassisDeckPortal'
 import { OscillatorPanelArt } from '../../components/chassis/OscillatorPanelArt'
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
 
@@ -69,6 +70,12 @@ function highFidExtraProps(
  * CUTOFF…MODE) or below it (GATE, LEVEL, DLY).
  */
 const SYNTH_OVERLAY_COLUMN = 'w-[27%] min-w-[220px]'
+/**
+ * Chassis faceplate art window for 303 / JC synths. The default 72px showed a strip of the logo;
+ * with the wave picker and voice list moved to the deck (ChassisDeckPortal) the column ends well
+ * above the GATE / LEVEL knobs again, so the logo and its display fit.
+ */
+const SYNTH_ART_HEIGHT_303 = 112
 
 export function useHardwarePanels(deps: {
     synthA: SynthParams;
@@ -159,7 +166,7 @@ export function useHardwarePanels(deps: {
             <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesA}`}>
                 <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
                 <ChassisOnly>
-                    <OscillatorPanelArt type={currentTypeA} />
+                    <OscillatorPanelArt type={currentTypeA} height={is303 ? SYNTH_ART_HEIGHT_303 : undefined} />
                 </ChassisOnly>
                 <OscillatorTypeSelector
                     type={currentTypeA}
@@ -167,39 +174,47 @@ export function useHardwarePanels(deps: {
                     accentColor="cyan"
                     compact
                 />
-                <OscillatorVariantSelector
-                    type={currentTypeA}
-                    selected={synthA.waveform}
-                    onChange={(w) => updateSynthA({ waveform: w })}
-                    accentColor="cyan"
-                />
-                {is303 && (
-                    <Voice303Selector
-                        model={modelA}
-                        onChange={handleSynthAVoiceChange}
+                <ChassisDeckPortal>
+                    <OscillatorVariantSelector
+                        type={currentTypeA}
+                        selected={synthA.waveform}
+                        onChange={(w) => updateSynthA({ waveform: w })}
                         accentColor="cyan"
-                        {...highFidExtraProps(synthA.model303Extra, updateSynthA)}
                     />
+                </ChassisDeckPortal>
+                {is303 && (
+                    <ChassisDeckPortal>
+                        <Voice303Selector
+                            model={modelA}
+                            onChange={handleSynthAVoiceChange}
+                            accentColor="cyan"
+                            {...highFidExtraProps(synthA.model303Extra, updateSynthA)}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 {currentTypeA === 'macro' && (
-                    <MacroPanel
-                        waveform={synthA.waveform}
-                        macro={synthA.macro}
-                        accentColor="cyan"
-                        onMacroChange={(patch) => updateSynthA({ macro: patch })}
-                        onPresetChange={(preset) => updateSynthA(macroPresetUpdate(preset))}
-                    />
+                    <ChassisDeckPortal>
+                        <MacroPanel
+                            waveform={synthA.waveform}
+                            macro={synthA.macro}
+                            accentColor="cyan"
+                            onMacroChange={(patch) => updateSynthA({ macro: patch })}
+                            onPresetChange={(preset) => updateSynthA(macroPresetUpdate(preset))}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 {isProphecy && (
-                    <ProphecyPanel
-                        vowel={synthA.vowel ?? 0}
-                        portamento={synthA.portamento ?? 0}
-                        formantShift={synthA.formantShift ?? 0}
-                        accentColor="cyan"
-                        onVowelChange={(v) => updateSynthA({ vowel: v })}
-                        onPortamentoChange={(v) => updateSynthA({ portamento: v })}
-                        onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
-                    />
+                    <ChassisDeckPortal>
+                        <ProphecyPanel
+                            vowel={synthA.vowel ?? 0}
+                            portamento={synthA.portamento ?? 0}
+                            formantShift={synthA.formantShift ?? 0}
+                            accentColor="cyan"
+                            onVowelChange={(v) => updateSynthA({ vowel: v })}
+                            onPortamentoChange={(v) => updateSynthA({ portamento: v })}
+                            onFormantShiftChange={(v) => updateSynthA({ formantShift: v })}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 </div>
             </div>
@@ -251,7 +266,7 @@ export function useHardwarePanels(deps: {
             <div className={`absolute top-4 right-6 ${SYNTH_OVERLAY_COLUMN} pointer-events-none flex flex-col items-end gap-2 rounded-lg p-1 transition-colors ${panelClassesB}`}>
                 <div className="pointer-events-auto flex flex-col items-end gap-2 w-full">
                 <ChassisOnly>
-                    <OscillatorPanelArt type={currentTypeB} />
+                    <OscillatorPanelArt type={currentTypeB} height={is303 ? SYNTH_ART_HEIGHT_303 : undefined} />
                 </ChassisOnly>
                 <OscillatorTypeSelector
                     type={currentTypeB}
@@ -259,39 +274,47 @@ export function useHardwarePanels(deps: {
                     accentColor="pink"
                     compact
                 />
-                <OscillatorVariantSelector
-                    type={currentTypeB}
-                    selected={synthB.waveform}
-                    onChange={(w) => updateSynthB({ waveform: w })}
-                    accentColor="pink"
-                />
-                {is303 && (
-                    <Voice303Selector
-                        model={modelB}
-                        onChange={handleSynthBVoiceChange}
+                <ChassisDeckPortal>
+                    <OscillatorVariantSelector
+                        type={currentTypeB}
+                        selected={synthB.waveform}
+                        onChange={(w) => updateSynthB({ waveform: w })}
                         accentColor="pink"
-                        {...highFidExtraProps(synthB.model303Extra, updateSynthB)}
                     />
+                </ChassisDeckPortal>
+                {is303 && (
+                    <ChassisDeckPortal>
+                        <Voice303Selector
+                            model={modelB}
+                            onChange={handleSynthBVoiceChange}
+                            accentColor="pink"
+                            {...highFidExtraProps(synthB.model303Extra, updateSynthB)}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 {currentTypeB === 'macro' && (
-                    <MacroPanel
-                        waveform={synthB.waveform}
-                        macro={synthB.macro}
-                        accentColor="pink"
-                        onMacroChange={(patch) => updateSynthB({ macro: patch })}
-                        onPresetChange={(preset) => updateSynthB(macroPresetUpdate(preset))}
-                    />
+                    <ChassisDeckPortal>
+                        <MacroPanel
+                            waveform={synthB.waveform}
+                            macro={synthB.macro}
+                            accentColor="pink"
+                            onMacroChange={(patch) => updateSynthB({ macro: patch })}
+                            onPresetChange={(preset) => updateSynthB(macroPresetUpdate(preset))}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 {isProphecy && (
-                    <ProphecyPanel
-                        vowel={synthB.vowel ?? 0}
-                        portamento={synthB.portamento ?? 0}
-                        formantShift={synthB.formantShift ?? 0}
-                        accentColor="pink"
-                        onVowelChange={(v) => updateSynthB({ vowel: v })}
-                        onPortamentoChange={(v) => updateSynthB({ portamento: v })}
-                        onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
-                    />
+                    <ChassisDeckPortal>
+                        <ProphecyPanel
+                            vowel={synthB.vowel ?? 0}
+                            portamento={synthB.portamento ?? 0}
+                            formantShift={synthB.formantShift ?? 0}
+                            accentColor="pink"
+                            onVowelChange={(v) => updateSynthB({ vowel: v })}
+                            onPortamentoChange={(v) => updateSynthB({ portamento: v })}
+                            onFormantShiftChange={(v) => updateSynthB({ formantShift: v })}
+                        />
+                    </ChassisDeckPortal>
                 )}
                 </div>
             </div>
@@ -326,12 +349,14 @@ export function useHardwarePanels(deps: {
                     onChange={(w) => updateBass2({ waveform: w as '303-saw' | '303-sqr' })}
                     accentColor="pink"
                 />
-                <Voice303Selector
-                    model={modelB2}
-                    onChange={handleBass2VoiceChange}
-                    accentColor="pink"
-                    {...highFidExtraProps(bass2.model303Extra, updateBass2)}
-                />
+                <ChassisDeckPortal>
+                    <Voice303Selector
+                        model={modelB2}
+                        onChange={handleBass2VoiceChange}
+                        accentColor="pink"
+                        {...highFidExtraProps(bass2.model303Extra, updateBass2)}
+                    />
+                </ChassisDeckPortal>
             </div>
         </div>
         );

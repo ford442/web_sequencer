@@ -1,13 +1,15 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { useAppStateSlice } from '../../contexts/AppStateContext';
 import { HardwareChassis } from '../chassis/HardwareChassis';
 import { OscillatorSignatureIcon } from '../chassis/OscillatorSignatureIcon';
+import { ChassisDeckContext } from '../chassis/chassisContext';
 import { ChassisVoiceDeck } from '../chassis/ChassisVoiceDeck';
 import { ChassisPatchDeck, ChassisPcfPlate } from '../chassis/ChassisPcfDeck';
 import {
     DEFAULT_SAMPLER_CHASSIS_MODE,
     chassisModeHasVoiceDeck,
     chassisModeHidesRack,
+    getChassisFootprint,
     isPanelChassisMode,
     isSamplerChassisMode,
     resolveChassisMode,
@@ -19,6 +21,9 @@ import {
 import { OSCILLATOR_ACCENT_HEX, OSCILLATOR_THEMES, waveformToOscillatorType } from '../oscillatorThemes';
 import type { TrackKey } from '../../constants/appDefaults';
 import { InlinePanelsContext } from './inlinePanelsContext';
+
+/** Oscillator families whose tall pickers (303 voices, Prophecy / Macro panels) open in the deck. */
+const OSC_DECK_TYPES: ReadonlySet<string> = new Set(['open303', 'jc303', 'prophecy', 'macro']);
 
 const CHASSIS_KEYS = [
     'selectedTrack', 'setSelectedTrack', 'synthA', 'synthB', 'bass2',
@@ -110,6 +115,27 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
     // The oscillator theme only applies while the synth panel owns the stage.
     const themed = oscType && !hideRack ? oscType : null;
 
+    // The 303 voice list (and the Prophecy / Macro panels) are far taller than the oscillator stage,
+    // so on those synths the synth column hands them to a deck under the knobs (ChassisDeckPortal), laid out as a grid. The deck
+    // is measured and the stage grows by its height, so the knob module keeps its own proportions.
+    const showOscDeck = mode === 'osc' && oscType !== null && OSC_DECK_TYPES.has(oscType);
+    const [oscDeckEl, setOscDeckEl] = useState<HTMLElement | null>(null);
+    // Keyed by element, so a measurement of a deck that has since closed is never used.
+    const [oscDeckSize, setOscDeckSize] = useState<{ el: HTMLElement | null; h: number }>({ el: null, h: 0 });
+    useLayoutEffect(() => {
+        if (!showOscDeck || !oscDeckEl) return;
+        const measure = () => setOscDeckSize({ el: oscDeckEl, h: Math.ceil(oscDeckEl.getBoundingClientRect().height) });
+        measure();
+        if (typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(measure);
+        observer.observe(oscDeckEl);
+        return () => observer.disconnect();
+    }, [showOscDeck, oscDeckEl]);
+    const oscDeckH = showOscDeck && oscDeckSize.el === oscDeckEl ? oscDeckSize.h : 0;
+    const stageHeight = showOscDeck && oscDeckH > 0
+        ? getChassisFootprint(mode, isCompact).stageHeight + oscDeckH
+        : undefined;
+
     const handleModeChange = useCallback((next: ChassisMode) => {
         if (isPanelChassisMode(next)) {
             setPanel({ mode: next, track: selectedTrack });
@@ -138,6 +164,8 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
             badgeIcon={themed ? <OscillatorSignatureIcon type={themed} className="hyphon-chassis__badge-icon" /> : undefined}
             compact={isCompact}
             fitContent={fitSampler}
+            stageHeight={stageHeight}
+            secondaryPlacement={showOscDeck ? 'below' : undefined}
             ledStrip={(
                 <div className={isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}>
                     {sequencer}
@@ -155,6 +183,8 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
                 />
             ) : showPcf ? (
                 <ChassisPatchDeck onSelectPcfNode={handleSelectPcfNode} />
+            ) : showOscDeck ? (
+                <div ref={setOscDeckEl} className="hyphon-chassis__osc-deck chassis-well" data-testid="chassis-osc-deck" />
             ) : undefined}
         >
             {/* The rack stays mounted in every mode, so it (and its GPU knob
@@ -163,7 +193,9 @@ export const ChassisNode = React.memo(({ isCompact, sequencer, rack, keyboard, m
                 filter plate takes the primary slot and the patch bay the
                 `side` secondary. */}
             <div className={fitSampler ? 'relative' : 'absolute inset-0'} hidden={hideRack} data-testid="chassis-rack">
-                <InlinePanelsContext.Provider value={fitSampler}>{rack}</InlinePanelsContext.Provider>
+                <ChassisDeckContext.Provider value={showOscDeck ? oscDeckEl : null}>
+                    <InlinePanelsContext.Provider value={fitSampler}>{rack}</InlinePanelsContext.Provider>
+                </ChassisDeckContext.Provider>
             </div>
             {showPcf && <ChassisPcfPlate nodeId={pcfNode} onSelectNode={handleSelectPcfNode} />}
         </HardwareChassis>
