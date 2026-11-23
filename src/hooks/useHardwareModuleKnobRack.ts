@@ -113,7 +113,9 @@ export function useHardwareModuleKnobRack({
 
     const renderCanvasAt = useCallback((index: number) => {
         const canvas = knobCanvasRefs.current[index];
-        if (!canvas || knobHandlesRef.current[index] !== null) return;
+        // register() returns a handle whenever navigator.gpu exists, even if the GPU never
+        // attaches — only skip the 2D fallback when a GPU slot is actually driving this canvas.
+        if (!canvas || KnobGPUContext.isSlotActive(knobHandlesRef.current[index])) return;
         renderKnob2D(canvas, getCanvasValueAt(index), knobMaterial, getAutomationOverlayAt(index));
     }, [getCanvasValueAt, getAutomationOverlayAt, knobMaterial]);
 
@@ -144,9 +146,7 @@ export function useHardwareModuleKnobRack({
                 }
             } else if (!handles[i] || !KnobGPUContext.isSlotActive(handles[i])) {
                 // New / remapped control — paint 2D fallback if GPU inactive.
-                if (handles[i] === null || handles[i] === undefined) {
-                    renderCanvasAt(i);
-                }
+                renderCanvasAt(i);
             }
         }
         prevControlsRef.current = controls;
@@ -514,10 +514,7 @@ export function useHardwareModuleKnobRack({
     useEffect(() => {
         return KnobGPUContext.onStatusChange(() => {
             for (let i = 0; i < controlsRef.current.length; i++) {
-                const h = knobHandlesRef.current[i];
-                if (!h || !KnobGPUContext.isSlotActive(h)) {
-                    renderCanvasAt(i);
-                }
+                renderCanvasAt(i);
             }
         });
     }, [renderCanvasAt]);
