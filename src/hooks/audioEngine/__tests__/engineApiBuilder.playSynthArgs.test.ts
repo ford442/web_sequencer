@@ -4,6 +4,10 @@ const inner = vi.fn();
 vi.mock('../audioPlayback/playSynth', () => ({ createPlaySynth: () => inner }));
 
 import { buildAudioEngine } from '../engineApiBuilder';
+import type { SynthParams } from '../../../types';
+
+type BuildArgs = Parameters<typeof buildAudioEngine>;
+type PlaySynthArgs = Parameters<ReturnType<typeof buildAudioEngine>['playSynth']>;
 
 /**
  * `AudioEngine['playSynth']` is called as (…, track, tuning, noteParams) by the step
@@ -16,11 +20,11 @@ describe('buildAudioEngine().playSynth argument order', () => {
         // Every ref reads as an empty ref and every playback fn as a spy: only playSynth is under test.
         const anyRef = new Proxy({}, { get: () => ({ current: null }) });
         const anyFn = new Proxy({}, { get: () => vi.fn() });
-        const engine = buildAudioEngine({} as AudioContext, anyRef as any, anyFn as any);
+        const engine = buildAudioEngine({} as AudioContext, anyRef as unknown as BuildArgs[1], anyFn as unknown as BuildArgs[2]);
         const scale = { name: 'just', ratios: [1] };
         const noteParams = { velocity: 0.3, filterCutoff: 0.4 };
 
-        engine.playSynth({} as any, 'C3', 1, 2, 0.2, undefined, 'partA', scale as any, noteParams);
+        engine.playSynth({} as SynthParams, 'C3', 1, 2, 0.2, undefined, 'partA', scale as unknown as PlaySynthArgs[7], noteParams);
 
         const args = inner.mock.calls[0];
         expect(args[7]).toBe(noteParams);
