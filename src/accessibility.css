@@ -434,16 +434,13 @@
   border: 0;
 }
 
-/* ARIA live regions */
-[aria-live="polite"],
-[aria-live="assertive"] {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-}
+/* ARIA live regions.
+ *
+ * Announcer-only regions (A11yAnnouncer, the engine-degradation status) hide themselves with
+ * `.sr-only`. This used to be a blanket `[aria-live]` rule that parked EVERY live region
+ * off-screen at 1x1px, which silently collapsed every visible status line that happens to be a
+ * live region (the error Toast showed only its close button; the phone transport dock lost its
+ * BPM readout). A live region is a semantic marker, not a style: opt in to hiding with `.sr-only`. */
 
 /* Status announcements */
 .status-announcement {

@@ -51,6 +51,21 @@ export function sequencerViewBoxWidth(columns: number): number {
     return BASE_VIEWBOX_WIDTH + (columns - BASE_COLUMNS) * STEP_PITCH;
 }
 
+/**
+ * Default zoom the compact / touch layout opens at. Chosen so one step is >= 32px wide on screen
+ * (see stepPitchPx): 1.6 gives a 32.4px pitch, 2.2 (the old value) a 43px pitch that pushed the
+ * timeline a full screen to the right of the label column.
+ */
+export const COMPACT_DEFAULT_ZOOM = 1.6;
+/** Smallest comfortable touch target, in CSS px. */
+export const MIN_TOUCH_TARGET_PX = 32;
+
+/** On-screen distance between step origins for the stock 32-step layout at `zoom`, in CSS px. */
+export function stepPitchPx(zoom: number, columns = BASE_COLUMNS): number {
+    const timelinePx = (BASE_TIMELINE_PX * columns) / BASE_COLUMNS;
+    return ((220 + timelinePx * zoom) / sequencerViewBoxWidth(columns)) * STEP_PITCH;
+}
+
 /** CSS width for the sequencer SVG; identical to the stock `220px + 830px * zoom` at 32 steps. */
 export function sequencerCssWidth(columns: number): string {
     const timelinePx = (BASE_TIMELINE_PX * columns) / BASE_COLUMNS;

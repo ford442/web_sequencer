@@ -17,6 +17,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
+  // Visual baselines: one folder per spec and project, no platform suffix. They are rendered on
+  // Linux (CI is ubuntu) and tests/visual-showcase.spec.ts only compares pixels there.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFileName}/{projectName}/{arg}{ext}',
   globalSetup: './tests/global-setup.ts',
   timeout: 240_000,
   expect: { timeout: 15_000 },
@@ -28,7 +31,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    // A deployed build (DEPLOY_SMOKE_URL) keeps its sub-folder: the trailing slash makes `./?e2e=1` resolve inside it.
+    baseURL: process.env.DEPLOY_SMOKE_URL ? process.env.DEPLOY_SMOKE_URL.replace(/\/?$/, '/') : 'http://127.0.0.1:5173',
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
     screenshot: 'off',

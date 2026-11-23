@@ -88,3 +88,4 @@ perf-summary.json
 
 # Release smoke output (tests/release-smoke.spec.ts): report.json + screenshots + exported files
 /release-smoke-report/
+/visual-report/

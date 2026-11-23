@@ -126,6 +126,38 @@
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Header controls never wrap their own label: when the row runs out of room the groups wrap onto a
+   second line (TransportToolbar is flex-wrap) instead of squeezing "PLAY" onto two lines. */
+.transport-toolbar button,
+.transport-toolbar select {
+  white-space: nowrap;
+}
+
+.hyphon-toolbar-bottom > div {
+  /* The bar's three clusters hold ~30 controls (1.5k px). Narrower than that they used to be cut off
+     with no way to reach Help, History, Tape Stop, master volume/pan: wrap, never clip. */
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* Phone width: five wrapped rows would take over half the screen, so the bar is one row that scrolls
+   sideways (every control is still reachable by swipe or keyboard focus). */
+@media (max-width: 639px) {
+  /* Doubled class: the bar's own `flex-wrap` utility is emitted after this file and would win a tie. */
+  .hyphon-toolbar-bottom.hyphon-toolbar-bottom {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    column-gap: 12px;
+    scrollbar-width: thin;
+  }
+  .hyphon-toolbar-bottom > div {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+}
+
 .hyphon-toolbar-bottom {
   background: linear-gradient(
     to right,

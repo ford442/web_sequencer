@@ -257,7 +257,7 @@ export const PianoRollView = memo((props: PianoRollViewProps) => {
             aria-label={`Piano roll, ${props.trackLabel}`}
             data-testid="piano-roll"
             data-backend={backend}
-            className="hyphon-chrome-panel fixed inset-x-0 bottom-10 z-40 flex flex-col h-[min(62vh,580px)] bg-[#0a0c0f] border-t border-cyan-900/40 shadow-[0_-8px_32px_rgba(0,0,0,0.6)]"
+            className="hyphon-chrome-panel fixed inset-x-0 bottom-[var(--hyphon-bottom-bar-h,2.5rem)] z-40 flex flex-col h-[min(62vh,580px)] bg-[#0a0c0f] border-t border-cyan-900/40 shadow-[0_-8px_32px_rgba(0,0,0,0.6)]"
             onKeyDown={(e) => {
                 // Escape anywhere in the panel closes it, never tape-stops.
                 if (e.key === 'Escape') {

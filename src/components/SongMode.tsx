@@ -433,7 +433,7 @@ export const SongMode = memo(forwardRef<SongModeHandle, SongModeProps & { is3D?:
 
     return (
         <div
-            className={`fixed left-0 top-16 bottom-[320px] z-40 bg-gradient-to-br from-[#0a0d10] to-[#080a0b] border-r-2 border-cyan-900/30 transition-all duration-300 overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isVisible ? 'w-[850px] opacity-100' : 'w-0 opacity-0'}`}
+            className={`fixed left-0 top-[calc(var(--hyphon-header-h,3rem)+0.5rem)] bottom-[320px] z-40 bg-gradient-to-br from-[#0a0d10] to-[#080a0b] border-r-2 border-cyan-900/30 transition-all duration-300 overflow-hidden flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isVisible ? 'w-[850px] opacity-100' : 'w-0 opacity-0'}`}
         >
             {/* Context Menu */}
             {menu && (
