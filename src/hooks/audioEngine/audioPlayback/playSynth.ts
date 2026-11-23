@@ -7,6 +7,10 @@ import { substituteMacroWaveform, type MacroPart } from "../../../engines/MacroM
 import type { Voice } from "../../../engines/VoiceManager";
 import { pulseExpressionLed } from "../../../audio/expressionLedPulse";
 import { triggerBassEQDuck } from "./duckingEffects";
+import {
+  OPEN303_CUTOFF_FULL_SCALE_HZ,
+  OPEN303_RESONANCE_FULL_SCALE,
+} from "../../../audio/automation/laneResolver";
 import { SYNTH_TRACK_TO_LED, type PlaySynthFn, type PlaybackRefs } from "./types";
 
 const _synthParamsScratchKeys: string[] = [];
@@ -81,14 +85,18 @@ export function createPlaySynth(
           params.filterCutoff * mod,
         );
       }
+      // Step / lane values are 0-1 knob positions. They scale with the same
+      // full-scale the CUTOFF / RES knobs use (8000 Hz, 20), so a lane at 0.4
+      // lands where the knob would at 0.4 instead of past the end of its range.
       if (noteParams?.filterCutoff !== undefined) {
         effectiveParams.filterCutoff = Math.max(
           20,
-          noteParams.filterCutoff * 20000,
+          noteParams.filterCutoff * OPEN303_CUTOFF_FULL_SCALE_HZ,
         );
       }
       if (noteParams?.filterResonance !== undefined) {
-        effectiveParams.filterResonance = noteParams.filterResonance * 20;
+        effectiveParams.filterResonance =
+          noteParams.filterResonance * OPEN303_RESONANCE_FULL_SCALE;
       }
       if (noteParams?.pan !== undefined) {
         effectiveParams.pan = noteParams.pan;

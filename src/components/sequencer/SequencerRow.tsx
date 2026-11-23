@@ -1,4 +1,4 @@
-import { memo, forwardRef, useRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo } from 'react';
+import { memo, forwardRef, useContext, useRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo } from 'react';
 import { noteToMidi } from '../../utils/musicTheory';
 import type { Note, PartSequence, TrackKey } from '../../types';
 import type { AlignmentResult } from '../../engines/rubberband/PhonemeAligner';
@@ -12,6 +12,7 @@ import { TrackLoopLengthChip } from './TrackLoopLengthChip';
 import { PianoRollChip } from './PianoRollChip';
 import { NUM_STEPS } from '../../constants';
 import { setStepPlayhead } from './playhead';
+import { SequencerLayoutContext } from './sequencerFit';
 
 /**
  * `trackStep` maps a row to the step it is playing when tracks loop at their own
@@ -50,6 +51,7 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
         automation, viewMode, automationParam, onAutomationChange, alignment,
         focusedCell, onStepRef, onStepGridKeyDown,
         columns = NUM_STEPS, loopLength = columns, stepsPerBeat = 4, stepsPerBar = 16 } = props;
+    const { rowPitch, stepScaleY, labelScale } = useContext(SequencerLayoutContext);
     const stepRefs = useRef<(SVGGElement | null)[]>([]);
     const lastStepRef = useRef(-1);
     const lastActiveIndexRef = useRef(-1);
@@ -191,7 +193,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
     ), [activeSlot, trackSlots, rowKey, onSelectSlot, isSelected]);
 
     return (
-        <g role="row" transform={`translate(0, ${rowIndex * 60})`}>
+        <g role="row" transform={`translate(0, ${rowIndex * rowPitch})`}>
+            <g transform={labelScale === 1 ? undefined : `scale(${labelScale})`}>
             <g className="track-label" onClick={handleRowClick} cursor="pointer" role="rowheader" tabIndex={0} aria-label={`Select ${label} track, ${isSelected ? "Selected" : "Unselected"}`} aria-description="Left-click to select row. Right-click for options." aria-pressed={isSelected} onKeyDown={handleRowKeyDown}>
                 {isSelected && (
                     <rect
@@ -242,7 +245,8 @@ export const SequencerRow = memo(forwardRef<SequencerRowHandle, SequencerRowProp
             <g transform="translate(30, 16)">
                 {renderedTrackSlots}
             </g>
-            <g style={{ transform: 'scaleX(var(--zoom-level))', transformOrigin: 'left' }} transform="translate(220, 0)">
+            </g>
+            <g style={{ transform: `scale(var(--zoom-level), ${stepScaleY})`, transformOrigin: '0 0' }} transform="translate(220, 0)">
                 <GridIndicators columns={columns} stepsPerBeat={stepsPerBeat} stepsPerBar={stepsPerBar} />
                 {renderedSteps}
             </g>

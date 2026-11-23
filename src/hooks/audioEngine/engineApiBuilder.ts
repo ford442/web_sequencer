@@ -52,8 +52,12 @@ export function buildAudioEngine(
     refs: EngineApiBuilderRefs,
     playbackFns: EngineApiPlaybackFns,
 ): AudioEngine {
-    const playSynth = (params: any, note: string | string[], time: number, durationSteps?: number, stepTime?: number, slideFromFreq?: number, track?: 'partA' | 'partB' | 'bass2', noteParams?: any) => {
-        createPlaySynth(context, refs)(params, note, time, durationSteps, stepTime, slideFromFreq, track as any, noteParams);
+    // Argument order is the public `AudioEngine['playSynth']` contract (…, track, tuning, noteParams);
+    // `createPlaySynth` itself takes (…, track, noteParams, tuning). Mixing the two up silently
+    // dropped every per-step param (velocity, pan, filter lanes, …) — see engineApiBuilder.test.
+    const playSynthImpl = createPlaySynth(context, refs);
+    const playSynth: AudioEngine['playSynth'] = (params, note, time, durationSteps, stepTime, slideFromFreq, track, tuning, noteParams) => {
+        playSynthImpl(params, note, time, durationSteps, stepTime, slideFromFreq, track, noteParams, tuning);
     };
     const playDrum = createPlayDrum(context, refs);
     const noteOnSynth = createNoteOnSynth(context, refs);

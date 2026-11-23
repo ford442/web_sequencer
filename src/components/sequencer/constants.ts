@@ -8,19 +8,17 @@ export const ZOOM_STEP = 0.1;
 
 // --- PERFORMANCE STYLES ---
 export const SEQUENCER_STYLES = `
+    /*
+     * Playhead. Only the note-fire flash on the glow animates. The cap stroke and
+     * the LED used to pulse too, but they exist on every step and animate non-
+     * compositable properties (stroke / fill), so while playing the whole 256-step
+     * SVG was re-recorded and repainted on nearly every frame (~90% of main-thread
+     * paint time in a playback trace). They now jump straight to their settled look.
+     */
     @keyframes step-fire {
         0%   { fill: rgba(255,255,255,0.75); }
         40%  { fill: rgba(255,255,255,0.40); }
         100% { fill: rgba(255,255,255,0.18); }
-    }
-    @keyframes led-fire {
-        0%   { fill: #ff6666; fill-opacity: 1; }
-        50%  { fill: #ff3333; fill-opacity: 1; }
-        100% { fill: #cc0000; fill-opacity: 1; }
-    }
-    @keyframes step-cap-pulse {
-        0%   { stroke-width: 2.5px; stroke-opacity: 1; }
-        100% { stroke-width: 2px;   stroke-opacity: 0.9; }
     }
 
     .svg-step.is-current .step-glow {
@@ -30,10 +28,11 @@ export const SEQUENCER_STYLES = `
     .svg-step.is-current .step-cap {
         stroke: #ffffff !important;
         stroke-width: 2px !important;
-        animation: step-cap-pulse 120ms ease-out forwards;
+        stroke-opacity: 0.9 !important;
     }
     .svg-step.is-current .step-led {
-        animation: led-fire 120ms ease-out forwards;
+        fill: #cc0000;
+        fill-opacity: 1;
     }
     .svg-step[aria-pressed="true"].is-current .step-glow {
         fill: rgba(255,255,255,0.4) !important;

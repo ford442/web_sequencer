@@ -26,6 +26,15 @@ export interface UseMasterLoudnessResult {
     resetLoudness: () => void;
 }
 
+/** Snapshots are flat scalars; an unchanged one (silence, a held peak) must not re-render the strip. */
+function sameStats(a: LoudnessStats, b: LoudnessStats): boolean {
+    const keys = Object.keys(b) as (keyof LoudnessStats)[];
+    for (const key of keys) {
+        if (!Object.is(a[key], b[key])) return false;
+    }
+    return true;
+}
+
 export function useMasterLoudness(): UseMasterLoudnessResult {
     const [stage, setStage] = useState<MasterLoudnessStage | null>(null);
     const [stats, setStats] = useState<LoudnessStats>(IDLE_LOUDNESS_STATS);
@@ -42,7 +51,7 @@ export function useMasterLoudness(): UseMasterLoudnessResult {
             setStats(stage.latestStats);
         }, 0);
         const unsubscribe = stage.subscribe((next) => {
-            setStats(next);
+            setStats((prev) => (sameStats(prev, next) ? prev : next));
             setLatencySeconds(stage.latencySeconds);
         });
         return () => {
