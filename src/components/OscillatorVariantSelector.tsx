@@ -48,6 +48,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     pyodide: 'bg-gradient-to-b from-yellow-500 to-yellow-600 text-white border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]',
     webgpu: 'bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 text-white border-fuchsia-400 shadow-[0_0_8px_rgba(217,70,239,0.4)]',
     wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
+    rust: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.4)]',
     macro: 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.4)]',
   };
 
@@ -56,10 +57,10 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
   // Short labels for the tight overlay UI
   const getLabel = (w: Waveform): string => {
     const s = w as string;
-    if (s === 'sawtooth' || s === '303-saw' || s === 'prophecy-saw' || s === 'wav-saw' || s === 'pyodide-saw' || s === 'wgsl-saw' || s === 'wam-saw') return 'SAW';
-    if (s === 'square' || s === '303-sqr' || s === 'prophecy-sqr' || s === 'wav-sqr' || s === 'pyodide-square' || s === 'wgsl-sqr' || s === 'wam-sqr') return 'SQR';
-    if (s === 'triangle' || s === 'prophecy-tri' || s === 'wgsl-tri' || s === 'wam-tri') return 'TRI';
-    if (s === 'sine' || s === 'pyodide-sine' || s === 'wgsl-sin' || s === 'wam-sin') return 'SIN';
+    if (s === 'sawtooth' || s === '303-saw' || s === 'prophecy-saw' || s === 'wav-saw' || s === 'pyodide-saw' || s === 'wgsl-saw' || s === 'wam-saw' || s === 'rust-saw') return 'SAW';
+    if (s === 'square' || s === '303-sqr' || s === 'prophecy-sqr' || s === 'wav-sqr' || s === 'pyodide-square' || s === 'wgsl-sqr' || s === 'wam-sqr' || s === 'rust-sqr') return 'SQR';
+    if (s === 'triangle' || s === 'prophecy-tri' || s === 'wgsl-tri' || s === 'wam-tri' || s === 'rust-tri') return 'TRI';
+    if (s === 'sine' || s === 'pyodide-sine' || s === 'wgsl-sin' || s === 'wam-sin' || s === 'rust-sin') return 'SIN';
     if (s === 'prophecy-pulse') return 'PLS';
     const macro = macroEngineForWaveform(s);
     if (macro) return macro.short;

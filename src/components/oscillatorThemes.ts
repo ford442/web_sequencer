@@ -83,6 +83,14 @@ export const OSCILLATOR_THEMES: Record<OscillatorType, OscillatorTheme> = {
     text: 'text-amber-300',
     badge: 'AS',
   },
+  rust: {
+    label: 'Rust OSC',
+    accent: 'orange',
+    panelBg: 'bg-orange-950/30',
+    panelBorder: 'border-orange-500/30',
+    text: 'text-orange-300',
+    badge: 'RS',
+  },
   macro: {
     label: 'Macro',
     accent: 'cyan',
@@ -103,6 +111,7 @@ export const OSCILLATOR_PANEL_IMAGES: Record<OscillatorType, string> = {
   pyodide: '/osc/pyodide.webp',
   webgpu: '/osc/webgpu.webp',
   wam: '/osc/wam.webp',
+  rust: '/osc/rust.webp',
   macro: '/osc/macro.webp',
 };
 
@@ -133,6 +142,7 @@ export const OSCILLATOR_PANEL_FOCUS: Record<OscillatorType, string> = {
   pyodide: '50% 20%',
   webgpu: '50% 20%',
   wam: '50% 22%',
+  rust: '50% 20%',
   macro: '50% 18%',
 };
 
@@ -154,6 +164,7 @@ export function waveformToOscillatorType(waveform: Waveform, engine303?: Engine3
   if (w.startsWith('pyodide-')) return 'pyodide';
   if (w.startsWith('wgsl-')) return 'webgpu';
   if (w.startsWith('wam-')) return 'wam';
+  if (w.startsWith('rust-')) return 'rust';
   if (w.startsWith('macro-')) return 'macro';
   return 'javascript';
 }
@@ -175,6 +186,7 @@ export function getDefaultWaveformForType(type: OscillatorType): Waveform {
     case 'pyodide': return 'pyodide-saw';
     case 'webgpu': return 'wgsl-saw';
     case 'wam': return 'wam-saw';
+    case 'rust': return 'rust-saw';
     case 'macro': return 'macro-va';
     default: return 'sawtooth';
   }
@@ -191,6 +203,7 @@ export function getWaveformsForType(type: OscillatorType): Waveform[] {
     case 'pyodide': return ['pyodide-saw', 'pyodide-square', 'pyodide-sine'];
     case 'webgpu': return ['wgsl-saw', 'wgsl-sqr', 'wgsl-tri', 'wgsl-sin'];
     case 'wam': return ['wam-saw', 'wam-sqr', 'wam-tri', 'wam-sin'];
+    case 'rust': return ['rust-saw', 'rust-sqr', 'rust-tri', 'rust-sin'];
     case 'macro': return [...MACRO_WAVEFORMS];
     default: return ['sawtooth'];
   }
@@ -209,5 +222,6 @@ export const OSCILLATOR_ACCENT_HEX: Record<OscillatorType, string> = {
   pyodide: '#facc15',    // yellow-400
   webgpu: '#e879f9',     // fuchsia-400
   wam: '#fbbf24',        // amber-400
+  rust: '#fb923c',       // orange-400
   macro: '#22d3ee',      // cyan-400
 };

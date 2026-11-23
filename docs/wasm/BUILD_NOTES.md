@@ -438,18 +438,24 @@ message, which doubles peak memory. That is not worth 100 ms.
 
 ## Which engine renders a basic wave
 
-**One always-on path plus one WASM wavetable engine. Not nine.** (#1294)
+**One always-on path, one WASM wavetable engine, and — one family at a time
+(#1663) — real native-language voices. Not nine labels over one oscillator.**
+(#1294)
 
 `src/engines/backends/engineCatalog.ts` maps every waveform prefix to exactly
 one renderer, and `BackendRegistry` owns the only fallback order there is:
 
 ```
-WebGPU → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
+WebGPU → Rust OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → JS oscillator
 ```
+
+A family enters that chain at its own backend and can only step *down* it,
+every step published to telemetry and the HUD (`BackendRegistry.sourceFrom`).
 
 | Family | Prefix | Renderer | Kind |
 |---|---|---|---|
 | JS oscillator | *(none — `sawtooth`/`square`/…)* | `OscillatorNode` | graph-native, sample-accurate, **always available** |
+| Rust OSC | `rust-*` | `rust-audio/` → `public/rust_osc.wasm`, one `rust-osc-processor` AudioWorklet per voice | **worklet-resident** realtime voice ([below](#rust-osc)) |
 | WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
 | WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
 | WebGPU | `wgsl-*` | `WebGpuOscillator`, tables pre-rendered at init | offline pre-render |
@@ -478,21 +484,73 @@ contract (`wasm_memory_budget.json`) for no DSP that needs it.
 HUD gives WAM2 slots their own badge, so the two cannot be read as one. The
 waveform ids keep the `wam-` prefix only so saved projects keep loading.
 
+<a id="rust-osc"></a>
+
+### `rust-*`: the first family restored (#1664)
+
+#1294 removed `rust-*` because `rust-audio/src/lib.rs` produced a naive
+saw/square plus a biquad on the **main thread**, looped through an
+`AudioBufferSourceNode`: no SIMD, no worklet, and a duplicate of the
+AssemblyScript kernel. It is back as the thing that review said it would have
+to be:
+
+| | Retired bench (≤ #1294) | Rust OSC (#1664) |
+|---|---|---|
+| Where it runs | main thread, `generate()` → looped buffer | `rust-osc-processor` AudioWorklet, **one node per voice**, pooled across notes |
+| Pitch | baked into a table, resampled by `playbackRate` | a-rate `frequency` AudioParam, rendered per sample (slides / automation are continuous) |
+| Note timing | buffer `start(when)` | a-rate `gate` param: opens on the exact frame, resets phase on the edge |
+| Band-limiting | none (naive saw/square) | PolyBLEP (saw, square), PolyBLAMP (triangle), degree-11 polynomial sine |
+| SIMD | none | `simd128` throughout: 4 samples per iteration, phases from an in-register prefix sum |
+| Memory | wasm-bindgen + allocator, growable | `no_std`, no allocator, **fixed 2 pages** (`wasm_memory_budget.json#rustOsc`) |
+| Shapes | saw, square | saw, square, triangle, sine |
+| Filter | biquad baked into the table | none: the voice's `BiquadFilterNode` follows, as for every family (#1672 adds one) |
+
+Pieces:
+
+- **Kernel** — `rust-audio/src/lib.rs`, a `no_std` cdylib with a plain C ABI
+  (`rosc_*`, listed in `wasm_export_manifest.json#rustOsc`). No imports.
+  `rosc_render` is the v128 path; `rosc_render_scalar` performs the same
+  operations in the same order and is the reference the SIMD path is held
+  **bit-identical** to (`rustOscVoice.realWasm.test.ts`). Host `cargo test`
+  covers alias energy (saw/square ≈ 14 dB, triangle ≈ 10 dB below naive at
+  3.5 kHz / 48 kHz), sine accuracy (< 2e-6), DC, and hostile input.
+- **Build** — `pnpm run build:wasm:rust` (`scripts/build-rust-osc.mjs`): `cargo
+  build --release --locked --target wasm32-unknown-unknown` with
+  `+simd128`, `--initial-memory = --max-memory` and `-zstack-size` taken from the
+  budget, then `tools/check_rust_osc_module.mjs` (no imports, fixed unshared
+  memory of the budgeted size, exact export surface, ABI 1, SIMD compiled in).
+  It is the `rust-osc` native world; `check-release-dist.mjs` re-checks
+  `dist/rust_osc.wasm` and budgets it (`dist-budget.json#native`).
+  Needs `rustup target add wasm32-unknown-unknown`; no wasm-pack.
+- **Worklet** — `src/audio-worklets/rust-osc-processor.ts` instantiates the
+  module synchronously from a `WebAssembly.Module` passed in `processorOptions`
+  (compiled once on the main thread), so a voice plays from its first block.
+  A closed gate writes nothing; `process()` allocates nothing.
+- **Bridge** — `src/engines/RustOscillator.ts`: fetch, **feature-detect**
+  (`WebAssembly.validate` on the shipped bytes fails without WASM SIMD; no
+  `AudioWorklet` is reported too), compile, `addModule` once per context, and a
+  probe voice that must report `ready` before the backend is. Every failure is
+  a named `logEngineFallback('rust', …)` and leaves `rust-*` on the `wam` table.
+- **Contract** — `RustWorkletBackend` is the first backend with
+  `acquireVoice` instead of `renderLoop`: it hands `Voice` a `RealtimeVoice`
+  (output node + `frequency` param + gate), which `Voice` drives exactly like an
+  `OscillatorNode`. It is `offline: false`, so `BackendRegistry.generate` skips
+  it by name.
+
+Old songs saved with `rust-saw` / `rust-sqr` load onto this family as they were
+written; they are no longer rewritten to `wam-*`.
+
 ### What was removed
 
-- **`rust-*`** — `rust-audio/src/lib.rs` produced a naive saw/square plus a
-  biquad on the **main thread**, looped through an `AudioBufferSourceNode`: no
-  SIMD, no worklet, and a duplicate of the AssemblyScript kernel above.
-  `rust-audio/` remains as a bench crate. It is not built into the app and is
-  not in the fallback order.
 - **`cpp-*`** — never existed. The selector, panel and HUD copy shipped; the
   renderer did not, so selecting it silently played an `OscillatorNode`. There
   is no `CppOscillator.ts` and `src/engines/backends/__tests__/oscillatorEngineContract.test.ts`
   fails the build if one appears.
 
-Both are rewritten onto `wam-*` by `LEGACY_WAVEFORM_ALIASES`
+It is rewritten onto `wam-*` by `LEGACY_WAVEFORM_ALIASES`
 (`src/utils/waveformParser.ts`) so existing songs keep playing, and the rewrite
 is reported through `logWaveformSubstitution` rather than applied silently.
+(#1665 makes it a real C++ family.)
 
 ### Rules for adding one
 
@@ -504,7 +562,9 @@ and then:
    `AudioBufferSourceNode` is not a new engine — that is the pattern #1294
    removed, and the import-graph guard rejects it.
 2. It registers as an `OscillatorBackend` and appears in
-   `BACKEND_FALLBACK_ORDER`. `VoiceManager` must not learn its name.
+   `BACKEND_FALLBACK_ORDER`. `VoiceManager` must not learn its name. A
+   worklet-resident engine implements `acquireVoice` (a `RealtimeVoice`), a
+   table producer `renderLoop` — `rust-*` is the worked example of the first.
 3. If it is C++, it compiles under `compile_cpp` (IEEE). Nothing in
    `hyphon_native` uses `-ffast-math`; the offline `mix_bus.cpp` is the only
    translation unit that does. See [`-ffast-math`](#fast-math).

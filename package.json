@@ -16,7 +16,7 @@
     "build:wasm:fft": "asc assembly/fft.ts -o src/wasm/fft.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 256 --exportRuntime --bindings esm",
     "build:wasm:audioexport": "asc assembly/audioExport.ts -o src/wasm/audioExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
     "build:wasm:xmexport": "asc assembly/xmExport.ts -o src/wasm/xmExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
-    "bench:wasm:rust": "node scripts/bench-wasm-rust.mjs",
+    "build:wasm:rust": "node scripts/build-rust-osc.mjs",
     "build:wasm:openrb338": "bash openrb338/build.sh",
     "verify:openrb338": "bash openrb338/build.sh --verify",
     "build:emcc": "bash emscripten/build.sh",

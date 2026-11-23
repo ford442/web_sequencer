@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
 import { checkForbiddenSymbols, checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
 import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
+import { checkRustOscModule } from '../tools/check_rust_osc_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
@@ -206,6 +207,7 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'open303-processor',
   'prophecy-processor',
   'macro-processor',
+  'rust-osc-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',
@@ -707,6 +709,22 @@ const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
   const problems = checkMixBusModule(fs.readFileSync(mixBusPath));
   if (problems.length) {
     console.error(`[check-release-dist] dist/mix_bus.wasm is not a valid mix bus:\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+}
+
+// The rust-* oscillator voices (#1664), fetched by src/engines/RustOscillator.ts
+// from the deploy base. Without it `rust-*` parts play the AssemblyScript table
+// (and say so), so a missing or malformed file is a release bug.
+{
+  const rustOscPath = path.join(distDir, 'rust_osc.wasm');
+  if (!fs.existsSync(rustOscPath)) {
+    console.error('[check-release-dist] dist/rust_osc.wasm is missing (pnpm run build:wasm:rust).');
+    process.exit(1);
+  }
+  const problems = checkRustOscModule(fs.readFileSync(rustOscPath));
+  if (problems.length) {
+    console.error(`[check-release-dist] dist/rust_osc.wasm is not a valid Rust oscillator:\n  ${problems.join('\n  ')}`);
     process.exit(1);
   }
 }

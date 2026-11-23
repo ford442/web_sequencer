@@ -65,6 +65,7 @@ const ENGINE_REQUIREMENTS: Record<OscEngineId, string | null> = {
   js: null,
   wav: null,
   wam: null,
+  rust: 'AudioWorklet + WASM SIMD (plays the WASM OSC table without them)',
   wgsl: 'WebGPU (plays a fallback waveform without it)',
   pyodide: 'Python runtime (loads on first use)',
   '303': 'native 303 engine',

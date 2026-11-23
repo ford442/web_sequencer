@@ -1,6 +1,6 @@
 /**
  * Shared oscillator backend contract (#1034), collapsed to one live basic-wave
- * story in #1294.
+ * story in #1294, and reopened one family at a time by #1663.
  *
  * THE CHOICE (see `docs/wasm/BUILD_NOTES.md#basic-wave-engines`):
  *   - `js` — `OscillatorNode` is the always-on path. Graph-native,
@@ -12,12 +12,16 @@
  *     and because the native heap budget is sized for voices, not tables.
  *     Named `wam` for persisted-state compatibility — it is NOT Web Audio
  *     Modules 2.0 (`src/audio/wam`, ADR 0001), and the UI calls it "WASM OSC".
+ *   - `rust` — the first *worklet-resident* basic-wave engine (#1664): a
+ *     no_std SIMD PolyBLEP kernel (`rust-audio/`) instantiated inside one
+ *     AudioWorkletProcessor per voice. It renders no table; it hands `Voice` a
+ *     live source through `acquireVoice` (see `RealtimeVoice`).
  *   - `wav` / `webgpu` / `pyodide` — table producers (decoded asset, GPU
  *     pre-render, CPython pre-render). Real, but not realtime voices.
  *
- * Removed: `rust`. `rust-audio/` generated a naive saw/square + biquad on the
- * main thread and looped it — no SIMD, no worklet, and a duplicate of `wam`.
- * It is a bench crate now. Nothing may be added here that renders on the main
+ * What #1294 removed — `rust-audio/` generating a naive saw/square + biquad on
+ * the main thread and looping it — stays removed: `rust` came back as a
+ * worklet, not as that. Nothing may be added here that renders on the main
  * thread into an `AudioBufferSourceNode`; the import-graph guard in
  * `__tests__/oscillatorEngineContract.test.ts` enforces that.
  *
@@ -37,7 +41,7 @@
 
 import type { WaveShape } from '../../utils/waveformParser';
 
-export type OscillatorBackendId = 'webgpu' | 'wam' | 'pyodide' | 'wav' | 'js';
+export type OscillatorBackendId = 'webgpu' | 'rust' | 'wam' | 'pyodide' | 'wav' | 'js';
 
 /**
  * Ordered preference chain — best first. Selection walks this list and takes
@@ -46,9 +50,14 @@ export type OscillatorBackendId = 'webgpu' | 'wam' | 'pyodide' | 'wav' | 'js';
  *
  * This array is the *only* fallback order in the codebase (#1294). Callers ask
  * the registry for a starting point; they never re-implement the walk.
+ *
+ * `rust` sits above `wam`: it is the realtime, band-limited voice, and a
+ * `rust-*` part that cannot get it (no AudioWorklet, no WASM SIMD) drops to the
+ * AssemblyScript table — logged — rather than straight to `OscillatorNode`.
  */
 export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
     'webgpu',
+    'rust',
     'wam',
     'pyodide',
     'wav',
@@ -65,6 +74,7 @@ export const BACKEND_FALLBACK_ORDER: readonly OscillatorBackendId[] = [
  */
 export const BACKEND_LABELS: Record<OscillatorBackendId, string> = {
     webgpu: 'WebGPU',
+    rust: 'Rust OSC',
     wam: 'WASM OSC',
     pyodide: 'Pyodide',
     wav: 'WAV PCM',
@@ -129,13 +139,39 @@ export interface LoopRender {
 }
 
 /**
+ * A live, worklet-resident oscillator a `Voice` plays through instead of a
+ * looped table (#1664). It behaves like the `OscillatorNode` it replaces:
+ *
+ *   - `output` is connected by the voice into its own filter → VCA chain;
+ *   - `frequency` is an a-rate `AudioParam` in Hz, so slides and pitch
+ *     automation are scheduled on it exactly as on `OscillatorNode.frequency`;
+ *   - `start`/`stop` open and close the kernel's gate at an audio time (sample
+ *     accurate). A closed gate costs nothing: the processor writes no samples.
+ *
+ * A voice keeps the same `RealtimeVoice` across notes (no node churn per note)
+ * and hands it back with `release()` when it switches to another family.
+ */
+export interface RealtimeVoice {
+    readonly backendId: OscillatorBackendId;
+    readonly output: AudioNode;
+    readonly frequency: AudioParam;
+    /** Open the gate at `when`, playing `shape`. A closed→open edge resets phase. */
+    start(when: number, shape: WaveShape): void;
+    /** Close the gate at `when`. */
+    stop(when: number): void;
+    /** True while the backend can still drive this voice (not released / disposed). */
+    readonly alive: boolean;
+    /** Close the gate now, disconnect, and return the voice to its backend. */
+    release(): void;
+}
+
+/**
  * Normalized surface shared by every oscillator backend.
  *
- * `generate` is the required rendering primitive — all current backends are
- * buffer producers. `noteOn`/`noteOff` are optional and implemented only by
- * backends that own realtime voices themselves (none today; the hook exists so
- * a future worklet-resident engine plugs in here rather than adding a parallel
- * entry point).
+ * `generate` is the required offline rendering primitive. On the realtime note
+ * path a backend offers exactly one of: `renderLoop` (a table producer), or
+ * `acquireVoice` (a worklet-resident engine that owns a live source per voice).
+ * `js` offers neither — it is the terminal `OscillatorNode` step.
  */
 export interface OscillatorBackend {
     readonly id: OscillatorBackendId;
@@ -163,11 +199,15 @@ export interface OscillatorBackend {
      * directly and is therefore the terminal step of the chain.
      */
     renderLoop?(ctx: BaseAudioContext, req: GenerateRequest): LoopRender | null;
+    /**
+     * Realtime path for a worklet-resident engine: a live source for one voice
+     * on `ctx`, or null when it cannot provide one now (caller falls back, logged).
+     *
+     * `reuse` is the voice's current source; a backend returns it unchanged when
+     * it is its own and still alive, so a voice does not churn nodes per note.
+     */
+    acquireVoice?(ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null;
     dispose(): void;
-
-    /** Optional realtime surface for backends that own their own voices. */
-    noteOn?(note: number, velocity: number, when: number): void;
-    noteOff?(note: number, when: number): void;
 }
 
 /** Convenience guard used by selection code — keeps the checks in one place. */

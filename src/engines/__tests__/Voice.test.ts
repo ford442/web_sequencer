@@ -19,6 +19,7 @@ import type {
     LoopRender,
     OscillatorBackend,
     OscillatorBackendId,
+    RealtimeVoice,
 } from '../backends/OscillatorBackend';
 import type { SynthParams } from '../../types';
 import type { WaveShape } from '../../utils/waveformParser';
@@ -320,7 +321,6 @@ describe('Voice.startNote — native-worklet families', () => {
 
 describe('Voice.startNote — retired waveform ids', () => {
     it.each([
-        ['rust-saw', 'saw'],
         ['cpp-sqr', 'sqr'],
         ['cpp-rand', 'saw'],
     ] as const)('renders %s on the WASM oscillator and reports the rewrite', (waveform, shape) => {
@@ -337,5 +337,145 @@ describe('Voice.startNote — retired waveform ids', () => {
         expect(wam.renderLoopCalls).toBe(1);
         expect(wam.lastRequest?.shape).toBe(shape);
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
+    });
+});
+
+// ── Worklet-resident engines (rust-*, #1664) ─────────────────────────────────
+
+function makeParamMock() {
+    return { value: 0, cancelScheduledValues: vi.fn(), setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() };
+}
+
+/** A live source as a worklet-resident backend hands it out. */
+function makeLiveVoice() {
+    const output = { connect: vi.fn(), disconnect: vi.fn() };
+    const frequency = makeParamMock();
+    const voice = {
+        backendId: 'rust' as const,
+        output: output as unknown as AudioNode,
+        frequency: frequency as unknown as AudioParam,
+        alive: true,
+        start: vi.fn(),
+        stop: vi.fn(),
+        release: vi.fn(),
+    } satisfies RealtimeVoice;
+    return { voice, output, frequency };
+}
+
+/** Stub of a worklet-resident backend: no table, a live voice per acquire. */
+class StubLiveBackend extends StubBackend {
+    readonly handedOut: ReturnType<typeof makeLiveVoice>[] = [];
+    acquireCalls: Array<RealtimeVoice | null> = [];
+
+    constructor(id: OscillatorBackendId = 'rust', opts: { ready?: boolean } = {}) {
+        super(id, { ready: opts.ready });
+        this.capabilities = { ...this.capabilities, offline: false };
+    }
+
+    acquireVoice(_ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null {
+        this.acquireCalls.push(reuse);
+        if (reuse && reuse.backendId === this.id && reuse.alive) return reuse;
+        const live = makeLiveVoice();
+        this.handedOut.push(live);
+        return live.voice;
+    }
+}
+// A live-only backend renders no table.
+(StubLiveBackend.prototype as { renderLoop?: unknown }).renderLoop = undefined;
+
+describe('Voice.startNote — worklet-resident rust-* voices', () => {
+    it('plays rust-saw on a live source: connected to the filter, gated and pitched at the note time', () => {
+        const ctx = makeContext();
+        const rust = new StubLiveBackend();
+        installRegistry(rust, new StubBackend('wam'));
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'A4', 1.5);
+
+        expect(rust.handedOut).toHaveLength(1);
+        const { voice, output, frequency } = rust.handedOut[0]!;
+        expect(output.connect).toHaveBeenCalledTimes(1);
+        expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 1.5);
+        expect(voice.start).toHaveBeenCalledWith(1.5, 'saw');
+        // No table, no OscillatorNode: the worklet is the source.
+        expect(ctx.createBufferSource).not.toHaveBeenCalled();
+        expect(ctx.createOscillator).not.toHaveBeenCalled();
+    });
+
+    it('keeps one live source across notes instead of creating a node per note', () => {
+        const rust = new StubLiveBackend();
+        installRegistry(rust);
+        const v = makeVoice();
+
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-sqr' }, 'C4', 0);
+        v.stopNote(0.5, BASE_PARAMS);
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-tri' }, 'E4', 1);
+
+        expect(rust.handedOut).toHaveLength(1);
+        const { voice, output } = rust.handedOut[0]!;
+        expect(rust.acquireCalls[1]).toBe(voice);
+        expect(output.connect).toHaveBeenCalledTimes(1);
+        expect(voice.start).toHaveBeenLastCalledWith(1, 'tri');
+        // The release closed the gate after the envelope, it did not release the node.
+        expect(voice.stop).toHaveBeenCalledWith(0.5 + BASE_PARAMS.release + 0.1);
+        expect(voice.release).not.toHaveBeenCalled();
+    });
+
+    it('slides on the live source\'s frequency param, like an OscillatorNode', () => {
+        const rust = new StubLiveBackend();
+        installRegistry(rust);
+        const v = makeVoice();
+
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'G4', 0.25, 261.63);
+
+        const { voice, frequency } = rust.handedOut[0]!;
+        expect(frequency.exponentialRampToValueAtTime).toHaveBeenCalledWith(expect.closeTo(392, 0), 0.35);
+        // Legato: the gate is re-asserted at the slide (cancelling the previous
+        // note's scheduled close), never closed — so no phase reset.
+        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw');
+        expect(voice.stop).toHaveBeenCalledTimes(0);
+    });
+
+    it('a slide after play() keeps the gate open past the previous note\'s scheduled close', () => {
+        const rust = new StubLiveBackend();
+        installRegistry(rust);
+        const v = makeVoice();
+
+        v.play({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0, 0.2); // schedules a close at 0.6
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'G4', 0.25, 261.63);
+
+        const { voice } = rust.handedOut[0]!;
+        expect(voice.stop).toHaveBeenCalledWith(0.2 + BASE_PARAMS.release + 0.1);
+        // start() cancels gate events from 0.25 on, i.e. that close.
+        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw');
+    });
+
+    it('hands the live source back when the voice switches to a table family', () => {
+        const ctx = makeContext();
+        const rust = new StubLiveBackend();
+        installRegistry(rust, new StubBackend('wam'));
+        const v = makeVoice(ctx);
+
+        v.startNote({ ...BASE_PARAMS, waveform: 'rust-saw' }, 'C4', 0);
+        v.startNote({ ...BASE_PARAMS, waveform: 'wam-saw' }, 'C4', 1);
+
+        expect(rust.handedOut[0]!.voice.release).toHaveBeenCalledTimes(1);
+        expect(ctx.createBufferSource).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls to the AS table, reported, when the Rust worklet is not ready', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const ctx = makeContext();
+        const wam = new StubBackend('wam');
+        installRegistry(new StubLiveBackend('rust', { ready: false }), wam);
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform: 'rust-sin' }, 'C4', 0);
+
+        expect(wam.renderLoopCalls).toBe(1);
+        expect(wam.lastRequest?.shape).toBe('sin');
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('rust');
+        expect(issue?.activeBackend).toBe('wam');
+        warn.mockRestore();
     });
 });

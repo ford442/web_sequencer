@@ -69,8 +69,8 @@ How it plugs in:
 2. **Build**: its own script, opt-in (e.g. `build:wasm:openrb338`). It is not
    part of `build:native` until the licence decision says it ships. Its
    source stays in its own directory with its own `LICENSE` (GPL-3.0). This is
-   a separate world under the "Four Worlds" rule (AGENTS.md); `rust-audio/`
-   stays a bench crate.
+   a separate world under the "Four Worlds" rule (AGENTS.md), as `rust-audio/`
+   (the `rust-*` voices, #1664) is.
 3. **Load**: the main thread fetches and compiles `openrb338.wasm`, then posts
    the `WebAssembly.Module` to the 303 worklet. The worklet instantiates it
    and checks it with `supportsOpenrb338()`.

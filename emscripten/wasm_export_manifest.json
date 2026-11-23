@@ -226,5 +226,25 @@
       "_emscripten_stack_restore",
       "emscripten_stack_get_current"
     ]
+  },
+  "rustOsc": {
+    "$comment": [
+      "public/rust_osc.wasm (rust-audio/, scripts/build-rust-osc.mjs), a no_std cdylib with no",
+      "imports: the wasm export names are `required`, plus `memory`. Bound by",
+      "src/audio-worklets/rust-osc-processor.ts; tools/check_rust_osc_module.mjs fails on a",
+      "missing name or on any export not listed here. rosc_render_scalar is the scalar",
+      "reference path the SIMD rosc_render is parity-tested against."
+    ],
+    "required": [
+      "rosc_abi_version",
+      "rosc_max_frames",
+      "rosc_simd",
+      "rosc_freq_ptr",
+      "rosc_out_ptr",
+      "rosc_init",
+      "rosc_reset",
+      "rosc_render",
+      "rosc_render_scalar"
+    ]
   }
 }

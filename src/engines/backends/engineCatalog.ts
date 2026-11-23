@@ -42,6 +42,10 @@ export const ENGINE_CATALOG: Record<OscEngineId, EngineEntry> = {
     // AssemblyScript wavetable kernel. Named `wam` for persisted-state
     // compatibility only — it is NOT Web Audio Modules 2.0 (ADR 0001).
     wam: { kind: 'backend', backendId: 'wam', label: 'WASM OSC' },
+    // Rust PolyBLEP kernel (rust-audio/), one AudioWorklet voice per synth voice
+    // (#1664). Enters the chain at `rust`; without a worklet or WASM SIMD it
+    // drops to the `wam` table, logged.
+    rust: { kind: 'backend', backendId: 'rust', label: 'Rust OSC' },
     wgsl: { kind: 'backend', backendId: 'webgpu', label: 'WebGPU' },
     pyodide: { kind: 'backend', backendId: 'pyodide', label: 'Pyodide' },
     '303': { kind: 'native-worklet', owner: 'Open303Manager', label: 'Open303 / JC303' },

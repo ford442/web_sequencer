@@ -8,6 +8,7 @@ import {
     type LoopRender,
     type OscillatorBackend,
     type OscillatorBackendId,
+    type RealtimeVoice,
 } from '../OscillatorBackend';
 import { JsOscillatorBackend } from '../adapters';
 import { engineTelemetry } from '../../../utils/engineTelemetry';
@@ -95,8 +96,8 @@ describe('BackendRegistry ordering', () => {
         vi.restoreAllMocks();
     });
 
-    it('exposes the documented WebGPU → wam → rust → wav → js chain', () => {
-        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'wam', 'pyodide', 'wav', 'js']);
+    it('exposes the documented WebGPU → rust → wam → pyodide → wav → js chain', () => {
+        expect(BACKEND_FALLBACK_ORDER).toEqual(['webgpu', 'rust', 'wam', 'pyodide', 'wav', 'js']);
     });
 
     it('orders registered backends by preference, not registration order', () => {
@@ -312,6 +313,149 @@ describe('BackendRegistry.renderLoopFrom', () => {
 
         expect(registry.renderLoopFrom('wam', ctx, REQ)).not.toBeNull();
         expect(wav.renderLoopCalls).toBe(1);
+        warn.mockRestore();
+    });
+});
+
+
+/** A worklet-resident backend stub: hands out live voices, renders no table. */
+class StubRealtimeBackend extends StubBackend {
+    acquireCalls: Array<RealtimeVoice | null> = [];
+    voice: RealtimeVoice | null;
+
+    constructor(id: OscillatorBackendId, opts: { ready?: boolean; voice?: RealtimeVoice | null } = {}) {
+        super(id, { ready: opts.ready });
+        this.capabilities = { ...this.capabilities, offline: false };
+        this.voice = opts.voice !== undefined ? opts.voice : fakeVoice(id);
+    }
+
+    acquireVoice(_ctx: BaseAudioContext, reuse: RealtimeVoice | null): RealtimeVoice | null {
+        this.acquireCalls.push(reuse);
+        return reuse && reuse.backendId === this.id ? reuse : this.voice;
+    }
+}
+
+function fakeVoice(id: OscillatorBackendId): RealtimeVoice {
+    return {
+        backendId: id,
+        output: {} as AudioNode,
+        frequency: {} as AudioParam,
+        alive: true,
+        start: vi.fn(),
+        stop: vi.fn(),
+        release: vi.fn(),
+    };
+}
+
+/**
+ * `sourceFrom` is the note path's entry point once worklet-resident engines
+ * exist (#1664): same single order, but a backend may answer with a live voice.
+ */
+describe('BackendRegistry.sourceFrom', () => {
+    const ctx = {
+        sampleRate: 44100,
+        createBuffer: (channels: number, length: number, sampleRate: number) => {
+            const data = new Float32Array(length);
+            return { length, numberOfChannels: channels, sampleRate, getChannelData: () => data } as unknown as AudioBuffer;
+        },
+    } as unknown as BaseAudioContext;
+
+    beforeEach(() => {
+        engineDegradationStore.clear('oscillator-backend');
+    });
+
+    it('returns a live voice from a worklet-resident backend, without degrading', () => {
+        const rust = new StubRealtimeBackend('rust');
+        const wam = new StubBackend('wam');
+        const registry = new BackendRegistry();
+        registry.register(rust);
+        registry.register(wam);
+
+        const source = registry.sourceFrom('rust', ctx, REQ);
+        expect(source?.kind).toBe('realtime');
+        expect(source?.kind === 'realtime' && source.voice.backendId).toBe('rust');
+        expect(wam.renderLoopCalls).toBe(0);
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
+    });
+
+    it('offers the voice\'s current live source back for reuse', () => {
+        const rust = new StubRealtimeBackend('rust');
+        const registry = new BackendRegistry();
+        registry.register(rust);
+        const current = fakeVoice('rust');
+
+        const source = registry.sourceFrom('rust', ctx, REQ, current);
+        expect(rust.acquireCalls).toEqual([current]);
+        expect(source?.kind === 'realtime' && source.voice).toBe(current);
+    });
+
+    it('drops rust → wam table when the worklet is not ready, and reports it', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(new StubRealtimeBackend('rust', { ready: false }));
+        const wam = new StubBackend('wam');
+        registry.register(wam);
+
+        const source = registry.sourceFrom('rust', ctx, REQ);
+        expect(source?.kind).toBe('loop');
+        expect(wam.renderLoopCalls).toBe(1);
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('rust');
+        expect(issue?.activeBackend).toBe('wam');
+        warn.mockRestore();
+    });
+
+    it('drops past a backend that returns no voice', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(new StubRealtimeBackend('rust', { voice: null }));
+        registry.register(new StubBackend('wam'));
+
+        expect(registry.sourceFrom('rust', ctx, REQ)?.kind).toBe('loop');
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.reason).toContain('rust: returned no voice');
+        warn.mockRestore();
+    });
+
+    it('a wgsl-* note without WebGPU lands on the live Rust voice, one step down', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(new StubBackend('webgpu', { ready: false }));
+        registry.register(new StubRealtimeBackend('rust'));
+        registry.register(new StubBackend('wam'));
+
+        const source = registry.sourceFrom('webgpu', ctx, REQ);
+        expect(source?.kind === 'realtime' && source.voice.backendId).toBe('rust');
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.activeBackend).toBe('rust');
+        warn.mockRestore();
+    });
+
+    it('renderLoopFrom (tables only) walks past a live-only backend', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const rust = new StubRealtimeBackend('rust');
+        // A live-only backend has no table to give.
+        (rust as { renderLoop?: unknown }).renderLoop = undefined;
+        const registry = new BackendRegistry();
+        registry.register(rust);
+        registry.register(new StubBackend('wam'));
+
+        expect(registry.renderLoopFrom('rust', ctx, REQ)).not.toBeNull();
+        expect(rust.acquireCalls).toEqual([]);
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.reason).toContain('live source only');
+        warn.mockRestore();
+    });
+
+    it('offline generate() skips a realtime-only backend with that reason', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const rust = new StubRealtimeBackend('rust');
+        const wam = new StubBackend('wam');
+        const registry = new BackendRegistry();
+        registry.register(rust);
+        registry.register(wam);
+
+        const out = await registry.generate(REQ);
+        expect(out?.backendId).toBe('wam');
+        expect(rust.generateCalls).toBe(0);
+        expect(engineDegradationStore.getIssue('oscillator-backend')?.reason).toContain('rust: realtime only');
         warn.mockRestore();
     });
 });
