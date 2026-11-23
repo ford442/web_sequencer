@@ -170,6 +170,7 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                 </div>
             </div>
 
+            <div data-voice-list className="flex flex-col gap-1">
             {models.map((m) => {
                 const isActive = m.id === model;
                 const activeClass =
@@ -239,6 +240,7 @@ export const Voice303Selector: React.FC<Voice303SelectorProps> = memo(({
                     </button>
                 );
             })}
+            </div>
 
             {liveHighFidActive && (
                 <p

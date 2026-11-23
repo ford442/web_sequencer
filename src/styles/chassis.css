@@ -487,6 +487,22 @@
   padding: 10px 12px;
 }
 
+/* Oscillator mode, 303 synths: the voice list leaves the narrow overlay column (clipped by
+   the 380px stage) and fills this deck under the knobs as a grid. */
+.hyphon-chassis__osc-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.hyphon-chassis__osc-deck [data-voice-list] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px;
+}
+
 .hyphon-chassis__deck-label {
   font: 700 10px/1 var(--chassis-font-label);
   letter-spacing: 0.14em;
