@@ -2,48 +2,44 @@ import { expect, test } from '@playwright/test';
 import { initializeHyphonAudio, readSliderValue, verticalDragKnob } from './helpers/knob-e2e';
 
 test.describe('knob drag modifiers', () => {
-    test.fixme('shift coarse drag moves ~10× faster than normal; alt fine ~10× slower', async ({ page }) => {
+    test('shift coarse drag moves ~10× faster than normal; alt fine ~10× slower', async ({ page }) => {
         await initializeHyphonAudio(page);
 
         const cutoff = page.getByRole('slider', { name: /^CUTOFF/i }).first();
         await expect(cutoff).toBeVisible({ timeout: 30_000 });
 
-        const start = await readSliderValue(cutoff);
-        console.log("start:", start);
+        // aria-valuenow is an integer percent and clamps at 0..100, so a single drag length cannot
+        // measure all three speeds: each pass uses a length that stays inside the range and is long
+        // enough for rounding to be <5%, and the comparison is in value-per-pixel. Home resets the
+        // knob to 0 so every pass has the full range above it.
+        const ratePerPixel = async (px: number, modifier: { shift?: boolean; alt?: boolean }) => {
+            await cutoff.focus();
+            await cutoff.press('Home');
+            const start = await readSliderValue(cutoff);
+            await verticalDragKnob(page, cutoff, px, modifier);
+            return (await readSliderValue(cutoff) - start) / px;
+        };
 
-        await verticalDragKnob(page, cutoff, 50);
-        const afterNormal = await readSliderValue(cutoff);
-        const normalDelta = afterNormal - start;
-        expect(normalDelta).toBeGreaterThan(0);
+        const normal = await ratePerPixel(20, {});
+        expect(normal).toBeGreaterThan(0);
 
-        // Return toward start so the next gesture has headroom.
-        await verticalDragKnob(page, cutoff, -45);
+        const coarse = await ratePerPixel(6, { shift: true });
+        expect(coarse / normal).toBeGreaterThan(6);
+        expect(coarse / normal).toBeLessThan(14);
 
-        const mid = await readSliderValue(cutoff);
-        await verticalDragKnob(page, cutoff, 50, { shift: true });
-        const afterCoarse = await readSliderValue(cutoff);
-        const coarseDelta = afterCoarse - mid;
-
-        expect(coarseDelta / normalDelta).toBeGreaterThan(6);
-        expect(coarseDelta / normalDelta).toBeLessThan(14);
-
-        await verticalDragKnob(page, cutoff, -45);
-
-        const mid2 = await readSliderValue(cutoff);
-        await verticalDragKnob(page, cutoff, 50, { alt: true });
-        const afterFine = await readSliderValue(cutoff);
-        const fineDelta = afterFine - mid2;
-
-        expect(normalDelta / fineDelta).toBeGreaterThan(6);
-        expect(normalDelta / fineDelta).toBeLessThan(14);
+        const fine = await ratePerPixel(150, { alt: true });
+        expect(fine).toBeGreaterThan(0);
+        expect(normal / fine).toBeGreaterThan(6);
+        expect(normal / fine).toBeLessThan(14);
     });
 
-    test.fixme('pressing shift mid-drag does not jump value until pointer moves', async ({ page }) => {
+    test('pressing shift mid-drag does not jump value until pointer moves', async ({ page }) => {
         await initializeHyphonAudio(page);
 
         const cutoff = page.getByRole('slider', { name: /^CUTOFF/i }).first();
         await expect(cutoff).toBeVisible({ timeout: 30_000 });
 
+        await cutoff.scrollIntoViewIfNeeded();
         const box = await cutoff.boundingBox();
         if (!box) throw new Error('no bounding box');
 

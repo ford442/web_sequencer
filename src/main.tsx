@@ -6,14 +6,15 @@ import './components/EngineHUD' // side-effect: register Engine HUD mount
 import App from './App'
 import { AppStateProvider } from './contexts/AppStateContext'
 import { CompactLayoutProvider } from './contexts/CompactLayoutContext'
-import { engineTelemetry } from './utils/engineTelemetry'
-import { probeHyphonNative } from './engines/hyphonNativeProbe'
+import { engineTelemetry, getActiveEngineFallbacks } from './utils/engineTelemetry'
+import { getHyphonNativeStatus, probeHyphonNative } from './engines/hyphonNativeProbe'
 import { automationStore } from './stores/automationStore'
 import { e2eTransportSnapshot, measureE2eAudioTapPeak } from './e2e/probe'
 import { closeProbeContexts, probeAudioContext, type AudioContextProbeRequest } from './e2e/audioContextProbe'
 // Direct module import, not the './audio/wam' barrel: the barrel re-exports the
 // official-SDK loader, and main.tsx must stay free of any path to it.
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
+import { engineDegradationStore } from '@/stores/engineDegradationStore'
 import { swUpdateStore } from '@/stores/swUpdateStore'
 import { getLastWebGpuProbe, restartWebGpuDevice } from './engines/backends/webgpuProbe'
 
@@ -165,6 +166,24 @@ if (typeof location !== 'undefined' && new URLSearchParams(location.search).has(
     // the engine never registered one — i.e. it is not on its native path).
     getEngineResolution: (subsystem: string) =>
       engineTelemetry.snapshot()[subsystem]?.resolution?.backend ?? null,
+    // Release smoke (tests/release-smoke.spec.ts): every subsystem's resolved
+    // backend plus the JS-fallback reports, in one serialisable read, so the
+    // spec can fail when a native engine silently dropped to its JS fallback
+    // (e.g. a glue/wasm mismatch) instead of the page just sounding thinner.
+    getEngineHealth: () => ({
+      nativeStatus: getHyphonNativeStatus(),
+      resolutions: Object.fromEntries(
+        Object.entries(engineTelemetry.snapshot()).map(([name, report]) => [
+          name,
+          report.resolution?.backend ?? null,
+        ]),
+      ),
+      fallbacks: [...getActiveEngineFallbacks()].map(([subsystem, f]) => ({ subsystem, ...f })),
+      degradations: engineDegradationStore
+        .getIssues()
+        .filter((i) => i.status === 'active')
+        .map((i) => ({ id: i.id, subsystem: i.subsystem, message: i.message, reason: i.reason ?? null })),
+    }),
     measureAudioTapPeak: (name: string, ms: number) => measureE2eAudioTapPeak(name, ms),
 
     // --- AudioContext negotiation matrix --------------------------------------

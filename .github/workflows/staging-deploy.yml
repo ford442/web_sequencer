@@ -2,7 +2,8 @@ name: Staging deploy
 
 # Manual: build the exact release bundle from a ref, deploy it to the STAGING
 # folder of the deploy host (never production), then verify the response headers
-# (COOP/COEP/CORP) and that the host serves this commit.
+# (COOP/COEP/CORP), that the host serves this commit, and run the release smoke
+# (tests/release-smoke.spec.ts) against the deployed URL.
 #
 # One-time setup (repo settings, outside this workflow):
 #   secrets.DEPLOY_TOKEN              deploy token (same as production's)
@@ -67,3 +68,25 @@ jobs:
 
       - name: Verify headers and served commit
         run: node scripts/check-deploy-headers.mjs "${{ vars.STAGING_URL }}" --expect-sha "$(git rev-parse HEAD)"
+
+      # The same build, now served by the staging host: 0 console errors, 0 failed requests,
+      # crossOriginIsolated, native engines on hyphon_native, exports non-empty, session round-trip.
+      # No retries: a smoke that needs a second attempt is not a gate.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Release smoke against staging
+        env:
+          DEPLOY_SMOKE_URL: ${{ vars.STAGING_URL }}
+        run: pnpm exec playwright test tests/release-smoke.spec.ts tests/deploy-smoke.spec.ts --project=chromium --workers=1 --retries=0 --reporter=github,list
+
+      - name: Upload staging smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smoke-report
+          path: |
+            release-smoke-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -85,3 +85,6 @@ perf-summary.json
 /test-results/
 /videos/
 /playwright-report/
+
+# Release smoke output (tests/release-smoke.spec.ts): report.json + screenshots + exported files
+/release-smoke-report/

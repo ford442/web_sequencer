@@ -29,7 +29,8 @@ test.describe('PWA service worker', () => {
     expect(isolated).toBe(true);
   });
 
-  // Skipped pending further investigation — tracked, not silently dropped.
+  // Skipped pending further investigation — tracked in https://github.com/ford442/web_sequencer/issues/1659
+  // (re-verified failing on Chromium for #1653: the start overlay never appears on the offline reload).
   // Findings so far, from three CI attempts and their Playwright traces:
   //  - webkit: page.reload() itself throws "WebKit encountered an internal
   //    error" at the protocol level, deterministically, before any app code
