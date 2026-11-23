@@ -262,7 +262,8 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
 
     // Melodic sampler mode draws a taller row of its own, and the compact (phone)
     // layout is zoomed for touch targets, so both keep the fixed layout.
-    const keepFixedLayout = melodicMode || (compactLayout?.isCompact ?? false);
+    const isCompactLayout = compactLayout?.isCompact ?? false;
+    const keepFixedLayout = melodicMode || isCompactLayout;
     const fit = keepFixedLayout ? null : fitSequencerLayout({
         columns,
         zoom,
@@ -274,13 +275,13 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
     return (
         <div
             id="main-sequencer"
-            className={`w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto ${fit?.scrollY ? 'overflow-y-auto' : 'overflow-y-hidden'} scrollbar-thin hyphon-sequencer-scroll touch-pan-x`}
+            className={`w-full h-full p-4 hyphon-sequencer-shell relative overflow-x-auto ${fit?.scrollY || isCompactLayout ? 'overflow-y-auto' : 'overflow-y-hidden'} scrollbar-thin hyphon-sequencer-scroll ${isCompactLayout ? '' : 'touch-pan-x'}`}
             ref={containerRef}
             onDoubleClick={handleDoubleClick}
             role="grid"
             aria-label="Step sequencer"
             aria-describedby="sequencer-kbd-hint"
-            style={{ '--zoom-level': zoom } as React.CSSProperties}
+            style={{ '--zoom-level': zoom, ...(isCompactLayout ? { touchAction: 'pan-x pan-y' } : null) } as React.CSSProperties}
         >
             <p id="sequencer-kbd-hint" className="sr-only">
                 Arrow keys move between steps and tracks. Space or Enter toggles a step. Shift plus arrow extends the selection range.
@@ -300,8 +301,14 @@ export const MainSequencer = memo(forwardRef<MainSequencerHandle, MainSequencerP
                 viewBox={fit ? `0 0 ${fit.viewBoxWidth} ${fit.viewBoxHeight}` : `0 0 ${sequencerViewBoxWidth(columns)} 680`}
                 style={fit
                     ? { width: fit.cssWidth, height: fit.cssHeight, display: 'block' }
-                    : { width: sequencerCssWidth(columns), height: '100%', minWidth: '100%' }}
-                preserveAspectRatio={fit ? 'xMinYMin meet' : 'xMinYMid meet'}
+                    : isCompactLayout && !melodicMode
+                        // Touch layout: the zoom (COMPACT_DEFAULT_ZOOM when compact) already sizes the grid for fingers.
+                        // Keep that scale and scroll both ways. `height: 100%` letterboxed the 680-unit viewBox
+                        // into a 240-360px panel, i.e. it silently scaled steps back down to ~20px and the
+                        // 7-8 unit labels to 4px.
+                        ? { width: sequencerCssWidth(columns), height: 'auto', aspectRatio: `${sequencerViewBoxWidth(columns)} / 680`, display: 'block', flexShrink: 0 }
+                        : { width: sequencerCssWidth(columns), height: '100%', minWidth: '100%' }}
+                preserveAspectRatio={fit || isCompactLayout ? 'xMinYMin meet' : 'xMinYMid meet'}
                 onContextMenu={(e) => e.preventDefault()}
             >
                 <defs><linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="white" stopOpacity="0.5" /><stop offset="100%" stopColor="white" stopOpacity="0" /></linearGradient></defs>

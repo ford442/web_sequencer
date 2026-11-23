@@ -1,4 +1,5 @@
-import React, { memo } from 'react'
+import React, { memo, useRef } from 'react'
+import { useHeaderHeightVar } from '../hooks/useHeaderHeightVar'
 import { CloudStatus } from './CloudStatus'
 import { ScaleSelector } from './ScaleSelector'
 import type { ScaleDefinition } from '../utils/musicTheory'
@@ -101,10 +102,13 @@ export const TransportToolbar = memo(function TransportToolbar({
         }
     };
 
+    const headerRef = useRef<HTMLElement>(null)
+    useHeaderHeightVar(headerRef)
+
     return (
-        <header className="transport-toolbar h-12 flex items-center justify-between px-2 sm:px-4 hyphon-toolbar-shell border-b shrink-0 relative w-full z-30">
+        <header ref={headerRef} className="transport-toolbar min-h-12 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 sm:px-4 py-1 hyphon-toolbar-shell border-b shrink-0 relative w-full z-30">
             {/* Left: Logo + Song Tabs */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
                 <h1 className="text-lg font-bold font-orbitron text-cyan-400 tracking-widest hidden md:block drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]">HYPHON</h1>
                 
                 {/* Song Slots */}
@@ -138,14 +142,14 @@ export const TransportToolbar = memo(function TransportToolbar({
 
                 {/* Engine Status Pills */}
                 {engineStatus && (
-                    <div className="flex items-center">
+                    <div className="flex flex-wrap items-center gap-1 min-w-0">
                         {engineStatus}
                     </div>
                 )}
             </div>
 
             {/* Center: Transport Controls (desktop / tablet) */}
-            <div className="hidden sm:flex items-center gap-3">
+            <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-1">
                 {/* Play/Stop Button */}
                 <button type="button"
                     onClick={handlePlayToggle}
@@ -253,7 +257,7 @@ export const TransportToolbar = memo(function TransportToolbar({
                     MAP
                 </button>
             </div>
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                 {onToggleCompact && (
                     <button
                         type="button"

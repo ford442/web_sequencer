@@ -23,6 +23,7 @@ import { SEQUENCER_STYLES } from './components/sequencer/constants'
 import { MasterLoudnessMeter } from './components/MasterLoudnessMeter'
 import { PatchBay } from './components/PatchBay'
 import { EngineDegradationBanner } from './components/EngineDegradationBanner'
+import { PhoneNotice } from './components/PhoneNotice'
 import { RecoveredTakesGate } from './components/RecoveredTakesGate'
 import { A11yAnnouncer } from './components/A11yAnnouncer'
 import { useCompactLayoutContext } from './contexts/compactLayoutStore'
@@ -114,6 +115,7 @@ export const App: React.FC = () => {
 
             <TransportHeader onToggleCompact={toggleCompact} isCompactLayout={isCompact} />
 
+            <PhoneNotice />
             <EngineDegradationBanner />
 
             <SongModeNode />
@@ -126,7 +128,7 @@ export const App: React.FC = () => {
 
             <LyricTrackNode />
 
-            <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-28' : 'pb-12'} hyphon-main-scroll`}>
+            <main id="main-content" className={`flex-1 relative bg-gradient-to-b from-[#0a0e14] via-[#111827] to-[#050709] shadow-inner flex flex-col justify-start z-10 overflow-y-auto overscroll-y-contain ${isCompact ? 'pb-[calc(var(--hyphon-bottom-bar-h,2.5rem)+4.5rem)]' : 'pb-[calc(var(--hyphon-bottom-bar-h,2.5rem)+0.5rem)]'} hyphon-main-scroll`}>
                 <WhatsNewBanner />
                 {CHASSIS_MODE ? (
                     <div className="w-full max-w-[1180px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-4">
@@ -141,7 +143,7 @@ export const App: React.FC = () => {
                         </Suspense>
                     </div>
                 ) : (
-                    <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(42vh,360px)] min-h-[240px]' : 'h-[440px]'}`}>
+                    <div className={`w-full max-w-[1000px] mx-auto shrink-0 pt-4 sm:pt-6 px-2 sm:px-0 ${isCompact ? 'h-[min(55vh,520px)] min-h-[240px]' : 'h-[440px]'}`}>
                         <SequencerNode />
                     </div>
                 )}

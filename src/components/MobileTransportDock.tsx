@@ -32,7 +32,7 @@ export const MobileTransportDock = memo(function MobileTransportDock({
 }: MobileTransportDockProps) {
     return (
         <div
-            className="mobile-transport-dock fixed left-0 right-0 bottom-10 z-50 flex items-center justify-between gap-2 px-3 py-2 bg-[#0b0d10]/95 border-t border-cyan-900/40 backdrop-blur-md shadow-[0_-8px_24px_rgba(0,0,0,0.55)] sm:hidden"
+            className="mobile-transport-dock fixed left-0 right-0 bottom-[var(--hyphon-bottom-bar-h,2.5rem)] z-50 flex items-center justify-between gap-2 px-3 py-2 bg-[#0b0d10]/95 border-t border-cyan-900/40 backdrop-blur-md shadow-[0_-8px_24px_rgba(0,0,0,0.55)] sm:hidden"
             role="toolbar"
             aria-label="Mobile transport"
         >

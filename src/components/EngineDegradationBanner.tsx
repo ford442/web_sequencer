@@ -12,6 +12,22 @@ export const EngineDegradationBanner = memo(function EngineDegradationBanner() {
 
     if (issues.length === 0) return null;
 
+    const renderRow = (issue: (typeof issues)[number]) => (
+        <div key={issue.id} className="flex flex-wrap items-center gap-2">
+            <span className="font-bold uppercase tracking-wider text-amber-300">
+                {issue.status === 'recovering' ? '⟳' : '⚠'} {issue.subsystem}
+            </span>
+            <span>{issue.message}</span>
+            <span className="text-amber-400/70 font-mono text-[10px] hidden sm:inline" title={issue.reason}>
+                ({issue.activeBackend} ← {issue.requestedBackend})
+            </span>
+        </div>
+    );
+    // An audio problem (suspended context) is the one a person can act on right now, so it is never
+    // folded away. Engine fallbacks (GPU / WASM / TTS) are informational and collapse when there are several.
+    const urgent = issues.filter((i) => i.category === 'audio');
+    const rest = issues.filter((i) => i.category !== 'audio');
+
     return (
         <div
             className="relative z-40 shrink-0 bg-amber-950/95 border-b border-amber-600/50 text-amber-100 px-3 py-2 text-xs"
@@ -22,17 +38,24 @@ export const EngineDegradationBanner = memo(function EngineDegradationBanner() {
                     <span role="status" aria-live="polite" className="sr-only">
                         {issues.map(i => `${i.status === 'recovering' ? 'Retrying' : 'Warning'} ${i.subsystem}: ${i.message}`).join('. ')}
                     </span>
-                    {issues.map((issue) => (
-                        <div key={issue.id} className="flex flex-wrap items-center gap-2">
-                            <span className="font-bold uppercase tracking-wider text-amber-300">
-                                {issue.status === 'recovering' ? '⟳' : '⚠'} {issue.subsystem}
-                            </span>
-                            <span>{issue.message}</span>
-                            <span className="text-amber-400/70 font-mono text-[10px] hidden sm:inline" title={issue.reason}>
-                                ({issue.activeBackend} ← {issue.requestedBackend})
-                            </span>
-                        </div>
-                    ))}
+                    {urgent.map(renderRow)}
+                    {rest.length > 1 ? (
+                        // Several fallbacks at once (a host with no WebGPU reports four) would otherwise
+                        // stack into a banner a third of a phone screen tall: summarise, details on demand.
+                        <details data-testid="degradation-details" className="group">
+                            <summary className="cursor-pointer list-none flex items-center gap-2 min-h-[32px] focus-visible:ring-2 focus-visible:ring-amber-500 rounded">
+                                <span className="font-bold uppercase tracking-wider text-amber-300">⚠ {rest.length} engines in fallback mode</span>
+                                <span className="text-amber-400/70 hidden sm:inline">
+                                    {rest.map((i) => i.subsystem).join(' · ')}
+                                </span>
+                                <span className="text-amber-300/80 underline decoration-dotted group-open:hidden">details</span>
+                                <span className="text-amber-300/80 underline decoration-dotted hidden group-open:inline">hide</span>
+                            </summary>
+                            <div className="mt-1 flex flex-col gap-1">{rest.map(renderRow)}</div>
+                        </details>
+                    ) : (
+                        rest.map(renderRow)
+                    )}
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                     {issues.filter((i) => i.retryable).map((issue) => (
