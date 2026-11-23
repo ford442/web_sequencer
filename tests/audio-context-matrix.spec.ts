@@ -149,9 +149,10 @@ test.describe('AudioContext factory negotiation', () => {
     }
 
     if (r.constructorSinkId !== null) {
-      // Claimed honoured → the context must report that same sink ('default' ≙ '').
-      const expected = r.constructorSinkId === 'default' ? '' : r.constructorSinkId;
-      expect(r.contextSinkId).toBe(expected);
+      // Claimed honoured → the context must report that same sink. The default device is spelled
+      // '' by some Chromium builds and 'default' by newer ones, so compare after normalising.
+      const norm = (id: string | null) => (id === 'default' ? '' : id);
+      expect(norm(r.contextSinkId)).toBe(norm(r.constructorSinkId));
     } else {
       // Not claimed. Either unsupported (no option passed) or surfaced as fallback.
       expect(r.optionFallback === null || /sinkId/.test(r.optionFallback)).toBe(true);

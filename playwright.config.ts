@@ -38,12 +38,16 @@ export default defineConfig({
     trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
   },
   // Preview of dist/ (COOP/COEP headers come from vite.config.ts preview.headers).
-  webServer: {
-    command: process.env.PW_WEBSERVER_CMD ?? 'pnpm exec vite preview --host 127.0.0.1 --port 5173',
-    url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  // With DEPLOY_SMOKE_URL set the run targets a deployed build (tests/release-smoke.spec.ts,
+  // tests/deploy-smoke.spec.ts), so there is no local dist/ to preview and nothing to start.
+  webServer: process.env.DEPLOY_SMOKE_URL
+    ? undefined
+    : {
+        command: process.env.PW_WEBSERVER_CMD ?? 'pnpm exec vite preview --host 127.0.0.1 --port 5173',
+        url: 'http://127.0.0.1:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+      },
   projects: [
     {
       name: 'chromium',
