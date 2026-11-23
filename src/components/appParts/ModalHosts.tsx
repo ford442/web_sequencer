@@ -1,3 +1,4 @@
+import { PanelErrorBoundary } from '../errors/PanelErrorBoundary'
 import React, { lazy, Suspense } from 'react'
 import { useAppStateSlice } from '../../contexts/AppStateContext'
 import { useUIModalsStore, uiModalsStore } from '@/stores/uiModalsStore'
@@ -169,7 +170,7 @@ export function ModalHosts() {
             <RbsImportModalHost />
             <SmfImportModalHost />
             <ExportModalHost />
-            <VoiceEditorHost />
+            <PanelErrorBoundary panel="voice-designer"><VoiceEditorHost /></PanelErrorBoundary>
             <ShortcutsHelpHost />
             <GamepadDebugHost />
             <MidiMapHost />

@@ -65,6 +65,8 @@
     "test:native": "bash emscripten/tests/run_offline_voices_test.sh",
     "test:all": "pnpm run test:unit && pnpm run test:integration && pnpm run test:perf",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test tests/visual-showcase.spec.ts",
+    "test:visual:update": "playwright test tests/visual-showcase.spec.ts --update-snapshots",
     "benchmark:303": "vite-node scripts/benchmark_offline303.mjs",
     "ai-song:render": "vite-node scripts/ai-song-render.ts --",
     "compare:303": "vite-node scripts/compare-303-voices.ts --",

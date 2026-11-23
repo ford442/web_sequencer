@@ -33,4 +33,45 @@ describe('EngineDegradationBanner', () => {
         expect(screen.getAllByText(/GPU knobs using 2D fallback/)[0]).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Retry gpu-knobs/i })).toBeInTheDocument();
     });
+
+    it('collapses several fallbacks into one summary with details on demand', () => {
+        for (const id of ['gpu-knobs', 'open303']) {
+            engineDegradationStore.report({
+                id,
+                subsystem: id,
+                category: 'gpu',
+                message: `${id} fallback`,
+                reason: 'test',
+                status: 'active',
+                activeBackend: 'js',
+                requestedBackend: 'wasm',
+                retryable: false,
+            });
+        }
+        render(<EngineDegradationBanner />);
+        expect(screen.getByText(/2 engines in fallback mode/i)).toBeInTheDocument();
+        const details = screen.getByTestId<HTMLDetailsElement>('degradation-details');
+        expect(details.open).toBe(false);
+        // The rows are still in the DOM (for assistive tech) and the summary stays a single line.
+        expect(screen.getByText('open303 fallback')).toBeInTheDocument();
+    });
+
+    it('never folds a suspended-audio problem away behind the details', () => {
+        engineDegradationStore.report({
+            id: 'audio-resume', subsystem: 'AudioContext', category: 'audio',
+            message: 'Audio is suspended: click or press a key to start it', reason: 'blocked',
+            status: 'active', activeBackend: 'suspended', requestedBackend: 'running', retryable: false,
+        });
+        for (const id of ['gpu-knobs', 'open303']) {
+            engineDegradationStore.report({
+                id, subsystem: id, category: 'gpu', message: `${id} fallback`, reason: 'test',
+                status: 'active', activeBackend: 'js', requestedBackend: 'wasm', retryable: false,
+            });
+        }
+        render(<EngineDegradationBanner />);
+        const details = screen.getByTestId('degradation-details');
+        const audio = screen.getAllByText(/Audio is suspended/)[0];
+        expect(details.contains(audio)).toBe(false);
+        engineDegradationStore.clear('audio-resume');
+    });
 });

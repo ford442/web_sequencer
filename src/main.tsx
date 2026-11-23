@@ -16,12 +16,14 @@ import { closeProbeContexts, probeAudioContext, type AudioContextProbeRequest } 
 import { getWamHost, type WamHost } from './audio/wam/WamHost'
 import { engineDegradationStore } from '@/stores/engineDegradationStore'
 import { swUpdateStore } from '@/stores/swUpdateStore'
+import { installGlobalErrorHandlers } from './utils/globalErrorHandlers'
 import { getLastWebGpuProbe, restartWebGpuDevice } from './engines/backends/webgpuProbe'
 
 // The voice module is instantiated only inside the AudioWorklet session; the
 // main thread just checks it is reachable (StartOverlay "NATIVE MODULE").
 // Python (src/pyodide/bootstrap.ts) is not started here: it loads on demand
 // through src/pyodide/pythonEngineStore.ts.
+installGlobalErrorHandlers()
 void probeHyphonNative()
 
 /**

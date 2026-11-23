@@ -5,6 +5,7 @@ import { SongMode } from '../SongMode'
 import { MainSequencer } from '../MainSequencer'
 import { useCompactLayoutOptional } from '../../contexts/CompactLayoutContext'
 import { DEFAULT_ZOOM } from '../sequencer/constants'
+import { COMPACT_DEFAULT_ZOOM } from '../sequencer/stepHitGeometry';
 import { redoHuman, undoHuman, useUndoAvailability } from '../../collab/liveProject'
 
 const SONG_PANEL_KEYS = [
@@ -33,7 +34,7 @@ function CompactAutoZoom() {
   useEffect(() => {
     if (!compactLayout?.isCompact || autoZoomAppliedRef.current) return;
     if (zoomLevel <= DEFAULT_ZOOM) {
-      setZoomLevel(2.2);
+      setZoomLevel(COMPACT_DEFAULT_ZOOM);
     }
     autoZoomAppliedRef.current = true;
   }, [compactLayout?.isCompact, zoomLevel, setZoomLevel]);

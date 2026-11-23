@@ -1,4 +1,5 @@
-import React, { memo, useCallback } from 'react'
+import React, { memo, useCallback, useRef } from 'react'
+import { useBottomBarHeightVar } from '../hooks/useHeaderHeightVar'
 import type { AiImportStage } from '../hooks/useSongStorage'
 import type { ReverbType } from '../types'
 import { registerMidiControlTouch, startMidiLearnForControl } from '../hooks/useMidi'
@@ -144,8 +145,11 @@ export const BottomBar = memo(function BottomBar({
         );
     }, [forceScriptProcessorFallback, setForceScriptProcessorFallback, showToast]);
 
+    const barRef = useRef<HTMLDivElement>(null)
+    useBottomBarHeightVar(barRef)
+
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-10 hyphon-toolbar-bottom z-40 flex items-center justify-between px-4">
+        <div ref={barRef} className="fixed bottom-0 left-0 right-0 min-h-10 hyphon-toolbar-bottom z-40 flex flex-wrap items-center justify-between gap-y-1 px-4 py-1">
             {/* Left: View Controls */}
             <div className="flex items-center gap-2">
                 {/* Notes/Automation Toggle */}

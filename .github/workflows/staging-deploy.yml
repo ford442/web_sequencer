@@ -19,9 +19,14 @@ on:
         description: Branch, tag or SHA to build and deploy to staging
         required: false
         default: main
+      report_issue:
+        description: Optional issue / PR number to post the "State of the App" report on
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: staging-deploy
@@ -73,12 +78,36 @@ jobs:
       # crossOriginIsolated, native engines on hyphon_native, exports non-empty, session round-trip.
       # No retries: a smoke that needs a second attempt is not a gate.
       - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium firefox
 
       - name: Release smoke against staging
         env:
           DEPLOY_SMOKE_URL: ${{ vars.STAGING_URL }}
         run: pnpm exec playwright test tests/release-smoke.spec.ts tests/deploy-smoke.spec.ts --project=chromium --workers=1 --retries=0 --reporter=github,list
+
+      # Release 3/5: viewport x state matrix against the DEPLOYED build (not localhost): layout facts in every
+      # browser plus pixel comparison against the committed baselines (tests/__screenshots__). Zero unexpected
+      # console errors; the intentionally triggered error states are listed in the report.
+      - name: Visual matrix against staging
+        env:
+          DEPLOY_SMOKE_URL: ${{ vars.STAGING_URL }}
+        run: pnpm exec playwright test tests/visual-showcase.spec.ts --project=chromium --project=firefox --workers=1 --retries=0 --reporter=github,list
+
+      - name: Build State of the App report
+        if: always()
+        run: node scripts/visual-report.mjs --in visual-report --url "${{ vars.STAGING_URL }}" --sha "$(git rev-parse HEAD)"
+
+      - name: Post State of the App report
+        if: always() && inputs.report_issue != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            cat visual-report/REPORT.md
+            echo
+            echo "Screenshot grid (every viewport x state, per browser): artifact \`staging-smoke-report\` of ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > comment.md
+          gh issue comment "${{ inputs.report_issue }}" --repo "$GITHUB_REPOSITORY" --body-file comment.md
 
       - name: Upload staging smoke report
         if: always()
@@ -87,6 +116,7 @@ jobs:
           name: staging-smoke-report
           path: |
             release-smoke-report/
+            visual-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 14

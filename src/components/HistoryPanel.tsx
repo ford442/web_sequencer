@@ -65,7 +65,7 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
             aria-label="Edit history"
             tabIndex={-1}
             data-testid="history-panel"
-            className="fixed right-4 bottom-12 z-[60] w-80 max-h-[60vh] flex flex-col bg-[#111418] border border-zinc-700 rounded-lg shadow-2xl focus:outline-none"
+            className="fixed right-4 bottom-[calc(var(--hyphon-bottom-bar-h,2.5rem)+0.5rem)] z-[60] w-80 max-h-[60vh] flex flex-col bg-[#111418] border border-zinc-700 rounded-lg shadow-2xl focus:outline-none"
         >
             <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-700">
                 <h2 className="flex-1 text-xs font-bold tracking-wider text-gray-200">HISTORY</h2>

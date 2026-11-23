@@ -505,7 +505,7 @@ if (typeof window !== 'undefined' && !document.getElementById(CONTAINER_ID)) {
   });
 
   render();
-  const timer = setInterval(render, 500);
+  setInterval(render, 500);
 
   window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e') {

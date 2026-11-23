@@ -334,7 +334,7 @@ export const ArrangementView = memo(function ArrangementView({
     return (
         <section
             aria-label="Arrangement timeline"
-            className="hyphon-chrome-panel fixed inset-x-0 top-16 bottom-[320px] z-40 flex flex-col bg-[#0a0c0f] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+            className="hyphon-chrome-panel fixed inset-x-0 top-[calc(var(--hyphon-header-h,3rem)+0.5rem)] bottom-[320px] z-40 flex flex-col bg-[#0a0c0f] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
         >
             <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-cyan-900/30 bg-[#0d1014] shrink-0">
                 <h2 className="font-orbitron font-bold text-cyan-400 tracking-[0.18em] text-sm mr-2">ARRANGEMENT</h2>

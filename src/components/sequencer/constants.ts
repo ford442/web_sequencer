@@ -39,11 +39,27 @@ export const SEQUENCER_STYLES = `
     }
     .automation-step.is-current rect { fill-opacity: 1 !important; filter: drop-shadow(0 0 4px white); }
 
+    /* Hover feedback (mouse / trackpad only: a touch "hover" sticks after the tap). Placed before the
+       playhead and focus rules above/below so those still win while a step is current or focused. */
+    @media (hover: hover) and (pointer: fine) {
+        .svg-step:hover .step-cap { stroke: #ffffff; stroke-opacity: 0.55; stroke-width: 1.5px; }
+        .svg-step[aria-pressed="false"]:hover .step-cap { fill: #2b3742; }
+        .svg-step[aria-pressed="true"]:hover .step-cap { fill-opacity: 0.85; }
+    }
+
     /* Focus Styles for Accessibility */
     .svg-step:focus, .track-slot:focus, .track-label:focus, .automation-step:focus { outline: none; }
     .svg-step:focus .step-cap { stroke: var(--focus-color, #22d3ee) !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px var(--focus-color, #22d3ee)); }
     .track-slot:focus rect { stroke: #22d3ee !important; stroke-width: 2px !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 5px #22d3ee); }
     .track-label:focus text { fill: #22d3ee !important; text-shadow: 0 0 8px rgba(34,211,238,0.8) !important; }
+    /* Mute/solo pads and the per-track loop-length chip are focusable (role=button, tabIndex 0) but had no
+       focus style at all, so a keyboard user Tabbing along a row lost their place. */
+    .track-mute-solo:focus, .track-loop-length:focus { outline: none; }
+    .track-mute-solo:focus-visible, .track-loop-length:focus-visible {
+        filter: drop-shadow(0 0 2px #22d3ee) drop-shadow(0 0 3px #22d3ee);
+    }
+    .track-mute-solo:focus-visible > rect:not(.pad-glow):first-of-type,
+    .track-loop-length:focus-visible > rect:first-of-type { stroke: #22d3ee; stroke-width: 2px; }
     .track-piano-roll:focus { outline: none; }
     .track-piano-roll:focus rect:first-child { stroke: #22d3ee; stroke-width: 2px; filter: drop-shadow(0 0 5px #22d3ee); }
 `;
