@@ -50,7 +50,7 @@ describe('EngineDegradationBanner', () => {
         }
         render(<EngineDegradationBanner />);
         expect(screen.getByText(/2 engines in fallback mode/i)).toBeInTheDocument();
-        const details = screen.getByTestId('degradation-details') as HTMLDetailsElement;
+        const details = screen.getByTestId<HTMLDetailsElement>('degradation-details');
         expect(details.open).toBe(false);
         // The rows are still in the DOM (for assistive tech) and the summary stays a single line.
         expect(screen.getByText('open303 fallback')).toBeInTheDocument();

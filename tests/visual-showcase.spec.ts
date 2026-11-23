@@ -243,8 +243,8 @@ async function expectSoundLayout(page: Page, vp: Viewport, label: string): Promi
     expect.soft(audit.bottomBarClipped, `${label}: bottom-bar controls clipped by the window edge`).toEqual([]);
     expect.soft(audit.headerOverlapsMain, `${label}: header overlaps the scrolling region`).toBe(false);
     if (audit.coarse) expect.soft(audit.smallTargets, `${label}: touch targets under 32px`).toEqual([]);
-    if (vp.width < 600) expect.soft(page.getByTestId('phone-notice'), `${label}: phone notice`).toBeVisible();
-    else expect.soft(page.getByTestId('phone-notice'), `${label}: phone notice must not show on a tablet`).toHaveCount(0);
+    if (vp.width < 600) await expect.soft(page.getByTestId('phone-notice'), `${label}: phone notice`).toBeVisible();
+    else await expect.soft(page.getByTestId('phone-notice'), `${label}: phone notice must not show on a tablet`).toHaveCount(0);
     return audit;
 }
 
