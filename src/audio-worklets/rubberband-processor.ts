@@ -178,7 +178,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
           }
 
           // No glue: the main thread fetched public/rubberband.wasm; instantiate it here.
-          const module = await instantiateRubberBand(wasmBinary);
+          const module = await instantiateRubberBand(wasmBinary as BufferSource | WebAssembly.Module);
 
           const safeSampleRate = Math.floor(this.sampleRate);
 

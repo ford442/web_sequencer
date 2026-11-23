@@ -139,6 +139,8 @@ interface DistOptions {
     omitWorklets?: readonly string[];
     /** Extra files at the dist/ root (relative path -> bytes), e.g. a stale public/ copy. */
     extraRootFiles?: Record<string, string>;
+    /** Ship dist/pyodide/pyodide.js (default true). */
+    pyodide?: boolean;
 }
 
 /** Custom section (id 0): ignored by engines, so the module stays valid. */
@@ -158,6 +160,7 @@ function makeDist({
     workletSuffix = {},
     omitWorklets = [],
     extraRootFiles = {},
+    pyodide = true,
 }: DistOptions = {}): string {
     const dir = mkdtempSync(join(tmpdir(), 'hyphon-dist-'));
     FIXTURES.push(dir);
@@ -191,6 +194,11 @@ function makeDist({
         JSON.stringify({ version: 'test', generatedAt: Date.now(), shell: ['./', './manifest.webmanifest', './assets/index.js'] }),
     );
     writeFileSync(join(dir, 'sw.js'), "const BUILD_ID = 'test-build-id';\n");
+    // The vendored runtime (pnpm run vendor:pyodide); the gate only needs its entry file.
+    if (pyodide) {
+        mkdirSync(join(dir, 'pyodide'), { recursive: true });
+        writeFileSync(join(dir, 'pyodide', 'pyodide.js'), '// fixture\n');
+    }
     if (notices) writeFileSync(join(dir, 'THIRD_PARTY_NOTICES.md'), readFileSync(join(ROOT, 'THIRD_PARTY_NOTICES.md'), 'utf8'));
     // Glue that declares the same names the map does, so only the binary differs.
     // The single-threaded glue quotes with `'`, as Emscripten emits it.
@@ -253,6 +261,12 @@ describe('check-release-dist WASM export gate', () => {
         const result = runCheck(makeDist());
         expect(result.output).toContain('resolved in the binary');
         expect(result.status).toBe(0);
+    });
+
+    it('fails a bundle that never vendored the Pyodide runtime', () => {
+        const result = runCheck(makeDist({ pyodide: false }));
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain('vendor:pyodide');
     });
 
     it('fails a bundle without the third-party notices (macro engine MIT code)', () => {

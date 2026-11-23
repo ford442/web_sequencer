@@ -80,8 +80,12 @@ class TakeWorkerClient {
         if (!p) return;
         this.pending.delete(msg.rid);
         if (msg.ok) {
-            const { t: _t, rid: _rid, ok: _ok, ...body } = msg;
-            p.resolve(body);
+            // Strip the envelope; what is left is the reply body.
+            const body: Record<string, unknown> = { ...msg };
+            delete body.t;
+            delete body.rid;
+            delete body.ok;
+            p.resolve(body as ReplyBody);
         } else {
             p.reject(msg.unsupported ? new RecordingUnsupportedError(msg.error) : new Error(msg.error));
         }

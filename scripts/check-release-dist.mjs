@@ -3,7 +3,7 @@
  * Release-bundle hygiene:
  *   - fail if Vite source maps shipped without opt-in
  *   - fail if any remote script/CDN origin survived into the built index.html
- *   - warn if the Pyodide runtime was not vendored
+ *   - fail if the Pyodide runtime was not vendored
  *
  *   node scripts/check-release-dist.mjs
  *   HYPHON_SOURCEMAP=1 node scripts/check-release-dist.mjs   # allow .map
@@ -129,12 +129,17 @@ if (fs.existsSync(indexHtmlPath)) {
   }
 }
 
+// The Pyodide runtime is vendored same-origin (nothing falls back to a CDN by
+// design, docs/adr/0001-wam2-host.md). A bundle without it boots to a permanently
+// degraded Python engine, so this is a hard failure, not a warning.
 if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
-  console.warn(
-    '[check-release-dist] WARNING: dist/pyodide/ is empty — the Pyodide oscillators ' +
+  console.error(
+    '[check-release-dist] dist/pyodide/ is empty — the Pyodide oscillators ' +
     'will fail at runtime and nothing falls back to a CDN by design. ' +
-    'Run `pnpm run vendor:pyodide` before `pnpm run build:web`.',
+    'Run `pnpm run vendor:pyodide` before `pnpm run build:web` ' +
+    '(`pnpm run build` does this for you).',
   );
+  process.exit(1);
 }
 
 // Oscillator panel art: `dist/osc/` must contain exactly the WebPs that

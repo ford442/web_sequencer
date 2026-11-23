@@ -172,6 +172,28 @@ jobs:
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed
 
+      # So a contributor without emsdk can restore the exact set this commit
+      # built (docs/deployment/RELEASE_BUILD.md#native-artifacts). .cache/native/
+      # carries the stamps + native-artifacts.json that make
+      # `build:release:changed` skip the rebuild.
+      - name: Upload native artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-artifacts
+          path: |
+            src/wasm/
+            public/hyphon_native.js
+            public/hyphon_native.wasm
+            public/hyphon_wasm_export_map.json
+            public/hyphon_native.st.js
+            public/hyphon_native.st.wasm
+            public/hyphon_wasm_export_map.st.json
+            public/rubberband.wasm
+            public/mix_bus.wasm
+            .cache/native/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Validate WASM export map
         run: |
           pnpm run check:exports --require-artifacts --glue public/hyphon_native.js --wasm public/hyphon_native.wasm
@@ -185,7 +207,7 @@ jobs:
       - name: Release dist gate (bundle budgets + worklet invariants)
         # Same check build:release runs; without it here, dist regressions only
         # ever turned the Playwright E2E badge red.
-        run: pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs
+        run: pnpm run vendor:pyodide && pnpm run build:web && node scripts/write-native-manifest.mjs --out dist/native-artifacts.json && node scripts/check-release-dist.mjs
 
       - name: Bundle report (budget headroom, report only)
         # Never fails the job - the gate is check-release-dist.mjs above. This

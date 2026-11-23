@@ -10,8 +10,9 @@
 #
 # Resolution order:
 #   1. an emcc already on PATH whose version matches (CI's setup-emsdk, an activated shell)
-#   2. $HYPHON_EMSDK/emsdk_env.sh, then the usual emsdk checkouts below — the first
-#      one whose emcc matches wins
+#   2. $HYPHON_EMSDK/emsdk_env.sh, then .cache/emsdk (`pnpm run setup:emsdk`, no git
+#      needed), then the usual emsdk checkouts below — the first one whose emcc
+#      matches wins
 #
 # HYPHON_ALLOW_UNPINNED_EMCC=1 builds with whatever emcc was found, loudly. Do not
 # ship that output: the render-parity and export-map gates were validated on the pin.
@@ -33,6 +34,7 @@ else
     _HYPHON_SEEN="$(_hyphon_emcc_version || true)"
     for _hyphon_env in \
         "${HYPHON_EMSDK:+$HYPHON_EMSDK/emsdk_env.sh}" \
+        "$_HYPHON_TOOLCHAIN_DIR/../.cache/emsdk/emsdk_env.sh" \
         "/content/build_space/emsdk/emsdk_env.sh" \
         "$_HYPHON_TOOLCHAIN_DIR/../emsdk/emsdk_env.sh" \
         "$HOME/emsdk/emsdk_env.sh" \
@@ -58,7 +60,8 @@ if [ -z "$_HYPHON_FOUND" ]; then
     else
         echo "❌ Emscripten $HYPHON_EMSCRIPTEN_PIN is required (emscripten/toolchain.json)." >&2
         echo "   found: ${_HYPHON_SEEN:-no emcc}" >&2
-        echo "   Install it:  git clone https://github.com/emscripten-core/emsdk ~/emsdk && \\" >&2
+        echo "   Install it:  pnpm run setup:emsdk   (linux-x64, no git/emsdk checkout needed)" >&2
+        echo "   or:          git clone https://github.com/emscripten-core/emsdk ~/emsdk && \\" >&2
         echo "                ~/emsdk/emsdk install $HYPHON_EMSCRIPTEN_PIN && ~/emsdk/emsdk activate $HYPHON_EMSCRIPTEN_PIN" >&2
         echo "   or point HYPHON_EMSDK at an emsdk checkout that has it activated." >&2
         exit 1

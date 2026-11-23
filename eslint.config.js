@@ -67,6 +67,8 @@ const typeAwareLanguageOptions = {
 export default defineConfig([
   globalIgnores([
     'dist',
+    // Build caches: the pinned emscripten (`pnpm run setup:emsdk`) and native stamps.
+    '.cache/**',
     'emsdk/**',
     'assembly/**',
     'emscripten/**',

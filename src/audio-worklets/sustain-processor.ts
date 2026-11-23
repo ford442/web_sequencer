@@ -73,7 +73,7 @@ class SustainProcessor extends AudioWorkletProcessor {
                             throw new Error("WASM binary not provided in INIT_WASM message");
                         }
 
-                        const module = await instantiateRubberBand(wasmBinary);
+                        const module = await instantiateRubberBand(wasmBinary as BufferSource | WebAssembly.Module);
 
                         const safeSampleRate = Math.floor(this.sampleRate);
 
