@@ -29,4 +29,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/cppOscVoice.realWasm.test.ts',
   // The dwgs-* oscillator (#1666) on the real dwgs_osc.wasm: harmonics only, distinct waves, offline == live, processor gate timing.
   'src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts',
+  // The wam-* AssemblyScript oscillator on the real oscillators.wasm: band-limited, seamless loop tables, hostile arguments, import/export contract.
+  'src/engines/__tests__/WasmOscillator.realWasm.test.ts',
 ] as const;

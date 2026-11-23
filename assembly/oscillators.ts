@@ -2,16 +2,221 @@
 // @mode: assemblyscript
 // @note-for-ai: This is the AssemblyScript implementation of the oscillator DSP.
 // It is compiled to WASM via: npm run build:wasm
-// Output: public/oscillators.wasm
+// Output: src/wasm/oscillators.wasm
 // Bridge file: src/engines/WasmOscillator.ts
 //
 // Design constraints for WASM modules:
-// - Only use primitive types (f32, i32) and TypedArrays
-// - No JS object dependencies
+// - Only use primitive types (f32, f64, i32) — no JS objects, no managed heap
 // - Direct memory access via store<type>(offset, value)
+// - Scalar code only: the build targets the Safari intersection (simd +
+//   bulk-memory, no WasmGC, no relaxed-simd). See docs/wasm/BUILD_NOTES.md.
+//
+// Two entry points share one renderer:
+//
+//   generate      a one-shot note. Exactly `sampleRate * duration` frames, the
+//                 filter starts from rest (the attack transient is the sound).
+//
+//   generateLoop  a wavetable for a looped AudioBufferSourceNode. The length is
+//                 snapped to a whole number of cycles so the wrap is
+//                 phase-continuous, and the filter is run to steady state before
+//                 the frames that are kept, so the wrap is also *filter*-continuous.
+//                 Without both, every wrap of the loop clicks.
+//
+// Shapes are band-limited at the source (PolyBLEP for the saw and square
+// edges, PolyBLAMP for the triangle's slope breaks), not by the biquad: the
+// filter's cutoff is a musical control, and it was doing double duty as the
+// only thing standing between the naive edges and the alias products.
 
-@inline const PI: f32 = 3.14159265359;
+@inline const TWO_PI: f64 = 6.283185307179586;
 
+/** Hz. Below this a "cycle" is longer than any table could hold. */
+@inline const MIN_FREQ: f64 = 1.0;
+/** Fraction of the sample rate. Keeps dt < 0.5 so a residual never overlaps itself. */
+@inline const MAX_FREQ_RATIO: f64 = 0.49;
+@inline const MIN_CUTOFF: f64 = 20.0;
+@inline const MIN_RESONANCE: f64 = 0.1;
+/**
+ * Loop mode replays this many seconds of the (periodic) signal through the filter
+ * before keeping a frame. Ten time constants of a Q 12 lowpass at 300 Hz.
+ */
+@inline const PRIME_SECONDS: f64 = 0.5;
+
+// --- Filter: RBJ lowpass, transposed direct form II, f64 ---------------------
+//
+// f32 direct form I cannot represent a 20 Hz lowpass at 48 kHz (a1 ~ -2 + 1e-5,
+// well inside f32 rounding), so low cutoffs drifted and rang at the wrong pitch.
+// Same transfer function as before; only the arithmetic changed.
+let b0: f64 = 0.0;
+let b1: f64 = 0.0;
+let b2: f64 = 0.0;
+let a1: f64 = 0.0;
+let a2: f64 = 0.0;
+let z1: f64 = 0.0;
+let z2: f64 = 0.0;
+
+function setupFilter(sampleRate: f64, cutoff: f64, resonance: f64): void {
+  const fc = max(MIN_CUTOFF, min(cutoff, sampleRate / 2.1));
+  const q = max(MIN_RESONANCE, resonance);
+  const w0 = (TWO_PI * fc) / sampleRate;
+  const cosW0 = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2.0 * q);
+  const invA0 = 1.0 / (1.0 + alpha);
+  b0 = ((1.0 - cosW0) * 0.5) * invA0;
+  b1 = (1.0 - cosW0) * invA0;
+  b2 = b0;
+  a1 = -2.0 * cosW0 * invA0;
+  a2 = (1.0 - alpha) * invA0;
+  z1 = 0.0;
+  z2 = 0.0;
+}
+
+// --- Band-limited residuals ---------------------------------------------------
+//
+// `t` is the phase distance past the discontinuity (wrapped to [0, 1)), `dt` the
+// phase increment per sample. Both residuals are non-zero only within one sample
+// of the event, on either side of it.
+
+/** PolyBLEP: the correction for a unit step. Subtract (rising: add) scaled by the step. */
+@inline function polyBlep(t: f64, dt: f64): f64 {
+  if (t < dt) {
+    const x = t / dt;
+    return x + x - x * x - 1.0;
+  }
+  if (t > 1.0 - dt) {
+    const x = (t - 1.0) / dt;
+    return x * x + x + x + 1.0;
+  }
+  return 0.0;
+}
+
+/**
+ * PolyBLAMP: the correction for a unit-slope-change corner, in units of
+ * (slope per sample). Always >= 0, centred value dt/6 — the integral of the
+ * PolyBLEP's triangle kernel twice.
+ */
+@inline function polyBlamp(t: f64, dt: f64): f64 {
+  if (t < dt) {
+    const x = t / dt - 1.0;
+    return -(x * x * x) * (1.0 / 6.0);
+  }
+  if (t > 1.0 - dt) {
+    const x = (t - 1.0) / dt + 1.0;
+    return x * x * x * (1.0 / 6.0);
+  }
+  return 0.0;
+}
+
+@inline function shapeSample(type: i32, p: f64, dt: f64): f64 {
+  if (type == 0) {
+    // Saw, -1..1, one downward step of 2 at the wrap.
+    return 2.0 * p - 1.0 - polyBlep(p, dt);
+  }
+  // The half-cycle point, wrapped.
+  let q: f64 = p + 0.5;
+  if (q >= 1.0) q -= 1.0;
+  if (type == 1) {
+    // Square, 50% duty: +2 step at p = 0, -2 step at p = 0.5.
+    return (p < 0.5 ? 1.0 : -1.0) + polyBlep(p, dt) - polyBlep(q, dt);
+  }
+  if (type == 2) {
+    // Triangle, valley at p = 0 (slope -4 -> +4), peak at p = 0.5 (+4 -> -4).
+    // The slope change is 8 per cycle = 8 * dt per sample at each corner.
+    return 1.0 - 4.0 * Math.abs(p - 0.5) + 8.0 * dt * (polyBlamp(p, dt) - polyBlamp(q, dt));
+  }
+  return Math.sin(TWO_PI * p);
+}
+
+/**
+ * Run frame indices [from, to) of the shape through the filter, advancing the
+ * filter state. `write` false is the loop mode's priming: same arithmetic, no
+ * stores. Frame `i` is stored at `offset + 4 * (i - from)`.
+ *
+ * Phase is computed from the frame index rather than accumulated, so a long
+ * render cannot drift, and a loop of `frames` frames returns to exactly phase 0
+ * at index `frames` — which is what lets priming start anywhere in the cycle.
+ */
+function renderPass(offset: i32, from: i32, to: i32, dt: f64, type: i32, write: bool): void {
+  for (let i = from; i < to; i++) {
+    let p: f64 = f64(i) * dt;
+    p -= Math.floor(p);
+
+    const x = shapeSample(type, p, dt);
+    const y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+
+    if (write) store<f32>(offset + ((i - from) << 2), f32(y));
+  }
+}
+
+/** Whole f32 frames that fit between `offset` and the end of linear memory. */
+function capacityFrames(offset: i32): i32 {
+  const bytes: i64 = (i64(memory.size()) << 16) - i64(offset);
+  return bytes > 0 ? i32(bytes >> 2) : 0;
+}
+
+function render(
+  offset: i32,
+  sampleRate: f64,
+  freq: f64,
+  duration: f64,
+  type: i32,
+  cutoff: f64,
+  resonance: f64,
+  loop: bool,
+): i32 {
+  // `!(x > 0)` rather than `x <= 0`: NaN must land on the failure side.
+  if (offset < 0 || !(sampleRate > 0.0) || !(freq > 0.0) || !(duration > 0.0)) return 0;
+  if (!isFinite(sampleRate) || !isFinite(freq) || !isFinite(duration)) return 0;
+
+  const capacity = capacityFrames(offset);
+  if (capacity <= 0) return 0;
+
+  const f = max(MIN_FREQ, min(freq, sampleRate * MAX_FREQ_RATIO));
+  // NaN cutoff/resonance: fall back to a wide-open, flat filter instead of NaN out.
+  const fc: f64 = cutoff == cutoff ? cutoff : sampleRate;
+  const q: f64 = resonance == resonance ? resonance : 0.7071;
+  setupFilter(sampleRate, fc, q);
+
+  if (!loop) {
+    const wanted: f64 = floor(sampleRate * duration);
+    const frames: i32 = i32(min(wanted, f64(capacity)));
+    renderPass(offset, 0, frames, f / sampleRate, type, true);
+    return frames;
+  }
+
+  // Loop table: an integer number of cycles in an integer number of frames. The
+  // pitch is moved by at most half a frame per table (< 0.01 cent at 2 s), which
+  // is what buys a seamless wrap.
+  const framesPerCycle: f64 = sampleRate / f;
+  let cycles: f64 = max(1.0, Math.round(duration * f));
+  if (cycles * framesPerCycle > f64(capacity)) {
+    cycles = Math.floor(f64(capacity) / framesPerCycle);
+    if (cycles < 1.0) return 0; // one cycle does not fit
+  }
+  const frames: i32 = i32(max(1.0, Math.round(cycles * framesPerCycle)));
+  if (frames > capacity) return 0;
+  const dt: f64 = cycles / f64(frames);
+
+  // Prime to steady state. The signal is exactly periodic with period `frames`, so
+  // the filter can be run on the *tail* of the table (ending at index `frames`, i.e.
+  // phase 0) and then on whole tables, until PRIME_SECONDS have gone through it:
+  // a loop costs ~1.25x a one-shot instead of 2x for a 2 s table.
+  const prime: i32 = i32(Math.ceil(sampleRate * PRIME_SECONDS));
+  const tail: i32 = prime % frames;
+  if (tail > 0) renderPass(offset, frames - tail, frames, dt, type, false);
+  for (let k = prime / frames; k > 0; k--) renderPass(offset, 0, frames, dt, type, false);
+  renderPass(offset, 0, frames, dt, type, true);
+  return frames;
+}
+
+/**
+ * A one-shot note: `floor(sampleRate * duration)` frames of f32 at `offset`,
+ * filter from rest. Returns the frame count (0 on a bad argument; never traps —
+ * a render too long for linear memory is truncated to what fits).
+ *
+ * type: 0 saw, 1 square, 2 triangle, anything else sine.
+ */
 export function generate(
   offset: i32,
   sampleRate: f32,
@@ -19,63 +224,24 @@ export function generate(
   duration: f32,
   type: i32,
   cutoff: f32,
-  resonance: f32
+  resonance: f32,
 ): i32 {
-  let totalSamples: i32 = i32(sampleRate * duration);
+  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, false);
+}
 
-  // --- FILTER SETUP (Same as before) ---
-  let safeCutoff: f32 = max(20.0, min(cutoff, sampleRate / 2.1));
-  let safeRes: f32 = max(0.1, resonance);
-  let w0: f32 = 2.0 * PI * safeCutoff / sampleRate;
-  let cosW0: f32 = f32(Math.cos(f64(w0)));
-  let sinW0: f32 = f32(Math.sin(f64(w0)));
-  let alpha: f32 = sinW0 / (2.0 * safeRes);
-
-  let a0: f32 = 1.0 + alpha;
-  let invA0: f32 = 1.0 / a0;
-  let b0: f32 = ((1.0 - cosW0) / 2.0) * invA0;
-  let b1: f32 = (1.0 - cosW0) * invA0;
-  let b2: f32 = ((1.0 - cosW0) / 2.0) * invA0;
-  let a1: f32 = (-2.0 * cosW0) * invA0;
-  let a2: f32 = (1.0 - alpha) * invA0;
-
-  // Filter State
-  let x1: f32 = 0.0, x2: f32 = 0.0, y1: f32 = 0.0, y2: f32 = 0.0;
-
-  // Oscillator State
-  let phase: f32 = 0.0;
-  let phaseIncr: f32 = freq / sampleRate;
-
-  for (let i = 0; i < totalSamples; i++) {
-    let rawSample: f32 = 0.0;
-    let p: f64 = f64(phase);
-
-    if (type == 0) { // Sawtooth (Standard: -1 to 1)
-      // 2 * p - 1
-      rawSample = f32(2.0 * p - 1.0);
-    } else if (type == 1) { // Square
-      // 1 if < 0.5, else -1
-      rawSample = phase < 0.5 ? 1.0 : -1.0;
-    } else if (type == 2) { // Triangle
-      // Map 0..1 -> -1..1..-1
-      // 1 - 4 * abs(p - 0.5)
-      rawSample = f32(1.0 - 4.0 * Math.abs(p - 0.5));
-    } else { // Sine
-      rawSample = f32(Math.sin(2.0 * Math.PI * p));
-    }
-
-    // Apply Filter
-    let filtered: f32 = (b0 * rawSample) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
-
-    x2 = x1; x1 = rawSample;
-    y2 = y1; y1 = filtered;
-
-    store<f32>(offset + (i * 4), filtered);
-
-    // --- PHASE WRAPPING FIX ---
-    phase += phaseIncr;
-    if (phase >= 1.0) phase -= 1.0;
-  }
-
-  return totalSamples;
+/**
+ * A seamlessly loopable table of about `duration` seconds, rounded to a whole
+ * number of cycles (at least one). Same arguments and return as `generate`; the
+ * pitch is `freq` to within half a frame per table.
+ */
+export function generateLoop(
+  offset: i32,
+  sampleRate: f32,
+  freq: f32,
+  duration: f32,
+  type: i32,
+  cutoff: f32,
+  resonance: f32,
+): i32 {
+  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, true);
 }

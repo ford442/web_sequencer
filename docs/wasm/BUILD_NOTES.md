@@ -688,6 +688,64 @@ Pieces:
 An in-kernel filter is #1674; until then the voice's `BiquadFilterNode` follows,
 as for every family that plays through `Voice`.
 
+<a id="wam-osc"></a>
+
+### `wam-*`: hardening the mid-tier kernel (#1663)
+
+`wam-*` is the reliable middle of the fallback chain: no AudioWorklet, no relaxed
+SIMD, no `SharedArrayBuffer`, one 8 KB module. The #1663 hardening left every build flag and
+the Safari intersection exactly as they were and changed only what the kernel
+computes and what the bridge does around it.
+
+| | Before | After |
+|---|---|---|
+| Saw, square | naive `2p-1` / `p<0.5` | **PolyBLEP** at each edge |
+| Triangle | naive (`1 - 4 * abs(p - 0.5)`) | **PolyBLAMP** at both corners (`1/6` scale: `1/3` and `1/12` measured worse) |
+| Phase | `f32`, accumulated | `f64`, from the frame index (no drift; a loop returns to exactly 0) |
+| Filter | RBJ lowpass, `f32` direct form I | same coefficients, **`f64` transposed DF II**: a 20 Hz cutoff at 48 kHz is `a1 ≈ -2 + 1e-5`, inside `f32` rounding |
+| Loop tables | `generate` of 2.0 s at 261.63 Hz: **523.26 cycles**, filter from rest, so the loop clicked on every wrap | `generateLoop`: whole cycles, filter **primed to steady state** |
+| Bad arguments | NaN/0/negative pitch → DC or garbage; a long render ran off the end of memory and trapped | `0` frames; a render is truncated to what fits and never writes outside `[offset, offset+4n)` |
+
+Measured on the shipped build (`asc`, `-O3`), filter open, 48 kHz, energy that is
+not on a harmonic, dB re total (lower is better; `WasmOscillator.realWasm.test.ts`
+keeps the margins):
+
+| shape | 440 Hz | 1.05 kHz | 2.09 kHz | 4.19 kHz |
+|---|---|---|---|---|
+| saw, before → after | -20.1 → **-38.0** | -16.3 → **-34.1** | -13.3 → **-31.0** | -10.4 → **-28.3** |
+| square, before → after | -21.9 → **-39.8** | -18.1 → **-35.8** | -15.0 → **-32.2** | -12.0 → **-29.2** |
+| triangle, before → after | -57.1 → -59.2 | -48.5 → **-54.1** | -40.0 → **-48.5** | -31.4 → **-43.8** |
+
+Loop seam (2 s table, 261.63 Hz, cutoff 2 kHz, Q 6; `|x[0] - x[L-1]|`, where a
+healthy wrap is about one ordinary sample step): sine **1.017 → 0.035**, saw
+0.139 → 0.0002, triangle 0.044 → 0.020. The table is 95 952 frames instead of
+96 000 and its pitch moves by under 0.01 cent.
+
+Cost, one 2 s table in V8 (Node, same machine): saw 0.51 → 0.62 ms, sine
+1.31 → 1.87 ms; a loop table adds the filter priming, 0.78 / 2.33 ms (priming
+replays the last 0.5 s of the periodic signal, not a whole extra table). A table
+is built when a `Voice` builds its source, on the main thread and never in a
+block callback; it is roughly +0.3 to +1 ms per voice over the old kernel.
+
+Things deliberately **not** done:
+
+- **No new shapes, no PWM.** `WaveShape` is shared by every backend and by saved
+  songs; a fifth shape would have to land in all of them at once. A pulse width
+  needs a `GenerateRequest` field and a control to drive it, and nothing sets one.
+- **No SIMD, no relaxed SIMD.** The kernel is table-rate, not block-rate, and the
+  matrix above still says it would be a byte-identical module.
+- **No higher-order BLEP.** PolyBLEP's two-sample residual caps a saw at about
+  -38 dB inharmonic at 440 Hz. The C++ OSC's 32-tap residual is the answer for
+  anyone who needs more; this tier stays small and everywhere.
+
+The bridge (`WasmOscillator.generate(..., loop)`) picks `generateLoop` when asked
+and an older build without it falls back to `generate`. It also `memory.grow`s
+ahead of a render longer than the module's 24 MB (about 60 s at 48 kHz): this
+module runs on the main thread, so the worklet "no growth" rule does not apply,
+and the kernel itself still never grows memory. `adapters.ts` asks for a loop
+table in `renderLoop` only; offline bounces keep `generate`, so a note is still
+exactly `floor(rate * duration)` frames.
+
 ### Rules for adding one
 
 A new basic-wave engine needs a reason the table above does not already cover,
