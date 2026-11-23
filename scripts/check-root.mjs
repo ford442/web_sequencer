@@ -125,6 +125,8 @@ const ALLOWED_ROOT_DIRS = new Set([
   // The Four Worlds + the tools that build them
   'assembly',
   'rust-audio',
+  // dwgs-* oscillator kernel (#1666): its own no_std crate, built like rust-audio
+  'dwgs-audio',
   // openrb-338 TB-303 (GPL-3.0-only, opt-in build, never bundled; docs/audio-engine/openrb338-voice.md)
   'openrb338',
   'emscripten',

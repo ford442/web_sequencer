@@ -4,9 +4,11 @@ import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { RustOscillator } from '../../engines/RustOscillator';
 import { CppOscillator } from '../../engines/CppOscillator';
+import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
 import {
     CppWorkletBackend,
+    DwgsWorkletBackend,
     JsOscillatorBackend,
     PyodideBackend,
     RustWorkletBackend,
@@ -118,6 +120,8 @@ export interface EngineLifecycleUrls {
     rustOscProcessorUrl: string;
     /** `cpp-*` oscillator voices (#1665). */
     cppOscProcessorUrl: string;
+    /** `dwgs-*` oscillator voices (#1666). */
+    dwgsOscProcessorUrl: string;
 }
 
 export interface EngineLifecycleResult {
@@ -216,13 +220,17 @@ export async function initializeAudioContextAndEngines(
     // There is exactly one WASM wavetable engine: the AssemblyScript kernel
     // behind `WamWasmBackend`. `rust-*` (#1664) and `cpp-*` (#1665) are not
     // more of them: each is a live AudioWorklet voice, never a main-thread table.
+    // Neither is `dwgs-*` (#1666), which is not a basic-wave engine either: it
+    // heads the chain as an entry-only backend no other family falls onto.
     const registry = new BackendRegistry();
+    const dwgsBackend = new DwgsWorkletBackend(new DwgsOscillator(urls.dwgsOscProcessorUrl));
     const webGpuBackend = new WebGpuBackend(new WebGpuOscillator());
     const rustBackend = new RustWorkletBackend(new RustOscillator(urls.rustOscProcessorUrl));
     const cppBackend = new CppWorkletBackend(new CppOscillator(urls.cppOscProcessorUrl));
     const wamBackend = new WamWasmBackend(new WasmOscillator());
     const pyodideBackend = new PyodideBackend();
     const wavBackend = new WavPcmBackend();
+    registry.register(dwgsBackend);
     registry.register(webGpuBackend);
     registry.register(rustBackend);
     registry.register(cppBackend);
@@ -243,8 +251,9 @@ export async function initializeAudioContextAndEngines(
     await wamBackend.init(context);
     // Independent worklets, probed concurrently. A failure is logged by its
     // bridge and the registry walks that family down the chain: `rust-*` to
-    // C++ OSC (then the AS table), `cpp-*` to the AS table.
-    await Promise.all([rustBackend.init(context), cppBackend.init(context)]);
+    // C++ OSC (then the AS table), `cpp-*` to the AS table, `dwgs-*` to each
+    // wave's nearest basic shape on the first live engine below it.
+    await Promise.all([rustBackend.init(context), cppBackend.init(context), dwgsBackend.init(context)]);
     loadingProgressStore.completeStep('wasmEngine');
 
     // Fails until a runtime attaches — the point of the call is to hand the

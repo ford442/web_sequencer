@@ -27,4 +27,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/rustOscVoice.realWasm.test.ts',
   // The cpp-* oscillator (#1665) on the real cpp_osc.wasm: band-limited, offline == live, processor gate timing.
   'src/audio-worklets/__tests__/cppOscVoice.realWasm.test.ts',
+  // The dwgs-* oscillator (#1666) on the real dwgs_osc.wasm: harmonics only, distinct waves, offline == live, processor gate timing.
+  'src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts',
 ] as const;

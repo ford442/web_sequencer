@@ -129,13 +129,14 @@ function memoryFor(world, budget, rel) {
       pthreadPoolSize: 0,
     };
   }
-  if (world.world === 'rust') {
+  if (world.world === 'rust' || world.world === 'dwgs') {
     // Owns a fixed, unshared memory (wasm-ld --initial-memory = --max-memory).
-    const mb = (budget.rustOsc.initialMemoryPages * budget.pageSizeBytes) / (1024 * 1024);
+    const section = world.world === 'rust' ? budget.rustOsc : budget.dwgsOsc;
+    const mb = (section.initialMemoryPages * budget.pageSizeBytes) / (1024 * 1024);
     return {
       initialMb: mb,
       maximumMb: mb,
-      stackMb: budget.rustOsc.stackSizeBytes / (1024 * 1024),
+      stackMb: section.stackSizeBytes / (1024 * 1024),
       pthreadPoolSize: 0,
     };
   }
@@ -150,6 +151,11 @@ function linkFlagsFor(world, rel, budget) {
     // Same flags scripts/build-rust-osc.mjs passes (fixed memory: max == initial).
     const bytes = budget.rustOsc.initialMemoryPages * budget.pageSizeBytes;
     return ['target-feature=+simd128', `--initial-memory=${bytes}`, `--max-memory=${bytes}`];
+  }
+  if (world.world === 'dwgs') {
+    // Same flags scripts/build-dwgs-osc.mjs passes: scalar, fixed memory.
+    const bytes = budget.dwgsOsc.initialMemoryPages * budget.pageSizeBytes;
+    return [`--initial-memory=${bytes}`, `--max-memory=${bytes}`];
   }
   // rubberband: no worklet-loaded module grows its memory (AGENTS.md).
   return ['ALLOW_MEMORY_GROWTH=0'];

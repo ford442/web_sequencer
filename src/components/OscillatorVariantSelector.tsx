@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import type { OscillatorType, Waveform } from '../types';
 import { getWaveformsForType, OSCILLATOR_THEMES } from './oscillatorThemes';
 import { MACRO_BANKS, macroEngineForWaveform } from '../engines/MacroParams';
+import { DWGS_WAVES, dwgsWaveForWaveform } from '../engines/dwgsWaves';
 
 interface OscillatorVariantSelectorProps {
   /** The high-level oscillator family (determines which variants are offered). */
@@ -50,6 +51,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     wam: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
     rust: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.4)]',
     cpp: 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.4)]',
+    dwgs: 'bg-gradient-to-b from-lime-500 to-lime-600 text-white border-lime-400 shadow-[0_0_8px_rgba(132,204,22,0.4)]',
     macro: 'bg-gradient-to-b from-cyan-500 to-cyan-600 text-white border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.4)]',
   };
 
@@ -65,6 +67,8 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     if (s === 'prophecy-pulse') return 'PLS';
     const macro = macroEngineForWaveform(s);
     if (macro) return macro.short;
+    const dwgs = dwgsWaveForWaveform(s);
+    if (dwgs) return dwgs.short;
     // Fallback to last segment or upper
     return s.split('-').pop()?.toUpperCase().slice(0, 3) ?? 'WAV';
   };
@@ -81,7 +85,7 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
     >
       <div className="flex items-center justify-between gap-1 px-0.5">
         <span className={`text-[7px] font-mono uppercase tracking-widest ${accentColor === 'cyan' ? 'text-cyan-400/60' : 'text-pink-400/60'}`}>
-          {type === 'prophecy' ? 'Carrier' : type === 'macro' ? 'Model' : type.includes('303') ? 'Wave' : 'Shape'}
+          {type === 'prophecy' ? 'Carrier' : type === 'macro' ? 'Model' : type === 'dwgs' ? 'Waveform' : type.includes('303') ? 'Wave' : 'Shape'}
         </span>
         <span className={`text-[6px] font-bold uppercase tracking-[1px] ${theme.text} opacity-70`}>
           {theme.badge}
@@ -110,6 +114,39 @@ export const OscillatorVariantSelector: React.FC<OscillatorVariantSelectorProps>
                     }`}
                   >
                     {engine.short}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      ) : type === 'dwgs' ? (
+        // The panel's WAVEFORM SOURCE: SAW / SQR / NOISE, then the digital
+        // waveforms (the harmonic recipes) as a grid.
+        ([
+          { row: 'Source', waves: DWGS_WAVES.filter((w) => w.source !== 'digital'), cols: 'grid-cols-3' },
+          { row: 'Digital', waves: DWGS_WAVES.filter((w) => w.source === 'digital'), cols: 'grid-cols-7' },
+        ] as const).map(({ row, waves, cols }) => (
+          <div key={row} className="flex items-center gap-1" role="group" aria-label={`DWGS ${row.toLowerCase()} waves`}>
+            <span className="w-8 shrink-0 text-[6px] font-mono uppercase tracking-wider text-zinc-500" aria-hidden="true">
+              {row}
+            </span>
+            <div className={`grid flex-1 ${cols} gap-0.5`}>
+              {waves.map((wave) => {
+                const w = `dwgs-${wave.suffix}` as Waveform;
+                const active = isActive(w);
+                return (
+                  <button type="button"
+                    key={w}
+                    onClick={() => onChange(w)}
+                    aria-pressed={active}
+                    title={`DWGS ${wave.name} (${w})`}
+                    aria-label={`Select DWGS ${wave.name} wave`}
+                    className={`px-0.5 py-0.5 text-[7px] font-bold rounded transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1115] ${accentColor === 'cyan' ? 'focus-visible:ring-cyan-500' : 'focus-visible:ring-pink-500'} ${
+                      active ? familyActiveMap[type] : inactiveBase
+                    }`}
+                  >
+                    {wave.short}
                   </button>
                 );
               })}

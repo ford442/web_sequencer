@@ -1,4 +1,5 @@
 import type { Waveform } from '../types';
+import { DWGS_WAVES, dwgsWaveIndex } from '../engines/dwgsWaves';
 
 /**
  * Oscillator engine families (#1294).
@@ -19,10 +20,16 @@ import type { Waveform } from '../types';
  * running the C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp) from its
  * own standalone module, public/cpp_osc.wasm.
  *
+ * `dwgs` is new (#1666): Korg's Digital Waveform Generator System as a live
+ * AudioWorklet voice — harmonic-recipe waves rendered additively by a Rust
+ * kernel (dwgs-audio/, public/dwgs_osc.wasm). Its suffix names a wave, not a
+ * shape: `parseWaveform` reports it as `variant` and maps `shape` to the basic
+ * shape the family falls back to (DWGS_WAVES[i].fallback).
+ *
  * Deliberately absent:
  *   - `wasm`  — dead alias, no waveform prefix ever produced it.
  */
-export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | 'rust' | 'cpp' | '303' | 'prophecy' | 'macro';
+export type OscEngineId = 'js' | 'wav' | 'wgsl' | 'pyodide' | 'wam' | 'rust' | 'cpp' | 'dwgs' | '303' | 'prophecy' | 'macro';
 export type WaveShape = 'saw' | 'sqr' | 'tri' | 'sin';
 
 const ENGINE_MAP: Record<string, OscEngineId> = {
@@ -32,6 +39,8 @@ const ENGINE_MAP: Record<string, OscEngineId> = {
     wam: 'wam',
     rust: 'rust',
     cpp: 'cpp',
+    // dwgs-<wave>: the suffix names a DWGS wave (DWGS_WAVES), not a shape.
+    dwgs: 'dwgs',
     '303': '303',
     prophecy: 'prophecy',
     // macro-<model>: the suffix names a model (MACRO_ENGINES), not a shape.
@@ -81,6 +90,11 @@ export function normalizeWaveform(w: string): Waveform {
 export interface ParsedWaveform {
     engine: OscEngineId;
     shape: WaveShape;
+    /**
+     * For families whose suffix names a timbre rather than a basic shape
+     * (`dwgs`): that suffix. `shape` is then the basic shape a fallback plays.
+     */
+    variant?: string;
     /** Set when the requested id was retired and rewritten (see aliases above). */
     legacyFrom?: string;
 }
@@ -98,6 +112,11 @@ export function parseWaveform(w: string): ParsedWaveform {
         const prefix = id.slice(0, dash);
         const suffix = id.slice(dash + 1);
         const engine = ENGINE_MAP[prefix] ?? 'js';
+        if (engine === 'dwgs') {
+            // An unknown DWGS wave plays the DWGS saw (the kernel's default).
+            const wave = DWGS_WAVES[dwgsWaveIndex(suffix)] ?? DWGS_WAVES[0];
+            return { engine, shape: wave.fallback, variant: wave.suffix, legacyFrom };
+        }
         const shape = SHAPE_ALIASES[suffix] ?? 'saw';
         return { engine, shape, legacyFrom };
     }

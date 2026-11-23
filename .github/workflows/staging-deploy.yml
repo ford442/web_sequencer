@@ -51,7 +51,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Rust wasm32 target
-        # rust-* oscillator voices (public/rust_osc.wasm, #1664): `pnpm run build`
+        # rust-* and dwgs-* oscillator voices (public/rust_osc.wasm #1664, public/dwgs_osc.wasm #1666): `pnpm run build`
         # is build:release, whose build:native builds the rust-osc world.
         run: rustup target add wasm32-unknown-unknown
 

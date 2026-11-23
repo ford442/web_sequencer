@@ -144,7 +144,7 @@ export class Voice implements PoolableVoice {
                 // The previous note may have scheduled its gate to close after
                 // its release (scheduleRelease); a slid note must not inherit
                 // that. The gate is already open, so this resets no phase.
-                this.realtime?.start(now, parsed.shape);
+                this.realtime?.start(now, parsed.shape, parsed.variant);
             } else if (this.source instanceof AudioBufferSourceNode) {
                 // The table's own reference pitch, reported by the backend that
                 // rendered it — not a hardcoded C4 (Pyodide and the PCM/GPU
@@ -188,7 +188,7 @@ export class Voice implements PoolableVoice {
                 }
                 live.frequency.cancelScheduledValues(now);
                 live.frequency.setValueAtTime(freq, now);
-                live.start(now, parsed.shape);
+                live.start(now, parsed.shape, parsed.variant);
             } else {
                 this.releaseRealtime();
                 if (chosen?.kind === 'loop') {

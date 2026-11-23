@@ -332,7 +332,7 @@ describe('Voice.startNote — retired waveform ids', () => {
         );
 
         expect(cpp.handedOut).toHaveLength(1);
-        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'saw');
+        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'saw', undefined);
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('WaveformSubstitution'));
     });
 
@@ -415,7 +415,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         const { voice, output, frequency } = rust.handedOut[0];
         expect(output.connect).toHaveBeenCalledTimes(1);
         expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 1.5);
-        expect(voice.start).toHaveBeenCalledWith(1.5, 'saw');
+        expect(voice.start).toHaveBeenCalledWith(1.5, 'saw', undefined);
         // No table, no OscillatorNode: the worklet is the source.
         expect(bufSrc.start).not.toHaveBeenCalled();
         expect(osc.start).not.toHaveBeenCalled();
@@ -434,7 +434,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         const { voice, output } = rust.handedOut[0];
         expect(rust.acquireCalls[1]).toBe(voice);
         expect(output.connect).toHaveBeenCalledTimes(1);
-        expect(voice.start).toHaveBeenLastCalledWith(1, 'tri');
+        expect(voice.start).toHaveBeenLastCalledWith(1, 'tri', undefined);
         // The release closed the gate after the envelope, it did not release the node.
         expect(voice.stop).toHaveBeenCalledWith(0.5 + BASE_PARAMS.release + 0.1);
         expect(voice.release).not.toHaveBeenCalled();
@@ -452,7 +452,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         expect(frequency.exponentialRampToValueAtTime).toHaveBeenCalledWith(expect.closeTo(392, 0), 0.35);
         // Legato: the gate is re-asserted at the slide (cancelling the previous
         // note's scheduled close), never closed — so no phase reset.
-        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw');
+        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw', undefined);
         expect(voice.stop).toHaveBeenCalledTimes(0);
     });
 
@@ -467,7 +467,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         const { voice } = rust.handedOut[0];
         expect(voice.stop).toHaveBeenCalledWith(0.2 + BASE_PARAMS.release + 0.1);
         // start() cancels gate events from 0.25 on, i.e. that close.
-        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw');
+        expect(voice.start).toHaveBeenLastCalledWith(0.25, 'saw', undefined);
     });
 
     it('hands the live source back when the voice switches to a table family', () => {
@@ -509,7 +509,7 @@ describe('Voice.startNote — worklet-resident rust-* voices', () => {
         makeVoice().startNote({ ...BASE_PARAMS, waveform: 'rust-tri' }, 'C4', 0);
 
         expect(cpp.handedOut).toHaveLength(1);
-        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'tri');
+        expect(cpp.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'tri', undefined);
         expect(wam.renderLoopCalls).toBe(0);
         const issue = engineDegradationStore.getIssue('oscillator-backend');
         expect(issue?.requestedBackend).toBe('rust');
@@ -540,7 +540,7 @@ describe('Voice.startNote — worklet-resident cpp-* voices', () => {
         const { voice, output, frequency } = cpp.handedOut[0];
         expect(output.connect).toHaveBeenCalledTimes(1);
         expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 2);
-        expect(voice.start).toHaveBeenCalledWith(2, shape);
+        expect(voice.start).toHaveBeenCalledWith(2, shape, undefined);
         // The C++ kernel is the source: nothing was substituted underneath it.
         expect(wam.renderLoopCalls).toBe(0);
         expect(bufSrc.start).not.toHaveBeenCalled();
@@ -560,7 +560,7 @@ describe('Voice.startNote — worklet-resident cpp-* voices', () => {
 
         expect(cpp.handedOut).toHaveLength(1);
         expect(cpp.acquireCalls[1]).toBe(cpp.handedOut[0].voice);
-        expect(cpp.handedOut[0].voice.start).toHaveBeenLastCalledWith(1, 'tri');
+        expect(cpp.handedOut[0].voice.start).toHaveBeenLastCalledWith(1, 'tri', undefined);
     });
 
     it('hands the Rust source back when the part switches to cpp-*', () => {
@@ -588,6 +588,70 @@ describe('Voice.startNote — worklet-resident cpp-* voices', () => {
         const issue = engineDegradationStore.getIssue('oscillator-backend');
         expect(issue?.requestedBackend).toBe('cpp');
         expect(issue?.activeBackend).toBe('wam');
+        warn.mockRestore();
+    });
+});
+
+// ── Worklet-resident engines (dwgs-*, #1666) ─────────────────────────────────
+
+describe('Voice.startNote — worklet-resident dwgs-* voices', () => {
+    const dwgsBackend = (opts: { ready?: boolean } = {}) => {
+        const b = new StubLiveBackend('dwgs', opts);
+        b.capabilities = { ...b.capabilities, entryOnly: true };
+        return b;
+    };
+
+    it.each([
+        ['dwgs-organ', 'saw', 'organ'],
+        ['dwgs-clav', 'sqr', 'clav'],
+        ['dwgs-noise', 'saw', 'noise'],
+    ] as const)('plays %s on the DWGS live source, naming the wave', (waveform, shape, variant) => {
+        const osc = makeOscillatorMock();
+        const bufSrc = makeBufferSourceMock();
+        const ctx = makeContext(osc, bufSrc);
+        const dwgs = dwgsBackend();
+        const wam = new StubBackend('wam');
+        installRegistry(dwgs, new StubLiveBackend('rust'), wam);
+
+        makeVoice(ctx).startNote({ ...BASE_PARAMS, waveform }, 'A4', 2);
+
+        expect(dwgs.handedOut).toHaveLength(1);
+        const { voice, output, frequency } = dwgs.handedOut[0];
+        expect(output.connect).toHaveBeenCalledTimes(1);
+        expect(frequency.setValueAtTime).toHaveBeenCalledWith(expect.closeTo(440, 3), 2);
+        expect(voice.start).toHaveBeenCalledWith(2, shape, variant);
+        expect(wam.renderLoopCalls).toBe(0);
+        expect(bufSrc.start).not.toHaveBeenCalled();
+        expect(osc.start).not.toHaveBeenCalled();
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
+    });
+
+    it('falls to the nearest basic shape on the next live engine, reported, without its worklet', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const rust = new StubLiveBackend('rust');
+        installRegistry(dwgsBackend({ ready: false }), rust, new StubBackend('wam'));
+
+        makeVoice().startNote({ ...BASE_PARAMS, waveform: 'dwgs-reed' }, 'C4', 0);
+
+        expect(rust.handedOut).toHaveLength(1);
+        // The reed is odd-heavy: its fallback is the square.
+        expect(rust.handedOut[0].voice.start).toHaveBeenCalledWith(0, 'sqr', 'reed');
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.requestedBackend).toBe('dwgs');
+        expect(issue?.activeBackend).toBe('rust');
+        warn.mockRestore();
+    });
+
+    it('is never where another family lands when its own engine is down', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const dwgs = dwgsBackend();
+        const wam = new StubBackend('wam');
+        installRegistry(dwgs, new StubBackend('webgpu', { ready: false }), wam);
+
+        makeVoice().startNote({ ...BASE_PARAMS, waveform: 'wgsl-saw' }, 'C4', 0);
+
+        expect(dwgs.handedOut).toHaveLength(0);
+        expect(wam.renderLoopCalls).toBe(1);
         warn.mockRestore();
     });
 });

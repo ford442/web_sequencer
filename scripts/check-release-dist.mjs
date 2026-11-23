@@ -17,6 +17,7 @@ import { parseExportMap } from '../tools/extract_wasm_export_map.mjs';
 import { checkForbiddenSymbols, checkSingleThreadedModule } from '../tools/check_hyphon_st_module.mjs';
 import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
 import { checkRustOscModule } from '../tools/check_rust_osc_module.mjs';
+import { checkDwgsOscModule } from '../tools/check_dwgs_osc_module.mjs';
 import { checkCppOscModule } from '../tools/check_cpp_osc_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -147,7 +148,8 @@ if (!fs.existsSync(path.join(distDir, 'pyodide', 'pyodide.js'))) {
 // Oscillator panel art: `dist/osc/` must contain exactly the WebPs that
 // OSCILLATOR_PANEL_IMAGES still names (#1294). Families that were retired
 // (cpp, rust) and orphans (dwgs) used to ship as dead weight — this keeps the
-// panel list and the shipped assets honest in both directions.
+// panel list and the shipped assets honest in both directions. (All three are
+// back as real engines: #1664, #1665, #1666.)
 {
   const oscDir = path.join(distDir, 'osc');
   if (fs.existsSync(oscDir)) {
@@ -210,6 +212,7 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'macro-processor',
   'rust-osc-processor',
   'cpp-osc-processor',
+  'dwgs-osc-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',
@@ -743,6 +746,23 @@ const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
   const problems = checkCppOscModule(fs.readFileSync(cppOscPath));
   if (problems.length) {
     console.error(`[check-release-dist] dist/cpp_osc.wasm is not a valid C++ oscillator:\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+}
+
+// The dwgs-* oscillator voices (#1666), fetched by src/engines/DwgsOscillator.ts
+// from the deploy base. Without it `dwgs-*` parts play their nearest basic
+// shape on another engine (and say so), so a missing or malformed file is a
+// release bug.
+{
+  const dwgsOscPath = path.join(distDir, 'dwgs_osc.wasm');
+  if (!fs.existsSync(dwgsOscPath)) {
+    console.error('[check-release-dist] dist/dwgs_osc.wasm is missing (pnpm run build:wasm:dwgs).');
+    process.exit(1);
+  }
+  const problems = checkDwgsOscModule(fs.readFileSync(dwgsOscPath));
+  if (problems.length) {
+    console.error(`[check-release-dist] dist/dwgs_osc.wasm is not a valid DWGS oscillator:\n  ${problems.join('\n  ')}`);
     process.exit(1);
   }
 }

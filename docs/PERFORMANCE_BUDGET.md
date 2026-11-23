@@ -16,7 +16,7 @@ actually controls — not all of `dist/`:
 |---|---|---|
 | Entry chunk (`dist/index.html`'s `<script type="module">`) | < 1.65 MB raw | ~1.50 MB |
 | Any single image asset (png/jpg/gif/webp/avif, anywhere in `dist/`) | < 512 KB | 31.7 KB (`knob-bezel.webp`) |
-| `dist/assets/` total, excluding `.wasm` | < 4.295 MB | 4.29 MB (2026-11-23, with the C++ OSC, #1665) |
+| `dist/assets/` total, excluding `.wasm` | < 4.313 MB | 4.308 MB (2026-11-23, with DWGS, #1666) |
 
 `build:release` fails with the offending asset(s) and sizes when a budget is
 exceeded, plus the ten largest `dist/assets/` files for context.
@@ -154,7 +154,8 @@ CDN URL survives into the bundle.
 size.
 
 The panel list is now honest (#1294): `cpp.webp` and `rust.webp` went with
-their retired oscillator families, `dwgs.webp` was an orphan, and
+their retired oscillator families, `dwgs.webp` was an orphan (all three are
+back with real engines: #1664, #1665, #1666 — `dwgs.webp` restored byte for byte), and
 `check-release-dist.mjs` fails the release if `dist/osc/` and
 `OSCILLATOR_PANEL_IMAGES` disagree in either direction — so unreferenced
 panel art cannot accumulate again.

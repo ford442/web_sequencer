@@ -92,6 +92,8 @@ describe('native preflight', () => {
     // cpp-* (#1665) is a standalone em++ module with its own world, not part of
     // hyphon_native: a kernel edit rebuilds public/cpp_osc.wasm only.
     expect(byId['cpp-osc']).toBe('pnpm run build:wasm:cpp');
+    // dwgs-* (#1666) is its own no_std crate (dwgs-audio/) and its own world.
+    expect(byId['dwgs-osc']).toBe('pnpm run build:wasm:dwgs');
   });
 
   type World = { id: string; outputs: string[]; inputs: { name: string }[] };

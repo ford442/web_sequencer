@@ -15,6 +15,7 @@ export const INTEGRATION_ARTIFACTS = [
   'public/mix_bus.wasm',
   'public/rust_osc.wasm',
   'public/cpp_osc.wasm',
+  'public/dwgs_osc.wasm',
   'docs/audio-engine/303-baseline/jc303_canonical.wav',
 ] as const;
 

@@ -7,7 +7,8 @@ import type { OscillatorType } from '../../types';
  * echoes the family's panel art: JS braces, PCM sample stems, Open303 square,
  * JC303 saw + pulse-width dot, Prophecy formant humps, Pyodide snake, WebGPU
  * hex core, WAM module blocks, Rust gear over a band-limited saw, C++ "C"
- * with its two plus signs, Macro knob cluster.
+ * with its two plus signs, DWGS falling harmonic bars (an additive recipe),
+ * Macro knob cluster.
  */
 const GLYPHS: Record<OscillatorType, React.ReactNode> = {
     javascript: (
@@ -59,6 +60,7 @@ const GLYPHS: Record<OscillatorType, React.ReactNode> = {
             <path d="M8.8 8h2.8M10.2 6.6v2.8M12.4 8h2.8M13.8 6.6v2.8" />
         </>
     ),
+    dwgs: <path d="M2.5 14V2.5M5 14V6.5M7.5 14V5M10 14V10M12.5 14V8.5M15 14v-2" />,
     macro: (
         <>
             <circle cx="4.5" cy="4.5" r="2.5" />

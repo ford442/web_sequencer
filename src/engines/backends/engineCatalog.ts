@@ -52,6 +52,12 @@ export const ENGINE_CATALOG: Record<OscEngineId, EngineEntry> = {
     // Before it, `cpp-*` had no renderer and played an OscillatorNode silently.
     // Without a worklet or the module it drops to the `wam` table, logged.
     cpp: { kind: 'backend', backendId: 'cpp', label: 'C++ OSC' },
+    // Korg's Digital Waveform Generator System (#1666): harmonic-recipe waves
+    // rendered additively by a Rust kernel (dwgs-audio/, public/dwgs_osc.wasm),
+    // one AudioWorklet voice per synth voice. Before it DWGS was panel art with
+    // no code path. Without a worklet or the module each wave walks the chain
+    // below `dwgs` as its nearest basic shape, logged.
+    dwgs: { kind: 'backend', backendId: 'dwgs', label: 'DWGS' },
     wgsl: { kind: 'backend', backendId: 'webgpu', label: 'WebGPU' },
     pyodide: { kind: 'backend', backendId: 'pyodide', label: 'Pyodide' },
     '303': { kind: 'native-worklet', owner: 'Open303Manager', label: 'Open303 / JC303' },

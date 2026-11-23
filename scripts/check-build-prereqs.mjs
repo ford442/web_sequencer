@@ -41,8 +41,8 @@ if (emcc.length) {
   out.push('  (or restore a CI-built set — see docs/deployment/RELEASE_BUILD.md#native-artifacts)');
 }
 if (cargo.length) {
-  out.push('Rust (public/rust_osc.wasm, the rust-* oscillators) — needs cargo + the wasm32 target:');
-  out.push('    rustup target add wasm32-unknown-unknown && pnpm run build:wasm:rust');
+  out.push('Rust (public/rust_osc.wasm, public/dwgs_osc.wasm: the rust-* and dwgs-* oscillators) — needs cargo + the wasm32 target:');
+  out.push('    rustup target add wasm32-unknown-unknown && pnpm run build:wasm:rust && pnpm run build:wasm:dwgs');
 }
 out.push('Everything at once: `pnpm run build` (= build:release).');
 console.error(out.join('\n'));

@@ -150,8 +150,9 @@ jobs:
           no-cache: false
 
       - name: Rust wasm32 target
-        # rust-* oscillator voices (public/rust_osc.wasm, #1664). The runner
-        # image ships rustup + stable; the crate has no dependencies.
+        # rust-* and dwgs-* oscillator voices (public/rust_osc.wasm #1664,
+        # public/dwgs_osc.wasm #1666). The runner image ships rustup + stable;
+        # neither crate has dependencies.
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install dependencies
@@ -172,7 +173,7 @@ jobs:
             public/hyphon_native.st.wasm
             public/hyphon_wasm_export_map.st.json
             .cache/native/
-          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'rust-audio/**', 'package.json') }}
+          key: native-${{ runner.os }}-emcc${{ steps.emsdk-pin.outputs.version }}-${{ hashFiles('assembly/**', 'emscripten/**', 'rubberband/src/**', 'jc303_wasm/src/**', 'third_party/eurorack/plaits/**', 'third_party/stmlib/**', 'tools/plaits_*.mjs', 'rust-audio/**', 'dwgs-audio/**', 'package.json') }}
 
       - name: Build native artifacts (incremental)
         run: pnpm run build:native:changed
@@ -197,6 +198,7 @@ jobs:
             public/mix_bus.wasm
             public/rust_osc.wasm
             public/cpp_osc.wasm
+            public/dwgs_osc.wasm
             .cache/native/
           if-no-files-found: error
           retention-days: 14

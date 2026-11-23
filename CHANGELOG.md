@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Oscillators: DWGS is a real mode (#1666)
+- **New: DWGS.** Korg's *Digital Waveform Generator System*, recovered from the only trace the mode had left: its panel art (Korg-badged, WAVEFORM SOURCE = SAW / SQR / NOISE / DIGITAL WAVEFORM), deleted as an orphan in #1294 and now restored. It is a waveform oscillator built on additive synthesis, not the digital waveguide the initials suggested. 17 waves: `dwgs-saw`, `dwgs-sqr`, 14 harmonic-recipe digital waveforms (piano, e-piano, clav, organ, brass, reed, strings, guitar, dist, bass, digibass, bell, vox, sine) and `dwgs-noise`, whose colour follows the keyboard. All recipes are original. See [docs/audio-engine/dwgs-oscillator.md](docs/audio-engine/dwgs-oscillator.md).
+- **How:** a scalar `no_std` Rust kernel (`dwgs-audio/` → `public/dwgs_osc.wasm`, 28 KB, zero imports, fixed 128 KiB per voice) renders each recipe **additively per sample** in a `dwgs-osc-processor` AudioWorklet, one per synth voice. Only harmonics below 0.45 fs are summed (faded in at the edge), so nothing aliases at any pitch, and slides stay continuous. Waves are matched in RMS. Offline bounces run the same kernel and are bit-identical, noise included.
+- **Fallback:** DWGS heads the backend order as an *entry-only* backend. A `dwgs-*` part without its worklet plays its wave's nearest basic shape on the next live engine (reported), and no other family ever lands on DWGS.
+- **UI:** a DWGS oscillator type (lime, badge DW) whose variant panel mirrors the hardware: a Source row (SAW / SQR / NSE) and a Digital grid.
+- **Known:** additive synthesis costs more than a BLEP. ~17–20 µs per 128-frame block for low notes in V8 (≈ 0.7 % of the audio thread per voice; the Rust OSC is ~0.6 µs). There is no in-kernel filter yet (#1674); the voice's biquad follows, as for every `Voice` family.
+
 ### Oscillators: `cpp-*` is a real C++ engine (#1665)
 - **New: C++ OSC.** `cpp-saw` / `cpp-sqr` / `cpp-tri` / `cpp-sin` render through a C++ kernel (`emscripten/cpp_osc.cpp`) for the first time. Before this, `cpp-*` had no renderer: it was offered, played an `OscillatorNode`, and since #1294 was rewritten to `wam-*`. Each synth voice gets its own `cpp-osc-processor` AudioWorklet node. The kernel band-limits with a 32-tap linear-phase windowed-sinc BLEP/BLAMP: the worst alias below 16 kHz is ≈ −90 dB for a 3.5 kHz saw at 48 kHz, against ≈ −20 dB for a naive one. Note onsets are band-limited too.
 - **Placement:** a standalone em++ module, `public/cpp_osc.wasm` (11 KB, zero imports, fixed 128 KiB per voice, no JS glue), in its own `cpp-osc` native world. It is not inside `hyphon_native`, whose heap is sized for its own voices. See [BUILD_NOTES#cpp-osc](docs/wasm/BUILD_NOTES.md#cpp-osc).

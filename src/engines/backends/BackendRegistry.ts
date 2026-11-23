@@ -4,6 +4,10 @@
  * One place decides which backend is active, in one documented order:
  *   WebGPU → Rust OSC → C++ OSC → WASM OSC (AssemblyScript) → Pyodide → WAV PCM → pure JS
  *
+ * with DWGS (#1666) at its head as an `entryOnly` backend: `dwgs-*` parts
+ * enter there and walk the rest; no other family ever lands on it, and the
+ * generic `resolve()` / `generate()` do not consider it.
+ *
  * This is now the *only* fallback order in the codebase. The realtime note
  * path enters the chain at the backend `engineCatalog` names for the selected
  * waveform family (`sourceFrom`) instead of running its own per-prefix
@@ -80,6 +84,14 @@ export class BackendRegistry {
     }
 
     /**
+     * The general-purpose chain: `ordered()` without `entryOnly` backends,
+     * which serve only the family that enters at them (`dwgs`).
+     */
+    private general(): OscillatorBackend[] {
+        return this.ordered().filter((b) => !b.capabilities.entryOnly);
+    }
+
+    /**
      * Registered backends from `startId` down the single fallback order.
      *
      * This is how the realtime note path asks for a *family* (wam, wgsl,
@@ -126,7 +138,7 @@ export class BackendRegistry {
      * service it are skipped (and the skip is logged) rather than substituting.
      */
     resolve(shape?: WaveShape): BackendResolution {
-        const ordered = this.ordered();
+        const ordered = this.general();
         const attempts: BackendAttempt[] = [];
         const requested = ordered[0]?.id ?? 'js';
 
@@ -203,7 +215,7 @@ export class BackendRegistry {
     async generate(
         req: GenerateRequest,
     ): Promise<{ samples: Float32Array; backendId: OscillatorBackendId } | null> {
-        const ordered = this.ordered();
+        const ordered = this.general();
         const requested = ordered[0]?.id ?? 'js';
         const skipped: string[] = [];
 
@@ -299,6 +311,8 @@ export class BackendRegistry {
         const skipped: string[] = [];
 
         for (const backend of chain) {
+            // Never a fallback target: it plays only the family that entered at it.
+            if (backend.capabilities.entryOnly && backend.id !== startId) continue;
             if (!backend.isSupported || !backend.isReady) {
                 skipped.push(`${backend.id}: ${backend.isSupported ? 'not initialized' : 'unsupported'}`);
                 continue;

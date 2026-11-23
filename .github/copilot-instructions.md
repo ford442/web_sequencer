@@ -34,6 +34,7 @@ High-level architecture (big picture)
   - AssemblyScript (assembly/ -> produces `src/wasm/*.wasm`) — oscillators, freezer, FFT, export helpers
   - Rust (rust-audio/ -> `public/rust_osc.wasm`) — `rust-*` oscillator voices: no_std SIMD kernel, one AudioWorklet per voice (#1664)
   - C++ (emscripten/cpp_osc.cpp -> `public/cpp_osc.wasm`) — `cpp-*` oscillator voices: standalone em++ module, scalar windowed-sinc BLEP, one AudioWorklet per voice (#1665)
+  - Rust (dwgs-audio/ -> `public/dwgs_osc.wasm`) — `dwgs-*` oscillator voices: Korg-style DWGS harmonic-recipe waves rendered additively, scalar, one AudioWorklet per voice (#1666)
   - Emscripten C++ (emscripten/ -> `public/hyphon_native.js`, `rubberband.wasm`) — Rubberband, pyodide glue, native code
   - JC-303 submodule (jc303_wasm/) — TB-303 clone; its rosic DSP is compiled into `hyphon_native`
 - Other runtimes: WebGPU (voice designer / GPU DSP), Pyodide (Python DSP/TTS), ONNX Runtime Web for TTS, and standard Web Audio for the final audio graph.
