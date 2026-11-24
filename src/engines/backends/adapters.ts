@@ -549,9 +549,9 @@ export class PyodideBackend extends BaseBackend {
         threads: false,
         offline: true,
         polyphony: 8,
-        // `tri` is rendered as a sine by generate_wave(); PYODIDE_OSC_TYPE maps
-        // it, so the family is declared here and the substitution is the
-        // Python side's, not a silent one made by selection code.
+        // `tri` is a band-limited triangle in generate_wave(); PYODIDE_OSC_TYPE maps
+        // it, so the family is declared here and the mapping is the
+        // Python side's, not selection code's.
         shapes: ALL_SHAPES,
     };
 

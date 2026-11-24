@@ -295,45 +295,106 @@ def process_spoon_sample(name, target_note):
 
 # --- 5. LEGACY GENERATORS ---
 
+# Band-limited single-cycle tables. Naive scipy.signal.sawtooth/square alias
+# badly above ~1 kHz; summing harmonics only up to Nyquist (via irfft) does not.
+_TABLE_SIZE = 4096
+
+def _harmonic_amps(osc_type, n_harm):
+    """Amplitude/phase (complex) of harmonics 1..n_harm for one cycle."""
+    k = np.arange(1, n_harm + 1, dtype=np.float64)
+    if osc_type == 'saw':
+        return (1.0 / k) * (2.0 / np.pi) * (-1j)
+    if osc_type == 'square':
+        a = np.where(k % 2 == 1, 1.0 / k, 0.0) * (4.0 / np.pi)
+        return a * (-1j)
+    if osc_type == 'tri':
+        a = np.where(k % 2 == 1, 1.0 / (k * k), 0.0) * (8.0 / (np.pi ** 2))
+        sign = np.where(((k - 1) // 2) % 2 == 0, 1.0, -1.0)
+        return a * sign * (-1j)
+    if osc_type == 'pulse':  # 25% duty
+        d = 0.25
+        a = (2.0 / (np.pi * k)) * np.sin(np.pi * k * d)
+        return a * np.exp(-1j * np.pi * k * d) * (-1j) * 1j
+    if osc_type == 'organ':  # drawbar-ish: 1st, 2nd, 3rd, 4th, 6th, 8th
+        a = np.zeros_like(k)
+        for h, g in ((1, 1.0), (2, 0.7), (3, 0.5), (4, 0.35), (6, 0.25), (8, 0.15)):
+            if h <= n_harm:
+                a[h - 1] = g
+        return a * (-1j)
+    return None
+
+def _bandlimited_cycle(osc_type, freq):
+    n_harm = max(1, min(_TABLE_SIZE // 2 - 1, int((SAMPLE_RATE / 2.0 - 1.0) / max(freq, 1.0))))
+    amps = _harmonic_amps(osc_type, n_harm)
+    if amps is None:
+        return None
+    spec = np.zeros(_TABLE_SIZE // 2 + 1, dtype=np.complex128)
+    spec[1:n_harm + 1] = amps
+    cycle = np.fft.irfft(spec, n=_TABLE_SIZE) * _TABLE_SIZE / 2.0
+    peak = np.max(np.abs(cycle))
+    return cycle / peak if peak > 0 else cycle
+
+def _render_cycle(cycle, phase):
+    """Linear-interpolated wavetable read; phase in cycles (any real)."""
+    pos = (phase % 1.0) * _TABLE_SIZE
+    i0 = pos.astype(np.int64) % _TABLE_SIZE
+    frac = pos - np.floor(pos)
+    return cycle[i0] * (1.0 - frac) + cycle[(i0 + 1) % _TABLE_SIZE] * frac
+
+def _oscillator(osc_type, note_freq, t):
+    phase = note_freq * t
+    if osc_type in ('saw', 'square', 'tri', 'pulse', 'organ'):
+        return _render_cycle(_bandlimited_cycle(osc_type, note_freq), phase)
+    if osc_type == 'supersaw':
+        # 7 detuned band-limited saws, fixed deterministic phase offsets.
+        cycle = _bandlimited_cycle('saw', note_freq * 1.02)
+        out = np.zeros_like(t)
+        for i, cents in enumerate((-14, -8, -3, 0, 3, 8, 14)):
+            ratio = 2.0 ** (cents / 1200.0)
+            out += _render_cycle(cycle, phase * ratio + i * 0.137)
+        return out / 7.0 * 1.4
+    if osc_type == 'fm':
+        # 2-op FM, 1:1 ratio, index decays so the tone mellows (EP-ish).
+        dur = max(t[-1] if len(t) else 1.0, 1e-3)
+        index = 3.0 * np.exp(-t / (dur * 0.4))
+        return np.sin(2 * np.pi * phase + index * np.sin(2 * np.pi * phase))
+    return np.sin(2 * np.pi * phase)  # 'sine' and unknown names
+
+def _resonant_lowpass(wave, cutoff_hz, resonance):
+    """RBJ biquad low-pass. resonance 0..1 maps Q 0.707..~12 (SciPy lfilter)."""
+    cutoff_hz = max(10.0, min(cutoff_hz, (SAMPLE_RATE / 2.0) - 10.0))
+    q = 0.707 + 11.3 * (max(0.0, min(1.0, float(resonance))) ** 2)
+    w0 = 2.0 * np.pi * cutoff_hz / SAMPLE_RATE
+    alpha = np.sin(w0) / (2.0 * q)
+    cw = np.cos(w0)
+    b = np.array([(1 - cw) / 2, 1 - cw, (1 - cw) / 2])
+    a = np.array([1 + alpha, -2 * cw, 1 - alpha])
+    return signal.lfilter(b / a[0], a / a[0], wave)
+
 def generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
     """
-    Generates a filtered waveform using 64-bit precision.
-    """
+    Generates a band-limited, resonantly filtered waveform (64-bit).
 
-    # 1. Generate 64-bit time array
+    osc_type: saw | square | tri | pulse | supersaw | organ | fm | sine
+    ('triangle' and 'sqr'/'sin' are accepted aliases.) The filter is a
+    resonant 2-pole low-pass; resonance is 0..1.
+    """
+    osc_type = {'triangle': 'tri', 'sqr': 'square', 'sin': 'sine'}.get(osc_type, osc_type)
+
     t = np.linspace(0., duration_sec, int(SAMPLE_RATE * duration_sec),
                     endpoint=False, dtype=np.float64)
-
-    # 2. Generate 64-bit oscillator
-    # (2 * pi * freq * time)
-    rads = 2 * np.pi * note_freq * t
-
-    if osc_type == 'saw':
-        wave = signal.sawtooth(rads)
-    elif osc_type == 'square':
-        wave = signal.square(rads)
-    elif osc_type == 'sine':
-        wave = np.sin(rads)
-    else:
-        wave = np.sin(rads) # Default to sine
-
-    # 3. Apply 64-bit Filter
-    # We use a 2nd-order Butterworth filter (resonance is ignored for this)
-    # Clamp cutoff to prevent errors
-    cutoff_hz = max(10, min(cutoff_hz, (SAMPLE_RATE / 2) - 10))
+    wave = _oscillator(osc_type, float(note_freq), t)
 
     try:
-        b, a = signal.butter(2, cutoff_hz, 'low', fs=SAMPLE_RATE)
-        filtered_wave = signal.lfilter(b, a, wave).astype(np.float64)
+        filtered_wave = _resonant_lowpass(wave, float(cutoff_hz), resonance).astype(np.float64)
+        if not np.all(np.isfinite(filtered_wave)):
+            raise ValueError("non-finite filter output")
     except Exception as e:
-        # Fallback if filter fails
         print(f"Filter failed: {e}")
         filtered_wave = wave
 
-    # 4. Apply a simple gain and return
-    final_wave = filtered_wave * 0.5
-
-    return final_wave
+    # Resonance boosts level near cutoff: soft-limit instead of hard clipping.
+    return np.tanh(filtered_wave * 0.5 * 1.25) / 1.25 if resonance > 0.5 else filtered_wave * 0.5
 
 def generate_loop_buffer(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
     """
