@@ -47,18 +47,20 @@ class FakeWorkletNode {
 }
 
 function makeContext() {
-    return {
+    const addModule = vi.fn(() => Promise.resolve());
+    const ctx = {
         state: 'running',
         currentTime: 0,
-        audioWorklet: { addModule: vi.fn(async () => {}) },
+        audioWorklet: { addModule },
     } as unknown as AudioContext;
+    return Object.assign(ctx, { addModule });
 }
 
 function stubFetch(body: Uint8Array | null, status = 200) {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
         ok: status === 200 && body !== null,
         status,
-        arrayBuffer: async () => (body ?? new Uint8Array()).buffer.slice(0),
+        arrayBuffer: () => Promise.resolve((body ?? new Uint8Array()).buffer.slice(0)),
     })));
 }
 
@@ -92,8 +94,8 @@ describe('CppFilter.init', () => {
         expect(result.ok).toBe(true);
         expect(filter.isReady).toBe(true);
         expect(filter.spec.source).toBe('cpp');
-        expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain(CPP_OSC_WASM);
-        expect(ctx.audioWorklet.addModule).toHaveBeenCalledWith('cpp-filter.js');
+        expect(vi.mocked(fetch).mock.calls[0][0] as string).toContain(CPP_OSC_WASM);
+        expect(ctx.addModule).toHaveBeenCalledWith('cpp-filter.js');
         expect(created).toHaveLength(1);
         expect(created[0].name).toBe(CPP_FILTER_PROCESSOR);
         expect(created[0].options.processorOptions.module).toBeInstanceOf(WebAssembly.Module);

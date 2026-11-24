@@ -180,7 +180,7 @@ describe('frequency response', () => {
         // The clamp lands on the response of the clamp value itself (to the f32 rounding
         // of rate / 2.1 as an argument: the kernel clamps in f64).
         const noise = lcgNoise(7, 4096);
-        const near = (a: Float32Array, b: Float32Array) => a.every((v, i) => Math.abs(v - b[i]!) < 1e-4);
+        const near = (a: Float32Array, b: Float32Array) => a.every((v, i) => Math.abs(v - b[i]) < 1e-4);
         expect(near(run(configured('lp', 1e6, 2), noise), run(configured('lp', RATE / 2.1, 2), noise))).toBe(true);
         expect(Array.from(run(configured('hp', 1, 2), noise))).toEqual(Array.from(run(configured('hp', 20, 2), noise)));
     });
@@ -441,7 +441,7 @@ describe('block handling', () => {
         }
         // The Svf's two f64 integrator states (the coefficients do not change while filtering).
         expect(changed.length).toBeGreaterThan(0);
-        expect(changed.at(-1)! - changed[0]!).toBeLessThan(64);
+        expect(changed[changed.length - 1] - changed[0]).toBeLessThan(64);
         const n = x.cosc_max_frames() * 4;
         for (const other of [x.cosc_freq_ptr(), x.cosc_out_ptr()]) {
             expect(changed.some((i) => i >= other && i < other + n), `wrote into ${other}`).toBe(false);
@@ -529,7 +529,8 @@ describe('cpp-filter-processor on the real kernel', () => {
         // rust_osc.wasm is another engine's filter: it must not be run as the C++ one.
         const other = new WebAssembly.Module(new Uint8Array(readFileSync(RUST_WASM)));
         const node = new Ctor({ processorOptions: { module: other } });
-        expect(node.port.posted[0]).toMatchObject({ type: 'error', reason: expect.stringContaining('cflt_') });
+        expect(node.port.posted[0]?.type).toBe('error');
+        expect(String(node.port.posted[0]?.reason)).toContain('cflt_');
         expect(stream(node, sine(440, 512), params(1000, 1, 'lp')).every((v) => v === 0)).toBe(true);
     });
 
