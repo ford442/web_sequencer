@@ -116,8 +116,11 @@ export function useAppState() {
     const session = useSessionState()
     const inst = useInstrumentState(drumKitEngineRef)
     const { synthA, synthB, bass2, synthARef, synthBRef, bass2Ref, kickRef, snareRef, closedHatRef, openHatRef, samplerRef } = inst
-    // Python loads only for a part that actually selects a pyodide-* waveform.
-    useRequestPythonForWaveforms([synthA.waveform, synthB.waveform])
+    // Python loads only for a part that actually selects a pyodide-* waveform or the Pyodide filter.
+    useRequestPythonForWaveforms(
+        [synthA.waveform, synthB.waveform],
+        [synthA.filterSource, synthB.filterSource],
+    )
 
     const automationSchedulerRef = useEngineParamSync({
         audioEngine, isReady, synthA, synthB, bass2, macroManagerRef, prophecyManagerRef,

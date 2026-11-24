@@ -393,6 +393,15 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
   Do not name a WGSL struct member `filter` (reserved) — mocks cannot see it; run
   `node tools/measure_gpu_filter.mjs` (real adapter) after touching the shader.
   See `docs/wasm/BUILD_NOTES.md#webgpu-filter`.
+- **Pyodide filter (#1676)**: `filterSource: 'pyodide'` is the other *table* filter (Python cannot
+  run in the audio thread either). `generate_filtered_table()` in `src/pyodide/hyphon_engine.py`
+  applies SciPy's `freqz` of the RBJ biquad to each harmonic of a periodic table (exact steady
+  state); `src/engines/PyodideFilter.ts` caches tables per (shape, nearest note, filter cell) and
+  `Voice.planTableFilter` (shared with WebGPU) plays them; the runtime loads on demand, and until
+  it is ready notes use the native filter. A table filter is one `isTableFilterSource()` away from
+  every `webgpu`-only branch: do not add `=== 'webgpu'` checks. `filterEngine.test.ts` needs
+  `python3` + numpy + scipy. Offline: `src/audio/offline/OfflinePyodideFilter.ts`.
+  See `docs/wasm/BUILD_NOTES.md#pyodide-filter`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`

@@ -14,14 +14,17 @@ import {
     biquadTypeFor,
     filterSourceIssueId,
     hostFilterRequest,
+    isTableFilterSource,
+    type TableFilterSource,
     kernelResonance,
     maxFilterCutoff,
     resolveFilterSource,
     resolveFilterType,
 } from './backends/filterSource';
 import { gpuFilterRefusal, gpuFilterSpec } from './backends/gpuFilter';
+import { pyodideFilterRefusal } from './backends/pyodideFilter';
 import type { WamFilterNode } from './WamFilter';
-import { getFilterStage, getGpuFilter, type StagedFilterSource } from './filterStages';
+import { getFilterStage, getGpuFilter, getPyodideFilter, type StagedFilterSource } from './filterStages';
 import type { FilterSource, FilterType } from '../types/synth';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
@@ -30,8 +33,8 @@ import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffse
 interface FilterPlan {
     source: FilterSource;
     type: FilterType;
-    /** `webgpu` only: the note's table, already filtered on the GPU (the host oscillator is not used). */
-    gpuLoop?: LoopRender;
+    /** `webgpu` / `pyodide` only: the note's table, already filtered (the host oscillator is not used). */
+    tableLoop?: LoopRender;
 }
 
 export class Voice implements PoolableVoice {
@@ -50,7 +53,7 @@ export class Voice implements PoolableVoice {
      * Every source (OscillatorNode, looped table, worklet voice) connects here,
      * once, and never rewires. The bus feeds exactly one filter: the voice's own
      * `filter` (native), `stage` (a wasm filter: WASM OSC #1663, Rust #1672,
-     * C++ #1673, DWGS #1674) or — for the WebGPU filter (#1675), whose table
+     * C++ #1673, DWGS #1674) or — for the WebGPU (#1675) and Pyodide (#1676) filters, whose table
      * is already filtered — nothing: the bus goes straight to the output gain.
      * Swapping filters is a couple of `connect`s on this node, not on every source.
      */
@@ -222,9 +225,9 @@ export class Voice implements PoolableVoice {
             // per-prefix `generate()` + looped-buffer branches here any more.
             this.reportLegacyWaveform(parsed);
             const plan = this.planFilter(params, parsed, freq);
-            // The WebGPU filter plays its own filtered table; every other filter sits behind the host engine.
-            const chosen: VoiceSource | null = plan.gpuLoop
-                ? { kind: 'loop', render: plan.gpuLoop }
+            // A table filter (WebGPU, Pyodide) plays its own filtered table; every other filter sits behind the host engine.
+            const chosen: VoiceSource | null = plan.tableLoop
+                ? { kind: 'loop', render: plan.tableLoop }
                 : this.chooseSource(parsed, params, plan);
             if (chosen?.kind === 'realtime') {
                 // Worklet-resident engine: the same node as last note when it
@@ -418,7 +421,7 @@ export class Voice implements PoolableVoice {
         const type = resolveFilterType(params.filterType);
         const requested = resolveFilterSource(params.filterSource);
         if (requested === 'native') return { source: 'native', type };
-        if (requested === 'webgpu') return this.planGpuFilter(params, parsed, freq, type);
+        if (isTableFilterSource(requested)) return this.planTableFilter(requested, params, parsed, freq, type);
         const stage = getFilterStage(requested);
         const reason = stage
             ? stage.unavailableReason(this.context)
@@ -436,32 +439,41 @@ export class Voice implements PoolableVoice {
     }
 
     /**
-     * The WebGPU filter (#1675): a looped table of the part's basic shape,
-     * rendered on the GPU with the filter in every harmonic. It has no host
-     * oscillator behind it — a GPU cannot sit after one — so the part's wave
-     * *family* is kept and its engine is not (a `rust-saw` note plays the GPU's
-     * saw). Anything it cannot serve plays through the native filter instead,
-     * said out loud — except a bank still being baked, which is a warm-up:
-     * the native filter is the same response, so it is logged but not raised
-     * as a degradation.
+     * A table filter (#1675 WebGPU, #1676 Pyodide): a looped table of the part's
+     * basic shape with the filter already in every harmonic. Neither can sit after
+     * a host oscillator (a GPU and CPython cannot run in an audio thread), so there
+     * is no host behind it — the part's wave *family* is kept and its engine is
+     * not (a `rust-saw` note plays the table's saw). Anything it cannot serve plays
+     * through the native filter, said out loud — except a table still being made (a
+     * GPU bank baking, the Python runtime loading), which is a warm-up: the native
+     * filter is the same response, so it is logged but not raised as a degradation.
+     * Both share the RBJ spec and its cache grid (`gpuFilterSpec`).
      */
-    private planGpuFilter(params: SynthParams, parsed: ParsedWaveform, freq: number, type: FilterType): FilterPlan {
+    private planTableFilter(
+        source: TableFilterSource,
+        params: SynthParams,
+        parsed: ParsedWaveform,
+        freq: number,
+        type: FilterType,
+    ): FilterPlan {
         // 303 / Prophecy / Macro own their filters; Voice never plays them (chooseSource says so).
         if (engineEntry(parsed.engine).kind === 'native-worklet') return { source: 'native', type };
-        const refusal = gpuFilterRefusal(parsed);
-        if (refusal) return this.filterFallback('webgpu', type, refusal);
-        const gpu = getGpuFilter();
-        if (!gpu) return this.filterFallback('webgpu', type, 'audio engine not initialized');
+        const refusal = source === 'webgpu' ? gpuFilterRefusal(parsed) : pyodideFilterRefusal(parsed);
+        if (refusal) return this.filterFallback(source, type, refusal);
+        const table = source === 'webgpu' ? getGpuFilter() : getPyodideFilter();
+        if (!table) return this.filterFallback(source, type, 'audio engine not initialized');
 
         const spec = gpuFilterSpec(type, params.filterCutoff, params.filterResonance, this.context.sampleRate);
-        const found = gpu.lookup(this.context, parsed.shape, spec, freq);
-        if (found.kind === 'unavailable') return this.filterFallback('webgpu', type, found.reason);
-        if (found.kind === 'warming') {
-            this.reportWarmup(found.key);
+        const found = table.lookup(this.context, parsed.shape, spec, freq);
+        if (found.kind === 'unavailable') return this.filterFallback(source, type, found.reason);
+        if (found.kind !== 'ready') {
+            this.reportWarmup(source, found.kind === 'warming'
+                ? `WebGPU filter bank "${found.key}" is being rendered`
+                : 'the Python runtime is still loading');
             return { source: 'native', type };
         }
-        this.filterWorks('webgpu');
-        return { source: 'webgpu', type, gpuLoop: found.render };
+        this.filterWorks(source);
+        return { source, type, tableLoop: found.render };
     }
 
     /** An earlier fallback report for `source` is stale now that it works, and a later failure is news again. */
@@ -473,13 +485,14 @@ export class Voice implements PoolableVoice {
         engineDegradationStore.resolve(filterSourceIssueId(source));
     }
 
-    /** A note that used the native filter because its GPU bank was not baked yet: once per bank, telemetry only. */
-    private reportWarmup(bankKey: string): void {
-        if (Voice.reportedWarmup.has(bankKey)) return;
-        Voice.reportedWarmup.add(bankKey);
-        const detail = `WebGPU filter bank "${bankKey}" is being rendered; notes until it is ready use the native filter (same response)`;
+    /** A note that used the native filter because its table filter was not ready yet: once per cause, telemetry only. */
+    private reportWarmup(source: 'webgpu' | 'pyodide', cause: string): void {
+        const key = `${source}:${cause}`;
+        if (Voice.reportedWarmup.has(key)) return;
+        Voice.reportedWarmup.add(key);
+        const detail = `${cause}; notes until it is ready use the native filter (same response)`;
         try {
-            engineTelemetry.recordDegradation('filter-webgpu-warmup', true, detail);
+            engineTelemetry.recordDegradation(`filter-${source}-warmup`, true, detail);
         } catch {
             /* telemetry must never break audio */
         }
@@ -504,8 +517,8 @@ export class Voice implements PoolableVoice {
         const sampleRate = this.context.sampleRate;
         const cutoff = Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff));
         this.routeFilter(plan.source);
-        // The WebGPU table is already filtered: nothing sits between the bus and the output gain.
-        if (plan.source === 'webgpu') return;
+        // A table filter's table is already filtered: nothing sits between the bus and the output gain.
+        if (isTableFilterSource(plan.source)) return;
         if (plan.source !== 'native' && this.stage) {
             this.stage.set(now, {
                 cutoff,
@@ -521,12 +534,12 @@ export class Voice implements PoolableVoice {
 
     /**
      * Point `filterBus` at one filter: the native biquad, the held wasm node, or
-     * (WebGPU) straight at the output gain. A no-op when it already does.
+     * (a table filter, WebGPU / Pyodide) straight at the output gain. A no-op when it already does.
      */
     private routeFilter(to: FilterSource): void {
         const stage = this.stage;
-        const wantsStage = to !== 'native' && to !== 'webgpu' && !!stage && this.stageSource === to;
-        const want: FilterSource = to === 'webgpu' ? 'webgpu' : wantsStage ? to : 'native';
+        const wantsStage = to !== 'native' && !isTableFilterSource(to) && !!stage && this.stageSource === to;
+        const want: FilterSource = isTableFilterSource(to) ? to : wantsStage ? to : 'native';
         // A wasm node the wanted route does not use is not a no-op to leave: hand it back.
         const stranded = !!stage && !wantsStage;
         if (want === this.filterRoute && !stranded) return;
@@ -535,7 +548,7 @@ export class Voice implements PoolableVoice {
             // Out of the current route…
             if (from === 'native') {
                 if (want !== 'native') this.filterBus.disconnect(this.filter);
-            } else if (from === 'webgpu') {
+            } else if (isTableFilterSource(from)) {
                 this.filterBus.disconnect(this.gain);
             } else if (stage) {
                 this.filterBus.disconnect(stage.input);
@@ -543,7 +556,7 @@ export class Voice implements PoolableVoice {
             // …into the new one…
             if (want === 'native') {
                 if (from !== 'native') this.filterBus.connect(this.filter);
-            } else if (want === 'webgpu') {
+            } else if (isTableFilterSource(want)) {
                 this.filterBus.connect(this.gain);
             } else if (stage) {
                 this.filterBus.connect(stage.input);

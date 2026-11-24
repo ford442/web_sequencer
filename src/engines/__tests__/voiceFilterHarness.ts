@@ -16,8 +16,9 @@ import type {
 } from '../backends/OscillatorBackend';
 import { filterSourceIssueId } from '../backends/filterSource';
 import { setWamFilter, type WamFilter, type WamFilterNode } from '../WamFilter';
-import { setFilterStage, setGpuFilter, type StagedFilterSource } from '../filterStages';
+import { setFilterStage, setGpuFilter, setPyodideFilter, type StagedFilterSource } from '../filterStages';
 import type { GpuLookup, WebGpuFilter } from '../WebGpuFilter';
+import type { PyodideFilter, PyodideLookup } from '../PyodideFilter';
 import type { SynthParams } from '../../types';
 import type { WaveShape } from '../../utils/waveformParser';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
@@ -199,8 +200,20 @@ export function makeGpuFilter(
     return filter;
 }
 
+/** A stand-in for `PyodideFilter` (#1676) whose `lookup` answers what the test says. */
+export function makePyodideFilter(
+    answer: PyodideLookup | ((shape: WaveShape, freq: number) => PyodideLookup),
+) {
+    const filter = {
+        lookup: vi.fn((_ctx: BaseAudioContext, shape: WaveShape, _spec: unknown, freq: number) =>
+            typeof answer === 'function' ? answer(shape, freq) : answer),
+    };
+    setPyodideFilter(filter as unknown as PyodideFilter);
+    return filter;
+}
+
 /** What a ready bank hands the voice: a loop table and the pitch it sounds at. */
-export function readyTable(baseFrequency = 130.8125): GpuLookup {
+export function readyTable(baseFrequency = 130.8125): Extract<GpuLookup, { kind: 'ready' }> {
     return { kind: 'ready', render: { buffer: makeAudioBuffer(), baseFrequency } };
 }
 
@@ -208,7 +221,7 @@ export function readyTable(baseFrequency = 130.8125): GpuLookup {
 export function registerFilterSourceHooks(): void {
     beforeEach(() => {
         // The once-per-cause set is static on Voice; a fresh reason text per test keeps them independent.
-        for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+        for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu', 'pyodide'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
         vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
@@ -219,6 +232,7 @@ export function registerFilterSourceHooks(): void {
         setFilterStage('cpp', null);
         setFilterStage('dwgs', null);
         setGpuFilter(null);
+        setPyodideFilter(null);
         vi.restoreAllMocks();
     });
 

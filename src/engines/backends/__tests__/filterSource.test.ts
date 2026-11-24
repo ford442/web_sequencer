@@ -43,8 +43,8 @@ describe('ids', () => {
         expect(FILTER_TYPE_ID).toEqual({ lp: 0, bp: 1, hp: 2 });
         expect(WAM_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
         expect(FILTER_TYPES).toEqual(['lp', 'bp', 'hp']);
-        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp', 'dwgs', 'webgpu']);
-        // The GPU's filter renders tables; it is not a worklet stage, so it is not in this list.
+        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp', 'dwgs', 'webgpu', 'pyodide']);
+        // The GPU's and Python's filters render tables; they are not worklet stages, so they are not in this list.
         expect(STAGED_FILTER_SOURCES).toEqual(['wam', 'rust', 'cpp', 'dwgs']);
         // The Rust kernel's response ids are the same numbers (FILTER_LP/BP/HP in rust-audio/src/lib.rs).
         expect(RUST_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);

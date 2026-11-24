@@ -57,6 +57,17 @@ describe('Python table engine (on demand)', () => {
         await waitFor(() => expect(initPyodideSystem).toHaveBeenCalledTimes(1));
     });
 
+    it('starts it for the Pyodide filter source (#1676), and only for that one', async () => {
+        const { rerender } = renderHook(({ f }) => useRequestPythonForWaveforms(['sawtooth'], f), {
+            initialProps: { f: ['native', 'webgpu', undefined] as Array<string | undefined> },
+        });
+        await new Promise((r) => setTimeout(r, 0));
+        expect(initPyodideSystem).not.toHaveBeenCalled();
+
+        rerender({ f: ['native', 'pyodide'] });
+        await waitFor(() => expect(initPyodideSystem).toHaveBeenCalledTimes(1));
+    });
+
     it('reports ready when hyphon-pyodide-ready fires, and resolves the request', async () => {
         const fakePyodide = { globals: { get: vi.fn() } };
         const { result } = renderHook(() => usePyodideEngine());

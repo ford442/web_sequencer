@@ -16,6 +16,7 @@ import { renderRustOscOffline } from '@/audio/offline/OfflineRustOscEngine';
 import { renderCppOscOffline } from '@/audio/offline/OfflineCppOscEngine';
 import { renderDwgsOscOffline } from '@/audio/offline/OfflineDwgsOscEngine';
 import { renderGpuFilteredNote } from '@/audio/offline/OfflineGpuFilter';
+import { renderPyodideFilteredNote } from '@/audio/offline/OfflinePyodideFilter';
 import { dwgsWaveIndex } from '@/engines/dwgsWaves';
 import { parseWaveform } from '@/utils/waveformParser';
 import type { GpuFilterSpec } from '@/engines/backends/gpuFilter';
@@ -125,23 +126,35 @@ export async function renderSynthToBuffer(
     // The WebGPU filter (#1675): the GPU renders the part's shape *through* the filter, at
     // this note's pitch, whichever engine the part names — so the biquad below is skipped.
     // Anything it cannot do is reported once and the part renders as it always did.
+    const parsedWaveform = parseWaveform(params.waveform);
     const gpuFiltered = await renderGpuFilteredNote({
         params,
-        parsed: parseWaveform(params.waveform),
+        parsed: parsedWaveform,
         frequency: freqWithPitch,
         duration,
         sampleRate,
         engine: engines?.webGpuEngine,
         hasFilterCurve: (filterCurve?.length ?? 0) > 0,
     });
-    if (gpuFiltered) {
-        customBuffer = offlineCtx.createBuffer(1, gpuFiltered.length, sampleRate);
-        customBuffer.getChannelData(0).set(gpuFiltered);
+    // The Pyodide filter (#1676), the same way: SciPy renders the note through the filter.
+    const pyFiltered = gpuFiltered ? null : await renderPyodideFilteredNote({
+        params,
+        parsed: parsedWaveform,
+        frequency: freqWithPitch,
+        duration,
+        sampleRate,
+        pyodide: engines?.pyodide,
+        hasFilterCurve: (filterCurve?.length ?? 0) > 0,
+    });
+    const tableFiltered = gpuFiltered ?? pyFiltered;
+    if (tableFiltered) {
+        customBuffer = offlineCtx.createBuffer(1, tableFiltered.length, sampleRate);
+        customBuffer.getChannelData(0).set(tableFiltered);
         skipFilter = true; // the table is already filtered
     }
 
     // Check for Custom Engines first
-    if (gpuFiltered) {
+    if (tableFiltered) {
         // Rendered above.
     }
     else if (params.waveform.startsWith('wgsl-') && engines?.webGpuEngine?.isSupported) {

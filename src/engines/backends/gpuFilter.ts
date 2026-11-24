@@ -268,15 +268,20 @@ export function planFilteredBank(bands: readonly WavetableBand[]): BankNote[] {
 // ── What the GPU can render ──────────────────────────────────────────────────
 
 /**
- * Why the GPU filter cannot render `parsed`, or null when it can. It renders
- * the four basic shapes, so any host's `saw` / `sqr` / `tri` / `sin` is
- * filterable (a basic shape is a basic shape on any engine); a DWGS digital
- * wave (piano, bell, …) or noise is not one, and is refused rather than
- * played as a different wave.
+ * Why a table filter that renders the four basic shapes itself (the GPU's, and
+ * Python's, #1676) cannot render `parsed`, or null when it can. Any host's
+ * `saw` / `sqr` / `tri` / `sin` is filterable (a basic shape is a basic shape on
+ * any engine); a DWGS digital wave (piano, bell, …) or noise is not one, and is
+ * refused rather than played as a different wave.
  */
-export function gpuFilterRefusal(parsed: ParsedWaveform): string | null {
+export function basicShapeRefusal(parsed: ParsedWaveform, renderer: string): string | null {
     if (parsed.variant === undefined) return null;
     const wave = DWGS_WAVES.find((w) => w.suffix === parsed.variant);
     if (wave && (wave.source === 'saw' || wave.source === 'sqr' || wave.suffix === 'sine')) return null;
-    return `"${parsed.engine}-${parsed.variant}" is not a basic shape the WebGPU filter can render`;
+    return `"${parsed.engine}-${parsed.variant}" is not a basic shape the ${renderer} filter can render`;
+}
+
+/** Why the GPU filter cannot render `parsed`, or null when it can. */
+export function gpuFilterRefusal(parsed: ParsedWaveform): string | null {
+    return basicShapeRefusal(parsed, 'WebGPU');
 }

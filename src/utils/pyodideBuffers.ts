@@ -19,7 +19,7 @@ const LOOP_DURATION_SEC = 2.0;
 const DEFAULT_CUTOFF = 8000;
 const DEFAULT_RESONANCE = 0.5;
 
-function pyodideSamplesToFloat32(pyProxy: {
+export function pyodideSamplesToFloat32(pyProxy: {
   toJs: (opts: { array_buffer_type: 'float32' }) => Float32Array;
   destroy: () => void;
 }): Float32Array | null {
@@ -83,3 +83,6 @@ export async function prerenderPyodideBuffers(
 }
 
 export const PYODIDE_REF_FREQ = REF_FREQ;
+
+/** The Python result proxy `pyodideSamplesToFloat32` takes. */
+export type PyodideSamplesProxy = Parameters<typeof pyodideSamplesToFloat32>[0];

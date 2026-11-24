@@ -7,11 +7,13 @@
  */
 
 import type { FilterSource } from '../types/synth';
+import type { TableFilterSource } from './backends/filterSource';
 import type { WasmFilterStage } from './WamFilter';
 import type { WebGpuFilter } from './WebGpuFilter';
+import type { PyodideFilter } from './PyodideFilter';
 
-/** The sources that run in an AudioWorklet node: everything but the voice's own biquad and the GPU's table filter. */
-export type StagedFilterSource = Exclude<FilterSource, 'native' | 'webgpu'>;
+/** The sources that run in an AudioWorklet node: everything but the voice's own biquad and the table filters. */
+export type StagedFilterSource = Exclude<FilterSource, 'native' | TableFilterSource>;
 
 const stages = new Map<StagedFilterSource, WasmFilterStage>();
 
@@ -36,4 +38,15 @@ export function setGpuFilter(filter: WebGpuFilter | null): void {
 
 export function getGpuFilter(): WebGpuFilter | null {
     return gpuFilter;
+}
+
+/** The Pyodide filter (#1676) is a table filter like the GPU's: a cache a voice asks, never a node. */
+let pyodideFilter: PyodideFilter | null = null;
+
+export function setPyodideFilter(filter: PyodideFilter | null): void {
+    pyodideFilter = filter;
+}
+
+export function getPyodideFilter(): PyodideFilter | null {
+    return pyodideFilter;
 }

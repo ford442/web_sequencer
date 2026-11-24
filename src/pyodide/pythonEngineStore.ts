@@ -142,6 +142,11 @@ export function requestPythonEngine(requestedBy: string): Promise<PyodideLike | 
     return result;
 }
 
+/** What a caller that must not wait (a note) can see: the runtime, or why not yet / ever. No side effects. */
+export function getPythonRuntime(): { status: PythonEngineStatus; pyodide: PyodideLike | null; reason: string | null } {
+    return { status: snapshot.status, pyodide: snapshot.pyodide, reason: snapshot.reason };
+}
+
 const subscribe = (listener: () => void): (() => void) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
