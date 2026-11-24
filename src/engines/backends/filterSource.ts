@@ -17,7 +17,9 @@
  * a filter into its table must be asked to do. `Voice` owns the graph half.
  */
 
-import type { FilterSource, FilterType, SynthParams } from '../../types/synth';
+import type { FilterSource, FilterType, OscillatorType, SynthParams } from '../../types/synth';
+import type { LoopRender } from './OscillatorBackend';
+import type { FilterPairing } from '../../utils/engineTelemetry/fallbackReporting';
 
 export const FILTER_TYPES: readonly FilterType[] = ['lp', 'bp', 'hp'] as const;
 export const FILTER_SOURCES: readonly FilterSource[] = ['native', 'wam', 'rust', 'cpp', 'dwgs', 'webgpu', 'pyodide'] as const;
@@ -73,6 +75,34 @@ export const FILTER_SOURCE_DESCRIPTIONS: Record<FilterSource, string> = {
     webgpu: 'The filter rendered on the GPU into a looped table of this part\'s saw / square / triangle / sine, whichever oscillator it names (a GPU cannot run inside the audio thread)',
     pyodide: 'SciPy\'s resonant filter, rendered in Python into a looped table of this part\'s saw / square / triangle / sine, whichever oscillator it names (Python cannot run inside the audio thread)',
 };
+
+/**
+ * Which filter source is each oscillator family's *own* filter (#1663): the
+ * cross-product is "OSC A, filtered by OSC B's filter", so every family is
+ * classified here and the contract test fails when a new one is not.
+ *
+ *   - a `FilterSource` — the family's filter, selectable by every other family;
+ *   - `null` — it has none another family can borrow: `pcm` plays recorded
+ *     samples, and the 303 / Prophecy / Macro worklets keep their filters
+ *     inside their own voices (and never run through `Voice`'s filter stage).
+ */
+export const OWN_FILTER_SOURCE: Record<OscillatorType, FilterSource | null> = {
+    javascript: 'native',
+    pcm: null,
+    pyodide: 'pyodide',
+    webgpu: 'webgpu',
+    wam: 'wam',
+    rust: 'rust',
+    cpp: 'cpp',
+    dwgs: 'dwgs',
+    open303: null,
+    jc303: null,
+    prophecy: null,
+    macro: null,
+};
+
+/** Short response label (the selector's buttons and the HUD). */
+export const FILTER_TYPE_SHORT: Record<FilterType, string> = { lp: 'LP', bp: 'BP', hp: 'HP' };
 
 /**
  * Degradation-store id of "this source could not run": one per source, so a
@@ -182,5 +212,34 @@ export function hostFilterRequest(
         cutoff: Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff)),
         resonance: Math.max(0.1, params.filterResonance),
         filterType: 'lp',
+    };
+}
+
+/** The filter that will sound for one note, after availability checks (`Voice.planFilter`). */
+export interface FilterPlan {
+    source: FilterSource;
+    type: FilterType;
+    /** `webgpu` / `pyodide` only: the note's table, already filtered (the host oscillator is not used). */
+    tableLoop?: LoopRender;
+    /** The requested table filter is still being made; `source` is the native filter meanwhile (same response). */
+    warming?: boolean;
+    /** Why the requested source is not the one in `source` (a fallback). */
+    fallbackReason?: string;
+}
+
+/**
+ * One note's cell of the host × filter-source cross-product, as the EngineHUD
+ * shows it (#1663): the part's oscillator family (`host`, a display label), the
+ * source it asked for, and the plan that actually sounds.
+ */
+export function filterPairing(host: string, requested: FilterSource, plan: FilterPlan): FilterPairing {
+    return {
+        host,
+        requested: FILTER_SOURCE_LABELS[requested],
+        active: FILTER_SOURCE_LABELS[plan.source],
+        type: FILTER_TYPE_SHORT[plan.type],
+        replacesHost: !!plan.tableLoop,
+        warming: plan.warming,
+        fallbackReason: plan.fallbackReason,
     };
 }

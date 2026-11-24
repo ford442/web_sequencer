@@ -3,6 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    filterPairing,
     DEFAULT_FILTER_SOURCE,
     DEFAULT_FILTER_TYPE,
     FILTER_SOURCES,
@@ -209,5 +210,26 @@ describe('filterTypeRefusal (no silent substitution at the registry)', () => {
         expect(lowpassOnly.generate).toHaveBeenCalledTimes(1); // the lowpass call only
         expect(registry.getLastResolution()).toMatchObject({ degraded: true, active: 'wav', requested: 'wam' });
         expect(registry.getLastResolution()?.reason).toContain('wam: cannot bake a "hp" filter (only lp)');
+    });
+});
+
+describe('filterPairing (the EngineHUD row of one host × source cell, #1663)', () => {
+    it('labels a healthy staged filter on a host', () => {
+        expect(filterPairing('Rust OSC', 'cpp', { source: 'cpp', type: 'hp' })).toEqual({
+            host: 'Rust OSC', requested: 'C++', active: 'C++', type: 'HP',
+            replacesHost: false, warming: undefined, fallbackReason: undefined,
+        });
+    });
+
+    it('keeps what was asked for apart from what runs after a fallback, with its cause', () => {
+        expect(filterPairing('DWGS', 'rust', { source: 'native', type: 'bp', fallbackReason: 'no SIMD' }))
+            .toMatchObject({ requested: 'Rust', active: 'JS', type: 'BP', fallbackReason: 'no SIMD' });
+    });
+
+    it('says a table filter replaces the host, and marks a warm-up', () => {
+        const render = { buffer: {} as AudioBuffer, baseFrequency: 261.63 };
+        expect(filterPairing('C++ OSC', 'webgpu', { source: 'webgpu', type: 'lp', tableLoop: render }).replacesHost).toBe(true);
+        expect(filterPairing('C++ OSC', 'pyodide', { source: 'native', type: 'lp', warming: true }))
+            .toMatchObject({ requested: 'Pyodide', active: 'JS', warming: true, replacesHost: false });
     });
 });

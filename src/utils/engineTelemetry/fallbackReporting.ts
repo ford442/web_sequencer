@@ -90,33 +90,81 @@ export function logWaveformSubstitution(
 }
 
 /**
- * Report that a voice asked for a filter implementation it could not get and is
- * running a different one (#1663 / #1672 / #1673 / #1674: "WASM OSC", "Rust", "C++" or "DWGS" filter requested, native biquad
- * used). The sound changes (different filter), so like a waveform substitution
- * it is never silent: console, telemetry and the degradation store / EngineHUD.
+ * One cell of the host-oscillator × filter-source cross-product as it sounds
+ * (#1663): the oscillator family a part selected, the filter source it asked
+ * for, the one that actually runs (the requested one, or "JS" after a fallback)
+ * and the response. All four are display labels.
  */
-let lastActiveFilterSource: string | null = null;
+export interface FilterPairing {
+  /** The part's oscillator engine, e.g. "Rust OSC". */
+  host: string;
+  /** The filter source the part selected, e.g. "C++". */
+  requested: string;
+  /** The filter source shaping the sound now. */
+  active: string;
+  /** Filter response, e.g. "HP". */
+  type: string;
+  /**
+   * The filter plays its own pre-filtered table instead of the host's samples
+   * (the WebGPU / Pyodide table filters), so the host engine is not heard.
+   */
+  replacesHost?: boolean;
+  /**
+   * The requested source is still being made ready (a GPU bank baking, the
+   * Python runtime loading) and `active` stands in with the same response: a
+   * warm-up, not a degradation.
+   */
+  warming?: boolean;
+  /** Why `requested` could not run, when `active` is a fallback. */
+  fallbackReason?: string;
+}
+
+/** HUD subsystem key of one host × requested-source pairing, e.g. `filter: Rust OSC ← C++`. */
+export function filterPairingSubsystem(host: string, requested: string): string {
+  return `filter: ${host} ← ${requested}`;
+}
+
+/** Last published state of each pairing row, so a voice can report on every note without flooding history. */
+const publishedPairings = new Map<string, string>();
 
 /**
- * Publish which filter source is shaping the sound, on the healthy path too, so
- * the EngineHUD's "filter" row names it (e.g. "JS", "Rust") instead of only
- * appearing after a fallback. Deduped: a voice calls this on every note.
+ * Publish which filter is shaping a part's sound, on the healthy path too, as
+ * an EngineHUD row of its own per host × requested pairing (the badge names the
+ * filter that runs). One row per pairing, not a single "filter" row, so two
+ * parts on different sources do not overwrite each other on every note, and a
+ * fallback is visible as a row whose badge is not the source in its name.
+ * Only a change of the active source or response is published.
  */
-export function reportActiveFilterSource(activeSource: string): void {
-  if (lastActiveFilterSource === activeSource) return;
-  lastActiveFilterSource = activeSource;
+export function reportFilterPairing(p: FilterPairing): void {
+  const subsystem = filterPairingSubsystem(p.host, p.requested);
+  const state = `${p.active}|${p.type}|${p.replacesHost ? 1 : 0}|${p.warming ? 1 : 0}|${p.fallbackReason ?? ''}`;
+  if (publishedPairings.get(subsystem) === state) return;
+  publishedPairings.set(subsystem, state);
+  const reason = p.warming
+    ? `${p.type} — ${p.requested} filter warming up, the ${p.active} filter stands in (same response)`
+    : p.active !== p.requested
+    ? `${p.type} — ${p.requested} filter unavailable, running on the ${p.active} filter${p.fallbackReason ? ` (${p.fallbackReason})` : ''}`
+    : p.replacesHost
+      ? `${p.type} — ${p.active} plays its own filtered table; ${p.host} is not heard`
+      : `${p.type} — ${p.host} samples through the ${p.active} filter`;
   try {
-    engineTelemetry.registerResolution('filter', activeSource, 'active filter source');
+    engineTelemetry.registerResolution(subsystem, p.active, reason);
   } catch {
     /* telemetry must never break audio */
   }
 }
 
-/** Test seam: forget the last published filter source. */
-export function resetActiveFilterSourceForTests(): void {
-  lastActiveFilterSource = null;
+/** Test seam: forget which pairing states were already published. */
+export function resetFilterPairingsForTests(): void {
+  publishedPairings.clear();
 }
 
+/**
+ * Report that a voice asked for a filter implementation it could not get and is
+ * running a different one (#1663 / #1672 / #1673 / #1674: "WASM OSC", "Rust", "C++" or "DWGS" filter requested, native biquad
+ * used). The sound changes (different filter), so like a waveform substitution
+ * it is never silent: console, telemetry and the degradation store / EngineHUD.
+ */
 export function logFilterSourceFallback(
   requestedSource: string,
   activeSource: string,
@@ -126,7 +174,6 @@ export function logFilterSourceFallback(
 ): void {
   const detail = `filter source "${requestedSource}" unavailable, using "${activeSource}" (${reason})`;
   console.warn(`[FilterSourceFallback] ${detail}`);
-  lastActiveFilterSource = activeSource;
   try {
     engineTelemetry.registerResolution('filter', activeSource, detail);
     engineTelemetry.recordDegradation('filter', true, detail);
@@ -141,6 +188,15 @@ export function logFilterSourceFallback(
       requestedBackend: requestedSource,
       retryable: false,
     });
+  } catch {
+    /* telemetry must never break audio */
+  }
+}
+
+/** A filter source that had fallen back runs again: the HUD's "filter" degradation is over. */
+export function logFilterSourceRecovered(source: string): void {
+  try {
+    engineTelemetry.recordDegradation('filter', false, `${source} filter is running again`);
   } catch {
     /* telemetry must never break audio */
   }

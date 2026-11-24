@@ -2,16 +2,18 @@ import { type SynthParams } from '../types';
 import { tunedNoteToFrequency } from '../constants/tuning';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type ParsedWaveform } from '../utils/waveformParser';
-import { engineTelemetry, logEngineFallback, logFilterSourceFallback, logWaveformSubstitution, reportActiveFilterSource } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback, logFilterSourceFallback, logWaveformSubstitution, logFilterSourceRecovered, reportFilterPairing } from '../utils/engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { getOscillatorRegistry } from './backends/BackendRegistry';
 import { engineEntry } from './backends/engineCatalog';
-import { TABLE_DURATION_SEC, TABLE_REF_FREQ, type LoopRender, type RealtimeVoice } from './backends/OscillatorBackend';
+import { TABLE_DURATION_SEC, TABLE_REF_FREQ, type RealtimeVoice } from './backends/OscillatorBackend';
 import type { VoiceSource } from './backends/BackendRegistry';
 import {
     FILTER_SOURCE_LABELS,
     biquadTypeFor,
+    filterPairing,
+    type FilterPlan,
     filterSourceIssueId,
     hostFilterRequest,
     isTableFilterSource,
@@ -28,14 +30,6 @@ import { getFilterStage, getGpuFilter, getPyodideFilter, type StagedFilterSource
 import type { FilterSource, FilterType } from '../types/synth';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
-
-/** The filter that will sound for one note, after availability checks. */
-interface FilterPlan {
-    source: FilterSource;
-    type: FilterType;
-    /** `webgpu` / `pyodide` only: the note's table, already filtered (the host oscillator is not used). */
-    tableLoop?: LoopRender;
-}
 
 export class Voice implements PoolableVoice {
     context: AudioContext;
@@ -271,7 +265,7 @@ export class Voice implements PoolableVoice {
             this.currentSourceType = waveform;
 
             // Filter settings
-            this.applyFilter(plan, params, now);
+            this.applyFilter(plan, params, parsed, now);
 
             // ADSR Attack + Decay
             const attackEnd = now + params.attack;
@@ -470,7 +464,7 @@ export class Voice implements PoolableVoice {
             this.reportWarmup(source, found.kind === 'warming'
                 ? `WebGPU filter bank "${found.key}" is being rendered`
                 : 'the Python runtime is still loading');
-            return { source: 'native', type };
+            return { source: 'native', type, warming: true };
         }
         this.filterWorks(source);
         return { source, type, tableLoop: found.render };
@@ -483,6 +477,7 @@ export class Voice implements PoolableVoice {
         if (stale.length === 0) return;
         for (const key of stale) Voice.reportedFilterFallback.delete(key);
         engineDegradationStore.resolve(filterSourceIssueId(source));
+        logFilterSourceRecovered(FILTER_SOURCE_LABELS[source]);
     }
 
     /** A note that used the native filter because its table filter was not ready yet: once per cause, telemetry only. */
@@ -509,14 +504,15 @@ export class Voice implements PoolableVoice {
                 filterSourceIssueId(requested),
             );
         }
-        return { source: 'native', type };
+        return { source: 'native', type, fallbackReason: reason };
     }
 
     /** Wire and set the planned filter at `now`; the other one is parked (disconnected). */
-    private applyFilter(plan: FilterPlan, params: SynthParams, now: number): void {
+    private applyFilter(plan: FilterPlan, params: SynthParams, parsed: ParsedWaveform, now: number): void {
         const sampleRate = this.context.sampleRate;
         const cutoff = Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff));
-        reportActiveFilterSource(FILTER_SOURCE_LABELS[plan.source]);
+        // The EngineHUD row for this note's cell of the host × filter-source cross-product (#1663).
+        reportFilterPairing(filterPairing(engineEntry(parsed.engine).label, resolveFilterSource(params.filterSource), plan));
         this.routeFilter(plan.source);
         // A table filter's table is already filtered: nothing sits between the bus and the output gain.
         if (isTableFilterSource(plan.source)) return;

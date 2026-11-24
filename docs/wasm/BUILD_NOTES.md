@@ -16,6 +16,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [The Rust filter (same idea, in the Rust kernel)](#rust-filter)
 - [The C++ filter (a state variable filter in the C++ kernel)](#cpp-filter)
 - [The DWGS filter (a 4-pole ladder in the DWGS kernel, the one that sounds different)](#dwgs-filter)
+- [Any oscillator × any filter: the cross-product contract](#filter-matrix)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [Denormal guards](#denormal-guards)
@@ -1249,6 +1250,53 @@ pitch error, not the filter). Also: `pyodideFilter.test.ts` (geometry for all 11
 48 / 96 kHz), `PyodideFilter.test.ts` (cache, LRU, failure back-off), `Voice.pyodideFilterSource.test.ts`
 (routing, loading, every fallback, independence), `OfflinePyodideFilter.test.ts` (the bounce,
 through `renderSynthToBuffer`), the selector and the request hook.
+
+<a id="filter-matrix"></a>
+
+### Any oscillator × any filter: the cross-product contract (#1678)
+
+A part's resonant filter is two choices independent of its oscillator:
+`SynthParams.filterType` (LP / BP / HP) and `SynthParams.filterSource` (whose
+DSP runs it). Every family that plays through `Voice` (JS, WAV PCM, Pyodide,
+WebGPU, WASM OSC, Rust, C++, DWGS) can select every source:
+
+| Source | How it filters the host's samples | Own filter of |
+| --- | --- | --- |
+| JS (`native`) | the voice's `BiquadFilterNode` — the terminal fallback | JS |
+| WASM OSC / Rust / C++ / DWGS | an AudioWorklet stage after the host (`filterBus → stage → gain`) | that engine |
+| WebGPU / Pyodide | a pre-filtered table of the part's basic shape; the host engine is **not** heard | that engine |
+
+WAV PCM has no filter of its own; 303 / Prophecy / Macro keep theirs inside
+their own worklets and never reach `Voice`. `OWN_FILTER_SOURCE`
+(`src/engines/backends/filterSource.ts`) classifies every `OscillatorType`, and
+the selector marks the current oscillator's own filter with a dot.
+
+`GenerateRequest` carries no `filterSource`: the source runs *after* the host
+(or replaces it, for a table filter), so the host is only told what to bake
+into its own table — `hostFilterRequest()` opens it whenever another filter
+runs, so the response is never applied twice.
+
+**Visible in the HUD.** Each host × requested pairing a part plays is its own
+EngineHUD row, `filter: <host> ← <requested>`, whose badge is the filter that
+actually runs and whose reason gives the response (and the cause, after a
+fallback). A badge that differs from the source in the row name is a fallback;
+a table filter still warming up says so and is not a degradation. Rows are
+published on change only, so two parts on different sources do not overwrite
+each other per note. A fallback is also a `filter-source:<source>` degradation
+(banner + selector notice), resolved — and the HUD's `filter` degradation
+cleared — as soon as that source runs again.
+
+**The contract** is `src/engines/__tests__/Voice.filterMatrix.test.ts`, driven
+by the UI's own lists (`VOICE_FILTER_OSC_TYPES`, the variant selector's
+waveforms, `FILTER_SOURCES`, `FILTER_TYPES`), so a new family or source is
+covered automatically. For all 8 × 7 × 3 cells it checks that, available, the
+requested filter is wired with the requested response and fed by the host's
+samples; and for the 8 × 6 × 3 fallible cells that, unavailable, the JS filter
+runs with the **same** response, a degradation names the source, and the HUD
+row's badge is "JS". Mutation-checked: a fallback that drops the response to
+LP fails 96 cells; a source wired to another kernel's stage fails 49.
+`FilterSourceSelector.test.tsx` checks that every family can pick every
+response and source.
 
 <a id="wam-osc"></a>
 

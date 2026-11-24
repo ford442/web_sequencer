@@ -8,7 +8,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { FilterSourceSelector, VOICE_FILTER_OSC_TYPES } from '../FilterSourceSelector';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
-import { filterSourceIssueId } from '../../engines/backends/filterSource';
+import {
+    FILTER_SOURCES,
+    FILTER_SOURCE_LABELS,
+    FILTER_TYPES,
+    FILTER_TYPE_LABELS,
+    OWN_FILTER_SOURCE,
+    filterSourceIssueId,
+} from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
@@ -68,7 +75,7 @@ describe('FilterSourceSelector', () => {
         expect(screen.queryByRole('status')).toBeNull();
 
         act(() => logFilterSourceFallback('C++', 'JS', 'cpp_osc.wasm fetch HTTP 404', filterSourceIssueId('cpp')));
-        expect(screen.getByRole('status')).toHaveTextContent(/C\+\+ filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent(/C\+\+ filter unavailable — using the JS filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
@@ -92,7 +99,7 @@ describe('FilterSourceSelector', () => {
         expect(screen.queryByRole('status')).toBeNull();
 
         act(() => logFilterSourceFallback('DWGS', 'JS', 'dwgs_osc.wasm fetch HTTP 404', filterSourceIssueId('dwgs')));
-        expect(screen.getByRole('status')).toHaveTextContent(/DWGS filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent(/DWGS filter unavailable — using the JS filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
@@ -122,7 +129,7 @@ describe('FilterSourceSelector', () => {
 
         act(() => logFilterSourceFallback('WASM OSC', 'JS', 'wamFilter.wasm fetch HTTP 404', filterSourceIssueId('wam')));
 
-        expect(screen.getByRole('status')).toHaveTextContent(/WASM OSC filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent(/WASM OSC filter unavailable — using the JS filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
@@ -134,7 +141,7 @@ describe('FilterSourceSelector', () => {
         expect(screen.queryByRole('status')).toBeNull();
 
         act(() => logFilterSourceFallback('Rust', 'JS', 'rust_osc.wasm fetch HTTP 404', filterSourceIssueId('rust')));
-        expect(screen.getByRole('status')).toHaveTextContent(/Rust filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent(/Rust filter unavailable — using the JS filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
@@ -208,5 +215,27 @@ describe('FilterSourceSelector', () => {
         logFilterSourceFallback('Pyodide', 'JS', 'pyodide notice-isolation unit test', filterSourceIssueId('pyodide'));
         render(<FilterSourceSelector type="wam" filterSource="webgpu" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    // The UI half of the cross-product contract (#1663); Voice.filterMatrix.test.ts is the audio half.
+    it.each([...VOICE_FILTER_OSC_TYPES])('a %s oscillator can pick every response and every filter source', (type) => {
+        const onChange = vi.fn();
+        const { container, unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+        for (const t of FILTER_TYPES) {
+            fireEvent.click(screen.getByRole('button', { name: `${FILTER_TYPE_LABELS[t]} filter` }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterType: t });
+        }
+        for (const s of FILTER_SOURCES) {
+            fireEvent.click(screen.getByRole('button', { name: `${FILTER_SOURCE_LABELS[s]} filter source` }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: s });
+        }
+        // Its own filter (if it has one another family can borrow) is marked; every other button is another engine's.
+        const own = [...container.querySelectorAll('[data-own-filter="true"]')];
+        const expected = OWN_FILTER_SOURCE[type];
+        expect(own.map((b) => b.getAttribute('aria-label'))).toEqual(
+            expected ? [`${FILTER_SOURCE_LABELS[expected]} filter source`] : [],
+        );
+        if (expected) expect(own[0]).toHaveAttribute('title', expect.stringMatching(/this oscillator's own filter/));
+        unmount();
     });
 });

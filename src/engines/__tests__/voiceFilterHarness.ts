@@ -22,6 +22,7 @@ import type { PyodideFilter, PyodideLookup } from '../PyodideFilter';
 import type { SynthParams } from '../../types';
 import type { WaveShape } from '../../utils/waveformParser';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { resetFilterPairingsForTests } from '../../utils/engineTelemetry';
 
 export const RATE = 44100;
 
@@ -223,6 +224,7 @@ export function registerFilterSourceHooks(): void {
         // The once-per-cause set is static on Voice; a fresh reason text per test keeps them independent.
         for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu', 'pyodide'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
         vi.spyOn(console, 'warn').mockImplementation(() => {});
+        resetFilterPairingsForTests();
     });
 
     afterEach(() => {
