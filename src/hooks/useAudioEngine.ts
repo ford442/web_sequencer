@@ -60,6 +60,7 @@ import rustOscProcessorUrl from '../audio-worklets/rust-osc-processor.ts?worker&
 import cppOscProcessorUrl from '../audio-worklets/cpp-osc-processor.ts?worker&url';
 import dwgsOscProcessorUrl from '../audio-worklets/dwgs-osc-processor.ts?worker&url';
 import wamFilterProcessorUrl from '../audio-worklets/wam-filter-processor.ts?worker&url';
+import rustFilterProcessorUrl from '../audio-worklets/rust-filter-processor.ts?worker&url';
 // The wasm the filter worklet runs (assembly/wamFilter.wasm, built by `build:wasm:wamfilter`).
 // A URL, not an import of the bytes: the main thread fetches + compiles it and hands the
 // compiled module to each worklet node.
@@ -242,6 +243,7 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 dwgsOscProcessorUrl,
                 wamFilterProcessorUrl,
                 wamFilterWasmUrl,
+                rustFilterProcessorUrl,
             }, precreated?.latencyHint, precreated);
 
             liveContextRef.current = context;

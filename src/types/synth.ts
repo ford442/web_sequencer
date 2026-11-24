@@ -107,10 +107,14 @@ export type FilterType = 'lp' | 'bp' | 'hp';
  *     song saved before this field existed uses);
  *   - `wam`    — the "WASM OSC" filter: the AssemblyScript kernel's resonant
  *     biquad (`assembly/biquad.ts`), run as a worklet stage after *any*
- *     oscillator engine. If it cannot run, the voice falls back to `native`
- *     and says so (never silently).
+ *     oscillator engine;
+ *   - `rust`   — the "Rust" filter (#1672): the Rust kernel's RBJ biquad
+ *     (`rust-audio/`), the same kind of stage, also after *any* oscillator
+ *     engine (including `rust-*`, which is not special-cased).
+ * If a wasm source cannot run, the voice falls back to `native` and says so
+ * (never silently).
  */
-export type FilterSource = 'native' | 'wam';
+export type FilterSource = 'native' | 'wam' | 'rust';
 
 export interface SynthParams {
   waveform: Waveform;

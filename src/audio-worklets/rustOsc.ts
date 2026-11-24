@@ -16,7 +16,7 @@ export type RustOscShape = 'saw' | 'sqr' | 'tri' | 'sin';
 export const RUST_OSC_PROCESSOR = 'rust-osc-processor';
 
 /** Must equal `ABI_VERSION` in rust-audio/src/lib.rs (tools/check_rust_osc_module.mjs). */
-export const RUST_OSC_ABI_VERSION = 1;
+export const RUST_OSC_ABI_VERSION = 2;
 
 /** The `rustOsc.required` exports of emscripten/wasm_export_manifest.json. */
 export interface RustOscExports {

@@ -6,11 +6,14 @@ import {
     DEFAULT_FILTER_SOURCE,
     DEFAULT_FILTER_TYPE,
     FILTER_SOURCES,
+    FILTER_SOURCE_DESCRIPTIONS,
     FILTER_SOURCE_LABELS,
     FILTER_TYPES,
     FILTER_TYPE_ID,
     FLAT_RESONANCE,
+    STAGED_FILTER_SOURCES,
     biquadTypeFor,
+    filterSourceIssueId,
     hostFilterRequest,
     kernelResonance,
     maxFilterCutoff,
@@ -19,6 +22,7 @@ import {
     resolveFilterType,
 } from '../filterSource';
 import { WAM_FILTER_TYPE_ID } from '../../../audio-worklets/wamFilter';
+import { RUST_FILTER_TYPE_ID } from '../../../audio-worklets/rustFilter';
 import { BackendRegistry, filterTypeRefusal } from '../BackendRegistry';
 import type { BackendCapabilities, GenerateRequest, OscillatorBackend } from '../OscillatorBackend';
 
@@ -37,11 +41,23 @@ describe('ids', () => {
         expect(FILTER_TYPE_ID).toEqual({ lp: 0, bp: 1, hp: 2 });
         expect(WAM_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
         expect(FILTER_TYPES).toEqual(['lp', 'bp', 'hp']);
-        expect(FILTER_SOURCES).toEqual(['native', 'wam']);
+        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust']);
+        expect(STAGED_FILTER_SOURCES).toEqual(['wam', 'rust']);
+        // The Rust kernel's response ids are the same numbers (FILTER_LP/BP/HP in rust-audio/src/lib.rs).
+        expect(RUST_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
     });
 
-    it('label the AssemblyScript source "WASM OSC", the same name as its oscillator', () => {
+    it('label the AssemblyScript source "WASM OSC" and the Rust one "Rust", the same names as their oscillators', () => {
         expect(FILTER_SOURCE_LABELS.wam).toBe('WASM OSC');
+        expect(FILTER_SOURCE_LABELS.rust).toBe('Rust');
+    });
+
+    it('give every source a description and its own degradation id', () => {
+        for (const source of FILTER_SOURCES) {
+            expect(FILTER_SOURCE_DESCRIPTIONS[source].length).toBeGreaterThan(10);
+        }
+        const ids = FILTER_SOURCES.map(filterSourceIssueId);
+        expect(new Set(ids).size).toBe(FILTER_SOURCES.length);
     });
 
     it('map to the BiquadFilterNode type that is the same response', () => {
@@ -113,6 +129,9 @@ describe('hostFilterRequest', () => {
         [{ source: 'wam', type: 'lp' }],
         [{ source: 'wam', type: 'bp' }],
         [{ source: 'wam', type: 'hp' }],
+        [{ source: 'rust', type: 'lp' }],
+        [{ source: 'rust', type: 'bp' }],
+        [{ source: 'rust', type: 'hp' }],
     ] as const)('opens the host\'s own filter for %j (the voice\'s filter does the work)', (effective) => {
         expect(hostFilterRequest(PARAMS, effective, RATE)).toEqual(open);
     });

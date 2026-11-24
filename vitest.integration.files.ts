@@ -33,4 +33,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/engines/__tests__/WasmOscillator.realWasm.test.ts',
   // The "WASM OSC filter" (#1663) on the real wamFilter.wasm: LP/BP/HP vs the RBJ transfer functions, == the kernel's baked filter, processor block handling.
   'src/audio-worklets/__tests__/wamFilter.realWasm.test.ts',
+  // The "Rust filter" (#1672) on the real rust_osc.wasm: LP/BP/HP vs the RBJ transfer functions, == the WASM OSC filter, filters any oscillator, processor block handling.
+  'src/audio-worklets/__tests__/rustFilter.realWasm.test.ts',
 ] as const;

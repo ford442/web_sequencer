@@ -91,7 +91,7 @@ export function logWaveformSubstitution(
 
 /**
  * Report that a voice asked for a filter implementation it could not get and is
- * running a different one (#1663: "WASM OSC filter" requested, native biquad
+ * running a different one (#1663 / #1672: "WASM OSC" or "Rust" filter requested, native biquad
  * used). The sound changes (different filter), so like a waveform substitution
  * it is never silent: console, telemetry and the degradation store / EngineHUD.
  */
@@ -99,6 +99,8 @@ export function logFilterSourceFallback(
   requestedSource: string,
   activeSource: string,
   reason: string,
+  /** One degradation entry per requested source (`filterSourceIssueId`); the legacy shared id by default. */
+  issueId = 'filter-source',
 ): void {
   const detail = `filter source "${requestedSource}" unavailable, using "${activeSource}" (${reason})`;
   console.warn(`[FilterSourceFallback] ${detail}`);
@@ -106,7 +108,7 @@ export function logFilterSourceFallback(
     engineTelemetry.registerResolution('filter', activeSource, detail);
     engineTelemetry.recordDegradation('filter', true, detail);
     engineDegradationStore.report({
-      id: 'filter-source',
+      id: issueId,
       subsystem: 'filter',
       category: 'wasm',
       message: `Filter running on the ${activeSource} filter instead of ${requestedSource}`,

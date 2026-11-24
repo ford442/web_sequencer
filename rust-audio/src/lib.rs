@@ -20,9 +20,15 @@
 //!     the exports, fixed 128 KiB memory (see `.cargo/config.toml`). All state
 //!     and I/O live in one static `Engine`.
 //!
-//! Filtering is deliberately absent: the voice's own `BiquadFilterNode` sits
-//! after this source (`VoiceManager.Voice`), exactly as it does for every other
-//! basic-wave family. A selectable in-kernel filter is #1672.
+//! The oscillator itself is unfiltered: the voice's filter sits after it
+//! (`VoiceManager.Voice`), exactly as for every other basic-wave family. What
+//! the kernel adds is the **Rust filter** (#1672): a resonant LP / BP / HP RBJ
+//! biquad (`Biquad`, below) that is independent of the oscillator shape and of
+//! the oscillator *engine* — a second instance of this same module runs it as a
+//! streaming stage (`src/audio-worklets/rust-filter-processor.ts`), so JS, WASM
+//! OSC, C++, DWGS, WebGPU, Pyodide and WAV voices can choose it as their filter
+//! (`SynthParams.filterSource === 'rust'`). It computes the same response as the
+//! AssemblyScript filter (`assembly/biquad.ts`) so the two sources sound alike.
 //!
 //! ABI (all `extern "C"`, no imports):
 //!   rosc_abi_version() -> u32           bumps when the surface changes
@@ -34,6 +40,10 @@
 //!   rosc_reset(phase)                    phase in cycles, wrapped to [0, 1)
 //!   rosc_render(shape, frames, per_sample_freq) -> u32   frames rendered
 //!   rosc_render_scalar(...)  -> u32     same contract, scalar reference path
+//!   rflt_buf_ptr()     -> *mut f32      filter I/O buffer (filtered in place)
+//!   rflt_configure(sample_rate, cutoff, resonance, type) -> i32   1 on success
+//!   rflt_reset()                         filter from rest
+//!   rflt_process(frames) -> u32          frames filtered
 
 #![cfg_attr(not(test), no_std)]
 
@@ -44,12 +54,18 @@ pub const MAX_FRAMES: usize = 1024;
 
 /// Bumped whenever an export's signature or meaning changes. The worklet
 /// refuses a module whose version it does not know.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 
 pub const SHAPE_SAW: u32 = 0;
 pub const SHAPE_SQR: u32 = 1;
 pub const SHAPE_TRI: u32 = 2;
 pub const SHAPE_SIN: u32 = 3;
+
+/// Filter response ids — the numbering of `FilterType` in src/types/synth.ts
+/// and of `FILTER_*` in assembly/biquad.ts.
+pub const FILTER_LP: u32 = 0;
+pub const FILTER_BP: u32 = 1;
+pub const FILTER_HP: u32 = 2;
 
 /// Highest phase increment accepted, in cycles per sample (Nyquist). Above it
 /// the two-sample residual windows on either side of a discontinuity overlap.
@@ -70,6 +86,9 @@ pub struct Engine {
     /// Current phase in cycles, always in [0, 1).
     phase: f32,
     inv_sample_rate: f32,
+    /// The Rust filter (#1672): one resonant biquad over `filt`, in place.
+    filter: Biquad,
+    filt: [f32; MAX_FRAMES],
 }
 
 impl Engine {
@@ -79,6 +98,8 @@ impl Engine {
             out: [0.0; MAX_FRAMES],
             phase: 0.0,
             inv_sample_rate: 1.0 / 48_000.0,
+            filter: Biquad::new(),
+            filt: [0.0; MAX_FRAMES],
         }
     }
 
@@ -90,6 +111,7 @@ impl Engine {
         self.inv_sample_rate = 1.0 / sample_rate;
         self.phase = 0.0;
         self.out = [0.0; MAX_FRAMES];
+        self.filter.reset();
         true
     }
 
@@ -113,6 +135,38 @@ impl Engine {
 
     pub fn phase(&self) -> f32 {
         self.phase
+    }
+
+    pub fn filter_buf_mut(&mut self) -> &mut [f32; MAX_FRAMES] {
+        &mut self.filt
+    }
+
+    /// See `Biquad::configure`. Leaves the filter state alone so sweeps do not click.
+    pub fn filter_configure(
+        &mut self,
+        sample_rate: f32,
+        cutoff: f32,
+        resonance: f32,
+        kind: u32,
+    ) -> bool {
+        self.filter
+            .configure(sample_rate as f64, cutoff as f64, resonance as f64, kind)
+    }
+
+    pub fn filter_reset(&mut self) {
+        self.filter.reset();
+    }
+
+    /// Filter the first `frames` samples of the filter buffer in place; returns
+    /// the frames done. Frames beyond capacity are clamped, a filter that was
+    /// never configured passes the signal through unchanged (see `Biquad::new`).
+    pub fn filter_process(&mut self, frames: usize) -> usize {
+        let n = frames.min(MAX_FRAMES);
+        for x in self.filt[..n].iter_mut() {
+            *x = self.filter.tick(*x as f64) as f32;
+        }
+        self.filter.flush_denormals();
+        n
     }
 
     /// Phase increment for `hz`, clamped to [0, MAX_INC]. NaN → 0.
@@ -282,6 +336,148 @@ pub fn shape_sample(shape: u32, t: f32, dt: f32) -> f32 {
         SHAPE_SIN => -sin_pi(2.0 * t - 1.0),
         // SHAPE_SAW, and any unknown id (the worklet clamps, this is belt and braces).
         _ => 2.0 * t - 1.0 - poly_blep(t, dt),
+    }
+}
+
+// ── Rust filter (#1672) ─────────────────────────────────────────────────────
+
+/// Hz.
+const MIN_CUTOFF: f64 = 20.0;
+const MIN_RESONANCE: f64 = 0.1;
+/// State below this magnitude is flushed to zero (denormals cost real time on some CPUs).
+const DENORMAL_FLOOR: f64 = 1.0e-30;
+
+/// sin(π·y) for |y| ≤ 1/2, f64. Taylor to z²¹: error < 1e-19 on |z| ≤ π/2.
+#[inline(always)]
+fn sin_pi_f64(y: f64) -> f64 {
+    let z = core::f64::consts::PI * y;
+    let z2 = z * z;
+    z * (1.0
+        + z2 * (-1.0 / 6.0
+            + z2 * (1.0 / 120.0
+                + z2 * (-1.0 / 5_040.0
+                    + z2 * (1.0 / 362_880.0
+                        + z2 * (-1.0 / 39_916_800.0
+                            + z2 * (1.0 / 6_227_020_800.0
+                                + z2 * (-1.0 / 1_307_674_368_000.0
+                                    + z2 * (1.0 / 355_687_428_096_000.0
+                                        + z2 * (-1.0 / 121_645_100_408_832_000.0))))))))))
+}
+
+/// (sin w0, cos w0) for w0 in [0, π): `core` has no libm, so fold onto
+/// [-π/2, π/2] and evaluate the series. cos w0 = sin(π(½ − w0/π)).
+#[inline(always)]
+fn sin_cos(w0: f64) -> (f64, f64) {
+    let x = w0 * (1.0 / core::f64::consts::PI); // in [0, 1)
+    let s = sin_pi_f64(if x > 0.5 { 1.0 - x } else { x });
+    let c = sin_pi_f64(0.5 - x);
+    (s, c)
+}
+
+/// One RBJ (Audio EQ Cookbook) biquad, transposed direct form II, f64
+/// coefficients and state — the same filter as `assembly/biquad.ts`, so a
+/// voice sounds the same on either source.
+///
+/// f32 cannot represent a 20 Hz lowpass at 48 kHz (a1 ≈ −2 + 1e-5 is inside f32
+/// rounding): low cutoffs would drift and ring at the wrong pitch.
+///
+///   LP  −12 dB/oct above `cutoff`
+///   BP  constant 0 dB peak gain (the bandpass a `BiquadFilterNode` builds)
+///   HP  −12 dB/oct below `cutoff`
+#[derive(Clone, Copy)]
+pub struct Biquad {
+    b0: f64,
+    b1: f64,
+    b2: f64,
+    a1: f64,
+    a2: f64,
+    z1: f64,
+    z2: f64,
+}
+
+impl Biquad {
+    /// Unconfigured = identity (a never-configured filter passes audio through;
+    /// the worklet refuses to run before the first successful `configure`).
+    pub const fn new() -> Self {
+        Biquad {
+            b0: 1.0,
+            b1: 0.0,
+            b2: 0.0,
+            a1: 0.0,
+            a2: 0.0,
+            z1: 0.0,
+            z2: 0.0,
+        }
+    }
+
+    /// Set the coefficients for `kind` at `cutoff` Hz / `resonance` (Q) at
+    /// `sample_rate`, leaving the state alone. `cutoff` is clamped to
+    /// [20 Hz, sample_rate / 2.1] and `resonance` to ≥ 0.1.
+    ///
+    /// Returns false — keeping the previous coefficients — for an unusable
+    /// argument: a non-finite value, a rate outside the module's range, or an
+    /// unknown `kind`. (The kernel never traps; the caller reports.)
+    pub fn configure(&mut self, sample_rate: f64, cutoff: f64, resonance: f64, kind: u32) -> bool {
+        let rate_ok = (MIN_SAMPLE_RATE as f64..=MAX_SAMPLE_RATE as f64).contains(&sample_rate);
+        if !rate_ok || !cutoff.is_finite() || !resonance.is_finite() || kind > FILTER_HP {
+            return false;
+        }
+        let fc = cutoff.min(sample_rate / 2.1).max(MIN_CUTOFF);
+        let q = resonance.max(MIN_RESONANCE);
+        let w0 = 2.0 * core::f64::consts::PI * fc / sample_rate;
+        let (sin_w0, cos_w0) = sin_cos(w0);
+        let alpha = sin_w0 / (2.0 * q);
+        let inv_a0 = 1.0 / (1.0 + alpha);
+        match kind {
+            FILTER_BP => {
+                self.b0 = alpha * inv_a0;
+                self.b1 = 0.0;
+                self.b2 = -self.b0;
+            }
+            FILTER_HP => {
+                self.b0 = (1.0 + cos_w0) * 0.5 * inv_a0;
+                self.b1 = -(1.0 + cos_w0) * inv_a0;
+                self.b2 = self.b0;
+            }
+            _ => {
+                self.b0 = (1.0 - cos_w0) * 0.5 * inv_a0;
+                self.b1 = (1.0 - cos_w0) * inv_a0;
+                self.b2 = self.b0;
+            }
+        }
+        self.a1 = -2.0 * cos_w0 * inv_a0;
+        self.a2 = (1.0 - alpha) * inv_a0;
+        true
+    }
+
+    /// Filter from rest.
+    pub fn reset(&mut self) {
+        self.z1 = 0.0;
+        self.z2 = 0.0;
+    }
+
+    #[inline(always)]
+    pub fn tick(&mut self, x: f64) -> f64 {
+        let y = self.b0 * x + self.z1;
+        self.z1 = self.b1 * x - self.a1 * y + self.z2;
+        self.z2 = self.b2 * x - self.a2 * y;
+        y
+    }
+
+    /// Once per block: a silent input must not leave the state decaying into denormals.
+    pub fn flush_denormals(&mut self) {
+        if self.z1.abs() < DENORMAL_FLOOR {
+            self.z1 = 0.0;
+        }
+        if self.z2.abs() < DENORMAL_FLOOR {
+            self.z2 = 0.0;
+        }
+    }
+}
+
+impl Default for Biquad {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -480,6 +676,31 @@ mod abi {
     #[no_mangle]
     pub extern "C" fn rosc_render_scalar(shape: u32, frames: u32, per_sample_freq: u32) -> u32 {
         engine().render_scalar(shape, frames as usize, per_sample_freq != 0) as u32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn rflt_buf_ptr() -> *mut f32 {
+        engine().filter_buf_mut().as_mut_ptr()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn rflt_configure(
+        sample_rate: f32,
+        cutoff: f32,
+        resonance: f32,
+        kind: u32,
+    ) -> i32 {
+        engine().filter_configure(sample_rate, cutoff, resonance, kind) as i32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn rflt_reset() {
+        engine().filter_reset()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn rflt_process(frames: u32) -> u32 {
+        engine().filter_process(frames as usize) as u32
     }
 
     #[cfg(not(test))]
@@ -695,5 +916,265 @@ mod tests {
         assert_eq!(e.phase(), 0.0);
         e.reset(-0.5);
         assert_eq!(e.phase(), 0.0);
+    }
+
+    // ── Rust filter (#1672) ─────────────────────────────────────────────────
+
+    /// The textbook coefficients with libm sin/cos — what `assembly/biquad.ts`
+    /// computes with `Math.sin/cos`.
+    fn reference_coeffs(sr: f64, cutoff: f64, q: f64, kind: u32) -> [f64; 5] {
+        let fc = cutoff.min(sr / 2.1).max(20.0);
+        let q = q.max(0.1);
+        let w0 = 2.0 * std::f64::consts::PI * fc / sr;
+        let (s, c) = w0.sin_cos();
+        let alpha = s / (2.0 * q);
+        let ia0 = 1.0 / (1.0 + alpha);
+        let (b0, b1, b2) = match kind {
+            FILTER_BP => (alpha * ia0, 0.0, -alpha * ia0),
+            FILTER_HP => (
+                (1.0 + c) * 0.5 * ia0,
+                -(1.0 + c) * ia0,
+                (1.0 + c) * 0.5 * ia0,
+            ),
+            _ => (
+                (1.0 - c) * 0.5 * ia0,
+                (1.0 - c) * ia0,
+                (1.0 - c) * 0.5 * ia0,
+            ),
+        };
+        [b0, b1, b2, -2.0 * c * ia0, (1.0 - alpha) * ia0]
+    }
+
+    /// |H(e^{jω})| of the biquad's own coefficients at `hz`.
+    fn magnitude(b: &Biquad, sr: f64, hz: f64) -> f64 {
+        let w = 2.0 * std::f64::consts::PI * hz / sr;
+        let (s1, c1) = w.sin_cos();
+        let (s2, c2) = (2.0 * w).sin_cos();
+        let nr = b.b0 + b.b1 * c1 + b.b2 * c2;
+        let ni = -(b.b1 * s1 + b.b2 * s2);
+        let dr = 1.0 + b.a1 * c1 + b.a2 * c2;
+        let di = -(b.a1 * s1 + b.a2 * s2);
+        ((nr * nr + ni * ni) / (dr * dr + di * di)).sqrt()
+    }
+
+    fn configured(kind: u32, cutoff: f64, q: f64) -> Biquad {
+        let mut b = Biquad::new();
+        assert!(b.configure(SR as f64, cutoff, q, kind));
+        b
+    }
+
+    #[test]
+    fn sin_cos_matches_libm_over_the_whole_cutoff_range() {
+        let mut worst: f64 = 0.0;
+        for k in 0..=20_000 {
+            // w0 from 0 to the highest cutoff the filter allows (2π / 2.1).
+            let w0 = 2.0 * std::f64::consts::PI / 2.1 * (k as f64 / 20_000.0);
+            let (s, c) = sin_cos(w0);
+            worst = worst.max((s - w0.sin()).abs()).max((c - w0.cos()).abs());
+        }
+        assert!(worst < 1.0e-14, "worst sin/cos error {worst:e}");
+    }
+
+    #[test]
+    fn coefficients_equal_the_reference_for_every_response() {
+        for kind in [FILTER_LP, FILTER_BP, FILTER_HP] {
+            for (sr, fc, q) in [
+                (48_000.0, 20.0, 0.7),
+                (48_000.0, 1_000.0, 4.0),
+                (44_100.0, 8_000.0, 12.0),
+                (48_000.0, 40_000.0, 0.5), // above the clamp
+                (96_000.0, 5.0, 0.01),     // below both clamps
+            ] {
+                let mut b = Biquad::new();
+                assert!(b.configure(sr, fc, q, kind));
+                let want = reference_coeffs(sr, fc, q, kind);
+                let got = [b.b0, b.b1, b.b2, b.a1, b.a2];
+                for (g, w) in got.iter().zip(want) {
+                    assert!(
+                        (g - w).abs() < 1.0e-13,
+                        "kind {kind} {sr} {fc} {q}: {got:?} vs {want:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn responses_have_the_rbj_shape() {
+        let sr = SR as f64;
+        // Butterworth Q: −3 dB at the cutoff, flat on the pass side, 12 dB/oct on the other.
+        let lp = configured(FILTER_LP, 1_000.0, std::f64::consts::FRAC_1_SQRT_2);
+        assert!((magnitude(&lp, sr, 10.0) - 1.0).abs() < 1.0e-3);
+        assert!((magnitude(&lp, sr, 1_000.0) - std::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-3);
+        // Analog 2nd-order Butterworth, 1/√(1+r⁴), where the bilinear warping is
+        // still small (it bends the slope near Nyquist, so not 4 kHz and up).
+        for (hz, tol) in [(1_500.0, 0.02), (2_000.0, 0.03)] {
+            let r: f64 = hz / 1_000.0;
+            let analog = 1.0 / (1.0 + r.powi(4)).sqrt();
+            let got = magnitude(&lp, sr, hz);
+            assert!(
+                (got / analog - 1.0).abs() < tol,
+                "{hz} Hz: {got} vs analog {analog}"
+            );
+        }
+
+        let hp = configured(FILTER_HP, 1_000.0, std::f64::consts::FRAC_1_SQRT_2);
+        assert!(magnitude(&hp, sr, 10.0) < 1.0e-3);
+        assert!((magnitude(&hp, sr, 1_000.0) - std::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-3);
+        assert!((magnitude(&hp, sr, 20_000.0) - 1.0).abs() < 0.02);
+
+        // Constant 0 dB peak gain at the centre, whatever the Q.
+        for q in [0.5, 2.0, 10.0] {
+            let bp = configured(FILTER_BP, 2_000.0, q);
+            assert!((magnitude(&bp, sr, 2_000.0) - 1.0).abs() < 1.0e-9, "Q {q}");
+            assert!(magnitude(&bp, sr, 100.0) < 0.5 && magnitude(&bp, sr, 20_000.0) < 0.5);
+        }
+
+        // Resonance: the lowpass peaks at ≈ Q at the cutoff.
+        let res = configured(FILTER_LP, 1_000.0, 8.0);
+        assert!((magnitude(&res, sr, 1_000.0) - 8.0).abs() < 0.3);
+    }
+
+    #[test]
+    fn processed_sine_has_the_analytic_gain() {
+        // The time-domain path (f32 buffer → f64 biquad → f32 buffer) agrees with
+        // the transfer function: feed a sine, measure the steady-state amplitude.
+        for (kind, cutoff, hz) in [
+            (FILTER_LP, 2_000.0, 8_000.0),
+            (FILTER_LP, 2_000.0, 500.0),
+            (FILTER_HP, 2_000.0, 500.0),
+            (FILTER_BP, 2_000.0, 2_000.0),
+            (FILTER_BP, 2_000.0, 6_000.0),
+        ] {
+            let mut e = Box::new(Engine::new());
+            assert!(e.init(SR));
+            assert!(e.filter_configure(SR, cutoff as f32, 3.0, kind));
+            let want = magnitude(&configured(kind, cutoff, 3.0), SR as f64, hz);
+            let n = 8_192usize;
+            let (mut sum_sq, mut count) = (0.0f64, 0usize);
+            for block in 0..(n / 128) {
+                for k in 0..128 {
+                    let i = block * 128 + k;
+                    e.filter_buf_mut()[k] =
+                        (2.0 * std::f32::consts::PI * hz as f32 * i as f32 / SR).sin();
+                }
+                assert_eq!(e.filter_process(128), 128);
+                if block >= n / 128 / 2 {
+                    sum_sq += e.filt[..128]
+                        .iter()
+                        .map(|&v| (v as f64) * (v as f64))
+                        .sum::<f64>();
+                    count += 128;
+                }
+            }
+            // RMS, not peak: at 8 kHz a cycle is 6 samples and a sampled peak can miss.
+            let amplitude = (sum_sq / count as f64).sqrt() * std::f64::consts::SQRT_2;
+            assert!(
+                (amplitude - want).abs() < 0.01 * want + 1.0e-4,
+                "kind {kind} fc {cutoff} {hz} Hz: got {amplitude}, want {want}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_20_hz_lowpass_is_stable_and_has_unity_dc_gain() {
+        let mut e = Box::new(Engine::new());
+        e.init(SR);
+        assert!(e.filter_configure(SR, 20.0, 0.7, FILTER_LP));
+        let mut last = 0.0;
+        for _ in 0..(SR as usize * 2 / 128) {
+            e.filter_buf_mut()[..128].fill(1.0);
+            e.filter_process(128);
+            last = e.filt[127];
+        }
+        assert!((last - 1.0).abs() < 1.0e-4, "step settles at {last}");
+    }
+
+    #[test]
+    fn refused_arguments_keep_the_previous_response() {
+        let mut b = configured(FILTER_LP, 1_000.0, 2.0);
+        let before = (b.b0, b.b1, b.b2, b.a1, b.a2);
+        for (sr, fc, q, kind) in [
+            (f64::NAN, 1_000.0, 1.0, FILTER_LP),
+            (0.0, 1_000.0, 1.0, FILTER_LP),
+            (1.0e7, 1_000.0, 1.0, FILTER_LP),
+            (48_000.0, f64::NAN, 1.0, FILTER_LP),
+            (48_000.0, f64::INFINITY, 1.0, FILTER_LP),
+            (48_000.0, 1_000.0, f64::NAN, FILTER_LP),
+            (48_000.0, 1_000.0, 1.0, 3),
+            (48_000.0, 1_000.0, 1.0, u32::MAX),
+        ] {
+            assert!(!b.configure(sr, fc, q, kind), "{sr} {fc} {q} {kind}");
+            assert_eq!((b.b0, b.b1, b.b2, b.a1, b.a2), before);
+        }
+    }
+
+    #[test]
+    fn nan_input_never_poisons_a_good_filter_for_long() {
+        // A NaN sample poisons the recursion by construction; what matters is
+        // that `reset` (the worklet does this after a silent gap) recovers it.
+        let mut b = configured(FILTER_LP, 1_000.0, 1.0);
+        b.tick(f64::NAN);
+        assert!(b.tick(0.0).is_nan());
+        b.reset();
+        assert!(b.tick(1.0).is_finite());
+    }
+
+    #[test]
+    fn reconfiguring_keeps_state_so_a_sweep_does_not_click() {
+        let mut e = Box::new(Engine::new());
+        e.init(SR);
+        e.filter_configure(SR, 500.0, 1.0, FILTER_LP);
+        e.filter_buf_mut()[..128].fill(1.0);
+        e.filter_process(128);
+        let held = e.filter.z1;
+        assert!(held != 0.0);
+        e.filter_configure(SR, 4_000.0, 1.0, FILTER_LP);
+        assert_eq!(e.filter.z1, held);
+        e.filter_reset();
+        assert_eq!((e.filter.z1, e.filter.z2), (0.0, 0.0));
+    }
+
+    #[test]
+    fn denormal_tails_are_flushed_and_frames_clamped() {
+        let mut e = Box::new(Engine::new());
+        e.init(SR);
+        e.filter_configure(SR, 1_000.0, 0.7, FILTER_LP);
+        e.filter_buf_mut()[0] = 1.0;
+        e.filter_process(MAX_FRAMES);
+        for _ in 0..2_000 {
+            e.filter_buf_mut().fill(0.0);
+            e.filter_process(MAX_FRAMES);
+        }
+        assert_eq!((e.filter.z1, e.filter.z2), (0.0, 0.0));
+        assert_eq!(e.filter_process(MAX_FRAMES * 4), MAX_FRAMES);
+    }
+
+    #[test]
+    fn an_unconfigured_filter_is_an_identity() {
+        let mut e = Box::new(Engine::new());
+        e.init(SR);
+        for (i, v) in e.filter_buf_mut()[..64].iter_mut().enumerate() {
+            *v = i as f32 * 0.01 - 0.3;
+        }
+        e.filter_process(64);
+        for (i, v) in e.filt[..64].iter().enumerate() {
+            assert_eq!(*v, i as f32 * 0.01 - 0.3);
+        }
+    }
+
+    #[test]
+    fn the_filter_does_not_touch_the_oscillator_buffers() {
+        // Same module, two jobs: a filter instance never renders and an
+        // oscillator instance never filters, but their buffers are independent.
+        let mut e = Box::new(Engine::new());
+        e.init(SR);
+        e.freq_mut()[0] = 440.0;
+        e.render(SHAPE_SAW, 128, false);
+        let osc = e.out()[..128].to_vec();
+        e.filter_configure(SR, 800.0, 2.0, FILTER_HP);
+        e.filter_buf_mut()[..128].fill(0.5);
+        e.filter_process(128);
+        assert_eq!(&e.out()[..128], &osc[..]);
     }
 }

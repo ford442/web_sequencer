@@ -13,6 +13,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Plaits sources (macro voices)](#plaits-sources)
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [The WASM OSC filter (LP / BP / HP, usable by any oscillator)](#wam-filter)
+- [The Rust filter (same idea, in the Rust kernel)](#rust-filter)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [Denormal guards](#denormal-guards)
@@ -543,7 +544,7 @@ to be:
 | SIMD | none | `simd128` throughout: 4 samples per iteration, phases from an in-register prefix sum |
 | Memory | wasm-bindgen + allocator, growable | `no_std`, no allocator, **fixed 2 pages** (`wasm_memory_budget.json#rustOsc`) |
 | Shapes | saw, square | saw, square, triangle, sine |
-| Filter | biquad baked into the table | none: the voice's `BiquadFilterNode` follows, as for every family (#1672 adds one) |
+| Filter | biquad baked into the table | none in the oscillator: the voice's filter follows, as for every family. The kernel also carries the selectable **Rust filter** ([below](#rust-filter), #1672) |
 
 Pieces:
 
@@ -558,7 +559,8 @@ Pieces:
   build --release --locked --target wasm32-unknown-unknown` with
   `+simd128`, `--initial-memory = --max-memory` and `-zstack-size` taken from the
   budget, then `tools/check_rust_osc_module.mjs` (no imports, fixed unshared
-  memory of the budgeted size, exact export surface, ABI 1, SIMD compiled in).
+  memory of the budgeted size, exact export surface (`rosc_*` + `rflt_*`), ABI 2, SIMD compiled in,
+  and a smoke call of the filter).
   It is the `rust-osc` native world; `check-release-dist.mjs` re-checks
   `dist/rust_osc.wasm` and budgets it (`dist-budget.json#native`).
   Needs `rustup target add wasm32-unknown-unknown`; no wasm-pack.
@@ -780,7 +782,7 @@ converts, so switching the source does not change the timbre. Verified against a
 **Degradation is logged, never silent.** If the WASM filter cannot run (no AudioWorklet,
 `wamFilter.wasm` missing or rejected by the engine, the worklet failed to instantiate, an
 `OfflineAudioContext` render, a mid-session loss) the voice runs the native filter and calls
-`logFilterSourceFallback`: console, telemetry, and the degradation store entry `filter-source`
+`logFilterSourceFallback`: console, telemetry, and the degradation store entry `filter-source:wam`
 that the EngineHUD and the selector's own notice read. One report per cause, not per note.
 A registry-level backend that cannot bake the asked response (`capabilities.filterTypes`;
 `pyodide` bakes lowpass only) is skipped with a logged reason rather than baking a lowpass for
@@ -802,6 +804,61 @@ the running coefficients, and the processor reconfigures only when cutoff / Q / 
   block); the voice sets them at note start, as it always has.
 - *Session packs* do not carry `filterType` / `filterSource` (`PACK_SYNTH_NUMERIC_RANGES` is the format's
   contract); songs do, because they serialise `SynthParams` whole.
+
+<a id="rust-filter"></a>
+
+### The Rust filter: LP / BP / HP in the Rust kernel, selectable by any oscillator (#1672)
+
+The same idea as the [WASM OSC filter](#wam-filter), in the Rust kernel: a real resonant
+filter, independent of the oscillator shape **and** of the oscillator engine. Choosing
+`SynthParams.filterSource: 'rust'` ("Rust" in the Filter / Source selector) runs it after
+whatever the synth plays — JS, WASM OSC, Rust, C++, DWGS, WebGPU, Pyodide, WAV. It replaces
+the retired bench crate's naive lowpass.
+
+- **DSP** — `Biquad` in `rust-audio/src/lib.rs`: RBJ (Audio EQ Cookbook), transposed direct
+  form II, **`f64` coefficients and state** (an `f32` 20 Hz lowpass at 48 kHz drifts: `a1 ≈
+  −2 + 1e-5` is inside `f32` rounding). `core` has no libm, so `sin`/`cos` of the cutoff come
+  from a degree-21 series on a folded range (error < 1e-14 against libm, `cargo test`).
+  LP / BP (constant 0 dB peak, like `BiquadFilterNode`) / HP, `cutoff` clamped to
+  [20 Hz, `sampleRate / 2.1`], `Q ≥ 0.1`. Same numbering as the AS kernel (`FILTER_LP/BP/HP` =
+  0 / 1 / 2). Cutoff changes keep the state, so a sweep does not click; `rflt_process`
+  flushes denormals once per block.
+- **Same module as the oscillator, not a second build.** Four more exports in
+  `public/rust_osc.wasm` — `rflt_buf_ptr`, `rflt_configure`, `rflt_reset`, `rflt_process`
+  (`wasm_export_manifest.json#rustOsc.requiredFilter`) — with an in-place 1024-frame buffer
+  (4 KiB; the module stays at its 2 fixed pages with ~100 KiB spare). ABI **2** (the surface
+  changed; the worklets refuse any other). A filter node is another instance of the module
+  that never calls `rosc_render`; an oscillator node never calls `rflt_*`. One build, one
+  release gate (`tools/check_rust_osc_module.mjs` also smoke-calls the filter and checks it
+  refuses an unknown type), one `dist` artifact.
+- **Worklet / bridge** — `src/audio-worklets/rust-filter-processor.ts` (k-rate `cutoff`,
+  `resonance`, `type`; same node contract as `wam-filter-processor`) and
+  `src/engines/RustFilter.ts`, which is `WasmFilterStage` (the machinery `WamFilter` was
+  generalised into: pooled nodes, readiness probe, named failure reasons) over
+  `loadRustOscModule()` — so the oscillator and the filter fetch and compile `rust_osc.wasm`
+  **once**. `engines/filterStages.ts` holds one process-wide slot per source; `Voice` asks
+  for the stage its note selected.
+- **Same sound as the WASM OSC filter.** Noise through both kernels agrees to f32 rounding
+  at LP/BP/HP across 20 Hz–9 kHz and Q 0.7–12 (`rustFilter.realWasm.test.ts`), and
+  `kernelResonance` maps the knob identically, so switching source does not change the timbre.
+- **One filter shapes the sound.** `hostFilterRequest` treats `rust` like `wam`: a host that
+  bakes its own filter (`wam-*`, `pyodide-*`) is asked to bake none.
+- **Degradation is per source.** Rust unavailable (no `rust_osc.wasm`, no SIMD, no worklet,
+  an offline render, lost mid-session) → the voice runs the native filter and reports it
+  under `filter-source:rust` (the WASM OSC filter reports under `filter-source:wam`), so a
+  working source never clears another's report. Once per cause.
+
+```
+host oscillator ──► filterBus ──► BiquadFilterNode ─────┐   filterSource: 'native' (default)
+ (any engine)          ├───────► wam-filter-processor ──┤   filterSource: 'wam'
+                       └───────► rust-filter-processor ─┴─► gain → …   filterSource: 'rust'
+```
+
+**Not done, deliberately.** (1) The filter is a separate worklet node after the oscillator,
+including for `rust-*` itself; filtering inside `rust-osc-processor` (one node, no extra
+hop) is possible with these exports but not wired. (2) Offline bounces take the logged native
+fallback, as for the WASM OSC filter. (3) Cutoff / Q / type are k-rate, set at note start.
+(4) Session packs do not carry `filterType` / `filterSource`.
 
 <a id="wam-osc"></a>
 

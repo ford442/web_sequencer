@@ -5,6 +5,7 @@
  *   - one defined memory, not shared, that cannot grow, sized exactly as the
  *     `rustOsc` section of emscripten/wasm_memory_budget.json says
  *   - exactly the `rustOsc` exports of emscripten/wasm_export_manifest.json
+ *     (the oscillator and the Rust filter, #1672)
  *   - the ABI version the worklet binds to, and the v128 render path compiled in
  *     (a scalar-only build would make "SIMD Rust oscillator" a label, not a fact)
  *
@@ -21,16 +22,19 @@ import { parseWasmMemories } from './check_mix_bus_module.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const RUST_OSC_REQUIRED_EXPORTS = JSON.parse(
+const RUST_OSC_MANIFEST = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8'),
-).rustOsc.required;
+).rustOsc;
+
+/** The oscillator exports (`rosc_*`) and the Rust filter exports (`rflt_*`, #1672), one module. */
+export const RUST_OSC_REQUIRED_EXPORTS = [...RUST_OSC_MANIFEST.required, ...RUST_OSC_MANIFEST.requiredFilter];
 
 export const RUST_OSC_BUDGET = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'emscripten/wasm_memory_budget.json'), 'utf8'),
 ).rustOsc;
 
 /** Must equal `ABI_VERSION` in rust-audio/src/lib.rs and the worklet's constant. */
-export const RUST_OSC_ABI_VERSION = 1;
+export const RUST_OSC_ABI_VERSION = 2;
 
 /** @returns {string[]} problems; empty when the module is acceptable. */
 export function checkRustOscModule(buf) {
@@ -86,6 +90,15 @@ export function checkRustOscModule(buf) {
       }
     }
     if (exports.rosc_init(48000) !== 1) problems.push('rosc_init(48000) did not return 1');
+    if (exports.rflt_buf_ptr() + bytes > exports.memory.buffer.byteLength) {
+      problems.push('rflt_buf_ptr buffer runs past the end of memory');
+    }
+    if (exports.rflt_configure(48000, 1000, 0.7071, 0) !== 1) {
+      problems.push('rflt_configure(48000, 1000, 0.7071, lowpass) did not return 1');
+    }
+    if (exports.rflt_configure(48000, 1000, 0.7071, 99) !== 0) {
+      problems.push('rflt_configure accepted an unknown filter type');
+    }
   }
 
   return problems;

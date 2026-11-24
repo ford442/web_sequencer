@@ -1,14 +1,15 @@
 /**
- * Which filter shapes a voice, and how a host oscillator engine is told (#1663).
+ * Which filter shapes a voice, and how a host oscillator engine is told (#1663, #1672).
  *
  * A voice's resonant filter has two independent choices:
  *   - `filterType`   low / band / high pass;
  *   - `filterSource` whose DSP runs it: the voice's own `BiquadFilterNode`
- *     (`native`) or the AssemblyScript kernel's biquad (`wam`, "WASM OSC").
+ *     (`native`), the AssemblyScript kernel's biquad (`wam`, "WASM OSC") or the
+ *     Rust kernel's (`rust`).
  *
- * The WASM OSC filter is a *stage* after the oscillator, not a feature of the
- * `wam-*` oscillator — so any host engine (JS, Rust, C++, DWGS, WebGPU, Pyodide,
- * WAV, WASM OSC itself) can be filtered by it. This module is the pure policy
+ * The wasm filters are *stages* after the oscillator, not features of the
+ * `wam-*` / `rust-*` oscillators — so any host engine (JS, Rust, C++, DWGS,
+ * WebGPU, Pyodide, WAV, WASM OSC) can be filtered by either. This module is the pure policy
  * half: ids, labels, validation, and the one rule about what a host that bakes
  * a filter into its table must be asked to do. `Voice` owns the graph half.
  */
@@ -16,9 +17,12 @@
 import type { FilterSource, FilterType, SynthParams } from '../../types/synth';
 
 export const FILTER_TYPES: readonly FilterType[] = ['lp', 'bp', 'hp'] as const;
-export const FILTER_SOURCES: readonly FilterSource[] = ['native', 'wam'] as const;
+export const FILTER_SOURCES: readonly FilterSource[] = ['native', 'wam', 'rust'] as const;
 
-/** Kernel response ids — `FILTER_LP/BP/HP` in assembly/biquad.ts. */
+/** The sources that run in a wasm worklet stage (everything but the voice's own biquad). */
+export const STAGED_FILTER_SOURCES: readonly Exclude<FilterSource, 'native'>[] = ['wam', 'rust'] as const;
+
+/** Kernel response ids — `FILTER_LP/BP/HP` in assembly/biquad.ts and rust-audio/src/lib.rs. */
 export const FILTER_TYPE_ID: Record<FilterType, number> = { lp: 0, bp: 1, hp: 2 };
 
 export const FILTER_TYPE_LABELS: Record<FilterType, string> = {
@@ -30,11 +34,28 @@ export const FILTER_TYPE_LABELS: Record<FilterType, string> = {
 /**
  * Display labels. `wam` is Hyphon's AssemblyScript kernel — "WASM OSC" in the
  * UI, same as the oscillator (`BACKEND_LABELS.wam`) — NOT Web Audio Modules 2.0.
+ * `rust` is the Rust kernel, "Rust" like its oscillator.
  */
 export const FILTER_SOURCE_LABELS: Record<FilterSource, string> = {
     native: 'Native',
     wam: 'WASM OSC',
+    rust: 'Rust',
 };
+
+/** What each source's button says it is. */
+export const FILTER_SOURCE_DESCRIPTIONS: Record<FilterSource, string> = {
+    native: 'The voice\'s own Web Audio biquad filter',
+    wam: 'The AssemblyScript kernel\'s resonant filter, applied to this oscillator',
+    rust: 'The Rust kernel\'s resonant filter, applied to this oscillator',
+};
+
+/**
+ * Degradation-store id of "this source could not run": one per source, so a
+ * voice that is fine on one wasm filter does not resolve another's report.
+ */
+export function filterSourceIssueId(source: FilterSource): string {
+    return `filter-source:${source}`;
+}
 
 export const DEFAULT_FILTER_TYPE: FilterType = 'lp';
 export const DEFAULT_FILTER_SOURCE: FilterSource = 'native';
@@ -108,7 +129,7 @@ export interface HostFilterRequest {
  *
  * The rule is: the table's own filter and the voice's filter must not both
  * shape the sound unless it is the legacy case.
- *   - effective source `wam` — the WASM OSC stage after the host does the
+ *   - effective source `wam` / `rust` — the wasm stage after the host does the
  *     filtering, so the host's own filter is opened (`cutoff` at its maximum,
  *     flat Q); filtering twice would square the response.
  *   - effective `native` + `lp` — unchanged from before this feature: the table
