@@ -3,6 +3,7 @@ import type { MutableRefObject } from 'react';
 import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { RustOscillator } from '../../engines/RustOscillator';
+import { WamFilter, setWamFilter } from '../../engines/WamFilter';
 import { CppOscillator } from '../../engines/CppOscillator';
 import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
@@ -118,6 +119,9 @@ export interface EngineLifecycleUrls {
     drumkitProcessorUrl: string;
     /** `rust-*` oscillator voices (#1664). */
     rustOscProcessorUrl: string;
+    /** The "WASM OSC filter" worklet (#1663) and the wasm it runs. */
+    wamFilterProcessorUrl: string;
+    wamFilterWasmUrl: string;
     /** `cpp-*` oscillator voices (#1665). */
     cppOscProcessorUrl: string;
     /** `dwgs-*` oscillator voices (#1666). */
@@ -254,6 +258,13 @@ export async function initializeAudioContextAndEngines(
     // C++ OSC (then the AS table), `cpp-*` to the AS table, `dwgs-*` to each
     // wave's nearest basic shape on the first live engine below it.
     await Promise.all([rustBackend.init(context), cppBackend.init(context), dwgsBackend.init(context)]);
+
+    // The "WASM OSC filter" (#1663): a filter *stage*, not an oscillator, so it is
+    // not in the backend chain. A voice that selects it asks `getWamFilter()`; if
+    // this init failed it runs its native filter and reports the substitution.
+    const wamFilter = new WamFilter(urls.wamFilterProcessorUrl, urls.wamFilterWasmUrl);
+    setWamFilter(wamFilter);
+    await wamFilter.init(context);
     loadingProgressStore.completeStep('wasmEngine');
 
     // Fails until a runtime attaches — the point of the call is to hand the

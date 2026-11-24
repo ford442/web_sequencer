@@ -7,6 +7,8 @@
 
 import initOscillatorsBaseline from '../wasm/oscillators.wasm?init';
 import { engineTelemetry, logEngineFallback } from '@/utils/engineTelemetry';
+import { FILTER_TYPE_ID } from './backends/filterSource';
+import type { FilterType } from '../types/synth';
 
 interface OscillatorWasmExports {
     memory: WebAssembly.Memory;
@@ -18,6 +20,8 @@ interface OscillatorWasmExports {
         type: number,
         cutoff: number,
         resonance: number,
+        /** 0 low pass, 1 band pass, 2 high pass. A build that predates it reads an absent argument as 0. */
+        filterType: number,
     ) => number;
     /**
      * Same arguments as `generate`; renders a table with a whole number of
@@ -162,6 +166,10 @@ export class WasmOscillator {
      * the pitch moves by less than half a frame per table. Leave it off for a
      * one-shot note, which is exactly `floor(dur * rate)` frames from a filter at rest.
      *
+     * `filterType` picks the response of the filter baked into the table (low /
+     * band / high pass, RBJ biquad); an id the kernel does not know comes back as
+     * an empty array, not a lowpass.
+     *
      * A bad argument (non-finite or non-positive pitch/duration) comes back as an
      * empty array rather than a trap; the kernel never writes past linear memory.
      */
@@ -173,6 +181,7 @@ export class WasmOscillator {
         cutoff: number,
         resonance: number,
         loop: boolean = false,
+        filterType: FilterType = 'lp',
     ): Float32Array | null {
         if (!this.isReady || !this.instance || !this.memory) return null;
 
@@ -187,7 +196,7 @@ export class WasmOscillator {
         // Generate
         // We use offset 0 in the shared memory
         const kernel = loop && exports.generateLoop ? exports.generateLoop : exports.generate;
-        const numSamples = kernel(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes);
+        const numSamples = kernel(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes, FILTER_TYPE_ID[filterType]);
 
         // Copy the data out safely by explicitly allocating the returned array size
         // If we don't copy, the view changes when the next note is generated!

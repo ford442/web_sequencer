@@ -89,7 +89,27 @@ describe('WasmOscillator', () => {
             withKernel({ generate: vi.fn(() => 8), generateLoop });
             oscillator.generate(261.63, 2, 48000, 'tri', 99999, 0.01, true);
             // offset, rate, freq, dur, type, cutoff (clamped below Nyquist), resonance (clamped up)
-            expect(generateLoop).toHaveBeenCalledWith(0, 48000, 261.63, 2, 2, 48000 / 2.1, 0.1);
+            expect(generateLoop).toHaveBeenCalledWith(0, 48000, 261.63, 2, 2, 48000 / 2.1, 0.1, 0);
+        });
+
+        it.each([['lp', 0], ['bp', 1], ['hp', 2]] as const)(
+            'passes filter type %s to the kernel as id %i, in both entry points (#1663)',
+            (filterType, id) => {
+                const generate = vi.fn(() => 8);
+                const generateLoop = vi.fn(() => 8);
+                withKernel({ generate, generateLoop });
+                oscillator.generate(440, 1, 48000, 'saw', 1000, 2, false, filterType);
+                oscillator.generate(440, 1, 48000, 'saw', 1000, 2, true, filterType);
+                expect(generate).toHaveBeenCalledWith(0, 48000, 440, 1, 0, 1000, 2, id);
+                expect(generateLoop).toHaveBeenCalledWith(0, 48000, 440, 1, 0, 1000, 2, id);
+            },
+        );
+
+        it('defaults to a lowpass when no filter type is given (every caller that predates #1663)', () => {
+            const generate = vi.fn(() => 8);
+            withKernel({ generate });
+            oscillator.generate(440, 1, 48000, 'saw', 1000, 2);
+            expect(generate).toHaveBeenCalledWith(0, 48000, 440, 1, 0, 1000, 2, 0);
         });
 
         it('falls back to generate on a build without generateLoop', () => {

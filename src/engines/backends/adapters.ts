@@ -225,6 +225,8 @@ export class WamWasmBackend extends BaseBackend {
         offline: true,
         polyphony: 16,
         shapes: ALL_SHAPES,
+        // The kernel's own RBJ biquad is baked into the table (assembly/biquad.ts).
+        filterTypes: ['lp', 'bp', 'hp'],
     };
 
     private readonly engine: WasmOscillator;
@@ -277,6 +279,7 @@ export class WamWasmBackend extends BaseBackend {
                 req.cutoff,
                 req.resonance,
                 loop,
+                req.filterType ?? 'lp',
             ),
         );
     }
@@ -553,6 +556,8 @@ export class PyodideBackend extends BaseBackend {
         // it, so the family is declared here and the mapping is the
         // Python side's, not selection code's.
         shapes: ALL_SHAPES,
+        // generate_wave() bakes a resonant lowpass; it has no band / high pass.
+        filterTypes: ['lp'],
     };
 
     private engine: PyodideLike | null = null;

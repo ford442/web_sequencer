@@ -66,6 +66,19 @@ export type VoiceSource =
     | { kind: 'realtime'; voice: RealtimeVoice }
     | { kind: 'loop'; render: LoopRender };
 
+/**
+ * Why `backend` cannot honor the filter response `req` asks it to bake, or null.
+ * A backend that bakes no filter (`filterTypes` omitted) ignores the request, so
+ * it is never refused; one that bakes only some responses is skipped — and the
+ * skip is logged by the caller — instead of baking a lowpass for a high pass.
+ */
+export function filterTypeRefusal(backend: OscillatorBackend, req: GenerateRequest): string | null {
+    const wanted = req.filterType ?? 'lp';
+    const baked = backend.capabilities.filterTypes;
+    if (!baked || baked.includes(wanted)) return null;
+    return `cannot bake a "${wanted}" filter (only ${baked.join('/')})`;
+}
+
 export class BackendRegistry {
     private backends = new Map<OscillatorBackendId, OscillatorBackend>();
     private lastResolution: BackendResolution | null = null;
@@ -232,6 +245,11 @@ export class BackendRegistry {
                 skipped.push(`${backend.id}: realtime only (no offline render)`);
                 continue;
             }
+            const refused = filterTypeRefusal(backend, req);
+            if (refused) {
+                skipped.push(`${backend.id}: ${refused}`);
+                continue;
+            }
             try {
                 const samples = await backend.generate(req);
                 if (samples && samples.length > 0) {
@@ -329,6 +347,11 @@ export class BackendRegistry {
             }
             if (!backend.supportsShape(req.shape)) {
                 skip(backend, `cannot render "${req.shape}"`);
+                continue;
+            }
+            const refused = filterTypeRefusal(backend, req);
+            if (refused) {
+                skip(backend, refused);
                 continue;
             }
             const realtime = allowRealtime && !!backend.acquireVoice;

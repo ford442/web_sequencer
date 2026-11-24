@@ -2,14 +2,32 @@ import { type SynthParams } from '../types';
 import { tunedNoteToFrequency } from '../constants/tuning';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type ParsedWaveform } from '../utils/waveformParser';
-import { logEngineFallback, logWaveformSubstitution } from '../utils/engineTelemetry';
+import { logEngineFallback, logFilterSourceFallback, logWaveformSubstitution } from '../utils/engineTelemetry';
+import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { getOscillatorRegistry } from './backends/BackendRegistry';
 import { engineEntry } from './backends/engineCatalog';
 import { TABLE_DURATION_SEC, TABLE_REF_FREQ, type RealtimeVoice } from './backends/OscillatorBackend';
 import type { VoiceSource } from './backends/BackendRegistry';
+import {
+    FILTER_SOURCE_LABELS,
+    biquadTypeFor,
+    hostFilterRequest,
+    kernelResonance,
+    maxFilterCutoff,
+    resolveFilterSource,
+    resolveFilterType,
+} from './backends/filterSource';
+import { getWamFilter, type WamFilterNode } from './WamFilter';
+import type { FilterSource, FilterType } from '../types/synth';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
+
+/** The filter that will sound for one note, after availability checks. */
+interface FilterPlan {
+    source: FilterSource;
+    type: FilterType;
+}
 
 export class Voice implements PoolableVoice {
     context: AudioContext;
@@ -23,7 +41,17 @@ export class Voice implements PoolableVoice {
      * family that renders a table. At most one of `source`/`realtime` sounds.
      */
     private realtime: RealtimeVoice | null = null;
+    /**
+     * Every source (OscillatorNode, looped table, worklet voice) connects here,
+     * once, and never rewires. The bus feeds exactly one filter: the voice's own
+     * `filter` (native) or `wamFilter` (the WASM OSC filter, #1663). Swapping
+     * filters is two `connect`s on this node, not on every source.
+     */
+    private filterBus: GainNode;
     private filter: BiquadFilterNode;
+    /** The WASM OSC filter, pooled with the voice once it was asked for; wired only while `filterRoute` is 'wam'. */
+    private wamFilter: WamFilterNode | null = null;
+    private filterRoute: FilterSource = 'native';
     private gain: GainNode;
     private dryGain: GainNode;
     private wetGain: GainNode;
@@ -47,6 +75,9 @@ export class Voice implements PoolableVoice {
      */
     private static reportedLegacy = new Set<string>();
 
+    /** Filter-source fallbacks already reported, by reason: once per cause, not per note. */
+    private static reportedFilterFallback = new Set<string>();
+
     /** Reference pitch of the table currently loaded in `source`, for slides. */
     private currentBaseFrequency = TABLE_REF_FREQ;
 
@@ -60,6 +91,7 @@ export class Voice implements PoolableVoice {
         this.globalDelayNode = globalDelayNode;
 
         // Create permanent nodes
+        this.filterBus = context.createGain();
         this.filter = context.createBiquadFilter();
         this.gain = context.createGain();
         this.dryGain = context.createGain();
@@ -69,6 +101,7 @@ export class Voice implements PoolableVoice {
         this.panner = context.createStereoPanner();
 
         // Connect permanent graph
+        this.filterBus.connect(this.filter);
         this.filter.connect(this.gain);
         this.gain.connect(this.dryGain);
         this.gain.connect(this.delay);
@@ -175,7 +208,8 @@ export class Voice implements PoolableVoice {
             // family, and BackendRegistry walks the single documented fallback
             // order from there, publishing every step it takes. There are no
             // per-prefix `generate()` + looped-buffer branches here any more.
-            const chosen = this.chooseSource(parsed, params);
+            const plan = this.planFilter(params);
+            const chosen = this.chooseSource(parsed, params, plan);
             if (chosen?.kind === 'realtime') {
                 // Worklet-resident engine: the same node as last note when it
                 // was ours, else a pooled one. Gate + pitch are scheduled at
@@ -183,7 +217,7 @@ export class Voice implements PoolableVoice {
                 const live = chosen.voice;
                 if (live !== this.realtime) {
                     this.releaseRealtime();
-                    live.output.connect(this.filter);
+                    live.output.connect(this.filterBus);
                     this.realtime = live;
                 }
                 live.frequency.cancelScheduledValues(now);
@@ -211,16 +245,14 @@ export class Voice implements PoolableVoice {
                 }
 
                 this.source = createdSource;
-                this.source.connect(this.filter);
+                this.source.connect(this.filterBus);
                 this.source.start(now);
             }
             this.currentBaseFrequency = baseFrequency;
             this.currentSourceType = waveform;
 
             // Filter settings
-            this.filter.type = 'lowpass';
-            this.filter.frequency.setValueAtTime(params.filterCutoff, now);
-            this.filter.Q.value = params.filterResonance;
+            this.applyFilter(plan, params, now);
 
             // ADSR Attack + Decay
             const attackEnd = now + params.attack;
@@ -303,7 +335,11 @@ export class Voice implements PoolableVoice {
      * caller then builds an `OscillatorNode` of the right wave family, which is
      * the documented terminal step (`js`), not a silent substitution.
      */
-    private chooseSource(parsed: ParsedWaveform, params: SynthParams): VoiceSource | null {
+    private chooseSource(
+        parsed: ParsedWaveform,
+        params: SynthParams,
+        plan: FilterPlan,
+    ): VoiceSource | null {
         if (parsed.legacyFrom && !Voice.reportedLegacy.has(parsed.legacyFrom)) {
             Voice.reportedLegacy.add(parsed.legacyFrom);
             logWaveformSubstitution(
@@ -346,11 +382,102 @@ export class Voice implements PoolableVoice {
                 duration: TABLE_DURATION_SEC,
                 sampleRate: this.context.sampleRate,
                 shape: parsed.shape,
-                cutoff: Math.max(20, Math.min(this.context.sampleRate / 2.1, params.filterCutoff)),
-                resonance: Math.max(0.1, params.filterResonance),
+                // What the host bakes into its table depends on the filter that
+                // will actually run after it (see hostFilterRequest).
+                ...hostFilterRequest(params, plan, this.context.sampleRate),
             },
             this.realtime,
         );
+    }
+
+    /**
+     * Decide which filter shapes this note: the one the params ask for, or — when
+     * the WASM OSC filter was asked for and cannot run — the native one, *said
+     * out loud*. The result is the filter that will actually sound, which is
+     * also what the host oscillator is asked to bake (`hostFilterRequest`).
+     */
+    private planFilter(params: SynthParams): FilterPlan {
+        const type = resolveFilterType(params.filterType);
+        if (resolveFilterSource(params.filterSource) === 'native') {
+            return { source: 'native', type };
+        }
+        const wam = getWamFilter();
+        const reason = wam
+            ? wam.unavailableReason(this.context)
+            : 'audio engine not initialized';
+        if (reason) return this.filterFallback(type, reason);
+        if (!this.wamFilter) {
+            this.wamFilter = wam!.acquire(this.context);
+            if (!this.wamFilter) return this.filterFallback(type, wam!.failure ?? 'could not create a filter node');
+        }
+        // It works: an earlier fallback report is stale, and a later failure is news again.
+        if (Voice.reportedFilterFallback.size > 0) {
+            Voice.reportedFilterFallback.clear();
+            engineDegradationStore.resolve('filter-source');
+        }
+        return { source: 'wam', type };
+    }
+
+    private filterFallback(type: FilterType, reason: string): FilterPlan {
+        if (!Voice.reportedFilterFallback.has(reason)) {
+            Voice.reportedFilterFallback.add(reason);
+            logFilterSourceFallback(
+                FILTER_SOURCE_LABELS.wam,
+                FILTER_SOURCE_LABELS.native,
+                reason,
+            );
+        }
+        return { source: 'native', type };
+    }
+
+    /** Wire and set the planned filter at `now`; the other one is parked (disconnected). */
+    private applyFilter(plan: FilterPlan, params: SynthParams, now: number): void {
+        const sampleRate = this.context.sampleRate;
+        const cutoff = Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff));
+        this.routeFilter(plan.source);
+        if (plan.source === 'wam' && this.wamFilter) {
+            this.wamFilter.set(now, {
+                cutoff,
+                resonance: kernelResonance(plan.type, params.filterResonance),
+                type: plan.type,
+            });
+            return;
+        }
+        this.filter.type = biquadTypeFor(plan.type);
+        this.filter.frequency.setValueAtTime(params.filterCutoff, now);
+        this.filter.Q.value = params.filterResonance;
+    }
+
+    /** Point `filterBus` at one filter. A no-op when it already does. */
+    private routeFilter(to: FilterSource): void {
+        const wam = this.wamFilter;
+        const want: FilterSource = to === 'wam' && wam ? 'wam' : 'native';
+        if (want === this.filterRoute) return;
+        try {
+            if (want === 'wam' && wam) {
+                this.filterBus.disconnect(this.filter);
+                this.filterBus.connect(wam.input);
+                wam.output.connect(this.gain);
+            } else if (wam) {
+                this.filterBus.disconnect(wam.input);
+                // Back to the pool: this disconnects the node's output too.
+                wam.release();
+                this.wamFilter = null;
+                this.filterBus.connect(this.filter);
+            }
+        } catch (e) {
+            // A rewire that throws would leave the voice with no filter path at all.
+            console.error('[Voice] filter rewire failed; restoring the native filter', e);
+            try { this.filterBus.disconnect(); } catch { /* nothing connected */ }
+            this.filterBus.connect(this.filter);
+            if (this.wamFilter) {
+                this.wamFilter.release();
+                this.wamFilter = null;
+            }
+            this.filterRoute = 'native';
+            return;
+        }
+        this.filterRoute = want;
     }
 
     /** Hand the live source back to its backend (disconnects it from this voice). */

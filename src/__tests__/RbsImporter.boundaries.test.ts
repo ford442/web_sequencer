@@ -13,6 +13,8 @@ const SYNTH_PARAM_KEYS = new Set(Object.keys({
   pitch: 0,
   filterCutoff: 0,
   filterResonance: 0,
+  filterType: 'lp',
+  filterSource: 'native',
   filterMode: 0,
   attack: 0,
   decay: 0,

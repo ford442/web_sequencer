@@ -95,11 +95,32 @@ export interface MacroSynthParams {
   auxMix?: number;
 }
 
+/**
+ * Response of a synth voice's resonant filter (#1663). The numbering the kernels
+ * use (0 / 1 / 2) is `FILTER_TYPE_ID` in `engines/backends/filterSource.ts`.
+ */
+export type FilterType = 'lp' | 'bp' | 'hp';
+
+/**
+ * Whose filter shapes a voice:
+ *   - `native` — the voice's own `BiquadFilterNode` (the default, and what every
+ *     song saved before this field existed uses);
+ *   - `wam`    — the "WASM OSC" filter: the AssemblyScript kernel's resonant
+ *     biquad (`assembly/biquad.ts`), run as a worklet stage after *any*
+ *     oscillator engine. If it cannot run, the voice falls back to `native`
+ *     and says so (never silently).
+ */
+export type FilterSource = 'native' | 'wam';
+
 export interface SynthParams {
   waveform: Waveform;
   pitch: number; // Semitones adjustment
   filterCutoff: number; // Hz
   filterResonance: number; // Q factor
+  /** Low / band / high pass. Absent means `lp`. */
+  filterType?: FilterType;
+  /** Which filter implementation runs it. Absent means `native`. */
+  filterSource?: FilterSource;
   filterMode?: number; // 0-1 (filter mode toggle)
   drive?: number;
   attack: number;

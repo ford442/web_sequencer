@@ -90,6 +90,38 @@ export function logWaveformSubstitution(
 }
 
 /**
+ * Report that a voice asked for a filter implementation it could not get and is
+ * running a different one (#1663: "WASM OSC filter" requested, native biquad
+ * used). The sound changes (different filter), so like a waveform substitution
+ * it is never silent: console, telemetry and the degradation store / EngineHUD.
+ */
+export function logFilterSourceFallback(
+  requestedSource: string,
+  activeSource: string,
+  reason: string,
+): void {
+  const detail = `filter source "${requestedSource}" unavailable, using "${activeSource}" (${reason})`;
+  console.warn(`[FilterSourceFallback] ${detail}`);
+  try {
+    engineTelemetry.registerResolution('filter', activeSource, detail);
+    engineTelemetry.recordDegradation('filter', true, detail);
+    engineDegradationStore.report({
+      id: 'filter-source',
+      subsystem: 'filter',
+      category: 'wasm',
+      message: `Filter running on the ${activeSource} filter instead of ${requestedSource}`,
+      reason: detail,
+      status: 'active',
+      activeBackend: activeSource,
+      requestedBackend: requestedSource,
+      retryable: false,
+    });
+  } catch {
+    /* telemetry must never break audio */
+  }
+}
+
+/**
  * Loud fallback signal: always logs a concrete reason to the console and
  * records it in engineTelemetry before any JS-voice fallback is used.
  */

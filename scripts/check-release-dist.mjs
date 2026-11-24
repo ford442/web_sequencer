@@ -213,6 +213,8 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'rust-osc-processor',
   'cpp-osc-processor',
   'dwgs-osc-processor',
+  // The "WASM OSC filter" stage (#1663): selected filters have no other implementation to run.
+  'wam-filter-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',

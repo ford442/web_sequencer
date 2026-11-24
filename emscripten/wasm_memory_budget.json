@@ -152,6 +152,7 @@
   "assemblyScript": {
     "$comment": "--initialMemory is in 64 KiB pages, not MB.",
     "oscillatorsPages": 384,
+    "wamFilterPages": 1,
     "fftPages": 256,
     "freezerPages": 128,
     "audioExportPages": 128,

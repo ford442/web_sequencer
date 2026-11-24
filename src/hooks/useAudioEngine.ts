@@ -59,6 +59,11 @@ import drumkitProcessorUrl from '../audio-worklets/drumkit-processor.ts?worker&u
 import rustOscProcessorUrl from '../audio-worklets/rust-osc-processor.ts?worker&url';
 import cppOscProcessorUrl from '../audio-worklets/cpp-osc-processor.ts?worker&url';
 import dwgsOscProcessorUrl from '../audio-worklets/dwgs-osc-processor.ts?worker&url';
+import wamFilterProcessorUrl from '../audio-worklets/wam-filter-processor.ts?worker&url';
+// The wasm the filter worklet runs (assembly/wamFilter.wasm, built by `build:wasm:wamfilter`).
+// A URL, not an import of the bytes: the main thread fetches + compiles it and hands the
+// compiled module to each worklet node.
+const wamFilterWasmUrl = new URL('../wasm/wamFilter.wasm', import.meta.url).href;
 import { attachPyodideOscillator } from '../engines/backends/BackendRegistry';
 import type { PyodideLike } from '../utils/pyodideBuffers';
 
@@ -235,6 +240,8 @@ export const useAudioEngine = (pyodide: unknown, tempo: number = 120) => {
                 rustOscProcessorUrl,
                 cppOscProcessorUrl,
                 dwgsOscProcessorUrl,
+                wamFilterProcessorUrl,
+                wamFilterWasmUrl,
             }, precreated?.latencyHint, precreated);
 
             liveContextRef.current = context;

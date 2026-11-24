@@ -10,8 +10,9 @@
   "scripts": {
     "dev": "pnpm run build:native && vite",
     "dev:fast": "pnpm run check:native && vite",
-    "build:wasm": "pnpm run build:wasm:oscillators && pnpm run build:wasm:freezer && pnpm run build:wasm:audioexport && pnpm run build:wasm:xmexport && pnpm run build:wasm:fft",
+    "build:wasm": "pnpm run build:wasm:oscillators && pnpm run build:wasm:wamfilter && pnpm run build:wasm:freezer && pnpm run build:wasm:audioexport && pnpm run build:wasm:xmexport && pnpm run build:wasm:fft",
     "build:wasm:oscillators": "asc assembly/oscillators.ts -o src/wasm/oscillators.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 384 --exportRuntime --bindings esm",
+    "build:wasm:wamfilter": "asc assembly/wamFilter.ts -o src/wasm/wamFilter.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 1 --maximumMemory 1 --runtime stub --use abort= --bindings esm",
     "build:wasm:freezer": "asc assembly/trackFreezer.ts -o src/wasm/trackFreezer.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
     "build:wasm:fft": "asc assembly/fft.ts -o src/wasm/fft.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 256 --exportRuntime --bindings esm",
     "build:wasm:audioexport": "asc assembly/audioExport.ts -o src/wasm/audioExport.wasm --optimize --converge --optimizeLevel 3 --enable simd --enable bulk-memory --initialMemory 128 --exportRuntime --bindings esm",
