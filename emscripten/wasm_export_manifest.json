@@ -291,7 +291,10 @@
       "public/dwgs_osc.wasm (dwgs-audio/, scripts/build-dwgs-osc.mjs), a no_std cdylib with no",
       "imports: the wasm export names are `required`, plus `memory`. Bound by",
       "src/audio-worklets/dwgs-osc-processor.ts and src/audio/offline/OfflineDwgsOscEngine.ts;",
-      "tools/check_dwgs_osc_module.mjs fails on a missing name or on any export not listed here."
+      "tools/check_dwgs_osc_module.mjs fails on a missing name or on any export not listed here.",
+      "`requiredFilter` is the DWGS filter (#1674) in the same module: a resonant LP/BP/HP 4-pole",
+      "ladder with saturated feedback, run as a streaming stage by",
+      "src/audio-worklets/dwgs-filter-processor.ts, so any oscillator engine can use it."
     ],
     "required": [
       "dwgs_abi_version",
@@ -302,6 +305,12 @@
       "dwgs_init",
       "dwgs_reset",
       "dwgs_render"
+    ],
+    "requiredFilter": [
+      "dflt_buf_ptr",
+      "dflt_configure",
+      "dflt_reset",
+      "dflt_process"
     ]
   }
 }

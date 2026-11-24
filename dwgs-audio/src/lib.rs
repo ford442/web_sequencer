@@ -40,9 +40,38 @@
 //!     exports, fixed 2-page memory. All state and I/O live in one static
 //!     `Engine`. The recipes are evaluated once in `dwgs_init`.
 //!
-//! Filtering is deliberately absent, as for every oscillator family that plays
-//! through `Voice`: the voice's own BiquadFilterNode sits after this source.
-//! A resonant in-kernel filter is #1674.
+//! The oscillator itself is unfiltered, as for every family that plays through
+//! `Voice`: the voice's filter sits after it. What the kernel adds is the
+//! **DWGS filter** (#1674, `Vcf` below): a resonant LP / BP / HP filter that is
+//! independent of the wave and of the oscillator *engine*. A second instance of
+//! this module runs it as a streaming stage (src/audio-worklets/
+//! dwgs-filter-processor.ts), so JS, WASM OSC, Rust, C++, DWGS, WebGPU,
+//! Pyodide and WAV voices can all choose it (`SynthParams.filterSource ===
+//! 'dwgs'`).
+//!
+//! Unlike the other kernels' filters (an RBJ biquad, or an SVF that equals it),
+//! this one is meant to sound different. The DW-6000 / DW-8000 put their
+//! digital waves through an *analog* 24 dB/oct resonant lowpass; `Vcf` is a
+//! model of that kind of filter rather than of a cookbook biquad:
+//!
+//!   * Four one-pole stages (trapezoidal integrators, zero-delay feedback) with
+//!     global resonance feedback from the last stage: a 4-pole ladder / OTA
+//!     cascade, 24 dB/oct, its resonance peak exactly at the cutoff.
+//!   * LP / BP / HP are mixes of the stage outputs (the classic multimode-ladder
+//!     taps): LP is the 4th stage (24 dB/oct, passband held at 0 dB as the
+//!     resonance rises), BP is `4 (y2 - 2 y3 + y4)` (12 dB/oct each side, 0 dB
+//!     peak at zero resonance), HP is `(1 - H)^4` (24 dB/oct).
+//!   * A soft saturator (`soft_clip`, a rational tanh with 2x headroom) on the
+//!     feedback sum: transparent at normal levels, it compresses loud input and
+//!     bounds the resonance, so high Q growls instead of exploding. It is the
+//!     one non-linear element of any Hyphon filter, and the only place it can
+//!     add partials.
+//!   * Same contract as the other kernels: cutoff clamped to [20 Hz, sr / 2.1],
+//!     Q >= 0.1 (Q = 1/sqrt 2 is "no resonance"; above it the feedback rises as
+//!     `k = 4 (1 - Q0 / Q)`, so the resonance peak is ~Q sqrt 2 times the
+//!     passband), the same type ids, the same refusals, f64 state.
+//!   * Its own 4 KiB buffer and state, beside (not inside) `Engine`: a filter
+//!     node never calls `dwgs_init`, so it never evaluates the recipes.
 //!
 //! ABI (all `extern "C"`, no imports):
 //!   dwgs_abi_version() -> u32           bumps when the surface changes
@@ -54,6 +83,10 @@
 //!   dwgs_reset(phase)                    gate-open edge: phase in cycles,
 //!                                        wrapped to [0, 1); restarts the noise
 //!   dwgs_render(wave, frames, per_sample_freq) -> u32   frames rendered
+//!   dflt_buf_ptr()     -> *mut f32      filter I/O buffer (filtered in place)
+//!   dflt_configure(sample_rate, cutoff, resonance, type) -> i32   1 on success
+//!   dflt_reset()                         filter from rest
+//!   dflt_process(frames) -> u32          frames filtered
 
 #![cfg_attr(not(test), no_std)]
 
@@ -63,7 +96,7 @@ pub const MAX_FRAMES: usize = 1024;
 
 /// Bumped whenever an export's signature or meaning changes. The worklet
 /// refuses a module whose version it does not know.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 
 /// Highest harmonic of any recipe. A 65 Hz (C2) note keeps all of them up to
 /// 6.2 kHz; above that the voice's filter usually has the last word anyway.
@@ -624,6 +657,218 @@ pub fn recipe(wave: u32, k: usize) -> f64 {
     }
 }
 
+// ── DWGS filter (#1674) ─────────────────────────────────────────────────────
+
+// Filter response ids: the numbering of `FilterType` in src/types/synth.ts,
+// `FILTER_*` in assembly/biquad.ts and rust-audio/src/lib.rs, `kFilter*` in
+// emscripten/cpp_osc.cpp.
+pub const FILTER_LP: u32 = 0;
+pub const FILTER_BP: u32 = 1;
+pub const FILTER_HP: u32 = 2;
+
+const MIN_CUTOFF: f64 = 20.0; // Hz
+const MIN_RESONANCE: f64 = 0.1; // Q
+/// The Q at which the feedback is zero: a flat (Butterworth) setting on the
+/// other sources is "no resonance" here.
+pub const VCF_FLAT_Q: f64 = core::f64::consts::FRAC_1_SQRT_2;
+/// Feedback ceiling. 4 is the linear ladder's self-oscillation point; just
+/// below it the peak is ~40 dB and the saturator keeps it bounded.
+pub const VCF_MAX_FEEDBACK: f64 = 3.96;
+/// Ceiling of the saturator. It is within 2.1 % of linear below a quarter of it
+/// (|x| <= 0.5: a full-scale saw compresses by a few per cent).
+const SAT_HEADROOM: f64 = 2.0;
+/// State below this magnitude is flushed to zero (denormals cost real time).
+const DENORMAL_FLOOR: f64 = 1.0e-30;
+
+/// `HEADROOM * tanh(x / HEADROOM)`, by the [3/2] Padé form of tanh (exact at
+/// 0, slope 1, monotonic, and clamped where the rational form reaches 1).
+/// Below |x| = 0.5 it is within 2.1 % of x; it never exceeds the headroom.
+#[inline(always)]
+pub fn soft_clip(x: f64) -> f64 {
+    let t = x * (1.0 / SAT_HEADROOM);
+    if t >= 3.0 {
+        return SAT_HEADROOM;
+    }
+    if t <= -3.0 {
+        return -SAT_HEADROOM;
+    }
+    let t2 = t * t;
+    SAT_HEADROOM * t * (27.0 + t2) / (27.0 + 9.0 * t2)
+}
+
+/// Resonance feedback for a Q: zero up to `VCF_FLAT_Q`, then `4 (1 - Q0 / Q)`,
+/// which puts the linear resonance peak at `Q / Q0` times the passband.
+#[inline(always)]
+pub fn vcf_feedback(q: f64) -> f64 {
+    if q <= VCF_FLAT_Q {
+        0.0
+    } else {
+        (4.0 * (1.0 - VCF_FLAT_Q / q)).min(VCF_MAX_FEEDBACK)
+    }
+}
+
+/// The DWGS filter: a 4-pole zero-delay-feedback ladder with saturated global
+/// feedback, f64 coefficients and state. See the module comment.
+///
+/// One stage is a trapezoidal one-pole, `y = G x + s / (1 + g)` with
+/// `g = tan(pi fc / fs)`, `G = g / (1 + g)`; its state updates as `s = 2 y - s`.
+/// With `u = x - k y4` the loop solves in closed form:
+/// `u = (x - k S) / (1 + k G^4)` where `S` is the state's contribution to `y4`.
+/// `u` is then saturated, and the stages run on it.
+#[derive(Clone, Copy)]
+pub struct Vcf {
+    /// `G` of one stage.
+    gain: f64,
+    /// `1 / (1 + g)`: the state's weight in a stage output.
+    state_weight: f64,
+    feedback: f64,
+    kind: u32,
+    s: [f64; 4],
+    configured: bool,
+}
+
+impl Default for Vcf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Vcf {
+    /// Unconfigured = identity (the worklet refuses to run before the first
+    /// successful `configure`, so this is only a safe default). All zeros, so
+    /// the static lands in .bss and adds no bytes to the module.
+    pub const fn new() -> Self {
+        Vcf {
+            gain: 0.0,
+            state_weight: 0.0,
+            feedback: 0.0,
+            kind: FILTER_LP,
+            s: [0.0; 4],
+            configured: false,
+        }
+    }
+
+    pub fn is_configured(&self) -> bool {
+        self.configured
+    }
+
+    pub fn feedback(&self) -> f64 {
+        self.feedback
+    }
+
+    /// Set the response, leaving the state alone so a sweep is smooth.
+    /// `cutoff` is clamped to [20 Hz, sample_rate / 2.1], `resonance` to ≥ 0.1.
+    ///
+    /// Returns false — keeping the previous response — for a non-finite value,
+    /// a rate outside the module's range, or an unknown `kind`. Never traps.
+    pub fn configure(&mut self, sample_rate: f64, cutoff: f64, resonance: f64, kind: u32) -> bool {
+        let rate_ok = (MIN_SAMPLE_RATE as f64..=MAX_SAMPLE_RATE as f64).contains(&sample_rate);
+        if !rate_ok || !cutoff.is_finite() || !resonance.is_finite() || kind > FILTER_HP {
+            return false;
+        }
+        let fc = cutoff.min(sample_rate / 2.1).max(MIN_CUTOFF);
+        let q = resonance.max(MIN_RESONANCE);
+        // tan(pi fc / fs) = sin / cos of (fc / 2 fs) turns, which is < 0.24.
+        let (sin, cos) = sincos_turns(fc / (2.0 * sample_rate));
+        let g = sin / cos;
+        self.state_weight = 1.0 / (1.0 + g);
+        self.gain = g * self.state_weight;
+        self.feedback = vcf_feedback(q);
+        self.kind = kind;
+        self.configured = true;
+        true
+    }
+
+    /// Filter from rest.
+    pub fn reset(&mut self) {
+        self.s = [0.0; 4];
+    }
+
+    #[inline(always)]
+    pub fn tick(&mut self, x: f64) -> f64 {
+        let gn = self.gain;
+        let w = self.state_weight;
+        let k = self.feedback;
+        let [s1, s2, s3, s4] = self.s;
+        // y4 = G^4 u + (G^3 s1 + G^2 s2 + G s3 + s4) w
+        let state = (((s1 * gn + s2) * gn + s3) * gn + s4) * w;
+        let g2 = gn * gn;
+        let u = soft_clip((x - k * state) / (1.0 + k * g2 * g2));
+        let y1 = gn * u + s1 * w;
+        let y2 = gn * y1 + s2 * w;
+        let y3 = gn * y2 + s3 * w;
+        let y4 = gn * y3 + s4 * w;
+        self.s = [2.0 * y1 - s1, 2.0 * y2 - s2, 2.0 * y3 - s3, 2.0 * y4 - s4];
+        match self.kind {
+            // 4 H^2 (1 - H)^2: 0 dB peak at the cutoff with no feedback.
+            FILTER_BP => 4.0 * (y2 - 2.0 * y3 + y4),
+            // (1 - H)^4.
+            FILTER_HP => u - 4.0 * y1 + 6.0 * y2 - 4.0 * y3 + y4,
+            // H^4, with the ladder's passband loss 1 / (1 + k) made up.
+            _ => y4 * (1.0 + k),
+        }
+    }
+
+    /// Once per block: a silent input must not leave the state decaying into denormals.
+    pub fn flush_denormals(&mut self) {
+        for v in self.s.iter_mut() {
+            if v.abs() < DENORMAL_FLOOR {
+                *v = 0.0;
+            }
+        }
+    }
+}
+
+/// The filter stage's buffer and state: separate from `Engine`, so a filter
+/// instance never renders and an oscillator instance never filters.
+#[repr(C, align(16))]
+pub struct FilterStage {
+    buf: [f32; MAX_FRAMES],
+    vcf: Vcf,
+}
+
+impl Default for FilterStage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FilterStage {
+    pub const fn new() -> Self {
+        FilterStage {
+            buf: [0.0; MAX_FRAMES],
+            vcf: Vcf::new(),
+        }
+    }
+
+    pub fn buf_mut(&mut self) -> &mut [f32; MAX_FRAMES] {
+        &mut self.buf
+    }
+
+    pub fn configure(&mut self, sample_rate: f32, cutoff: f32, resonance: f32, kind: u32) -> bool {
+        self.vcf
+            .configure(sample_rate as f64, cutoff as f64, resonance as f64, kind)
+    }
+
+    pub fn reset(&mut self) {
+        self.vcf.reset();
+    }
+
+    /// Filter `frames` (clamped to `MAX_FRAMES`) of the buffer in place.
+    pub fn process(&mut self, frames: usize) -> usize {
+        let n = frames.min(MAX_FRAMES);
+        // Never configured: pass through.
+        if !self.vcf.is_configured() {
+            return n;
+        }
+        for v in self.buf[..n].iter_mut() {
+            *v = self.vcf.tick(*v as f64) as f32;
+        }
+        self.vcf.flush_denormals();
+        n
+    }
+}
+
 // ── C ABI ───────────────────────────────────────────────────────────────────
 
 #[cfg(target_arch = "wasm32")]
@@ -632,6 +877,7 @@ mod abi {
     use core::ptr::addr_of_mut;
 
     static mut ENGINE: Engine = Engine::new();
+    static mut FILTER: FilterStage = FilterStage::new();
 
     /// The module is single-threaded (one instance per worklet voice, no shared
     /// memory), so this is the only reference alive while an export runs.
@@ -639,6 +885,12 @@ mod abi {
     fn engine() -> &'static mut Engine {
         // SAFETY: see above — no export re-enters and nothing else holds it.
         unsafe { &mut *addr_of_mut!(ENGINE) }
+    }
+
+    #[inline(always)]
+    fn filter() -> &'static mut FilterStage {
+        // SAFETY: as for `engine()`.
+        unsafe { &mut *addr_of_mut!(FILTER) }
     }
 
     #[no_mangle]
@@ -679,6 +931,26 @@ mod abi {
     #[no_mangle]
     pub extern "C" fn dwgs_render(wave: u32, frames: u32, per_sample_freq: u32) -> u32 {
         engine().render(wave, frames as usize, per_sample_freq != 0) as u32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn dflt_buf_ptr() -> *mut f32 {
+        filter().buf_mut().as_mut_ptr()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn dflt_configure(sample_rate: f32, cutoff: f32, resonance: f32, kind: u32) -> i32 {
+        filter().configure(sample_rate, cutoff, resonance, kind) as i32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn dflt_reset() {
+        filter().reset()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn dflt_process(frames: u32) -> u32 {
+        filter().process(frames as usize) as u32
     }
 
     #[cfg(not(test))]
@@ -949,5 +1221,253 @@ mod tests {
         e.freq_mut()[0] = 1e9;
         e.render(WAVE_SAW, 64, false);
         assert!(e.out()[..64].iter().all(|v| v.is_finite()));
+    }
+    // ── DWGS filter (#1674) ─────────────────────────────────────────────────
+
+    /// The analytic response of `Vcf` (linear region) at `hz`: the bilinear,
+    /// cutoff-prewarped one-pole `H = 1 / (1 + j tan(w / 2) / g)`, four of them
+    /// in a loop with feedback `k`, tapped as LP / BP / HP.
+    fn vcf_reference(sr: f64, fc: f64, q: f64, kind: u32, hz: f64) -> f64 {
+        #[derive(Clone, Copy)]
+        struct C(f64, f64);
+        let mul = |a: C, b: C| C(a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0);
+        let div = |a: C, b: C| {
+            let d = b.0 * b.0 + b.1 * b.1;
+            C((a.0 * b.0 + a.1 * b.1) / d, (a.1 * b.0 - a.0 * b.1) / d)
+        };
+        let g = (std::f64::consts::PI * fc / sr).tan();
+        let w = 2.0 * std::f64::consts::PI * hz / sr;
+        let h = div(C(1.0, 0.0), C(1.0, (w * 0.5).tan() / g));
+        let one_minus = C(1.0 - h.0, -h.1);
+        let h2 = mul(h, h);
+        let h4 = mul(h2, h2);
+        let k = vcf_feedback(q);
+        let num = match kind {
+            FILTER_BP => {
+                let m = mul(one_minus, one_minus);
+                let t = mul(h2, m);
+                C(4.0 * t.0, 4.0 * t.1)
+            }
+            FILTER_HP => {
+                let m = mul(one_minus, one_minus);
+                mul(m, m)
+            }
+            _ => C(h4.0 * (1.0 + k), h4.1 * (1.0 + k)),
+        };
+        let r = div(num, C(1.0 + k * h4.0, k * h4.1));
+        (r.0 * r.0 + r.1 * r.1).sqrt()
+    }
+
+    /// Steady-state gain of `vcf` for a sine of `amp` at `hz`.
+    fn vcf_gain(vcf: &mut Vcf, hz: f64, amp: f64) -> f64 {
+        let sr = SR as f64;
+        vcf.reset();
+        let settle = (sr * 0.5) as usize;
+        let n = sr as usize; // 1 s: whole cycles of any integer frequency
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for i in 0..settle + n {
+            let t = 2.0 * std::f64::consts::PI * hz * i as f64 / sr;
+            let y = vcf.tick(amp * t.sin());
+            if i >= settle {
+                re += y * t.sin();
+                im += y * t.cos();
+            }
+        }
+        2.0 * (re * re + im * im).sqrt() / n as f64 / amp
+    }
+
+    fn vcf(kind: u32, fc: f64, q: f64) -> Vcf {
+        let mut v = Vcf::new();
+        assert!(v.configure(SR as f64, fc, q, kind));
+        v
+    }
+
+    fn db(x: f64) -> f64 {
+        20.0 * x.log10()
+    }
+
+    #[test]
+    fn filter_ids_match_the_other_kernels() {
+        assert_eq!((FILTER_LP, FILTER_BP, FILTER_HP), (0, 1, 2));
+    }
+
+    #[test]
+    fn soft_clip_is_transparent_small_and_bounded_large() {
+        for i in -1000..=1000 {
+            let x = i as f64 * 0.0005; // |x| <= 0.5
+            assert!((soft_clip(x) - x).abs() <= 0.021 * x.abs() + 1e-15, "{x}");
+        }
+        let mut prev = soft_clip(-100.0);
+        for i in -10_000..=10_000 {
+            let x = i as f64 * 0.01;
+            let y = soft_clip(x);
+            assert!(y >= prev - 1e-15, "monotonic at {x}");
+            assert!(y.abs() <= SAT_HEADROOM, "bounded at {x}");
+            assert!((y + soft_clip(-x)).abs() < 1e-15, "odd at {x}");
+            prev = y;
+        }
+        // Continuous where the rational form meets the clamp.
+        assert!((soft_clip(3.0 * SAT_HEADROOM - 1e-9) - SAT_HEADROOM).abs() < 1e-8);
+    }
+
+    #[test]
+    fn feedback_is_zero_at_the_flat_q_and_rises_to_the_ceiling() {
+        assert_eq!(vcf_feedback(0.1), 0.0);
+        assert_eq!(vcf_feedback(VCF_FLAT_Q), 0.0);
+        assert!((vcf_feedback(2.0 * VCF_FLAT_Q) - 2.0).abs() < 1e-12);
+        let mut prev = 0.0;
+        for i in 1..1000 {
+            let k = vcf_feedback(i as f64 * 0.1);
+            assert!(k >= prev && k <= VCF_MAX_FEEDBACK);
+            prev = k;
+        }
+        assert_eq!(vcf_feedback(1.0e6), VCF_MAX_FEEDBACK);
+    }
+
+    #[test]
+    fn small_signal_response_is_the_four_pole_ladder() {
+        for kind in [FILTER_LP, FILTER_BP, FILTER_HP] {
+            for (fc, q) in [(1_000.0, VCF_FLAT_Q), (500.0, 2.0), (4_000.0, 6.0)] {
+                let mut v = vcf(kind, fc, q);
+                for hz in [50.0, 250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0, 16_000.0] {
+                    let want = vcf_reference(SR as f64, fc, q, kind, hz);
+                    // A -100 dB tap is all rounding; compare where there is signal.
+                    if want < 1e-4 {
+                        continue;
+                    }
+                    let got = vcf_gain(&mut v, hz, 1e-3);
+                    assert!(
+                        (db(got) - db(want)).abs() < 0.05,
+                        "kind {kind} fc {fc} q {q} at {hz} Hz: {got} vs {want}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn lowpass_keeps_its_passband_and_resonates_at_the_cutoff() {
+        for q in [VCF_FLAT_Q, 2.0, 5.0, 10.0] {
+            let mut v = vcf(FILTER_LP, 1_000.0, q);
+            let pass = vcf_gain(&mut v, 20.0, 1e-3);
+            assert!((db(pass)).abs() < 0.1, "q {q}: passband {} dB", db(pass));
+            let peak = vcf_gain(&mut v, 1_000.0, 1e-3);
+            // Linear peak: 0.25 (1 + k) / (1 - k / 4) at exactly fc (-12 dB at k = 0).
+            let k = vcf_feedback(q);
+            let want = 0.25 * (1.0 + k) / (1.0 - k / 4.0);
+            assert!((db(peak) - db(want)).abs() < 0.1, "q {q}: peak {peak} vs {want}");
+        }
+    }
+
+    #[test]
+    fn is_not_the_biquad_the_other_kernels_run() {
+        // 24 dB/oct, not 12: two octaves above a 1 kHz flat lowpass the RBJ
+        // biquad is ~ -24 dB, the ladder ~ -48 dB.
+        let mut v = vcf(FILTER_LP, 1_000.0, VCF_FLAT_Q);
+        let two_oct = db(vcf_gain(&mut v, 4_000.0, 1e-3));
+        assert!(two_oct < -45.0 && two_oct > -52.0, "{two_oct} dB");
+        let mut hp = vcf(FILTER_HP, 4_000.0, VCF_FLAT_Q);
+        let below = db(vcf_gain(&mut hp, 1_000.0, 1e-3));
+        assert!(below < -45.0, "highpass two octaves below: {below} dB");
+        // The flat setting is the ladder's natural -12 dB knee, not Butterworth's -3 dB.
+        let knee = db(vcf_gain(&mut v, 1_000.0, 1e-3));
+        assert!((knee + 12.04).abs() < 0.1, "{knee} dB at the cutoff");
+    }
+
+    #[test]
+    fn saturation_compresses_loud_input_and_bounds_resonance() {
+        // Same filter, 1000x the level: the loud gain is lower (soft clip).
+        let mut v = vcf(FILTER_LP, 2_000.0, VCF_FLAT_Q);
+        let quiet = vcf_gain(&mut v, 200.0, 1e-3);
+        let loud = vcf_gain(&mut v, 200.0, 3.0);
+        assert!(loud < quiet * 0.8, "{loud} vs {quiet}");
+        // At the ceiling the ladder rings, but a full-scale saw cannot blow it up.
+        for kind in [FILTER_LP, FILTER_BP, FILTER_HP] {
+            let mut st = FilterStage::new();
+            assert!(st.configure(SR, 800.0, 1_000.0, kind));
+            let x = render(WAVE_SAW, 110.0, 48_000);
+            let mut peak = 0.0f32;
+            for chunk in x.chunks(128) {
+                st.buf_mut()[..chunk.len()].copy_from_slice(chunk);
+                st.process(chunk.len());
+                for &y in &st.buf_mut()[..chunk.len()] {
+                    assert!(y.is_finite());
+                    peak = peak.max(y.abs());
+                }
+            }
+            assert!(peak < 25.0, "kind {kind}: peak {peak}");
+            assert!(peak > 0.1, "kind {kind}: silent");
+        }
+    }
+
+    #[test]
+    fn a_cutoff_sweep_is_continuous() {
+        // A smooth input (its own largest step is ~0.01), so any jump is the filter's.
+        let mut st = FilterStage::new();
+        let x = render(WAVE_SINE, 110.0, 48_000);
+        let mut prev = 0.0f32;
+        let mut worst = 0.0f32;
+        for (b, chunk) in x.chunks(128).enumerate() {
+            let fc = 100.0 * (100.0f32).powf(b as f32 / 375.0);
+            assert!(st.configure(SR, fc, 3.0, FILTER_LP));
+            st.buf_mut()[..chunk.len()].copy_from_slice(chunk);
+            st.process(chunk.len());
+            for &y in &st.buf_mut()[..chunk.len()] {
+                worst = worst.max((y - prev).abs());
+                prev = y;
+            }
+        }
+        assert!(worst < 0.05, "largest step {worst}");
+    }
+
+    #[test]
+    fn filter_refuses_bad_settings_and_passes_through_until_configured() {
+        let mut st = FilterStage::new();
+        st.buf_mut()[..4].copy_from_slice(&[0.25, -0.5, 1.0, 0.0]);
+        assert_eq!(st.process(4), 4);
+        assert_eq!(&st.buf_mut()[..4], &[0.25, -0.5, 1.0, 0.0], "unconfigured is identity");
+        assert!(!st.configure(f32::NAN, 1_000.0, 1.0, FILTER_LP));
+        assert!(!st.configure(1_000.0, 1_000.0, 1.0, FILTER_LP));
+        assert!(!st.configure(SR, f32::NAN, 1.0, FILTER_LP));
+        assert!(!st.configure(SR, 1_000.0, f32::INFINITY, FILTER_LP));
+        assert!(!st.configure(SR, 1_000.0, 1.0, 3));
+        assert!(st.configure(SR, 1_000.0, 2.0, FILTER_BP));
+        let k = st.vcf.feedback();
+        assert!(!st.configure(SR, 1_000.0, f32::NAN, FILTER_LP));
+        assert_eq!(st.vcf.feedback(), k, "a refused call keeps the previous response");
+        assert_eq!(st.vcf.kind, FILTER_BP);
+        // Clamps rather than refuses out-of-range values.
+        assert!(st.configure(SR, 1.0e9, 0.0, FILTER_HP));
+        assert!(st.configure(SR, -5.0, -1.0, FILTER_LP));
+        assert_eq!(st.process(5_000), MAX_FRAMES);
+    }
+
+    #[test]
+    fn silence_decays_to_exact_zero() {
+        let mut st = FilterStage::new();
+        assert!(st.configure(SR, 300.0, 8.0, FILTER_LP));
+        st.buf_mut()[0] = 1.0;
+        st.process(128);
+        for _ in 0..4_000 {
+            *st.buf_mut() = [0.0; MAX_FRAMES];
+            st.process(128);
+        }
+        assert_eq!(st.vcf.s, [0.0; 4]);
+        st.buf_mut()[0] = 1.0;
+        st.process(1);
+        st.reset();
+        assert_eq!(st.vcf.s, [0.0; 4]);
+    }
+
+    #[test]
+    fn prewarp_tan_matches_libm() {
+        let mut worst = 0.0f64;
+        for i in 1..=10_000 {
+            let fc = (SR as f64 / 2.1) * i as f64 / 10_000.0;
+            let (s, c) = sincos_turns(fc / (2.0 * SR as f64));
+            let want = (std::f64::consts::PI * fc / SR as f64).tan();
+            worst = worst.max(((s / c) - want).abs() / want);
+        }
+        assert!(worst < 1e-13, "{worst}");
     }
 }

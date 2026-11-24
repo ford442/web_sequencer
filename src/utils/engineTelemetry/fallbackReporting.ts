@@ -91,7 +91,7 @@ export function logWaveformSubstitution(
 
 /**
  * Report that a voice asked for a filter implementation it could not get and is
- * running a different one (#1663 / #1672 / #1673: "WASM OSC", "Rust" or "C++" filter requested, native biquad
+ * running a different one (#1663 / #1672 / #1673 / #1674: "WASM OSC", "Rust", "C++" or "DWGS" filter requested, native biquad
  * used). The sound changes (different filter), so like a waveform substitution
  * it is never silent: console, telemetry and the degradation store / EngineHUD.
  */

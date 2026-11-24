@@ -48,6 +48,7 @@ const WORKLETS = [
     'wam-filter-processor',
     'rust-filter-processor',
     'cpp-filter-processor',
+    'dwgs-filter-processor',
     'drumkit-processor',
     'sustain-processor',
     'RubberBandProcessor',
@@ -72,6 +73,7 @@ const WORKLET_CHUNK_STEM: Record<string, string> = {
     'wam-filter-processor': 'wam-filter-processor',
     'rust-filter-processor': 'rust-filter-processor',
     'cpp-filter-processor': 'cpp-filter-processor',
+    'dwgs-filter-processor': 'dwgs-filter-processor',
     'drumkit-processor': 'drumkit-processor',
     'sustain-processor': 'sustain-processor',
     RubberBandProcessor: 'rubberband-processor',
@@ -436,9 +438,11 @@ describe('check-release-dist WASM export gate', () => {
     it.each([
         ['growable-memory', 'memory can grow'],
         ['simd', 'module uses v128'],
-        ['wrong-abi', 'ABI version 2'],
+        ['wrong-abi', 'ABI version 1'],
         ['wrong-wave-count', 'dwgs_wave_count() is 16'],
         ['missing-render', 'missing exports: dwgs_render'],
+        // The DWGS filter (#1674) ships in the same module: a build without it fails the release.
+        ['missing-filter', 'missing exports: dflt_process'],
         ['silent', 'wave 0 rendered silence'],
     ] as const)('rejects a dwgs_osc.wasm with %s', (variant, message) => {
         const result = runCheck(makeDist({ dwgsOsc: variant }));

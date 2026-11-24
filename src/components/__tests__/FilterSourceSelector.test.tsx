@@ -1,6 +1,6 @@
 /**
- * The filter type + source picker (#1663, #1672, #1673): LP / BP / HP and Native /
- * WASM OSC / Rust / C++ for the oscillator families that run through the voice's filter
+ * The filter type + source picker (#1663, #1672, #1673, #1674): LP / BP / HP and Native /
+ * WASM OSC / Rust / C++ / DWGS for the oscillator families that run through the voice's filter
  * stage, with the fallback made visible when a wasm filter was chosen but is not
  * running.
  */
@@ -12,7 +12,7 @@ import { filterSourceIssueId } from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
-    for (const source of ['wam', 'rust', 'cpp'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+    for (const source of ['wam', 'rust', 'cpp', 'dwgs'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
     vi.restoreAllMocks();
 });
 
@@ -69,6 +69,30 @@ describe('FilterSourceSelector', () => {
 
         act(() => logFilterSourceFallback('C++', 'Native', 'cpp_osc.wasm fetch HTTP 404', filterSourceIssueId('cpp')));
         expect(screen.getByRole('status')).toHaveTextContent(/C\+\+ filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
+    });
+
+    it('offers the DWGS filter for every filtered oscillator family, dwgs-* included', () => {
+        const onChange = vi.fn();
+        for (const type of VOICE_FILTER_OSC_TYPES) {
+            const { unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+            const button = screen.getByRole('button', { name: 'DWGS filter source' });
+            expect(button).toHaveAttribute('title', expect.stringMatching(/24 dB\/oct ladder/));
+            fireEvent.click(button);
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'dwgs' });
+            unmount();
+        }
+    });
+
+    it('says so for the DWGS filter, and another source\'s failure does not show on a DWGS voice', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        render(<FilterSourceSelector type="rust" filterSource="dwgs" onChange={() => {}} />);
+
+        act(() => logFilterSourceFallback('C++', 'Native', 'cpp is down', filterSourceIssueId('cpp')));
+        expect(screen.queryByRole('status')).toBeNull();
+
+        act(() => logFilterSourceFallback('DWGS', 'Native', 'dwgs_osc.wasm fetch HTTP 404', filterSourceIssueId('dwgs')));
+        expect(screen.getByRole('status')).toHaveTextContent(/DWGS filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
