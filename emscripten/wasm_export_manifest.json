@@ -233,7 +233,9 @@
       "imports: the wasm export names are `required`, plus `memory`. Bound by",
       "src/audio-worklets/rust-osc-processor.ts; tools/check_rust_osc_module.mjs fails on a",
       "missing name or on any export not listed here. rosc_render_scalar is the scalar",
-      "reference path the SIMD rosc_render is parity-tested against."
+      "reference path the SIMD rosc_render is parity-tested against. `requiredFilter` is the",
+      "Rust filter (#1672) in the same module: a resonant LP/BP/HP RBJ biquad run as a streaming",
+      "stage by src/audio-worklets/rust-filter-processor.ts, so any oscillator engine can use it."
     ],
     "required": [
       "rosc_abi_version",
@@ -245,6 +247,12 @@
       "rosc_reset",
       "rosc_render",
       "rosc_render_scalar"
+    ],
+    "requiredFilter": [
+      "rflt_buf_ptr",
+      "rflt_configure",
+      "rflt_reset",
+      "rflt_process"
     ]
   },
   "cppOsc": {

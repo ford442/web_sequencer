@@ -1,5 +1,6 @@
 // @mode: bridge
-// Main-thread side of the "WASM OSC filter" (#1663).
+// Main-thread side of the "WASM OSC filter" (#1663) — and, generalised as
+// `WasmFilterStage`, of the "Rust filter" (#1672, src/engines/RustFilter.ts).
 //
 // The DSP is assembly/biquad.ts — the same resonant biquad baked into a `wam-*`
 // table — built standalone as src/wasm/wamFilter.wasm and run per synth voice by
@@ -13,10 +14,17 @@
 // Anything it cannot do returns null / not-ready with a reason; `Voice` then
 // runs its native BiquadFilterNode and reports the substitution
 // (`logFilterSourceFallback`) — there is no silent path.
+//
+// Every wasm filter source is one of these stages: same node contract (one input,
+// one output, k-rate `cutoff` / `resonance` / `type`, `ready` / `error` messages),
+// differing in the registered processor, the module it compiles and its names
+// (`FilterStageSpec`). `Voice` treats them alike (`engines/filterStages.ts`).
 
 import { engineTelemetry } from '@/utils/engineTelemetry';
 import { log } from '@/utils/log';
 import { loadWorkletModule } from '../audio/runtime/workletRegistry';
+import type { FilterSource } from '../types/synth';
+import { setFilterStage, getFilterStage } from './filterStages';
 import {
     WAM_FILTER_PARAMS,
     WAM_FILTER_PROCESSOR,
@@ -34,6 +42,33 @@ export interface WamFilterInitResult {
     reason: string;
 }
 
+/** What differs between wasm filter sources; everything else is shared. */
+export interface FilterStageSpec {
+    /** The `SynthParams.filterSource` this stage implements. */
+    source: Exclude<FilterSource, 'native'>;
+    /** Registered AudioWorkletProcessor name. */
+    processor: string;
+    /** For messages: the module this stage runs ("wamFilter.wasm"). */
+    moduleName: string;
+    /** For messages and logs: `[Tag]`. */
+    tag: string;
+}
+
+export const WAM_FILTER_SPEC: FilterStageSpec = {
+    source: 'wam',
+    processor: WAM_FILTER_PROCESSOR,
+    moduleName: 'wamFilter.wasm',
+    tag: 'WamFilter',
+};
+
+/** A compiled module, or why there is none. */
+export interface FilterModuleLoad {
+    module: WebAssembly.Module | null;
+    bytes: number;
+    reason: string | null;
+    unsupported: boolean;
+}
+
 export interface WamFilterSettingsUpdate {
     cutoff: number;
     resonance: number;
@@ -42,7 +77,7 @@ export interface WamFilterSettingsUpdate {
 
 /** One pooled filter: an AudioWorkletNode running its own kernel instance. */
 export class WamFilterNode {
-    readonly owner: WamFilter;
+    readonly owner: WasmFilterStage;
     readonly node: AudioWorkletNode;
     readonly context: BaseAudioContext;
     private readonly cutoffParam: AudioParam;
@@ -50,7 +85,7 @@ export class WamFilterNode {
     private readonly typeParam: AudioParam;
     private disposed = false;
 
-    constructor(owner: WamFilter, node: AudioWorkletNode, context: BaseAudioContext) {
+    constructor(owner: WasmFilterStage, node: AudioWorkletNode, context: BaseAudioContext) {
         this.owner = owner;
         this.node = node;
         this.context = context;
@@ -109,7 +144,11 @@ export class WamFilterNode {
     }
 }
 
-export class WamFilter {
+/**
+ * A pool of worklet filter nodes that run one wasm filter kernel. Subclasses
+ * pick the processor and how the module is loaded.
+ */
+export class WasmFilterStage {
     private module: WebAssembly.Module | null = null;
     private context: BaseAudioContext | null = null;
     private readonly free: WamFilterNode[] = [];
@@ -121,10 +160,12 @@ export class WamFilter {
 
     private readonly processorUrl: string;
     private readonly wasmUrl: string;
+    readonly spec: FilterStageSpec;
 
-    constructor(processorUrl: string, wasmUrl: string) {
+    constructor(processorUrl: string, wasmUrl: string, spec: FilterStageSpec) {
         this.processorUrl = processorUrl;
         this.wasmUrl = wasmUrl;
+        this.spec = spec;
     }
 
     get isSupported(): boolean {
@@ -149,7 +190,7 @@ export class WamFilter {
         const loaded = await this.loadModule();
         if (!loaded.module) {
             if (loaded.unsupported) this.supported = false;
-            return this.fail(loaded.reason ?? 'wamFilter.wasm unavailable');
+            return this.fail(loaded.reason ?? `${this.spec.moduleName} unavailable`);
         }
         this.module = loaded.module;
 
@@ -157,7 +198,7 @@ export class WamFilter {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             await Promise.race([
-                loadWorkletModule(context, this.processorUrl, WAM_FILTER_PROCESSOR),
+                loadWorkletModule(context, this.processorUrl, this.spec.processor),
                 new Promise<never>((_, reject) => {
                     timer = setTimeout(
                         () => reject(new Error(`timed out after ${WAM_FILTER_READY_TIMEOUT_MS} ms`)),
@@ -189,11 +230,11 @@ export class WamFilter {
         this.isReady = true;
         this.failure = null;
         try {
-            engineTelemetry.registerResolution('filter', 'wam', `ready (${ready.reason})`);
+            engineTelemetry.registerResolution('filter', this.spec.source, `ready (${ready.reason})`);
         } catch {
             /* telemetry is best-effort */
         }
-        log.debug(`[WamFilter] ready: ${loaded.bytes} B, ${ready.reason}`);
+        log.debug(`[${this.spec.tag}] ready: ${loaded.bytes} B, ${ready.reason}`);
         return { ok: true, reason: ready.reason };
     }
 
@@ -234,37 +275,33 @@ export class WamFilter {
         this.isReady = false;
     }
 
-    private async loadModule(): Promise<{
-        module: WebAssembly.Module | null;
-        bytes: number;
-        reason: string | null;
-        unsupported: boolean;
-    }> {
+    /** Fetch, validate and compile the module this stage runs. Overridden by a stage whose module is shared. */
+    protected async loadModule(): Promise<FilterModuleLoad> {
         const none = (reason: string, unsupported = false, bytes = 0) =>
             ({ module: null, bytes, reason, unsupported });
         let bytes: ArrayBuffer;
         try {
             const response = await fetch(this.wasmUrl);
-            if (!response.ok) return none(`wamFilter.wasm fetch HTTP ${response.status} (${this.wasmUrl})`);
+            if (!response.ok) return none(`${this.spec.moduleName} fetch HTTP ${response.status} (${this.wasmUrl})`);
             bytes = await response.arrayBuffer();
         } catch (e) {
-            return none(`wamFilter.wasm fetch failed: ${e instanceof Error ? e.message : String(e)}`);
+            return none(`${this.spec.moduleName} fetch failed: ${e instanceof Error ? e.message : String(e)}`);
         }
         // The module targets the Safari intersection (simd + bulk-memory, no WasmGC),
         // so an engine that rejects it lacks one of those: name that, up front.
         if (!WebAssembly.validate(bytes)) {
-            return none('wamFilter.wasm does not validate: engine lacks WASM simd/bulk-memory', true, bytes.byteLength);
+            return none(`${this.spec.moduleName} does not validate: engine lacks WASM simd/bulk-memory`, true, bytes.byteLength);
         }
         try {
             return { module: await WebAssembly.compile(bytes), bytes: bytes.byteLength, reason: null, unsupported: false };
         } catch (e) {
-            return none(`wamFilter.wasm compile failed: ${e instanceof Error ? e.message : String(e)}`, false, bytes.byteLength);
+            return none(`${this.spec.moduleName} compile failed: ${e instanceof Error ? e.message : String(e)}`, false, bytes.byteLength);
         }
     }
 
     private createNode(context: BaseAudioContext): WamFilterNode {
         const processorOptions: WamFilterProcessorOptions = { module: this.module! };
-        const node = new AudioWorkletNode(context, WAM_FILTER_PROCESSOR, {
+        const node = new AudioWorkletNode(context, this.spec.processor, {
             numberOfInputs: 1,
             numberOfOutputs: 1,
             outputChannelCount: [1],
@@ -277,7 +314,7 @@ export class WamFilter {
             if (event.data?.type === 'error') {
                 // A node created after a good probe failing is unexpected: it stays
                 // silent, so say so rather than let it look like a muted voice.
-                console.error(`[WamFilter] node failed in the worklet: ${event.data.reason}`);
+                console.error(`[${this.spec.tag}] node failed in the worklet: ${event.data.reason}`);
                 this.failure = `node failed in the worklet: ${event.data.reason}`;
             }
         };
@@ -321,22 +358,24 @@ export class WamFilter {
         this.failure = detail;
         // Not announced here: nothing has lost anything until a voice asks for the
         // filter. `Voice` reports the substitution then, with this reason.
-        console.warn(`[WamFilter] unavailable: ${detail}`);
+        console.warn(`[${this.spec.tag}] unavailable: ${detail}`);
         return { ok: false, reason: detail };
     }
 }
 
-/**
- * Process-wide handle on the filter the audio engine built, so `Voice` can ask
- * for one without a ref threaded through the engine (same pattern as the
- * oscillator registry).
- */
-let activeFilter: WamFilter | null = null;
-
-export function setWamFilter(filter: WamFilter | null): void {
-    activeFilter = filter;
+/** The "WASM OSC filter" (#1663): the AssemblyScript kernel's biquad. */
+export class WamFilter extends WasmFilterStage {
+    constructor(processorUrl: string, wasmUrl: string) {
+        super(processorUrl, wasmUrl, WAM_FILTER_SPEC);
+    }
 }
 
-export function getWamFilter(): WamFilter | null {
-    return activeFilter;
+// The process-wide handles live in `filterStages.ts` (one slot per source); these
+// keep the #1663 names.
+export function setWamFilter(filter: WasmFilterStage | null): void {
+    setFilterStage('wam', filter);
+}
+
+export function getWamFilter(): WasmFilterStage | null {
+    return getFilterStage('wam');
 }

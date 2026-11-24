@@ -4,6 +4,7 @@ import { WebGpuOscillator } from '../../engines/WebGpuOscillator';
 import { WasmOscillator } from '../../engines/WasmOscillator';
 import { RustOscillator } from '../../engines/RustOscillator';
 import { WamFilter, setWamFilter } from '../../engines/WamFilter';
+import { RustFilter, setRustFilter } from '../../engines/RustFilter';
 import { CppOscillator } from '../../engines/CppOscillator';
 import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
@@ -122,6 +123,8 @@ export interface EngineLifecycleUrls {
     /** The "WASM OSC filter" worklet (#1663) and the wasm it runs. */
     wamFilterProcessorUrl: string;
     wamFilterWasmUrl: string;
+    /** The "Rust filter" worklet (#1672); its wasm is `rust_osc.wasm`, the oscillator's own module. */
+    rustFilterProcessorUrl: string;
     /** `cpp-*` oscillator voices (#1665). */
     cppOscProcessorUrl: string;
     /** `dwgs-*` oscillator voices (#1666). */
@@ -260,11 +263,17 @@ export async function initializeAudioContextAndEngines(
     await Promise.all([rustBackend.init(context), cppBackend.init(context), dwgsBackend.init(context)]);
 
     // The "WASM OSC filter" (#1663): a filter *stage*, not an oscillator, so it is
-    // not in the backend chain. A voice that selects it asks `getWamFilter()`; if
-    // this init failed it runs its native filter and reports the substitution.
+    // not in the backend chain. A voice that selects it asks `getFilterStage('wam')`;
+    // if this init failed it runs its native filter and reports the substitution.
     const wamFilter = new WamFilter(urls.wamFilterProcessorUrl, urls.wamFilterWasmUrl);
     setWamFilter(wamFilter);
     await wamFilter.init(context);
+    // The "Rust filter" (#1672): the same kind of stage, in the Rust kernel's module
+    // (compiled once and shared with the `rust-*` voices above). Independent of
+    // whether the `rust-*` oscillator itself came up.
+    const rustFilter = new RustFilter(urls.rustFilterProcessorUrl);
+    setRustFilter(rustFilter);
+    await rustFilter.init(context);
     loadingProgressStore.completeStep('wasmEngine');
 
     // Fails until a runtime attaches — the point of the call is to hand the

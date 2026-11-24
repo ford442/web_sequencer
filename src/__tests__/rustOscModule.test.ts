@@ -17,6 +17,7 @@ import {
 } from '../../tools/check_rust_osc_module.mjs';
 import { rustOscRustflags } from '../../scripts/build-rust-osc.mjs';
 import { RUST_OSC_ABI_VERSION, RUST_OSC_REQUIRED_EXPORTS, RUST_OSC_SHAPE_ID } from '../audio-worklets/rustOsc';
+import { RUST_FILTER_ABI_VERSION, RUST_FILTER_REQUIRED_EXPORTS, RUST_FILTER_TYPE_ID } from '../audio-worklets/rustFilter';
 import { rustOscWasmFixture } from '../test/helpers/rustOscWasmFixture';
 
 const REPO_ROOT = join(__dirname, '../..');
@@ -25,20 +26,29 @@ const libRs = readFileSync(join(REPO_ROOT, 'rust-audio/src/lib.rs'), 'utf8');
 describe('rust_osc export surface', () => {
     it('manifest, release checker and worklet name the same exports', () => {
         const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8')) as {
-            rustOsc: { required: string[] };
+            rustOsc: { required: string[]; requiredFilter: string[] };
         };
         expect([...RUST_OSC_REQUIRED_EXPORTS]).toEqual(manifest.rustOsc.required);
-        expect(CHECKER_EXPORTS).toEqual(manifest.rustOsc.required);
+        expect([...RUST_FILTER_REQUIRED_EXPORTS]).toEqual(manifest.rustOsc.requiredFilter);
+        expect(CHECKER_EXPORTS).toEqual([...manifest.rustOsc.required, ...manifest.rustOsc.requiredFilter]);
     });
 
     it('every export is a #[no_mangle] extern "C" fn in lib.rs, and nothing else is', () => {
         const defined = [...libRs.matchAll(/#\[no_mangle\]\s*pub extern "C" fn (\w+)\(/g)].map((m) => m[1]);
-        expect(defined.sort()).toEqual([...RUST_OSC_REQUIRED_EXPORTS].sort());
+        expect(defined.sort()).toEqual([...RUST_OSC_REQUIRED_EXPORTS, ...RUST_FILTER_REQUIRED_EXPORTS].sort());
     });
 
     it('the ABI version agrees in lib.rs, the checker and the worklet', () => {
         expect(libRs).toContain(`pub const ABI_VERSION: u32 = ${RUST_OSC_ABI_VERSION};`);
         expect(CHECKER_ABI).toBe(RUST_OSC_ABI_VERSION);
+    });
+
+    it('the filter worklet binds to the same ABI, and its response ids agree with the kernel', () => {
+        expect(RUST_FILTER_ABI_VERSION).toBe(RUST_OSC_ABI_VERSION);
+        const consts = { lp: 'FILTER_LP', bp: 'FILTER_BP', hp: 'FILTER_HP' } as const;
+        for (const [type, id] of Object.entries(RUST_FILTER_TYPE_ID)) {
+            expect(libRs, type).toContain(`pub const ${consts[type as keyof typeof consts]}: u32 = ${id};`);
+        }
     });
 
     it('shape ids agree with the kernel', () => {
@@ -104,15 +114,17 @@ function withImport(): Uint8Array {
 describe('tools/check_rust_osc_module.mjs', () => {
     const pages = RUST_OSC_BUDGET.initialMemoryPages;
 
-    it('accepts a fixed, import-free module with the full surface, ABI 1 and SIMD', () => {
+    it('accepts a fixed, import-free module with the full surface (oscillator + filter), ABI 2 and SIMD', () => {
         expect(checkRustOscModule(rustOscWasmFixture('valid'))).toEqual([]);
     });
 
     it.each([
         ['growable-memory', 'memory can grow'],
         ['scalar-only', 'v128 render path was not compiled in'],
-        ['wrong-abi', 'ABI version 2'],
+        ['wrong-abi', 'ABI version 3'],
         ['missing-render', 'missing exports: rosc_render'],
+        ['missing-filter', 'missing exports: rflt_buf_ptr, rflt_configure, rflt_reset, rflt_process'],
+        ['accepts-any-filter-type', 'rflt_configure accepted an unknown filter type'],
     ] as const)('rejects the %s fixture', (variant, message) => {
         expect(checkRustOscModule(rustOscWasmFixture(variant)).join('\n')).toContain(message);
     });

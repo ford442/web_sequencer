@@ -2,9 +2,11 @@ import React, { memo } from 'react';
 import type { FilterSource, FilterType, OscillatorType, SynthParams } from '../types';
 import {
   FILTER_SOURCES,
+  FILTER_SOURCE_DESCRIPTIONS,
   FILTER_SOURCE_LABELS,
   FILTER_TYPES,
   FILTER_TYPE_LABELS,
+  filterSourceIssueId,
   resolveFilterSource,
   resolveFilterType,
 } from '../engines/backends/filterSource';
@@ -31,11 +33,12 @@ interface FilterSourceSelectorProps {
 const SHORT_TYPE: Record<FilterType, string> = { lp: 'LP', bp: 'BP', hp: 'HP' };
 
 /**
- * Filter response (LP / BP / HP) and filter source (native biquad, or the
- * "WASM OSC" AssemblyScript filter) for one synth. The WASM OSC filter works
- * with every oscillator family above — it is a stage after the oscillator, not
- * a property of the `wam-*` one — and when it cannot run the voice uses the
- * native filter and the notice below says so (#1663).
+ * Filter response (LP / BP / HP) and filter source (native biquad, the
+ * "WASM OSC" AssemblyScript filter, or the "Rust" filter) for one synth. The
+ * wasm filters work with every oscillator family above — each is a stage after
+ * the oscillator, not a property of the `wam-*` / `rust-*` one — and when one
+ * cannot run the voice uses the native filter and the notice below says so
+ * (#1663, #1672).
  */
 export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
   type,
@@ -49,8 +52,8 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
 
   const activeType = resolveFilterType(filterType);
   const activeSource = resolveFilterSource(filterSource);
-  const fallback = activeSource === 'wam'
-    ? degradation.find((issue) => issue.id === 'filter-source' && issue.status === 'active')
+  const fallback = activeSource !== 'native'
+    ? degradation.find((issue) => issue.id === filterSourceIssueId(activeSource) && issue.status === 'active')
     : undefined;
 
   const cyan = accentColor === 'cyan';
@@ -94,9 +97,7 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
               key={s}
               onClick={() => onChange({ filterSource: s })}
               aria-pressed={activeSource === s}
-              title={s === 'wam'
-                ? 'The AssemblyScript kernel\'s resonant filter, applied to this oscillator'
-                : 'The voice\'s own Web Audio biquad filter'}
+              title={FILTER_SOURCE_DESCRIPTIONS[s]}
               aria-label={`${FILTER_SOURCE_LABELS[s]} filter source`}
               className={`flex-1 px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border ${ring} ${activeSource === s ? active : inactive}`}
             >
@@ -107,7 +108,7 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
       </div>
       {fallback && (
         <p role="status" className="text-[7px] leading-tight text-amber-400" title={fallback.reason}>
-          WASM OSC filter unavailable — using the native filter. {fallback.reason}
+          {FILTER_SOURCE_LABELS[activeSource]} filter unavailable — using the native filter. {fallback.reason}
         </p>
       )}
     </div>

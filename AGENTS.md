@@ -331,8 +331,8 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 
 ### 2. Rust World (`/rust-audio`) — the `rust-*` oscillator voices (#1664)
 - **Source**: `rust-audio/src/lib.rs`, a `no_std` cdylib (no dependencies, no
-  wasm-bindgen, no allocator) exporting a plain C ABI (`rosc_*`, declared in
-  `emscripten/wasm_export_manifest.json#rustOsc`).
+  wasm-bindgen, no allocator) exporting a plain C ABI (`rosc_*` oscillator and
+  `rflt_*` filter, declared in `emscripten/wasm_export_manifest.json#rustOsc`).
 - **Build**: `pnpm run build:wasm:rust` → `public/rust_osc.wasm` (the `rust-osc`
   native world; `build:native` builds it). Needs `rustup target add
   wasm32-unknown-unknown`. Flags (`+simd128`, fixed memory, stack) come from
@@ -342,9 +342,17 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
   (`src/engines/RustOscillator.ts`, `RustWorkletBackend`). Never a main-thread
   buffer — that is what #1294 removed; `oscillatorEngineContract.test.ts`
   keeps it out.
+- **Rust filter (#1672)**: the same module carries a resonant LP/BP/HP RBJ biquad
+  (`rflt_*`, ABI 2) that any oscillator can select as `filterSource: 'rust'`; it
+  runs as a separate stage node (`rust-filter-processor`, `src/engines/RustFilter.ts`),
+  not inside the oscillator. A change to the `rflt_*` surface needs the manifest
+  (`requiredFilter`), `src/audio-worklets/rustFilter.ts` and the hand-encoded
+  fixture `src/test/helpers/rustOscWasmFixture.ts` updated together.
 - **Tests**: `cargo test --release` in `rust-audio/` (scalar reference: alias
-  energy, sine accuracy, DC, hostile input); `rustOscVoice.realWasm.test.ts`
-  (integration tier: SIMD bit-identical to scalar, processor gate timing).
+  energy, sine accuracy, DC, hostile input, filter coefficients and responses);
+  `rustOscVoice.realWasm.test.ts` (integration tier: SIMD bit-identical to
+  scalar, processor gate timing) and `rustFilter.realWasm.test.ts` (filter vs
+  RBJ, == the WASM OSC filter, processor block handling).
 - See `docs/wasm/BUILD_NOTES.md#rust-osc`.
 
 ### 2b. DWGS World (`/dwgs-audio`) — the `dwgs-*` oscillator voices (#1666)

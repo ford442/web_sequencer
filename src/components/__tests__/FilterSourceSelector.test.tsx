@@ -1,16 +1,18 @@
 /**
- * The filter type + source picker (#1663): LP / BP / HP and Native / WASM OSC for
- * the oscillator families that run through the voice's filter stage, with the
- * fallback made visible when the WASM OSC filter was chosen but is not running.
+ * The filter type + source picker (#1663, #1672): LP / BP / HP and Native / WASM
+ * OSC / Rust for the oscillator families that run through the voice's filter
+ * stage, with the fallback made visible when a wasm filter was chosen but is not
+ * running.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { FilterSourceSelector, VOICE_FILTER_OSC_TYPES } from '../FilterSourceSelector';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { filterSourceIssueId } from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
-    engineDegradationStore.clear('filter-source');
+    for (const source of ['wam', 'rust'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
     vi.restoreAllMocks();
 });
 
@@ -33,6 +35,16 @@ describe('FilterSourceSelector', () => {
         expect(onChange).toHaveBeenLastCalledWith({ filterType: 'bp' });
         fireEvent.click(screen.getByRole('button', { name: 'WASM OSC filter source' }));
         expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'wam' });
+    });
+
+    it('offers the Rust filter for every filtered oscillator family, independent of the oscillator shape', () => {
+        const onChange = vi.fn();
+        for (const type of VOICE_FILTER_OSC_TYPES) {
+            const { unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+            fireEvent.click(screen.getByRole('button', { name: 'Rust filter source' }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'rust' });
+            unmount();
+        }
     });
 
     it('shows the stored selection', () => {
@@ -59,16 +71,28 @@ describe('FilterSourceSelector', () => {
         render(<FilterSourceSelector type="wam" filterSource="wam" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
 
-        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'wamFilter.wasm fetch HTTP 404'));
+        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'wamFilter.wasm fetch HTTP 404', filterSourceIssueId('wam')));
 
         expect(screen.getByRole('status')).toHaveTextContent(/WASM OSC filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
+    });
+
+    it('says so for the Rust filter too, and a WASM OSC failure does not show on a Rust voice', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        render(<FilterSourceSelector type="wam" filterSource="rust" onChange={() => {}} />);
+
+        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'wam is down', filterSourceIssueId('wam')));
+        expect(screen.queryByRole('status')).toBeNull();
+
+        act(() => logFilterSourceFallback('Rust', 'Native', 'rust_osc.wasm fetch HTTP 404', filterSourceIssueId('rust')));
+        expect(screen.getByRole('status')).toHaveTextContent(/Rust filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
     it('does not show that notice for a voice that never asked for the WASM OSC filter', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="wam" filterSource="native" onChange={() => {}} />);
-        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'some other voice asked'));
+        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'some other voice asked', filterSourceIssueId('wam')));
         expect(screen.queryByRole('status')).toBeNull();
     });
 });

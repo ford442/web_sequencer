@@ -288,6 +288,26 @@ describe('no new decorative oscillator families', () => {
         expect(readFileSync(join(ROOT, 'assembly', 'oscillators.ts'), 'utf8')).not.toMatch(/Math\.cos\(w0\)/);
     });
 
+    it('the Rust filter is a stage in the oscillator\'s own module: only its worklet runs the kernel, the main thread never filters (#1672)', () => {
+        const bridge = readFileSync(join(SRC, 'engines', 'RustFilter.ts'), 'utf8');
+        expect(bridge).not.toMatch(/new Float32Array\(/);
+        expect(bridge).not.toMatch(/createBuffer(Source)?\(/);
+        expect(bridge).not.toMatch(/\.exports\b/);
+        const stage = readFileSync(join(SRC, 'engines', 'WamFilter.ts'), 'utf8');
+        expect(stage).toContain('new AudioWorkletNode(');
+        // Only the worklet calls the streaming filter export.
+        const kernelUsers = walk(SRC).filter((f) => /\.rflt_process\(/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['audio-worklets/rust-filter-processor.ts']);
+        // Not a backend in the fallback chain, and the realtime note path reaches it only via the stage registry.
+        expect(BACKEND_FALLBACK_ORDER as readonly string[]).not.toContain('rustFilter');
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/RustFilter|rust_osc/);
+        // One module, one DSP: the filter lives in the same crate as the oscillator, not a copy of the AS biquad.
+        const lib = readFileSync(join(ROOT, 'rust-audio', 'src', 'lib.rs'), 'utf8');
+        expect(lib).toMatch(/pub struct Biquad/);
+        expect(lib).toMatch(/pub extern "C" fn rflt_process/);
+    });
+
     it('keeps the Safari feature intersection on both AssemblyScript filter builds: simd + bulk-memory, no GC (#1663)', () => {
         const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts as Record<string, string>;
         for (const name of ['build:wasm:oscillators', 'build:wasm:wamfilter']) {

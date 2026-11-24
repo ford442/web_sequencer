@@ -215,6 +215,8 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'dwgs-osc-processor',
   // The "WASM OSC filter" stage (#1663): selected filters have no other implementation to run.
   'wam-filter-processor',
+  // The "Rust filter" stage (#1672), in the same module as the rust-* oscillator.
+  'rust-filter-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',

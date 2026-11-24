@@ -12,13 +12,15 @@ import type { VoiceSource } from './backends/BackendRegistry';
 import {
     FILTER_SOURCE_LABELS,
     biquadTypeFor,
+    filterSourceIssueId,
     hostFilterRequest,
     kernelResonance,
     maxFilterCutoff,
     resolveFilterSource,
     resolveFilterType,
 } from './backends/filterSource';
-import { getWamFilter, type WamFilterNode } from './WamFilter';
+import type { WamFilterNode } from './WamFilter';
+import { getFilterStage, type StagedFilterSource } from './filterStages';
 import type { FilterSource, FilterType } from '../types/synth';
 import { VoicePool, type PoolableVoice } from './base/VoicePool';
 import { getPitchOffsetSemitones, transposeFrequency } from '../utils/pitchOffset';
@@ -44,13 +46,16 @@ export class Voice implements PoolableVoice {
     /**
      * Every source (OscillatorNode, looped table, worklet voice) connects here,
      * once, and never rewires. The bus feeds exactly one filter: the voice's own
-     * `filter` (native) or `wamFilter` (the WASM OSC filter, #1663). Swapping
-     * filters is two `connect`s on this node, not on every source.
+     * `filter` (native) or `stage` (a wasm filter: the WASM OSC filter, #1663,
+     * or the Rust filter, #1672). Swapping filters is two `connect`s on this
+     * node, not on every source.
      */
     private filterBus: GainNode;
     private filter: BiquadFilterNode;
-    /** The WASM OSC filter, pooled with the voice once it was asked for; wired only while `filterRoute` is 'wam'. */
-    private wamFilter: WamFilterNode | null = null;
+    /** The wasm filter node this voice holds (one at a time), wired only while `filterRoute` is its source. */
+    private stage: WamFilterNode | null = null;
+    /** Which wasm filter `stage` came from. */
+    private stageSource: StagedFilterSource | null = null;
     private filterRoute: FilterSource = 'native';
     private gain: GainNode;
     private dryGain: GainNode;
@@ -75,7 +80,7 @@ export class Voice implements PoolableVoice {
      */
     private static reportedLegacy = new Set<string>();
 
-    /** Filter-source fallbacks already reported, by reason: once per cause, not per note. */
+    /** Filter-source fallbacks already reported, by source and reason: once per cause, not per note. */
     private static reportedFilterFallback = new Set<string>();
 
     /** Reference pitch of the table currently loaded in `source`, for slides. */
@@ -392,39 +397,45 @@ export class Voice implements PoolableVoice {
 
     /**
      * Decide which filter shapes this note: the one the params ask for, or — when
-     * the WASM OSC filter was asked for and cannot run — the native one, *said
-     * out loud*. The result is the filter that will actually sound, which is
-     * also what the host oscillator is asked to bake (`hostFilterRequest`).
+     * a wasm filter was asked for and cannot run — the native one, *said out
+     * loud*. The result is the filter that will actually sound, which is also
+     * what the host oscillator is asked to bake (`hostFilterRequest`).
      */
     private planFilter(params: SynthParams): FilterPlan {
         const type = resolveFilterType(params.filterType);
-        if (resolveFilterSource(params.filterSource) === 'native') {
-            return { source: 'native', type };
-        }
-        const wam = getWamFilter();
-        const reason = wam
-            ? wam.unavailableReason(this.context)
+        const requested = resolveFilterSource(params.filterSource);
+        if (requested === 'native') return { source: 'native', type };
+        const stage = getFilterStage(requested);
+        const reason = stage
+            ? stage.unavailableReason(this.context)
             : 'audio engine not initialized';
-        if (reason) return this.filterFallback(type, reason);
-        if (!this.wamFilter) {
-            this.wamFilter = wam!.acquire(this.context);
-            if (!this.wamFilter) return this.filterFallback(type, wam!.failure ?? 'could not create a filter node');
+        if (reason) return this.filterFallback(requested, type, reason);
+        // A node of the other wasm filter: hand it back before taking this one.
+        if (this.stage && this.stageSource !== requested) this.routeFilter('native');
+        if (!this.stage) {
+            this.stage = stage!.acquire(this.context);
+            if (!this.stage) return this.filterFallback(requested, type, stage!.failure ?? 'could not create a filter node');
+            this.stageSource = requested;
         }
-        // It works: an earlier fallback report is stale, and a later failure is news again.
-        if (Voice.reportedFilterFallback.size > 0) {
-            Voice.reportedFilterFallback.clear();
-            engineDegradationStore.resolve('filter-source');
+        // It works: an earlier fallback report for this source is stale, and a later failure is news again.
+        const prefix = `${requested}:`;
+        const stale = [...Voice.reportedFilterFallback].filter((key) => key.startsWith(prefix));
+        if (stale.length > 0) {
+            for (const key of stale) Voice.reportedFilterFallback.delete(key);
+            engineDegradationStore.resolve(filterSourceIssueId(requested));
         }
-        return { source: 'wam', type };
+        return { source: requested, type };
     }
 
-    private filterFallback(type: FilterType, reason: string): FilterPlan {
-        if (!Voice.reportedFilterFallback.has(reason)) {
-            Voice.reportedFilterFallback.add(reason);
+    private filterFallback(requested: FilterSource, type: FilterType, reason: string): FilterPlan {
+        const key = `${requested}:${reason}`;
+        if (!Voice.reportedFilterFallback.has(key)) {
+            Voice.reportedFilterFallback.add(key);
             logFilterSourceFallback(
-                FILTER_SOURCE_LABELS.wam,
+                FILTER_SOURCE_LABELS[requested],
                 FILTER_SOURCE_LABELS.native,
                 reason,
+                filterSourceIssueId(requested),
             );
         }
         return { source: 'native', type };
@@ -435,8 +446,8 @@ export class Voice implements PoolableVoice {
         const sampleRate = this.context.sampleRate;
         const cutoff = Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff));
         this.routeFilter(plan.source);
-        if (plan.source === 'wam' && this.wamFilter) {
-            this.wamFilter.set(now, {
+        if (plan.source !== 'native' && this.stage) {
+            this.stage.set(now, {
                 cutoff,
                 resonance: kernelResonance(plan.type, params.filterResonance),
                 type: plan.type,
@@ -450,29 +461,34 @@ export class Voice implements PoolableVoice {
 
     /** Point `filterBus` at one filter. A no-op when it already does. */
     private routeFilter(to: FilterSource): void {
-        const wam = this.wamFilter;
-        const want: FilterSource = to === 'wam' && wam ? 'wam' : 'native';
-        if (want === this.filterRoute) return;
+        const stage = this.stage;
+        const want: FilterSource = to !== 'native' && stage && this.stageSource === to ? to : 'native';
+        // Native with a node still held (a different source's, say) is not a no-op: hand it back.
+        if (want === this.filterRoute && !(want === 'native' && stage)) return;
         try {
-            if (want === 'wam' && wam) {
+            if (want !== 'native' && stage) {
                 this.filterBus.disconnect(this.filter);
-                this.filterBus.connect(wam.input);
-                wam.output.connect(this.gain);
-            } else if (wam) {
-                this.filterBus.disconnect(wam.input);
+                this.filterBus.connect(stage.input);
+                stage.output.connect(this.gain);
+            } else if (stage) {
+                if (this.filterRoute !== 'native') {
+                    this.filterBus.disconnect(stage.input);
+                    this.filterBus.connect(this.filter);
+                }
                 // Back to the pool: this disconnects the node's output too.
-                wam.release();
-                this.wamFilter = null;
-                this.filterBus.connect(this.filter);
+                stage.release();
+                this.stage = null;
+                this.stageSource = null;
             }
         } catch (e) {
             // A rewire that throws would leave the voice with no filter path at all.
             console.error('[Voice] filter rewire failed; restoring the native filter', e);
             try { this.filterBus.disconnect(); } catch { /* nothing connected */ }
             this.filterBus.connect(this.filter);
-            if (this.wamFilter) {
-                this.wamFilter.release();
-                this.wamFilter = null;
+            if (this.stage) {
+                this.stage.release();
+                this.stage = null;
+                this.stageSource = null;
             }
             this.filterRoute = 'native';
             return;
