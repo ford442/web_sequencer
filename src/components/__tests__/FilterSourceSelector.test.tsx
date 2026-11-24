@@ -21,7 +21,7 @@ describe('FilterSourceSelector', () => {
         render(<FilterSourceSelector type="wam" onChange={() => {}} />);
         expect(screen.getByRole('button', { name: 'Low pass filter' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByRole('button', { name: 'Band pass filter' })).toHaveAttribute('aria-pressed', 'false');
-        expect(screen.getByRole('button', { name: 'Native filter source' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'JS filter source' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByRole('button', { name: 'WASM OSC filter source' })).toHaveAttribute('aria-pressed', 'false');
     });
 
@@ -64,10 +64,10 @@ describe('FilterSourceSelector', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="dwgs" filterSource="cpp" onChange={() => {}} />);
 
-        act(() => logFilterSourceFallback('Rust', 'Native', 'rust is down', filterSourceIssueId('rust')));
+        act(() => logFilterSourceFallback('Rust', 'JS', 'rust is down', filterSourceIssueId('rust')));
         expect(screen.queryByRole('status')).toBeNull();
 
-        act(() => logFilterSourceFallback('C++', 'Native', 'cpp_osc.wasm fetch HTTP 404', filterSourceIssueId('cpp')));
+        act(() => logFilterSourceFallback('C++', 'JS', 'cpp_osc.wasm fetch HTTP 404', filterSourceIssueId('cpp')));
         expect(screen.getByRole('status')).toHaveTextContent(/C\+\+ filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
@@ -88,10 +88,10 @@ describe('FilterSourceSelector', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="rust" filterSource="dwgs" onChange={() => {}} />);
 
-        act(() => logFilterSourceFallback('C++', 'Native', 'cpp is down', filterSourceIssueId('cpp')));
+        act(() => logFilterSourceFallback('C++', 'JS', 'cpp is down', filterSourceIssueId('cpp')));
         expect(screen.queryByRole('status')).toBeNull();
 
-        act(() => logFilterSourceFallback('DWGS', 'Native', 'dwgs_osc.wasm fetch HTTP 404', filterSourceIssueId('dwgs')));
+        act(() => logFilterSourceFallback('DWGS', 'JS', 'dwgs_osc.wasm fetch HTTP 404', filterSourceIssueId('dwgs')));
         expect(screen.getByRole('status')).toHaveTextContent(/DWGS filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
@@ -120,7 +120,7 @@ describe('FilterSourceSelector', () => {
         render(<FilterSourceSelector type="wam" filterSource="wam" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
 
-        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'wamFilter.wasm fetch HTTP 404', filterSourceIssueId('wam')));
+        act(() => logFilterSourceFallback('WASM OSC', 'JS', 'wamFilter.wasm fetch HTTP 404', filterSourceIssueId('wam')));
 
         expect(screen.getByRole('status')).toHaveTextContent(/WASM OSC filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
@@ -130,10 +130,10 @@ describe('FilterSourceSelector', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="wam" filterSource="rust" onChange={() => {}} />);
 
-        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'wam is down', filterSourceIssueId('wam')));
+        act(() => logFilterSourceFallback('WASM OSC', 'JS', 'wam is down', filterSourceIssueId('wam')));
         expect(screen.queryByRole('status')).toBeNull();
 
-        act(() => logFilterSourceFallback('Rust', 'Native', 'rust_osc.wasm fetch HTTP 404', filterSourceIssueId('rust')));
+        act(() => logFilterSourceFallback('Rust', 'JS', 'rust_osc.wasm fetch HTTP 404', filterSourceIssueId('rust')));
         expect(screen.getByRole('status')).toHaveTextContent(/Rust filter unavailable — using the native filter/);
         expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
@@ -141,7 +141,7 @@ describe('FilterSourceSelector', () => {
     it('does not show that notice for a voice that never asked for the WASM OSC filter', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="wam" filterSource="native" onChange={() => {}} />);
-        act(() => logFilterSourceFallback('WASM OSC', 'Native', 'some other voice asked', filterSourceIssueId('wam')));
+        act(() => logFilterSourceFallback('WASM OSC', 'JS', 'some other voice asked', filterSourceIssueId('wam')));
         expect(screen.queryByRole('status')).toBeNull();
     });
     it('offers the WebGPU filter for every filtered oscillator family', () => {
@@ -163,7 +163,7 @@ describe('FilterSourceSelector', () => {
     });
 
     it('says so when the WebGPU filter is selected but the voice fell back to the native one', () => {
-        logFilterSourceFallback('WebGPU', 'Native', 'WebGPU is unavailable (no adapter, or the device was lost)', filterSourceIssueId('webgpu'));
+        logFilterSourceFallback('WebGPU', 'JS', 'WebGPU is unavailable (no adapter, or the device was lost)', filterSourceIssueId('webgpu'));
         render(<FilterSourceSelector type="wam" filterSource="webgpu" onChange={() => {}} />);
         expect(screen.getByRole('status')).toHaveTextContent(/WebGPU filter unavailable/);
         expect(screen.getByRole('status')).toHaveTextContent(/device was lost/);
@@ -172,7 +172,7 @@ describe('FilterSourceSelector', () => {
     });
 
     it('does not show the WebGPU failure on a voice that never asked for it', () => {
-        logFilterSourceFallback('WebGPU', 'Native', 'webgpu notice-isolation unit test', filterSourceIssueId('webgpu'));
+        logFilterSourceFallback('WebGPU', 'JS', 'webgpu notice-isolation unit test', filterSourceIssueId('webgpu'));
         render(<FilterSourceSelector type="wam" filterSource="rust" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
     });
@@ -197,7 +197,7 @@ describe('FilterSourceSelector', () => {
     });
 
     it('says so when the Pyodide filter is selected but the voice fell back to the native one', () => {
-        logFilterSourceFallback('Pyodide', 'Native', 'the Python runtime failed to load (timed out)', filterSourceIssueId('pyodide'));
+        logFilterSourceFallback('Pyodide', 'JS', 'the Python runtime failed to load (timed out)', filterSourceIssueId('pyodide'));
         render(<FilterSourceSelector type="wam" filterSource="pyodide" onChange={() => {}} />);
         expect(screen.getByRole('status')).toHaveTextContent(/Pyodide filter unavailable/);
         expect(screen.getByRole('status')).toHaveTextContent(/timed out/);
@@ -205,7 +205,7 @@ describe('FilterSourceSelector', () => {
     });
 
     it('does not show the Pyodide failure on a voice that never asked for it', () => {
-        logFilterSourceFallback('Pyodide', 'Native', 'pyodide notice-isolation unit test', filterSourceIssueId('pyodide'));
+        logFilterSourceFallback('Pyodide', 'JS', 'pyodide notice-isolation unit test', filterSourceIssueId('pyodide'));
         render(<FilterSourceSelector type="wam" filterSource="webgpu" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
     });

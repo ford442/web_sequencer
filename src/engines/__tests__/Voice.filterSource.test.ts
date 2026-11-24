@@ -212,7 +212,7 @@ describe('when the WASM OSC filter cannot run', () => {
         // …and it is said, in the store the HUD/banner read.
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('wam'));
         expect(issue?.requestedBackend).toBe('WASM OSC');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('[FilterSourceFallback]'));
     });
 
@@ -412,7 +412,7 @@ describe('when the Rust filter cannot run', () => {
         expect(table.lastRequest).toMatchObject({ cutoff: 2000, resonance: 6 });
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('rust'));
         expect(issue?.requestedBackend).toBe('Rust');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
     });
 
     it('with no Rust filter object at all (audio engine not initialized) it reports and filters natively', () => {

@@ -237,7 +237,7 @@ describe('Pyodide filter source: what it cannot serve', () => {
         expect(biquadType(g)).toBe('highpass');
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('pyodide'));
         expect(issue?.requestedBackend).toBe('Pyodide');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
         expect(issue?.reason).toContain('dwgs-piano');
         expect(issue?.reason).toContain('Pyodide');
     });

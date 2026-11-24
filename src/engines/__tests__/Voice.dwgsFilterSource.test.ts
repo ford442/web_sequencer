@@ -153,7 +153,7 @@ describe('when the DWGS filter cannot run', () => {
         expect(table.lastRequest).toMatchObject({ cutoff: 2000, resonance: 6 });
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('dwgs'));
         expect(issue?.requestedBackend).toBe('DWGS');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
     });
 
     it('with no DWGS filter object at all (audio engine not initialized) it reports and filters natively', () => {

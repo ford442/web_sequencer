@@ -2,7 +2,7 @@ import { type SynthParams } from '../types';
 import { tunedNoteToFrequency } from '../constants/tuning';
 import type { ScaleDefinition } from '../utils/musicTheory';
 import { parseWaveform, shapeToOscillatorType, type ParsedWaveform } from '../utils/waveformParser';
-import { engineTelemetry, logEngineFallback, logFilterSourceFallback, logWaveformSubstitution } from '../utils/engineTelemetry';
+import { engineTelemetry, logEngineFallback, logFilterSourceFallback, logWaveformSubstitution, reportActiveFilterSource } from '../utils/engineTelemetry';
 import { engineDegradationStore } from '../stores/engineDegradationStore';
 import { playbackHealthMonitor } from '../audio/playback/PlaybackHealthMonitor';
 import { getOscillatorRegistry } from './backends/BackendRegistry';
@@ -516,6 +516,7 @@ export class Voice implements PoolableVoice {
     private applyFilter(plan: FilterPlan, params: SynthParams, now: number): void {
         const sampleRate = this.context.sampleRate;
         const cutoff = Math.max(20, Math.min(maxFilterCutoff(sampleRate), params.filterCutoff));
+        reportActiveFilterSource(FILTER_SOURCE_LABELS[plan.source]);
         this.routeFilter(plan.source);
         // A table filter's table is already filtered: nothing sits between the bus and the output gain.
         if (isTableFilterSource(plan.source)) return;

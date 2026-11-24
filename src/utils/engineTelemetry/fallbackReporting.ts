@@ -95,6 +95,28 @@ export function logWaveformSubstitution(
  * used). The sound changes (different filter), so like a waveform substitution
  * it is never silent: console, telemetry and the degradation store / EngineHUD.
  */
+let lastActiveFilterSource: string | null = null;
+
+/**
+ * Publish which filter source is shaping the sound, on the healthy path too, so
+ * the EngineHUD's "filter" row names it (e.g. "JS", "Rust") instead of only
+ * appearing after a fallback. Deduped: a voice calls this on every note.
+ */
+export function reportActiveFilterSource(activeSource: string): void {
+  if (lastActiveFilterSource === activeSource) return;
+  lastActiveFilterSource = activeSource;
+  try {
+    engineTelemetry.registerResolution('filter', activeSource, 'active filter source');
+  } catch {
+    /* telemetry must never break audio */
+  }
+}
+
+/** Test seam: forget the last published filter source. */
+export function resetActiveFilterSourceForTests(): void {
+  lastActiveFilterSource = null;
+}
+
 export function logFilterSourceFallback(
   requestedSource: string,
   activeSource: string,
@@ -104,6 +126,7 @@ export function logFilterSourceFallback(
 ): void {
   const detail = `filter source "${requestedSource}" unavailable, using "${activeSource}" (${reason})`;
   console.warn(`[FilterSourceFallback] ${detail}`);
+  lastActiveFilterSource = activeSource;
   try {
     engineTelemetry.registerResolution('filter', activeSource, detail);
     engineTelemetry.recordDegradation('filter', true, detail);

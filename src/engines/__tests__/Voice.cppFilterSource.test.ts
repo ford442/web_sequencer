@@ -151,7 +151,7 @@ describe('when the C++ filter cannot run', () => {
         expect(table.lastRequest).toMatchObject({ cutoff: 2000, resonance: 6 });
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('cpp'));
         expect(issue?.requestedBackend).toBe('C++');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
     });
 
     it('with no C++ filter object at all (audio engine not initialized) it reports and filters natively', () => {
