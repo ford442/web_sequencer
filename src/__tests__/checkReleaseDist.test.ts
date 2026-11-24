@@ -47,6 +47,7 @@ const WORKLETS = [
     'dwgs-osc-processor',
     'wam-filter-processor',
     'rust-filter-processor',
+    'cpp-filter-processor',
     'drumkit-processor',
     'sustain-processor',
     'RubberBandProcessor',
@@ -70,6 +71,7 @@ const WORKLET_CHUNK_STEM: Record<string, string> = {
     'dwgs-osc-processor': 'dwgs-osc-processor',
     'wam-filter-processor': 'wam-filter-processor',
     'rust-filter-processor': 'rust-filter-processor',
+    'cpp-filter-processor': 'cpp-filter-processor',
     'drumkit-processor': 'drumkit-processor',
     'sustain-processor': 'sustain-processor',
     RubberBandProcessor: 'rubberband-processor',
@@ -413,8 +415,10 @@ describe('check-release-dist WASM export gate', () => {
     it.each([
         ['growable-memory', 'memory can grow'],
         ['simd', 'module uses v128'],
-        ['wrong-abi', 'ABI version 2'],
+        ['wrong-abi', 'ABI version 1'],
         ['missing-render', 'missing exports: cosc_render'],
+        // The C++ filter (#1673) ships in the same module: a build without it fails the release.
+        ['missing-filter', 'missing exports: cflt_process'],
     ] as const)('rejects a cpp_osc.wasm with %s', (variant, message) => {
         const result = runCheck(makeDist({ cppOsc: variant }));
 

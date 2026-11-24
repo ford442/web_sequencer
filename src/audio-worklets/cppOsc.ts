@@ -23,7 +23,7 @@ export type CppOscShape = 'saw' | 'sqr' | 'tri' | 'sin';
 export const CPP_OSC_PROCESSOR = 'cpp-osc-processor';
 
 /** Must equal `kAbiVersion` in emscripten/cpp_osc.cpp (tools/check_cpp_osc_module.mjs). */
-export const CPP_OSC_ABI_VERSION = 1;
+export const CPP_OSC_ABI_VERSION = 2;
 
 /** cpp_osc.wasm instance exports: the generated surface plus the reactor's own. */
 export interface CppOscInstance extends CppOscExports {

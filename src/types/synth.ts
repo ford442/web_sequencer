@@ -110,11 +110,14 @@ export type FilterType = 'lp' | 'bp' | 'hp';
  *     oscillator engine;
  *   - `rust`   — the "Rust" filter (#1672): the Rust kernel's RBJ biquad
  *     (`rust-audio/`), the same kind of stage, also after *any* oscillator
- *     engine (including `rust-*`, which is not special-cased).
+ *     engine (including `rust-*`, which is not special-cased);
+ *   - `cpp`    — the "C++" filter (#1673): the C++ kernel's trapezoidal state
+ *     variable filter (`emscripten/cpp_osc.cpp`), the same kind of stage with
+ *     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`).
  * If a wasm source cannot run, the voice falls back to `native` and says so
  * (never silently).
  */
-export type FilterSource = 'native' | 'wam' | 'rust';
+export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp';
 
 export interface SynthParams {
   waveform: Waveform;

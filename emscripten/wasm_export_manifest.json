@@ -261,7 +261,9 @@
       "export names are `required`, unprefixed, plus `memory` / `_initialize` and the `runtime` names",
       "Emscripten adds itself (never requested). Bound by src/audio-worklets/cpp-osc-processor.ts and",
       "src/audio/offline/OfflineCppOscEngine.ts; tools/check_cpp_osc_module.mjs fails on a missing",
-      "name or on any export in no bucket."
+      "name or on any export in no bucket. The `cflt_*` names are the C++ filter (#1673) in the same",
+      "module: a resonant LP/BP/HP state variable filter run as a streaming stage by",
+      "src/audio-worklets/cpp-filter-processor.ts, so any oscillator engine can use it."
     ],
     "required": [
       "cosc_abi_version",
@@ -271,7 +273,11 @@
       "cosc_out_ptr",
       "cosc_init",
       "cosc_reset",
-      "cosc_render"
+      "cosc_render",
+      "cflt_buf_ptr",
+      "cflt_configure",
+      "cflt_reset",
+      "cflt_process"
     ],
     "runtime": [
       "__indirect_function_table",

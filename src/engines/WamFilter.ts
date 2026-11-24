@@ -1,6 +1,7 @@
 // @mode: bridge
 // Main-thread side of the "WASM OSC filter" (#1663) — and, generalised as
-// `WasmFilterStage`, of the "Rust filter" (#1672, src/engines/RustFilter.ts).
+// `WasmFilterStage`, of the "Rust filter" (#1672, src/engines/RustFilter.ts) and
+// the "C++ filter" (#1673, src/engines/CppFilter.ts).
 //
 // The DSP is assembly/biquad.ts — the same resonant biquad baked into a `wam-*`
 // table — built standalone as src/wasm/wamFilter.wasm and run per synth voice by

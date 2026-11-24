@@ -35,4 +35,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/wamFilter.realWasm.test.ts',
   // The "Rust filter" (#1672) on the real rust_osc.wasm: LP/BP/HP vs the RBJ transfer functions, == the WASM OSC filter, filters any oscillator, processor block handling.
   'src/audio-worklets/__tests__/rustFilter.realWasm.test.ts',
+  // The "C++ filter" (#1673) on the real cpp_osc.wasm: LP/BP/HP vs the RBJ transfer functions, == the WASM OSC and Rust filters, filters any oscillator, smooth sweeps, processor block handling.
+  'src/audio-worklets/__tests__/cppFilter.realWasm.test.ts',
 ] as const;

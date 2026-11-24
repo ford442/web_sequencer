@@ -1,6 +1,6 @@
 /**
- * The filter type + source picker (#1663, #1672): LP / BP / HP and Native / WASM
- * OSC / Rust for the oscillator families that run through the voice's filter
+ * The filter type + source picker (#1663, #1672, #1673): LP / BP / HP and Native /
+ * WASM OSC / Rust / C++ for the oscillator families that run through the voice's filter
  * stage, with the fallback made visible when a wasm filter was chosen but is not
  * running.
  */
@@ -12,7 +12,7 @@ import { filterSourceIssueId } from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
-    for (const source of ['wam', 'rust'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+    for (const source of ['wam', 'rust', 'cpp'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
     vi.restoreAllMocks();
 });
 
@@ -45,6 +45,31 @@ describe('FilterSourceSelector', () => {
             expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'rust' });
             unmount();
         }
+    });
+
+    it('offers the C++ filter for every filtered oscillator family, cpp-* included', () => {
+        const onChange = vi.fn();
+        for (const type of VOICE_FILTER_OSC_TYPES) {
+            const { unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+            fireEvent.click(screen.getByRole('button', { name: 'C++ filter source' }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'cpp' });
+            unmount();
+        }
+        expect([...VOICE_FILTER_OSC_TYPES]).toEqual(
+            expect.arrayContaining(['javascript', 'pcm', 'pyodide', 'webgpu', 'wam', 'rust', 'cpp', 'dwgs']),
+        );
+    });
+
+    it('says so for the C++ filter, and another source\'s failure does not show on a C++ voice', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        render(<FilterSourceSelector type="dwgs" filterSource="cpp" onChange={() => {}} />);
+
+        act(() => logFilterSourceFallback('Rust', 'Native', 'rust is down', filterSourceIssueId('rust')));
+        expect(screen.queryByRole('status')).toBeNull();
+
+        act(() => logFilterSourceFallback('C++', 'Native', 'cpp_osc.wasm fetch HTTP 404', filterSourceIssueId('cpp')));
+        expect(screen.getByRole('status')).toHaveTextContent(/C\+\+ filter unavailable — using the native filter/);
+        expect(screen.getByRole('status')).toHaveTextContent('HTTP 404');
     });
 
     it('shows the stored selection', () => {

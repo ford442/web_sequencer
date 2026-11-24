@@ -16,6 +16,10 @@ export const CPP_OSC_EXPORTS = [
   'cosc_init',
   'cosc_reset',
   'cosc_render',
+  'cflt_buf_ptr',
+  'cflt_configure',
+  'cflt_reset',
+  'cflt_process',
 ] as const;
 
 /** cpp_osc.wasm instance exports besides `memory` / `_initialize`. */
@@ -28,4 +32,8 @@ export interface CppOscExports {
   cosc_init(sample_rate: number): number;
   cosc_reset(phase: number): void;
   cosc_render(shape: number, frames: number, per_sample_freq: number): number;
+  cflt_buf_ptr(): CppOscPtr;
+  cflt_configure(sample_rate: number, cutoff: number, resonance: number, type: number): number;
+  cflt_reset(): void;
+  cflt_process(frames: number): number;
 }

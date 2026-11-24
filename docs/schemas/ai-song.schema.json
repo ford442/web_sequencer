@@ -221,6 +221,14 @@
             "filterResonance": {
               "type": "number"
             },
+            "filterType": {
+              "$ref": "#/$defs/FilterType",
+              "description": "Low / band / high pass. Absent means `lp`."
+            },
+            "filterSource": {
+              "$ref": "#/$defs/FilterSource",
+              "description": "Which filter implementation runs it. Absent means `native`."
+            },
             "filterMode": {
               "type": "number"
             },
@@ -543,6 +551,25 @@
         "macro-hihat"
       ],
       "description": "The macro engine family, in native engine order (MACRO_ENGINES)."
+    },
+    "FilterType": {
+      "type": "string",
+      "enum": [
+        "lp",
+        "bp",
+        "hp"
+      ],
+      "description": "Response of a synth voice's resonant filter (#1663). The numbering the kernels use (0 / 1 / 2) is `FILTER_TYPE_ID` in `engines/backends/filterSource.ts`."
+    },
+    "FilterSource": {
+      "type": "string",
+      "enum": [
+        "native",
+        "wam",
+        "rust",
+        "cpp"
+      ],
+      "description": "Whose filter shapes a voice:   - `native` — the voice's own `BiquadFilterNode` (the default, and what every     song saved before this field existed uses);   - `wam`    — the \"WASM OSC\" filter: the AssemblyScript kernel's resonant     biquad (`assembly/biquad.ts`), run as a worklet stage after *any*     oscillator engine;   - `rust`   — the \"Rust\" filter (#1672): the Rust kernel's RBJ biquad     (`rust-audio/`), the same kind of stage, also after *any* oscillator     engine (including `rust-*`, which is not special-cased);   - `cpp`    — the \"C++\" filter (#1673): the C++ kernel's trapezoidal state     variable filter (`emscripten/cpp_osc.cpp`), the same kind of stage with     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`). If a wasm source cannot run, the voice falls back to `native` and says so (never silently)."
     },
     "Engine303": {
       "type": "string",
