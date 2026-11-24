@@ -14,6 +14,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Which engine renders a basic wave](#basic-wave-engines)
 - [The WASM OSC filter (LP / BP / HP, usable by any oscillator)](#wam-filter)
 - [The Rust filter (same idea, in the Rust kernel)](#rust-filter)
+- [The C++ filter (a state variable filter in the C++ kernel)](#cpp-filter)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [Denormal guards](#denormal-guards)
@@ -603,6 +604,7 @@ two families are not one oscillator under two labels:
 | Note onset | phase reset | phase reset **plus a band-limited step + corner from silence** |
 | SIMD | `simd128` required | **scalar** — runs where WASM SIMD does not |
 | Memory | fixed 2 pages | fixed 2 pages (`wasm_memory_budget.json#cppOsc`) |
+| Selectable filter | Rust filter: RBJ biquad, `rflt_*` ([#rust-filter](#rust-filter)) | C++ filter: trapezoidal SVF, `cflt_*` ([#cpp-filter](#cpp-filter), #1673) |
 
 **Placement: a dedicated module, not `hyphon_native`.** The issue's question.
 `hyphon_native`'s heap is sized for its voices (303 / Prophecy / Macro / drums)
@@ -651,7 +653,8 @@ Pieces:
 Saved `cpp-saw` / `cpp-sqr` / `cpp-tri` / `cpp-sin` load onto this family as
 written. `cpp-rand` never made a sound of its own and the kernel has no noise
 shape, so `LEGACY_WAVEFORM_ALIASES` rewrites it to `cpp-saw` — reported through
-`logWaveformSubstitution`, not silently. An in-kernel resonant filter is #1673.
+`logWaveformSubstitution`, not silently. The kernel's resonant filter, selectable by any
+oscillator, is the [C++ filter](#cpp-filter) (#1673).
 
 <a id="dwgs-osc"></a>
 
@@ -859,6 +862,66 @@ including for `rust-*` itself; filtering inside `rust-osc-processor` (one node, 
 hop) is possible with these exports but not wired. (2) Offline bounces take the logged native
 fallback, as for the WASM OSC filter. (3) Cutoff / Q / type are k-rate, set at note start.
 (4) Session packs do not carry `filterType` / `filterSource`.
+
+<a id="cpp-filter"></a>
+
+### The C++ filter: LP / BP / HP in the C++ kernel, selectable by any oscillator (#1673)
+
+Before #1673 the C++ kernel had no filter and the `cpp-*` voices ran through the voice's
+`BiquadFilterNode` like everything else. `emscripten/cpp_osc.cpp` now has a resonant
+LP / BP / HP filter, and `SynthParams.filterSource: 'cpp'` ("C++" in the Filter / Source
+selector) runs it after whatever the synth plays: JS, WASM OSC, Rust, C++, DWGS, WebGPU,
+Pyodide, WAV.
+
+- **DSP: a different topology, the same response.** `Svf` in `cpp_osc.cpp` is a
+  trapezoidal-integrator (TPT / zero-delay-feedback) state variable filter, `f64`
+  coefficients and state: `g = tan(π fc / fs)`, `k = 1/Q`; LP = `v2`, BP = `k·v1`
+  (constant 0 dB peak), HP = `v0 − k·v1 − v2`. It is the bilinear transform of the same
+  analog prototype the RBJ biquads use, prewarped at the cutoff, so its magnitude **and**
+  phase equal the WASM OSC and Rust filters': noise through all three kernels agrees to f32
+  rounding (`cppFilter.realWasm.test.ts`), and switching source does not change a static
+  sound. Where it differs is modulation: the state is two integrators' charge, so moving
+  the cutoff changes the response without the transients a direct-form biquad produces
+  when its coefficients jump (a held DC level stays exactly put through a 400 Hz → 6 kHz
+  jump; a Q 20 lowpass swept three decades every 32 blocks stays bounded).
+- **Band-limited where that is a question.** The filter is linear and time-invariant within
+  a block, so it creates no partials of its own (nothing to alias); the bilinear map keeps
+  every pole inside the unit circle. The cutoff is clamped to [20 Hz, `sampleRate / 2.1`]
+  and Q to ≥ 0.1, the other sources' clamps, which keeps `tan` finite and the resonant
+  peak below Nyquist. Same numbering (`kFilterLp/Bp/Hp` = 0 / 1 / 2) and the same refusals
+  (non-finite values, a rate outside 8–768 kHz, an unknown type → `0`, previous response
+  kept). Denormals are flushed once per block.
+- **Placement: `cpp_osc.wasm`, not `hyphon_native`.** Four more exports in the standalone
+  module — `cflt_buf_ptr`, `cflt_configure`, `cflt_reset`, `cflt_process`
+  (`wasm_export_manifest.json#cppOsc.required`, typed into `src/shared/rt/cppOscExports.ts`
+  by `gen:native-types`) — with a separate in-place 1024-frame buffer (4 KiB) and 64 B of
+  state. The module stays at its 2 fixed pages (~66 KiB spare). A filter stage is one more
+  instance of that module per voice that selects it, so its cost is visible in
+  `wasm_memory_budget.json#cppOsc` and never touches `hyphon_native`'s voice heap. A filter
+  node does not call `cosc_init`, so it never builds the oscillator's 33 KiB of residual
+  tables. ABI **2** (the surface grew; the oscillator and filter worklets refuse any other).
+  One build, one release gate (`tools/check_cpp_osc_module.mjs` also smoke-calls
+  `cflt_configure` and checks it refuses an unknown type), one `dist` artifact. Still scalar.
+- **Worklet / bridge** — `src/audio-worklets/cpp-filter-processor.ts` (k-rate `cutoff`,
+  `resonance`, `type`; the same node contract as the other two stages) and
+  `src/engines/CppFilter.ts`, a `WasmFilterStage` over `loadCppOscModule()`: the `cpp-*`
+  oscillator and the filter fetch and compile `cpp_osc.wasm` **once**.
+- **No silent fallback onto another engine's filter.** C++ unavailable (no `cpp_osc.wasm`,
+  no worklet, a refused module, an offline render, lost mid-session) → the voice runs the
+  native filter and reports it under `filter-source:cpp`, once per cause. It never borrows
+  the WASM OSC or Rust stage, and the processor refuses a module without `cflt_*` (e.g.
+  `rust_osc.wasm`) by name.
+
+```
+host oscillator ──► filterBus ──► BiquadFilterNode ─────┐   filterSource: 'native' (default)
+ (any engine)          ├───────► wam-filter-processor ──┤   filterSource: 'wam'
+                       ├───────► rust-filter-processor ─┤   filterSource: 'rust'
+                       └───────► cpp-filter-processor ──┴─► gain → …   filterSource: 'cpp'
+```
+
+**Not done, deliberately.** As for the Rust filter: a separate node after the oscillator
+(including after `cpp-*`), offline bounces take the logged native fallback, cutoff / Q /
+type are k-rate and set at note start, and session packs do not carry the filter fields.
 
 <a id="wam-osc"></a>
 

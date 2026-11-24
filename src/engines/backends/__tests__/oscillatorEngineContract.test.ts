@@ -308,6 +308,30 @@ describe('no new decorative oscillator families', () => {
         expect(lib).toMatch(/pub extern "C" fn rflt_process/);
     });
 
+    it('the C++ filter is a stage in the cpp-* oscillator\'s own module: only its worklet runs the kernel, the main thread never filters (#1673)', () => {
+        const bridge = readFileSync(join(SRC, 'engines', 'CppFilter.ts'), 'utf8');
+        expect(bridge).not.toMatch(/new Float32Array\(/);
+        expect(bridge).not.toMatch(/createBuffer(Source)?\(/);
+        expect(bridge).not.toMatch(/\.exports\b/);
+        // It loads the oscillator's module through the oscillator's loader: one fetch, one compile, one artifact.
+        expect(bridge).toMatch(/loadCppOscModule\(\)/);
+        // Only the worklet calls the streaming filter export.
+        const kernelUsers = walk(SRC).filter((f) => /\.cflt_process\(/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['audio-worklets/cpp-filter-processor.ts']);
+        // Not a backend in the fallback chain, and the realtime note path reaches it only via the stage registry.
+        expect(BACKEND_FALLBACK_ORDER as readonly string[]).not.toContain('cppFilter');
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/CppFilter|cpp_osc/);
+        // One module, its own DSP: the filter is C++ in cpp_osc.cpp, not hyphon_native and not a copy of another kernel.
+        const kernel = readFileSync(join(ROOT, 'emscripten', 'cpp_osc.cpp'), 'utf8');
+        expect(kernel).toMatch(/struct Svf/);
+        expect(kernel).toMatch(/EMSCRIPTEN_KEEPALIVE int cflt_process\(/);
+        const manifest = JSON.parse(readFileSync(join(ROOT, 'emscripten', 'wasm_export_manifest.json'), 'utf8')) as {
+            required: string[]; optional?: string[];
+        };
+        expect([...manifest.required, ...(manifest.optional ?? [])].some((n) => n.includes('cflt'))).toBe(false);
+    });
+
     it('keeps the Safari feature intersection on both AssemblyScript filter builds: simd + bulk-memory, no GC (#1663)', () => {
         const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts as Record<string, string>;
         for (const name of ['build:wasm:oscillators', 'build:wasm:wamfilter']) {

@@ -5,7 +5,8 @@
  *   - one defined memory, not shared, that cannot grow, sized exactly as the
  *     `cppOsc` section of emscripten/wasm_memory_budget.json says
  *   - exactly the `cppOsc` exports of emscripten/wasm_export_manifest.json
- *     (plus `memory` / `_initialize` and the section's `runtime` names)
+ *     (plus `memory` / `_initialize` and the section's `runtime` names): the
+ *     oscillator's `cosc_*` and the C++ filter's `cflt_*` (#1673), one module
  *   - no v128 in any signature or local: the kernel is scalar on purpose, so it
  *     runs where WASM SIMD does not — a SIMD build would break that silently
  *   - the ABI version the worklet binds to, and a working init
@@ -35,7 +36,7 @@ export const CPP_OSC_BUDGET = JSON.parse(
 ).cppOsc;
 
 /** Must equal `kAbiVersion` in emscripten/cpp_osc.cpp and the worklet's constant. */
-export const CPP_OSC_ABI_VERSION = 1;
+export const CPP_OSC_ABI_VERSION = 2;
 
 /**
  * True when any function signature or declared local is a v128. Sound for what
@@ -142,12 +143,18 @@ export function checkCppOscModule(buf) {
     const abi = exports.cosc_abi_version();
     if (abi !== CPP_OSC_ABI_VERSION) problems.push(`ABI version ${abi}, expected ${CPP_OSC_ABI_VERSION}`);
     const bytes = exports.cosc_max_frames() * 4;
-    for (const name of ['cosc_freq_ptr', 'cosc_out_ptr']) {
+    for (const name of ['cosc_freq_ptr', 'cosc_out_ptr', 'cflt_buf_ptr']) {
       if (exports[name]() + bytes > exports.memory.buffer.byteLength) {
         problems.push(`${name} buffer runs past the end of memory`);
       }
     }
     if (exports.cosc_init(48000) !== 1) problems.push('cosc_init(48000) did not return 1');
+    if (exports.cflt_configure(48000, 1000, 0.7071, 0) !== 1) {
+      problems.push('cflt_configure(48000, 1000, 0.7071, lowpass) did not return 1');
+    }
+    if (exports.cflt_configure(48000, 1000, 0.7071, 99) !== 0) {
+      problems.push('cflt_configure accepted an unknown filter type');
+    }
   }
 
   return problems;

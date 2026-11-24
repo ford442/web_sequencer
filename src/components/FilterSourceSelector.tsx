@@ -34,11 +34,11 @@ const SHORT_TYPE: Record<FilterType, string> = { lp: 'LP', bp: 'BP', hp: 'HP' };
 
 /**
  * Filter response (LP / BP / HP) and filter source (native biquad, the
- * "WASM OSC" AssemblyScript filter, or the "Rust" filter) for one synth. The
- * wasm filters work with every oscillator family above — each is a stage after
- * the oscillator, not a property of the `wam-*` / `rust-*` one — and when one
- * cannot run the voice uses the native filter and the notice below says so
- * (#1663, #1672).
+ * "WASM OSC" AssemblyScript filter, the "Rust" filter or the "C++" filter) for
+ * one synth. The wasm filters work with every oscillator family above — each is
+ * a stage after the oscillator, not a property of the `wam-*` / `rust-*` /
+ * `cpp-*` one — and when one cannot run the voice uses the native filter and
+ * the notice below says so (#1663, #1672, #1673).
  */
 export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
   type,

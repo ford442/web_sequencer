@@ -217,6 +217,8 @@ const REQUIRED_WORKLET_PROCESSORS = [
   'wam-filter-processor',
   // The "Rust filter" stage (#1672), in the same module as the rust-* oscillator.
   'rust-filter-processor',
+  // The "C++ filter" stage (#1673), in the same module as the cpp-* oscillator.
+  'cpp-filter-processor',
   'drumkit-processor',
   'sustain-processor',
   'RubberBandProcessor',

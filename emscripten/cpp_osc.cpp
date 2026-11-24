@@ -34,9 +34,34 @@
 //     recurrences — no libm calls in that loop — so creating a voice on the
 //     audio thread costs ~0.1-0.3 ms once, well inside one render quantum.
 //
-// Filtering is deliberately absent, as for every basic-wave family: the voice's
-// own BiquadFilterNode sits after this source (src/engines/VoiceManager.ts).
-// A resonant in-kernel C++ filter is #1673.
+// The oscillator itself is unfiltered, as for every basic-wave family: the
+// voice's filter sits after it (src/engines/VoiceManager.ts). What the kernel
+// adds is the **C++ filter** (#1673): a resonant LP / BP / HP filter (`Svf`,
+// below) that is independent of the oscillator shape and of the oscillator
+// *engine*. A second instance of this same module runs it as a streaming stage
+// (src/audio-worklets/cpp-filter-processor.ts), so JS, WASM OSC, Rust, DWGS,
+// WebGPU, Pyodide, WAV and `cpp-*` voices can all choose it as their filter
+// (`SynthParams.filterSource === 'cpp'`).
+//
+//   * Topology: a trapezoidal-integrator ("TPT" / zero-delay-feedback) state
+//     variable filter in double precision. It is the bilinear transform of the
+//     same analog prototype the RBJ biquads of the WASM OSC and Rust filters
+//     come from, prewarped at the cutoff, so its LP / BP / HP magnitude AND
+//     phase equal theirs: switching source does not change the sound of a
+//     static setting. What differs is modulation: the SVF's state is the two
+//     integrators' charge, so a cutoff sweep moves the response without the
+//     transients a direct-form biquad produces when its coefficients jump.
+//   * Band-limited where that is a question at all: the filter is linear and
+//     time-invariant per block, so it creates no new partials (nothing to
+//     alias); the bilinear map keeps every pole inside the unit circle, and the
+//     cutoff is clamped to [20 Hz, sample_rate / 2.1] (the other sources'
+//     clamp) so tan() stays finite and the resonance peak stays below Nyquist.
+//   * Module placement: here, in the standalone cpp_osc.wasm, NOT in
+//     hyphon_native. One filter stage is one more instance of this 2-page
+//     module per voice that selects it (wasm_memory_budget.json#cppOsc); it adds
+//     4 KiB of buffer and 64 B of state to the statics and never touches the
+//     voice module's heap. A filter node does not call cosc_init, so it never
+//     builds the oscillator's residual tables.
 //
 // ABI (extern "C", the `cppOsc` section of wasm_export_manifest.json):
 //   cosc_abi_version() -> int          bumps when the surface changes
@@ -48,6 +73,10 @@
 //   cosc_reset(phase)                  gate-open edge: phase in cycles, wrapped
 //                                      to [0, 1); clears the delay line
 //   cosc_render(shape, frames, per_sample_freq) -> int   frames rendered
+//   cflt_buf_ptr()     -> float*       filter I/O buffer (filtered in place)
+//   cflt_configure(sample_rate, cutoff, resonance, type) -> int   1 on success
+//   cflt_reset()                       filter from rest
+//   cflt_process(frames) -> int        frames filtered
 
 #include <emscripten/emscripten.h>
 
@@ -56,7 +85,7 @@
 
 namespace {
 
-constexpr int kAbiVersion = 1;
+constexpr int kAbiVersion = 2;
 
 // A render quantum is 128 frames today; the headroom matches the Rust OSC so
 // both worklets chunk the same way. Larger requests are split by the caller.
@@ -66,6 +95,12 @@ constexpr int kShapeSaw = 0;
 constexpr int kShapeSqr = 1;
 constexpr int kShapeTri = 2;
 constexpr int kShapeSin = 3;
+
+// Filter response ids: the numbering of `FilterType` in src/types/synth.ts,
+// `FILTER_*` in assembly/biquad.ts and rust-audio/src/lib.rs.
+constexpr int kFilterLp = 0;
+constexpr int kFilterBp = 1;
+constexpr int kFilterHp = 2;
 
 // Residual half-width in samples. 16 zero crossings of a Blackman-Harris
 // windowed sinc puts its transition band at roughly 0.375-0.625 fs, so what
@@ -111,6 +146,84 @@ struct Engine {
 };
 
 Engine g;
+
+// ── C++ filter (#1673) ──────────────────────────────────────────────────────
+
+constexpr double kMinCutoff = 20.0;     // Hz
+constexpr double kMinResonance = 0.1;   // Q
+// State below this magnitude is flushed to zero (denormals cost real time on some CPUs).
+constexpr double kDenormalFloor = 1.0e-30;
+
+/**
+ * Trapezoidal state variable filter (Zavalishin's TPT SVF, in the form
+ * Simper published), f64 coefficients and state. With g = tan(pi fc / fs),
+ * k = 1 / Q, the three outputs per sample are
+ *
+ *   LP  v2              = H(s) 1     / (s^2 + k s + 1)
+ *   BP  k v1            = H(s) k s   / (s^2 + k s + 1)   constant 0 dB peak
+ *   HP  v0 - k v1 - v2  = H(s) s^2   / (s^2 + k s + 1)
+ *
+ * mapped by the bilinear transform prewarped at fc: the RBJ cookbook's LP,
+ * constant-0-dB-peak BP and HP. (f32 is not enough: g at 20 Hz / 48 kHz is
+ * 1.3e-3 and the integrators would drift, as an f32 direct-form biquad does.)
+ */
+struct Svf {
+    double a1, a2, a3, k;
+    double ic1, ic2;   // integrator states
+    int type;
+    bool configured;   // false = identity (see cflt_process)
+
+    /**
+     * Set the response, leaving the integrators alone so a sweep is smooth.
+     * Returns false and keeps the previous response for a non-finite value, a
+     * rate outside the module's range, or an unknown type. Never traps.
+     */
+    bool configure(double sampleRate, double cutoff, double resonance, int kind) {
+        const bool rateOk = sampleRate >= kMinSampleRate && sampleRate <= kMaxSampleRate;
+        if (!rateOk || !std::isfinite(cutoff) || !std::isfinite(resonance)) return false;
+        if (kind < kFilterLp || kind > kFilterHp) return false;
+        double fc = cutoff < sampleRate / 2.1 ? cutoff : sampleRate / 2.1;
+        if (fc < kMinCutoff) fc = kMinCutoff;
+        const double q = resonance > kMinResonance ? resonance : kMinResonance;
+        const double g = std::tan(kPi * fc / sampleRate);
+        k = 1.0 / q;
+        a1 = 1.0 / (1.0 + g * (g + k));
+        a2 = g * a1;
+        a3 = g * a2;
+        type = kind;
+        configured = true;
+        return true;
+    }
+
+    void reset() {
+        ic1 = 0.0;
+        ic2 = 0.0;
+    }
+
+    inline double tick(double v0) {
+        const double v3 = v0 - ic2;
+        const double v1 = a1 * ic1 + a2 * v3;
+        const double v2 = ic2 + a2 * ic1 + a3 * v3;
+        ic1 = 2.0 * v1 - ic1;
+        ic2 = 2.0 * v2 - ic2;
+        switch (type) {
+            case kFilterBp: return k * v1;
+            case kFilterHp: return v0 - k * v1 - v2;
+            default:        return v2;
+        }
+    }
+
+    /** Once per block: a silent input must not leave the state decaying into denormals. */
+    void flushDenormals() {
+        if (std::fabs(ic1) < kDenormalFloor) ic1 = 0.0;
+        if (std::fabs(ic2) < kDenormalFloor) ic2 = 0.0;
+    }
+};
+
+// Separate from `g`: a filter instance never renders, an oscillator instance
+// never filters, and neither may disturb the other's buffers.
+float gFilterBuf[kMaxFrames];
+Svf gFilter = {1.0, 0.0, 0.0, 1.0, 0.0, 0.0, kFilterLp, false};
 
 // 4-term Blackman-Harris (-92 dB sidelobes).
 constexpr double kBh0 = 0.35875;
@@ -388,6 +501,27 @@ EMSCRIPTEN_KEEPALIVE void cosc_reset(float phase) {
 
 EMSCRIPTEN_KEEPALIVE int cosc_render(int shape, int frames, int per_sample_freq) {
     return render(shape, frames, per_sample_freq != 0);
+}
+
+EMSCRIPTEN_KEEPALIVE float* cflt_buf_ptr() { return gFilterBuf; }
+
+EMSCRIPTEN_KEEPALIVE int cflt_configure(float sample_rate, float cutoff, float resonance, int type) {
+    return gFilter.configure(static_cast<double>(sample_rate), static_cast<double>(cutoff),
+                             static_cast<double>(resonance), type) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE void cflt_reset() { gFilter.reset(); }
+
+EMSCRIPTEN_KEEPALIVE int cflt_process(int frames) {
+    const int n = frames < 0 ? 0 : (frames > kMaxFrames ? kMaxFrames : frames);
+    // Never configured: pass through (the worklet refuses to run before the
+    // first successful cflt_configure, so this is only a safe default).
+    if (!gFilter.configured) return n;
+    for (int i = 0; i < n; ++i) {
+        gFilterBuf[i] = static_cast<float>(gFilter.tick(static_cast<double>(gFilterBuf[i])));
+    }
+    gFilter.flushDenormals();
+    return n;
 }
 
 }  // extern "C"

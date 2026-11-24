@@ -20,6 +20,14 @@ import { exportedFunctions } from '../../tools/hyphon_native_exports.mjs';
 import { CPP_OSC_EXPORTS } from '../shared/rt/cppOscExports';
 import { CPP_OSC_ABI_VERSION, CPP_OSC_SHAPE_ID, hasCppOscApi } from '../audio-worklets/cppOsc';
 import { RUST_OSC_SHAPE_ID } from '../audio-worklets/rustOsc';
+import {
+    CPP_FILTER_ABI_VERSION,
+    CPP_FILTER_REQUIRED_EXPORTS,
+    CPP_FILTER_TYPE_ID,
+    hasCppFilterApi,
+    instantiateCppFilter,
+} from '../audio-worklets/cppFilter';
+import { RUST_FILTER_TYPE_ID } from '../audio-worklets/rustFilter';
 import { cppOscWasmFixture } from '../test/helpers/cppOscWasmFixture';
 
 const REPO_ROOT = join(__dirname, '../..');
@@ -41,7 +49,7 @@ describe('cpp_osc export surface', () => {
     });
 
     it('every export is an EMSCRIPTEN_KEEPALIVE function in cpp_osc.cpp, and nothing else is', () => {
-        const defined = [...source.matchAll(/EMSCRIPTEN_KEEPALIVE\s+[\w\s*]+?\b(cosc_\w+)\s*\(/g)].map((m) => m[1]);
+        const defined = [...source.matchAll(/EMSCRIPTEN_KEEPALIVE\s+[\w\s*]+?\b(c(?:osc|flt)_\w+)\s*\(/g)].map((m) => m[1]);
         expect(defined.sort()).toEqual([...manifest.cppOsc.required].sort());
     });
 
@@ -56,6 +64,33 @@ describe('cpp_osc export surface', () => {
             expect(source, shape).toContain(`constexpr int kShape${name[shape as keyof typeof name]} = ${id};`);
         }
         expect(CPP_OSC_SHAPE_ID).toEqual(RUST_OSC_SHAPE_ID);
+    });
+});
+
+describe('the C++ filter half of cpp_osc (#1673)', () => {
+    it('lives in the same module: its exports are the cflt_* names of the cppOsc section', () => {
+        expect([...CPP_FILTER_REQUIRED_EXPORTS]).toEqual(['cflt_buf_ptr', 'cflt_configure', 'cflt_reset', 'cflt_process']);
+        expect([...CPP_FILTER_REQUIRED_EXPORTS]).toEqual(manifest.cppOsc.required.filter((n) => n.startsWith('cflt_')));
+        // One artifact, one ABI: the oscillator and the filter bind the same version.
+        expect(CPP_FILTER_ABI_VERSION).toBe(CPP_OSC_ABI_VERSION);
+    });
+
+    it('uses the filter type ids of every other kernel', () => {
+        const name = { lp: 'Lp', bp: 'Bp', hp: 'Hp' } as const;
+        for (const [type, id] of Object.entries(CPP_FILTER_TYPE_ID)) {
+            expect(source, type).toContain(`constexpr int kFilter${name[type as keyof typeof name]} = ${id};`);
+        }
+        expect(CPP_FILTER_TYPE_ID).toEqual(RUST_FILTER_TYPE_ID);
+    });
+
+    it('the filter worklet accepts the fixture, and refuses one without the filter or with another ABI', () => {
+        const ok = new WebAssembly.Instance(new WebAssembly.Module(cppOscWasmFixture('valid')), {});
+        expect(hasCppFilterApi(ok.exports)).toBe(true);
+        expect(instantiateCppFilter(new WebAssembly.Module(cppOscWasmFixture('valid'))).cflt_buf_ptr()).toBe(64);
+        const broken = new WebAssembly.Instance(new WebAssembly.Module(cppOscWasmFixture('missing-filter')), {});
+        expect(hasCppFilterApi(broken.exports)).toBe(false);
+        expect(() => instantiateCppFilter(new WebAssembly.Module(cppOscWasmFixture('missing-filter')))).toThrow(/cflt_\* exports/);
+        expect(() => instantiateCppFilter(new WebAssembly.Module(cppOscWasmFixture('wrong-abi')))).toThrow(/ABI 1, worklet expects 2/);
     });
 });
 
@@ -74,8 +109,8 @@ describe('cpp_osc fixed memory and scalar build (BUILD_NOTES#cpp-osc)', () => {
     it('keeps the budget page-sized and the static data inside it', () => {
         expect(Number.isInteger(CPP_OSC_BUDGET.initialMemoryPages)).toBe(true);
         expect(CPP_OSC_BUDGET.initialMemoryPages).toBeGreaterThan(0);
-        // freq + out (2 x 1024 floats) + 2 residual tables (32 x 129 floats) + stack.
-        const statics = 2 * 1024 * 4 + 2 * 32 * 129 * 4;
+        // freq + out + the C++ filter's buffer (3 x 1024 floats) + 2 residual tables (32 x 129 floats) + stack.
+        const statics = 3 * 1024 * 4 + 2 * 32 * 129 * 4;
         expect(statics + CPP_OSC_BUDGET.stackSizeBytes).toBeLessThan(CPP_OSC_BUDGET.initialMemoryPages * 65536);
     });
 });
@@ -88,7 +123,8 @@ describe('tools/check_cpp_osc_module.mjs', () => {
     it.each([
         ['growable-memory', 'memory can grow'],
         ['simd', 'module uses v128'],
-        ['wrong-abi', 'ABI version 2'],
+        ['wrong-abi', 'ABI version 1'],
+        ['missing-filter', 'missing exports: cflt_process'],
         ['missing-render', 'missing exports: cosc_render'],
     ] as const)('rejects %s', (variant, message) => {
         expect(checkCppOscModule(cppOscWasmFixture(variant)).join('\n')).toContain(message);
