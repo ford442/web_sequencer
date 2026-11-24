@@ -118,11 +118,18 @@ export type FilterType = 'lp' | 'bp' | 'hp';
  *     with saturated feedback (`dwgs-audio/`), modelled on the DW-6000 /
  *     DW-8000's analog 24 dB/oct filter — a deliberately *different* sound
  *     (steeper slopes, ladder resonance), the same kind of stage, after *any*
- *     oscillator engine (incl. `dwgs-*`).
- * If a wasm source cannot run, the voice falls back to `native` and says so
- * (never silently).
+ *     oscillator engine (incl. `dwgs-*`);
+ *   - `webgpu` — the "WebGPU" filter (#1675): the `wgsl-*` kernel with the RBJ
+ *     response folded into every harmonic of the shape it renders. A GPU cannot
+ *     run inside an AudioWorklet, so it is a *table* filter, not a stage: the
+ *     note plays the part's saw / square / triangle / sine as a GPU-rendered,
+ *     filtered, looped table — whichever oscillator engine the part names.
+ * If a source cannot run, the voice falls back to `native` and says so (never
+ * silently). The one exception is a `webgpu` bank that is still being baked:
+ * that note uses the native filter (the same response) and is logged as a
+ * warm-up, not raised as a degradation.
  */
-export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp' | 'dwgs';
+export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp' | 'dwgs' | 'webgpu';
 
 export interface SynthParams {
   waveform: Waveform;

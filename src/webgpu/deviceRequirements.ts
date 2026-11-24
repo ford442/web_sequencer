@@ -23,6 +23,11 @@ export const COMPUTE_CHAIN_MAX_BYTES = 64 * 1024 * 1024;
 export const GPU_303_MAX_BYTES = 48_000 * 30 * 4;
 /** `WebGpuOscillator` — ~5 s of mono f32 at 44.1 kHz. */
 export const OSCILLATOR_MAX_BYTES = 44_100 * 5 * 4;
+/**
+ * `WebGpuOscillator.renderFilteredBank` (#1675) — one 4096-sample table per MIDI
+ * note (116 × 16 KiB ≈ 1.9 MiB at any sample rate), in one dispatch.
+ */
+export const OSCILLATOR_BANK_MAX_BYTES = 4 * 1024 * 1024;
 
 /** Every compute shader in the app uses `@workgroup_size(64)` or smaller. */
 export const COMPUTE_WORKGROUP_SIZE = 64;

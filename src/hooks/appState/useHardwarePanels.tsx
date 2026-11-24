@@ -27,6 +27,7 @@ import { ChassisOnly } from '../../components/chassis/ChassisOnly'
 import { ChassisDeckPortal } from '../../components/chassis/ChassisDeckPortal'
 import { OscillatorPanelArt } from '../../components/chassis/OscillatorPanelArt'
 import { HARMONIZE_PRESETS, layersIntervalsForChord, type HarmonizerConfig } from '../../engines/Harmonizer'
+import { useGpuFilterPrewarm } from '../useGpuFilterPrewarm'
 
 /**
  * Returns the previous array while `next` has the same contents. The flag
@@ -108,6 +109,11 @@ export function useHardwarePanels(deps: {
         melodicMode, setMelodicMode,
         handleHarmonizerConfigChange,
     } = deps;
+
+    // The WebGPU filter renders its tables ahead of the notes: when a synth selects it, bake the
+    // bank for its current filter settings as the knobs settle (#1675).
+    useGpuFilterPrewarm(audioEngine?.context, synthA);
+    useGpuFilterPrewarm(audioEngine?.context, synthB);
 
     const activeSamplerBank = useSamplerBanksStore(s => s.activeSamplerBank);
     const ttsPhrases = useSamplerBanksStore(s => s.ttsPhrases);

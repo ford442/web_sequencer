@@ -2,9 +2,10 @@
 // @note-for-ai: This is a native WebGPU implementation (L5 in UIMP).
 import { engineTelemetry, logEngineFallback } from '../utils/engineTelemetry';
 import { onWebGpuDeviceChange, probeWebGPU } from './backends/webgpuProbe';
-import { OSCILLATOR_MAX_BYTES } from '../webgpu/deviceRequirements';
+import { OSCILLATOR_BANK_MAX_BYTES, OSCILLATOR_MAX_BYTES } from '../webgpu/deviceRequirements';
 import type { WaveShape } from '../utils/waveformParser';
 import {
+    MAX_HARMONICS,
     SHAPE_INDEX,
     WAVETABLE_LENGTH,
     maxHarmonicFor,
@@ -12,24 +13,56 @@ import {
     planWavetableBands,
     type WavetableBand,
 } from './backends/wavetableBands';
-// The WGSL shader code is embedded in SHADER_CODE constant.
-// This file handles GPU resource management and buffer pooling.
+import {
+    GPU_FILTER_CUTOFF_MIN,
+    GPU_FILTER_Q_MAX,
+    GPU_FILTER_Q_MIN,
+    planFilteredBank,
+    type BankNote,
+    type GpuFilterSpec,
+} from './backends/gpuFilter';
+import { maxFilterCutoff } from './backends/filterSource';
+import { oscillatorShader } from './WebGpuOscillatorShader';
+// The WGSL lives in WebGpuOscillatorShader.ts. This file handles GPU resource management and buffer pooling.
 // See PERFORMANCE_MIGRATION_STRATEGY.md for migration context.
 
-/** Table slots in the kernel's uniform block (shapes × octave bands, with room). */
-const MAX_TABLES = 64;
-/** Uniform block: 16-byte header + one vec4<u32> per table. */
-const UNIFORM_BYTES = 16 + MAX_TABLES * 16;
+/** Table slots in the kernel's uniform block (a 116-note bank, or shapes × octave bands, with room). */
+const MAX_TABLES = 128;
+/**
+ * Uniform block, as the WGSL `Params` struct lays it out:
+ *   0   numSamples, tableCount, filterType, coefStride          (u32 × 4)
+ *   16  resp: tan(w0/2), 1/Q, _, _                              (f32 × 4)
+ *   32  coefBase, _, _, _                                       (u32 × 4)
+ *   48  tables[i]: phase increment, harmonics, shape, offset    (u32 × 4 each)
+ *   48 + 16·MAX_TABLES  freqs[i]: audible f0 / sampleRate, _, _, _  (f32 × 4 each)
+ */
+const HEADER_BYTES = 48;
+const TABLES_OFFSET_WORDS = HEADER_BYTES / 4;
+const FREQS_OFFSET_WORDS = TABLES_OFFSET_WORDS + MAX_TABLES * 4;
+const UNIFORM_BYTES = HEADER_BYTES + MAX_TABLES * 32;
 /** Matches `@workgroup_size(64)` in the kernel. */
 const WORKGROUP_SIZE = 64;
+/** `filterType` value that means "no filter": every harmonic keeps its series gain and phase. */
+const FILTER_NONE = 3;
 
 const ALL_SHAPES: readonly WaveShape[] = ['saw', 'sqr', 'tri', 'sin'];
+const FILTER_TYPE_INDEX = { lp: 0, bp: 1, hp: 2 } as const;
 
 /** One table of a dispatch: what to render and where it lands in the output. */
 interface TableSpec {
     phaseIncrement: number;
     maxHarmonic: number;
     shape: WaveShape;
+    /** Audible fundamental in Hz — the pitch the filter's response is evaluated at. Only read when filtering. */
+    f0?: number;
+}
+
+/** What one `dispatch` is asked to do beyond the tables themselves. */
+interface DispatchOptions {
+    sampleRate: number;
+    filter?: GpuFilterSpec | null;
+    /** Cap on the audio bytes read back; the oscillator's default is ~5 s of mono. */
+    maxBytes?: number;
 }
 
 /** The whole band-limited table set for one sample rate (`renderWavetables`). */
@@ -44,118 +77,54 @@ export interface WavetableSet {
     renderMs: number;
 }
 
+/**
+ * One shape, filtered, for every MIDI note (`renderFilteredBank`, #1675): one
+ * loopable table per note, each filtered for *its* pitch. Index `i` is
+ * `notes[i].midi`; the table sounds at `bands[notes[i].band].baseFrequency`
+ * at `playbackRate` 1.
+ */
+export interface FilteredBankSet {
+    sampleRate: number;
+    shape: WaveShape;
+    filter: GpuFilterSpec;
+    length: number;
+    bands: WavetableBand[];
+    notes: BankNote[];
+    tables: Float32Array[];
+    /** Wall time of the single dispatch + readback, ms. */
+    renderMs: number;
+}
+
+/** A filter the kernel can be given: finite, with a response it knows. */
+function usableFilter(filter: GpuFilterSpec, sampleRate: number): boolean {
+    return (
+        filter.type in FILTER_TYPE_INDEX &&
+        Number.isFinite(filter.cutoff) &&
+        Number.isFinite(filter.q) &&
+        filter.cutoff >= GPU_FILTER_CUTOFF_MIN &&
+        filter.cutoff <= maxFilterCutoff(sampleRate) &&
+        filter.q >= GPU_FILTER_Q_MIN &&
+        filter.q <= GPU_FILTER_Q_MAX
+    );
+}
+
 export class WebGpuOscillator {
     device: GPUDevice | null = null;
+    /** Synthesis pass: sums each table's filtered harmonics. */
     pipeline: GPUComputePipeline | null = null;
+    /** Coefficient pass: one gain + phase per (table, harmonic), the filter's response folded in. */
+    coefPipeline: GPUComputePipeline | null = null;
     bindGroupLayout: GPUBindGroupLayout | null = null;
     isSupported: boolean = false;
 
     // Buffer pool for reuse - keyed by size bucket
-    private bufferPool: Map<number, { output: GPUBuffer, read: GPUBuffer }[]> = new Map();
+    private bufferPool: Map<string, { output: GPUBuffer, read: GPUBuffer }[]> = new Map();
     private readonly MAX_POOL_SIZE_PER_BUCKET = 4;
     private readonly MAX_BUFFER_SIZE = OSCILLATOR_MAX_BYTES; // ~5 seconds at 44.1kHz (limit to prevent OOM)
     private readonly SIZE_BUCKET_BYTES = 4096; // Quantize to 4KB buckets
     private unsubscribeDevice: (() => void) | null = null;
     /** Set once init succeeds, so a restored device re-initialises the oscillator. */
     private wantsDevice = false;
-
-    /**
-     * Additive, band-limited kernel (#1668). One invocation writes one sample of
-     * one table: `global_id.x` is the sample, `global_id.y` the table. A whole
-     * table set (every shape × every octave band) is one dispatch and one
-     * readback; an offline `generate` is the same kernel with one table.
-     *
-     * Phase is 32-bit fixed point: `index * phaseInc` and the per-harmonic
-     * accumulation wrap modulo 2^32, which is exactly "mod one cycle". Nothing
-     * is accumulated in f32, so there is no drift over a long render, and a
-     * table whose increment is `cycles * 2^32 / length` returns to phase 0 at
-     * sample `length` — the loop has no seam.
-     *
-     * Series (each matches the naive shape it replaces, sign and level):
-     *   saw  2p-1            = -(2/π) Σ sin(2πhp)/h       all h ≤ H
-     *   sqr  +1 then -1      =  (4/π) Σ sin(2πhp)/h       odd h ≤ H
-     *   tri  2|2p-1|-1       = (8/π²) Σ cos(2πhp)/h²      odd h ≤ H
-     *   sin                  =  sin(2πp)                  H ≥ 1
-     * `H = 0` is silence: the pitch has no harmonic under Nyquist.
-     */
-    private readonly SHADER_CODE = `
-        const MAX_TABLES: u32 = ${MAX_TABLES}u;
-
-        struct Params {
-            numSamples: u32,
-            tableCount: u32,
-            _pad0: u32,
-            _pad1: u32,
-            // x: phase increment (2^32 = one cycle), y: highest harmonic,
-            // z: shape (0 saw, 1 sqr, 2 tri, 3 sin), w: output offset in samples.
-            tables: array<vec4<u32>, MAX_TABLES>,
-        };
-
-        @group(0) @binding(0) var<uniform> params: Params;
-        @group(0) @binding(1) var<storage, read_write> audioBuffer: array<f32>;
-
-        const PI: f32 = 3.14159265358979;
-        // 2π / 2^32: fixed-point phase → radians.
-        const PHASE_TO_RAD: f32 = 1.4629180792671596e-9;
-
-        fn rad(p: u32) -> f32 {
-            return f32(p) * PHASE_TO_RAD;
-        }
-
-        @compute @workgroup_size(64)
-        fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-            let index = global_id.x;
-            let table = global_id.y;
-            if (index >= params.numSamples || table >= params.tableCount) {
-                return;
-            }
-
-            let t = params.tables[table];
-            let inc = t.x;
-            let harmonics = t.y;
-            let shape = t.z;
-            // Wraps modulo 2^32 — that is the phase, in cycles, exactly.
-            let p1 = index * inc;
-
-            var sum: f32 = 0.0;
-            switch (shape) {
-                case 0u: {
-                    var ph = p1;
-                    for (var h = 1u; h <= harmonics; h = h + 1u) {
-                        sum = sum + sin(rad(ph)) / f32(h);
-                        ph = ph + p1;
-                    }
-                    sum = sum * (-2.0 / PI);
-                }
-                case 1u: {
-                    var ph = p1;
-                    let step = p1 * 2u;
-                    for (var h = 1u; h <= harmonics; h = h + 2u) {
-                        sum = sum + sin(rad(ph)) / f32(h);
-                        ph = ph + step;
-                    }
-                    sum = sum * (4.0 / PI);
-                }
-                case 2u: {
-                    var ph = p1;
-                    let step = p1 * 2u;
-                    for (var h = 1u; h <= harmonics; h = h + 2u) {
-                        let fh = f32(h);
-                        sum = sum + cos(rad(ph)) / (fh * fh);
-                        ph = ph + step;
-                    }
-                    sum = sum * (8.0 / (PI * PI));
-                }
-                default: {
-                    if (harmonics >= 1u) {
-                        sum = sin(rad(p1));
-                    }
-                }
-            }
-
-            audioBuffer[t.w + index] = sum;
-        }
-    `;
 
     /** Pipeline and pooled buffers die with the shared device; rebuild on restore. */
     private watchDevice(): void {
@@ -175,6 +144,7 @@ export class WebGpuOscillator {
         this.bufferPool.clear();
         this.device = null;
         this.pipeline = null;
+        this.coefPipeline = null;
         this.bindGroupLayout = null;
         this.isSupported = false;
     }
@@ -191,29 +161,52 @@ export class WebGpuOscillator {
             return;
         }
 
+        const device = probe.device;
+        // A shader that does not compile does not throw: WebGPU reports it on an
+        // error scope and hands back an invalid pipeline, and every dispatch after
+        // that silently renders zeros. Catch it here, so the backend is *not*
+        // supported and the registry walks on to the next engine.
+        const scoped = typeof device.pushErrorScope === 'function' && typeof device.popErrorScope === 'function';
+        let invalid: string | null = null;
         try {
-            this.device = probe.device;
+            this.device = device;
+            if (scoped) device.pushErrorScope('validation');
+            try {
+                const shaderModule = device.createShaderModule({
+                    code: oscillatorShader(MAX_TABLES)
+                });
 
-            const shaderModule = this.device.createShaderModule({
-                code: this.SHADER_CODE
-            });
+                this.bindGroupLayout = device.createBindGroupLayout({
+                    entries: [
+                        { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+                        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
+                    ]
+                });
 
-            this.bindGroupLayout = this.device.createBindGroupLayout({
-                entries: [
-                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
-                ]
-            });
-
-            this.pipeline = this.device.createComputePipeline({
-                layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.bindGroupLayout] }),
-                compute: { module: shaderModule, entryPoint: "main" }
-            });
+                const layout = device.createPipelineLayout({ bindGroupLayouts: [this.bindGroupLayout] });
+                this.coefPipeline = device.createComputePipeline({
+                    layout,
+                    compute: { module: shaderModule, entryPoint: "coeffs" }
+                });
+                this.pipeline = device.createComputePipeline({
+                    layout,
+                    compute: { module: shaderModule, entryPoint: "main" }
+                });
+            } finally {
+                if (scoped) {
+                    const error = await device.popErrorScope();
+                    if (error) invalid = error.message;
+                }
+            }
+            if (invalid) throw new Error(`oscillator shader or pipeline is invalid: ${invalid}`);
 
             this.isSupported = true;
             this.wantsDevice = true;
             try { engineTelemetry.registerResolution('webgpu', 'webgpu', 'device-ready'); } catch (_) {}
         } catch (e) {
+            this.pipeline = null;
+            this.coefPipeline = null;
+            this.bindGroupLayout = null;
             logEngineFallback('webgpu', 'webgpu', 'GPUDevice or compute pipeline creation failed', e);
         }
     }
@@ -223,12 +216,14 @@ export class WebGpuOscillator {
         return Math.ceil(size / this.SIZE_BUCKET_BYTES) * this.SIZE_BUCKET_BYTES;
     }
 
-    // Get or create buffer pair from pool
-    private getBuffers(size: number): { output: GPUBuffer, read: GPUBuffer } | null {
+    // Get or create buffer pair from pool. `outBytes` is the whole storage buffer
+    // (audio + coefficients); `readBytes` only the audio the copy brings back.
+    private getBuffers(outBytes: number, readBytes: number): { output: GPUBuffer, read: GPUBuffer } | null {
         if (!this.device) return null;
 
-        const bucketSize = this.getSizeBucket(size);
-        const pool = this.bufferPool.get(bucketSize);
+        const outBucket = this.getSizeBucket(outBytes);
+        const readBucket = this.getSizeBucket(readBytes);
+        const pool = this.bufferPool.get(`${outBucket}:${readBucket}`);
 
         if (pool && pool.length > 0) {
             return pool.pop()!;
@@ -237,12 +232,12 @@ export class WebGpuOscillator {
         // Create new buffers
         try {
             const output = this.device.createBuffer({
-                size: bucketSize,
+                size: outBucket,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
             });
 
             const read = this.device.createBuffer({
-                size: bucketSize,
+                size: readBucket,
                 usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
             });
 
@@ -254,14 +249,14 @@ export class WebGpuOscillator {
     }
 
     // Return buffers to pool for reuse
-    private returnBuffers(buffers: { output: GPUBuffer, read: GPUBuffer }, size: number) {
-        const bucketSize = this.getSizeBucket(size);
+    private returnBuffers(buffers: { output: GPUBuffer, read: GPUBuffer }, outBytes: number, readBytes: number) {
+        const key = `${this.getSizeBucket(outBytes)}:${this.getSizeBucket(readBytes)}`;
 
-        if (!this.bufferPool.has(bucketSize)) {
-            this.bufferPool.set(bucketSize, []);
+        if (!this.bufferPool.has(key)) {
+            this.bufferPool.set(key, []);
         }
 
-        const pool = this.bufferPool.get(bucketSize)!;
+        const pool = this.bufferPool.get(key)!;
 
         if (pool.length < this.MAX_POOL_SIZE_PER_BUCKET) {
             pool.push(buffers);
@@ -290,12 +285,28 @@ export class WebGpuOscillator {
      * Offline render of `duration` seconds at a fixed pitch — band-limited, so
      * an export of a `wgsl-*` part no longer aliases. Null when WebGPU is not
      * ready or the pitch is not renderable (non-finite, ≤ 0, ≥ Nyquist).
+     *
+     * With a `filter` (#1675) the note is rendered *through* it: every harmonic
+     * is scaled and phase-shifted by the resonant filter's response at its
+     * audible frequency, so the result is the biquad's steady state with no
+     * onset transient. An unusable filter (non-finite, out of range, unknown
+     * response) is refused, never rendered as a different filter.
      */
-    async generate(frequency: number, duration: number, sampleRate: number, type: WaveShape): Promise<Float32Array | null> {
-        if (!this.device || !this.pipeline || !this.bindGroupLayout) return null;
+    async generate(
+        frequency: number,
+        duration: number,
+        sampleRate: number,
+        type: WaveShape,
+        filter?: GpuFilterSpec | null,
+    ): Promise<Float32Array | null> {
+        if (!this.device || !this.pipeline || !this.coefPipeline || !this.bindGroupLayout) return null;
 
         const phaseIncrement = phaseIncrementFor(frequency, sampleRate);
         if (phaseIncrement === null) return null;
+        if (filter && !usableFilter(filter, sampleRate)) {
+            logEngineFallback('webgpu', 'webgpu', `filter ${JSON.stringify(filter)} is outside what the GPU kernel renders`);
+            return null;
+        }
 
         let numSamples = Math.ceil(sampleRate * duration);
         if (!(numSamples > 0)) return null;
@@ -307,8 +318,9 @@ export class WebGpuOscillator {
         }
 
         return this.dispatch(
-            [{ phaseIncrement, maxHarmonic: maxHarmonicFor(frequency, sampleRate), shape: type }],
+            [{ phaseIncrement, maxHarmonic: maxHarmonicFor(frequency, sampleRate), shape: type, f0: frequency }],
             numSamples,
+            { sampleRate, filter },
         );
     }
 
@@ -319,7 +331,7 @@ export class WebGpuOscillator {
      * the caller fails closed to the next backend.
      */
     async renderWavetables(sampleRate: number): Promise<WavetableSet | null> {
-        if (!this.device || !this.pipeline || !this.bindGroupLayout) return null;
+        if (!this.device || !this.pipeline || !this.coefPipeline || !this.bindGroupLayout) return null;
         const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
         const bands = planWavetableBands(sampleRate);
@@ -335,7 +347,7 @@ export class WebGpuOscillator {
             return null;
         }
 
-        const out = await this.dispatch(specs, WAVETABLE_LENGTH);
+        const out = await this.dispatch(specs, WAVETABLE_LENGTH, { sampleRate });
         if (!out) return null;
 
         const tables = {} as Record<WaveShape, Float32Array[]>;
@@ -352,45 +364,108 @@ export class WebGpuOscillator {
     }
 
     /**
+     * One shape, filtered, for every MIDI note (#1675): `BANK_NOTE_COUNT` tables
+     * in ONE dispatch and ONE readback. Each note's table has the filter's
+     * response evaluated at *its* pitch, so a voice that loops it at
+     * `freq / baseFrequency` gets the cutoff it asked for in Hz whatever the
+     * note — a cutoff baked in table time would follow the pitch instead.
+     * Null when WebGPU is not ready, the filter is unusable or the pass failed.
+     */
+    async renderFilteredBank(
+        sampleRate: number,
+        shape: WaveShape,
+        filter: GpuFilterSpec,
+    ): Promise<FilteredBankSet | null> {
+        if (!this.device || !this.pipeline || !this.coefPipeline || !this.bindGroupLayout) return null;
+        if (!usableFilter(filter, sampleRate)) {
+            logEngineFallback('webgpu', 'webgpu', `filter ${JSON.stringify(filter)} is outside what the GPU kernel renders`);
+            return null;
+        }
+        const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+        const bands = planWavetableBands(sampleRate);
+        const notes = planFilteredBank(bands);
+        if (notes.length === 0 || notes.length > MAX_TABLES) return null;
+        const specs: TableSpec[] = notes.map((note) => ({
+            phaseIncrement: bands[note.band].phaseIncrement,
+            maxHarmonic: bands[note.band].maxHarmonic,
+            shape,
+            f0: note.f0,
+        }));
+
+        const out = await this.dispatch(specs, WAVETABLE_LENGTH, {
+            sampleRate,
+            filter,
+            maxBytes: OSCILLATOR_BANK_MAX_BYTES,
+        });
+        if (!out) return null;
+
+        const tables = notes.map((_, i) => out.subarray(i * WAVETABLE_LENGTH, (i + 1) * WAVETABLE_LENGTH));
+        const renderMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+        return { sampleRate, shape, filter, length: WAVETABLE_LENGTH, bands, notes, tables, renderMs };
+    }
+
+    /**
      * Run the kernel once over `specs.length` tables of `numSamples` each and
      * read the result back as one contiguous array (table-major).
      */
-    private async dispatch(specs: readonly TableSpec[], numSamples: number): Promise<Float32Array | null> {
-        if (!this.device || !this.pipeline || !this.bindGroupLayout) return null;
+    private async dispatch(
+        specs: readonly TableSpec[],
+        numSamples: number,
+        opts: DispatchOptions,
+    ): Promise<Float32Array | null> {
+        if (!this.device || !this.pipeline || !this.coefPipeline || !this.bindGroupLayout) return null;
         if (specs.length === 0 || specs.length > MAX_TABLES) return null;
 
         const totalSamples = numSamples * specs.length;
-        const bufferSize = totalSamples * 4;
+        const audioBytes = totalSamples * 4;
+        // Filtered only: a gain and a phase per (table, harmonic), in the buffer's tail.
+        const filter = opts.filter ?? null;
+        const coefStride = filter
+            ? Math.max(1, ...specs.map((s) => Math.min(MAX_HARMONICS, Math.max(0, Math.floor(s.maxHarmonic)))))
+            : 0;
+        const outBytes = audioBytes + specs.length * coefStride * 8;
         const groupsX = Math.ceil(numSamples / WORKGROUP_SIZE);
+        const coefGroupsX = Math.ceil(coefStride / WORKGROUP_SIZE);
         const maxGroups = this.device.limits?.maxComputeWorkgroupsPerDimension ?? 65535;
-        if (bufferSize > this.MAX_BUFFER_SIZE || groupsX > maxGroups) {
+        if (audioBytes > (opts.maxBytes ?? this.MAX_BUFFER_SIZE) || groupsX > maxGroups) {
             logEngineFallback('webgpu', 'webgpu', `dispatch of ${totalSamples} samples exceeds one dispatch on this device`);
             return null;
         }
 
         // 1. Get Buffers from pool
-        const buffers = this.getBuffers(bufferSize);
+        const buffers = this.getBuffers(outBytes, audioBytes);
         if (!buffers) return null;
 
         const { output: outputBuffer, read: readBuffer } = buffers;
 
-        // 2. Uniforms: header + one vec4<u32> per table.
-        const uniformData = new Uint32Array(UNIFORM_BYTES / 4);
-        uniformData[0] = numSamples;
-        uniformData[1] = specs.length;
+        // 2. Uniforms: header, one vec4<u32> and one vec4<f32> per table.
+        const uniformWords = new ArrayBuffer(UNIFORM_BYTES);
+        const u32 = new Uint32Array(uniformWords);
+        const f32 = new Float32Array(uniformWords);
+        u32[0] = numSamples;
+        u32[1] = specs.length;
+        u32[2] = filter ? FILTER_TYPE_INDEX[filter.type] : FILTER_NONE;
+        u32[3] = coefStride;
+        if (filter) {
+            f32[4] = Math.tan((Math.PI * filter.cutoff) / opts.sampleRate);
+            f32[5] = 1 / filter.q;
+        }
+        u32[8] = totalSamples;
         specs.forEach((spec, i) => {
-            const o = 4 + i * 4;
-            uniformData[o] = spec.phaseIncrement >>> 0;
-            uniformData[o + 1] = Math.max(0, Math.floor(spec.maxHarmonic));
-            uniformData[o + 2] = SHAPE_INDEX[spec.shape] ?? SHAPE_INDEX.saw;
-            uniformData[o + 3] = i * numSamples;
+            const o = TABLES_OFFSET_WORDS + i * 4;
+            u32[o] = spec.phaseIncrement >>> 0;
+            u32[o + 1] = Math.max(0, Math.floor(spec.maxHarmonic));
+            u32[o + 2] = SHAPE_INDEX[spec.shape] ?? SHAPE_INDEX.saw;
+            u32[o + 3] = i * numSamples;
+            f32[FREQS_OFFSET_WORDS + i * 4] = filter && spec.f0 ? spec.f0 / opts.sampleRate : 0;
         });
 
         const uniformBuffer = this.device.createBuffer({
             size: UNIFORM_BYTES,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+        this.device.queue.writeBuffer(uniformBuffer, 0, u32);
 
         // 3. Bind Group
         const bindGroup = this.device.createBindGroup({
@@ -401,15 +476,23 @@ export class WebGpuOscillator {
             ]
         });
 
-        // 4. Dispatch: x = samples, y = tables.
+        // 4. Filtered: a coefficient pass first (x = harmonic, y = table), a separate pass so
+        //    its writes are visible to the synthesis. Then x = sample, y = table.
         const commandEncoder = this.device.createCommandEncoder();
+        if (filter) {
+            const coefPass = commandEncoder.beginComputePass();
+            coefPass.setPipeline(this.coefPipeline);
+            coefPass.setBindGroup(0, bindGroup);
+            coefPass.dispatchWorkgroups(coefGroupsX, specs.length);
+            coefPass.end();
+        }
         const passEncoder = commandEncoder.beginComputePass();
         passEncoder.setPipeline(this.pipeline);
         passEncoder.setBindGroup(0, bindGroup);
         passEncoder.dispatchWorkgroups(groupsX, specs.length);
         passEncoder.end();
 
-        commandEncoder.copyBufferToBuffer(outputBuffer, 0, readBuffer, 0, bufferSize);
+        commandEncoder.copyBufferToBuffer(outputBuffer, 0, readBuffer, 0, audioBytes);
         this.device.queue.submit([commandEncoder.finish()]);
 
         // 5. Readback
@@ -421,7 +504,7 @@ export class WebGpuOscillator {
             readBuffer.unmap();
 
             // 6. Return buffers to pool
-            this.returnBuffers(buffers, bufferSize);
+            this.returnBuffers(buffers, outBytes, audioBytes);
 
             // Destroy small uniform buffer (not worth pooling)
             uniformBuffer.destroy();

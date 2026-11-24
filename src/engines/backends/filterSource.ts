@@ -1,12 +1,14 @@
 /**
- * Which filter shapes a voice, and how a host oscillator engine is told (#1663, #1672, #1673, #1674).
+ * Which filter shapes a voice, and how a host oscillator engine is told (#1663, #1672, #1673, #1674, #1675).
  *
  * A voice's resonant filter has two independent choices:
  *   - `filterType`   low / band / high pass;
  *   - `filterSource` whose DSP runs it: the voice's own `BiquadFilterNode`
  *     (`native`), the AssemblyScript kernel's biquad (`wam`, "WASM OSC"), the
  *     Rust kernel's (`rust`), the C++ kernel's state variable filter (`cpp`) or
- *     the DWGS kernel's 4-pole ladder (`dwgs`, the one that sounds different).
+ *     the DWGS kernel's 4-pole ladder (`dwgs`, the one that sounds different) or
+ *     the GPU's table filter (`webgpu`: the shape rendered with the filter in
+ *     every harmonic, because a GPU cannot be a worklet stage).
  *
  * The wasm filters are *stages* after the oscillator, not features of the
  * `wam-*` / `rust-*` / `cpp-*` / `dwgs-*` oscillators — so any host engine (JS, Rust, C++,
@@ -18,10 +20,10 @@
 import type { FilterSource, FilterType, SynthParams } from '../../types/synth';
 
 export const FILTER_TYPES: readonly FilterType[] = ['lp', 'bp', 'hp'] as const;
-export const FILTER_SOURCES: readonly FilterSource[] = ['native', 'wam', 'rust', 'cpp', 'dwgs'] as const;
+export const FILTER_SOURCES: readonly FilterSource[] = ['native', 'wam', 'rust', 'cpp', 'dwgs', 'webgpu'] as const;
 
-/** The sources that run in a wasm worklet stage (everything but the voice's own biquad). */
-export const STAGED_FILTER_SOURCES: readonly Exclude<FilterSource, 'native'>[] = ['wam', 'rust', 'cpp', 'dwgs'] as const;
+/** The sources that run in a wasm worklet stage (not the voice's own biquad, and not the GPU's table filter). */
+export const STAGED_FILTER_SOURCES: readonly Exclude<FilterSource, 'native' | 'webgpu'>[] = ['wam', 'rust', 'cpp', 'dwgs'] as const;
 
 /** Kernel response ids — `FILTER_LP/BP/HP` in assembly/biquad.ts and rust-audio/src/lib.rs, `kFilter*` in emscripten/cpp_osc.cpp, `FILTER_*` in dwgs-audio/src/lib.rs. */
 export const FILTER_TYPE_ID: Record<FilterType, number> = { lp: 0, bp: 1, hp: 2 };
@@ -35,7 +37,8 @@ export const FILTER_TYPE_LABELS: Record<FilterType, string> = {
 /**
  * Display labels. `wam` is Hyphon's AssemblyScript kernel — "WASM OSC" in the
  * UI, same as the oscillator (`BACKEND_LABELS.wam`) — NOT Web Audio Modules 2.0.
- * `rust` is the Rust kernel, "Rust" like its oscillator; `cpp` the C++ kernel, "C++"; `dwgs` the DWGS kernel, "DWGS".
+ * `rust` is the Rust kernel, "Rust" like its oscillator; `cpp` the C++ kernel, "C++"; `dwgs` the DWGS kernel, "DWGS";
+ * `webgpu` the GPU, "WebGPU" like its oscillator (`BACKEND_LABELS.webgpu`).
  */
 export const FILTER_SOURCE_LABELS: Record<FilterSource, string> = {
     native: 'Native',
@@ -43,6 +46,7 @@ export const FILTER_SOURCE_LABELS: Record<FilterSource, string> = {
     rust: 'Rust',
     cpp: 'C++',
     dwgs: 'DWGS',
+    webgpu: 'WebGPU',
 };
 
 /** What each source's button says it is. */
@@ -52,6 +56,7 @@ export const FILTER_SOURCE_DESCRIPTIONS: Record<FilterSource, string> = {
     rust: 'The Rust kernel\'s resonant filter, applied to this oscillator',
     cpp: 'The C++ kernel\'s resonant state variable filter, applied to this oscillator',
     dwgs: 'The DWGS kernel\'s 24 dB/oct ladder filter with saturated resonance (DW-8000 style), applied to this oscillator',
+    webgpu: 'The filter rendered on the GPU into a looped table of this part\'s saw / square / triangle / sine, whichever oscillator it names (a GPU cannot run inside the audio thread)',
 };
 
 /**
@@ -136,7 +141,8 @@ export interface HostFilterRequest {
  * shape the sound unless it is the legacy case.
  *   - effective source `wam` / `rust` / `cpp` / `dwgs` — the wasm stage after the host does the
  *     filtering, so the host's own filter is opened (`cutoff` at its maximum,
- *     flat Q); filtering twice would square the response.
+ *     flat Q); filtering twice would square the response. (`webgpu` plays its
+ *     own table and never asks a host for one; if asked it is opened too.)
  *   - effective `native` + `lp` — unchanged from before this feature: the table
  *     is lowpassed at the voice's cutoff and the `BiquadFilterNode` lowpasses it
  *     again. (Saved songs keep sounding as they did.)

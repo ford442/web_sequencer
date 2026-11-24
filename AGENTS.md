@@ -383,6 +383,16 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
   `src/audio-worklets/dwgsFilter.ts` and `src/test/helpers/dwgsOscWasmFixture.ts` updated
   together; `dwgsFilter.realWasm.test.ts` is the integration test.
 - See `docs/wasm/BUILD_NOTES.md#dwgs-osc` and `#dwgs-filter`.
+- **WebGPU filter (#1675)**: `filterSource: 'webgpu'` is NOT a worklet stage (a GPU cannot run in
+  the audio thread) — it folds the RBJ response into every harmonic of the `wgsl-*` additive
+  kernel (`WebGpuOscillator`, two passes; `gpuFilter.ts` is the f64 mirror) and the voice loops
+  the result. Realtime goes through a bank cache (`src/engines/WebGpuFilter.ts`, one shape
+  filtered for all 116 MIDI notes, `Voice.planGpuFilter`); a bank still baking, or any failure,
+  plays the native filter. Because there is no host oscillator behind it, a note plays the part's
+  basic *shape* on the GPU, not the part's engine. Offline: `src/audio/offline/OfflineGpuFilter.ts`.
+  Do not name a WGSL struct member `filter` (reserved) — mocks cannot see it; run
+  `node tools/measure_gpu_filter.mjs` (real adapter) after touching the shader.
+  See `docs/wasm/BUILD_NOTES.md#webgpu-filter`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`
