@@ -244,7 +244,7 @@ describe('WebGPU filter source: what it cannot serve', () => {
         expect((g.biquad() as unknown as { type: string }).type).toBe('highpass');
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('webgpu'));
         expect(issue?.requestedBackend).toBe('WebGPU');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
         expect(issue?.reason).toContain('dwgs-piano');
     });
 

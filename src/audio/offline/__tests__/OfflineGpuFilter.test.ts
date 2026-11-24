@@ -97,7 +97,7 @@ describe('renderGpuFilteredNote', () => {
         expect(await render(over)).toBeNull();
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('webgpu'));
         expect(issue?.requestedBackend).toBe('WebGPU');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
         expect(issue?.reason).toMatch(reason);
         expect(issue?.reason).toContain('offline render');
     });

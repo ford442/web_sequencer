@@ -96,7 +96,7 @@ describe('renderPyodideFilteredNote', () => {
         expect(await render({ pyodide: null, loadRuntime: load })).toBeNull();
         const issue = engineDegradationStore.getIssue(filterSourceIssueId('pyodide'));
         expect(issue?.requestedBackend).toBe('Pyodide');
-        expect(issue?.activeBackend).toBe('Native');
+        expect(issue?.activeBackend).toBe('JS');
         expect(issue?.reason).toContain('runtime is unavailable');
         expect(issue?.reason).toContain('offline render');
         expect(vi.mocked(console.warn).mock.calls.filter((c) => String(c[0]).includes('[FilterSourceFallback]'))).toHaveLength(1);

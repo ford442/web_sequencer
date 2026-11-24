@@ -46,14 +46,15 @@ export const FILTER_TYPE_LABELS: Record<FilterType, string> = {
 };
 
 /**
- * Display labels. `wam` is Hyphon's AssemblyScript kernel — "WASM OSC" in the
+ * Display labels. `native` is the "JS" filter — the voice's own `BiquadFilterNode`,
+ * the terminal fallback that needs no wasm, GPU or Python. `wam` is Hyphon's AssemblyScript kernel — "WASM OSC" in the
  * UI, same as the oscillator (`BACKEND_LABELS.wam`) — NOT Web Audio Modules 2.0.
  * `rust` is the Rust kernel, "Rust" like its oscillator; `cpp` the C++ kernel, "C++"; `dwgs` the DWGS kernel, "DWGS";
  * `webgpu` the GPU, "WebGPU" like its oscillator (`BACKEND_LABELS.webgpu`);
  * `pyodide` the NumPy / SciPy runtime, "Pyodide" like its oscillator (`BACKEND_LABELS.pyodide`).
  */
 export const FILTER_SOURCE_LABELS: Record<FilterSource, string> = {
-    native: 'Native',
+    native: 'JS',
     wam: 'WASM OSC',
     rust: 'Rust',
     cpp: 'C++',
@@ -64,7 +65,7 @@ export const FILTER_SOURCE_LABELS: Record<FilterSource, string> = {
 
 /** What each source's button says it is. */
 export const FILTER_SOURCE_DESCRIPTIONS: Record<FilterSource, string> = {
-    native: 'The voice\'s own Web Audio biquad filter',
+    native: 'The JS filter: the voice\'s own graph-native Web Audio biquad (LP/BP/HP). Always available — the terminal fallback every other filter source drops back to',
     wam: 'The AssemblyScript kernel\'s resonant filter, applied to this oscillator',
     rust: 'The Rust kernel\'s resonant filter, applied to this oscillator',
     cpp: 'The C++ kernel\'s resonant state variable filter, applied to this oscillator',
