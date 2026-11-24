@@ -246,8 +246,11 @@ export class WamWasmBackend extends BaseBackend {
         return Promise.resolve(this.generateSync(req));
     }
 
-    /** The AS kernel is synchronous, so the realtime path can call it inline. */
-    private generateSync(req: GenerateRequest): Float32Array | null {
+    /**
+     * The AS kernel is synchronous, so the realtime path can call it inline.
+     * `loop` asks for a table that wraps without a click (whole cycles, settled filter).
+     */
+    private generateSync(req: GenerateRequest, loop = false): Float32Array | null {
         if (!this.isReady) return null;
         return this.timed(() =>
             this.engine.generate(
@@ -257,18 +260,19 @@ export class WamWasmBackend extends BaseBackend {
                 req.shape,
                 req.cutoff,
                 req.resonance,
+                loop,
             ),
         );
     }
 
     renderLoop(ctx: BaseAudioContext, req: GenerateRequest): LoopRender | null {
         // Render one table at the reference pitch and resample via playbackRate,
-        // rather than re-rendering per note.
-        const samples = this.generateSync({
-            ...req,
-            frequency: TABLE_REF_FREQ,
-            duration: TABLE_DURATION_SEC,
-        });
+        // rather than re-rendering per note. 2 s at C4 is 523.26 cycles, so a
+        // plain `generate` table clicks on every wrap; `loop` rounds it to whole cycles.
+        const samples = this.generateSync(
+            { ...req, frequency: TABLE_REF_FREQ, duration: TABLE_DURATION_SEC },
+            true,
+        );
         return samples ? toLoopBuffer(ctx, samples, TABLE_REF_FREQ) : null;
     }
 }

@@ -19,6 +19,12 @@ interface OscillatorWasmExports {
         cutoff: number,
         resonance: number,
     ) => number;
+    /**
+     * Same arguments as `generate`; renders a table with a whole number of
+     * cycles and a settled filter so a looped `AudioBufferSourceNode` does not
+     * click on every wrap. Absent on a build that predates it.
+     */
+    generateLoop?: OscillatorWasmExports['generate'];
 }
 
 /** Which of the two shipped builds an instance ended up running. */
@@ -101,6 +107,10 @@ function loadOrder(): Array<{ variant: OscillatorVariant; init: WasmInit }> {
 
 const typeMap = { saw: 0, sqr: 1, tri: 2, sin: 3 };
 
+const WASM_PAGE_BYTES = 65536;
+/** Ceiling for one render, in frames (16 Mi f32 = 64 MB): a runaway duration must not eat the heap. */
+const MAX_RENDER_FRAMES = 1 << 24;
+
 export class WasmOscillator {
     private instance: WebAssembly.Instance | null = null;
     private memory: WebAssembly.Memory | null = null;
@@ -144,13 +154,25 @@ export class WasmOscillator {
         );
     }
 
+    /**
+     * Render a table of f32 mono samples, or null when the engine is not ready.
+     *
+     * `loop` asks for a seamlessly loopable table: the length is rounded to a whole
+     * number of cycles (so it can differ from `dur * rate` by up to one cycle) and
+     * the pitch moves by less than half a frame per table. Leave it off for a
+     * one-shot note, which is exactly `floor(dur * rate)` frames from a filter at rest.
+     *
+     * A bad argument (non-finite or non-positive pitch/duration) comes back as an
+     * empty array rather than a trap; the kernel never writes past linear memory.
+     */
     generate(
         freq: number,
         dur: number,
         rate: number,
         type: 'saw' | 'sqr' | 'tri' | 'sin',
         cutoff: number,
-        resonance: number
+        resonance: number,
+        loop: boolean = false,
     ): Float32Array | null {
         if (!this.isReady || !this.instance || !this.memory) return null;
 
@@ -160,9 +182,12 @@ export class WasmOscillator {
         const safeCutoff = Math.max(20, Math.min(rate / 2.1, cutoff));
         const safeRes = Math.max(0.1, resonance);
 
+        this.reserve(Math.ceil(rate * dur) + (loop ? Math.ceil(rate / Math.max(freq, 1)) : 0));
+
         // Generate
         // We use offset 0 in the shared memory
-        const numSamples = exports.generate(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes);
+        const kernel = loop && exports.generateLoop ? exports.generateLoop : exports.generate;
+        const numSamples = kernel(0, rate, freq, dur, typeMap[type], safeCutoff, safeRes);
 
         // Copy the data out safely by explicitly allocating the returned array size
         // If we don't copy, the view changes when the next note is generated!
@@ -170,5 +195,25 @@ export class WasmOscillator {
         const out = new Float32Array(numSamples);
         out.set(new Float32Array(this.memory.buffer, 0, numSamples));
         return out;
+    }
+
+    /**
+     * Make room for `frames` f32 samples at offset 0. The module's fixed 24 MB
+     * covers every table and any note up to ~60 s at 48 kHz; a longer render used
+     * to be cut off at the end of memory. This module runs on the main thread, not
+     * in a worklet, so it may grow (the "no growth" rule is for worklet-loaded
+     * wasm). Growth detaches `memory.buffer`, which is why `generate` reads it
+     * only after this returns.
+     */
+    private reserve(frames: number): void {
+        if (!this.memory || !Number.isFinite(frames) || frames <= 0) return;
+        const needed = Math.min(frames, MAX_RENDER_FRAMES) * 4;
+        const have = this.memory.buffer.byteLength;
+        if (needed <= have) return;
+        try {
+            this.memory.grow(Math.ceil((needed - have) / WASM_PAGE_BYTES));
+        } catch (_) {
+            // Out of memory: the kernel truncates to what fits instead of trapping.
+        }
     }
 }
