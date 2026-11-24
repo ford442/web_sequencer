@@ -14,7 +14,7 @@ export { gateOpenAt, gateRunEnd } from './rustOsc';
 export const DWGS_OSC_PROCESSOR = 'dwgs-osc-processor';
 
 /** Must equal `ABI_VERSION` in dwgs-audio/src/lib.rs (tools/check_dwgs_osc_module.mjs). */
-export const DWGS_OSC_ABI_VERSION = 1;
+export const DWGS_OSC_ABI_VERSION = 2;
 
 /** Must equal `WAVE_COUNT` in dwgs-audio/src/lib.rs and `DWGS_WAVES.length`. */
 export const DWGS_OSC_WAVE_COUNT = 17;

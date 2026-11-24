@@ -6,6 +6,7 @@ import { RustOscillator } from '../../engines/RustOscillator';
 import { WamFilter, setWamFilter } from '../../engines/WamFilter';
 import { RustFilter, setRustFilter } from '../../engines/RustFilter';
 import { CppFilter, setCppFilter } from '../../engines/CppFilter';
+import { DwgsFilter, setDwgsFilter } from '../../engines/DwgsFilter';
 import { CppOscillator } from '../../engines/CppOscillator';
 import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
@@ -128,6 +129,8 @@ export interface EngineLifecycleUrls {
     rustFilterProcessorUrl: string;
     /** The "C++ filter" worklet (#1673); its wasm is `cpp_osc.wasm`, the oscillator's own module. */
     cppFilterProcessorUrl: string;
+    /** The "DWGS filter" worklet (#1674); its wasm is `dwgs_osc.wasm`, the oscillator's own module. */
+    dwgsFilterProcessorUrl: string;
     /** `cpp-*` oscillator voices (#1665). */
     cppOscProcessorUrl: string;
     /** `dwgs-*` oscillator voices (#1666). */
@@ -283,6 +286,12 @@ export async function initializeAudioContextAndEngines(
     const cppFilter = new CppFilter(urls.cppFilterProcessorUrl);
     setCppFilter(cppFilter);
     await cppFilter.init(context);
+    // The "DWGS filter" (#1674): the same kind of stage in the DWGS kernel's
+    // module (shared with the `dwgs-*` voices), but its own 24 dB/oct ladder
+    // sound. Independent of whether the `dwgs-*` oscillator itself came up.
+    const dwgsFilter = new DwgsFilter(urls.dwgsFilterProcessorUrl);
+    setDwgsFilter(dwgsFilter);
+    await dwgsFilter.init(context);
     loadingProgressStore.completeStep('wasmEngine');
 
     // Fails until a runtime attaches — the point of the call is to hand the

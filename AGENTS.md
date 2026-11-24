@@ -374,7 +374,15 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
 - **Tests**: `cargo test --release` in `dwgs-audio/`; `dwgsOscModule.test.ts`
   (unit); `dwgsOscVoice.realWasm.test.ts` (integration: harmonics only, distinct
   waves, offline == live, processor gate timing).
-- See `docs/wasm/BUILD_NOTES.md#dwgs-osc`.
+- **DWGS filter (#1674)**: the same module carries a resonant LP/BP/HP 4-pole ladder with
+  saturated feedback (`dflt_*`, `wasm_export_manifest.json#dwgsOsc.requiredFilter`, ABI 2)
+  that any oscillator can select as `filterSource: 'dwgs'`. Deliberately NOT the RBJ
+  response of the other three filter sources (24 dB/oct, ladder resonance). Runs as a
+  separate stage node (`dwgs-filter-processor`, `src/engines/DwgsFilter.ts`) on its own
+  instance of `dwgs_osc.wasm`. A change to the `dflt_*` surface needs the manifest,
+  `src/audio-worklets/dwgsFilter.ts` and `src/test/helpers/dwgsOscWasmFixture.ts` updated
+  together; `dwgsFilter.realWasm.test.ts` is the integration test.
+- See `docs/wasm/BUILD_NOTES.md#dwgs-osc` and `#dwgs-filter`.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`

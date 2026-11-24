@@ -113,11 +113,16 @@ export type FilterType = 'lp' | 'bp' | 'hp';
  *     engine (including `rust-*`, which is not special-cased);
  *   - `cpp`    — the "C++" filter (#1673): the C++ kernel's trapezoidal state
  *     variable filter (`emscripten/cpp_osc.cpp`), the same kind of stage with
- *     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`).
+ *     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`);
+ *   - `dwgs`   — the "DWGS" filter (#1674): the DWGS kernel's 4-pole ladder
+ *     with saturated feedback (`dwgs-audio/`), modelled on the DW-6000 /
+ *     DW-8000's analog 24 dB/oct filter — a deliberately *different* sound
+ *     (steeper slopes, ladder resonance), the same kind of stage, after *any*
+ *     oscillator engine (incl. `dwgs-*`).
  * If a wasm source cannot run, the voice falls back to `native` and says so
  * (never silently).
  */
-export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp';
+export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp' | 'dwgs';
 
 export interface SynthParams {
   waveform: Waveform;

@@ -567,9 +567,10 @@
         "native",
         "wam",
         "rust",
-        "cpp"
+        "cpp",
+        "dwgs"
       ],
-      "description": "Whose filter shapes a voice:   - `native` — the voice's own `BiquadFilterNode` (the default, and what every     song saved before this field existed uses);   - `wam`    — the \"WASM OSC\" filter: the AssemblyScript kernel's resonant     biquad (`assembly/biquad.ts`), run as a worklet stage after *any*     oscillator engine;   - `rust`   — the \"Rust\" filter (#1672): the Rust kernel's RBJ biquad     (`rust-audio/`), the same kind of stage, also after *any* oscillator     engine (including `rust-*`, which is not special-cased);   - `cpp`    — the \"C++\" filter (#1673): the C++ kernel's trapezoidal state     variable filter (`emscripten/cpp_osc.cpp`), the same kind of stage with     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`). If a wasm source cannot run, the voice falls back to `native` and says so (never silently)."
+      "description": "Whose filter shapes a voice:   - `native` — the voice's own `BiquadFilterNode` (the default, and what every     song saved before this field existed uses);   - `wam`    — the \"WASM OSC\" filter: the AssemblyScript kernel's resonant     biquad (`assembly/biquad.ts`), run as a worklet stage after *any*     oscillator engine;   - `rust`   — the \"Rust\" filter (#1672): the Rust kernel's RBJ biquad     (`rust-audio/`), the same kind of stage, also after *any* oscillator     engine (including `rust-*`, which is not special-cased);   - `cpp`    — the \"C++\" filter (#1673): the C++ kernel's trapezoidal state     variable filter (`emscripten/cpp_osc.cpp`), the same kind of stage with     the same LP/BP/HP response, after *any* oscillator engine (incl. `cpp-*`);   - `dwgs`   — the \"DWGS\" filter (#1674): the DWGS kernel's 4-pole ladder     with saturated feedback (`dwgs-audio/`), modelled on the DW-6000 /     DW-8000's analog 24 dB/oct filter — a deliberately *different* sound     (steeper slopes, ladder resonance), the same kind of stage, after *any*     oscillator engine (incl. `dwgs-*`). If a wasm source cannot run, the voice falls back to `native` and says so (never silently)."
     },
     "Engine303": {
       "type": "string",

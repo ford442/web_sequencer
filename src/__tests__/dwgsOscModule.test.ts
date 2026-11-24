@@ -2,6 +2,7 @@
  * Contract for public/dwgs_osc.wasm (#1666), hermetic: the places that name the
  * export surface, the ABI version, the wave ids and the fixed memory size are
  * held in step, and the release checker rejects the modules it exists to reject.
+ * The same module carries the DWGS filter (#1674, `dflt_*`), checked here too.
  *
  * The real binary is exercised by
  * src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts (integration tier);
@@ -25,24 +26,33 @@ import {
     dwgsWaveId,
     hasDwgsOscApi,
 } from '../audio-worklets/dwgsOsc';
+import {
+    DWGS_FILTER_ABI_VERSION,
+    DWGS_FILTER_REQUIRED_EXPORTS,
+    DWGS_FILTER_TYPE_ID,
+    hasDwgsFilterApi,
+    instantiateDwgsFilter,
+} from '../audio-worklets/dwgsFilter';
+import { CPP_FILTER_TYPE_ID } from '../audio-worklets/cppFilter';
 import { DWGS_WAVES, DWGS_WAVEFORMS, dwgsWaveForShape, dwgsWaveIndex } from '../engines/dwgsWaves';
 import { dwgsOscWasmFixture } from '../test/helpers/dwgsOscWasmFixture';
 
 const REPO_ROOT = join(__dirname, '../..');
 const source = readFileSync(join(REPO_ROOT, 'dwgs-audio/src/lib.rs'), 'utf8');
 const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8')) as {
-    dwgsOsc: { required: string[] };
+    dwgsOsc: { required: string[]; requiredFilter: string[] };
 };
 
 describe('dwgs_osc export surface', () => {
     it('manifest, release checker and worklet name the same exports', () => {
-        expect(CHECKER_EXPORTS).toEqual(manifest.dwgsOsc.required);
+        expect(CHECKER_EXPORTS).toEqual([...manifest.dwgsOsc.required, ...manifest.dwgsOsc.requiredFilter]);
         expect([...DWGS_OSC_REQUIRED_EXPORTS]).toEqual(manifest.dwgsOsc.required);
+        expect([...DWGS_FILTER_REQUIRED_EXPORTS]).toEqual(manifest.dwgsOsc.requiredFilter);
     });
 
     it('every export is a #[no_mangle] extern "C" fn in lib.rs, and nothing else is', () => {
         const defined = [...source.matchAll(/#\[no_mangle\]\s+pub extern "C" fn (\w+)\s*\(/g)].map((m) => m[1]);
-        expect(defined.sort()).toEqual([...manifest.dwgsOsc.required].sort());
+        expect(defined.sort()).toEqual([...manifest.dwgsOsc.required, ...manifest.dwgsOsc.requiredFilter].sort());
     });
 
     it('the ABI version and wave count agree in lib.rs, the checker and the worklet', () => {
@@ -50,6 +60,37 @@ describe('dwgs_osc export surface', () => {
         expect(CHECKER_ABI).toBe(DWGS_OSC_ABI_VERSION);
         expect(source).toContain(`pub const WAVE_COUNT: u32 = ${DWGS_OSC_WAVE_COUNT};`);
         expect(CHECKER_WAVES).toBe(DWGS_OSC_WAVE_COUNT);
+    });
+});
+
+describe('the DWGS filter half of dwgs_osc (#1674)', () => {
+    it('lives in the same module and binds the same ABI', () => {
+        expect([...DWGS_FILTER_REQUIRED_EXPORTS]).toEqual(['dflt_buf_ptr', 'dflt_configure', 'dflt_reset', 'dflt_process']);
+        expect(DWGS_FILTER_ABI_VERSION).toBe(DWGS_OSC_ABI_VERSION);
+    });
+
+    it('uses the filter type ids of every other kernel', () => {
+        const name = { lp: 'LP', bp: 'BP', hp: 'HP' } as const;
+        for (const [type, id] of Object.entries(DWGS_FILTER_TYPE_ID)) {
+            expect(source, type).toContain(`pub const FILTER_${name[type as keyof typeof name]}: u32 = ${id};`);
+        }
+        expect(DWGS_FILTER_TYPE_ID).toEqual(CPP_FILTER_TYPE_ID);
+    });
+
+    it('is its own DSP: a 4-pole ladder with saturated feedback, not another kernel\'s biquad', () => {
+        expect(source).toMatch(/pub struct Vcf/);
+        expect(source).toMatch(/pub fn soft_clip/);
+        expect(source).not.toMatch(/struct Biquad|struct Svf/);
+    });
+
+    it('the filter worklet accepts the fixture, and refuses one without the filter or with another ABI', () => {
+        const ok = new WebAssembly.Instance(new WebAssembly.Module(dwgsOscWasmFixture('valid')), {});
+        expect(hasDwgsFilterApi(ok.exports)).toBe(true);
+        expect(instantiateDwgsFilter(new WebAssembly.Module(dwgsOscWasmFixture('valid'))).dflt_buf_ptr()).toBe(512);
+        const broken = new WebAssembly.Instance(new WebAssembly.Module(dwgsOscWasmFixture('missing-filter')), {});
+        expect(hasDwgsFilterApi(broken.exports)).toBe(false);
+        expect(() => instantiateDwgsFilter(new WebAssembly.Module(dwgsOscWasmFixture('missing-filter')))).toThrow(/dflt_\* exports/);
+        expect(() => instantiateDwgsFilter(new WebAssembly.Module(dwgsOscWasmFixture('wrong-abi')))).toThrow(/ABI 1, worklet expects 2/);
     });
 });
 
@@ -97,8 +138,8 @@ describe('dwgs_osc fixed memory and scalar build (BUILD_NOTES#dwgs-osc)', () => 
 
     it('keeps the budget page-sized and the static data inside it', () => {
         expect(Number.isInteger(DWGS_OSC_BUDGET.initialMemoryPages)).toBe(true);
-        // freq + out (2 x 1024 f32) + 16 waves x 96 harmonics (f64) + stack.
-        const statics = 2 * 1024 * 4 + 16 * 96 * 8;
+        // freq + out + the DWGS filter's buffer (3 x 1024 f32) + 16 waves x 96 harmonics (f64) + stack.
+        const statics = 3 * 1024 * 4 + 16 * 96 * 8;
         expect(source).toContain('pub const H_MAX: usize = 96;');
         expect(source).toContain('pub const TONAL_WAVES: usize = 16;');
         expect(statics + DWGS_OSC_BUDGET.stackSizeBytes).toBeLessThan(DWGS_OSC_BUDGET.initialMemoryPages * 65536);
@@ -113,9 +154,11 @@ describe('tools/check_dwgs_osc_module.mjs', () => {
     it.each([
         ['growable-memory', 'memory can grow'],
         ['simd', 'module uses v128'],
-        ['wrong-abi', 'ABI version 2'],
+        ['wrong-abi', 'ABI version 1'],
         ['wrong-wave-count', 'dwgs_wave_count() is 16'],
         ['missing-render', 'missing exports: dwgs_render'],
+        ['missing-filter', 'missing exports: dflt_process'],
+        ['accepts-any-filter-type', 'dflt_configure accepted an unknown filter type'],
         ['silent', 'wave 0 rendered silence'],
     ] as const)('rejects %s', (variant, message) => {
         expect(checkDwgsOscModule(dwgsOscWasmFixture(variant)).join('\n')).toContain(message);

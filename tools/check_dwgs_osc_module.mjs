@@ -4,10 +4,12 @@
  *   - zero imports (instantiated by hand in an AudioWorkletGlobalScope with `{}`)
  *   - one defined memory, not shared, that cannot grow, sized exactly as the
  *     `dwgsOsc` section of emscripten/wasm_memory_budget.json says
- *   - exactly the `dwgsOsc` exports of emscripten/wasm_export_manifest.json
+ *   - exactly the `dwgsOsc` exports of emscripten/wasm_export_manifest.json:
+ *     the oscillator's `required` and the DWGS filter's `requiredFilter` (#1674)
  *   - the ABI version and wave count the worklet binds to
  *   - scalar: no v128 in any signature or local, so it runs without WASM SIMD
  *   - it initialises, and renders a non-silent, finite block of every wave
+ *   - the filter accepts a lowpass and refuses an unknown response type
  *
  * Exported for scripts/build-dwgs-osc.mjs (fails the build), for
  * scripts/check-release-dist.mjs (fails the release) and for
@@ -23,16 +25,19 @@ import { parseWasmMemories } from './check_mix_bus_module.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const DWGS_OSC_REQUIRED_EXPORTS = JSON.parse(
+const MANIFEST = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'emscripten/wasm_export_manifest.json'), 'utf8'),
-).dwgsOsc.required;
+).dwgsOsc;
+
+/** The oscillator's `dwgs_*` and the DWGS filter's `dflt_*` (#1674): one module, one list. */
+export const DWGS_OSC_REQUIRED_EXPORTS = [...MANIFEST.required, ...MANIFEST.requiredFilter];
 
 export const DWGS_OSC_BUDGET = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'emscripten/wasm_memory_budget.json'), 'utf8'),
 ).dwgsOsc;
 
 /** Must equal `ABI_VERSION` in dwgs-audio/src/lib.rs and the worklet's constant. */
-export const DWGS_OSC_ABI_VERSION = 1;
+export const DWGS_OSC_ABI_VERSION = 2;
 
 /** Must equal `WAVE_COUNT` in dwgs-audio/src/lib.rs and `DWGS_WAVES.length`. */
 export const DWGS_OSC_WAVE_COUNT = 17;
@@ -93,10 +98,16 @@ export function checkDwgsOscModule(buf) {
     const waves = exports.dwgs_wave_count();
     if (waves !== DWGS_OSC_WAVE_COUNT) problems.push(`dwgs_wave_count() is ${waves}, expected ${DWGS_OSC_WAVE_COUNT}`);
     const max = exports.dwgs_max_frames();
-    for (const name of ['dwgs_freq_ptr', 'dwgs_out_ptr']) {
+    for (const name of ['dwgs_freq_ptr', 'dwgs_out_ptr', 'dflt_buf_ptr']) {
       if (exports[name]() + max * 4 > exports.memory.buffer.byteLength) {
         problems.push(`${name} buffer runs past the end of memory`);
       }
+    }
+    if (exports.dflt_configure(48000, 1000, 0.7071, 0) !== 1) {
+      problems.push('dflt_configure(48000, 1000, 0.7071, lowpass) did not return 1');
+    }
+    if (exports.dflt_configure(48000, 1000, 0.7071, 99) !== 0) {
+      problems.push('dflt_configure accepted an unknown filter type');
     }
     if (exports.dwgs_init(48000) !== 1) {
       problems.push('dwgs_init(48000) did not return 1');

@@ -109,8 +109,27 @@ the audio thread.
 Pick **DWGS** in the oscillator type selector. The variant panel follows the
 hardware's layout: a **Source** row (SAW / SQR / NSE) and a **Digital** grid of
 the 14 recipe waves. Each button's tooltip names its recipe. The voice's
-filter, envelope and delay apply as for every other `Voice` family. An
-in-kernel filter is #1674.
+filter, envelope and delay apply as for every other `Voice` family.
+
+### The DWGS filter (#1674)
+
+The hardware put its digital waves through an analog 24 dB/oct resonant
+lowpass, and the kernel now has a model of that kind of filter: pick
+**Filter → Source → DWGS** on any synth (not only a DWGS one). It is a 4-pole
+zero-delay-feedback ladder with soft saturation in the resonance loop, so it
+sounds unlike the other sources (which share one 12 dB/oct RBJ response):
+
+- **LP** — 24 dB/oct, passband held at 0 dB as resonance rises, the peak
+  exactly at the cutoff. At a "flat" Q (≈ 0.71) there is no resonance and the
+  cutoff sits at the ladder's natural −12 dB knee, so it is darker than the
+  other sources at the same knob setting.
+- **BP** — 12 dB/oct each side, 0 dB peak at zero resonance.
+- **HP** — 24 dB/oct.
+- **Resonance** rises with Q (peak ≈ Q·√2 times the passband) up to just below
+  self-oscillation; the saturator compresses loud input and keeps a high-Q
+  setting bounded (it growls rather than blows up).
+
+Details: [BUILD_NOTES#dwgs-filter](../wasm/BUILD_NOTES.md#dwgs-filter).
 
 If the DWGS worklet cannot run (no AudioWorklet, or `dwgs_osc.wasm` failed to
 load), a `dwgs-*` part plays its wave's nearest basic shape

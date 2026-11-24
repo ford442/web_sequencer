@@ -37,4 +37,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/rustFilter.realWasm.test.ts',
   // The "C++ filter" (#1673) on the real cpp_osc.wasm: LP/BP/HP vs the RBJ transfer functions, == the WASM OSC and Rust filters, filters any oscillator, smooth sweeps, processor block handling.
   'src/audio-worklets/__tests__/cppFilter.realWasm.test.ts',
+  // The "DWGS filter" (#1674) on the real dwgs_osc.wasm: LP/BP/HP vs the analytic 4-pole ladder, NOT the RBJ response of the other kernels, saturation, filters any oscillator, processor block handling.
+  'src/audio-worklets/__tests__/dwgsFilter.realWasm.test.ts',
 ] as const;

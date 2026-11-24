@@ -332,6 +332,29 @@ describe('no new decorative oscillator families', () => {
         expect([...manifest.required, ...(manifest.optional ?? [])].some((n) => n.includes('cflt'))).toBe(false);
     });
 
+    it('the DWGS filter is a stage in the dwgs-* oscillator\'s own module: only its worklet runs the kernel, the main thread never filters (#1674)', () => {
+        const bridge = readFileSync(join(SRC, 'engines', 'DwgsFilter.ts'), 'utf8');
+        expect(bridge).not.toMatch(/new Float32Array\(/);
+        expect(bridge).not.toMatch(/createBuffer(Source)?\(/);
+        expect(bridge).not.toMatch(/\.exports\b/);
+        // It loads the oscillator's module through the oscillator's loader: one fetch, one compile, one artifact.
+        expect(bridge).toMatch(/loadDwgsOscModule\(\)/);
+        // Only the worklet calls the streaming filter export.
+        const kernelUsers = walk(SRC).filter((f) => /\.dflt_process\(/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['audio-worklets/dwgs-filter-processor.ts']);
+        expect(BACKEND_FALLBACK_ORDER as readonly string[]).not.toContain('dwgsFilter');
+        const voiceManager = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
+        expect(voiceManager).not.toMatch(/DwgsFilter|dwgs_osc/);
+        // Its own DSP in dwgs-audio, not hyphon_native and not a copy of another kernel's filter.
+        const kernel = readFileSync(join(ROOT, 'dwgs-audio', 'src', 'lib.rs'), 'utf8');
+        expect(kernel).toMatch(/pub struct Vcf/);
+        expect(kernel).toMatch(/pub extern "C" fn dflt_process/);
+        const manifest = JSON.parse(readFileSync(join(ROOT, 'emscripten', 'wasm_export_manifest.json'), 'utf8')) as {
+            required: string[]; optional?: string[];
+        };
+        expect([...manifest.required, ...(manifest.optional ?? [])].some((n) => n.includes('dflt'))).toBe(false);
+    });
+
     it('keeps the Safari feature intersection on both AssemblyScript filter builds: simd + bulk-memory, no GC (#1663)', () => {
         const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts as Record<string, string>;
         for (const name of ['build:wasm:oscillators', 'build:wasm:wamfilter']) {

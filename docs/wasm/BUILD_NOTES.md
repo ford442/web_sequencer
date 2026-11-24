@@ -15,6 +15,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [The WASM OSC filter (LP / BP / HP, usable by any oscillator)](#wam-filter)
 - [The Rust filter (same idea, in the Rust kernel)](#rust-filter)
 - [The C++ filter (a state variable filter in the C++ kernel)](#cpp-filter)
+- [The DWGS filter (a 4-pole ladder in the DWGS kernel, the one that sounds different)](#dwgs-filter)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [Denormal guards](#denormal-guards)
@@ -711,8 +712,9 @@ Pieces:
   build --release --locked --target wasm32-unknown-unknown`, **no target
   feature**, `--initial-memory = --max-memory` and `-zstack-size` from the budget,
   then `tools/check_dwgs_osc_module.mjs` (zero imports, fixed unshared memory,
-  exact exports, no v128 — `usesV128` from the C++ checker — ABI 1, 17 waves,
-  and every wave renders something finite and non-silent).
+  exact exports, no v128 — `usesV128` from the C++ checker — ABI 2, 17 waves,
+  every wave renders something finite and non-silent, and the filter accepts a
+  lowpass and refuses an unknown type).
   `check-release-dist.mjs` re-checks `dist/dwgs_osc.wasm` and budgets it.
 - **Worklet** — `src/audio-worklets/dwgs-osc-processor.ts`: a-rate `frequency`,
   **k-rate `wave`** (the kernel wave id), a-rate `gate`; same allocation-free
@@ -724,8 +726,8 @@ Pieces:
 - **Offline** — `src/audio/offline/OfflineDwgsOscEngine.ts`, bit-identical to the
   live voice (`dwgsOscVoice.realWasm.test.ts`).
 
-An in-kernel filter is #1674; until then the voice's `BiquadFilterNode` follows,
-as for every family that plays through `Voice`.
+The oscillator itself stays unfiltered; the same module carries the
+[DWGS filter](#dwgs-filter) (#1674), which any oscillator can select.
 
 <a id="wam-filter"></a>
 
@@ -921,6 +923,76 @@ host oscillator ──► filterBus ──► BiquadFilterNode ─────�
 
 **Not done, deliberately.** As for the Rust filter: a separate node after the oscillator
 (including after `cpp-*`), offline bounces take the logged native fallback, cutoff / Q /
+type are k-rate and set at note start, and session packs do not carry the filter fields.
+
+<a id="dwgs-filter"></a>
+
+### The DWGS filter: a 4-pole ladder in the DWGS kernel, selectable by any oscillator (#1674)
+
+The DW-6000 / DW-8000 played their DWGS waves through an *analog* 24 dB/oct resonant
+lowpass. `dwgs-audio/src/lib.rs` now has a model of that kind of filter (`Vcf`), and
+`SynthParams.filterSource: 'dwgs'` ("DWGS" in the Filter / Source selector) runs it after
+whatever the synth plays: JS, WASM OSC, Rust, C++, DWGS, WebGPU, Pyodide, WAV.
+
+**Intent.** The history (#1666) shows DWGS is Korg's Digital Waveform Generator System,
+not a digital waveguide, so there is no physical-model filter to recover. What the
+hardware had was a digital oscillator in front of an analog VCF; the filter that belongs
+with it is a resonant 4-pole, not another cookbook biquad. So unlike the WASM OSC, Rust
+and C++ filters (one shared RBJ response, interchangeable by design), this source is
+meant to *sound different*.
+
+- **Topology.** Four trapezoidal one-pole stages (`g = tan(π fc / fs)`, `G = g / (1 + g)`),
+  global feedback `k` from the 4th stage, solved without a unit delay
+  (`u = (x − k S) / (1 + k G⁴)`), `f64` coefficients and state. The modes are the classic
+  multimode-ladder taps: LP = `y4·(1 + k)` (24 dB/oct; the `1 + k` restores the ladder's
+  passband loss), BP = `4 (y2 − 2 y3 + y4)` (12 dB/oct each side, 0 dB peak at `k = 0`),
+  HP = `u − 4y1 + 6y2 − 4y3 + y4` = `(1 − H)⁴` (24 dB/oct). The resonance peak sits exactly
+  at the cutoff (four equal poles reach −180° at `fc`).
+- **Resonance mapping.** `k = 0` up to Q = 1/√2 (a flat setting on the other sources is "no
+  resonance" here), then `k = 4 (1 − 0.7071 / Q)`, capped at 3.96, so the linear peak is
+  `Q·√2` times the passband. At `k = 0` the cutoff is the ladder's natural −12 dB knee.
+- **Saturation.** `soft_clip` (`2·tanh(x / 2)` by a clamped [3/2] Padé form) on the
+  feedback sum: within ~2 % of linear for |x| ≤ 0.5, so normal levels pass clean; loud
+  input is compressed and a high-Q setting stays bounded. It is the only non-linear
+  element in any Hyphon filter, so it is the only one that adds partials (a 2 V sine
+  picks up a measurable 3rd harmonic); everything else about it is band-limited as for the
+  others (bilinear map, poles inside the unit circle, cutoff clamped to [20 Hz,
+  `sampleRate / 2.1`]).
+- **Same contract.** Q ≥ 0.1, `FILTER_LP/BP/HP` = 0 / 1 / 2, the same refusals (non-finite,
+  rate outside 8–768 kHz, unknown type → `0`, previous response kept), a never-configured
+  filter is the identity, denormals flushed once per block, the state left alone on
+  `configure` so sweeps are smooth.
+- **Placement: `dwgs_osc.wasm`.** Four more exports — `dflt_buf_ptr`, `dflt_configure`,
+  `dflt_reset`, `dflt_process` (`wasm_export_manifest.json#dwgsOsc.requiredFilter`) — on a
+  separate `FilterStage` static (a 4 KiB in-place buffer and ~80 B of state, all-zero so
+  it lands in `.bss`). Module: 28,482 → 30,137 B, still 2 fixed pages, still scalar. A
+  filter node never calls `dwgs_init`, so it never evaluates the recipes. ABI **2**; the
+  release gate (`tools/check_dwgs_osc_module.mjs`) smoke-calls `dflt_configure`.
+- **Worklet / bridge** — `src/audio-worklets/dwgs-filter-processor.ts` (k-rate `cutoff`,
+  `resonance`, `type`; the same node contract as the other stages) and
+  `src/engines/DwgsFilter.ts`, a `WasmFilterStage` over `loadDwgsOscModule()`: oscillator
+  and filter fetch and compile `dwgs_osc.wasm` once.
+- **No silent fallback.** If it cannot run the voice uses the native filter and reports
+  under `filter-source:dwgs`; it never borrows another kernel's stage, and the processor
+  refuses a module without `dflt_*` by name.
+- **Tests.** `cargo test --release` in `dwgs-audio/` (small-signal response vs the analytic
+  ladder to 0.05 dB, passband and peak, 24 dB/oct vs the biquad, saturation bounds at the
+  feedback ceiling, sweeps, refusals, denormals); `dwgsFilter.realWasm.test.ts` on the real
+  binary (the same response checks, noise through it differs from `wamFilter.wasm` and
+  `rust_osc.wasm` by > −10 dB, filters the DWGS / Rust / AS / plain oscillators, block
+  handling, the processor); unit tests for the bridge, `Voice` routing, the selector and
+  the hermetic fixture.
+
+```
+host oscillator ──► filterBus ──► BiquadFilterNode ─────┐   filterSource: 'native' (default)
+ (any engine)          ├───────► wam-filter-processor ──┤   filterSource: 'wam'
+                       ├───────► rust-filter-processor ─┤   filterSource: 'rust'
+                       ├───────► cpp-filter-processor ──┤   filterSource: 'cpp'
+                       └───────► dwgs-filter-processor ─┴─► gain → …   filterSource: 'dwgs'
+```
+
+**Not done, deliberately.** As for the other stages: a separate node after the oscillator
+(including after `dwgs-*`), offline bounces take the logged native fallback, cutoff / Q /
 type are k-rate and set at note start, and session packs do not carry the filter fields.
 
 <a id="wam-osc"></a>

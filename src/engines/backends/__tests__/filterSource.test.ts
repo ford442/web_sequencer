@@ -24,6 +24,7 @@ import {
 import { WAM_FILTER_TYPE_ID } from '../../../audio-worklets/wamFilter';
 import { RUST_FILTER_TYPE_ID } from '../../../audio-worklets/rustFilter';
 import { CPP_FILTER_TYPE_ID } from '../../../audio-worklets/cppFilter';
+import { DWGS_FILTER_TYPE_ID } from '../../../audio-worklets/dwgsFilter';
 import { BackendRegistry, filterTypeRefusal } from '../BackendRegistry';
 import type { BackendCapabilities, GenerateRequest, OscillatorBackend } from '../OscillatorBackend';
 
@@ -42,18 +43,21 @@ describe('ids', () => {
         expect(FILTER_TYPE_ID).toEqual({ lp: 0, bp: 1, hp: 2 });
         expect(WAM_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
         expect(FILTER_TYPES).toEqual(['lp', 'bp', 'hp']);
-        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp']);
-        expect(STAGED_FILTER_SOURCES).toEqual(['wam', 'rust', 'cpp']);
+        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp', 'dwgs']);
+        expect(STAGED_FILTER_SOURCES).toEqual(['wam', 'rust', 'cpp', 'dwgs']);
         // The Rust kernel's response ids are the same numbers (FILTER_LP/BP/HP in rust-audio/src/lib.rs).
         expect(RUST_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
         // And the C++ kernel's (kFilterLp/Bp/Hp in emscripten/cpp_osc.cpp).
         expect(CPP_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
+        // And the DWGS kernel's (FILTER_LP/BP/HP in dwgs-audio/src/lib.rs).
+        expect(DWGS_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
     });
 
     it('label the AssemblyScript source "WASM OSC" and the Rust one "Rust", the same names as their oscillators', () => {
         expect(FILTER_SOURCE_LABELS.wam).toBe('WASM OSC');
         expect(FILTER_SOURCE_LABELS.rust).toBe('Rust');
         expect(FILTER_SOURCE_LABELS.cpp).toBe('C++');
+        expect(FILTER_SOURCE_LABELS.dwgs).toBe('DWGS');
     });
 
     it('give every source a description and its own degradation id', () => {
@@ -139,6 +143,9 @@ describe('hostFilterRequest', () => {
         [{ source: 'cpp', type: 'lp' }],
         [{ source: 'cpp', type: 'bp' }],
         [{ source: 'cpp', type: 'hp' }],
+        [{ source: 'dwgs', type: 'lp' }],
+        [{ source: 'dwgs', type: 'bp' }],
+        [{ source: 'dwgs', type: 'hp' }],
     ] as const)('opens the host\'s own filter for %j (the voice\'s filter does the work)', (effective) => {
         expect(hostFilterRequest(PARAMS, effective, RATE)).toEqual(open);
     });

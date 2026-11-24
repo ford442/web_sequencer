@@ -1,6 +1,7 @@
 // Shared harness for the Voice filter-source suites (#1663, #1672, #1673):
 // an inspectable AudioContext, oscillator backend stubs and wasm filter stage
-// stand-ins. Voice.filterSource.test.ts and Voice.cppFilterSource.test.ts use it.
+// stand-ins. Voice.filterSource.test.ts, Voice.cppFilterSource.test.ts and
+// Voice.dwgsFilterSource.test.ts use it.
 
 import { afterEach, beforeEach, vi } from 'vitest';
 import { BackendRegistry, setOscillatorRegistry } from '../backends/BackendRegistry';
@@ -185,7 +186,7 @@ export function makeStageFilter(
 export function registerFilterSourceHooks(): void {
     beforeEach(() => {
         // The once-per-cause set is static on Voice; a fresh reason text per test keeps them independent.
-        for (const source of ['wam', 'rust', 'cpp'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+        for (const source of ['wam', 'rust', 'cpp', 'dwgs'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
         vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
@@ -194,6 +195,7 @@ export function registerFilterSourceHooks(): void {
         setWamFilter(null);
         setFilterStage('rust', null);
         setFilterStage('cpp', null);
+        setFilterStage('dwgs', null);
         vi.restoreAllMocks();
     });
 
