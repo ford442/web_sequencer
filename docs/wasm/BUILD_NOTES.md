@@ -476,6 +476,39 @@ basic shape, but no other family ever falls *onto* DWGS, and the generic
 costs nothing to keep, and is the only renderer that cannot fail. Everything
 below it is a *table* producer, resampled by `playbackRate`.
 
+<a id="js-osc"></a>
+
+### The JS oscillator: the terminal path, and how you know you are on it
+
+`js` is the last step of `BACKEND_FALLBACK_ORDER` and cannot fail: `Voice`
+builds a native `OscillatorNode` (`shapeToOscillatorType`) when
+`BackendRegistry.sourceFrom` runs out of backends. Audit of what it covers:
+
+| Concern | Status |
+|---|---|
+| Shapes | `saw`, `sqr`, `tri`, `sin` map 1:1 to `sawtooth`/`square`/`triangle`/`sine`. A `dwgs-*` wave lands on its nearest basic shape (the step is reported). |
+| Pitch / slides | `frequency` is an a-rate `AudioParam`; legato slides use the same `exponentialRampToValueAtTime` as a worklet voice. |
+| Detune | Not used: `Voice` transposes in Hz (`transposeFrequency`) and never touches `OscillatorNode.detune`. |
+| Band-limiting | Browser-native (PeriodicWave), not the Rust/C++ kernels. |
+| Filter | The voice's 2-pole `BiquadFilterNode`, as for every family. |
+
+**When you are hearing it.** Either the part is a plain waveform (no prefix:
+`sawtooth`, `square`, …) — then it is the preferred path and nothing is flagged —
+or a prefixed family (`rust-*`, `cpp-*`, `wam-*`, `wgsl-*`, …) could not get
+its engine. In the second case it is never silent:
+
+- `console.warn` `[BackendRegistry] oscillator backend fell back <requested> → JS oscillator (<why each step was skipped>)`;
+- telemetry: `registerResolution('oscillators', 'js', …)` + `recordDegradation`;
+- the degradation banner / status pill: *"Oscillators running on JS oscillator instead of …"*;
+- the EngineHUD "Oscillator backends" section, which reads
+  `BackendRegistry.getLastResolution()`. The realtime path records its
+  resolution there too (it used to update only telemetry and the banner, so the
+  HUD could keep naming a backend that was not sounding).
+
+Families that never enter the registry (`303-*`, `prophecy-*`, `macro-*` are
+owned by their native-worklet managers) report through `logEngineFallback`
+instead, and a missing registry (engine not initialised) is reported the same way.
+
 There is **one** WASM wavetable engine, and it is the AssemblyScript kernel
 (`assembly/oscillators.ts`). It was kept over a C++ wavetable in `hyphon_native`
 because it already has a validated Safari feature intersection (`simd` +

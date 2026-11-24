@@ -236,7 +236,7 @@ export class BackendRegistry {
                 const samples = await backend.generate(req);
                 if (samples && samples.length > 0) {
                     if (backend.id !== requested) {
-                        publishResolution({
+                        this.record({
                             active: backend.id,
                             requested,
                             degraded: true,
@@ -309,25 +309,36 @@ export class BackendRegistry {
     ): VoiceSource | null {
         const chain = this.orderedFrom(startId);
         const skipped: string[] = [];
+        const attempts: BackendAttempt[] = [];
+        const skip = (backend: OscillatorBackend, reason: string): void => {
+            skipped.push(`${backend.id}: ${reason}`);
+            attempts.push({
+                id: backend.id,
+                supported: backend.isSupported,
+                ready: backend.isReady,
+                reason,
+            });
+        };
 
         for (const backend of chain) {
             // Never a fallback target: it plays only the family that entered at it.
             if (backend.capabilities.entryOnly && backend.id !== startId) continue;
             if (!backend.isSupported || !backend.isReady) {
-                skipped.push(`${backend.id}: ${backend.isSupported ? 'not initialized' : 'unsupported'}`);
+                skip(backend, backend.isSupported ? 'not initialized' : 'unsupported');
                 continue;
             }
             if (!backend.supportsShape(req.shape)) {
-                skipped.push(`${backend.id}: cannot render "${req.shape}"`);
+                skip(backend, `cannot render "${req.shape}"`);
                 continue;
             }
             const realtime = allowRealtime && !!backend.acquireVoice;
             if (!realtime && !backend.renderLoop) {
-                skipped.push(
+                skip(
+                    backend,
                     backend.acquireVoice
-                        ? `${backend.id}: live source only (caller asked for a table)`
+                        ? 'live source only (caller asked for a table)'
                         // `js` has no table — it is the terminal OscillatorNode step.
-                        : `${backend.id}: no realtime table (terminal backend)`,
+                        : 'no realtime table (terminal backend)',
                 );
                 continue;
             }
@@ -341,7 +352,7 @@ export class BackendRegistry {
                     if (render) source = { kind: 'loop', render };
                 }
             } catch (e) {
-                skipped.push(`${backend.id}: threw (${e instanceof Error ? e.message : String(e)})`);
+                skip(backend, `threw (${e instanceof Error ? e.message : String(e)})`);
                 try {
                     engineTelemetry.recordError(OSCILLATOR_SUBSYSTEM, e);
                 } catch {
@@ -350,15 +361,16 @@ export class BackendRegistry {
                 continue;
             }
             if (!source) {
-                skipped.push(`${backend.id}: returned no ${realtime ? 'voice' : 'table'}`);
+                skip(backend, `returned no ${realtime ? 'voice' : 'table'}`);
                 continue;
             }
+            attempts.push({ id: backend.id, supported: true, ready: true });
             if (backend.id !== startId) {
-                publishResolution({
+                this.record({
                     active: backend.id,
                     requested: startId,
                     degraded: true,
-                    attempts: [],
+                    attempts,
                     reason: skipped.join('; ') || 'preferred backend produced no source',
                     ts: Date.now(),
                 });
@@ -367,16 +379,31 @@ export class BackendRegistry {
         }
 
         // Falling all the way through is the documented `js` outcome, not a bug
-        // — but it still has to be visible.
-        publishResolution({
+        // — but it still has to be visible: the caller builds an OscillatorNode
+        // and this is the one place that says so (telemetry, banner and HUD).
+        // `js` was listed as "no realtime table" while walking; it is the answer.
+        const terminal = attempts.filter((a) => a.id !== 'js');
+        terminal.push({ id: 'js', supported: true, ready: true });
+        this.record({
             active: 'js',
             requested: startId,
             degraded: startId !== 'js',
-            attempts: [],
-            reason: skipped.join('; ') || undefined,
+            attempts: terminal,
+            reason: skipped.filter((r) => !r.startsWith('js:')).join('; ') || undefined,
             ts: Date.now(),
         });
         return null;
+    }
+
+    /**
+     * Remember `resolution` as the registry's latest, then publish it. The HUD
+     * reads `getLastResolution()`, so a realtime-path fallback (which never goes
+     * through `resolve()`) must be stored here or the HUD would keep naming a
+     * backend that is not the one sounding.
+     */
+    private record(resolution: BackendResolution): void {
+        this.lastResolution = resolution;
+        publishResolution(resolution);
     }
 
     disposeAll(): void {
