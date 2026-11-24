@@ -444,6 +444,39 @@ describe('BackendRegistry.sourceFrom', () => {
         warn.mockRestore();
     });
 
+    it('falling off the chain to the terminal OscillatorNode is published and reaches the HUD', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const registry = new BackendRegistry();
+        registry.register(new StubRealtimeBackend('rust', { ready: false }));
+        registry.register(new StubBackend('wam', { supported: false }));
+        registry.register(new JsOscillatorBackend());
+
+        // `js` has no table or voice: the chain runs out and the caller builds an OscillatorNode.
+        expect(registry.sourceFrom('rust', ctx, REQ)).toBeNull();
+
+        const issue = engineDegradationStore.getIssue('oscillator-backend');
+        expect(issue?.activeBackend).toBe('js');
+        expect(issue?.requestedBackend).toBe('rust');
+        expect(issue?.reason).toContain('rust: not initialized');
+        expect(issue?.reason).toContain('wam: unsupported');
+
+        // The HUD reads getLastResolution(); it must name the engine that sounds.
+        const last = registry.getLastResolution();
+        expect(last?.active).toBe('js');
+        expect(last?.degraded).toBe(true);
+        expect(last?.attempts.map((a) => a.id)).toEqual(['rust', 'wam', 'js']);
+        warn.mockRestore();
+    });
+
+    it('a plain JS oscillator part is the preferred path, not a degradation', () => {
+        const registry = new BackendRegistry();
+        registry.register(new JsOscillatorBackend());
+        expect(registry.sourceFrom('js', ctx, REQ)).toBeNull();
+        expect(registry.getLastResolution()?.active).toBe('js');
+        expect(registry.getLastResolution()?.degraded).toBe(false);
+        expect(engineDegradationStore.getIssue('oscillator-backend')).toBeUndefined();
+    });
+
     it('offline generate() skips a realtime-only backend with that reason', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const rust = new StubRealtimeBackend('rust');
