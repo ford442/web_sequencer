@@ -43,7 +43,8 @@ describe('ids', () => {
         expect(FILTER_TYPE_ID).toEqual({ lp: 0, bp: 1, hp: 2 });
         expect(WAM_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
         expect(FILTER_TYPES).toEqual(['lp', 'bp', 'hp']);
-        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp', 'dwgs']);
+        expect(FILTER_SOURCES).toEqual(['native', 'wam', 'rust', 'cpp', 'dwgs', 'webgpu']);
+        // The GPU's filter renders tables; it is not a worklet stage, so it is not in this list.
         expect(STAGED_FILTER_SOURCES).toEqual(['wam', 'rust', 'cpp', 'dwgs']);
         // The Rust kernel's response ids are the same numbers (FILTER_LP/BP/HP in rust-audio/src/lib.rs).
         expect(RUST_FILTER_TYPE_ID).toEqual(FILTER_TYPE_ID);
@@ -58,6 +59,7 @@ describe('ids', () => {
         expect(FILTER_SOURCE_LABELS.rust).toBe('Rust');
         expect(FILTER_SOURCE_LABELS.cpp).toBe('C++');
         expect(FILTER_SOURCE_LABELS.dwgs).toBe('DWGS');
+        expect(FILTER_SOURCE_LABELS.webgpu).toBe('WebGPU');
     });
 
     it('give every source a description and its own degradation id', () => {

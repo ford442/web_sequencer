@@ -7,6 +7,8 @@ import { WamFilter, setWamFilter } from '../../engines/WamFilter';
 import { RustFilter, setRustFilter } from '../../engines/RustFilter';
 import { CppFilter, setCppFilter } from '../../engines/CppFilter';
 import { DwgsFilter, setDwgsFilter } from '../../engines/DwgsFilter';
+import { WebGpuFilter } from '../../engines/WebGpuFilter';
+import { getGpuFilter, setGpuFilter } from '../../engines/filterStages';
 import { CppOscillator } from '../../engines/CppOscillator';
 import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
@@ -259,6 +261,10 @@ export async function initializeAudioContextAndEngines(
     loadingProgressStore.startStep('webGpuEngine');
     await webGpuBackend.init(context);
     loadingProgressStore.completeStep('webGpuEngine');
+    // The "WebGPU filter" (#1675): not a worklet stage (a GPU cannot run in one) but a
+    // bank cache over the same device — a voice that selects it asks `getGpuFilter()` for a
+    // filtered table, and plays its native filter, said out loud, when WebGPU is not usable.
+    setGpuFilter(new WebGpuFilter(webGpuBackend.raw));
 
     loadingProgressStore.startStep('wasmEngine');
     await wamBackend.init(context);
@@ -567,6 +573,11 @@ export async function teardownAudioEngine(
         setMasterPcf(null);
     });
     safely('wam', () => setWamHost(null));
+    // The banks hold tables for the old context's sample rate; the next init builds a new cache.
+    safely('gpuFilter', () => {
+        getGpuFilter()?.dispose();
+        setGpuFilter(null);
+    });
     stopGlitchMonitor();
 
     refs.open303ManagerRef.current = null;

@@ -16,7 +16,8 @@ import type {
 } from '../backends/OscillatorBackend';
 import { filterSourceIssueId } from '../backends/filterSource';
 import { setWamFilter, type WamFilter, type WamFilterNode } from '../WamFilter';
-import { setFilterStage, type StagedFilterSource } from '../filterStages';
+import { setFilterStage, setGpuFilter, type StagedFilterSource } from '../filterStages';
+import type { GpuLookup, WebGpuFilter } from '../WebGpuFilter';
 import type { SynthParams } from '../../types';
 import type { WaveShape } from '../../utils/waveformParser';
 import { engineDegradationStore } from '../../stores/engineDegradationStore';
@@ -182,11 +183,32 @@ export function makeStageFilter(
     return { filter, made, node };
 }
 
+// ── The WebGPU filter's bank cache (#1675) ───────────────────────────────────
+
+/** A stand-in for `WebGpuFilter` whose `lookup` answers what the test says. */
+export function makeGpuFilter(
+    answer: GpuLookup | ((shape: WaveShape, freq: number) => GpuLookup),
+    opts: { unavailable?: string | null } = {},
+) {
+    const filter = {
+        unavailableReason: vi.fn(() => opts.unavailable ?? null),
+        lookup: vi.fn((_ctx: BaseAudioContext, shape: WaveShape, _spec: unknown, freq: number) =>
+            typeof answer === 'function' ? answer(shape, freq) : answer),
+    };
+    setGpuFilter(filter as unknown as WebGpuFilter);
+    return filter;
+}
+
+/** What a ready bank hands the voice: a loop table and the pitch it sounds at. */
+export function readyTable(baseFrequency = 130.8125): GpuLookup {
+    return { kind: 'ready', render: { buffer: makeAudioBuffer(), baseFrequency } };
+}
+
 /** The per-test reset every Voice filter-source suite needs. */
 export function registerFilterSourceHooks(): void {
     beforeEach(() => {
         // The once-per-cause set is static on Voice; a fresh reason text per test keeps them independent.
-        for (const source of ['wam', 'rust', 'cpp', 'dwgs'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+        for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
         vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
@@ -196,6 +218,7 @@ export function registerFilterSourceHooks(): void {
         setFilterStage('rust', null);
         setFilterStage('cpp', null);
         setFilterStage('dwgs', null);
+        setGpuFilter(null);
         vi.restoreAllMocks();
     });
 

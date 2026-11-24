@@ -468,7 +468,7 @@ basic shape, but no other family ever falls *onto* DWGS, and the generic
 | DWGS | `dwgs-*` | `dwgs-audio/` → `public/dwgs_osc.wasm`, one `dwgs-osc-processor` AudioWorklet per voice | **worklet-resident**, entry-only: its own waves, not basic shapes ([below](#dwgs-osc)) |
 | WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
 | WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
-| WebGPU | `wgsl-*` | `WebGpuOscillator`, band-limited octave tables pre-rendered at init in one dispatch | offline pre-render ([below](#wgsl-gpu)) |
+| WebGPU | `wgsl-*` | `WebGpuOscillator`, band-limited octave tables pre-rendered at init in one dispatch; also the [WebGPU filter](#webgpu-filter) for any part | offline pre-render ([below](#wgsl-gpu)) |
 | Pyodide | `pyodide-*` | NumPy/SciPy in the vendored CPython | offline pre-render |
 | Open303 / JC303 | `303-*` | `hyphon_native` AudioWorklet | native worklet |
 | Prophecy | `prophecy-*` | `hyphon_native` AudioWorklet | native worklet |
@@ -995,6 +995,194 @@ host oscillator ──► filterBus ──► BiquadFilterNode ─────�
 (including after `dwgs-*`), offline bounces take the logged native fallback, cutoff / Q /
 type are k-rate and set at note start, and session packs do not carry the filter fields.
 
+<a id="webgpu-filter"></a>
+
+### The WebGPU filter: the filter folded into the GPU's additive kernel, selectable by any oscillator (#1675)
+
+`SynthParams.filterSource: 'webgpu'` ("WebGPU" in the Filter / Source selector) filters any
+part — JS, WASM OSC, Rust, C++, DWGS, Pyodide, WAV, `wgsl-*` itself — with the same resonant
+LP / BP / HP the other sources have, evaluated on the GPU. It is the one source that is **not
+a stage after the oscillator**, and that is the whole design.
+
+**Why it is a table filter, not a stage.** The four wasm filters are AudioWorklet nodes: audio
+in, filtered audio out, a block at a time. A GPU cannot be one, for the reasons
+[`#wgsl-gpu`](#wgsl-gpu) already gives for there being no realtime GPU voice: `navigator.gpu`
+does not exist in an `AudioWorkletGlobalScope`, and `submit` + `mapAsync` is an asynchronous,
+jittery round trip, which would turn main-thread jank into audio underruns. What a GPU *is* good
+at is what `wgsl-*` already does: rendering whole tables ahead of the notes. So the WebGPU filter
+is that, with the filter inside the render.
+
+**The math.** The kernel is additive: a table is `Σ a_h sin(2π h·phase)` over the harmonics under
+Nyquist. A linear filter acts on a periodic signal one harmonic at a time, so the table the biquad
+would *settle to* is the same sum with each term scaled by `|H|` and shifted by `arg H` at the
+harmonic's **audible** frequency `h·f0`:
+
+```
+table[n] = Σ_h  a_h · |H(h·f0)| · sin( 2π (h·n·inc + φ_h) + arg H(h·f0) )
+```
+
+`H` is the RBJ biquad's response (so also `BiquadFilterNode`'s, which is the same filter). The
+cookbook biquads are the bilinear transform of the analog prototype prewarped at the cutoff, so at
+`z = e^{jω}` the response is the prototype at `s = jΩ`, `Ω = tan(ω/2) / tan(ω₀/2)`:
+`1/(s²+s/Q+1)` (LP), `(s/Q)/(…)` (BP, constant 0 dB peak), `s²/(…)` (HP). Evaluating it that way
+has no cancellation near DC, which is where `1 + a1 z⁻¹ + a2 z⁻²` loses all its `f32` digits at a
+20 Hz cutoff — and WGSL has no `f64`. Because the filter is linear it adds no partials: a
+band-limited series stays band-limited, and a looped table is exactly periodic, so there is no seam
+and no transient. `gpuFilter.ts` is the `f64` mirror the kernel is held to.
+
+**Kernel** (`WebGpuOscillator`). Two passes in one submit, one readback:
+
+| Pass | Threads | Does |
+|---|---|---|
+| `coeffs` | one per (table, harmonic) | series amplitude × `|H|` and `arg H` → a gain and a phase offset, in the tail of the storage buffer |
+| `main` | one per (sample, table) | `Σ gain_h · sin(h·phase + offset_h)` |
+
+The coefficients live in the *same* storage buffer as the audio, behind it, because the shared
+device is created with `maxStorageBuffersPerShaderStage: 2` (`deviceRequirements.ts`) and the
+audio buffer already takes one. Only a filtered render runs `coeffs`; an unfiltered one runs the
+original closed-form loop, with the same single dispatch, buffer sizes and `f32` output as before
+(max difference against the pre-#1675 kernel: **0**; time within noise — see below). Doing it the
+"uniform" way (coefficients for every render) made *unfiltered* renders 2.3–4× slower on
+SwiftShader, which is not a price to charge existing tables for a feature they do not use.
+
+**Realtime: a bank per filter.** A render is async and the note path is not, so
+`WebGpuFilter` (`src/engines/WebGpuFilter.ts`) sits between them:
+
+- A **bank** is one shape filtered for **every MIDI note** (C0–G9, 116 tables of 4096 samples,
+  1.9 MB) for one (type, cutoff, Q). Per note, not per band, because a table is pitched with
+  `playbackRate`: a cutoff baked in table time follows the pitch (an octave up doubles it), while
+  evaluating the response at `h·f_note` gives the cutoff in Hz that the knob says, at every pitch,
+  like the native filter. The table's band is the one serving the note's upper edge, so its top
+  harmonic stays under Nyquist for any pitch the note's table is asked to play.
+- `lookup()` is synchronous: **ready** (a loop table), **warming** (no bank yet; the bake is
+  started) or **unavailable** (WebGPU lost, the pitch outside C0–G9, or a failed bake, with the
+  reason). One bake runs at a time and the newest request wins, so a knob sweep costs one dispatch
+  per cell it settles in, never a queue.
+- Cutoff and Q are snapped to a grid (1/24 octave of cutoff, 1/8 octave of Q; at most 1.5 % and
+  0.4 dB from the knob) so a sweep reuses banks. 12 banks are kept, least recently used out first
+  (≈ 23 MB worst case); per-step cutoff lanes and timbre modulation (`playSynth`) each visit their
+  own bank, which is why it is a dozen and not a few.
+- `useGpuFilterPrewarm` bakes the bank for a synth's current settings 120 ms after a filter knob
+  stops moving, so the first note usually finds it ready.
+
+**What a note does** (`Voice.planGpuFilter`):
+
+| Situation | Plays | Reported |
+|---|---|---|
+| Bank ready | the looped GPU table, bus straight to the output gain (no biquad) | — |
+| Bank warming | the **host** oscillator through the **native** filter — the same RBJ response, so a cold start changes how a note is made, not how it sounds | telemetry + `console.debug`, once per bank; *not* a degradation banner |
+| WebGPU lost / not initialised | host + native filter | `filter-source:webgpu` degradation (selector notice, HUD) |
+| Pitch outside C0–G9 | host + native filter | same, one report (the reason does not name the pitch) |
+| `dwgs-*` digital wave / noise (not a basic shape) | host + native filter | same, naming the wave |
+| 303 / Prophecy / Macro | not `Voice`'s; untouched | — |
+
+It never borrows another source's wasm stage.
+
+**"Selectable by every other engine", exactly what that means.** The GPU filter has no host
+oscillator behind it — it cannot sit after one — so a note that selects it plays **the part's
+basic shape rendered by the GPU**, not the part's own engine: a `rust-saw` note plays the GPU's
+saw, a `wam-tri` its triangle. The wave *family* is kept; the engine is not. The selector says so
+whenever WebGPU is selected. A part whose wave is not a basic shape (the 14 DWGS digital waves,
+DWGS noise) is refused rather than played as a different wave. Making a *live* engine's own output
+GPU-filtered would need the GPU in the audio thread, which is the thing that cannot be done.
+
+**Offline** (`renderAudio` → `OfflineGpuFilter`). A bounce can wait for the GPU, so it needs no
+bank: the note is rendered by `WebGpuOscillator.generate(freq, dur, sr, shape, filter)` at its
+exact pitch with the filter in every harmonic, and the biquad is skipped. It is also the first
+filter source a bounce applies at all: `renderAudio` still builds one low-pass biquad whatever
+`filterType` / `filterSource` say, and the other four sources are not applied there. A note whose
+filter moves while it plays (a `filterCurve`, #1384) falls back to that biquad, reported once.
+
+```
+host oscillator ──► filterBus ──► BiquadFilterNode ─────┐   filterSource: 'native' (default)
+ (any engine)          ├───────► wam-filter-processor ──┤   filterSource: 'wam'
+                       ├───────► rust-filter-processor ─┤   filterSource: 'rust'
+                       ├───────► cpp-filter-processor ──┤   filterSource: 'cpp'
+                       ├───────► dwgs-filter-processor ─┤   filterSource: 'dwgs'
+                       └───────► (nothing) ─────────────┴─► gain → …   filterSource: 'webgpu'
+GPU bank table ──► (the host oscillator is replaced) ──► filterBus      filterSource: 'webgpu'
+```
+
+**Quality** (`tools/measure_gpu_filter.mjs`, real WGSL on Chromium's SwiftShader adapter, 48 kHz;
+dB relative to the table's peak, lower is better):
+
+| Check | Cases | Worst |
+|---|---|---|
+| Kernel vs the `f64` mirror (4 shapes × 4 pitches 55 Hz–4.2 kHz × unfiltered, LP 800 Hz Q 6, BP 1.6 kHz Q 8, HP 400 Hz Q 2, LP 20 Hz, LP 18 kHz Q 30) | 96 | **−66.6 dB** |
+| A GPU-filtered note vs the same note through a real `BiquadFilterNode` in an `OfflineAudioContext`, steady state | 6 | **−67.3 … −80.6 dB** |
+| A whole 116-note bank vs the mirror (LP 1.8 kHz) | 116 | **−67.2 dB** (MIDI 97) |
+| Unfiltered kernel vs the pre-#1675 kernel | 12 | **0** (bit-identical) |
+
+The six native comparisons are LP 1.5 kHz (Q 6 dB), LP 300 Hz (Q 18 dB), BP 900 Hz (Q 5), HP 2.4 kHz
+(Q 4 dB), LP 4 kHz (flat) and LP 60 Hz; the weakest are the 60 Hz and the Q 18 dB ones (−67.3 and
+−69.1 dB). The kernel agrees with its own `f64` mirror to −66.6 dB, so this is the `f32` rounding
+of the kernel (`sin` of a fixed-point phase, `tan`), not a modelling difference between the GPU
+table and the biquad. **`gpuFilter.test.ts`** holds the modelling claim without a GPU: the
+harmonic-domain table equals what a cookbook biquad settles to, to 1e-6 relative, in `f64`.
+
+**Performance** (same tool, SwiftShader — a *CPU emulation* of a GPU, so these are upper bounds for
+GPU time; on real hardware the one readback dominates and the compute is small. Real-GPU timings
+were **not** measured here. Median of 7, one dispatch + readback each):
+
+| What | Time |
+|---|---|
+| Unfiltered table set at init (36 tables), before → after #1675 | 13.9 → 13.1 ms |
+| Unfiltered 1 s note at 440 Hz, before → after | 4.9 → 5.9 ms |
+| Unfiltered 1 s note at 55 Hz, before → after | 23.2 → 24.0 ms |
+| Filtered 1 s note at 440 Hz | 13.8 ms |
+| Filtered 1 s note at 55 Hz | 93.7 ms (4 s: 335 ms) |
+| Filtered bank, saw (116 tables, ~40 M harmonic terms) | **246 ms** |
+| Filtered bank, square / triangle (odd harmonics only) | 131 ms |
+| The same bank from a plain `f64` JS loop (`referenceWaveform`), for scale | 3037 ms |
+
+A filtered render costs about 2–4× an unfiltered one on this adapter: the synthesis loop reads a
+coefficient per harmonic where the closed form computes one. Variants tried on the same adapter
+(coefficients in their own read-only binding: −14 %; tiled through workgroup memory: +70 %, barriers
+are expensive in software) were not worth their complexity. A cold bank therefore means a few
+hundred ms of "warming" on a software adapter and tens of ms or less on a real one, during which
+notes use the native filter.
+
+**Where it differs from the native filter** (all deliberate, all heard only at the margins):
+
+- **Steady state only.** No onset transient: a native biquad rings in over the first few
+  milliseconds of a note (visible on a high-Q low pass); the table is already settled. The VCA envelope
+  mostly hides it.
+- **One setting per note.** Cutoff, Q and type are those at note start (as for every source); a
+  *slide* keeps the table it started on and ramps `playbackRate`, so the cutoff follows the pitch
+  through the slide.
+- **A bank per distinct cutoff.** A part whose cutoff moves per step visits several banks; until each
+  is baked its notes use the native filter (same response). Past 12 distinct banks they rotate.
+- **Clamps** are the other sources': cutoff to [20 Hz, `sampleRate / 2.1`], Q ≥ 0.1; plus Q ≤ 1000
+  so `1/Q` stays off zero. A harmonic exactly at Nyquist is dropped (`tan(π/2)` is infinite); every
+  bank harmonic is below it anyway.
+- **Peak level** is the biquad's: a resonant filter can exceed 1.0, and nothing limits it here either.
+
+**A bug this found, and a hardening that came out of it.** The first shader used `filter` as a
+struct member; `filter` is a reserved word in WGSL. A mocked `GPUDevice` cannot compile WGSL, so
+every unit test passed — and on a real adapter `init()` reported success while the pipeline was
+invalid and every render came back as silence, because shader errors are reported on an error
+scope, not thrown. `WebGpuOscillator.init()` now wraps pipeline creation in a validation error
+scope, so an invalid shader makes the backend *unsupported* (the registry steps down, logged)
+instead of silent; `WebGpuOscillator.test.ts` also scans the shader for reserved words, and
+`tools/measure_gpu_filter.mjs` runs the shipped WGSL on a real adapter.
+
+**Not done, deliberately.** (1) No realtime GPU stage or streamed GPU voice — see above. (2) The
+digital waves of `dwgs-*` are harmonic recipes, so the additive kernel could render them given the
+recipe as input; that is a follow-up, not part of "filter". (3) Cutoff / Q / type are per note, not
+per sample. (4) A bounce still ignores `filterType` and the other four sources (see Offline); only `webgpu`
+is applied there. (5) Session packs do not
+carry `filterType` / `filterSource`, as for the other sources. (6) Notes below C0 or above G9 use the
+native filter.
+
+**Tests.** `gpuFilter.test.ts` (the response vs the cookbook biquad, the filtered table vs a settled
+biquad, the cache grid, the bank plan); `WebGpuOscillator.test.ts` (uniform layout, pass order,
+refused filters, the bank dispatch, an invalid shader, reserved words); `WebGpuFilter.test.ts`
+(single flight, newest wins, LRU, failure back-off, dispose); `Voice.webgpuFilterSource.test.ts`
+(routing, warm-up, every fallback, independence from the other sources); `OfflineGpuFilter.test.ts`
+(the bounce, through `renderSynthToBuffer`); the selector and prewarm hook. The accuracy and timing
+numbers above come from `node tools/measure_gpu_filter.mjs` (set `CHROMIUM_PATH` if the Playwright
+Chromium is not installed); it exits 1 if any accuracy gate fails.
+
 <a id="wam-osc"></a>
 
 ### `wam-*`: hardening the mid-tier kernel (#1663)
@@ -1079,7 +1267,9 @@ stays a pre-render, and the pre-render got much better.
 What *is* live: a voice pitches a `wgsl-*` table through
 `AudioBufferSourceNode.playbackRate`, which is an a-rate `AudioParam`. Slides
 and pitch automation are therefore sample accurate, as they were before. The
-cutoff and resonance were never in the table: they are the voice's own biquad.
+cutoff and resonance were never in the table: they are the voice's own biquad,
+unless the part selects the [WebGPU filter](#webgpu-filter) (#1675), which folds them into the
+render.
 
 **What changed in the pre-render** (`WebGpuOscillator`, `wavetableBands.ts`,
 `WebGpuBackend` in `adapters.ts`)

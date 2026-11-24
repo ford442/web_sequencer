@@ -15,8 +15,10 @@ import { renderDrumkitBuffer } from '@/audio/offline/OfflineDrumKitEngine';
 import { renderRustOscOffline } from '@/audio/offline/OfflineRustOscEngine';
 import { renderCppOscOffline } from '@/audio/offline/OfflineCppOscEngine';
 import { renderDwgsOscOffline } from '@/audio/offline/OfflineDwgsOscEngine';
+import { renderGpuFilteredNote } from '@/audio/offline/OfflineGpuFilter';
 import { dwgsWaveIndex } from '@/engines/dwgsWaves';
 import { parseWaveform } from '@/utils/waveformParser';
+import type { GpuFilterSpec } from '@/engines/backends/gpuFilter';
 import { logWaveformSubstitution } from '@/utils/engineTelemetry';
 import { DrumKitEngine } from '@/engines/DrumKitEngine';
 import { instrumentStore } from '@/stores/instrumentStore';
@@ -35,6 +37,8 @@ interface WebGpuEngineLike {
         dur: number,
         rate: number,
         type: 'saw' | 'sqr' | 'tri' | 'sin',
+        /** The WebGPU filter (#1675): fold this resonant filter into every harmonic of the render. */
+        filter?: GpuFilterSpec | null,
     ): Float32Array | null | Promise<Float32Array | null>;
 }
 
@@ -118,8 +122,29 @@ export async function renderSynthToBuffer(
     let customBuffer: AudioBuffer | null = null;
     let skipFilter = false; // Engines like Wasm might apply filter internally
 
+    // The WebGPU filter (#1675): the GPU renders the part's shape *through* the filter, at
+    // this note's pitch, whichever engine the part names — so the biquad below is skipped.
+    // Anything it cannot do is reported once and the part renders as it always did.
+    const gpuFiltered = await renderGpuFilteredNote({
+        params,
+        parsed: parseWaveform(params.waveform),
+        frequency: freqWithPitch,
+        duration,
+        sampleRate,
+        engine: engines?.webGpuEngine,
+        hasFilterCurve: (filterCurve?.length ?? 0) > 0,
+    });
+    if (gpuFiltered) {
+        customBuffer = offlineCtx.createBuffer(1, gpuFiltered.length, sampleRate);
+        customBuffer.getChannelData(0).set(gpuFiltered);
+        skipFilter = true; // the table is already filtered
+    }
+
     // Check for Custom Engines first
-    if (params.waveform.startsWith('wgsl-') && engines?.webGpuEngine?.isSupported) {
+    if (gpuFiltered) {
+        // Rendered above.
+    }
+    else if (params.waveform.startsWith('wgsl-') && engines?.webGpuEngine?.isSupported) {
         // WebGPU
         try {
             const type = params.waveform.split('-')[1] as 'saw' | 'sqr' | 'tri' | 'sin';

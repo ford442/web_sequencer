@@ -1,6 +1,6 @@
 /**
- * The filter type + source picker (#1663, #1672, #1673, #1674): LP / BP / HP and Native /
- * WASM OSC / Rust / C++ / DWGS for the oscillator families that run through the voice's filter
+ * The filter type + source picker (#1663, #1672, #1673, #1674, #1675): LP / BP / HP and Native /
+ * WASM OSC / Rust / C++ / DWGS / WebGPU for the oscillator families that run through the voice's filter
  * stage, with the fallback made visible when a wasm filter was chosen but is not
  * running.
  */
@@ -12,7 +12,7 @@ import { filterSourceIssueId } from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
-    for (const source of ['wam', 'rust', 'cpp', 'dwgs'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+    for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
     vi.restoreAllMocks();
 });
 
@@ -142,6 +142,38 @@ describe('FilterSourceSelector', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         render(<FilterSourceSelector type="wam" filterSource="native" onChange={() => {}} />);
         act(() => logFilterSourceFallback('WASM OSC', 'Native', 'some other voice asked', filterSourceIssueId('wam')));
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+    it('offers the WebGPU filter for every filtered oscillator family', () => {
+        const onChange = vi.fn();
+        for (const type of VOICE_FILTER_OSC_TYPES) {
+            const { unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+            fireEvent.click(screen.getByRole('button', { name: 'WebGPU filter source' }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'webgpu' });
+            unmount();
+        }
+    });
+
+    it('explains what the WebGPU filter plays, but only while it is selected', () => {
+        const { rerender } = render(<FilterSourceSelector type="rust" filterSource="native" onChange={() => {}} />);
+        expect(screen.queryByTestId('webgpu-filter-note')).toBeNull();
+        rerender(<FilterSourceSelector type="rust" filterSource="webgpu" onChange={() => {}} />);
+        expect(screen.getByTestId('webgpu-filter-note')).toHaveTextContent(/GPU/);
+        expect(screen.getByTestId('webgpu-filter-note')).toHaveTextContent(/not the selected oscillator engine/);
+    });
+
+    it('says so when the WebGPU filter is selected but the voice fell back to the native one', () => {
+        logFilterSourceFallback('WebGPU', 'Native', 'WebGPU is unavailable (no adapter, or the device was lost)', filterSourceIssueId('webgpu'));
+        render(<FilterSourceSelector type="wam" filterSource="webgpu" onChange={() => {}} />);
+        expect(screen.getByRole('status')).toHaveTextContent(/WebGPU filter unavailable/);
+        expect(screen.getByRole('status')).toHaveTextContent(/device was lost/);
+        // The explanation of what it plays gives way to the failure.
+        expect(screen.queryByTestId('webgpu-filter-note')).toBeNull();
+    });
+
+    it('does not show the WebGPU failure on a voice that never asked for it', () => {
+        logFilterSourceFallback('WebGPU', 'Native', 'webgpu notice-isolation unit test', filterSourceIssueId('webgpu'));
+        render(<FilterSourceSelector type="wam" filterSource="rust" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
     });
 });
