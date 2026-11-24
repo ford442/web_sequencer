@@ -6,8 +6,10 @@ SAMPLE_RATE = 44100
 
 def set_sample_rate(rate):
     global SAMPLE_RATE
-    SAMPLE_RATE = int(rate)
-    print(f"Python sample rate set to: {SAMPLE_RATE}")
+    rate = int(rate)
+    if rate != SAMPLE_RATE:  # callers set it before every render; say it once per change
+        print(f"Python sample rate set to: {rate}")
+    SAMPLE_RATE = rate
 
 # --- 1. ANALYSIS: PITCH & SPECTRAL ---
 
@@ -395,6 +397,98 @@ def generate_wave(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
 
     # Resonance boosts level near cutoff: soft-limit instead of hard clipping.
     return np.tanh(filtered_wave * 0.5 * 1.25) / 1.25 if resonance > 0.5 else filtered_wave * 0.5
+
+# --- 5b. THE "PYODIDE FILTER": A SELECTABLE LP/BP/HP FOR ANY OSCILLATOR (#1676) ---
+#
+# Python cannot sit after an oscillator: it runs on the main thread, not in the
+# AudioWorklet. So like the WebGPU filter it is a *table* filter. A looped table
+# is periodic, so the filter's steady state is exact and needs no time-domain
+# run: each harmonic is scaled and phase-shifted by the filter's complex
+# response at its audible frequency (SciPy's freqz of the RBJ biquad, which is
+# the response a BiquadFilterNode has). No transient, no seam, no added partials.
+
+_FILTER_TYPES = ('lp', 'bp', 'hp')
+_FILTER_Q_MIN, _FILTER_Q_MAX = 0.1, 1000.0
+
+def _rbj_biquad(filter_type, cutoff_hz, q):
+    """RBJ cookbook biquad (b, a). `q` is the linear Q; bp is the 0 dB-peak one."""
+    if filter_type not in _FILTER_TYPES:
+        raise ValueError("unknown filter type %r" % (filter_type,))
+    cutoff_hz = max(20.0, min(float(cutoff_hz), SAMPLE_RATE / 2.1))
+    q = max(_FILTER_Q_MIN, min(float(q), _FILTER_Q_MAX))
+    w0 = 2.0 * np.pi * cutoff_hz / SAMPLE_RATE
+    alpha = np.sin(w0) / (2.0 * q)
+    cw = np.cos(w0)
+    if filter_type == 'lp':
+        b = np.array([(1 - cw) / 2, 1 - cw, (1 - cw) / 2])
+    elif filter_type == 'hp':
+        b = np.array([(1 + cw) / 2, -(1 + cw), (1 + cw) / 2])
+    else:
+        b = np.array([alpha, 0.0, -alpha])
+    a = np.array([1 + alpha, -2 * cw, 1 - alpha])
+    return b / a[0], a / a[0]
+
+def filter_response(filter_type, cutoff_hz, q, freqs_hz):
+    """Complex response of the resonant filter at `freqs_hz` (SciPy freqz)."""
+    b, a = _rbj_biquad(filter_type, cutoff_hz, q)
+    w = 2.0 * np.pi * np.asarray(freqs_hz, dtype=np.float64) / SAMPLE_RATE
+    return signal.freqz(b, a, worN=w)[1]
+
+def _table_harmonics(osc_type, n_harm):
+    """Complex amplitude of harmonics 1..n_harm, the same series as _bandlimited_cycle (un-normalised)."""
+    if osc_type == 'sine':
+        amps = np.zeros(n_harm, dtype=np.complex128)
+        amps[0] = -1j
+        return amps
+    return _harmonic_amps(osc_type, n_harm)
+
+def generate_filtered_table(osc_type, cycles, length, f0, filter_type, cutoff_hz, q):
+    """
+    `length` samples holding `cycles` periods of `osc_type`, filtered in steady state.
+
+    The table's own pitch is SAMPLE_RATE * cycles / length; the filter is
+    evaluated at the harmonics of `f0` (the note it will be played as), so a
+    cutoff stays in Hz when the loop is pitched with playbackRate. Returns
+    float32, or raises on a shape or filter it does not know (the caller
+    reports it and plays through the native filter).
+    """
+    osc_type = {'triangle': 'tri', 'sqr': 'square', 'sin': 'sine'}.get(osc_type, osc_type)
+    cycles, length = int(cycles), int(length)
+    if cycles < 1 or length < 1:
+        raise ValueError("a table needs at least one cycle and one sample")
+    n_harm = (length // 2 - 1) // cycles  # bins strictly below Nyquist
+    if n_harm < 1:
+        raise ValueError("no harmonic fits under Nyquist")
+    amps = _table_harmonics(osc_type, n_harm)
+    if amps is None:
+        raise ValueError("unknown oscillator %r" % (osc_type,))
+    h = np.arange(1, n_harm + 1, dtype=np.float64)
+    audible = h * float(f0)
+    in_band = audible < SAMPLE_RATE / 2.0
+    resp = np.zeros(n_harm, dtype=np.complex128)
+    if np.any(in_band):
+        resp[in_band] = filter_response(filter_type, cutoff_hz, q, audible[in_band])
+    spec = np.zeros(length // 2 + 1, dtype=np.complex128)
+    spec[cycles * np.arange(1, n_harm + 1)] = amps * resp
+    table = np.fft.irfft(spec, n=length) * length / 2.0
+    if not np.all(np.isfinite(table)):
+        raise ValueError("non-finite filter output")
+    return table.astype(np.float32)
+
+def generate_filtered_note(note_freq, duration_sec, osc_type, filter_type, cutoff_hz, q):
+    """
+    A one-shot note filtered the same way, at its exact pitch (offline bounces).
+    The periodic table is read at note_freq with linear interpolation.
+    """
+    note_freq = float(note_freq)
+    cycles = max(1, int(np.ceil(2048.0 * note_freq / SAMPLE_RATE)))
+    length = int(round(SAMPLE_RATE * cycles / note_freq))
+    table = generate_filtered_table(osc_type, cycles, length, note_freq, filter_type, cutoff_hz, q)
+    n = int(SAMPLE_RATE * duration_sec)
+    phase = np.arange(n, dtype=np.float64) * (note_freq / (SAMPLE_RATE * cycles / length)) % length
+    i0 = phase.astype(np.int64)
+    frac = phase - i0
+    return (table[i0] * (1.0 - frac) + table[(i0 + 1) % length] * frac).astype(np.float32)
 
 def generate_loop_buffer(note_freq, duration_sec, osc_type, cutoff_hz, resonance):
     """

@@ -123,13 +123,18 @@ export type FilterType = 'lp' | 'bp' | 'hp';
  *     response folded into every harmonic of the shape it renders. A GPU cannot
  *     run inside an AudioWorklet, so it is a *table* filter, not a stage: the
  *     note plays the part's saw / square / triangle / sine as a GPU-rendered,
- *     filtered, looped table — whichever oscillator engine the part names.
+ *     filtered, looped table — whichever oscillator engine the part names;
+ *   - `pyodide` — the "Pyodide" filter (#1676): NumPy/SciPy in the vendored
+ *     CPython. Python cannot run in an AudioWorklet either, so it is the same
+ *     kind of *table* filter: the note plays the part's saw / square / triangle
+ *     / sine as a looped table whose harmonics are scaled and phased by SciPy's
+ *     `freqz` of the RBJ biquad (the steady state of the native filter).
  * If a source cannot run, the voice falls back to `native` and says so (never
- * silently). The one exception is a `webgpu` bank that is still being baked:
- * that note uses the native filter (the same response) and is logged as a
- * warm-up, not raised as a degradation.
+ * silently). The exceptions are a `webgpu` bank that is still being baked and a
+ * `pyodide` runtime that is still loading: those notes use the native filter
+ * (the same response) and are logged as a warm-up, not raised as a degradation.
  */
-export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp' | 'dwgs' | 'webgpu';
+export type FilterSource = 'native' | 'wam' | 'rust' | 'cpp' | 'dwgs' | 'webgpu' | 'pyodide';
 
 export interface SynthParams {
   waveform: Waveform;

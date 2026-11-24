@@ -35,14 +35,16 @@ const SHORT_TYPE: Record<FilterType, string> = { lp: 'LP', bp: 'BP', hp: 'HP' };
 /**
  * Filter response (LP / BP / HP) and filter source (native biquad, the
  * "WASM OSC" AssemblyScript filter, the "Rust" filter, the "C++" filter or the
- * "DWGS" 24 dB/oct ladder or the "WebGPU" table filter) for one synth. The wasm
+ * "DWGS" 24 dB/oct ladder, the "WebGPU" table filter or the "Pyodide" table filter) for one synth. The wasm
  * filters work with every oscillator family above — each is a stage after the
  * oscillator, not a property of the `wam-*` / `rust-*` / `cpp-*` / `dwgs-*` one —
  * and when one cannot run the voice uses the native filter and the notice below
  * says so (#1663, #1672, #1673, #1674). The WebGPU filter cannot be a stage (a GPU
  * cannot run in the audio thread), so it plays a GPU-rendered table of the part's
  * saw / square / triangle / sine instead of the part's own oscillator engine; the
- * note under the buttons says that whenever it is selected (#1675).
+ * note under the buttons says that whenever it is selected (#1675). The Pyodide filter
+ * (#1676) is the same kind of table filter, rendered by SciPy in the vendored Python
+ * runtime, and carries the same note.
  */
 export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
   type,
@@ -94,7 +96,7 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
       </div>
       <div className="flex items-center gap-1" role="group" aria-label="Filter source">
         <span className={label} aria-hidden="true">Source</span>
-        {/* Six sources: wrap rather than overflow a narrow synth panel. */}
+        {/* Seven sources: wrap rather than overflow a narrow synth panel. */}
         <div className="flex flex-1 flex-wrap gap-1">
           {FILTER_SOURCES.map((s) => (
             <button
@@ -114,6 +116,11 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
       {activeSource === 'webgpu' && !fallback && (
         <p className="text-[7px] leading-tight text-zinc-500" data-testid="webgpu-filter-note">
           Rendered on the GPU: plays this part's saw / square / triangle / sine as a filtered table, not the selected oscillator engine.
+        </p>
+      )}
+      {activeSource === 'pyodide' && !fallback && (
+        <p className="text-[7px] leading-tight text-zinc-500" data-testid="pyodide-filter-note">
+          Rendered in Python (SciPy): plays this part's saw / square / triangle / sine as a filtered table, not the selected oscillator engine. Loads the Python runtime on first use.
         </p>
       )}
       {fallback && (

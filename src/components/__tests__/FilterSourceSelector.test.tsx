@@ -12,7 +12,7 @@ import { filterSourceIssueId } from '../../engines/backends/filterSource';
 import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 afterEach(() => {
-    for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
+    for (const source of ['wam', 'rust', 'cpp', 'dwgs', 'webgpu', 'pyodide'] as const) engineDegradationStore.clear(filterSourceIssueId(source));
     vi.restoreAllMocks();
 });
 
@@ -174,6 +174,39 @@ describe('FilterSourceSelector', () => {
     it('does not show the WebGPU failure on a voice that never asked for it', () => {
         logFilterSourceFallback('WebGPU', 'Native', 'webgpu notice-isolation unit test', filterSourceIssueId('webgpu'));
         render(<FilterSourceSelector type="wam" filterSource="rust" onChange={() => {}} />);
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('offers the Pyodide filter for every filtered oscillator family', () => {
+        const onChange = vi.fn();
+        for (const type of VOICE_FILTER_OSC_TYPES) {
+            const { unmount } = render(<FilterSourceSelector type={type} onChange={onChange} />);
+            fireEvent.click(screen.getByRole('button', { name: 'Pyodide filter source' }));
+            expect(onChange).toHaveBeenLastCalledWith({ filterSource: 'pyodide' });
+            unmount();
+        }
+    });
+
+    it('explains what the Pyodide filter plays, but only while it is selected', () => {
+        const { rerender } = render(<FilterSourceSelector type="rust" filterSource="native" onChange={() => {}} />);
+        expect(screen.queryByTestId('pyodide-filter-note')).toBeNull();
+        rerender(<FilterSourceSelector type="rust" filterSource="pyodide" onChange={() => {}} />);
+        expect(screen.getByTestId('pyodide-filter-note')).toHaveTextContent(/Python/);
+        expect(screen.getByTestId('pyodide-filter-note')).toHaveTextContent(/not the selected oscillator engine/);
+        expect(screen.queryByTestId('webgpu-filter-note')).toBeNull();
+    });
+
+    it('says so when the Pyodide filter is selected but the voice fell back to the native one', () => {
+        logFilterSourceFallback('Pyodide', 'Native', 'the Python runtime failed to load (timed out)', filterSourceIssueId('pyodide'));
+        render(<FilterSourceSelector type="wam" filterSource="pyodide" onChange={() => {}} />);
+        expect(screen.getByRole('status')).toHaveTextContent(/Pyodide filter unavailable/);
+        expect(screen.getByRole('status')).toHaveTextContent(/timed out/);
+        expect(screen.queryByTestId('pyodide-filter-note')).toBeNull();
+    });
+
+    it('does not show the Pyodide failure on a voice that never asked for it', () => {
+        logFilterSourceFallback('Pyodide', 'Native', 'pyodide notice-isolation unit test', filterSourceIssueId('pyodide'));
+        render(<FilterSourceSelector type="wam" filterSource="webgpu" onChange={() => {}} />);
         expect(screen.queryByRole('status')).toBeNull();
     });
 });

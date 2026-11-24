@@ -8,7 +8,8 @@ import { RustFilter, setRustFilter } from '../../engines/RustFilter';
 import { CppFilter, setCppFilter } from '../../engines/CppFilter';
 import { DwgsFilter, setDwgsFilter } from '../../engines/DwgsFilter';
 import { WebGpuFilter } from '../../engines/WebGpuFilter';
-import { getGpuFilter, setGpuFilter } from '../../engines/filterStages';
+import { getGpuFilter, getPyodideFilter, setGpuFilter, setPyodideFilter } from '../../engines/filterStages';
+import { PyodideFilter } from '../../engines/PyodideFilter';
 import { CppOscillator } from '../../engines/CppOscillator';
 import { DwgsOscillator } from '../../engines/DwgsOscillator';
 import { BackendRegistry, setOscillatorRegistry } from '../../engines/backends/BackendRegistry';
@@ -265,6 +266,10 @@ export async function initializeAudioContextAndEngines(
     // bank cache over the same device — a voice that selects it asks `getGpuFilter()` for a
     // filtered table, and plays its native filter, said out loud, when WebGPU is not usable.
     setGpuFilter(new WebGpuFilter(webGpuBackend.raw));
+    // The "Pyodide filter" (#1676): the same kind of table filter over the Python runtime,
+    // which loads on demand — so nothing here loads it or waits for it; a voice asks, and
+    // plays its native filter until the runtime is there.
+    setPyodideFilter(new PyodideFilter());
 
     loadingProgressStore.startStep('wasmEngine');
     await wamBackend.init(context);
@@ -577,6 +582,10 @@ export async function teardownAudioEngine(
     safely('gpuFilter', () => {
         getGpuFilter()?.dispose();
         setGpuFilter(null);
+    });
+    safely('pyodideFilter', () => {
+        getPyodideFilter()?.dispose();
+        setPyodideFilter(null);
     });
     stopGlitchMonitor();
 

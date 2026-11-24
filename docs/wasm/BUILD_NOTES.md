@@ -1183,6 +1183,73 @@ refused filters, the bank dispatch, an invalid shader, reserved words); `WebGpuF
 numbers above come from `node tools/measure_gpu_filter.mjs` (set `CHROMIUM_PATH` if the Playwright
 Chromium is not installed); it exits 1 if any accuracy gate fails.
 
+<a id="pyodide-filter"></a>
+
+### The Pyodide filter: SciPy's resonant filter in a looped table, selectable by any oscillator (#1676)
+
+`SynthParams.filterSource: 'pyodide'` ("Pyodide" in the Filter / Source selector) filters any part
+with the same LP / BP / HP the other sources have, computed by NumPy / SciPy in the vendored
+CPython. Like the [WebGPU filter](#webgpu-filter) it is a **table filter, not a stage**, for the
+same reason: Python runs on the main thread, and an `AudioWorkletGlobalScope` has no CPython (nor
+could a `runPython` call be made from the audio thread without blocking it). So it renders whole
+tables ahead of the notes and the voice loops them.
+
+**What is rendered.** A looped table is periodic, so the filter's steady state is exact and needs
+no time-domain run. `generate_filtered_table()` (in `src/pyodide/hyphon_engine.py`) builds the
+shape's harmonic series (the same series as the `pyodide-*` oscillator's band-limited cycles),
+multiplies harmonic *h* by the filter's **complex response at *h·f0*** — `scipy.signal.freqz` of
+the RBJ biquad, which is the response a `BiquadFilterNode` has — and `irfft`s it. So the table is
+what the biquad settles to: no onset transient, no seam, no partial the oscillator did not have,
+and a cutoff that stays in Hz because the response is evaluated at the note's own harmonics.
+`generate_filtered_note()` renders the same table at a note's exact pitch, for bounces.
+
+**Geometry** (`src/engines/backends/pyodideFilter.ts`). A table is pitched with `playbackRate`,
+so it is made for the *nearest MIDI note* and holds whole periods: `cycles` periods in `length`
+samples (`length ≥ 2048`), sounding at `sampleRate·cycles/length`, within 0.03 % (half a cent) of
+that note. `playbackRate` is ~1, so the loop is not resampled (no interpolation aliasing) and the
+note's pitch is the only thing that moves. Range C0–G9, as the GPU's bank.
+
+**Realtime** (`src/engines/PyodideFilter.ts`, `Voice.planTableFilter`). Unlike the GPU a Pyodide
+call is synchronous and a table is ~10 KB, so there is no bank and no warm-up of a render:
+`lookup()` renders on a miss (a table takes 0.2 ms median / 0.7 ms worst for NumPy on a desktop
+CPU, native CPython; Pyodide is slower, not measured here) and caches per (shape, nearest note,
+filter cell) on the GPU filter's 1/24-octave cutoff / 1/8-octave Q grid, 256 tables LRU. The
+one thing that is not synchronous is the **runtime**, which loads on demand: until it is `ready` a
+note plays through the native filter (the same response; logged as a warm-up, not a degradation).
+A part that selects the filter asks for the runtime (`useRequestPythonForWaveforms`, a second
+argument), so a saved song loads it without the user touching a `pyodide-*` waveform. A load that
+fails is a `filter-source:pyodide` degradation, as is a pitch outside C0–G9, a DWGS digital wave (not
+a basic shape) or a Python error; each plays the native filter, said out loud.
+
+**Selectable by every engine, honestly.** There is no host oscillator behind it: a note plays the
+part's basic shape (saw / square / triangle / sine) *rendered in Python*, not the part's engine —
+the wave family, not the engine, same as the GPU filter. The selector says so while it is selected.
+
+**Offline** (`src/audio/offline/OfflinePyodideFilter.ts`). A bounce can wait, so it asks for the
+runtime if it has none and renders each note through the filter at its exact pitch; the caller
+skips its biquad. A note whose filter moves while it plays (#1384) falls back to the native
+biquad, reported once: a baked table holds one setting.
+
+**Boot size and CSP: unchanged.** Nothing is fetched at boot: the Python source is part of the
+lazy `bootstrap` chunk that already carried `hyphon_engine.py` (+4.5 KB of Python source), `PyodideFilter`
+only reads `pythonEngineStore` (already on the entry graph) and never imports `bootstrap`
+(`bootGraph.test.tsx` holds that), and the runtime is the same vendored same-origin copy
+(`public/pyodide/`, no CDN, no `eval` beyond what Pyodide already uses — the CSP of
+[`#pyodide-csp`](#pyodide-csp) is untouched; `numpy` and `scipy` were already loaded).
+
+**Not done, deliberately.** No realtime stage (see above); one setting per note; the 14 DWGS
+digital waves are not renderable; session packs do not carry the filter fields; Pyodide timings
+were not measured in a browser (the figure above is native CPython).
+
+**Tests.** `src/pyodide/__tests__/filterEngine.test.ts` runs `hyphon_engine.py` on real
+NumPy / SciPy (skipped where `python3` has neither) and holds the table to `scipy.signal.lfilter`
+of the same series: **−145 dB** re peak, every shape × response, when evaluated at the table's own
+pitch (at the nominal note, which is up to 0.03 % off the table, the difference is −58 dB — the
+pitch error, not the filter). Also: `pyodideFilter.test.ts` (geometry for all 116 notes at 44.1 /
+48 / 96 kHz), `PyodideFilter.test.ts` (cache, LRU, failure back-off), `Voice.pyodideFilterSource.test.ts`
+(routing, loading, every fallback, independence), `OfflinePyodideFilter.test.ts` (the bounce,
+through `renderSynthToBuffer`), the selector and the request hook.
+
 <a id="wam-osc"></a>
 
 ### `wam-*`: hardening the mid-tier kernel (#1663)
