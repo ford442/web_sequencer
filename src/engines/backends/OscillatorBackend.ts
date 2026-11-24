@@ -29,7 +29,9 @@
  *     so it is `entryOnly`: it serves `dwgs-*` parts and is never the fallback
  *     for another family (see `BackendCapabilities.entryOnly`).
  *   - `wav` / `webgpu` / `pyodide` — table producers (decoded asset, GPU
- *     pre-render, CPython pre-render). Real, but not realtime voices.
+ *     pre-render, CPython pre-render). Real, but not realtime voices. The GPU
+ *     tables are band-limited per octave and rendered in one dispatch (#1668);
+ *     why WebGPU cannot be a worklet voice is in BUILD_NOTES `#wgsl-gpu`.
  *
  * What #1294 removed — `rust-audio/` generating a naive saw/square + biquad on
  * the main thread and looping it — stays removed: `rust` came back as a
