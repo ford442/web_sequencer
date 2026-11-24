@@ -1638,6 +1638,27 @@ ADR 0001 (WAM2 host) requires **same-origin scripts and worklets only, and no
 `unsafe-eval` for the whole document. It existed only to import
 `public/hyphon_native.js` without Vite rewriting the URL.
 
+<a id="pyodide-when"></a>
+### When to use the Pyodide oscillator (vs the AssemblyScript kernel)
+
+`pyodide-saw|square|sine` are an **offline / experimental** mode, not a live-play
+engine. Prefer the AS kernel (`wasm-*`, or `rust-*` / `cpp-*` / `dwgs-*`) for
+anything you play, record or scrub in real time: it is in the entry graph, runs
+in an AudioWorklet and has no multi-second boot. Choose Pyodide when you want to
+prototype DSP in NumPy/SciPy, or bounce/export a part where start-up cost and a
+~10 MB runtime do not matter. It only loads when a `pyodide-*` waveform is
+selected (`requestPythonEngine`), so it adds nothing to boot size, and it is
+vendored same-origin (`pnpm run vendor:pyodide`), so CSP is unchanged.
+
+What `generate_wave()` in `src/pyodide/hyphon_engine.py` provides:
+
+| Item | Detail |
+|---|---|
+| Oscillators | **Band-limited** single-cycle tables (irfft, harmonics capped at Nyquist), not naive `scipy.signal.sawtooth`. Alias energy at 3 kHz drops from ~0.79 to ~3e-6. |
+| Shapes | `saw`, `square`, `tri` (true triangle; the `tri` WaveShape no longer maps to sine), plus `pulse` (25%), `supersaw` (7 detuned), `organ`, `fm`, `sine`. The extra shapes are reachable by Python callers; the public `pyodide-*` IDs are unchanged (they are baked into the pack/tool validators). |
+| Filter | RBJ resonant 2-pole low-pass via `scipy.signal.lfilter`; `resonance` 0..1 maps Q 0.7..~12 (previously ignored). High resonance goes through a `tanh` soft limiter. |
+| Fallback | A non-finite filter result falls back to the dry oscillator. |
+
 <a id="pyodide-split"></a>
 ### Pyodide split out of `hyphon_native`
 

@@ -5,7 +5,7 @@ export const PYODIDE_OSC_TYPE: Record<WaveShape, string> = {
   saw: 'saw',
   sqr: 'square',
   sin: 'sine',
-  tri: 'sine',
+  tri: 'tri',
 };
 
 export type PyodideLike = {
