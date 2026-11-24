@@ -22,10 +22,17 @@
 //                 the frames that are kept, so the wrap is also *filter*-continuous.
 //                 Without both, every wrap of the loop clicks.
 //
+// The filter is selectable: low / band / high pass (`filterType`, the last
+// argument; 0 = lowpass, which is also what a caller that predates it gets). The
+// biquad itself lives in `biquad.ts`, shared with the streaming `wamFilter.ts`
+// module other oscillator engines can pick as their resonant filter (#1663).
+//
 // Shapes are band-limited at the source (PolyBLEP for the saw and square
 // edges, PolyBLAMP for the triangle's slope breaks), not by the biquad: the
 // filter's cutoff is a musical control, and it was doing double duty as the
 // only thing standing between the naive edges and the alias products.
+
+import { FILTER_LP, FILTER_HP, setCoefficients, resetState, tick } from './biquad';
 
 @inline const TWO_PI: f64 = 6.283185307179586;
 
@@ -33,42 +40,11 @@
 @inline const MIN_FREQ: f64 = 1.0;
 /** Fraction of the sample rate. Keeps dt < 0.5 so a residual never overlaps itself. */
 @inline const MAX_FREQ_RATIO: f64 = 0.49;
-@inline const MIN_CUTOFF: f64 = 20.0;
-@inline const MIN_RESONANCE: f64 = 0.1;
 /**
  * Loop mode replays this many seconds of the (periodic) signal through the filter
  * before keeping a frame. Ten time constants of a Q 12 lowpass at 300 Hz.
  */
 @inline const PRIME_SECONDS: f64 = 0.5;
-
-// --- Filter: RBJ lowpass, transposed direct form II, f64 ---------------------
-//
-// f32 direct form I cannot represent a 20 Hz lowpass at 48 kHz (a1 ~ -2 + 1e-5,
-// well inside f32 rounding), so low cutoffs drifted and rang at the wrong pitch.
-// Same transfer function as before; only the arithmetic changed.
-let b0: f64 = 0.0;
-let b1: f64 = 0.0;
-let b2: f64 = 0.0;
-let a1: f64 = 0.0;
-let a2: f64 = 0.0;
-let z1: f64 = 0.0;
-let z2: f64 = 0.0;
-
-function setupFilter(sampleRate: f64, cutoff: f64, resonance: f64): void {
-  const fc = max(MIN_CUTOFF, min(cutoff, sampleRate / 2.1));
-  const q = max(MIN_RESONANCE, resonance);
-  const w0 = (TWO_PI * fc) / sampleRate;
-  const cosW0 = Math.cos(w0);
-  const alpha = Math.sin(w0) / (2.0 * q);
-  const invA0 = 1.0 / (1.0 + alpha);
-  b0 = ((1.0 - cosW0) * 0.5) * invA0;
-  b1 = (1.0 - cosW0) * invA0;
-  b2 = b0;
-  a1 = -2.0 * cosW0 * invA0;
-  a2 = (1.0 - alpha) * invA0;
-  z1 = 0.0;
-  z2 = 0.0;
-}
 
 // --- Band-limited residuals ---------------------------------------------------
 //
@@ -141,9 +117,7 @@ function renderPass(offset: i32, from: i32, to: i32, dt: f64, type: i32, write: 
     p -= Math.floor(p);
 
     const x = shapeSample(type, p, dt);
-    const y = b0 * x + z1;
-    z1 = b1 * x - a1 * y + z2;
-    z2 = b2 * x - a2 * y;
+    const y = tick(x);
 
     if (write) store<f32>(offset + ((i - from) << 2), f32(y));
   }
@@ -163,20 +137,26 @@ function render(
   type: i32,
   cutoff: f64,
   resonance: f64,
+  filterType: i32,
   loop: bool,
 ): i32 {
   // `!(x > 0)` rather than `x <= 0`: NaN must land on the failure side.
   if (offset < 0 || !(sampleRate > 0.0) || !(freq > 0.0) || !(duration > 0.0)) return 0;
   if (!isFinite(sampleRate) || !isFinite(freq) || !isFinite(duration)) return 0;
+  // Out-of-range filterType would silently be a lowpass inside the kernel; refuse
+  // it instead, so the JS side's validation is the only place a type is chosen.
+  if (filterType < FILTER_LP || filterType > FILTER_HP) return 0;
 
   const capacity = capacityFrames(offset);
   if (capacity <= 0) return 0;
 
   const f = max(MIN_FREQ, min(freq, sampleRate * MAX_FREQ_RATIO));
-  // NaN cutoff/resonance: fall back to a wide-open, flat filter instead of NaN out.
-  const fc: f64 = cutoff == cutoff ? cutoff : sampleRate;
+  // NaN cutoff/resonance: fall back to a wide-open, flat filter instead of NaN out
+  // ("open" is the top of the range for a low/band pass, the bottom for a high pass).
+  const fc: f64 = cutoff == cutoff ? cutoff : filterType == FILTER_HP ? 0.0 : sampleRate;
   const q: f64 = resonance == resonance ? resonance : 0.7071;
-  setupFilter(sampleRate, fc, q);
+  setCoefficients(sampleRate, fc, q, filterType);
+  resetState();
 
   if (!loop) {
     const wanted: f64 = floor(sampleRate * duration);
@@ -216,6 +196,7 @@ function render(
  * a render too long for linear memory is truncated to what fits).
  *
  * type: 0 saw, 1 square, 2 triangle, anything else sine.
+ * filterType: 0 low pass, 1 band pass, 2 high pass (anything else returns 0).
  */
 export function generate(
   offset: i32,
@@ -225,8 +206,9 @@ export function generate(
   type: i32,
   cutoff: f32,
   resonance: f32,
+  filterType: i32,
 ): i32 {
-  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, false);
+  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, filterType, false);
 }
 
 /**
@@ -242,6 +224,7 @@ export function generateLoop(
   type: i32,
   cutoff: f32,
   resonance: f32,
+  filterType: i32,
 ): i32 {
-  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, true);
+  return render(offset, sampleRate, freq, duration, type, cutoff, resonance, filterType, true);
 }

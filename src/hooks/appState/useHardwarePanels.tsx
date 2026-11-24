@@ -13,6 +13,7 @@ import { MacroPanel } from '../../components/MacroPanel'
 import { macroPresetUpdate } from '../../engines/macroPresets'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
+import { FilterSourceSelector } from '../../components/FilterSourceSelector'
 import { SamplerPanel } from '../../components/SamplerPanel'
 import { samplerBanksStore, useSamplerBanksStore, loadedBanksFrom, multisampleFlagsFrom } from '../../stores/samplerBanksStore'
 import { engineTelemetry } from '../../utils/engineTelemetry'
@@ -182,6 +183,15 @@ export function useHardwarePanels(deps: {
                         accentColor="cyan"
                     />
                 </ChassisDeckPortal>
+                <ChassisDeckPortal>
+                    <FilterSourceSelector
+                        type={currentTypeA}
+                        filterType={synthA.filterType}
+                        filterSource={synthA.filterSource}
+                        onChange={updateSynthA}
+                        accentColor="cyan"
+                    />
+                </ChassisDeckPortal>
                 {is303 && (
                     <ChassisDeckPortal>
                         <Voice303Selector
@@ -219,7 +229,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.model303Extra, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.macro, updateSynthA, audioEngine]);
+    }, [synthA.waveform, synthA.engine303, synthA.model303, synthA.model303Extra, synthA.vowel, synthA.portamento, synthA.formantShift, synthA.macro, synthA.filterType, synthA.filterSource, updateSynthA, audioEngine]);
 
     const synthBChild = useMemo(() => {
         const is303 = synthB.waveform === '303-saw' || synthB.waveform === '303-sqr';
@@ -282,6 +292,15 @@ export function useHardwarePanels(deps: {
                         accentColor="pink"
                     />
                 </ChassisDeckPortal>
+                <ChassisDeckPortal>
+                    <FilterSourceSelector
+                        type={currentTypeB}
+                        filterType={synthB.filterType}
+                        filterSource={synthB.filterSource}
+                        onChange={updateSynthB}
+                        accentColor="pink"
+                    />
+                </ChassisDeckPortal>
                 {is303 && (
                     <ChassisDeckPortal>
                         <Voice303Selector
@@ -319,7 +338,7 @@ export function useHardwarePanels(deps: {
                 </div>
             </div>
         );
-    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.model303Extra, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.macro, updateSynthB, audioEngine]);
+    }, [synthB.waveform, synthB.engine303, synthB.model303, synthB.model303Extra, synthB.vowel, synthB.portamento, synthB.formantShift, synthB.macro, synthB.filterType, synthB.filterSource, updateSynthB, audioEngine]);
 
     const bass2Child = useMemo(() => {
         const modelB2 = normalizeTB303Model(bass2.model303, bass2.engine303);

@@ -31,4 +31,6 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts',
   // The wam-* AssemblyScript oscillator on the real oscillators.wasm: band-limited, seamless loop tables, hostile arguments, import/export contract.
   'src/engines/__tests__/WasmOscillator.realWasm.test.ts',
+  // The "WASM OSC filter" (#1663) on the real wamFilter.wasm: LP/BP/HP vs the RBJ transfer functions, == the kernel's baked filter, processor block handling.
+  'src/audio-worklets/__tests__/wamFilter.realWasm.test.ts',
 ] as const;

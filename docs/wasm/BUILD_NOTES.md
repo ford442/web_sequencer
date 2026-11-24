@@ -12,6 +12,7 @@ HighFid303 / analog drumkit / macro), `public/rubberband.wasm`, the offline
 - [Offline mix bus](#mix-bus)
 - [Plaits sources (macro voices)](#plaits-sources)
 - [Which engine renders a basic wave](#basic-wave-engines)
+- [The WASM OSC filter (LP / BP / HP, usable by any oscillator)](#wam-filter)
 - [Four Worlds memory budget](#four-worlds-memory-budget)
 - [Fixed voice memory (no growth)](#fixed-voice-memory)
 - [Denormal guards](#denormal-guards)
@@ -720,6 +721,87 @@ Pieces:
 
 An in-kernel filter is #1674; until then the voice's `BiquadFilterNode` follows,
 as for every family that plays through `Voice`.
+
+<a id="wam-filter"></a>
+
+### The WASM OSC filter: LP / BP / HP, selectable by any oscillator (#1663)
+
+The resonant filter of the AssemblyScript kernel is no longer a lowpass hard-coded
+inside `generate`. It is one RBJ biquad (`assembly/biquad.ts`, `f64` transposed DF II)
+with three responses, and it is offered two ways:
+
+| | What it is | Who uses it |
+|---|---|---|
+| **Baked** | `generate` / `generateLoop` take a final `filterType` argument (`0` LP, `1` BP, `2` HP) and filter the table they render | `wam-*` tables (`WamWasmBackend`, `GenerateRequest.filterType`) |
+| **Streaming** | `assembly/wamFilter.ts` → `src/wasm/wamFilter.wasm`, run per voice by `wam-filter-processor` | **any** host oscillator, selected as `SynthParams.filterSource: 'wam'` ("WASM OSC" in the UI) |
+
+Same coefficients in both, because both compile the same `biquad.ts`: a sine through
+the streaming module equals the same sine rendered by `oscillators.wasm` to within
+`f32` quantisation (`wamFilter.realWasm.test.ts`).
+
+**Why a second module and not exports on `oscillators.wasm`.** That module is sized for
+wavetables (24 MB initial memory, a heap, an `abort` import) and the filter has to run
+once per synth voice inside an AudioWorklet. `wamFilter.wasm` is 3.5 KB, one fixed 64 KiB
+page (`--initialMemory 1 --maximumMemory 1`, budget `assemblyScript.wamFilterPages`), static
+I/O buffers (no heap, `--runtime stub`), no imports (`--use abort=`), no growth, no throw.
+Same feature set as every AS module: `simd` + `bulk-memory`, no WasmGC, no relaxed SIMD.
+Because the two modules share `biquad.ts`, `scripts/native-worlds.mjs` lists it as an input
+of both worlds (`as-oscillators`, `as-wamfilter`): editing it re-stales both.
+
+**Where it sits.** Not in the fallback chain: it is a *stage*, not an oscillator.
+`Voice` connects every source (an `OscillatorNode`, a looped table, a Rust / C++ / DWGS
+worklet voice) to one gain bus, and the bus feeds either the voice's `BiquadFilterNode`
+or the WASM filter's worklet node. Swapping filters is two `connect`s on the bus, so no
+host engine needs to know it exists.
+
+```
+host oscillator ──► filterBus ──► BiquadFilterNode ─────┐   filterSource: 'native' (default)
+ (any engine)          └───────► wam-filter-processor ──┴─► gain → …   filterSource: 'wam'
+```
+
+**One filter shapes the sound, never two.** A host that bakes its own filter into its
+table (`wam-*`, and `pyodide-*` for a lowpass) is told what to bake by
+`hostFilterRequest` (`engines/backends/filterSource.ts`):
+
+| effective filter | what the host bakes |
+|---|---|
+| `native` + `lp` | its own lowpass at the voice's cutoff / Q — **unchanged from before**, so saved songs sound as they did |
+| `native` + `bp` / `hp` | nothing (cutoff at `sampleRate / 2.1`, Q = √½): a baked lowpass at the same cutoff in front of a band/high pass would leave almost nothing |
+| `wam` + anything | nothing, for the same reason: the WASM stage filters |
+
+*Effective* means after availability checks: a voice that asked for `wam` and fell back
+is a `native` voice, and its host is asked accordingly.
+
+**Same knob, same sound.** `BiquadFilterNode` reads `Q` in **dB** for lowpass/highpass
+(RBJ Q = 10^(Q/20)) and linearly for bandpass; the kernel takes the RBJ Q. `kernelResonance`
+converts, so switching the source does not change the timbre. Verified against a real
+`BiquadFilterNode` in Chromium: both land on the RBJ curve at every probe frequency.
+
+**Degradation is logged, never silent.** If the WASM filter cannot run (no AudioWorklet,
+`wamFilter.wasm` missing or rejected by the engine, the worklet failed to instantiate, an
+`OfflineAudioContext` render, a mid-session loss) the voice runs the native filter and calls
+`logFilterSourceFallback`: console, telemetry, and the degradation store entry `filter-source`
+that the EngineHUD and the selector's own notice read. One report per cause, not per note.
+A registry-level backend that cannot bake the asked response (`capabilities.filterTypes`;
+`pyodide` bakes lowpass only) is skipped with a logged reason rather than baking a lowpass for
+a high pass (`BackendRegistry.generate` / `sourceFrom`).
+
+**ABI.** `generate` / `generateLoop` are now 8-argument functions. A caller that passes the old
+seven gets `filterType` 0 (a wasm `i32` argument that is absent reads as zero), i.e. the lowpass it
+always had; an id outside 0–2 renders **0 frames**, not a lowpass. `wamFilter.wasm` exports
+`abiVersion`, `maxFrames`, `inPtr`, `outPtr`, `configure`, `reset`, `process` (`WAM_FILTER_ABI_VERSION`
+in `src/audio-worklets/wamFilter.ts`); `configure` refuses non-finite or unknown arguments and keeps
+the running coefficients, and the processor reconfigures only when cutoff / Q / type changed.
+
+**Not done, deliberately.**
+- *Offline bounces.* The streaming filter needs a worklet, and `OfflineAudioContext` renders do
+  not run one (the same reason `rust-*` / `cpp-*` / `dwgs-*` have offline kernels). A voice rendered
+  there takes the logged native-filter fallback; an offline `wamFilter` kernel run (as
+  `OfflineRustOscEngine` does) is the follow-up.
+- *Per-sample cutoff modulation.* Cutoff, Q and type are k-rate (one coefficient update per 128-frame
+  block); the voice sets them at note start, as it always has.
+- *Session packs* do not carry `filterType` / `filterSource` (`PACK_SYNTH_NUMERIC_RANGES` is the format's
+  contract); songs do, because they serialise `SynthParams` whole.
 
 <a id="wam-osc"></a>
 
@@ -1570,7 +1652,7 @@ Current flags (`package.json`), one script per module:
 ```
 --optimize --converge --optimizeLevel 3
 --enable simd --enable bulk-memory
---initialMemory 128–384 pages
+--initialMemory 128–384 pages (1 for the worklet-resident wamFilter, with --maximumMemory 1)
 --exportRuntime --bindings esm
 ```
 

@@ -117,6 +117,7 @@ describe('standalone em++ modules link like the voice module (rubberband, mix bu
 describe('AssemblyScript browser matrix', () => {
     const asScripts = [
         'build:wasm:oscillators',
+        'build:wasm:wamfilter',
         'build:wasm:freezer',
         'build:wasm:fft',
         'build:wasm:audioexport',

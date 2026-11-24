@@ -111,6 +111,7 @@ describe('hyphon_native memory budget', () => {
     it('AssemblyScript --initialMemory values match the budget', () => {
         const expected: Record<string, number> = {
             'build:wasm:oscillators': budget.assemblyScript.oscillatorsPages as number,
+            'build:wasm:wamfilter': budget.assemblyScript.wamFilterPages as number,
             'build:wasm:fft': budget.assemblyScript.fftPages as number,
             'build:wasm:freezer': budget.assemblyScript.freezerPages as number,
             'build:wasm:audioexport': budget.assemblyScript.audioExportPages as number,
@@ -124,6 +125,20 @@ describe('hyphon_native memory budget', () => {
             expect(match, `${script} has no --initialMemory`).toBeTruthy();
             expect(Number(match![1]), `${script} --initialMemory`).toBe(pages);
         }
+    });
+});
+
+describe('the WASM OSC filter module (#1663)', () => {
+    const cmd = packageJson.scripts['build:wasm:wamfilter'];
+
+    it('is fixed memory: maximum = initial = the budget, so a worklet instance can never grow', () => {
+        expect(Number(/--maximumMemory (\d+)/.exec(cmd)?.[1])).toBe(budget.assemblyScript.wamFilterPages);
+        expect(Number(/--initialMemory (\d+)/.exec(cmd)?.[1])).toBe(budget.assemblyScript.wamFilterPages);
+    });
+
+    it('has no heap runtime and no abort import (worklet-loaded wasm may not throw)', () => {
+        expect(cmd).toContain('--runtime stub');
+        expect(cmd).toContain('--use abort=');
     });
 });
 

@@ -7,6 +7,7 @@ const REPO_ROOT = process.cwd();
 /** Artifacts required before integration tests run (fail fast, no silent skip). */
 export const INTEGRATION_ARTIFACTS = [
   'src/wasm/oscillators.wasm',
+  'src/wasm/wamFilter.wasm',
   'src/wasm/trackFreezer.wasm',
   'public/hyphon_native.js',
   'public/hyphon_native.wasm',

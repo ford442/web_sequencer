@@ -54,6 +54,7 @@
  */
 
 import type { WaveShape } from '../../utils/waveformParser';
+import type { FilterType } from '../../types/synth';
 
 export type OscillatorBackendId = 'dwgs' | 'webgpu' | 'rust' | 'cpp' | 'wam' | 'pyodide' | 'wav' | 'js';
 
@@ -124,6 +125,13 @@ export interface BackendCapabilities {
      * `wav-saw` or `wgsl-saw` part on it would be a silent change of family.
      */
     entryOnly?: boolean;
+    /**
+     * Filter responses this backend can bake into a table from `cutoff` /
+     * `resonance` / `filterType` (#1663): `wam` all three, `pyodide` lowpass
+     * only. Omitted means it bakes no filter (it ignores those fields), so any
+     * `filterType` is fine for it.
+     */
+    filterTypes?: readonly FilterType[];
 }
 
 export interface InitResult {
@@ -150,10 +158,17 @@ export interface GenerateRequest {
     duration: number;
     sampleRate: number;
     shape: WaveShape;
-    /** Lowpass cutoff in Hz. Backends without a filter ignore it. */
+    /** Cutoff in Hz of the filter a backend bakes into its table. Backends without a filter ignore it. */
     cutoff: number;
     /** Filter resonance / Q. Backends without a filter ignore it. */
     resonance: number;
+    /**
+     * Response of the baked filter (#1663). Absent means `lp`. A backend that
+     * bakes a filter (`capabilities.filterTypes`) renders exactly this or is
+     * skipped by the registry — it never bakes a lowpass when asked for a
+     * high pass.
+     */
+    filterType?: FilterType;
 }
 
 /**

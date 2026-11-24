@@ -16,7 +16,9 @@ export const STAMP_REL = path.join('.cache', 'native', 'stamps.json');
 export const CACHE_MANIFEST_REL = path.join('.cache', 'native', 'native-artifacts.json');
 
 const AS_MODULES = [
-  { id: 'as-oscillators', source: 'assembly/oscillators.ts', script: 'build:wasm:oscillators', stem: 'oscillators' },
+  { id: 'as-oscillators', source: 'assembly/oscillators.ts', script: 'build:wasm:oscillators', stem: 'oscillators', shared: ['assembly/biquad.ts'] },
+  // The "WASM OSC filter" (#1663): assembly/biquad.ts as a streaming worklet filter.
+  { id: 'as-wamfilter', source: 'assembly/wamFilter.ts', script: 'build:wasm:wamfilter', stem: 'wamFilter', shared: ['assembly/biquad.ts'] },
   { id: 'as-freezer', source: 'assembly/trackFreezer.ts', script: 'build:wasm:freezer', stem: 'trackFreezer' },
   { id: 'as-fft', source: 'assembly/fft.ts', script: 'build:wasm:fft', stem: 'fft' },
   { id: 'as-audioexport', source: 'assembly/audioExport.ts', script: 'build:wasm:audioexport', stem: 'audioExport' },
@@ -99,6 +101,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     rebuildCommand: `pnpm run ${mod.script}`,
     inputs: [
       fileInput(mod.source),
+      ...(mod.shared ?? []).map(fileInput),
       fileInput(budgetRel),
       fileInput('package.json'),
       textInput(`script:${mod.script}`, scripts[mod.script] ?? ''),

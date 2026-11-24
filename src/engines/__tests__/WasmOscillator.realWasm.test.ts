@@ -11,7 +11,9 @@
  *   3. `generate` is still exactly floor(rate * dur) frames from a filter at rest.
  *   4. Hostile arguments return 0 frames, and nothing is written past memory.
  *   5. The module contract the bridge relies on: no import but env.abort, the
- *      original 7-argument generate, its own non-shared memory.
+ *      generate ABI (7 arguments + filterType), its own non-shared memory.
+ *   6. The baked filter is selectable (#1663): low / band / high pass match the RBJ
+ *      transfer functions, and a caller that predates `filterType` still gets a lowpass.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -23,9 +25,11 @@ const SHAPE = { saw: 0, sqr: 1, tri: 2, sin: 3 } as const;
 
 interface Kernel {
     memory: WebAssembly.Memory;
-    generate(o: number, sr: number, f: number, d: number, t: number, c: number, q: number): number;
-    generateLoop(o: number, sr: number, f: number, d: number, t: number, c: number, q: number): number;
+    generate(o: number, sr: number, f: number, d: number, t: number, c: number, q: number, ft?: number): number;
+    generateLoop(o: number, sr: number, f: number, d: number, t: number, c: number, q: number, ft?: number): number;
 }
+
+const FILTER = { lp: 0, bp: 1, hp: 2 } as const;
 
 const module = new WebAssembly.Module(new Uint8Array(readFileSync(WASM)));
 const fresh = (): Kernel =>
@@ -40,9 +44,10 @@ function render(
     cutoff = 22000,
     q = 0.7071,
     sr = RATE,
+    filterType?: number,
 ): Float32Array {
     const k = fresh();
-    const n = k[fn](0, sr, freq, dur, SHAPE[shape], cutoff, q);
+    const n = k[fn](0, sr, freq, dur, SHAPE[shape], cutoff, q, filterType);
     return new Float32Array(k.memory.buffer.slice(0, n * 4));
 }
 
@@ -310,6 +315,120 @@ describe('hostile arguments', () => {
     });
 });
 
+/**
+ * Steady-state gain of a unit sine through the baked filter, |H(f)|: RMS of the settled
+ * half times sqrt 2. (Not the sample peak: at 6 kHz / 48 kHz a cycle is 8 samples, which
+ * may never land on the crest.)
+ */
+function sineGain(freq: number, type: number, cutoff: number, q: number): number {
+    const t = render('generate', 'sin', freq, 0.5, cutoff, q, RATE, type);
+    const from = t.length >> 1;
+    let sum = 0;
+    for (let i = from; i < t.length; i++) sum += t[i] * t[i];
+    return Math.sqrt((2 * sum) / (t.length - from));
+}
+
+/** |H(e^jw)| of the RBJ biquad (Audio EQ Cookbook), the reference the kernel must match. */
+function rbjMagnitude(type: 'lp' | 'bp' | 'hp', fc: number, q: number, f: number): number {
+    const w0 = (2 * Math.PI * fc) / RATE;
+    const alpha = Math.sin(w0) / (2 * q);
+    const c = Math.cos(w0);
+    const [b0, b1, b2] =
+        type === 'lp' ? [(1 - c) / 2, 1 - c, (1 - c) / 2]
+            : type === 'hp' ? [(1 + c) / 2, -(1 + c), (1 + c) / 2]
+                : [alpha, 0, -alpha];
+    const a0 = 1 + alpha;
+    const a1 = -2 * c;
+    const a2 = 1 - alpha;
+    const w = (2 * Math.PI * f) / RATE;
+    const num = (re: number, im: number) => [re, im] as const;
+    const ev = (x0: number, x1: number, x2: number) =>
+        num(x0 + x1 * Math.cos(w) + x2 * Math.cos(2 * w), -(x1 * Math.sin(w) + x2 * Math.sin(2 * w)));
+    const n = ev(b0, b1, b2);
+    const d = ev(a0, a1, a2);
+    return Math.hypot(...n) / Math.hypot(...d);
+}
+
+describe('selectable filter type (#1663)', () => {
+    const CASES: Array<['lp' | 'bp' | 'hp', number, number]> = [
+        ['lp', 1000, 0.7071],
+        ['lp', 2000, 6],
+        ['bp', 1000, 0.7071],
+        ['bp', 800, 8],
+        ['hp', 1000, 0.7071],
+        ['hp', 3000, 4],
+    ];
+
+    it.each(CASES)('%s at %i Hz, Q %d matches the RBJ transfer function across the spectrum', (type, fc, q) => {
+        for (const f of [80, 300, 1000, 2500, 6000, 12000]) {
+            const got = sineGain(f, FILTER[type], fc, q);
+            const want = rbjMagnitude(type, fc, q, f);
+            // Peak of a settled sine vs the analytic magnitude, within 0.05 dB.
+            expect(Math.abs(20 * Math.log10(got / want)), `${type} fc=${fc} q=${q} f=${f}`).toBeLessThan(0.05);
+        }
+    });
+
+    it('the three responses are really different filters', () => {
+        const at = (type: number, f: number) => sineGain(f, type, 1000, 0.7071);
+        // A lowpass passes the low sine and stops the high one; a highpass the reverse;
+        // a bandpass stops both and passes the centre.
+        expect(at(FILTER.lp, 100)).toBeGreaterThan(0.95);
+        expect(at(FILTER.lp, 10000)).toBeLessThan(0.02);
+        expect(at(FILTER.hp, 100)).toBeLessThan(0.02);
+        expect(at(FILTER.hp, 10000)).toBeGreaterThan(0.95);
+        expect(at(FILTER.bp, 100)).toBeLessThan(0.2);
+        expect(at(FILTER.bp, 10000)).toBeLessThan(0.2);
+        expect(at(FILTER.bp, 1000)).toBeGreaterThan(0.99);
+    });
+
+    it('a caller that passes no filterType (the old 7-argument ABI) gets the lowpass, bit for bit', () => {
+        const legacy = render('generate', 'saw', 220, 0.2, 1500, 3);
+        const explicit = render('generate', 'saw', 220, 0.2, 1500, 3, RATE, FILTER.lp);
+        expect(Array.from(legacy)).toEqual(Array.from(explicit));
+        const hp = render('generate', 'saw', 220, 0.2, 1500, 3, RATE, FILTER.hp);
+        expect(Array.from(hp)).not.toEqual(Array.from(legacy));
+    });
+
+    it.each([-1, 3, 7, 1 << 20])('refuses filterType %i instead of quietly rendering a lowpass', (bad) => {
+        const k = fresh();
+        expect(k.generate(0, RATE, 440, 0.1, SHAPE.saw, 1000, 1, bad)).toBe(0);
+        expect(k.generateLoop(0, RATE, 440, 0.1, SHAPE.saw, 1000, 1, bad)).toBe(0);
+    });
+
+    it('a high pass removes the DC and the fundamental of a low saw; a lowpass keeps them', () => {
+        const mean = (x: Float32Array) => x.reduce((a, v) => a + v, 0) / x.length;
+        const hp = render('generate', 'saw', 55, 1, 4000, 0.7071, RATE, FILTER.hp);
+        const lp = render('generate', 'saw', 55, 1, 4000, 0.7071, RATE, FILTER.lp);
+        const energy = (x: Float32Array) => Math.sqrt(x.slice(RATE >> 1).reduce((a, v) => a + v * v, 0) / (x.length >> 1));
+        expect(Math.abs(mean(hp.slice(RATE >> 1)))).toBeLessThan(0.01);
+        // 4 kHz high pass of a 55 Hz saw is a thin edge; the lowpass of it is the whole saw.
+        expect(energy(hp)).toBeLessThan(energy(lp) * 0.2);
+    });
+
+    it('loop tables wrap without a click in every response', () => {
+        for (const type of [FILTER.lp, FILTER.bp, FILTER.hp]) {
+            const t = render('generateLoop', 'saw', 261.63, 2, 2000, 8, RATE, type);
+            // The step across the wrap is no larger than the largest step inside the table.
+            let inner = 0;
+            for (let i = 1; i < t.length; i++) inner = Math.max(inner, Math.abs(t[i] - t[i - 1]));
+            expect(Math.abs(t[0] - t[t.length - 1]), `filterType ${type}`).toBeLessThanOrEqual(inner * 1.05);
+        }
+    });
+
+    it('NaN cutoff opens the filter for every response (a high pass opens downward, not to silence)', () => {
+        for (const type of [FILTER.lp, FILTER.bp, FILTER.hp]) {
+            const t = render('generate', 'saw', 440, 0.1, NaN, NaN, RATE, type);
+            expect(t.length).toBe(4800);
+            let peak = 0;
+            for (const v of t) {
+                expect(Number.isFinite(v)).toBe(true);
+                peak = Math.max(peak, Math.abs(v));
+            }
+            if (type !== FILTER.bp) expect(peak, `filterType ${type}`).toBeGreaterThan(0.3);
+        }
+    });
+});
+
 describe('module contract', () => {
     const imports = WebAssembly.Module.imports(module);
     const exports = WebAssembly.Module.exports(module).map((e) => e.name);
@@ -323,8 +442,10 @@ describe('module contract', () => {
         expect(exports).toContain('generateLoop');
         expect(exports).toContain('memory');
         const k = fresh();
-        expect(k.generate.length).toBe(7);
-        expect(k.generateLoop.length).toBe(7);
+        // 7 original arguments + filterType (#1663). A caller that passes 7 still
+        // works: an absent wasm i32 argument is 0, which is the lowpass.
+        expect(k.generate.length).toBe(8);
+        expect(k.generateLoop.length).toBe(8);
     });
 
     it('declares non-shared, non-growing-by-itself memory sized by the budget', () => {

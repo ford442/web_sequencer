@@ -268,6 +268,36 @@ describe('no new decorative oscillator families', () => {
         expect(voiceManager).not.toMatch(/OfflineRustOsc|renderRustOsc/);
     });
 
+    it('the WASM OSC filter is a stage, not an oscillator family: it filters in a worklet and never renders on the main thread (#1663)', () => {
+        const bridge = readFileSync(join(SRC, 'engines', 'WamFilter.ts'), 'utf8');
+        expect(bridge).toContain('new AudioWorkletNode(');
+        expect(bridge).not.toMatch(/createBuffer(Source)?\(/);
+        expect(bridge).not.toMatch(/new Float32Array\(/);
+        expect(bridge).not.toMatch(/\.exports\b/); // never instantiates the kernel here
+        // Only the worklet runs the streaming kernel.
+        const kernelUsers = walk(SRC).filter((f) => /\.abiVersion\(\)/.test(readFileSync(f, 'utf8')));
+        expect(kernelUsers.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['audio-worklets/wam-filter-processor.ts']);
+        // It is not a backend in the fallback chain: nothing falls onto a filter.
+        expect(BACKEND_FALLBACK_ORDER as readonly string[]).not.toContain('wamFilter');
+        // And it shares its DSP with the oscillator's baked filter rather than copying it.
+        const biquad = readFileSync(join(ROOT, 'assembly', 'biquad.ts'), 'utf8');
+        for (const entry of ['oscillators.ts', 'wamFilter.ts']) {
+            expect(readFileSync(join(ROOT, 'assembly', entry), 'utf8'), entry).toMatch(/from '\.\/biquad'/);
+        }
+        expect(biquad).toMatch(/export function setCoefficients/);
+        expect(readFileSync(join(ROOT, 'assembly', 'oscillators.ts'), 'utf8')).not.toMatch(/Math\.cos\(w0\)/);
+    });
+
+    it('keeps the Safari feature intersection on both AssemblyScript filter builds: simd + bulk-memory, no GC (#1663)', () => {
+        const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts as Record<string, string>;
+        for (const name of ['build:wasm:oscillators', 'build:wasm:wamfilter']) {
+            expect(scripts[name], name).toContain('--enable simd');
+            expect(scripts[name], name).toContain('--enable bulk-memory');
+            expect(scripts[name], name).not.toMatch(/--enable (gc|relaxed-simd|threads)\b/);
+            expect(scripts[name], name).not.toContain('wasm-gc');
+        }
+    });
+
     it('keeps VoiceManager free of per-engine generate()/buffer branches', () => {
         const source = readFileSync(join(SRC, 'engines', 'VoiceManager.ts'), 'utf8');
 
