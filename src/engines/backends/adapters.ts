@@ -8,7 +8,7 @@
  * (VoiceManager still calls `wasmEngine.generate(...)` on the hot path).
  */
 
-import type { WebGpuOscillator } from '../WebGpuOscillator';
+import type { WebGpuOscillator, WavetableSet } from '../WebGpuOscillator';
 import type { WasmOscillator } from '../WasmOscillator';
 import type { RustOscillator } from '../RustOscillator';
 import type { CppOscillator } from '../CppOscillator';
@@ -30,6 +30,7 @@ import type {
     RealtimeVoice,
 } from './OscillatorBackend';
 import { BACKEND_LABELS, TABLE_DURATION_SEC, TABLE_REF_FREQ } from './OscillatorBackend';
+import { selectWavetableBand, type WavetableBand } from './wavetableBands';
 
 const ALL_SHAPES: readonly WaveShape[] = ['saw', 'sqr', 'tri', 'sin'];
 
@@ -102,12 +103,16 @@ export class WebGpuBackend extends BaseBackend {
 
     private readonly engine: WebGpuOscillator;
     /**
-     * GPU rendering is async and the note path is not, so the four shape tables
-     * are pre-rendered once during `init()` and looped from cache afterwards.
-     * Before this, `VoiceManager` read a `wgslBuffers` dependency that nothing
-     * ever populated — every `wgsl-*` note fell through to `OscillatorNode`.
+     * GPU rendering is async and the note path is not, so the tables are
+     * pre-rendered once during `init()` and looped from cache afterwards.
+     *
+     * Since #1668: one band-limited, whole-cycle table per shape per octave
+     * band (`wavetableBands.ts`) from a single dispatch; `renderLoop` picks the
+     * band for the note's pitch. Readiness follows the device, so a lost device
+     * fails closed to the next backend (BUILD_NOTES `#wgsl-gpu`).
      */
-    private tables: Partial<Record<WaveShape, AudioBuffer>> = {};
+    private tables: Partial<Record<WaveShape, AudioBuffer[]>> = {};
+    private bands: WavetableBand[] = [];
 
     constructor(engine: WebGpuOscillator) {
         super();
@@ -125,11 +130,12 @@ export class WebGpuBackend extends BaseBackend {
 
     /** Only ready once at least one table is actually on hand. */
     get isReady(): boolean {
-        return this.initialized && this.isSupported && ALL_SHAPES.some((s) => !!this.tables[s]);
+        return this.initialized && this.isSupported && ALL_SHAPES.some((s) => this.supportsShape(s));
     }
 
     supportsShape(shape: WaveShape): boolean {
-        return !!this.tables[shape];
+        const set = this.tables[shape];
+        return !!set && set.length === this.bands.length && set.length > 0;
     }
 
     async init(ctx?: AudioContext): Promise<InitResult> {
@@ -144,40 +150,49 @@ export class WebGpuBackend extends BaseBackend {
         if (!ctx) {
             return this.fail('no AudioContext — cannot pre-render GPU wavetables');
         }
-        const rendered = await this.prerenderTables(ctx);
+        let set: WavetableSet | null = null;
+        try {
+            set = await this.engine.renderWavetables(ctx.sampleRate);
+        } catch (e) {
+            console.warn('[WebGpuBackend] wavetable pre-render failed', e);
+        }
+        if (!set) return this.fail('GPU device ready but the wavetable set could not be rendered');
+
+        const rendered = this.adoptTables(ctx, set);
+        try { engineTelemetry.recordLatency('oscillator-webgpu', set.renderMs); } catch { /* best-effort */ }
+        const note = `${rendered}/${ALL_SHAPES.length} shapes × ${set.bands.length} bands, one dispatch`;
         return rendered > 0
-            ? this.ok(`device-ready (${rendered}/${ALL_SHAPES.length} tables)`)
+            ? this.ok(`device-ready (${note}, ${set.renderMs.toFixed(1)} ms)`)
             : this.fail('GPU device ready but no wavetable could be rendered');
     }
 
-    /** Render every shape once; returns how many succeeded. */
-    private async prerenderTables(ctx: AudioContext): Promise<number> {
+    /** Wrap the rendered set in `AudioBuffer`s; returns how many shapes are usable. */
+    private adoptTables(ctx: BaseAudioContext, set: WavetableSet): number {
+        this.tables = {};
+        this.bands = set.bands;
         let count = 0;
         for (const shape of ALL_SHAPES) {
-            try {
-                const samples = await this.engine.generate(
-                    TABLE_REF_FREQ,
-                    TABLE_DURATION_SEC,
-                    ctx.sampleRate,
-                    shape,
-                );
-                if (samples && samples.length) {
-                    const buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
-                    buffer.getChannelData(0).set(samples);
-                    this.tables[shape] = buffer;
-                    count++;
-                }
-            } catch (e) {
-                console.warn(`[WebGpuBackend] pre-render of "${shape}" failed`, e);
+            const samples = set.tables[shape];
+            if (!samples || samples.length !== set.bands.length) continue;
+            if (!samples.every((t) => t.length > 0 && t.every(Number.isFinite))) {
+                console.warn(`[WebGpuBackend] "${shape}" tables came back non-finite; not using them`);
+                continue;
             }
+            this.tables[shape] = samples.map((t) => {
+                const buffer = ctx.createBuffer(1, t.length, ctx.sampleRate);
+                buffer.getChannelData(0).set(t);
+                return buffer;
+            });
+            count++;
         }
         return count;
     }
 
     renderLoop(_ctx: BaseAudioContext, req: GenerateRequest): LoopRender | null {
-        if (!this.isReady) return null;
-        const buffer = this.tables[req.shape];
-        return buffer ? { buffer, baseFrequency: TABLE_REF_FREQ } : null;
+        if (!this.isReady || !this.supportsShape(req.shape)) return null;
+        const band = selectWavetableBand(this.bands, req.frequency);
+        const buffer = band >= 0 ? this.tables[req.shape]?.[band] : undefined;
+        return buffer ? { buffer, baseFrequency: this.bands[band].baseFrequency } : null;
     }
 
     async generate(req: GenerateRequest): Promise<Float32Array | null> {
@@ -197,6 +212,7 @@ export class WebGpuBackend extends BaseBackend {
     dispose(): void {
         super.dispose();
         this.tables = {};
+        this.bands = [];
         this.engine.destroy();
     }
 }

@@ -464,7 +464,7 @@ basic shape, but no other family ever falls *onto* DWGS, and the generic
 | DWGS | `dwgs-*` | `dwgs-audio/` → `public/dwgs_osc.wasm`, one `dwgs-osc-processor` AudioWorklet per voice | **worklet-resident**, entry-only: its own waves, not basic shapes ([below](#dwgs-osc)) |
 | WASM OSC | `wam-*` | `assembly/oscillators.ts` via `WasmOscillator` | the one WASM wavetable kernel |
 | WAV PCM | `wav-*` | decoded `public/assets/*.wav` | asset |
-| WebGPU | `wgsl-*` | `WebGpuOscillator`, tables pre-rendered at init | offline pre-render |
+| WebGPU | `wgsl-*` | `WebGpuOscillator`, band-limited octave tables pre-rendered at init in one dispatch | offline pre-render ([below](#wgsl-gpu)) |
 | Pyodide | `pyodide-*` | NumPy/SciPy in the vendored CPython | offline pre-render |
 | Open303 / JC303 | `303-*` | `hyphon_native` AudioWorklet | native worklet |
 | Prophecy | `prophecy-*` | `hyphon_native` AudioWorklet | native worklet |
@@ -745,6 +745,92 @@ module runs on the main thread, so the worklet "no growth" rule does not apply,
 and the kernel itself still never grows memory. `adapters.ts` asks for a loop
 table in `renderLoop` only; offline bounces keep `generate`, so a note is still
 exactly `floor(rate * duration)` frames.
+
+<a id="wgsl-gpu"></a>
+### `wgsl-*`: band-limited GPU tables, and why it stays a table producer (#1668)
+
+#1668 asked whether `wgsl-*` could become a realtime voice like `rust-*`. It
+cannot, for reasons that belong to the platform rather than to this code, so it
+stays a pre-render, and the pre-render got much better.
+
+**Why there is no realtime GPU voice**
+
+- `navigator.gpu` is exposed to `Window` and `Worker` scopes only. An
+  `AudioWorkletGlobalScope` is a worklet scope, not a worker, so the render
+  thread cannot touch a `GPUDevice`. Every GPU sample would have to come from
+  the main thread or a worker.
+- Getting samples off the GPU means `submit` and then `mapAsync`. That round
+  trip is asynchronous and jittery (a frame or more under load, and it gets
+  worse when the page is rendering). To feed a worklet from it, you would need a
+  `SharedArrayBuffer` ring (cross-origin isolation only) with tens of
+  milliseconds of lookahead. That means a gate or parameter change lands late,
+  and main-thread jank becomes an audio underrun.
+- Every engine below WebGPU in the chain (`rust`, `cpp`, `wam`) already renders
+  a band-limited basic wave in the worklet, sample-accurately, with none of
+  that. A streamed GPU voice would be a worse version of `rust-*`.
+
+What *is* live: a voice pitches a `wgsl-*` table through
+`AudioBufferSourceNode.playbackRate`, which is an a-rate `AudioParam`. Slides
+and pitch automation are therefore sample accurate, as they were before. The
+cutoff and resonance were never in the table: they are the voice's own biquad.
+
+**What changed in the pre-render** (`WebGpuOscillator`, `wavetableBands.ts`,
+`WebGpuBackend` in `adapters.ts`)
+
+| | Before | After |
+|---|---|---|
+| Tables | 4: one per shape, 2 s at C4, resampled for every pitch | one per shape **per octave band** (9 at 44.1/48 kHz, 10 at 96 kHz), and `renderLoop` picks the band for the note |
+| Synthesis | naive `fract`/`step` shapes | **additive Fourier series**, with only harmonics that stay under Nyquist at the top of the band |
+| Phase | `f32(t * f)`; at 5 s, 440 Hz this is ~2200 cycles in, where f32 resolves ~1e-4 cycle | **u32 fixed point** (`2^32` = one cycle, wrapping), so nothing drifts |
+| Loop | 523.26 cycles, so it clicked on every wrap | whole cycles in 4096 samples; the increment `cycles·2^32/4096` is exact, so sample 4096 *is* sample 0 |
+| Pitch | `baseFrequency` 261.63 | `cycles · sr / 4096`, exact |
+| GPU work | 4 submits, 4 `mapAsync` | **1 dispatch** (`x` = sample, `y` = table), 1 readback |
+| Memory @ 48 kHz | 4 × 96 000 f32 = 1.54 MB | 36 × 4096 f32 = 0.59 MB |
+| Offline `generate` (export) | naive, aliased | the same kernel with one table at the note's pitch; `null` for NaN, ≤ 0 or ≥ Nyquist |
+
+Measured by running the shipped WGSL on Chromium's SwiftShader WebGPU adapter
+and playing each table back the way `playbackRate` does (looped, linear
+interpolation), at 48 kHz. The numbers are the energy that is not on a harmonic
+of the note, in dB relative to the total (lower is better):
+
+| shape | 110 Hz | 440 Hz | 1.05 kHz | 2.09 kHz | 4.19 kHz |
+|---|---|---|---|---|---|
+| saw, before → after | -23.6 → **-48.6** | -22.0 → **-44.6** | -11.9 → **-38.5** | -7.9 → **-35.8** | -4.4 → **-31.2** |
+| square, before → after | -25.4 → **-50.3** | -23.7 → **-46.3** | -12.6 → **-39.9** | -8.6 → **-38.9** | -5.9 → **-31.8** |
+| triangle, before → after | -67.0 → **-84.6** | -43.6 → **-75.3** | -13.7 → **-57.5** | -9.3 → **-49.2** | -6.9 → **-38.7** |
+| sine, before → after | -85.6 → **-91.9** | -43.7 → **-87.0** | -13.7 → **-66.1** | -9.3 → **-54.0** | -6.9 → **-41.8** |
+
+The old sine and triangle results at 440 Hz and above are mostly the seam click.
+What remains in the new column is mostly linear interpolation, not aliasing in
+the table. On the same SwiftShader device (a CPU emulation, so the summing work
+counts for far more than it does on a real GPU), the whole 36-table set took
+11–14 ms against 16–26 ms for the old four naive tables. On real hardware, the
+cost is dominated by the one readback. The GPU output matches an f64 mirror of
+the kernel to within 2.6e-4 (about -72 dB). `wavetableBands.test.ts` keeps that
+mirror honest: no harmonic past Nyquist for MIDI 12–127, seamless wrap, and
+exact pitch. `WebGpuOscillator.test.ts` checks that the shader keeps the same
+series.
+
+**Limits, deliberately kept**
+
+- **Octave bands, so the top of the spectrum is up to an octave short** at the
+  bottom of a band. This is the usual wavetable trade-off. Half-octave bands
+  would double the tables for a difference that is hard to hear under the
+  voice's lowpass.
+- **The band is chosen at note-on.** A slide that climbs far above the band
+  can push its top harmonics past Nyquist until the next note-on. Re-picking
+  the band mid-note would need a crossfade between sources, and nothing on the
+  `LoopRender` path does that today.
+- **Gibbs overshoot**: saw and square peak at about 1.09, not 1.0, because the
+  series is not windowed. A sigma window would trade that for a duller edge.
+- **The lowest band at 192 kHz is about 47 Hz.** There, the 4096-sample table
+  holds only one cycle, and lower notes play it slower. Nothing aliases, but
+  those notes get fewer top harmonics.
+- **Fails closed.** If there is no adapter, the pass fails, or a shape comes
+  back non-finite, that shape (or the whole backend) is not ready, and the
+  registry steps down to `rust`, logged. The tables are plain `AudioBuffer`s
+  and would outlive a lost device, but readiness follows the device, so a lost
+  device drops to the next backend, and a restored one serves them again.
 
 ### Rules for adding one
 

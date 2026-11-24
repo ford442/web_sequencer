@@ -31,6 +31,18 @@ function stubGpu(supported: boolean): WebGpuOscillator {
             engine.isSupported = supported;
         }),
         generate: vi.fn(async () => new Float32Array([0.5, -0.5, 0.5, -0.5])),
+        // One band per shape is enough for the chain; band math has its own tests.
+        renderWavetables: vi.fn((sampleRate: number) => {
+            const bands = [{ cycles: 1, baseFrequency: sampleRate / 4, maxHarmonic: 1, phaseIncrement: 2 ** 30 }];
+            const table = () => [new Float32Array([0.5, -0.5, 0.5, -0.5])];
+            return Promise.resolve({
+                sampleRate,
+                length: 4,
+                bands,
+                tables: { saw: table(), sqr: table(), tri: table(), sin: table() },
+                renderMs: 1,
+            });
+        }),
         destroy: vi.fn(),
     };
     return engine as unknown as WebGpuOscillator;
