@@ -18,6 +18,9 @@
  *      `reset` returns to rest, bad arguments are refused without disturbing the
  *      running filter, nothing outside the buffer is written.
  *   6. rust-filter-processor, run block by block as the audio thread would.
+ *   7. SIMD (#1663): `rflt_process` is the four-at-once f64x2 path — it is in the
+ *      shipped bytes, and it matches the scalar reference `rflt_process_scalar`
+ *      bit for bit for every response, length and chunking.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -46,6 +49,7 @@ const module = new WebAssembly.Module(bytes);
 
 /** Everything the module exports that these tests touch: the filter's surface plus the oscillator's. */
 type KernelExports = RustFilterExports & {
+    rosc_simd(): number;
     rosc_freq_ptr(): number;
     rosc_out_ptr(): number;
     rosc_render(shape: number, frames: number, perSampleFreq: number): number;
@@ -378,9 +382,10 @@ describe('block handling', () => {
         const mem = new Uint8Array(x.memory.buffer);
         const lo = x.rflt_buf_ptr();
         const hi = lo + x.rosc_max_frames() * 4;
-        // `Engine` is repr(C): the filter's seven f64 (five coefficients, two state
-        // words = 56 bytes) sit immediately before its in-place buffer.
-        const stateFrom = lo - 56;
+        // `Engine` and `Biquad` are repr(C) with the state last: the two f64 state
+        // words (16 bytes) sit immediately before the in-place buffer. The
+        // coefficients (scalar and four-at-once) are written by configure only.
+        const stateFrom = lo - 16;
         const snapshot = mem.slice();
         run(x, noise);
         for (let i = 0; i < mem.length; i++) {
@@ -458,7 +463,7 @@ describe('rust-filter-processor on the real kernel', () => {
 
     it('instantiates synchronously from processorOptions and reports ready', () => {
         const node = new Ctor({ processorOptions: { module } });
-        expect(node.port.posted).toEqual([{ type: 'ready', maxFrames: 1024 }]);
+        expect(node.port.posted).toEqual([{ type: 'ready', simd: true, maxFrames: 1024 }]);
     });
 
     it('reports an error (and stays silent) for a missing module, never passing audio through', () => {
@@ -514,5 +519,179 @@ describe('rust-filter-processor on the real kernel', () => {
         const node = new Ctor({ processorOptions: { module } });
         node.port.onmessage?.({ data: { type: 'dispose' } });
         expect(node.process([[new Float32Array(BLOCK)]], [[new Float32Array(BLOCK)]], params(1000, 1, 'lp'))).toBe(false);
+    });
+});
+
+/* ---- SIMD (#1663): the f64x2 four-at-once path is what runs, and it is exact ---- */
+
+/** Each function body of the code section, by function index (the module imports none). */
+function functionBodies(wasm: Uint8Array): Uint8Array[] {
+    let p = 8;
+    const uleb = () => {
+        let r = 0;
+        let shift = 0;
+        let b: number;
+        do {
+            b = wasm[p++];
+            r |= (b & 0x7f) << shift;
+            shift += 7;
+        } while (b & 0x80);
+        return r >>> 0;
+    };
+    while (p < wasm.length) {
+        const id = wasm[p++];
+        const len = uleb();
+        const end = p + len;
+        if (id === 10) {
+            const bodies: Uint8Array[] = [];
+            for (let n = uleb(); n > 0; n--) {
+                const size = uleb();
+                bodies.push(wasm.subarray(p, p + size));
+                p += size;
+            }
+            return bodies;
+        }
+        p = end;
+    }
+    return [];
+}
+
+function exportedFunctionIndex(wasm: Uint8Array, name: string): number {
+    let p = 8;
+    const uleb = () => {
+        let r = 0;
+        let shift = 0;
+        let b: number;
+        do {
+            b = wasm[p++];
+            r |= (b & 0x7f) << shift;
+            shift += 7;
+        } while (b & 0x80);
+        return r >>> 0;
+    };
+    while (p < wasm.length) {
+        const id = wasm[p++];
+        const len = uleb();
+        const end = p + len;
+        if (id === 7) {
+            for (let n = uleb(); n > 0; n--) {
+                const nameLen = uleb();
+                const got = new TextDecoder().decode(wasm.subarray(p, p + nameLen));
+                p += nameLen;
+                const kind = wasm[p++];
+                const index = uleb();
+                if (kind === 0 && got === name) return index;
+            }
+        }
+        p = end;
+    }
+    throw new Error(`no exported function ${name}`);
+}
+
+function countOp(body: Uint8Array, op: number[]): number {
+    let n = 0;
+    for (let i = 0; i + op.length <= body.length; i++) {
+        if (op.every((v, k) => body[i + k] === v)) n++;
+    }
+    return n;
+}
+
+// SIMD opcodes are 0xfd + a LEB128 sub-opcode.
+const F64X2_ADD = [0xfd, 0xf0, 0x01];
+const F64X2_MUL = [0xfd, 0xf2, 0x01];
+
+describe('SIMD filter path (#1663)', () => {
+    it('the module reports SIMD, and rflt_process is f64x2 arithmetic in the shipped bytes', () => {
+        expect(instance().rosc_simd()).toBe(1);
+        expect(WebAssembly.Module.imports(module)).toEqual([]);
+        const bodies = functionBodies(bytes);
+        const simd = bodies[exportedFunctionIndex(bytes, 'rflt_process')];
+        const scalar = bodies[exportedFunctionIndex(bytes, 'rflt_process_scalar')];
+        // One group of four is 16 f64x2 multiplies and 13 adds (outputs + next state).
+        expect(countOp(simd, F64X2_MUL)).toBeGreaterThanOrEqual(16);
+        expect(countOp(simd, F64X2_ADD)).toBeGreaterThanOrEqual(13);
+        // The reference really is the scalar code, so the parity below compares two paths.
+        expect(countOp(scalar, F64X2_MUL)).toBe(0);
+    });
+
+    const noise = (() => {
+        let s = 777;
+        return Float32Array.from({ length: 6000 }, () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x40000000) - 1);
+    })();
+
+    function runWith(x: KernelExports, fn: 'rflt_process' | 'rflt_process_scalar', signal: Float32Array, sizes: number[]) {
+        const buf = buffer(x);
+        const out = new Float32Array(signal.length);
+        for (let at = 0, b = 0; at < signal.length; b++) {
+            const n = Math.min(sizes[b % sizes.length], signal.length - at);
+            buf.set(signal.subarray(at, at + n));
+            expect(x[fn](n)).toBe(n);
+            out.set(buf.subarray(0, n), at);
+            at += n;
+        }
+        return out;
+    }
+
+    const sameBits = (a: Float32Array, b: Float32Array) =>
+        expect(Array.from(new Uint32Array(a.buffer))).toEqual(Array.from(new Uint32Array(b.buffer)));
+
+    /**
+     * The f64 state (z1, z2) as raw bits: it sits just before the filter buffer
+     * (see "writes only the filter buffer and the biquad state"). Outputs are
+     * rounded to f32, so a stray f64 rounding difference would hide there; the
+     * state carries it.
+     */
+    const stateBits = (x: KernelExports) =>
+        Array.from(new BigUint64Array(x.memory.buffer.slice(x.rflt_buf_ptr() - 16, x.rflt_buf_ptr())));
+
+    function sameRun(type: RustFilterType, fc: number, q: number, signal: Float32Array, sizes: number[]) {
+        const a = configured(type, fc, q);
+        const b = configured(type, fc, q);
+        sameBits(runWith(a, 'rflt_process', signal, sizes), runWith(b, 'rflt_process_scalar', signal, sizes));
+        expect(stateBits(a), `${type} ${fc} ${q} ${sizes.join(',')}`).toEqual(stateBits(b));
+        expect(stateBits(a).some((v) => v !== 0n) || signal.every((v) => v === 0)).toBe(true);
+    }
+
+    it.each([
+        ['lp', 20, 0.7071], ['lp', 1500, 3], ['lp', 9000, 12], ['lp', 22000, 40],
+        ['bp', 300, 5], ['bp', 3000, 0.7071], ['bp', 120, 60],
+        ['hp', 80, 1], ['hp', 6000, 4], ['hp', 20, 0.1],
+    ] as const)('%s at %i Hz, Q %d: v128 path == scalar reference, bit for bit, at every length 1-13 and 128', (type, fc, q) => {
+        for (const sizes of [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12], [13], [128], [37, 211, 5]]) {
+            sameRun(type, fc, q, noise, sizes);
+        }
+    });
+
+    it('extremes take the same bits on both paths: full-scale, tiny, subnormal and silent input', () => {
+        const extremes = Float32Array.from({ length: 1024 }, (_, i) => {
+            switch (i % 8) {
+                case 0: return 3.4e38;
+                case 1: return -3.4e38;
+                case 2: return 1e-40; // subnormal f32
+                case 3: return -1e-30;
+                case 4: return 0;
+                case 5: return -0;
+                default: return i < 512 ? 1 : -1;
+            }
+        });
+        for (const type of ['lp', 'bp', 'hp'] as const) sameRun(type, 700, 9, extremes, [128]);
+    });
+
+    it('a reconfigure mid-stream switches the four-at-once coefficients with the scalar ones', () => {
+        const a = configured('lp', 400, 2);
+        const b = configured('lp', 400, 2);
+        const first = [runWith(a, 'rflt_process', noise.subarray(0, 1000), [128]), runWith(b, 'rflt_process_scalar', noise.subarray(0, 1000), [128])];
+        sameBits(first[0], first[1]);
+        for (const x of [a, b]) expect(x.rflt_configure(RATE, 7000, 5, RUST_FILTER_TYPE_ID.hp)).toBe(1);
+        sameBits(
+            runWith(a, 'rflt_process', noise.subarray(1000, 3000), [128]),
+            runWith(b, 'rflt_process_scalar', noise.subarray(1000, 3000), [128]),
+        );
+        expect(stateBits(a)).toEqual(stateBits(b));
+    });
+
+    it('an unconfigured kernel is still an exact identity on the v128 path', () => {
+        const x = instance();
+        sameBits(runWith(x, 'rflt_process', noise.subarray(0, 515), [515]), noise.slice(0, 515));
     });
 });

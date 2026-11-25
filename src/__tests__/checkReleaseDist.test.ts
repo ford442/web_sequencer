@@ -399,7 +399,7 @@ describe('check-release-dist WASM export gate', () => {
 
     it.each([
         ['growable-memory', 'memory can grow'],
-        ['scalar-only', 'v128 render path was not compiled in'],
+        ['scalar-only', 'v128 render / filter path was not compiled in'],
     ] as const)('rejects a rust_osc.wasm with %s', (variant, message) => {
         const result = runCheck(makeDist({ rustOsc: variant }));
 

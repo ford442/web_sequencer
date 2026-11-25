@@ -114,16 +114,16 @@ function withImport(): Uint8Array {
 describe('tools/check_rust_osc_module.mjs', () => {
     const pages = RUST_OSC_BUDGET.initialMemoryPages;
 
-    it('accepts a fixed, import-free module with the full surface (oscillator + filter), ABI 2 and SIMD', () => {
+    it('accepts a fixed, import-free module with the full surface (oscillator + filter), ABI 3 and SIMD', () => {
         expect(checkRustOscModule(rustOscWasmFixture('valid'))).toEqual([]);
     });
 
     it.each([
         ['growable-memory', 'memory can grow'],
-        ['scalar-only', 'v128 render path was not compiled in'],
-        ['wrong-abi', 'ABI version 3'],
+        ['scalar-only', 'v128 render / filter path was not compiled in'],
+        ['wrong-abi', 'ABI version 4'],
         ['missing-render', 'missing exports: rosc_render'],
-        ['missing-filter', 'missing exports: rflt_buf_ptr, rflt_configure, rflt_reset, rflt_process'],
+        ['missing-filter', 'missing exports: rflt_buf_ptr, rflt_configure, rflt_reset, rflt_process, rflt_process_scalar'],
         ['accepts-any-filter-type', 'rflt_configure accepted an unknown filter type'],
     ] as const)('rejects the %s fixture', (variant, message) => {
         expect(checkRustOscModule(rustOscWasmFixture(variant)).join('\n')).toContain(message);

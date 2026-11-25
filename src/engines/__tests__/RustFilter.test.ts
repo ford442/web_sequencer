@@ -36,7 +36,11 @@ class FakeWorkletNode {
         this.name = name;
         this.options = options;
         created.push(this);
-        setTimeout(() => this.port.onmessage?.({ data: { type: 'ready', maxFrames: 1024 } }), 0);
+        // The Rust filter processor says which path its kernel runs; the WASM OSC one does not.
+        const ready = name === RUST_FILTER_PROCESSOR
+            ? { type: 'ready', simd: true, maxFrames: 1024 }
+            : { type: 'ready', maxFrames: 1024 };
+        setTimeout(() => this.port.onmessage?.({ data: ready }), 0);
     }
 }
 
@@ -88,6 +92,16 @@ describe('RustFilter.init', () => {
         expect(created[0].name).toBe(RUST_FILTER_PROCESSOR);
         expect(created[0].options.processorOptions.module).toBeInstanceOf(WebAssembly.Module);
         expect(filter.unavailableReason(ctx)).toBeNull();
+    });
+
+    it('reports the SIMD path the worklet says its kernel runs, as the rust-* oscillator does (#1663)', async () => {
+        const ctx = makeContext();
+        const rust = new RustFilter('rust-filter.js');
+        const wam = new WamFilter('w.js', 'wamFilter.wasm');
+        const [r, w] = await Promise.all([rust.init(ctx), wam.init(ctx)]);
+        expect(r).toEqual({ ok: true, reason: 'simd=true maxFrames=1024' });
+        // A kernel that does not report a path keeps its old wording.
+        expect(w).toEqual({ ok: true, reason: 'maxFrames=1024' });
     });
 
     it('compiles the module once for the oscillator and the filter together', async () => {

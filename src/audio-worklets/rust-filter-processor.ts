@@ -74,8 +74,11 @@ class RustFilterProcessor extends AudioWorkletProcessor {
             this.maxFrames = exports.rosc_max_frames();
             this.buf = new Float32Array(exports.memory.buffer, exports.rflt_buf_ptr(), this.maxFrames);
             this.x = exports;
-            wlog(`[RustFilter] node ready: sr=${sampleRate} maxFrames=${this.maxFrames}`);
-            this.post({ type: 'ready', maxFrames: this.maxFrames });
+            // The kernel is v128 throughout (a module without SIMD fails to validate
+            // on the main thread, by name), so this says which path `rflt_process` runs.
+            const simd = exports.rosc_simd() === 1;
+            wlog(`[RustFilter] node ready: sr=${sampleRate} simd=${simd} maxFrames=${this.maxFrames}`);
+            this.post({ type: 'ready', simd, maxFrames: this.maxFrames });
         } catch (e) {
             this.failed = true;
             this.post({ type: 'error', reason: e instanceof Error ? e.message : String(e) });

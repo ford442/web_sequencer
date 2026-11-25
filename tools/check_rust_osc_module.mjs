@@ -6,7 +6,8 @@
  *     `rustOsc` section of emscripten/wasm_memory_budget.json says
  *   - exactly the `rustOsc` exports of emscripten/wasm_export_manifest.json
  *     (the oscillator and the Rust filter, #1672)
- *   - the ABI version the worklet binds to, and the v128 render path compiled in
+ *   - the ABI version the worklet binds to, and the v128 render and filter paths
+ *     compiled in
  *     (a scalar-only build would make "SIMD Rust oscillator" a label, not a fact)
  *
  * Exported for scripts/build-rust-osc.mjs (fails the build), for
@@ -34,7 +35,7 @@ export const RUST_OSC_BUDGET = JSON.parse(
 ).rustOsc;
 
 /** Must equal `ABI_VERSION` in rust-audio/src/lib.rs and the worklet's constant. */
-export const RUST_OSC_ABI_VERSION = 2;
+export const RUST_OSC_ABI_VERSION = 3;
 
 /** @returns {string[]} problems; empty when the module is acceptable. */
 export function checkRustOscModule(buf) {
@@ -82,7 +83,7 @@ export function checkRustOscModule(buf) {
     const { exports } = new WebAssembly.Instance(module, {});
     const abi = exports.rosc_abi_version();
     if (abi !== RUST_OSC_ABI_VERSION) problems.push(`ABI version ${abi}, expected ${RUST_OSC_ABI_VERSION}`);
-    if (exports.rosc_simd() !== 1) problems.push('rosc_simd() is 0: the v128 render path was not compiled in');
+    if (exports.rosc_simd() !== 1) problems.push('rosc_simd() is 0: the v128 render / filter path was not compiled in');
     const bytes = exports.rosc_max_frames() * 4;
     for (const name of ['rosc_freq_ptr', 'rosc_out_ptr']) {
       if (exports[name]() + bytes > exports.memory.buffer.byteLength) {

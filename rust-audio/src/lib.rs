@@ -30,10 +30,19 @@
 //! (`SynthParams.filterSource === 'rust'`). It computes the same response as the
 //! AssemblyScript filter (`assembly/biquad.ts`) so the two sources sound alike.
 //!
+//! The filter is SIMD too (#1663 follow-up). A biquad is a recurrence, so
+//! splatting coefficients across lanes cannot vectorize it; `rflt_process`
+//! instead runs the exact four-samples-at-once form of the same transposed DF II
+//! (`Block4`, the closed form of four `tick`s) in `f64x2` lanes — the f64 state a
+//! 20 Hz lowpass needs is kept, and the loop-carried dependency drops from three
+//! dependent operations per sample to one multiply-add per four samples.
+//! `rflt_process_scalar` is that same arithmetic, lane by lane, in scalar code:
+//! the reference the v128 path is parity-tested against, bit for bit.
+//!
 //! ABI (all `extern "C"`, no imports):
 //!   rosc_abi_version() -> u32           bumps when the surface changes
 //!   rosc_max_frames()  -> u32           capacity of the I/O buffers
-//!   rosc_simd()        -> u32           1 when `rosc_render` uses the v128 path
+//!   rosc_simd()        -> u32           1 when `rosc_render` and `rflt_process` use v128
 //!   rosc_freq_ptr()    -> *mut f32      frequency input (Hz)
 //!   rosc_out_ptr()     -> *const f32    rendered samples
 //!   rosc_init(sample_rate) -> i32       1 on success
@@ -44,6 +53,7 @@
 //!   rflt_configure(sample_rate, cutoff, resonance, type) -> i32   1 on success
 //!   rflt_reset()                         filter from rest
 //!   rflt_process(frames) -> u32          frames filtered
+//!   rflt_process_scalar(frames) -> u32   same contract, scalar reference path
 
 #![cfg_attr(not(test), no_std)]
 
@@ -54,7 +64,7 @@ pub const MAX_FRAMES: usize = 1024;
 
 /// Bumped whenever an export's signature or meaning changes. The worklet
 /// refuses a module whose version it does not know.
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 pub const SHAPE_SAW: u32 = 0;
 pub const SHAPE_SQR: u32 = 1;
@@ -160,13 +170,40 @@ impl Engine {
     /// Filter the first `frames` samples of the filter buffer in place; returns
     /// the frames done. Frames beyond capacity are clamped, a filter that was
     /// never configured passes the signal through unchanged (see `Biquad::new`).
+    ///
+    /// The shipped path: groups of four through `Block4` in v128 lanes when
+    /// compiled for wasm32 with `simd128`, then the 0–3 left over through `tick`.
     pub fn filter_process(&mut self, frames: usize) -> usize {
         let n = frames.min(MAX_FRAMES);
-        for x in self.filt[..n].iter_mut() {
+        let blocks = n & !3;
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        // SAFETY: `blocks <= n <= MAX_FRAMES` and `filt` holds MAX_FRAMES f32s,
+        // so every 4-lane load/store is in bounds.
+        unsafe {
+            simd::filter_blocks(&mut self.filter, self.filt.as_mut_ptr(), blocks)
+        };
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        self.filter.blocks_scalar(&mut self.filt[..blocks]);
+        self.filter_tail(blocks, n);
+        n
+    }
+
+    /// Scalar reference path: the same `Block4` arithmetic as the v128 path, in
+    /// the same order, one lane at a time (wasm has no FMA outside relaxed SIMD,
+    /// so the two agree bit for bit), then the same `tick` tail.
+    pub fn filter_process_scalar(&mut self, frames: usize) -> usize {
+        let n = frames.min(MAX_FRAMES);
+        let blocks = n & !3;
+        self.filter.blocks_scalar(&mut self.filt[..blocks]);
+        self.filter_tail(blocks, n);
+        n
+    }
+
+    fn filter_tail(&mut self, from: usize, to: usize) {
+        for x in self.filt[from..to].iter_mut() {
             *x = self.filter.tick(*x as f64) as f32;
         }
         self.filter.flush_denormals();
-        n
     }
 
     /// Phase increment for `hz`, clamped to [0, MAX_INC]. NaN → 0.
@@ -385,14 +422,129 @@ fn sin_cos(w0: f64) -> (f64, f64) {
 ///   BP  constant 0 dB peak gain (the bandpass a `BiquadFilterNode` builds)
 ///   HP  −12 dB/oct below `cutoff`
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Biquad {
     b0: f64,
     b1: f64,
     b2: f64,
     a1: f64,
     a2: f64,
+    /// The same coefficients in four-at-once form, derived by every `configure`.
+    blk: Block4,
+    // State last: it is all `process` writes besides the buffer that follows it
+    // in `Engine` (rustFilter.realWasm.test.ts checks exactly that).
     z1: f64,
     z2: f64,
+}
+
+/// Four consecutive `tick`s in closed form. With state z = (z1, z2), the
+/// transposed DF II is the state-space system
+///
+///   y  = z1 + b0·x                      (C = [1 0], D = b0)
+///   z' = A·z + B·x,   A = [[−a1 1] [−a2 0]],   B = (b1 − a1·b0, b2 − a2·b0)
+///
+/// so for inputs x0..x3 the outputs are yₖ = C·Aᵏ·z + Σⱼ hₖ₋ⱼ·xⱼ (h the impulse
+/// response: h0 = b0, hₘ = C·Aᵐ⁻¹·B) and the next state is
+/// A⁴·z + A³B·x0 + A²B·x1 + AB·x2 + B·x3. Every coefficient is computed once per
+/// `configure` in f64; the outputs and the state are then lane-parallel
+/// multiply-adds, laid out as `f64x2` pairs: outputs (y0, y1) and (y2, y3),
+/// state (z1', z2'). The same derivation as `prepareBlock4` in assembly/biquad.ts.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Block4 {
+    // Outputs (y0, y1) = `*_a`, (y2, y3) = `*_b`: per old z1, per old z2, per xⱼ.
+    yz1a: [f64; 2],
+    yz2a: [f64; 2],
+    yz1b: [f64; 2],
+    yz2b: [f64; 2],
+    t0a: [f64; 2],
+    t0b: [f64; 2],
+    t1a: [f64; 2],
+    t1b: [f64; 2],
+    /// x2, x3 do not reach y0, y1.
+    t2b: [f64; 2],
+    t3b: [f64; 2],
+    // New state (z1', z2'): A⁴ by column, then A³B, A²B, AB, B.
+    sz1: [f64; 2],
+    sz2: [f64; 2],
+    g0: [f64; 2],
+    g1: [f64; 2],
+    g2: [f64; 2],
+    g3: [f64; 2],
+}
+
+impl Block4 {
+    pub const fn of(b0: f64, b1: f64, b2: f64, a1: f64, a2: f64) -> Self {
+        // B, then wₘ = AᵐB as (z1 part, z2 part): wₘ₊₁ = (−a1·w[0] + w[1], −a2·w[0]).
+        let bb1 = b1 - a1 * b0;
+        let bb2 = b2 - a2 * b0;
+        let w1a = -a1 * bb1 + bb2;
+        let w1b = -a2 * bb1;
+        let w2a = -a1 * w1a + w1b;
+        let w2b = -a2 * w1a;
+        let w3a = -a1 * w2a + w2b;
+        let w3b = -a2 * w2a;
+        let (h0, h1, h2, h3) = (b0, bb1, w1a, w2a);
+
+        // First rows of Aᵏ: rₖ₊₁ = (−a1·p − a2·q, p) for rₖ = (p, q).
+        let r1p = -a1;
+        let r1q = 1.0;
+        let r2p = -a1 * r1p - a2 * r1q;
+        let r2q = r1p;
+        let r3p = -a1 * r2p - a2 * r2q;
+        let r3q = r2p;
+
+        // A⁴ = (A²)², A² = [[a1² − a2, −a1] [a1·a2, −a2]].
+        let m00 = a1 * a1 - a2;
+        let m01 = -a1;
+        let m10 = a1 * a2;
+        let m11 = -a2;
+        let s00 = m00 * m00 + m01 * m10;
+        let s01 = m00 * m01 + m01 * m11;
+        let s10 = m10 * m00 + m11 * m10;
+        let s11 = m10 * m01 + m11 * m11;
+
+        Block4 {
+            yz1a: [1.0, r1p],
+            yz2a: [0.0, r1q],
+            yz1b: [r2p, r3p],
+            yz2b: [r2q, r3q],
+            t0a: [h0, h1],
+            t0b: [h2, h3],
+            t1a: [0.0, h0],
+            t1b: [h1, h2],
+            t2b: [h0, h1],
+            t3b: [0.0, h0],
+            sz1: [s00, s10],
+            sz2: [s01, s11],
+            g0: [w3a, w3b],
+            g1: [w2a, w2b],
+            g2: [w1a, w1b],
+            g3: [bb1, bb2],
+        }
+    }
+
+    /// One group of four, scalar, in exactly the operation order of
+    /// `simd::filter_blocks` (each output lane is the same sum, same association).
+    #[inline(always)]
+    pub fn step(&self, x: [f32; 4], z: [f64; 2]) -> ([f32; 4], [f64; 2]) {
+        let [x0, x1, x2, x3] = [x[0] as f64, x[1] as f64, x[2] as f64, x[3] as f64];
+        let [zz1, zz2] = z;
+        let mut y = [0.0f32; 4];
+        for l in 0..2 {
+            y[l] = ((zz1 * self.yz1a[l] + zz2 * self.yz2a[l])
+                + (x0 * self.t0a[l] + x1 * self.t1a[l])) as f32;
+            y[l + 2] = (((zz1 * self.yz1b[l] + zz2 * self.yz2b[l])
+                + (x0 * self.t0b[l] + x1 * self.t1b[l]))
+                + (x2 * self.t2b[l] + x3 * self.t3b[l])) as f32;
+        }
+        let mut next = [0.0f64; 2];
+        for (l, n) in next.iter_mut().enumerate() {
+            let drive = (x0 * self.g0[l] + x1 * self.g1[l]) + (x2 * self.g2[l] + x3 * self.g3[l]);
+            *n = (zz1 * self.sz1[l] + zz2 * self.sz2[l]) + drive;
+        }
+        (y, next)
+    }
 }
 
 impl Biquad {
@@ -405,6 +557,7 @@ impl Biquad {
             b2: 0.0,
             a1: 0.0,
             a2: 0.0,
+            blk: Block4::of(1.0, 0.0, 0.0, 0.0, 0.0),
             z1: 0.0,
             z2: 0.0,
         }
@@ -447,6 +600,7 @@ impl Biquad {
         }
         self.a1 = -2.0 * cos_w0 * inv_a0;
         self.a2 = (1.0 - alpha) * inv_a0;
+        self.blk = Block4::of(self.b0, self.b1, self.b2, self.a1, self.a2);
         true
     }
 
@@ -462,6 +616,18 @@ impl Biquad {
         self.z1 = self.b1 * x - self.a1 * y + self.z2;
         self.z2 = self.b2 * x - self.a2 * y;
         y
+    }
+
+    /// Filter `buf` (a multiple of 4 long) in place through `Block4::step`.
+    pub fn blocks_scalar(&mut self, buf: &mut [f32]) {
+        let mut z = [self.z1, self.z2];
+        for g in buf.chunks_exact_mut(4) {
+            let (y, next) = self.blk.step([g[0], g[1], g[2], g[3]], z);
+            g.copy_from_slice(&y);
+            z = next;
+        }
+        self.z1 = z[0];
+        self.z2 = z[1];
     }
 
     /// Once per block: a silent input must not leave the state decaying into denormals.
@@ -614,6 +780,79 @@ mod simd {
         }
         e.phase = phase;
     }
+
+    #[inline(always)]
+    fn pair(p: [f64; 2]) -> v128 {
+        f64x2(p[0], p[1])
+    }
+
+    /// Filter `blocks` (a multiple of 4, ≤ MAX_FRAMES) samples of `buf` in place,
+    /// four at a time, through `Block4` (see there for the derivation).
+    ///
+    /// The four inputs are promoted to two f64 pairs and broadcast; the outputs
+    /// are two lane-pair sums demoted back to one f32x4 store. The state stays in
+    /// a register across the loop, and the only loop-carried dependency is
+    /// z → z' (one multiply and one add deep): the input-driven part of z' and
+    /// all of the outputs are off the critical path.
+    ///
+    /// # Safety
+    /// `blocks` must be a multiple of 4, and `buf` valid for `blocks` f32s.
+    pub unsafe fn filter_blocks(f: &mut Biquad, buf: *mut f32, blocks: usize) {
+        let k = f.blk;
+        let (yz1a, yz2a, yz1b, yz2b) = (pair(k.yz1a), pair(k.yz2a), pair(k.yz1b), pair(k.yz2b));
+        let (t0a, t0b, t1a, t1b, t2b, t3b) = (
+            pair(k.t0a),
+            pair(k.t0b),
+            pair(k.t1a),
+            pair(k.t1b),
+            pair(k.t2b),
+            pair(k.t3b),
+        );
+        let (sz1, sz2) = (pair(k.sz1), pair(k.sz2));
+        let (g0, g1, g2, g3) = (pair(k.g0), pair(k.g1), pair(k.g2), pair(k.g3));
+        let mut z = f64x2(f.z1, f.z2);
+
+        let mut i = 0;
+        while i < blocks {
+            let x = v128_load(buf.add(i) as *const v128);
+            let x01 = f64x2_promote_low_f32x4(x);
+            let x23 = f64x2_promote_low_f32x4(i32x4_shuffle::<2, 3, 2, 3>(x, x));
+            let x0 = i64x2_shuffle::<0, 0>(x01, x01);
+            let x1 = i64x2_shuffle::<1, 1>(x01, x01);
+            let x2 = i64x2_shuffle::<0, 0>(x23, x23);
+            let x3 = i64x2_shuffle::<1, 1>(x23, x23);
+            let zz1 = i64x2_shuffle::<0, 0>(z, z);
+            let zz2 = i64x2_shuffle::<1, 1>(z, z);
+
+            let ya = f64x2_add(
+                f64x2_add(f64x2_mul(zz1, yz1a), f64x2_mul(zz2, yz2a)),
+                f64x2_add(f64x2_mul(x0, t0a), f64x2_mul(x1, t1a)),
+            );
+            let yb = f64x2_add(
+                f64x2_add(
+                    f64x2_add(f64x2_mul(zz1, yz1b), f64x2_mul(zz2, yz2b)),
+                    f64x2_add(f64x2_mul(x0, t0b), f64x2_mul(x1, t1b)),
+                ),
+                f64x2_add(f64x2_mul(x2, t2b), f64x2_mul(x3, t3b)),
+            );
+            v128_store(
+                buf.add(i) as *mut v128,
+                i32x4_shuffle::<0, 1, 4, 5>(
+                    f32x4_demote_f64x2_zero(ya),
+                    f32x4_demote_f64x2_zero(yb),
+                ),
+            );
+
+            let drive = f64x2_add(
+                f64x2_add(f64x2_mul(x0, g0), f64x2_mul(x1, g1)),
+                f64x2_add(f64x2_mul(x2, g2), f64x2_mul(x3, g3)),
+            );
+            z = f64x2_add(f64x2_add(f64x2_mul(zz1, sz1), f64x2_mul(zz2, sz2)), drive);
+            i += 4;
+        }
+        f.z1 = f64x2_extract_lane::<0>(z);
+        f.z2 = f64x2_extract_lane::<1>(z);
+    }
 }
 
 // ── C ABI ───────────────────────────────────────────────────────────────────
@@ -701,6 +940,11 @@ mod abi {
     #[no_mangle]
     pub extern "C" fn rflt_process(frames: u32) -> u32 {
         engine().filter_process(frames as usize) as u32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn rflt_process_scalar(frames: u32) -> u32 {
+        engine().filter_process_scalar(frames as usize) as u32
     }
 
     #[cfg(not(test))]
@@ -1150,6 +1394,106 @@ mod tests {
         assert_eq!(e.filter_process(MAX_FRAMES * 4), MAX_FRAMES);
     }
 
+    fn lcg_noise(n: usize, seed: u32) -> Vec<f32> {
+        let mut s = seed;
+        (0..n)
+            .map(|_| {
+                s = s.wrapping_mul(1_103_515_245).wrapping_add(12_345) & 0x7fff_ffff;
+                s as f32 / 1_073_741_824.0 - 1.0
+            })
+            .collect()
+    }
+
+    #[test]
+    fn block4_is_four_ticks_in_closed_form() {
+        // The derivation, checked directly: one `step` from an arbitrary state
+        // equals four `tick`s from it, outputs and state, to f64 rounding.
+        for kind in [FILTER_LP, FILTER_BP, FILTER_HP] {
+            for (fc, q) in [(20.0, 0.7), (440.0, 12.0), (5_000.0, 0.5), (20_000.0, 3.0)] {
+                let mut b = configured(kind, fc, q);
+                (b.z1, b.z2) = (0.37, -0.81);
+                let x = [0.5f32, -0.25, 0.9, -1.0];
+                let (y, z) = b.blk.step(x, [b.z1, b.z2]);
+                let ticks: Vec<f64> = x.iter().map(|&v| b.tick(v as f64)).collect();
+                for k in 0..4 {
+                    assert!(
+                        (y[k] as f64 - ticks[k]).abs() <= 1.0e-6 * ticks[k].abs().max(1.0),
+                        "kind {kind} fc {fc} q {q} y{k}: {} vs {}",
+                        y[k],
+                        ticks[k]
+                    );
+                }
+                let scale = b.z1.abs().max(b.z2.abs()).max(1.0);
+                assert!(
+                    (z[0] - b.z1).abs() < 1.0e-12 * scale,
+                    "kind {kind} fc {fc}: z1"
+                );
+                assert!(
+                    (z[1] - b.z2).abs() < 1.0e-12 * scale,
+                    "kind {kind} fc {fc}: z2"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_block_path_tracks_the_per_sample_recurrence_over_long_runs() {
+        // f64 state either way, so a second of noise through the block form stays
+        // on the `tick` path to f32 rounding — including the 20 Hz lowpass whose
+        // poles sit within 1e-5 of the unit circle, and a ringing high-Q band.
+        let x = lcg_noise(SR as usize, 4_242);
+        for kind in [FILTER_LP, FILTER_BP, FILTER_HP] {
+            for (fc, q) in [
+                (20.0, std::f32::consts::FRAC_1_SQRT_2),
+                (1_500.0, 3.0),
+                (9_000.0, 12.0),
+                (300.0, 40.0),
+            ] {
+                let mut e = Box::new(Engine::new());
+                e.init(SR);
+                assert!(e.filter_configure(SR, fc, q, kind));
+                let mut r = configured(kind, fc as f64, q as f64);
+                let (mut worst, mut peak) = (0.0f64, 0.0f64);
+                for chunk in x.chunks(128) {
+                    e.filter_buf_mut()[..chunk.len()].copy_from_slice(chunk);
+                    e.filter_process(chunk.len());
+                    for (k, &v) in chunk.iter().enumerate() {
+                        let want = r.tick(v as f64) as f32 as f64;
+                        worst = worst.max((e.filt[k] as f64 - want).abs());
+                        peak = peak.max(want.abs());
+                    }
+                }
+                assert!(
+                    worst <= 4.0e-7 * peak.max(1.0),
+                    "kind {kind} fc {fc} q {q}: worst {worst:e}, peak {peak}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn process_and_process_scalar_agree_bit_for_bit_for_every_length() {
+        // On the host both are scalar; on wasm32 `filter_process` is the v128
+        // path and rustFilter.realWasm.test.ts holds it to the same contract.
+        let x = lcg_noise(4_096, 99);
+        for len in [0usize, 1, 2, 3, 4, 5, 7, 8, 13, 128, 1_021, 1_024] {
+            let mut a = Box::new(Engine::new());
+            let mut b = Box::new(Engine::new());
+            for e in [&mut a, &mut b] {
+                e.init(SR);
+                e.filter_configure(SR, 900.0, 5.0, FILTER_BP);
+            }
+            for chunk in x.chunks(len.max(1)).take(8) {
+                let n = chunk.len().min(len);
+                a.filter_buf_mut()[..n].copy_from_slice(&chunk[..n]);
+                b.filter_buf_mut()[..n].copy_from_slice(&chunk[..n]);
+                assert_eq!(a.filter_process(n), b.filter_process_scalar(n));
+                assert_eq!(a.filt[..n], b.filt[..n], "len {len}");
+            }
+            assert_eq!((a.filter.z1, a.filter.z2), (b.filter.z1, b.filter.z2));
+        }
+    }
+
     #[test]
     fn an_unconfigured_filter_is_an_identity() {
         let mut e = Box::new(Engine::new());
@@ -1157,9 +1501,10 @@ mod tests {
         for (i, v) in e.filter_buf_mut()[..64].iter_mut().enumerate() {
             *v = i as f32 * 0.01 - 0.3;
         }
-        e.filter_process(64);
-        for (i, v) in e.filt[..64].iter().enumerate() {
-            assert_eq!(*v, i as f32 * 0.01 - 0.3);
+        e.filter_process(63); // 15 groups of four and a 3-sample tail
+        e.filter_process_scalar(1);
+        for (i, v) in e.filt[..63].iter().enumerate() {
+            assert_eq!(v.to_bits(), (i as f32 * 0.01 - 0.3).to_bits());
         }
     }
 
