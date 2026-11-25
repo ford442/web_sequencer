@@ -31,6 +31,8 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts',
   // The wam-* AssemblyScript oscillator on the real oscillators.wasm: band-limited, seamless loop tables, hostile arguments, import/export contract.
   'src/engines/__tests__/WasmOscillator.realWasm.test.ts',
+  // The same kernel's SIMD loop (#1663): f32x4 / f64x2 in the shipped bytes, Safari 16.4 feature set, == a double-precision port of the scalar kernel it replaced.
+  'src/engines/__tests__/WasmOscillator.simd.realWasm.test.ts',
   // The "WASM OSC filter" (#1663) on the real wamFilter.wasm: LP/BP/HP vs the RBJ transfer functions, == the kernel's baked filter, processor block handling.
   'src/audio-worklets/__tests__/wamFilter.realWasm.test.ts',
   // The "Rust filter" (#1672) on the real rust_osc.wasm: LP/BP/HP vs the RBJ transfer functions, == the WASM OSC filter, filters any oscillator, processor block handling.

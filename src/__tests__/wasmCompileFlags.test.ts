@@ -17,6 +17,8 @@ import { join } from 'node:path';
 
 const REPO_ROOT = join(__dirname, '../..');
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
+// Source with line and block comments removed: the kernels' comments name the instructions they avoid.
+const withoutComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 /**
  * Strip full-line `#` comments. These files document the very flags they must not
@@ -141,9 +143,9 @@ describe('AssemblyScript browser matrix', () => {
             const cmd = packageJson.scripts[name];
             expect(cmd).toContain('--enable simd');
             expect(cmd).toContain('--enable bulk-memory');
-            // Relaxed SIMD is the second-narrowest feature after WasmGC, and
-            // assembly/ contains no SIMD intrinsics for it to apply to — enabling it
-            // produced a byte-identical module. See BUILD_NOTES#assemblyscript-browser-matrix.
+            // Relaxed SIMD is the second-narrowest feature after WasmGC, and nothing in
+            // assembly/ writes a relaxed instruction for it to apply to — enabling it
+            // still produces a byte-identical module. See BUILD_NOTES#assemblyscript-browser-matrix.
             expect(cmd, `${name} must not enable relaxed-simd`).not.toContain('--enable relaxed-simd');
         }
     });
@@ -156,6 +158,28 @@ describe('AssemblyScript browser matrix', () => {
             expect(packageJson.scripts[name], name).not.toContain('--enable threads');
         }
         expect(read('assembly/oscillators.ts')).not.toMatch(/\batomic\.|Atomics/);
+    });
+
+    it('writes no relaxed-SIMD instruction anywhere in assembly/ (the flag is off, so it would not compile in)', () => {
+        for (const file of readdirSync(join(REPO_ROOT, 'assembly')).filter((f) => f.endsWith('.ts'))) {
+            const code = withoutComments(read(`assembly/${file}`));
+            expect(code, file).not.toMatch(/\brelaxed_\w+|\.relaxed\b/);
+        }
+    });
+
+    it('the oscillator kernel is vectorized by hand: the render loop is f32x4 / f64x2, not scalar code a flag cannot speed up (#1663)', () => {
+        // `--enable simd` on scalar source emits no vector instruction at all (the module
+        // is byte-identical with and without it), so the intrinsics have to be in the source.
+        // WasmOscillator.simd.realWasm.test.ts checks the same thing on the built bytes.
+        const osc = withoutComments(read('assembly/oscillators.ts'));
+        const biquad = withoutComments(read('assembly/biquad.ts'));
+        expect(osc).toMatch(/\bf32x4\.mul\(/);
+        expect(osc).toMatch(/\bf64x2\.floor\(/);
+        expect(osc).toMatch(/\bblock4\(/);
+        expect(biquad).toMatch(/export function prepareBlock4\b/);
+        expect(biquad).toMatch(/\bf64x2\.mul\(/);
+        // The filter state stays f64: f32 cannot represent a 20 Hz lowpass at 48 kHz.
+        expect(biquad).not.toMatch(/\bf32x4\.(mul|add)\(/);
     });
 
     it('keeps the capability probe available for a future relaxed kernel', () => {
