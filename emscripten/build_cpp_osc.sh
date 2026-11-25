@@ -7,11 +7,16 @@
 # not share (or multiply) that heap. Same shape as the mix bus and the Rust OSC.
 # See docs/wasm/BUILD_NOTES.md#cpp-osc.
 #
-# Output:
-#   public/cpp_osc.wasm   standalone reactor, zero imports, fixed 2-page memory.
-#                         Instantiated per voice by src/audio-worklets/cpp-osc-processor.ts
-#                         and offline by src/audio/offline/OfflineCppOscEngine.ts —
-#                         there is no Emscripten JS glue.
+# Output (one source, two builds, #1667):
+#   public/cpp_osc.wasm         -msimd128: the wasm_simd128.h paths of the kernel.
+#                               What every browser with WASM SIMD runs.
+#   public/cpp_osc_scalar.wasm  no SIMD: the same kernel's scalar paths, sample for
+#                               sample the same output. Loaded by CppOscillator.ts
+#                               only where the SIMD build does not validate, so
+#                               `cpp` still catches a `rust-*` part there.
+# Both: standalone reactor, zero imports, fixed 2-page memory. Instantiated per
+# voice by src/audio-worklets/cpp-osc-processor.ts and offline by
+# src/audio/offline/OfflineCppOscEngine.ts — there is no Emscripten JS glue.
 #
 # Usage:
 #   ./emscripten/build_cpp_osc.sh [release|debug]
@@ -50,9 +55,11 @@ echo "  Memory budget: INITIAL=${INITIAL_MEMORY_PAGES} pages (fixed) STACK=${STA
 # ---------------------------------------------------------
 # FLAGS
 # ---------------------------------------------------------
-# No -msimd128 on purpose: the kernel is scalar so it runs where WASM SIMD does
-# not (that is what lets `cpp` catch a `rust-*` part on such a browser). No
-# -ffast-math either: the residual tables and the phase accumulator rely on
+# -msimd128 for cpp_osc.wasm only; the scalar twin passes -mno-simd128 so the
+# autovectoriser cannot put a v128 in it either (check_cpp_osc_module.mjs checks
+# both ways). Nothing beyond simd128: no relaxed-simd (its FMA would change the
+# rounding), no bulk-memory, threads or exceptions. No -ffast-math either: the
+# residual tables, the phase accumulator and the scalar/SIMD parity rely on
 # IEEE ordering (the onset/BLEP tests compare against a double reference).
 if [ "$BUILD_PROFILE" = "debug" ]; then
     OPT_FLAGS="-O1 -g3"
@@ -68,27 +75,31 @@ fi
 # binary against it.
 EXPORTED_FUNCTIONS="$(node "$REPO_ROOT/tools/hyphon_native_exports.mjs" --module cppOsc)"
 
-OUTPUT_WASM="$REPO_ROOT/public/cpp_osc.wasm"
-mkdir -p "$(dirname "$OUTPUT_WASM")"
+mkdir -p "$REPO_ROOT/public"
 
 # STANDALONE_WASM + --no-entry: a reactor with no JS runtime to import from.
 # No -pthread, no shared memory, no growth, no exceptions: the AudioWorklet
 # instantiates it with `{}` and nothing on the audio thread can allocate.
-em++ "$SCRIPT_DIR/cpp_osc.cpp" \
-    $OPT_FLAGS \
-    -std=c++17 \
-    -fno-exceptions \
-    -fno-rtti \
-    $LINK_PROFILE_FLAGS \
-    --no-entry \
-    -s STANDALONE_WASM=1 \
-    -s FILESYSTEM=0 \
-    -s ALLOW_MEMORY_GROWTH=0 \
-    -s INITIAL_MEMORY=${INITIAL_MEMORY_BYTES} \
-    -s STACK_SIZE=${STACK_SIZE_BYTES} \
-    -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
-    -o "$OUTPUT_WASM"
+build_variant() {
+    local simd_flag="$1" output="$2" variant="$3"
+    em++ "$SCRIPT_DIR/cpp_osc.cpp" \
+        $OPT_FLAGS \
+        "$simd_flag" \
+        -std=c++17 \
+        -fno-exceptions \
+        -fno-rtti \
+        $LINK_PROFILE_FLAGS \
+        --no-entry \
+        -s STANDALONE_WASM=1 \
+        -s FILESYSTEM=0 \
+        -s ALLOW_MEMORY_GROWTH=0 \
+        -s INITIAL_MEMORY=${INITIAL_MEMORY_BYTES} \
+        -s STACK_SIZE=${STACK_SIZE_BYTES} \
+        -s EXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
+        -o "$output"
+    node "$REPO_ROOT/tools/check_cpp_osc_module.mjs" "$output" --variant "$variant"
+    echo "Wasm: ${output#$REPO_ROOT/} ($(wc -c < "$output") B, $variant)"
+}
 
-node "$REPO_ROOT/tools/check_cpp_osc_module.mjs" "$OUTPUT_WASM"
-
-echo "Wasm: public/cpp_osc.wasm ($(wc -c < "$OUTPUT_WASM") B)"
+build_variant -msimd128 "$REPO_ROOT/public/cpp_osc.wasm" simd
+build_variant -mno-simd128 "$REPO_ROOT/public/cpp_osc_scalar.wasm" scalar

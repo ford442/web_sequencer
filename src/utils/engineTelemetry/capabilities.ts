@@ -22,16 +22,20 @@ const WASM_SIMD_PROBE = new Uint8Array([
   65, 0, 253, 15, 253, 98, 11,
 ]);
 
+/** True when this engine validates WASM SIMD (simd128). Never throws. */
+export function wasmSimdSupported(): boolean {
+  try {
+    return typeof WebAssembly !== 'undefined' && WebAssembly.validate(WASM_SIMD_PROBE);
+  } catch {
+    return false;
+  }
+}
+
 export function getBrowserCapabilities(): BrowserCapabilities {
   const nav = typeof navigator !== 'undefined' ? (navigator as unknown as Record<string, unknown>) : undefined;
   const webgpu = !!(nav && nav.gpu);
   const audioWorklet = typeof AudioWorkletNode !== 'undefined';
-  let wasmSimd = false;
-  try {
-    wasmSimd = typeof WebAssembly !== 'undefined' && WebAssembly.validate(WASM_SIMD_PROBE);
-  } catch {
-    wasmSimd = false;
-  }
+  const wasmSimd = wasmSimdSupported();
   const pyodide =
     typeof window !== 'undefined' &&
     ('loadPyodide' in window || !!(window as unknown as Record<string, unknown>).pyodide);

@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 /**
- * Assert that public/cpp_osc.wasm is the module #1665 promises:
+ * Assert that public/cpp_osc.wasm (and its scalar twin, public/cpp_osc_scalar.wasm,
+ * #1667) is the module #1665 promises:
  *   - zero imports (instantiated by hand in an AudioWorkletGlobalScope with `{}`)
  *   - one defined memory, not shared, that cannot grow, sized exactly as the
  *     `cppOsc` section of emscripten/wasm_memory_budget.json says
  *   - exactly the `cppOsc` exports of emscripten/wasm_export_manifest.json
  *     (plus `memory` / `_initialize` and the section's `runtime` names): the
  *     oscillator's `cosc_*` and the C++ filter's `cflt_*` (#1673), one module
- *   - no v128 in any signature or local: the kernel is scalar on purpose, so it
- *     runs where WASM SIMD does not — a SIMD build would break that silently
+ *   - the build it claims to be (`--variant`, default `simd`): the SIMD build
+ *     holds v128 code (its wasm_simd128.h paths were compiled in, not dropped by
+ *     a missing -msimd128), and the scalar twin holds none, so it validates where
+ *     WASM SIMD does not — a v128 creeping into it would break that silently
  *   - the ABI version the worklet binds to, and a working init
  *
  * Exported for emscripten/build_cpp_osc.sh (fails the build), for
  * scripts/check-release-dist.mjs (fails the release) and for
  * src/__tests__/cppOscModule.test.ts.
  *
- * Usage: node tools/check_cpp_osc_module.mjs public/cpp_osc.wasm
+ * Usage: node tools/check_cpp_osc_module.mjs public/cpp_osc.wasm [--variant simd|scalar]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,11 +42,21 @@ export const CPP_OSC_BUDGET = JSON.parse(
 export const CPP_OSC_ABI_VERSION = 2;
 
 /**
+ * The two builds of emscripten/cpp_osc.cpp (emscripten/build_cpp_osc.sh) and the
+ * file each ships as. src/engines/CppOscillator.ts loads `scalar` only where
+ * the `simd` bytes do not validate.
+ */
+export const CPP_OSC_VARIANT_FILES = Object.freeze({
+  simd: 'cpp_osc.wasm',
+  scalar: 'cpp_osc_scalar.wasm',
+});
+
+/**
  * True when any function signature or declared local is a v128. Sound for what
  * it inspects (types and locals are unambiguous to parse), and that is where a
- * SIMD build shows up: clang's autovectoriser keeps vectors in v128 locals. It
- * does not decode instruction bodies — the primary guard is that
- * build_cpp_osc.sh never passes -msimd128; this catches that flag creeping in.
+ * SIMD build shows up: clang keeps vectors in v128 locals. It does not decode
+ * instruction bodies (src/audio-worklets/__tests__/cppOscSimd.realWasm.test.ts
+ * reads the disassembly for that); it tells the two builds apart.
  */
 export function usesV128(buf) {
   const bytes = new Uint8Array(buf);
@@ -91,9 +104,14 @@ export function usesV128(buf) {
   return false;
 }
 
-/** @returns {string[]} problems; empty when the module is acceptable. */
-export function checkCppOscModule(buf) {
+/**
+ * @param {ArrayBuffer | Uint8Array} buf
+ * @param {{ variant?: 'simd' | 'scalar' }} [options]
+ * @returns {string[]} problems; empty when the module is acceptable.
+ */
+export function checkCppOscModule(buf, { variant = 'simd' } = {}) {
   const problems = [];
+  if (!Object.hasOwn(CPP_OSC_VARIANT_FILES, variant)) return [`unknown variant '${variant}' (simd or scalar)`];
   let module;
   try {
     module = new WebAssembly.Module(buf);
@@ -125,8 +143,11 @@ export function checkCppOscModule(buf) {
     }
   }
 
-  if (usesV128(buf)) {
-    problems.push('module uses v128: cpp_osc.wasm must stay scalar (it is the no-SIMD fallback for rust-*)');
+  const v128 = usesV128(buf);
+  if (variant === 'scalar' && v128) {
+    problems.push('module uses v128: the scalar build must stay scalar (it is the no-SIMD fallback for rust-*)');
+  } else if (variant === 'simd' && !v128) {
+    problems.push('module uses no v128: the SIMD build was compiled without -msimd128 (its wasm_simd128.h paths are missing)');
   }
 
   const exportNames = new Set(WebAssembly.Module.exports(module).map((e) => e.name));
@@ -161,12 +182,15 @@ export function checkCppOscModule(buf) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const file = process.argv[2];
+  const args = process.argv.slice(2);
+  const flag = args.indexOf('--variant');
+  const variant = flag >= 0 ? args[flag + 1] : 'simd';
+  const file = args.find((a, i) => !a.startsWith('--') && (flag < 0 || i !== flag + 1));
   if (!file) {
-    console.error('usage: node tools/check_cpp_osc_module.mjs <cpp_osc.wasm>');
+    console.error('usage: node tools/check_cpp_osc_module.mjs <cpp_osc.wasm> [--variant simd|scalar]');
     process.exit(2);
   }
-  const problems = checkCppOscModule(fs.readFileSync(file));
+  const problems = checkCppOscModule(fs.readFileSync(file), { variant });
   if (problems.length) {
     console.error(`[check_cpp_osc_module] ${file} is not a valid cpp-* oscillator module:`);
     for (const p of problems) console.error(`  - ${p}`);
@@ -174,6 +198,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   console.log(
     `[check_cpp_osc_module] ${file}: OK (no imports, fixed ${CPP_OSC_BUDGET.initialMemoryPages}-page memory, `
-    + `scalar, ABI ${CPP_OSC_ABI_VERSION})`,
+    + `${variant}, ABI ${CPP_OSC_ABI_VERSION})`,
   );
 }

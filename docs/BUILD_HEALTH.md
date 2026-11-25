@@ -84,7 +84,7 @@ From `deploy.py`:
 - **Large bundles**: `index` 2.04 MB, `Studio3D` 1.24 MB — consider `manualChunks` / lazy-loading Studio3D.
 - **Build-time warnings**: `rubberband-lib.wasm` resolved at runtime via `new URL` (verify the file name matches `public/rubberband.wasm`); `fs` externalized in `src/utils/xm_save_lib/xmWriter.ts` (Node API in browser code); `CloudStorage.ts` mixed static+dynamic import defeats code-splitting; browserslist DB 6 months stale.
 - `rust-audio/` produces `public/rust_osc.wasm` (#1664).
-- `emscripten/cpp_osc.cpp` produces `public/cpp_osc.wasm` (#1665), its own `cpp-osc` world — not part of `hyphon_native`.
+- `emscripten/cpp_osc.cpp` produces `public/cpp_osc.wasm` (#1665) and its scalar twin `public/cpp_osc_scalar.wasm` (#1667), its own `cpp-osc` world — not part of `hyphon_native`.
 - `dwgs-audio/` produces `public/dwgs_osc.wasm` (#1666), its own `dwgs-osc` world (cargo).
 
 ## Explicitly NOT verified

@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { mixBusWasmFixture, type MixBusFixtureVariant } from '../test/helpers/mixBusWasmFixture';
 import { rustOscWasmFixture, type RustOscFixtureVariant } from '../test/helpers/rustOscWasmFixture';
-import { cppOscWasmFixture, type CppOscFixtureVariant } from '../test/helpers/cppOscWasmFixture';
+import { cppOscWasmFixture, type CppOscFixtureBuild, type CppOscFixtureVariant } from '../test/helpers/cppOscWasmFixture';
 import { dwgsOscWasmFixture, type DwgsOscFixtureVariant } from '../test/helpers/dwgsOscWasmFixture';
 
 const ROOT = resolve(__dirname, '../..');
@@ -144,8 +144,14 @@ interface DistOptions {
     mixBus?: MixBusFixtureVariant | null;
     /** dist/rust_osc.wasm (#1664); `null` leaves it out. */
     rustOsc?: RustOscFixtureVariant | null;
-    /** dist/cpp_osc.wasm (#1665); `null` leaves it out. */
+    /** dist/cpp_osc.wasm (#1665), the SIMD build; `null` leaves it out. */
     cppOsc?: CppOscFixtureVariant | null;
+    /** Which build the dist/cpp_osc.wasm fixture is (default `simd`, as shipped). */
+    cppOscBuild?: CppOscFixtureBuild;
+    /** dist/cpp_osc_scalar.wasm (#1667), the scalar twin; `null` leaves it out. */
+    cppOscScalar?: CppOscFixtureVariant | null;
+    /** Which build the dist/cpp_osc_scalar.wasm fixture is (default `scalar`, as shipped). */
+    cppOscScalarBuild?: CppOscFixtureBuild;
     /** dist/dwgs_osc.wasm (#1666); `null` leaves it out. */
     dwgsOsc?: DwgsOscFixtureVariant | null;
     /** Bytes appended to hyphon_native.wasm as a custom section (still a valid module). */
@@ -178,6 +184,9 @@ function makeDist({
     mixBus = 'valid',
     rustOsc = 'valid',
     cppOsc = 'valid',
+    cppOscBuild = 'simd',
+    cppOscScalar = 'valid',
+    cppOscScalarBuild = 'scalar',
     dwgsOsc = 'valid',
     pthreadPadding = 0,
     pthreadMarker,
@@ -253,7 +262,10 @@ function makeDist({
     writeFileSync(join(dir, 'hyphon_native.st.wasm'), wasmExporting(required, stMemory));
     if (mixBus !== null) writeFileSync(join(dir, 'mix_bus.wasm'), mixBusWasmFixture(mixBus));
     if (rustOsc !== null) writeFileSync(join(dir, 'rust_osc.wasm'), rustOscWasmFixture(rustOsc));
-    if (cppOsc !== null) writeFileSync(join(dir, 'cpp_osc.wasm'), cppOscWasmFixture(cppOsc));
+    if (cppOsc !== null) writeFileSync(join(dir, 'cpp_osc.wasm'), cppOscWasmFixture(cppOsc, cppOscBuild));
+    if (cppOscScalar !== null) {
+        writeFileSync(join(dir, 'cpp_osc_scalar.wasm'), cppOscWasmFixture(cppOscScalar, cppOscScalarBuild));
+    }
     if (dwgsOsc !== null) writeFileSync(join(dir, 'dwgs_osc.wasm'), dwgsOscWasmFixture(dwgsOsc));
     for (const [rel, text] of Object.entries(extraRootFiles)) {
         mkdirSync(dirname(join(dir, rel)), { recursive: true });
@@ -414,9 +426,24 @@ describe('check-release-dist WASM export gate', () => {
         expect(result.output).toContain('dist/cpp_osc.wasm is missing');
     });
 
+    it('requires the scalar twin to ship, and each build to be what its name says (#1667)', () => {
+        const missing = runCheck(makeDist({ cppOscScalar: null }));
+        expect(missing.status).toBe(1);
+        expect(missing.output).toContain('dist/cpp_osc_scalar.wasm is missing');
+
+        const scalarAsSimd = runCheck(makeDist({ cppOscBuild: 'scalar' }));
+        expect(scalarAsSimd.status).toBe(1);
+        expect(scalarAsSimd.output).toContain('dist/cpp_osc.wasm is not a valid C++ oscillator (simd build)');
+        expect(scalarAsSimd.output).toContain('module uses no v128');
+
+        const simdAsScalar = runCheck(makeDist({ cppOscScalarBuild: 'simd' }));
+        expect(simdAsScalar.status).toBe(1);
+        expect(simdAsScalar.output).toContain('dist/cpp_osc_scalar.wasm is not a valid C++ oscillator (scalar build)');
+        expect(simdAsScalar.output).toContain('module uses v128');
+    });
+
     it.each([
         ['growable-memory', 'memory can grow'],
-        ['simd', 'module uses v128'],
         ['wrong-abi', 'ABI version 1'],
         ['missing-render', 'missing exports: cosc_render'],
         // The C++ filter (#1673) ships in the same module: a build without it fails the release.

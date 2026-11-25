@@ -130,7 +130,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
     'emscripten/mix_bus.cpp',
   ]);
   // The cpp-* oscillator (#1665) is its own standalone module as well: a kernel
-  // edit rebuilds only public/cpp_osc.wasm, never the voice module.
+  // edit rebuilds only public/cpp_osc.wasm and its scalar twin, never the voice module.
   const CPP_OSC_OWNED = new Set([
     'emscripten/build_cpp_osc.sh',
     'emscripten/cpp_osc.cpp',
@@ -241,7 +241,7 @@ export function defineWorlds(repoRoot, scripts = loadPackageScripts(repoRoot)) {
         ...EMCC_PIN_INPUTS.map(fileInput),
         fileInput(budgetRel),
       ],
-      outputs: ['public/cpp_osc.wasm'],
+      outputs: ['public/cpp_osc.wasm', 'public/cpp_osc_scalar.wasm'],
       toolchain: 'emcc',
     },
     {

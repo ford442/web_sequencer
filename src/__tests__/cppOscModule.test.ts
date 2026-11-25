@@ -13,6 +13,7 @@ import {
     CPP_OSC_ABI_VERSION as CHECKER_ABI,
     CPP_OSC_BUDGET,
     CPP_OSC_REQUIRED_EXPORTS as CHECKER_EXPORTS,
+    CPP_OSC_VARIANT_FILES,
     checkCppOscModule,
     usesV128,
 } from '../../tools/check_cpp_osc_module.mjs';
@@ -94,45 +95,78 @@ describe('the C++ filter half of cpp_osc (#1673)', () => {
     });
 });
 
-describe('cpp_osc fixed memory and scalar build (BUILD_NOTES#cpp-osc)', () => {
-    it('the build reads the budget, fixes the memory and never asks for SIMD', () => {
+describe('cpp_osc fixed memory, SIMD build and scalar twin (BUILD_NOTES#cpp-osc)', () => {
+    it('the build reads the budget and fixes the memory', () => {
         expect(buildScript).toContain("require('$BUDGET_JSON').cppOsc.initialMemoryPages");
         expect(buildScript).toContain("require('$BUDGET_JSON').cppOsc.stackSizeBytes");
         expect(buildScript).toContain('-s ALLOW_MEMORY_GROWTH=0');
         expect(buildScript).toContain('-s STANDALONE_WASM=1');
         expect(buildScript).toContain('-fno-exceptions');
-        // Comments may mention the flag; the em++ invocation must not pass it.
-        const invocation = buildScript.slice(buildScript.indexOf('em++ "$SCRIPT_DIR/cpp_osc.cpp"'));
-        expect(invocation).not.toMatch(/-msimd128/);
+    });
+
+    it('builds one source twice: -msimd128 to cpp_osc.wasm, -mno-simd128 to the scalar twin, each checked as what it is (#1667)', () => {
+        expect(buildScript.match(/em\+\+ "\$SCRIPT_DIR\/[^"]+"/g)).toEqual(['em++ "$SCRIPT_DIR/cpp_osc.cpp"']);
+        expect(buildScript).toContain(`build_variant -msimd128 "$REPO_ROOT/public/${CPP_OSC_VARIANT_FILES.simd}" simd`);
+        expect(buildScript).toContain(`build_variant -mno-simd128 "$REPO_ROOT/public/${CPP_OSC_VARIANT_FILES.scalar}" scalar`);
+        expect(buildScript).toContain('check_cpp_osc_module.mjs" "$output" --variant "$variant"');
+        // Nothing past simd128 (relaxed-simd's FMA would change the rounding), and IEEE math.
+        // (Comments may name the flags; the em++ invocation must not pass them.)
+        const invocation = buildScript.slice(buildScript.indexOf('em++ "$SCRIPT_DIR/cpp_osc.cpp"'), buildScript.indexOf('-o "$output"'));
+        expect(invocation).not.toMatch(/-mrelaxed-simd|-ffast-math|-mfma/);
+    });
+
+    it('the kernel holds hand-written wasm_simd128.h paths, each with its scalar branch', () => {
+        expect(source).toContain('#include <wasm_simd128.h>');
+        const simdBlocks = source.match(/#if COSC_SIMD[\s\S]*?#endif/g) ?? [];
+        // increments, naive wave, residuals, drain, filter
+        expect(simdBlocks.length).toBeGreaterThanOrEqual(5);
+        for (const op of ['wasm_f32x4_mul', 'wasm_f64x2_mul', 'wasm_f64x2_promote_low_f32x4', 'wasm_f32x4_demote_f64x2_zero', 'wasm_v128_store']) {
+            expect(source, op).toContain(op);
+        }
+        // No libm sin in the sample loop: the sine is the shared f64 polynomial.
+        expect(source).not.toMatch(/case kShapeSin: return std::sin/);
     });
 
     it('keeps the budget page-sized and the static data inside it', () => {
         expect(Number.isInteger(CPP_OSC_BUDGET.initialMemoryPages)).toBe(true);
         expect(CPP_OSC_BUDGET.initialMemoryPages).toBeGreaterThan(0);
-        // freq + out + the C++ filter's buffer (3 x 1024 floats) + 2 residual tables (32 x 129 floats) + stack.
-        const statics = 3 * 1024 * 4 + 2 * 32 * 129 * 4;
+        // freq + out + the C++ filter's buffer (3 x 1024 floats), the correction and
+        // naive delay lines (1024 + 32 and 1024 + 16 floats), the per-block increment
+        // and phase (2 x 1024 doubles), 2 residual tables (129 x 32 floats) + stack.
+        const statics = 3 * 1024 * 4 + (1024 + 32) * 4 + (1024 + 16) * 4 + 2 * 1024 * 8 + 2 * 32 * 129 * 4;
         expect(statics + CPP_OSC_BUDGET.stackSizeBytes).toBeLessThan(CPP_OSC_BUDGET.initialMemoryPages * 65536);
     });
 });
 
 describe('tools/check_cpp_osc_module.mjs', () => {
-    it('accepts the valid fixture', () => {
-        expect(checkCppOscModule(cppOscWasmFixture('valid'))).toEqual([]);
+    it('accepts the valid fixture of each build as that build', () => {
+        expect(checkCppOscModule(cppOscWasmFixture('valid', 'simd'))).toEqual([]);
+        expect(checkCppOscModule(cppOscWasmFixture('valid', 'simd'), { variant: 'simd' })).toEqual([]);
+        expect(checkCppOscModule(cppOscWasmFixture('valid', 'scalar'), { variant: 'scalar' })).toEqual([]);
+    });
+
+    it('rejects each build passed off as the other', () => {
+        expect(checkCppOscModule(cppOscWasmFixture('valid', 'scalar')).join('\n'))
+            .toContain('module uses no v128: the SIMD build was compiled without -msimd128');
+        expect(checkCppOscModule(cppOscWasmFixture('valid', 'simd'), { variant: 'scalar' }).join('\n'))
+            .toContain('module uses v128: the scalar build must stay scalar');
+        // @ts-expect-error -- an unknown variant is refused, not defaulted
+        expect(checkCppOscModule(cppOscWasmFixture('valid'), { variant: 'avx' }).join('\n')).toContain("unknown variant 'avx'");
     });
 
     it.each([
         ['growable-memory', 'memory can grow'],
-        ['simd', 'module uses v128'],
         ['wrong-abi', 'ABI version 1'],
         ['missing-filter', 'missing exports: cflt_process'],
         ['missing-render', 'missing exports: cosc_render'],
-    ] as const)('rejects %s', (variant, message) => {
-        expect(checkCppOscModule(cppOscWasmFixture(variant)).join('\n')).toContain(message);
+    ] as const)('rejects %s in either build', (variant, message) => {
+        expect(checkCppOscModule(cppOscWasmFixture(variant, 'simd')).join('\n')).toContain(message);
+        expect(checkCppOscModule(cppOscWasmFixture(variant, 'scalar'), { variant: 'scalar' }).join('\n')).toContain(message);
     });
 
     it('detects v128 only where it is', () => {
-        expect(usesV128(cppOscWasmFixture('valid'))).toBe(false);
-        expect(usesV128(cppOscWasmFixture('simd'))).toBe(true);
+        expect(usesV128(cppOscWasmFixture('valid', 'scalar'))).toBe(false);
+        expect(usesV128(cppOscWasmFixture('valid', 'simd'))).toBe(true);
     });
 
     it('the worklet accepts the export surface the checker accepts', () => {
