@@ -562,7 +562,7 @@ Pieces:
   build --release --locked --target wasm32-unknown-unknown` with
   `+simd128`, `--initial-memory = --max-memory` and `-zstack-size` taken from the
   budget, then `tools/check_rust_osc_module.mjs` (no imports, fixed unshared
-  memory of the budgeted size, exact export surface (`rosc_*` + `rflt_*`), ABI 2, SIMD compiled in,
+  memory of the budgeted size, exact export surface (`rosc_*` + `rflt_*`), ABI 3, SIMD compiled in,
   and a smoke call of the filter).
   It is the `rust-osc` native world; `check-release-dist.mjs` re-checks
   `dist/rust_osc.wasm` and budgets it (`dist-budget.json#native`).
@@ -865,6 +865,60 @@ including for `rust-*` itself; filtering inside `rust-osc-processor` (one node, 
 hop) is possible with these exports but not wired. (2) Offline bounces take the logged native
 fallback, as for the WASM OSC filter. (3) Cutoff / Q / type are k-rate, set at note start.
 (4) Session packs do not carry `filterType` / `filterSource`.
+
+<a id="rust-filter-simd"></a>
+
+#### The Rust filter is SIMD: four samples per iteration, `f64x2` (#1663)
+
+The oscillator half of `rust_osc.wasm` was v128 from day one (#1664); the filter half
+(#1672) was a scalar `tick` per sample. `rflt_process` now runs the same four-at-once form
+of the transposed DF II as the [`wam-*` render loop](#the-render-loop-is-simd-four-frames-per-iteration-1663)
+— `Block4` in `rust-audio/src/lib.rs`, the same derivation as `prepareBlock4` in
+`assembly/biquad.ts` — so a biquad that is a recurrence still vectorizes: per group of four,
+the outputs are a row of `Aᵏ` on the state plus the impulse-response Toeplitz on the inputs,
+and the new state is `A⁴ z + Σ A³⁻ʲ B xⱼ`. `configure` derives the 16 `f64x2` coefficient
+pairs with the scalar ones; the loop keeps the state in a register and its only
+loop-carried dependency is one multiply-add per four samples. State stays **`f64`**: the
+20 Hz lowpass that drove the filter off `f32` is unchanged. The 0–3 samples a block leaves
+over run the old `tick`.
+
+- **Exact reference, not "close".** `rflt_process_scalar` is the same `Block4` arithmetic in
+  scalar code, in the same order (wasm has no FMA outside relaxed SIMD), so the v128 path
+  must match it **bit for bit**, outputs and the `f64` state, for LP / BP / HP across
+  20 Hz–22 kHz and Q 0.1–60, every block length 1–13, 128 and ragged chunkings, full-scale /
+  subnormal / signed-zero input and mid-stream reconfiguration
+  (`rustFilter.realWasm.test.ts`). Comparing the state matters: an `f64` re-association in an
+  output lane rarely survives f32 rounding, while one in the state path fails 12 of those
+  cases (mutation-checked).
+- **Same response as before.** Against the per-sample recurrence the block form differs
+  only by `f64` rounding: one second of noise stays within 4e-7 of peak for all three
+  responses including the 20 Hz lowpass and a Q 40 band (`cargo test`), and the existing
+  checks still pass unchanged: agreement with `wamFilter.wasm` to f32 rounding, the RBJ
+  magnitudes to 0.05 dB, and output that does not depend on how the stream is chopped.
+- **SIMD in the shipped bytes.** The test reads the code section: the `rflt_process` body has
+  the 16 `f64x2.mul` / 13 `f64x2.add` of one group, and `rflt_process_scalar` has none.
+  (LLVM moves the lanes in and out with scalar `f32↔f64` conversions and lane
+  inserts rather than `promote_low` / `demote_zero`; the arithmetic is all `f64x2`.)
+- **Feature detection and degradation** are the module's, unchanged: the kernel is v128
+  throughout, so a browser without WASM SIMD fails `WebAssembly.validate` on the main thread
+  and the Rust filter is reported unavailable by name (`… lacks WASM SIMD (simd128)`, under
+  `filter-source:rust`, the voice on the native filter). There is no scalar build to fall
+  back to, and none is needed for detection. A node that does start now says which path it runs:
+  `ready` carries `simd` (like `rust-osc-processor`), the worklet logs
+  `[RustFilter] node ready: … simd=true`, and the stage's readiness reason, which goes to
+  telemetry and the debug log, is `simd=true maxFrames=1024`.
+- **ABI 3.** One export added (`rflt_process_scalar`, `wasm_export_manifest.json#rustOsc.requiredFilter`);
+  `rosc_simd` now covers both halves. The module stays at 2 fixed pages (+2.3 KB of code).
+
+**Measured** (Node 22 / V8, 2.3 GHz Xeon, 128-frame blocks, lowpass 1 kHz Q 2, ns per frame):
+
+| per-sample `tick` (before) | `Block4`, scalar (`rflt_process_scalar`) | `Block4`, `f64x2` (`rflt_process`) |
+|---|---|---|
+| 4.76 | 1.78 | 1.58 (**3.0×**) |
+
+Most of the gain is the shorter dependency chain (the scalar block form alone is 2.7×); the
+lanes add ~11 % on top. A ratio that small is not gated in CI: the bit-exact parity and the
+opcode check are.
 
 <a id="cpp-filter"></a>
 

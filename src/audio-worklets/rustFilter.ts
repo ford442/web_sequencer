@@ -22,7 +22,7 @@ export { clampFilterTypeId, filterSettingsChanged };
 export const RUST_FILTER_PROCESSOR = 'rust-filter-processor';
 
 /** The module's ABI version: the filter shares `rust_osc.wasm` with the oscillator (tools/check_rust_osc_module.mjs). */
-export const RUST_FILTER_ABI_VERSION = 2;
+export const RUST_FILTER_ABI_VERSION = 3;
 
 /** Restated, not imported from `src/types/synth.ts` (DOM-typed graph; see rustOsc.ts). */
 export type RustFilterType = 'lp' | 'bp' | 'hp';
@@ -36,10 +36,15 @@ export interface RustFilterExports {
     rosc_abi_version(): number;
     rosc_max_frames(): number;
     rosc_init(sampleRate: number): number;
+    /** 1 when the module's filter (and oscillator) run the v128 path: reported in `ready`. */
+    rosc_simd(): number;
     rflt_buf_ptr(): number;
     rflt_configure(sampleRate: number, cutoff: number, resonance: number, type: number): number;
     rflt_reset(): void;
+    /** The shipped path: four samples at a time in f64x2 lanes, then a scalar tail. */
     rflt_process(frames: number): number;
+    /** Same contract and result bits as `rflt_process`, scalar code: the parity reference (tests only). */
+    rflt_process_scalar(frames: number): number;
 }
 
 /** `rustOsc.requiredFilter` in emscripten/wasm_export_manifest.json. */
@@ -48,10 +53,11 @@ export const RUST_FILTER_REQUIRED_EXPORTS = [
     'rflt_configure',
     'rflt_reset',
     'rflt_process',
+    'rflt_process_scalar',
 ] as const satisfies readonly (keyof RustFilterExports)[];
 
 /** Exports the worklet calls besides the filter's own (module identity + capacity). */
-const RUST_FILTER_SHARED_EXPORTS = ['rosc_abi_version', 'rosc_max_frames', 'rosc_init'] as const;
+const RUST_FILTER_SHARED_EXPORTS = ['rosc_abi_version', 'rosc_max_frames', 'rosc_init', 'rosc_simd'] as const;
 
 /** AudioParams of the node (`parameterDescriptors`), all k-rate: coefficients update per block. Same names as the WASM OSC filter. */
 export const RUST_FILTER_PARAMS = {
@@ -68,7 +74,7 @@ export interface RustFilterProcessorOptions {
 }
 
 export type RustFilterOutMessage =
-    | { type: 'ready'; maxFrames: number }
+    | { type: 'ready'; simd: boolean; maxFrames: number }
     | { type: 'error'; reason: string };
 
 export type RustFilterInMessage = { type: 'dispose' };

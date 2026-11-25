@@ -69,7 +69,7 @@ describe('Pyodide filter source: a Python table stands in for the host oscillato
         new Voice(g.ctx, destination()).startNote(params(waveform), 'C4', 0);
 
         expect(live.outputs).toHaveLength(0);
-        expect(g.ctx.createBufferSource).toHaveBeenCalledTimes(1);
+        expect(g.mocks.createBufferSource).toHaveBeenCalledTimes(1);
     });
 
     it('replaces the terminal OscillatorNode too', () => {
@@ -81,8 +81,8 @@ describe('Pyodide filter source: a Python table stands in for the host oscillato
 
         new Voice(g.ctx, destination()).startNote(params('sawtooth'), 'C4', 0);
 
-        expect(g.ctx.createOscillator).not.toHaveBeenCalled();
-        expect(g.ctx.createBufferSource).toHaveBeenCalledTimes(1);
+        expect(g.mocks.createOscillator).not.toHaveBeenCalled();
+        expect(g.mocks.createBufferSource).toHaveBeenCalledTimes(1);
     });
 
     it('asks for the part\'s basic shape, the knob values as the filter spec, and the note\'s pitch', () => {

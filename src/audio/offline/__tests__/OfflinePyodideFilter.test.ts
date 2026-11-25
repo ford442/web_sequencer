@@ -21,7 +21,7 @@ const PARAMS = {
 
 function runtime(result: Float32Array | Error = new Float32Array([0.1, 0.2, 0.3])) {
     const setRate = vi.fn();
-    const generate = vi.fn((..._args: unknown[]) => {
+    const generate = vi.fn<(...args: unknown[]) => { toJs: () => Float32Array; destroy: () => void }>(() => {
         if (result instanceof Error) throw result;
         return { toJs: () => result, destroy: vi.fn() };
     });

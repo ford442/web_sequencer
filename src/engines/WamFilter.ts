@@ -343,7 +343,12 @@ export class WasmFilterStage {
                     port.onmessage = previous;
                     resolve(
                         msg.type === 'ready'
-                            ? { ok: true, reason: `maxFrames=${msg.maxFrames}` }
+                            ? {
+                                ok: true,
+                                reason: msg.simd === undefined
+                                    ? `maxFrames=${msg.maxFrames}`
+                                    : `simd=${msg.simd} maxFrames=${msg.maxFrames}`,
+                            }
                             : { ok: false, reason: `worklet init error: ${msg.reason}` },
                     );
                 }

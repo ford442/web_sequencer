@@ -67,7 +67,8 @@ interface Binaryen {
 async function loadBinaryen(): Promise<Binaryen> {
     const asDir = realpathSync(join(process.cwd(), 'node_modules', 'assemblyscript'));
     const entry = join(dirname(asDir), 'binaryen', 'index.js');
-    return (await import(/* @vite-ignore */ pathToFileURL(entry).href)).default as Binaryen;
+    const mod = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as { default: Binaryen };
+    return mod.default;
 }
 
 /**
@@ -90,7 +91,7 @@ describe('the render loop is real SIMD', () => {
 
         const pass = renderPassText(wat);
         // The SIMD body is the first loop; the scalar tail (0-3 frames) is the last.
-        const loops = [...pass.matchAll(/\(loop /g)].map((x) => x.index!);
+        const loops = [...pass.matchAll(/\(loop /g)].map((x) => x.index);
         expect(loops.length, 'a SIMD loop and a scalar tail loop').toBeGreaterThanOrEqual(2);
         const simdLoop = pass.slice(loops[0], loops[loops.length - 1]);
 

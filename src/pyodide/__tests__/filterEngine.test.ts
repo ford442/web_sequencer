@@ -58,7 +58,7 @@ print(json.dumps({'worst': worst}))
 `);
         expect(r.err).toBe('');
         expect(r.ok).toBe(true);
-        expect(JSON.parse(r.out.trim().split('\n').pop()!).worst).toBeLessThan(-120);
+        expect((JSON.parse(r.out.trim().split('\n').pop()!) as { worst: number }).worst).toBeLessThan(-120);
     });
 
     it('LP, BP and HP have the right character: a 5 kHz cutoff passes the fundamental or the top, as it should', () => {

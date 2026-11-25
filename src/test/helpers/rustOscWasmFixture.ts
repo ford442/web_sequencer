@@ -3,7 +3,7 @@
  * and tools/check_rust_osc_module.mjs can be tested hermetically (no cargo, no
  * build artifact).
  *
- * The `valid` module has the real export surface with trivial bodies: ABI 1,
+ * The `valid` module has the real export surface with trivial bodies: ABI 3,
  * SIMD reported, 8-frame buffers at offsets 0, 32 and 64, an init that accepts the
  * rate, renders that render nothing and a filter (#1672) that accepts lowpass. It is valid *to the checker*; it is not
  * an oscillator. Each other variant breaks exactly one property.
@@ -62,7 +62,7 @@ export function rustOscWasmFixture(variant: RustOscFixtureVariant = 'valid'): Ui
     ]);
 
     const funcs: Array<{ name: string; type: number; body: number[] }> = [
-        { name: 'rosc_abi_version', type: 0, body: i32Body(variant === 'wrong-abi' ? 3 : 2) },
+        { name: 'rosc_abi_version', type: 0, body: i32Body(variant === 'wrong-abi' ? 4 : 3) },
         { name: 'rosc_max_frames', type: 0, body: i32Body(8) },
         { name: 'rosc_simd', type: 0, body: i32Body(variant === 'scalar-only' ? 0 : 1) },
         { name: 'rosc_freq_ptr', type: 0, body: i32Body(0) },
@@ -83,6 +83,7 @@ export function rustOscWasmFixture(variant: RustOscFixtureVariant = 'valid'): Ui
         },
         { name: 'rflt_reset', type: 5, body: [0x00, 0x0b] },
         { name: 'rflt_process', type: 6, body: [0x00, 0x20, 0, 0x0b] },
+        { name: 'rflt_process_scalar', type: 6, body: [0x00, 0x20, 0, 0x0b] },
     ];
     const exported = variant === 'missing-render'
         ? funcs.filter((f) => f.name !== 'rosc_render')

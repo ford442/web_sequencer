@@ -13,7 +13,7 @@ const ctx = { sampleRate: 48000 } as unknown as AudioContext;
 function install(opts: { unavailable?: string | null } = {}) {
     const gpu = {
         unavailableReason: vi.fn(() => opts.unavailable ?? null),
-        warm: vi.fn((_ctx: unknown, _shape: unknown, _spec: unknown) => Promise.resolve(true)),
+        warm: vi.fn<(ctx: unknown, shape: unknown, spec: unknown) => Promise<boolean>>(() => Promise.resolve(true)),
     };
     setGpuFilter(gpu as unknown as WebGpuFilter);
     return gpu;

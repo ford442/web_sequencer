@@ -57,7 +57,8 @@ export interface WamFilterProcessorOptions {
 }
 
 export type WamFilterOutMessage =
-    | { type: 'ready'; maxFrames: number }
+    // `simd`: kernels that report which path their filter runs (the Rust filter, #1663).
+    | { type: 'ready'; maxFrames: number; simd?: boolean }
     | { type: 'error'; reason: string };
 
 export type WamFilterInMessage = { type: 'dispose' };
