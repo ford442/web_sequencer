@@ -1255,7 +1255,7 @@ through `renderSynthToBuffer`), the selector and the request hook.
 ### `wam-*`: hardening the mid-tier kernel (#1663)
 
 `wam-*` is the reliable middle of the fallback chain: no AudioWorklet, no relaxed
-SIMD, no `SharedArrayBuffer`, one 8 KB module. The #1663 hardening left every build flag and
+SIMD, no `SharedArrayBuffer`, one 11 KB module (8 KB before the SIMD loop, below). The #1663 hardening left every build flag and
 the Safari intersection exactly as they were and changed only what the kernel
 computes and what the bridge does around it.
 
@@ -1289,13 +1289,88 @@ replays the last 0.5 s of the periodic signal, not a whole extra table). A table
 is built when a `Voice` builds its source, on the main thread and never in a
 block callback; it is roughly +0.3 to +1 ms per voice over the old kernel.
 
+#### The render loop is SIMD: four frames per iteration (#1663)
+
+`generate` / `generateLoop` were scalar `f32`/`f64` code, so `--enable simd` gave the
+compiler and `wasm-opt` nothing to emit (the module was byte-identical with and
+without it). The render pass (`renderPass` in `assembly/oscillators.ts`) now takes four
+frames per iteration with `f32x4` / `f64x2` intrinsics; the 0-3 frames left over at
+the end of a pass run the old scalar arithmetic. Flags, memory and the Safari
+intersection are untouched: `simd` + `bulk-memory`, no relaxed SIMD (no `relaxed_madd`,
+no relaxed min/max), no WasmGC, no threads.
+
+| Stage | Lanes | How |
+|---|---|---|
+| Phase | `f64x2` × 2 | `i * dt` from the frame index, `- floor`: identical to the scalar kernel, so no drift and a loop still returns to exactly phase 0 |
+| Distance to each edge | `f64x2` → `f32x4` | the phase is turned into a *signed distance in samples* to the wrap and to the half-cycle (`x0`, `x1`) **before** narrowing: a distance near its edge is tiny and f32 keeps tiny numbers to full relative precision, which a phase near 1.0 does not |
+| Shape, PolyBLEP / PolyBLAMP | `f32x4` | branch-free: `blep(x) = ±(1 - |x|)²`, `blamp(x) = (1 - |x|)³/6`, clamped to 0 beyond one sample; the saw is `2 s1 - blep`, the triangle `1 - 4|s1| + 8dt (blamp - blamp)` with `s1 = phase - 0.5` |
+| Sine | `f32x4` | a 5-term odd polynomial of `sin(2πa)` on `[0, ¼]` after folding by the sine's symmetries (`Math.sin` is serial) |
+| Biquad | `f64x2` × 2 | the exact four-samples-at-once form of the same transposed DF II, below |
+
+**Why the filter is not "splat the coefficients".** A biquad is a recurrence: sample
+`n+1` needs the state sample `n` produced, so four lanes cannot each run the one-sample
+update. Transposed DF II is the state-space system `z' = A z + B x`, `y = z₁ + b0 x`, so
+advancing four samples is a matrix identity, not an approximation: `y[k]` is a row of `A^k`
+applied to the state plus a lower-triangular Toeplitz of the impulse response
+`h[0..3]` applied to the four inputs, and the new state is `A⁴ z + Σ A^(3-j) B x[j]`.
+`prepareBlock4()` (`assembly/biquad.ts`) builds those 16 `f64x2` coefficients once per
+render from the same `setCoefficients` output; the loop-carried dependency becomes one
+multiply and one add per *four* samples, where `tick` carries three dependent operations
+per sample. State stays **`f64`** (`f64x2`, two lanes): the reason the filter left `f32`
+(a 20 Hz lowpass at 48 kHz is `a1 ≈ -2 + 1e-5`) is unchanged. `wamFilter.ts` shares
+`biquad.ts` but never calls `prepareBlock4`, so `wamFilter.wasm` is **byte-identical** to
+the scalar build (3524 B, same SHA-256): the streaming filter is untouched.
+
+**Measured** (Node 22 / V8 TurboFan, 2.1 GHz Xeon, 2 s tables at 48 kHz, lowpass 1.8 kHz,
+Q 6; ns per frame, scalar → SIMD; `--no-liftoff` gives the same numbers, so it is not
+a tiering artifact):
+
+| | saw | square | triangle | sine |
+|---|---|---|---|---|
+| `generate` | 7.9 → 4.1 (**1.9×**) | 5.6 → 4.2 (**1.3×**) | 10.8 → 4.9 (**2.2×**) | 26.4 → 4.1 (**6.5×**) |
+| `generateLoop` | 10.1 → 4.6 (**2.2×**) | 6.9 → 5.3 (**1.3×**) | 12.9 → 5.7 (**2.3×**) | 32.9 → 5.0 (**6.5×**) |
+
+A 2 s saw table is 0.88 → 0.41 ms; a sine table 2.7 → 0.44 ms. The square gains least
+because the scalar square was already the cheapest shape (two branches, no `Math.sin`);
+the sine gains most because it was `Math.sin` per frame, and now costs the same as the
+saw (`WasmOscillator.simd.perf.test.ts` asserts sine/saw < 2; it was 3.1).
+
+Two V8 lowerings cost more than the arithmetic they replace, found by bisecting a
+slow first version (7 ns/frame, no faster than scalar) and worth knowing before
+touching this loop:
+
+- **`f32x4.ge` + `v128.bitselect` to pick a sign** cost ~3 ns/frame, more than the whole
+  filter. Selecting a sign with integer ops (`xor(r, andnot(SIGN, x))`) is the same result
+  at ~0.5. Every sign in the kernel is done that way.
+- **`f32x4.max` / `min`** compile to a NaN- and signed-zero-safe sequence. The inputs are
+  always finite, so `pmax` / `pmin` (one `maxps` / `minps`) are exact here and cheaper.
+
+**Intentional differences from the scalar kernel**, against a double-precision port of it
+(`WasmOscillator.simd.realWasm.test.ts`, every shape × filter type × both entry points,
+six pitch/cutoff/Q setups, render lengths 1-13, and the extremes: 1 Hz, Nyquist, 8 kHz,
+192 kHz, Q 40 at 20 Hz):
+
+- **Saw, square, triangle:** at most **one f32 ulp at the peak** (4.8e-7 at a peak of 4.5).
+  The shape is evaluated in `f32` from f64-exact distances instead of in `f64`; the output
+  was already rounded to `f32`.
+- **Sine:** within **~2e-7 absolute** (-134 dBFS) of `Math.sin`. The polynomial is
+  3.3e-9 in `f64`; the rest is rounding every step to `f32`. The band-limiting test's
+  harmonics-below--90 dB bound is unaffected.
+- **Not different:** the filter. It is the same recurrence in `f64`, so a sine through
+  the streaming `wamFilter.wasm` still equals this kernel's to within the existing 2e-5.
+
+Nothing else moved: the loop length, the pitch snapping, the priming, the argument
+validation and the memory bounds are the scalar kernel's (the SIMD store of four frames
+only ever covers frames inside `[from, to)`, and the test checks nothing is written
+outside them, at offsets that are not 16-byte aligned).
+
 Things deliberately **not** done:
 
 - **No new shapes, no PWM.** `WaveShape` is shared by every backend and by saved
   songs; a fifth shape would have to land in all of them at once. A pulse width
   needs a `GenerateRequest` field and a control to drive it, and nothing sets one.
-- **No SIMD, no relaxed SIMD.** The kernel is table-rate, not block-rate, and the
-  matrix above still says it would be a byte-identical module.
+- **No relaxed SIMD.** The kernel does use baseline `simd128` now (next section); it
+  writes no relaxed instruction, so the relaxed build is still a byte-identical module.
 - **No higher-order BLEP.** PolyBLEP's two-sample residual caps a saw at about
   -38 dB inharmonic at 440 Hz. The C++ OSC's 32-tap residual is the answer for
   anyone who needs more; this tier stays small and everywhere.
@@ -2142,10 +2217,15 @@ fca5cd6665bb553331db5e364f785b75c11eb5141d2eb9ba17d91552f6365ce0  oscillators.wa
 fca5cd6665bb553331db5e364f785b75c11eb5141d2eb9ba17d91552f6365ce0  oscillators.relaxed.wasm
 ```
 
-Byte-identical. `assembly/oscillators.ts` contains no SIMD intrinsics at all —
-it is scalar code — and `asc` does not invent relaxed instructions that were not
-written. The "relaxed build" would have been a duplicate artifact, a second
-download, and a second thing to keep in sync, for a guaranteed zero difference.
+Byte-identical. That was taken while `assembly/oscillators.ts` was scalar, and it holds
+now that the kernel is SIMD (#1663, see "The render loop is SIMD"): measured again on the
+`f32x4` / `f64x2` kernel it is still one SHA-256 for both builds
+(`7891a9458a44…`). The kernel writes baseline `simd128` instructions only, and `asc` does
+not invent relaxed ones — it does not turn `a * b + c` into a fused `relaxed_madd`, nor
+`min`/`max` into their relaxed forms. The "relaxed build" would still be a duplicate
+artifact, a second download, and a second thing to keep in sync, for a guaranteed zero
+difference. A relaxed kernel would have to *write* `relaxed_madd` (and then be a different
+algorithm to validate), which is a separate decision from this one.
 
 **What was kept:** `supportsRelaxedSimd()` in
 `src/engines/WasmOscillator.ts` — a `WebAssembly.validate` probe on a

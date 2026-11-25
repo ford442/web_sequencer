@@ -92,11 +92,12 @@ type WasmInit = typeof initOscillatorsBaseline;
  * Candidate builds, most-preferred first.
  *
  * There is exactly one today, and that is a measured decision, not an oversight.
- * `assembly/oscillators.ts` is scalar — it contains no SIMD intrinsics — so
- * building it a second time with `--enable relaxed-simd` produced a byte-identical
- * module (same SHA-256); asc never emits a relaxed instruction that is not written.
- * A relaxed sibling would have been a duplicate artifact and a second download for
- * no measurable win. See docs/wasm/BUILD_NOTES.md#assemblyscript-browser-matrix.
+ * `assembly/oscillators.ts` uses baseline `simd128` only (f32x4 / f64x2, #1663) and
+ * no relaxed instruction, so building it a second time with `--enable relaxed-simd`
+ * produces a byte-identical module (same SHA-256, re-measured with the SIMD kernel):
+ * asc never emits a relaxed instruction that is not written, and does not fuse a
+ * multiply-add on its own. A relaxed sibling would be a duplicate artifact and a
+ * second download for no measurable win. See docs/wasm/BUILD_NOTES.md.
  *
  * To add one when a relaxed kernel actually exists: add a `build:wasm:*` script
  * emitting `src/wasm/oscillators.relaxed.wasm`, register it in
