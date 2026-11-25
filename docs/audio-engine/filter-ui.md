@@ -49,3 +49,9 @@ Optional extras (shown only when the selected source supports them):
 ## Mockup images
 
 Hardware-style mockups for each engine (cutoff / resonance / mode / poles) live alongside this doc or in the related issues. They are visual targets for a themed `FilterControls` component.
+
+## Implementation
+
+- `src/engines/backends/filterCapabilities.ts` — per-source capability table (`FILTER_CAPABILITIES`) and `snapFilterToSource`, which snaps mode/poles to the nearest supported value and reports substitutions (logged via `logFilterSubstitutions`).
+- `src/components/FilterControls.tsx` — shared panel: cutoff, resonance (optional sliders), mode, poles, source. Unsupported mode/pole options are disabled, not hidden. Poles reflect each source's fixed topology today (DWGS 4, all others 2); no engine takes a pole count yet, so the poles buttons stay non-interactive until one does.
+- Mockup images are not in the repo yet; add them under `docs/audio-engine/filter-ui/`.
