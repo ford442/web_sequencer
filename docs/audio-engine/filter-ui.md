@@ -54,4 +54,19 @@ Hardware-style mockups for each engine (cutoff / resonance / mode / poles) live 
 
 - `src/engines/backends/filterCapabilities.ts` — per-source capability table (`FILTER_CAPABILITIES`) and `snapFilterToSource`, which snaps mode/poles to the nearest supported value and reports substitutions (logged via `logFilterSubstitutions`).
 - `src/components/FilterControls.tsx` — shared panel: cutoff, resonance (optional sliders), mode, poles, source. Unsupported mode/pole options are disabled, not hidden. Poles reflect each source's fixed topology today (DWGS 4, all others 2); no engine takes a pole count yet, so the poles buttons stay non-interactive until one does.
+- Mockups live in `public/filter/` (visual targets for the themed panel):
+
+| Engine | Image |
+|--------|-------|
+| WebGPU | `public/filter/webgpu.jpg` |
+| C++ | `public/filter/cpp.jpg` |
+| Rust | `public/filter/rust.jpg` |
+| Open303 | `public/filter/open303.jpg` |
+| DWGS | `public/filter/dwgs.jpg` |
+| JC-303 | `public/filter/jc303.jpg` |
+| JS/TS | `public/filter/js.jpg` |
+| Pyodide | `public/filter/pyodide.jpg` |
+| WAM | `public/filter/wam.jpg` |
+| Prophecy | `public/filter/prophecy.jpg` |
+| PCM | `public/filter/pcm.jpg` |
 - Mockup images are not in the repo yet; add them under `docs/audio-engine/filter-ui/`.

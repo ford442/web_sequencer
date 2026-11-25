@@ -1,14 +1,19 @@
 import React, { memo, useCallback } from 'react';
-import type { FilterSource, FilterType, SynthParams } from '../types';
+import type { FilterSource, FilterType, OscillatorType, SynthParams } from '../types';
 import {
   FILTER_SOURCES,
+  FILTER_SOURCE_DESCRIPTIONS,
   FILTER_SOURCE_LABELS,
   FILTER_TYPES,
   FILTER_TYPE_LABELS,
   FILTER_TYPE_SHORT,
+  OWN_FILTER_SOURCE,
+  filterSourceIssueId,
   resolveFilterSource,
   resolveFilterType,
 } from '../engines/backends/filterSource';
+import { useEngineDegradation } from '../stores/engineDegradationStore';
+import { VOICE_FILTER_OSC_TYPES } from './FilterSourceSelector';
 import {
   FILTER_CAPABILITIES,
   FILTER_POLE_OPTIONS,
@@ -20,6 +25,12 @@ import {
 export type FilterControlsPatch = Partial<Pick<SynthParams, 'filterType' | 'filterSource' | 'filterCutoff' | 'filterResonance'>>;
 
 interface FilterControlsProps {
+  /**
+   * The synth's oscillator family. When given, the panel renders nothing for
+   * families that own their filter (303 / Prophecy / Macro) and marks the
+   * family's own filter source.
+   */
+  type?: OscillatorType;
   filterType?: FilterType;
   filterSource?: FilterSource;
   filterCutoff?: number;
@@ -44,6 +55,7 @@ interface FilterControlsProps {
  * offers more than one.
  */
 export const FilterControls: React.FC<FilterControlsProps> = memo(({
+  type: oscType,
   filterType,
   filterSource,
   filterCutoff,
@@ -53,6 +65,7 @@ export const FilterControls: React.FC<FilterControlsProps> = memo(({
   cutoffRange = [20, 20000],
   resonanceRange = [0, 30],
 }) => {
+  const degradation = useEngineDegradation();
   const source = resolveFilterSource(filterSource);
   const type = resolveFilterType(filterType);
   const caps = FILTER_CAPABILITIES[source];
@@ -63,6 +76,13 @@ export const FilterControls: React.FC<FilterControlsProps> = memo(({
     logFilterSubstitutions(next, snapped.substitutions);
     onChange(snapped.type !== type ? { filterSource: next, filterType: snapped.type } : { filterSource: next });
   }, [onChange, type]);
+
+  if (oscType !== undefined && !VOICE_FILTER_OSC_TYPES.has(oscType)) return null;
+
+  const ownSource = oscType ? OWN_FILTER_SOURCE[oscType] : null;
+  const fallback = source !== 'native'
+    ? degradation.find((issue) => issue.id === filterSourceIssueId(source) && issue.status === 'active')
+    : undefined;
 
   const cyan = accentColor === 'cyan';
   const active = cyan
@@ -164,17 +184,28 @@ export const FilterControls: React.FC<FilterControlsProps> = memo(({
               key={s}
               onClick={() => pickSource(s)}
               aria-pressed={source === s}
+              title={s === ownSource ? `${FILTER_SOURCE_DESCRIPTIONS[s]} (this oscillator's own filter)` : FILTER_SOURCE_DESCRIPTIONS[s]}
               aria-label={`${FILTER_SOURCE_LABELS[s]} filter source`}
+              data-own-filter={s === ownSource ? 'true' : undefined}
               className={`${btn} ${source === s ? active : inactive}`}
             >
               {FILTER_SOURCE_LABELS[s]}
+              {s === ownSource && <span aria-hidden="true" className="ml-0.5 opacity-60">•</span>}
             </button>
           ))}
         </div>
       </div>
-      {caps.regeneratesOnChange && (
+      {caps.regeneratesOnChange && !fallback && (
         <p className="text-[7px] leading-tight text-zinc-500" data-testid="filter-regenerates-note">
-          Table filter: changing the mode re-renders the table.
+          {source === 'webgpu'
+            ? "Rendered on the GPU: plays this part's saw / square / triangle / sine as a filtered table, not the selected oscillator engine."
+            : "Rendered in Python (SciPy): plays this part's saw / square / triangle / sine as a filtered table, not the selected oscillator engine. Loads the Python runtime on first use."}{' '}
+          Changing the mode re-renders the table.
+        </p>
+      )}
+      {fallback && (
+        <p role="status" className="text-[7px] leading-tight text-amber-400" title={fallback.reason}>
+          {FILTER_SOURCE_LABELS[source]} filter unavailable — using the {FILTER_SOURCE_LABELS.native} filter. {fallback.reason}
         </p>
       )}
     </div>
