@@ -29,6 +29,12 @@ function simdHere(supported: boolean) {
     });
 }
 
+/** The URL of the one fetch the load made. */
+function fetchedUrl(): string {
+    const [input] = vi.mocked(fetch).mock.calls[0];
+    return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+
 beforeEach(() => {
     resetCppOscModuleForTests();
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
@@ -59,7 +65,7 @@ describe('cpp_osc build selection', () => {
         expect(loaded.module).not.toBeNull();
         expect(loaded.build).toBe('simd');
         expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
-        expect(String(vi.mocked(fetch).mock.calls[0][0])).toMatch(/\/cpp_osc\.wasm$/);
+        expect(fetchedUrl()).toMatch(/\/cpp_osc\.wasm$/);
         expect(info).not.toHaveBeenCalled();
     });
 
@@ -70,7 +76,7 @@ describe('cpp_osc build selection', () => {
         expect(loaded.module).not.toBeNull();
         expect(loaded.build).toBe('scalar');
         expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
-        expect(String(vi.mocked(fetch).mock.calls[0][0])).toMatch(/\/cpp_osc_scalar\.wasm$/);
+        expect(fetchedUrl()).toMatch(/\/cpp_osc_scalar\.wasm$/);
         expect(info).toHaveBeenCalledWith(expect.stringContaining(`no WASM SIMD here: loading the scalar build ${CPP_OSC_SCALAR_WASM}`));
     });
 

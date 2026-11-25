@@ -50,7 +50,8 @@ interface Binaryen {
 async function loadBinaryen(): Promise<Binaryen> {
     const asDir = realpathSync(join(process.cwd(), 'node_modules', 'assemblyscript'));
     const entry = join(dirname(asDir), 'binaryen', 'index.js');
-    return (await import(/* @vite-ignore */ pathToFileURL(entry).href)).default as Binaryen;
+    const mod = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as { default: Binaryen };
+    return mod.default;
 }
 
 async function wat(bytes: Uint8Array): Promise<string> {
@@ -66,11 +67,12 @@ async function wat(bytes: Uint8Array): Promise<string> {
 function loops(text: string): string[] {
     const out: string[] = [];
     for (const match of text.matchAll(/\(loop\b/g)) {
+        const start = match.index;
         let depth = 0;
-        for (let i = match.index!; i < text.length; i++) {
+        for (let i = start; i < text.length; i++) {
             if (text[i] === '(') depth++;
             else if (text[i] === ')' && --depth === 0) {
-                out.push(text.slice(match.index!, i + 1));
+                out.push(text.slice(start, i + 1));
                 break;
             }
         }
