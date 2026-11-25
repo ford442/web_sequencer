@@ -48,6 +48,7 @@
     "lint:knip": "node scripts/knip-ratchet.mjs",
     "lint:knip:update": "node scripts/knip-ratchet.mjs --update",
     "bundle:compare": "node scripts/analyze-bundle.mjs --compare",
+    "check:budget-ratchet": "node scripts/check-budget-ratchet.mjs",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "lint:strict": "ESLINT_STRICT=1 eslint . && node scripts/check-root.mjs",

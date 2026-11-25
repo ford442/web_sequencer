@@ -54,10 +54,25 @@ Two structural gates ride alongside the sizes and have no number to tune:
 Budgets are version-controlled so that relaxing one is a reviewed diff rather
 than a silent edit inside a script:
 
-1. Change the value in `dist-budget.json` **in its own commit**.
-2. State in the commit message what grew and why the growth is justified.
+1. Open a PR whose only changes are `dist-budget.json` (plus `docs/**`, e.g.
+   this page). Put the raise in **its own PR**, not in the feature or fix that
+   needs it.
+2. State in the PR description what grew and why the growth is justified.
 3. Never raise a row to make an unrelated PR go green — if a change needs more
    bytes, that is the change's cost and belongs in its own review.
+
+`scripts/check-budget-ratchet.mjs` (CI job `budget-ratchet`, local:
+`pnpm run check:budget-ratchet`) enforces this on pull requests. It compares
+`dist-budget.json` at the merge-base with `origin/<base>` against HEAD and
+fails when any numeric row is raised, or removed (which un-budgets it), while
+the PR also changes a path outside `dist-budget.json` and `docs/`. The failure
+names the row, the old and new value, and the paths that tripped it. Lowering a
+row and adding a new row never fail. The job needs full history
+(`fetch-depth: 0`); on a pull request an unresolvable base is a failure, not a
+skip. It only guards the numbers: edits to `_comment`, `_procedure` and
+`assetsDirExcludeExtensions`, or to `check-release-dist.mjs` itself, are
+review's job. To make the guard binding, mark `budget-ratchet` a required
+status check — otherwise merging on a red or cancelled run bypasses it.
 
 Values are set just above the measurement that introduced them, so the rows
 **ratchet**: bank a real improvement by lowering the number rather than
