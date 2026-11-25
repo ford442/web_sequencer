@@ -402,6 +402,12 @@ Their exports are declared once, in `emscripten/wasm_export_manifest.json`.
   every `webgpu`-only branch: do not add `=== 'webgpu'` checks. `filterEngine.test.ts` needs
   `python3` + numpy + scipy. Offline: `src/audio/offline/OfflinePyodideFilter.ts`.
   See `docs/wasm/BUILD_NOTES.md#pyodide-filter`.
+- **Filter cross-product (#1678)**: every `VOICE_FILTER_OSC_TYPES` family × every `FILTER_SOURCES`
+  source × LP/BP/HP is a contract in `src/engines/__tests__/Voice.filterMatrix.test.ts` (driven by
+  the UI's lists). A new oscillator family or filter source must be classified in
+  `OWN_FILTER_SOURCE` (`filterSource.ts`) and gets matrix coverage automatically. The HUD shows one
+  `filter: <host> ← <source>` row per pairing (`reportFilterPairing`), badged with the filter
+  that actually runs; never report filter state through a single shared row.
 
 ### 3. Emscripten World (`/emscripten`)
 - **Build**: `bash emscripten/build.sh`

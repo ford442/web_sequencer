@@ -6,6 +6,8 @@ import {
   FILTER_SOURCE_LABELS,
   FILTER_TYPES,
   FILTER_TYPE_LABELS,
+  FILTER_TYPE_SHORT,
+  OWN_FILTER_SOURCE,
   filterSourceIssueId,
   resolveFilterSource,
   resolveFilterType,
@@ -29,8 +31,6 @@ interface FilterSourceSelectorProps {
   onChange: (patch: Partial<Pick<SynthParams, 'filterType' | 'filterSource'>>) => void;
   accentColor?: 'pink' | 'cyan';
 }
-
-const SHORT_TYPE: Record<FilterType, string> = { lp: 'LP', bp: 'BP', hp: 'HP' };
 
 /**
  * Filter response (LP / BP / HP) and filter source (native biquad, the
@@ -57,6 +57,8 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
   if (!VOICE_FILTER_OSC_TYPES.has(type)) return null;
 
   const activeType = resolveFilterType(filterType);
+  // This oscillator's own filter; every other button borrows another engine's (#1663).
+  const ownSource = OWN_FILTER_SOURCE[type];
   const activeSource = resolveFilterSource(filterSource);
   const fallback = activeSource !== 'native'
     ? degradation.find((issue) => issue.id === filterSourceIssueId(activeSource) && issue.status === 'active')
@@ -89,7 +91,7 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
               aria-label={`${FILTER_TYPE_LABELS[t]} filter`}
               className={`flex-1 px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border ${ring} ${activeType === t ? active : inactive}`}
             >
-              {SHORT_TYPE[t]}
+              {FILTER_TYPE_SHORT[t]}
             </button>
           ))}
         </div>
@@ -104,11 +106,13 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
               key={s}
               onClick={() => onChange({ filterSource: s })}
               aria-pressed={activeSource === s}
-              title={FILTER_SOURCE_DESCRIPTIONS[s]}
+              title={s === ownSource ? `${FILTER_SOURCE_DESCRIPTIONS[s]} (this oscillator's own filter)` : FILTER_SOURCE_DESCRIPTIONS[s]}
               aria-label={`${FILTER_SOURCE_LABELS[s]} filter source`}
+              data-own-filter={s === ownSource ? 'true' : undefined}
               className={`flex-1 px-1.5 py-0.5 text-[8px] font-bold rounded transition-all border ${ring} ${activeSource === s ? active : inactive}`}
             >
               {FILTER_SOURCE_LABELS[s]}
+              {s === ownSource && <span aria-hidden="true" className="ml-0.5 opacity-60">•</span>}
             </button>
           ))}
         </div>
@@ -125,7 +129,7 @@ export const FilterSourceSelector: React.FC<FilterSourceSelectorProps> = memo(({
       )}
       {fallback && (
         <p role="status" className="text-[7px] leading-tight text-amber-400" title={fallback.reason}>
-          {FILTER_SOURCE_LABELS[activeSource]} filter unavailable — using the native filter. {fallback.reason}
+          {FILTER_SOURCE_LABELS[activeSource]} filter unavailable — using the {FILTER_SOURCE_LABELS.native} filter. {fallback.reason}
         </p>
       )}
     </div>
