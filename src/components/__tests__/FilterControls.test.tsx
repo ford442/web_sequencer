@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { FilterControls } from '../FilterControls';
+import { engineDegradationStore } from '../../stores/engineDegradationStore';
+import { filterSourceIssueId } from '../../engines/backends/filterSource';
+import { logFilterSourceFallback } from '../../utils/engineTelemetry';
 
 describe('FilterControls', () => {
     it('shows the source topology: DWGS is 4-pole, 2-pole disabled but present', () => {
@@ -34,5 +37,28 @@ describe('FilterControls', () => {
     it('notes that table sources regenerate on change', () => {
         render(<FilterControls filterSource="webgpu" onChange={() => {}} />);
         expect(screen.getByTestId('filter-regenerates-note')).toBeInTheDocument();
+    });
+
+    it('renders nothing for oscillator families that own their filter', () => {
+        for (const type of ['open303', 'jc303', 'prophecy', 'macro'] as const) {
+            const { container, unmount } = render(<FilterControls type={type} onChange={() => {}} />);
+            expect(container).toBeEmptyDOMElement();
+            unmount();
+        }
+        render(<FilterControls type="rust" onChange={() => {}} />);
+        expect(screen.getByRole('group', { name: 'Filter controls' })).toBeInTheDocument();
+    });
+
+    it("marks the oscillator's own filter source", () => {
+        render(<FilterControls type="rust" onChange={() => {}} />);
+        expect(screen.getByRole('button', { name: 'Rust filter source' })).toHaveAttribute('data-own-filter', 'true');
+        expect(screen.getByRole('button', { name: 'C++ filter source' })).not.toHaveAttribute('data-own-filter');
+    });
+
+    it('shows the fallback notice when the chosen source is not running', () => {
+        render(<FilterControls type="wam" filterSource="rust" onChange={() => {}} />);
+        act(() => { logFilterSourceFallback('rust', 'native', 'no wasm simd', filterSourceIssueId('rust')); });
+        expect(screen.getByRole('status')).toHaveTextContent(/Rust filter unavailable/);
+        act(() => engineDegradationStore.clear(filterSourceIssueId('rust')));
     });
 });

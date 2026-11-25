@@ -13,7 +13,7 @@ import { MacroPanel } from '../../components/MacroPanel'
 import { macroPresetUpdate } from '../../engines/macroPresets'
 import { OscillatorTypeSelector } from '../../components/OscillatorTypeSelector'
 import { OscillatorVariantSelector } from '../../components/OscillatorVariantSelector'
-import { FilterSourceSelector } from '../../components/FilterSourceSelector'
+import { FilterControls } from '../../components/FilterControls'
 import { SamplerPanel } from '../../components/SamplerPanel'
 import { samplerBanksStore, useSamplerBanksStore, loadedBanksFrom, multisampleFlagsFrom } from '../../stores/samplerBanksStore'
 import { engineTelemetry } from '../../utils/engineTelemetry'
@@ -190,7 +190,7 @@ export function useHardwarePanels(deps: {
                     />
                 </ChassisDeckPortal>
                 <ChassisDeckPortal>
-                    <FilterSourceSelector
+                    <FilterControls
                         type={currentTypeA}
                         filterType={synthA.filterType}
                         filterSource={synthA.filterSource}
@@ -299,7 +299,7 @@ export function useHardwarePanels(deps: {
                     />
                 </ChassisDeckPortal>
                 <ChassisDeckPortal>
-                    <FilterSourceSelector
+                    <FilterControls
                         type={currentTypeB}
                         filterType={synthB.filterType}
                         filterSource={synthB.filterSource}
