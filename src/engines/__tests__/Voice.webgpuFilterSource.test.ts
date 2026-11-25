@@ -22,7 +22,7 @@ import {
     StubTable,
     install,
 } from './voiceFilterHarness';
-import { FLAT_RESONANCE, maxFilterCutoff } from '../backends/filterSource';
+import { maxFilterCutoff } from '../backends/filterSource';
 
 registerFilterSourceHooks();
 
@@ -67,7 +67,7 @@ describe('WebGPU filter source: a GPU table stands in for the host oscillator', 
         new Voice(g.ctx, destination()).startNote(params(waveform), 'C4', 0);
 
         expect(live.outputs).toHaveLength(0);
-        expect(g.ctx.createBufferSource).toHaveBeenCalledTimes(1);
+        expect(g.mocks.createBufferSource).toHaveBeenCalledTimes(1);
     });
 
     it('replaces the terminal OscillatorNode too', () => {
@@ -79,8 +79,8 @@ describe('WebGPU filter source: a GPU table stands in for the host oscillator', 
 
         new Voice(g.ctx, destination()).startNote(params('sawtooth'), 'C4', 0);
 
-        expect(g.ctx.createOscillator).not.toHaveBeenCalled();
-        expect(g.ctx.createBufferSource).toHaveBeenCalledTimes(1);
+        expect(g.mocks.createOscillator).not.toHaveBeenCalled();
+        expect(g.mocks.createBufferSource).toHaveBeenCalledTimes(1);
     });
 
     it('asks for the part\'s basic shape, the knob values as the kernel\'s filter, and the note\'s pitch', () => {
@@ -225,7 +225,7 @@ describe('WebGPU filter source: a bank that is still being baked', () => {
         const voice = new Voice(g.ctx, destination());
 
         voice.startNote(params('wam-saw'), 'C4', 0);
-        expect(g.ctx.createBufferSource).toHaveBeenCalledTimes(1); // the host's table
+        expect(g.mocks.createBufferSource).toHaveBeenCalledTimes(1); // the host's table
         ready = true;
         voice.startNote(params('wam-saw'), 'D4', 1);
         expect(g.bus().connect).toHaveBeenLastCalledWith(g.outGain());

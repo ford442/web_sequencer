@@ -87,14 +87,14 @@ describe('filter-source classification', () => {
         for (const type of HOSTS) {
             const own = OWN_FILTER_SOURCE[type];
             if (own === null || own === 'native') continue;
-            const engine = parseWaveform(getWaveformsForType(type)[0]!).engine;
+            const engine = parseWaveform(getWaveformsForType(type)[0]).engine;
             expect(backendIdForEngine(engine), type).toBe(own);
         }
     });
 
     it('every host family is a backend Voice can play (never a native worklet)', () => {
         for (const type of HOSTS) {
-            const engine = parseWaveform(getWaveformsForType(type)[0]!).engine;
+            const engine = parseWaveform(getWaveformsForType(type)[0]).engine;
             expect(engineEntry(engine).kind, type).toBe('backend');
         }
     });
@@ -111,7 +111,7 @@ interface Host {
 
 /** Register the part's host engine (plus the terminal `js` step) and say how to recognize its samples. */
 function installHost(type: OscillatorType): Host {
-    const waveform = getWaveformsForType(type)[0]!;
+    const waveform = getWaveformsForType(type)[0];
     const engine = parseWaveform(waveform).engine;
     const backendId = backendIdForEngine(engine)!;
     const label = engineEntry(engine).label;
@@ -137,7 +137,7 @@ type Graph = ReturnType<typeof makeContext>;
 function expectHostFeedsBus(host: Host, g: Graph): void {
     if (host.live) {
         expect(host.live.outputs).toHaveLength(1);
-        expect(host.live.outputs[0]!.connect).toHaveBeenCalledWith(g.bus());
+        expect(host.live.outputs[0].connect).toHaveBeenCalledWith(g.bus());
     } else if (host.table) {
         expect(host.table.lastRequest).not.toBeNull();
         expect(g.find('bufsrc').connect).toHaveBeenCalledWith(g.bus());
@@ -201,7 +201,7 @@ describe('every host × filter source × response is reachable', () => {
             expect(g.bus().disconnect).toHaveBeenCalledWith(g.biquad());
             expect(g.bus().connect).toHaveBeenLastCalledWith(stage.node);
             expect(stage.node.connect).toHaveBeenCalledWith(g.outGain());
-            expect(stage.made[0]!.set).toHaveBeenCalledWith(0, {
+            expect(stage.made[0].set).toHaveBeenCalledWith(0, {
                 cutoff: params.filterCutoff,
                 resonance: kernelResonance(type, params.filterResonance),
                 type,
@@ -213,7 +213,7 @@ describe('every host × filter source × response is reachable', () => {
             const lookup = (gpu ?? py)!.lookup;
             expect(lookup).toHaveBeenCalledTimes(1);
             // The table is already filtered for this response.
-            expect(lookup.mock.calls[0]![2]).toMatchObject({ type });
+            expect(lookup.mock.calls[0][2]).toMatchObject({ type });
             // It plays its own table straight to the output gain: the host is not asked for samples.
             expect(g.find('bufsrc').buffer).toBe(tableLoop.render.buffer);
             expect(g.bus().connect).toHaveBeenLastCalledWith(g.outGain());

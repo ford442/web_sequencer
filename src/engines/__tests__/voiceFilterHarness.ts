@@ -71,9 +71,9 @@ export function makeContext() {
         return n;
     };
     const gains: MockNode[] = [];
-    const ctx = {
-        sampleRate: RATE,
-        currentTime: 0,
+    // The factories as mocks: assert on `mocks.*`, not on methods read off the
+    // AudioContext cast (which the unbound-method rule rightly flags).
+    const mocks = {
         createOscillator: vi.fn(() => node('osc', { type: 'sawtooth', frequency: param(), start: vi.fn(), stop: vi.fn() })),
         createBufferSource: vi.fn(() =>
             node('bufsrc', { buffer: null, loop: false, playbackRate: param(), start: vi.fn(), stop: vi.fn() })),
@@ -85,10 +85,11 @@ export function makeContext() {
         }),
         createDelay: vi.fn(() => node('delay', { delayTime: { value: 0 } })),
         createStereoPanner: vi.fn(() => node('panner', { pan: param() })),
-    } as unknown as AudioContext;
+    };
+    const ctx = { sampleRate: RATE, currentTime: 0, ...mocks } as unknown as AudioContext;
     const find = (name: string) => nodes.find((n) => n.name === name)!;
     // Voice builds filterBus first, then the biquad, then the output gain.
-    return { ctx, nodes, find, bus: () => gains[0], outGain: () => gains[1], biquad: () => find('biquad') };
+    return { ctx, mocks, nodes, find, bus: () => gains[0], outGain: () => gains[1], biquad: () => find('biquad') };
 }
 
 // ── Backend stubs ────────────────────────────────────────────────────────────

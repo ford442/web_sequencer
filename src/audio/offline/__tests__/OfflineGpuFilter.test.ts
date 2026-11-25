@@ -21,7 +21,7 @@ const PARAMS = {
 function engine(result: Float32Array | null = new Float32Array([0.1, 0.2, 0.3]), supported = true) {
     return {
         isSupported: supported,
-        generate: vi.fn((..._args: unknown[]) => Promise.resolve(result)),
+        generate: vi.fn<(...args: unknown[]) => Promise<Float32Array | null>>(() => Promise.resolve(result)),
     } satisfies GpuFilterRenderer & { generate: ReturnType<typeof vi.fn> };
 }
 
