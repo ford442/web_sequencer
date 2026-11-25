@@ -604,7 +604,7 @@ two families are not one oscillator under two labels:
 | Overshoot | none (residual too short to ring) | Gibbs, ≈ 1.17 peak on saw / square (up to 4/π ≈ 1.27 for a square whose fundamental is all that is left under Nyquist) — the price of a real band limit |
 | Latency | 0 | **16 samples** fixed (`cosc_latency()`; 0.33 ms at 48 kHz) |
 | Note onset | phase reset | phase reset **plus a band-limited step + corner from silence** |
-| SIMD | `simd128` required | **scalar** — runs where WASM SIMD does not |
+| SIMD | `simd128` required | **`wasm_simd128.h` intrinsics, with a bit-identical scalar twin** (`cpp_osc_scalar.wasm`) for engines without WASM SIMD ([#cpp-simd](#cpp-simd), #1667) |
 | Memory | fixed 2 pages | fixed 2 pages (`wasm_memory_budget.json#cppOsc`) |
 | Selectable filter | Rust filter: RBJ biquad, `rflt_*` ([#rust-filter](#rust-filter)) | C++ filter: trapezoidal SVF, `cflt_*` ([#cpp-filter](#cpp-filter), #1673) |
 
@@ -623,7 +623,7 @@ Pieces:
 - **Kernel** — `emscripten/cpp_osc.cpp`, C ABI `cosc_*` (listed in
   `wasm_export_manifest.json#cppOsc`, typed by `gen:native-types` into
   `src/shared/rt/cppOscExports.ts`). No allocator, no exceptions, no imports;
-  all state is static. The naive wave is written into a 32-slot delay line and
+  all state is static. The naive wave is written into a linear delay line and
   every discontinuity (saw wrap, both square edges) adds the BLEP residual, every
   slope corner (triangle) the BLAMP residual, into the slots ahead of the read
   point. The residual tables are integrated once in `cosc_init` (Simpson's rule
@@ -631,26 +631,105 @@ Pieces:
   one-sample segment with both endpoints so the step at τ = 0 is never
   interpolated across.
 - **Build** — `pnpm run build:wasm:cpp` (`emscripten/build_cpp_osc.sh`): the
-  pinned em++, `-O3 -flto`, IEEE (no `-ffast-math`), **no `-msimd128`**,
-  `STANDALONE_WASM`, `ALLOW_MEMORY_GROWTH=0`, `INITIAL_MEMORY`/`STACK_SIZE` from
-  the budget, then `tools/check_cpp_osc_module.mjs` (zero imports, fixed unshared
-  memory of the budgeted size, exact export surface, no v128 in any signature or
-  local, ABI 1, a working init). `check-release-dist.mjs` re-checks
-  `dist/cpp_osc.wasm` and budgets it (`dist-budget.json#native`).
+  pinned em++, `-O3 -flto`, IEEE (no `-ffast-math`), `STANDALONE_WASM`,
+  `ALLOW_MEMORY_GROWTH=0`, `INITIAL_MEMORY`/`STACK_SIZE` from the budget, **twice**
+  (#1667): `-msimd128` → `cpp_osc.wasm`, `-mno-simd128` → `cpp_osc_scalar.wasm`.
+  Each is then checked by `tools/check_cpp_osc_module.mjs --variant simd|scalar`
+  (zero imports, fixed unshared memory of the budgeted size, exact export surface,
+  v128 present in the SIMD build and absent from the scalar one, ABI 2, a working
+  init). `check-release-dist.mjs` re-checks both in `dist/` and budgets them
+  (`dist-budget.json#native`).
 - **Worklet** — `src/audio-worklets/cpp-osc-processor.ts`, the same node shape
   as the Rust one (a-rate `frequency`, k-rate `shape`, a-rate `gate`; the module
   arrives compiled in `processorOptions`; a closed gate writes nothing;
   `process()` allocates nothing). A gate-open edge calls `cosc_reset(0)`.
-- **Bridge** — `src/engines/CppOscillator.ts` / `CppWorkletBackend`: fetch,
-  compile, `addModule`, probe voice; every failure is a named
-  `logEngineFallback('cpp', …)`.
+- **Bridge** — `src/engines/CppOscillator.ts` / `CppWorkletBackend`: pick the
+  build (`wasmSimdSupported()` → `cpp_osc.wasm`, else `cpp_osc_scalar.wasm`, logged
+  and named in the telemetry resolution), fetch, compile, `addModule`, probe voice;
+  every failure is a named `logEngineFallback('cpp', …)`.
 - **Offline** — `src/audio/offline/OfflineCppOscEngine.ts` runs the same module
   through the same `instantiateCppOsc` + `cosc_reset(0)`, so a bounced note is
   bit-identical to the played one (`cppOscVoice.realWasm.test.ts`).
 - **Fallback** — `cpp` sits directly below `rust` in `BACKEND_FALLBACK_ORDER`.
   A `cpp-*` part with no worklet / module steps to the `wam` table; a `rust-*`
   part on a browser without WASM SIMD now steps to the C++ OSC (still a live,
-  band-limited voice) before the table. Every step is published.
+  band-limited voice — the scalar build there) before the table. Every step is published.
+
+<a id="cpp-simd"></a>
+
+#### The C++ kernel and filter are SIMD, with a scalar twin (#1667)
+
+Before #1667 the kernel was scalar and built without `-msimd128` on purpose, so it
+could catch a `rust-*` part on a browser without WASM SIMD. It is now written with
+`wasm_simd128.h` intrinsics behind `#if COSC_SIMD` (= `__wasm_simd128__`), every
+helper with a scalar branch performing the same IEEE operations in the same order,
+and built twice from that one source:
+
+| file | flags | runs where | checked as |
+|---|---|---|---|
+| `public/cpp_osc.wasm` | `-msimd128` | WASM SIMD validates (every evergreen engine; Safari ≥ 16.4) | `--variant simd`: v128 present |
+| `public/cpp_osc_scalar.wasm` | `-mno-simd128` | WASM SIMD does not | `--variant scalar`: no v128 anywhere |
+
+`loadCppOscModule()` picks one per page with the shared `wasmSimdSupported()` probe;
+taking the scalar one is `log.info`'d and named in the `cpp` resolution
+(`ready (scalar build, …)`) and in `CppWorkletBackend.capabilities.simd`. The two are
+**the same samples, bit for bit** (`cppOscSimd.realWasm.test.ts`: every shape × entry
+point × block pattern × frequency incl. NaN / negative / > Nyquist, every filter
+response), so this is not a substitution — only speed differs.
+
+What runs in lanes. The render is split into passes so the serial part is only the
+phase walk:
+
+| pass | SIMD | |
+|---|---|---|
+| Hz → increment | `f64x2` × 2 frames | `promote_low_f32x4`, `× 1/fs`, NaN/≤0 → 0 by `and(v, v > 0)`, Nyquist clamp by `pmin` — the scalar `incFor` exactly |
+| phase walk + corrections | serial walk, `f32x4` × 8 per correction | the BLEP / BLAMP tables are transposed (`[point][segment]`) and the delay line is linear (`acc[kMaxFrames + 32]`, moved to the front after each block), so a 32-tap correction is eight contiguous `f32x4` lerp-multiply-adds |
+| naive wave | `f64x2` × 2, packed to `f32x4` | saw `2p − 1`; square `(p < ½ ? 2 : 0) − 1`; triangle by `bitselect`; sine by an f64 polynomial (below) |
+| drain | `f32x4` | output = naive line + corrections, pending-tail moves, zeroing |
+| C++ filter | `f64x2`, two samples per step | below |
+
+- **Sine: libm `sin` → an f64 polynomial.** `sinTurn(p)` folds the phase exactly into
+  [−¼, ¼] (Sterbenz: `0.5 − p`, `p − 1`) and evaluates the Taylor series of
+  `sin(2πt)` through `t²³` (first omitted term < 2·10⁻¹⁸, a few f64 ulps of rounding).
+  After the f32 store it is `Math.sin` to 1.2·10⁻⁷; the onset's slope still uses libm
+  `cos` (once per note).
+- **Filter: the same SVF, two samples per step.** A two-state recurrence cannot be
+  lane-parallel as written (a first cut that kept `[ic1, ic2]` in one `f64x2` per sample
+  was *slower* than scalar: 4.3 vs 3.8 ns/frame). `Svf` now runs its exact state-space
+  form `x ← A x + B u, y = C x + D u` two samples per step — `x ← A² x + AB u₀ + B u₁`,
+  `[y₀, y₁] = [C; CA] x + [D; CB] u₀ + [0; D] u₁` — one `f64x2` state update and one
+  `f64x2` output per pair, and a recurrence one step deep instead of two. Same linear
+  map in f64 (re-associated, ~10⁻¹⁶ relative), same integrator state (sweeps still leave
+  it alone): its f32 output matched the previous filter on every one of 92 160 samples
+  checked (all responses, 20 Hz–22 kHz, Q 0.1–12). The scalar twin evaluates the same
+  pair sums lane by lane, which is why its filter is as fast: the gain is the form, not
+  the lanes.
+- **vs the kernel before #1667.** The oscillator is within 5·10⁻⁷ (four f32 ulps at the
+  saw's 1.17 peak) of it: the naive wave now has its own delay line (`naiveLine`) and is
+  added once at output to the summed corrections, instead of being added into the
+  correction slot between them. That re-orders f32 additions — and is what keeps the
+  output independent of block boundaries (the corrections still sum in strict time
+  order), which `cppOscVoice.realWasm.test.ts` holds to the bit.
+- **Flags.** Nothing beyond `simd128`: no relaxed-SIMD (its FMA would change the
+  rounding, and Safari lacks it), no `-ffast-math`. The SIMD module validates under the
+  Safari 16.4 feature set and stops validating with SIMD removed; the scalar one
+  validates without it. Memory is still 2 fixed pages: statics grew from ~45 to ~68 KiB
+  (the linear correction and naive lines, and 2 × 8 KiB of per-block f64 increment /
+  phase scratch). Module: 12,502 → 24,189 B (SIMD; the templates per shape and the
+  vector bodies) and 17,060 B (scalar twin).
+
+ns per frame, 128-frame quanta, Node 22 / V8 (`cppOscSimd.perf.test.ts` asserts the
+SIMD / scalar ratios inside one run, not these absolutes):
+
+| | before | scalar twin | SIMD |
+|---|---|---|---|
+| saw 440 Hz | 4.3 | 3.4 | 2.5 |
+| saw, a-rate | 5.2 | 4.4 | 2.8 |
+| square | 4.5 | 4.6 | 3.2 |
+| triangle | 5.0 | 4.7 | 3.8 |
+| sine | 11.0 | 9.8 | 5.4 |
+| saw 8 kHz (a correction every 6 frames) | 11.6 | 8.0 | 4.1 |
+| C++ filter (LP, Q 2) | 4.2 | 2.6 | 2.5 |
 
 Saved `cpp-saw` / `cpp-sqr` / `cpp-tri` / `cpp-sin` load onto this family as
 written. `cpp-rand` never made a sound of its own and the kernel has no noise
@@ -904,11 +983,13 @@ Pyodide, WAV.
   node does not call `cosc_init`, so it never builds the oscillator's 33 KiB of residual
   tables. ABI **2** (the surface grew; the oscillator and filter worklets refuse any other).
   One build, one release gate (`tools/check_cpp_osc_module.mjs` also smoke-calls
-  `cflt_configure` and checks it refuses an unknown type), one `dist` artifact. Still scalar.
+  `cflt_configure` and checks it refuses an unknown type), one `dist` artifact. (SIMD since
+  #1667, with the scalar twin — [#cpp-simd](#cpp-simd).)
 - **Worklet / bridge** — `src/audio-worklets/cpp-filter-processor.ts` (k-rate `cutoff`,
   `resonance`, `type`; the same node contract as the other two stages) and
   `src/engines/CppFilter.ts`, a `WasmFilterStage` over `loadCppOscModule()`: the `cpp-*`
-  oscillator and the filter fetch and compile `cpp_osc.wasm` **once**.
+  oscillator and the filter fetch and compile the same build (`cpp_osc.wasm` or, without
+  WASM SIMD, `cpp_osc_scalar.wasm`) **once**.
 - **No silent fallback onto another engine's filter.** C++ unavailable (no `cpp_osc.wasm`,
   no worklet, a refused module, an offline render, lost mid-session) → the voice runs the
   native filter and reports it under `filter-source:cpp`, once per cause. It never borrows

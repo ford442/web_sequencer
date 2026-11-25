@@ -45,7 +45,7 @@ export const ENGINE_CATALOG: Record<OscEngineId, EngineEntry> = {
     wam: { kind: 'backend', backendId: 'wam', label: 'WASM OSC' },
     // Rust PolyBLEP kernel (rust-audio/), one AudioWorklet voice per synth voice
     // (#1664). Enters the chain at `rust`; without WASM SIMD it drops to the
-    // scalar C++ OSC, without a worklet to the `wam` table — logged either way.
+    // C++ OSC (its scalar build there), without a worklet to the `wam` table — logged either way.
     rust: { kind: 'backend', backendId: 'rust', label: 'Rust OSC' },
     // C++ windowed-sinc BLEP kernel (emscripten/cpp_osc.cpp, its own standalone
     // public/cpp_osc.wasm), one AudioWorklet voice per synth voice (#1665).

@@ -27,6 +27,8 @@ export const INTEGRATION_TEST_GLOBS = [
   'src/audio-worklets/__tests__/rustOscVoice.realWasm.test.ts',
   // The cpp-* oscillator (#1665) on the real cpp_osc.wasm: band-limited, offline == live, processor gate timing.
   'src/audio-worklets/__tests__/cppOscVoice.realWasm.test.ts',
+  // The SIMD build of cpp_osc (#1667): f32x4 / f64x2 in the shipped loops, Safari feature set, bit-identical to its scalar twin.
+  'src/audio-worklets/__tests__/cppOscSimd.realWasm.test.ts',
   // The dwgs-* oscillator (#1666) on the real dwgs_osc.wasm: harmonics only, distinct waves, offline == live, processor gate timing.
   'src/audio-worklets/__tests__/dwgsOscVoice.realWasm.test.ts',
   // The wam-* AssemblyScript oscillator on the real oscillators.wasm: band-limited, seamless loop tables, hostile arguments, import/export contract.

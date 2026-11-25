@@ -17,11 +17,12 @@
  *     AudioWorkletProcessor per voice. It renders no table; it hands `Voice` a
  *     live source through `acquireVoice` (see `RealtimeVoice`).
  *   - `cpp` — the second worklet-resident engine (#1665), and the first `cpp-*`
- *     renderer that ever existed: a scalar, linear-phase windowed-sinc BLEP
- *     kernel (`emscripten/cpp_osc.cpp`) in its own standalone module
+ *     renderer that ever existed: a linear-phase windowed-sinc BLEP kernel
+ *     (`emscripten/cpp_osc.cpp`) in its own standalone module
  *     (`public/cpp_osc.wasm`, not `hyphon_native`), one instance per voice.
- *     It needs no WASM SIMD, so it also catches a `rust-*` part on a browser
- *     that cannot run the Rust kernel.
+ *     It is SIMD (#1667) with a bit-identical scalar twin
+ *     (`public/cpp_osc_scalar.wasm`) for engines without WASM SIMD, so it
+ *     also catches a `rust-*` part on a browser that cannot run the Rust kernel.
  *   - `dwgs` — the third worklet-resident engine (#1666), and not a basic-wave
  *     engine at all: Korg's Digital Waveform Generator System as harmonic
  *     recipes rendered additively by a scalar Rust kernel (`dwgs-audio/`,
@@ -67,8 +68,8 @@ export type OscillatorBackendId = 'dwgs' | 'webgpu' | 'rust' | 'cpp' | 'wam' | '
  * the registry for a starting point; they never re-implement the walk.
  *
  * `rust` and `cpp` sit above `wam`: they are the realtime, band-limited
- * voices. `cpp` is directly below `rust` because it is scalar — a `rust-*` part
- * on a browser without WASM SIMD drops to the C++ kernel (still a live,
+ * voices. `cpp` is directly below `rust` because it has a scalar build — a
+ * `rust-*` part on a browser without WASM SIMD drops to the C++ kernel (still a live,
  * band-limited voice) before the AssemblyScript table. A `cpp-*` part that
  * cannot get its worklet (no AudioWorklet, module missing) drops to the table.
  * Every step is logged; none goes straight to `OscillatorNode`.

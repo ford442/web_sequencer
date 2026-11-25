@@ -14,7 +14,7 @@ import type { RustOscillator } from '../RustOscillator';
 import type { CppOscillator } from '../CppOscillator';
 import type { DwgsOscillator } from '../DwgsOscillator';
 import { shapeToOscillatorType, type WaveShape } from '../../utils/waveformParser';
-import { engineTelemetry } from '../../utils/engineTelemetry';
+import { engineTelemetry, wasmSimdSupported } from '../../utils/engineTelemetry';
 import {
     PYODIDE_REF_FREQ,
     generatePyodideLoopBuffer,
@@ -365,15 +365,14 @@ export class RustWorkletBackend extends BaseBackend {
  */
 export class CppWorkletBackend extends BaseBackend {
     readonly id = 'cpp' as const;
-    readonly capabilities: BackendCapabilities = {
-        // Scalar on purpose: it is what runs where WASM SIMD does not.
-        simd: false,
-        threads: false,
-        offline: false,
-        // One node per voice, no shared state: bounded by the graph, not the kernel.
-        polyphony: Number.POSITIVE_INFINITY,
-        shapes: ALL_SHAPES,
-    };
+
+    // `simd`: the build the voices run (#1667) — cpp_osc.wasm, or its scalar twin without
+    // WASM SIMD (so `cpp` still catches `rust-*` there); before init, what would load.
+    // One node per voice, no shared state: polyphony is bounded by the graph.
+    get capabilities(): BackendCapabilities {
+        const simd = this.engine.build ? this.engine.build === 'simd' : wasmSimdSupported();
+        return { simd, threads: false, offline: false, polyphony: Number.POSITIVE_INFINITY, shapes: ALL_SHAPES };
+    }
 
     private readonly engine: CppOscillator;
 

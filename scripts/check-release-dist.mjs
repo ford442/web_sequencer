@@ -18,7 +18,7 @@ import { checkForbiddenSymbols, checkSingleThreadedModule } from '../tools/check
 import { checkMixBusModule } from '../tools/check_mix_bus_module.mjs';
 import { checkRustOscModule } from '../tools/check_rust_osc_module.mjs';
 import { checkDwgsOscModule } from '../tools/check_dwgs_osc_module.mjs';
-import { checkCppOscModule } from '../tools/check_cpp_osc_module.mjs';
+import { CPP_OSC_VARIANT_FILES, checkCppOscModule } from '../tools/check_cpp_osc_module.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // HYPHON_DIST_DIR lets the test suite point the checks at a fixture bundle.
@@ -743,17 +743,18 @@ const profileResults = HYPHON_PROFILES.map(checkHyphonProfile);
 }
 
 // The cpp-* oscillator voices (#1665), fetched by src/engines/CppOscillator.ts
-// from the deploy base. Without it `cpp-*` parts play the AssemblyScript table
-// (and say so), so a missing or malformed file is a release bug.
-{
-  const cppOscPath = path.join(distDir, 'cpp_osc.wasm');
+// from the deploy base: the SIMD build, and its scalar twin for engines without
+// WASM SIMD (#1667). Without the one an engine picks, `cpp-*` parts play the
+// AssemblyScript table (and say so), so a missing or malformed file is a release bug.
+for (const [variant, file] of Object.entries(CPP_OSC_VARIANT_FILES)) {
+  const cppOscPath = path.join(distDir, file);
   if (!fs.existsSync(cppOscPath)) {
-    console.error('[check-release-dist] dist/cpp_osc.wasm is missing (pnpm run build:wasm:cpp).');
+    console.error(`[check-release-dist] dist/${file} is missing (pnpm run build:wasm:cpp).`);
     process.exit(1);
   }
-  const problems = checkCppOscModule(fs.readFileSync(cppOscPath));
+  const problems = checkCppOscModule(fs.readFileSync(cppOscPath), { variant });
   if (problems.length) {
-    console.error(`[check-release-dist] dist/cpp_osc.wasm is not a valid C++ oscillator:\n  ${problems.join('\n  ')}`);
+    console.error(`[check-release-dist] dist/${file} is not a valid C++ oscillator (${variant} build):\n  ${problems.join('\n  ')}`);
     process.exit(1);
   }
 }
@@ -797,7 +798,7 @@ if (rawTsInDist.length) {
 
 // Bundle-size budget (docs/PERFORMANCE_BUDGET.md#bundle-size-budget). Scoped to
 // dist/assets/ — the directory Vite's bundler actually controls. Vendored
-// native binaries (hyphon_native*, rubberband.wasm, mix_bus.wasm, cpp_osc.wasm) and the vendored
+// native binaries (hyphon_native*, rubberband.wasm, mix_bus.wasm, cpp_osc*.wasm) and the vendored
 // Pyodide runtime (dist/pyodide/) live outside that graph and aren't budgeted
 // here; ort-wasm-simd's own 20+ MB WASM binary is excluded the same way any
 // .wasm is (see assetsDirExcludeExtensions), since it's runtime-fetched by

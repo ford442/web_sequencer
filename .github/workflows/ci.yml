@@ -198,6 +198,7 @@ jobs:
             public/mix_bus.wasm
             public/rust_osc.wasm
             public/cpp_osc.wasm
+            public/cpp_osc_scalar.wasm
             public/dwgs_osc.wasm
             .cache/native/
           if-no-files-found: error

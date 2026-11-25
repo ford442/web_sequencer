@@ -8,11 +8,16 @@
  * filter's, #1673), an init that accepts the rate, a render that renders
  * nothing, and a `cflt_configure` that accepts only filter type 0. It is valid *to the checker*; it is
  * not an oscillator. Each other variant breaks exactly one property.
+ *
+ * `build` says which of the two shipped builds (#1667) it stands in for: `simd`
+ * (public/cpp_osc.wasm) leaves a v128 in a signature, as a -msimd128 build of
+ * the kernel does; `scalar` (public/cpp_osc_scalar.wasm) has none.
  */
 
 import { CPP_OSC_BUDGET } from '../../../tools/check_cpp_osc_module.mjs';
 
-export type CppOscFixtureVariant = 'valid' | 'growable-memory' | 'simd' | 'wrong-abi' | 'missing-render' | 'missing-filter';
+export type CppOscFixtureVariant = 'valid' | 'growable-memory' | 'wrong-abi' | 'missing-render' | 'missing-filter';
+export type CppOscFixtureBuild = 'simd' | 'scalar';
 
 function uleb(value: number): number[] {
     const out: number[] = [];
@@ -44,9 +49,12 @@ function i32Body(value: number): number[] {
     return [0x00, 0x41, value, 0x0b];
 }
 
-export function cppOscWasmFixture(variant: CppOscFixtureVariant = 'valid'): Uint8Array<ArrayBuffer> {
+export function cppOscWasmFixture(
+    variant: CppOscFixtureVariant = 'valid',
+    build: CppOscFixtureBuild = 'simd',
+): Uint8Array<ArrayBuffer> {
     const types = section(1, [
-        ...uleb(variant === 'simd' ? 8 : 7),
+        ...uleb(build === 'simd' ? 8 : 7),
         0x60, 0, 1, I32, //                 t0: () -> i32
         0x60, 1, F32, 1, I32, //            t1: (f32) -> i32
         0x60, 1, F32, 0, //                 t2: (f32) -> ()
@@ -55,7 +63,7 @@ export function cppOscWasmFixture(variant: CppOscFixtureVariant = 'valid'): Uint
         0x60, 0, 0, //                      t5: () -> ()
         0x60, 1, I32, 1, I32, //            t6: (i32) -> i32
         // What a -msimd128 build leaves behind: a v128 in a signature.
-        ...(variant === 'simd' ? [0x60, 1, V128, 0] : []), // t7: (v128) -> ()
+        ...(build === 'simd' ? [0x60, 1, V128, 0] : []), // t7: (v128) -> ()
     ]);
 
     const funcs: Array<{ name: string; type: number; body: number[] }> = [
