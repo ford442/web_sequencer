@@ -69,3 +69,4 @@ Hardware-style mockups for each engine (cutoff / resonance / mode / poles) live 
 | WAM | `public/filter/wam.jpg` |
 | Prophecy | `public/filter/prophecy.jpg` |
 | PCM | `public/filter/pcm.jpg` |
+- Mockup images are not in the repo yet; add them under `docs/audio-engine/filter-ui/`.
