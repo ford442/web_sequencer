@@ -120,6 +120,28 @@ jobs:
         env:
           CI: true
 
+  budget-ratchet:
+    name: Budget ratchet (dist-budget.json raises need their own PR)
+    # pull_request only (never pull_request_target: it would run PR-controlled
+    # code with the base repo's token). Needs no install: the script is
+    # dependency-free. On a push to main there is no base to diff against.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The guard reads dist-budget.json at the merge-base with the PR's
+          # base branch, so it needs history, not a one-commit checkout.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Guard dist-budget.json raises
+        run: node scripts/check-budget-ratchet.mjs
+
   test-integration:
     name: Integration + native tests
     needs: test-unit

@@ -253,6 +253,8 @@ pnpm run build                  # alias of build:release
 ### Testing
 Before opening a PR, `pnpm run lint:ratchet` must exit 0, and `eslint-baseline.json` may only go down.
 
+A row in `dist-budget.json` may only be raised in a PR that changes nothing but that file (and `docs/`); CI job `budget-ratchet` (`pnpm run check:budget-ratchet`, needs `origin/main` fetched) fails any PR that raises or removes a row next to other changes. Lowering a row is always fine.
+
 `pnpm lint` also runs the dead-code gate (`scripts/knip-ratchet.mjs`, config `knip.json`): a module that no production entry reaches — `src/main.tsx` and everything it imports, lazily or as a `?worker&url` worklet / worker, plus `scripts/**` and `tools/**` — fails lint. A test import does not count. Delete it or wire it in; `knip-baseline.json` is empty since #1596 P4, so any orphan fails (`pnpm run lint:knip:update` refuses to re-add one).
 
 Logging (#1596 P4): `no-console` bans `console.log` / `info` / `debug` in non-test `src/`. Use `log.debug` / `log.info` from `src/utils/log.ts` (debug prints only in a dev build or with `?debug` in the URL, never under Vitest), or `wlog` from `src/audio-worklets/wlog.ts` in worklet code. `console.warn` / `console.error` stay allowed. `clamp`, `lerp`, `midiToHz` and `hzToMidi` live in `src/utils/math.ts`; `src/utils/__tests__/mathHelpersGuard.test.ts` fails on a local copy.
